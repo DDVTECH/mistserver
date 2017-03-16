@@ -28,7 +28,6 @@ namespace Mist {
     Bit::htobl(sSize, prep.packedSize());
     myConn.SendNow(sSize, 4);
     prep.sendTo(myConn);
-    pushing = false;
     lastActive = Util::epoch();
   }
 
@@ -174,9 +173,7 @@ namespace Mist {
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
     Util::sanitizeName(streamName);
-    pushing = true;
     if (!allowPush(passString)){
-      pushing = false;
       myConn.close();
       return;
     }

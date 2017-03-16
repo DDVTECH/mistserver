@@ -10,7 +10,6 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
-    isPushing = false;
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
       streamName = config->getString("streamname");
@@ -160,21 +159,6 @@ namespace Mist {
 
   bool OutRTMP::listenMode(){
     return !(config->getString("target").size());
-  }
-
-  bool OutRTMP::isReadyForPlay(){
-    if (isPushing){
-      return true;
-    }
-    return Output::isReadyForPlay();
-  }
-
-  std::string OutRTMP::getStatsName(){
-    if (isPushing){
-      return "INPUT";
-    }else{
-      return Output::getStatsName();
-    }
   }
 
   bool OutRTMP::onFinish(){
@@ -778,9 +762,7 @@ namespace Mist {
         
         Util::sanitizeName(streamName);
 
-        isPushing = true;
         if (!allowPush(app_name)){
-          isPushing = false;
           onFinish();
           return;
         }

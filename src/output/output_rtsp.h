@@ -155,10 +155,8 @@ namespace Mist {
       void sendNext();
       void onRequest();
       void requestHandler();
-      bool isReadyForPlay();
       bool onFinish();
     private:
-      bool isPushing;
       void parseSDP(const std::string & sdp);
       long long connectedAt;///< The timestamp the connection was made, as reference point for RTCP packets.
       std::map<int, RTPTrack> tracks;///< List of selected tracks with RTSP-specific session data.
@@ -173,7 +171,6 @@ namespace Mist {
       void h264MultiParse(uint64_t ts, const uint64_t track, char * buffer, const uint32_t len);
       void h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey);
       void updateH264Init(uint64_t trackNo);
-      std::string getStatsName();
   };
 }
 

@@ -99,6 +99,7 @@ namespace Mist {
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
+      bool pushing;
       uint64_t lastRecv;
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       virtual std::string getConnectedHost();
@@ -127,7 +128,9 @@ namespace Mist {
 
       std::map<int,DTSCPageData> bookKeeping;
       virtual bool isRecording(){return false;};
+      virtual bool isPushing(){return pushing;};
       bool allowPush(const std::string & passwd);
+      void bufferLivePacket(DTSC::Packet & packet);
   };
 
 }

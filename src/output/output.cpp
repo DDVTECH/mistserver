@@ -45,7 +45,17 @@ namespace Mist{
     cfg->addOption("noinput", option);
   }
   
+  void Output::bufferLivePacket(DTSC::Packet & packet){
+    if (nProxy.negTimer > 600){
+      WARN_MSG("No negotiation response from buffer - reconnecting.");
+      nProxy.clear();
+      reconnect();
+    }
+    InOutBase::bufferLivePacket(packet);
+  }
+  
   Output::Output(Socket::Connection & conn) : myConn(conn){
+    pushing = false;
     firstTime = 0;
     crc = getpid();
     parseData = false;
@@ -82,8 +92,8 @@ namespace Mist{
   }
 
   void Output::updateMeta(){
-    //cancel if not alive
-    if (!nProxy.userClient.isAlive()){
+    //cancel if not alive or pushing a new stream
+    if (!nProxy.userClient.isAlive() || (isPushing() && myMeta.tracks.size())){
       return;
     }
     //read metadata from page to myMeta variable
@@ -273,6 +283,7 @@ namespace Mist{
   }
  
   bool Output::isReadyForPlay(){
+    if (isPushing()){return true;}
     if (myMeta.tracks.size()){
       if (!selectedTracks.size()){
         selectDefaultTracks();
@@ -462,7 +473,7 @@ namespace Mist{
       MEDIUM_MSG("Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
-    if (!selectedTracks.size() && myMeta.tracks.size()){
+    if (!selectedTracks.size() && myMeta.tracks.size() && capa["codecs"][bestSoFar].size()){
       WARN_MSG("No tracks selected (%u total) for stream %s!", myMeta.tracks.size(), streamName.c_str());
     }
   }
@@ -1167,6 +1178,9 @@ namespace Mist{
   /// Outputs used as an input should return INPUT, outputs used for automation should return OUTPUT, others should return their proper name.
   /// The default implementation is usually good enough for all the non-INPUT types.
   std::string Output::getStatsName(){
+    if (isPushing()){
+      return "INPUT";
+    }
     if (config->hasOption("target") && config->getString("target").size()){
       return "OUTPUT";
     }else{
@@ -1228,7 +1242,7 @@ namespace Mist{
       myConn.close();
       return;
     }
-    if (!nProxy.trackMap.size()){
+    if (!isPushing()){
       IPC::userConnection userConn(nProxy.userClient.getData());
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
         userConn.setTrackId(tNum, *it);
@@ -1276,6 +1290,7 @@ namespace Mist{
   /// Runs all appropriate triggers and checks.
   /// Returns true if the push should continue, false otherwise.
   bool Output::allowPush(const std::string & passwd){
+    pushing = true;
     std::string strmSource;
 
     // Initialize the stream source if needed, connect to it
@@ -1285,10 +1300,12 @@ namespace Mist{
 
     if (!strmSource.size()){
       FAIL_MSG("Push rejected - stream %s not configured", streamName.c_str());
+      pushing = false;
       return false;
     }
     if (strmSource.substr(0, 7) != "push://"){
       FAIL_MSG("Push rejected - stream %s not a push-able stream. (%s != push://*)", streamName.c_str(), strmSource.c_str());
+      pushing = false;
       return false;
     }
 
@@ -1317,6 +1334,7 @@ namespace Mist{
       std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
         FAIL_MSG("Push from %s to %s rejected - STREAM_PUSH trigger denied the push", getConnectedHost().c_str(), streamName.c_str());
+        pushing = false;
         return false;
       }
     }
@@ -1325,6 +1343,7 @@ namespace Mist{
     if (IP != ""){
       if (!myConn.isAddress(IP)){
         FAIL_MSG("Push from %s to %s rejected - source host not whitelisted", getConnectedHost().c_str(), streamName.c_str());
+        pushing = false;
         return false;
       }
     }

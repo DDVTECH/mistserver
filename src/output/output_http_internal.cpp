@@ -53,9 +53,9 @@ namespace Mist {
     Output::onFail();
   }
 
-  /// We assume it's ready to play if there is at least one track available
+  /// The HTTP output is always ready to play
   bool OutHTTP::isReadyForPlay() {
-    return myMeta.tracks.size();
+    return true;
   }
   
   void OutHTTP::init(Util::Config * cfg){
@@ -68,7 +68,7 @@ namespace Mist {
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");
-    capa["url_match"].append("/$.ico");
+    capa["url_match"].append("/favicon.ico");
     capa["url_match"].append("/$.smil");
     capa["url_match"].append("/info_$.js");
     capa["url_match"].append("/json_$.js");

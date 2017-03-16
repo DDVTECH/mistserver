@@ -29,6 +29,18 @@ namespace Mist {
 
   }
 
+  void negotiationProxy::clear(){
+    pagesByTrack.clear();
+    trackOffset.clear();
+    trackState.clear();
+    trackMap.clear();
+    metaPages.clear();
+    curPageNum.clear();
+    curPage.clear();
+    negTimer = 0;
+    userClient.finish();
+  }
+
   /*LTS-START*/
   void negotiationProxy::initiateEncryption(){
     static bool encInit = false;
@@ -284,15 +296,6 @@ namespace Mist {
 
   ///Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
-  void InOutBase::bufferNext(JSON::Value & pack) {
-    std::string packData = pack.toNetPacked();
-    DTSC::Packet newPack(packData.data(), packData.size());
-    ///\note Internally calls bufferNext(DTSC::Packet & pack)
-    nProxy.bufferNext(newPack, myMeta);
-  }
-
-  ///Buffers the next packet on the currently opened page
-  ///\param pack The packet to buffer
   void InOutBase::bufferNext(DTSC::Packet & pack) {
     nProxy.bufferNext(pack, myMeta);
   }
@@ -455,19 +458,6 @@ namespace Mist {
   ///
   ///Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
-  void InOutBase::bufferLivePacket(JSON::Value & packet) {
-    DTSC::Packet realPacket;
-    realPacket.genericFill(packet["time"].asInt(), packet["offset"].asInt(), packet["trackid"].asInt(), packet["data"].asStringRef().c_str(), packet["data"].asStringRef().size(), packet["bpos"].asInt(), packet["keyframe"].asInt());
-    bufferLivePacket(realPacket);
-  }
-
-
-  ///Buffers a live packet to a page.
-  ///
-  ///Handles both buffering and creation of new pages
-  ///
-  ///Initiates/continues negotiation with the buffer as well
-  ///\param packet The packet to buffer
   void InOutBase::bufferLivePacket(DTSC::Packet & packet){
     nProxy.bufferLivePacket(packet, myMeta);
   }
@@ -596,6 +586,11 @@ namespace Mist {
     nProxy.continueNegotiate(tid, myMeta, quickNegotiate);
   }
 
+  negotiationProxy::negotiationProxy(){
+    encrypt = false;
+    negTimer = 0;
+  }
+
   void negotiationProxy::continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate) {
     if (!tid) {
       return;
@@ -704,9 +699,11 @@ namespace Mist {
           INSANE_MSG("NewTid: %0.8lX", newTid);
           if (newTid == 0x80000000u) {
             INSANE_MSG("Breaking because not set yet");
+            negTimer++;
             break;
           }
           HIGH_MSG("Track %lu temporarily mapped to %lu", tid, newTid);
+          negTimer = 0;
 
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_META, streamName.c_str(), newTid);
@@ -734,6 +731,7 @@ namespace Mist {
           unsigned long firstPage = firstPage = ((long)(tmp[offset + 4]) << 8) | tmp[offset + 5];
           if (firstPage == 0xFFFF) {
             HIGH_MSG("Negotiating, but firstPage not yet set, waiting for buffer");
+            negTimer++;
             break;
           }
           #if defined(__CYGWIN__) || defined(_WIN32)
@@ -747,6 +745,7 @@ namespace Mist {
             trackMap.erase(tid);
             break;
           }
+          negTimer = 0;
           //Reinitialize so we can be sure we got the right values here
           finalTid = ((long)(tmp[offset]) << 24) | ((long)(tmp[offset + 1]) << 16) | ((long)(tmp[offset + 2]) << 8) | tmp[offset + 3];
           firstPage = ((long)(tmp[offset + 4]) << 8) | tmp[offset + 5];

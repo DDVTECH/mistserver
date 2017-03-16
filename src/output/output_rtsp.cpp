@@ -20,7 +20,6 @@ namespace Mist {
     maxSkipAhead = 0;
     minSkipAhead = 0;
     expectTCP = false;
-    isPushing = false;
     lastTimeSync = 0;
     mainConn = &myConn;
   }
@@ -74,13 +73,6 @@ namespace Mist {
 
     cfg->addConnectorOptions(5554, capa);
     config = cfg;
-  }
-
-  bool OutRTSP::isReadyForPlay(){
-    if (isPushing){
-      return true;
-    }
-    return Output::isReadyForPlay();
   }
 
   void OutRTSP::sendNext(){
@@ -150,14 +142,6 @@ namespace Mist {
       return;
     }
     
-  }
-
-  std::string OutRTSP::getStatsName(){
-    if (isPushing){
-      return "INPUT";
-    }else{
-      return Output::getStatsName();
-    }
   }
 
   /// This request handler also checks for UDP packets
@@ -277,7 +261,7 @@ namespace Mist {
           }
         }
         //might be push setup - check known control points
-        if (isPushing && tracks.size()){
+        if (pushing && tracks.size()){
           bool setupHandled = false;
           for (std::map<int, RTPTrack>::iterator it = tracks.begin(); it != tracks.end(); ++it){
             if (it->second.control.size() && (HTTP_R.url.find(it->second.control) != std::string::npos || HTTP_R.GetVar("pass").find(it->second.control) != std::string::npos)){
@@ -304,7 +288,7 @@ namespace Mist {
           }
           continue;
         }
-        FAIL_MSG("Could not handle setup: pushing=%s, trackSize=%u", isPushing?"true":"false", tracks.size());
+        FAIL_MSG("Could not handle setup: pushing=%s, trackSize=%u", pushing?"true":"false", tracks.size());
       }
       if (HTTP_R.method == "PLAY"){
         initialSeek();
@@ -359,9 +343,7 @@ namespace Mist {
         continue;
       }
       if (HTTP_R.method == "ANNOUNCE"){
-        isPushing = true;
         if (!allowPush(HTTP_R.GetVar("pass"))){
-          isPushing = false;
           onFinish();
           return;
         }

@@ -16,7 +16,6 @@ namespace Mist {
       unsigned int lastActive;///<Time of last sending of data.
       std::string getStatsName();
       std::string salt;
-      bool pushing;
       void handlePush(DTSC::Scan & dScan);
       void handlePlay(DTSC::Scan & dScan);
       unsigned long long fastAsPossibleTime;

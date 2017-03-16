@@ -511,10 +511,6 @@ namespace Mist {
         std::stringstream rangeReply;
         rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << fileSize;
         H.SetHeader("Content-Length", byteEnd - byteStart + 1);
-        //do not multiplex requests that are > 1MiB
-        if (byteEnd - byteStart + 1 > 1024*1024){
-          H.SetHeader("MistMultiplex", "No");
-        }
         H.SetHeader("Content-Range", rangeReply.str());
         /// \todo Switch to chunked?
         H.SendResponse("206", "Partial content", myConn);
@@ -522,8 +518,6 @@ namespace Mist {
       }
     }else{
       H.SetHeader("Content-Length", byteEnd - byteStart + 1);
-      //do not multiplex requests that aren't ranged
-      H.SetHeader("MistMultiplex", "No");
       /// \todo Switch to chunked?
       H.SendResponse("200", "OK", myConn);
       //HTTP_S.StartResponse(HTTP_R, conn);

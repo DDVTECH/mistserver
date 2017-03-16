@@ -18,6 +18,7 @@ namespace Mist {
       unsigned int lastReTime; /*LTS*/
       bool hasPush;
       bool resumeMode;
+      IPC::semaphore * liveMeta;
     protected:
       //Private Functions
       bool setup();

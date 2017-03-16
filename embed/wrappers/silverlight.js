@@ -1,5 +1,6 @@
 mistplayers.silverlight = {
   name: 'Silverlight',
+  version: '1.0',
   mimes: ['silverlight'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

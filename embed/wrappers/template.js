@@ -1,5 +1,6 @@
 mistplayers.myplayer = {
   name: 'My video player',
+  version: '0.1',
   mimes: ['my/mime/types'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

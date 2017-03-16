@@ -24,6 +24,7 @@
 
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
+    liveMeta = 0;
     capa["name"] = "Buffer";
     JSON::Value option;
     option["arg"] = "integer";
@@ -138,10 +139,11 @@ namespace Mist {
         }
       }
     }
-    char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-    IPC::semaphore liveMeta(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    liveMeta.unlink();
+    if (liveMeta){
+      liveMeta->unlink();
+      delete liveMeta;
+      liveMeta = 0;
+    }
   }
 
 
@@ -163,13 +165,9 @@ namespace Mist {
         memset(tmp.mapped, 0xFF, size);
       }
     }
-
+    //Delete the live stream semaphore, if any.
+    if (liveMeta){liveMeta->unlink();}
     {
-      //Delete the live stream semaphore, if any.
-      snprintf(pageName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-      IPC::semaphore liveMeta(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      liveMeta.unlink();
-    }{
       //Delete the stream index metapage.
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
       IPC::sharedPage erasePage(pageName, DEFAULT_STRM_PAGE_SIZE, false, false);
@@ -336,10 +334,13 @@ namespace Mist {
     myMeta.bufferWindow = lastms - firstms;
     myMeta.vod = false;
     myMeta.live = true;
-    static char liveSemName[NAME_BUFFER_SIZE];
-    snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-    IPC::semaphore liveMeta(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    liveMeta.wait();
+    if (!liveMeta){
+      static char liveSemName[NAME_BUFFER_SIZE];
+      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+      liveMeta = new IPC::semaphore(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    }
+    liveMeta->wait();
+
     if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped) {
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
@@ -348,7 +349,7 @@ namespace Mist {
     }
     myMeta.writeTo(nProxy.metaPages[0].mapped);
     memset(nProxy.metaPages[0].mapped + myMeta.getSendLen(), 0, (nProxy.metaPages[0].len > myMeta.getSendLen() ? std::min(nProxy.metaPages[0].len - myMeta.getSendLen(), 4ll) : 0));
-    liveMeta.post();
+    liveMeta->post();
   }
 
   ///Checks if removing a key from this track is allowed/safe, and if so, removes it.

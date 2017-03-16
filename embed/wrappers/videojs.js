@@ -1,5 +1,6 @@
 mistplayers.videojs = {
   name: 'VideoJS player',
+  version: '1.0',
   mimes: ['html5/video/mp4','html5/application/vnd.apple.mpegurl','html5/video/ogg','html5/video/webm'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

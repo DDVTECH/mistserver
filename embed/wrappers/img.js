@@ -1,5 +1,6 @@
 mistplayers.img = {
   name: 'HTML img tag',
+  version: '1.0',
   mimes: ['html5/image/jpeg'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {

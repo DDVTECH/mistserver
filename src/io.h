@@ -27,7 +27,8 @@ namespace Mist {
 
   class negotiationProxy {
     public:
-      negotiationProxy() {}
+      negotiationProxy();
+      void clear();
       bool bufferStart(unsigned long tid, unsigned long pageNumber, DTSC::Meta & myMeta);
       void bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta);
       void bufferFinalize(unsigned long tid, DTSC::Meta &myMeta);
@@ -55,6 +56,7 @@ namespace Mist {
       std::string streamName;///< Name of the stream to connect to
 
       void continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate = false);
+      uint32_t negTimer; ///< How long we've been negotiating, in packets.
   };
 
   ///\brief Class containing all basic input and output functions.
@@ -63,11 +65,9 @@ namespace Mist {
       void initiateMeta();
       bool bufferStart(unsigned long tid, unsigned long pageNumber);
       void bufferNext(DTSC::Packet & pack);
-      void bufferNext(JSON::Value & pack);
       void bufferFinalize(unsigned long tid);
       void bufferRemove(unsigned long tid, unsigned long pageNumber);
-      void bufferLivePacket(JSON::Value & packet);
-      void bufferLivePacket(DTSC::Packet & packet);
+      virtual void bufferLivePacket(DTSC::Packet & packet);
     protected:
       void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
 

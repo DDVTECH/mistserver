@@ -1196,13 +1196,13 @@ namespace IPC {
     }
     if (!hasCounter) {
       DEBUG_MSG(DLVL_WARN, "Trying to time-out an element without counters");
+      myPage.close();
       return;
     }
-    if (myPage.mapped) {
-      semGuard tmpGuard(&mySemaphore);
-      myPage.mapped[offsetOnPage] = 126 | (countAsViewer?0x80:0);
-      HIGH_MSG("sharedClient finished ID %d", offsetOnPage/(payLen+1));
-    }
+    semGuard tmpGuard(&mySemaphore);
+    myPage.mapped[offsetOnPage] = 126 | (countAsViewer?0x80:0);
+    HIGH_MSG("sharedClient finished ID %d", offsetOnPage/(payLen+1));
+    myPage.close();
   }
 
   ///\brief Re-initialize the counter

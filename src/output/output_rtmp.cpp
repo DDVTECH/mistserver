@@ -9,7 +9,6 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
-    isPushing = false;
     setBlocking(true);
     while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
       conn.spool();
@@ -34,21 +33,6 @@ namespace Mist {
     setBlocking(false);
     maxSkipAhead = 1500;
     minSkipAhead = 500;
-  }
-
-  bool OutRTMP::isReadyForPlay(){
-    if (isPushing){
-      return true;
-    }
-    return Output::isReadyForPlay();
-  }
-
-  std::string OutRTMP::getStatsName(){
-    if (isPushing){
-      return "INPUT";
-    }else{
-      return Output::getStatsName();
-    }
   }
 
   bool OutRTMP::onFinish(){
@@ -587,9 +571,7 @@ namespace Mist {
         
         Util::sanitizeName(streamName);
 
-        isPushing = true;
         if (!allowPush("")){
-          isPushing = false;
           onFinish();
           return;
         }

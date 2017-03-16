@@ -332,7 +332,7 @@ namespace Mist{
       MEDIUM_MSG("Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
     }
     
-    if (!selectedTracks.size() && myMeta.tracks.size()){
+    if (!selectedTracks.size() && myMeta.tracks.size() && capa["codecs"][bestSoFar].size()){
       WARN_MSG("No tracks selected (%u total) for stream %s!", myMeta.tracks.size(), streamName.c_str());
     }
   }

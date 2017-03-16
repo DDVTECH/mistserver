@@ -125,6 +125,9 @@ void HTTP::Parser::setCORSHeaders(){
   SetHeader("Access-Control-Allow-Headers", "*");
   SetHeader("Access-Control-Request-Method", "GET");
   SetHeader("Access-Control-Request-Headers", "*");  
+  SetHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  SetHeader("Pragma", "no-cache");
+  SetHeader("Expires", "0");
 }
 
 

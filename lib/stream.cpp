@@ -271,6 +271,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
   
   if (pid == 0){
+    Socket::Connection io(0, 1);
+    io.close();
     DEBUG_MSG(DLVL_DONTEVEN, "execvp");
     execvp(argv[0], argv);
     FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));

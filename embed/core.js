@@ -56,18 +56,21 @@ MistPlayer.prototype.timer = {
     return i;
   },
   remove: function(i){
-    if (this.timers[i].interval) {
-      clearInterval(i);
+    if (i in  this.timers) {
+      if (this.timers[i].interval) {
+        clearInterval(i);
+      }
+      else {
+        clearTimeout(i);
+      }
+      delete this.timers[i];
     }
-    else {
-      clearTimeout(i);
-    }
-    delete this.timers[i];
   },
   clear: function(){
     for (var i in this.timers) {
       this.remove(i);
     }
+    this.timers = {};
   }
 };
 
@@ -900,18 +903,37 @@ function mistPlay(streamName,options) {
     err.innerHTML = displaymsg.replace(new RegExp("\n",'g'),'<br>')+'<br>';
     err.className = 'error';
     var button = document.createElement('button');
+    var i = document.createElement('div');
+    button.appendChild(i);
     var t = document.createTextNode('Reload');
     button.appendChild(t);
     err.appendChild(button);
     button.onclick = function(){
       options.target.removeChild(err);
       delete options.startCombo;
+      if (err.timeOut) {
+        clearTimeout(err.timeOut);
+      }
       mistPlay(streamName,options);
     }
     
     options.target.appendChild(err);
     
     protoplay.sendEvent('error',msg,options.target);
+    
+    if (!('type' in info) || (info.type != 'vod')) { //always show the button timer, unless its a vod
+      //reload timeout
+      var delay = ('type' in info ? 20 : 60);
+      i.className = 'countdown'+delay;
+      err.timeOut = protoplay.timer.add(function(){
+        protoplay.report({
+          type: 'playback',
+          warn: 'Automatically checking if the stream is working now'
+        });
+        embedLog('Triggering reload button because of timeout');
+        button.click();
+      },delay*1e3);
+    }
     
     return err;
   }
@@ -974,7 +996,7 @@ function mistPlay(streamName,options) {
   function onstreaminfo() {
     options.target.innerHTML = '';
     options.target.removeAttribute('data-loading');
-    embedLog('Stream info was loaded succesfully');
+    embedLog('Stream info was loaded succesfully.');
     
     //get streaminfo data
     var streaminfo = mistvideo[streamName];
@@ -982,12 +1004,22 @@ function mistPlay(streamName,options) {
     streaminfo.initTime = new Date();
     
     if (!('source' in streaminfo)) {
-      mistError('Error while loading stream info.');
-      protoplay.report({
-        type: 'init',
-        error: 'No sources'
-      });
-      return;
+      if ((streaminfo.type) && (streaminfo.type == 'live')) {
+        mistError('The live stream is currently offline.');
+        return;
+      }
+      else if ('error' in streaminfo) {
+        mistError(streaminfo.error);
+        return;
+      }
+      else {
+        mistError('Error while parsing stream info.');
+        protoplay.report({
+          type: 'init',
+          error: 'No sources'
+        });
+        return;
+      }
     }
     
     if (('forceType' in options) && (options.forceType)) {

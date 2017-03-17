@@ -360,7 +360,7 @@
   }
 }
 
-.countdown {
+.countdown, .countdown20, .countdown60 {
   height: 1em;
   width: 1em;
   display: inline-block;
@@ -372,7 +372,7 @@
   opacity: 0;
   animation: appear 20s step-start 1;
 }
-.countdown:before {
+.countdown:before, .countdown20:before, .countdown60:before {
   content: '';
   display: block;
   margin-left: 50%;
@@ -381,6 +381,12 @@
   background-color: #bbb;
   transform-origin: 0 50%;
   animation: rotate 10s linear 2, bg 20s step-end 1;
+}
+.countdown60 {
+  animation: appear 60s step-start 1;
+}
+.coutndown60:before {
+  animation: rotate 30s linear 2, bg 60s step-end 1;
 }
 @keyframes rotate {
   to { transform: rotate(.5turn); }

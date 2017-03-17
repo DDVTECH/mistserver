@@ -3531,7 +3531,7 @@ var UI = {
         $cont.append($trackinfo);
         function buildTrackinfo(info) {
           var meta = info.meta;
-          if (!meta) { 
+          if ((!meta) || (!meta.tracks)) { 
             $tracktable.html('No meta information available.');
             return;
           }

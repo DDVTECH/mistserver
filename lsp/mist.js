@@ -910,9 +910,11 @@ var UI = {
       
       if ('pointer' in e) {
         $field.data('pointer',e.pointer).addClass('isSetting');
-        var val = e.pointer.main[e.pointer.index];
-        if (val != 'undefined') {
-          $field.setval(val);
+        if (e.pointer.main) {
+          var val = e.pointer.main[e.pointer.index];
+          if (val != 'undefined') {
+            $field.setval(val);
+          }
         }
       }
       if ('value' in e) {

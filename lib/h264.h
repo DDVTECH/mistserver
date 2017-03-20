@@ -64,12 +64,12 @@ namespace h264 {
 
   class sequenceParameterSet {
     public:
-      sequenceParameterSet(const char * _data = NULL, unsigned long _dataLen = 0);
+      sequenceParameterSet(const char * _data = NULL, size_t _dataLen = 0);
       void fromDTSCInit(const std::string & dtscInit);
       SPSMeta getCharacteristics() const;
     private:
       const char * data;
-      unsigned long dataLen;
+      size_t dataLen;
   };
 
   class nalUnit {

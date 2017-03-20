@@ -1,6 +1,6 @@
 mistplayers.html5 = {
   name: 'HTML5 video player',
-  version: '1.0',
+  version: '1.1',
   mimes: ['html5/application/vnd.apple.mpegurl','html5/video/mp4','html5/video/ogg','html5/video/webm','html5/audio/mp3','html5/audio/webm','html5/audio/ogg','html5/audio/wav'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -32,7 +32,7 @@ mistplayers.html5 = {
 };
 var p = mistplayers.html5.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var cont = document.createElement('div');
   cont.className = 'mistplayer';
   var me = this; //to allow nested functions to access the player class itself
@@ -174,7 +174,7 @@ p.prototype.build = function (options) {
       me.addlog('Player event fired: '+e.type);
     });
   }
-  return cont;
+  callback(cont);
 }
 p.prototype.play = function(){ return this.element.play(); };
 p.prototype.pause = function(){ return this.element.pause(); };

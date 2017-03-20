@@ -1,6 +1,6 @@
 mistplayers.jwplayer = {
   name: 'JWPlayer',
-  version: '0.1',
+  version: '0.2',
   mimes: ['html5/video/mp4','html5/video/webm','dash/video/mp4','flash/10','flash/7','html5/application/vnd.apple.mpegurl','html5/audio/mp3','html5/audio/aac'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -17,7 +17,7 @@ mistplayers.jwplayer = {
 };
 var p = mistplayers.jwplayer.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var ele = this.getElement('div');
   
   this.jw = jwplayer(ele).setup({
@@ -30,7 +30,7 @@ p.prototype.build = function (options) {
   });
   
   this.addlog('Built html');
-  return ele;
+  callback(ele);
 }
 p.prototype.play = function(){ return this.jw.play(); };
 p.prototype.pause = function(){ return this.jw.pause(); };

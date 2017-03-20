@@ -1,6 +1,6 @@
 mistplayers.flash_strobe = {
   name: 'Strobe Flash Media Playback',
-  version: '1.0',
+  version: '1.1',
   mimes: ['flash/10','flash/11','flash/7'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -28,7 +28,7 @@ mistplayers.flash_strobe = {
 };
 var p = mistplayers.flash_strobe.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   function createParam(name,value) {
     var p = document.createElement('param');
     p.setAttribute('name',name);
@@ -62,5 +62,5 @@ p.prototype.build = function (options) {
   
   
   this.addlog('Built html');
-  return ele;
+  callback(ele);
 }

@@ -1,6 +1,6 @@
 mistplayers.img = {
   name: 'HTML img tag',
-  version: '1.0',
+  version: '1.1',
   mimes: ['html5/image/jpeg'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -15,9 +15,9 @@ mistplayers.img = {
 };
 var p = mistplayers.img.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var ele = this.getElement('img');
   ele.src = options.src;
   ele.style.display = 'block';
-  return ele;
+  callback(ele);
 }

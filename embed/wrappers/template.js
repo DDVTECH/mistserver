@@ -14,11 +14,11 @@ mistplayers.myplayer = {
 };
 var p = mistplayers.myplayer.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var ele = this.element('object');
   
   //TODO your code here
   
   this.addlog('Built html');
-  return ele;
+  callback(ele);
 }

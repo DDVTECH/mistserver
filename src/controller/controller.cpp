@@ -77,6 +77,9 @@ static inline char yna(std::string & user_input){
     case 'a': case 'A':
       return 'a';
       break;
+    case 't': case 'T':
+      return 't';
+      break;
     default:
       return 'x';
       break;
@@ -91,7 +94,7 @@ void createAccount (std::string account){
     if (colon != std::string::npos && colon != 0 && colon != account.size()){
       std::string uname = account.substr(0, colon);
       std::string pword = account.substr(colon + 1, std::string::npos);
-      Controller::Log("CONF", "Created account " + uname + " through commandline option");
+      Controller::Log("CONF", "Created account " + uname + " through console interface");
       Controller::Storage["account"][uname]["password"] = Secure::md5(pword);
     }
   }
@@ -155,6 +158,7 @@ void statusMonitor(void * np){
 /// shutdown reason
 /// ~~~~~~~~~~~~~~~
 int main_loop(int argc, char ** argv){
+  Controller::isTerminal = Controller::isColorized = isatty(fileno(stdin));
   Controller::Storage = JSON::fromFile("config.json");
   JSON::Value stored_port = JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP port to listen on.\"}");
   stored_port["default"] = Controller::Storage["config"]["controller"]["port"];
@@ -193,6 +197,7 @@ int main_loop(int argc, char ** argv){
       DEBUG_MSG(DLVL_ERROR, "Could not redirect output to %s: %s",Controller::conf.getString("logfile").c_str(),strerror(errno));
       return 7;
     }else{
+      Controller::isTerminal = Controller::isColorized = false;
       dup2(output,STDOUT_FILENO);
       dup2(output,STDERR_FILENO);
       time_t rawtime;
@@ -250,67 +255,73 @@ int main_loop(int argc, char ** argv){
   createAccount(Controller::conf.getString("account"));
   
   //if a terminal is connected and we're not logging to file
-  if (isatty(fileno(stdin))){
-    if (Controller::conf.getString("logfile") == ""){
-      //check for username
-      if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
-        std::string in_string = "";
-        while(yna(in_string) == 'x'){
-          std::cout << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
-          std::cout.flush();
-          std::getline(std::cin, in_string);
-          if (yna(in_string) == 'y'){
-            //create account
-            std::string usr_string = "";
-            while(!(Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0)){
-              std::cout << "Please type in the username, a colon and a password in the following format; username:password" << std::endl << ": ";
-              std::cout.flush();
-              std::getline(std::cin, usr_string);
-              createAccount(usr_string);
-            }
-          }else if(yna(in_string) == 'a'){
-            //abort controller startup
-            return 0;
-          }
-        }
-      }
-      //check for protocols
-      if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
-        std::string in_string = "";
-        while(yna(in_string) == 'x'){
-          std::cout << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
-          std::cout.flush();
-          std::getline(std::cin, in_string);
-          if (yna(in_string) == 'y'){
-            //create protocols
-            jsonForEach(Controller::capabilities["connectors"], it) {
-              if (!it->isMember("required")){
-                JSON::Value newProtocol;
-                newProtocol["connector"] = it.key();
-                Controller::Storage["config"]["protocols"].append(newProtocol);
+  if (Controller::isTerminal){
+    //check for username
+    if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
+      std::string in_string = "";
+      while(yna(in_string) == 'x'){
+        std::cout << "Account not set, do you want to create an account? (y)es, (n)o, (a)bort: ";
+        std::cout.flush();
+        std::getline(std::cin, in_string);
+        switch (yna(in_string)){
+          case 'y':{
+              //create account
+              std::string usr_string = "";
+              while(!(Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0)){
+                std::cout << "Please type in the username, a colon and a password in the following format; username:password" << std::endl << ": ";
+                std::cout.flush();
+                std::getline(std::cin, usr_string);
+                createAccount(usr_string);
               }
             }
-          }else if(yna(in_string) == 'a'){
-            //abort controller startup
-            return 0;
-          }
+            break;
+          case 'a': return 0; //abort bootup
+          case 't':
+            createAccount("test:test");
+            break;
         }
       }
-    }else{//logfile is enabled
-      //check for username
-      if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
-        std::cout << "No login configured. To create one, attempt to login through the web interface on port " << Controller::conf.getInteger("port") << " and follow the instructions." << std::endl;
+    }
+    //check for protocols
+    if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
+      std::string in_string = "";
+      while(yna(in_string) == 'x'){
+        std::cout << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
+        std::cout.flush();
+        std::getline(std::cin, in_string);
+        if (yna(in_string) == 'y'){
+          //create protocols
+          jsonForEach(Controller::capabilities["connectors"], it) {
+            if (!it->isMember("required")){
+              JSON::Value newProtocol;
+              newProtocol["connector"] = it.key();
+              Controller::Storage["config"]["protocols"].append(newProtocol);
+            }
+          }
+        }else if(yna(in_string) == 'a'){
+          //abort controller startup
+          return 0;
+        }
       }
-      //check for protocols
-      if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
-        std::cout << "No protocols enabled, remember to set them up through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
-      }
+    }
+  }
+
+  //Check if we have a usable server, if not, print messages with helpful hints
+  {
+    std::string web_port = JSON::Value((long long)Controller::conf.getInteger("port")).asString();
+    //check for username
+    if ( !Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
+      Controller::Log("CONF", "No login configured. To create one, attempt to login through the web interface on port "+web_port+" and follow the instructions.");
+    }
+    //check for protocols
+    if ( !Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") || Controller::Storage["config"]["protocols"].size() < 1){
+      Controller::Log("CONF", "No protocols enabled, remember to set them up through the web interface on port "+web_port+" or API.");
     }
     //check for streams - regardless of logfile setting
     if ( !Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      std::cout << "No streams configured, remember to set up streams through the web interface on port " << Controller::conf.getInteger("port") << " or API." << std::endl;
+      Controller::Log("CONF", "No streams configured, remember to set up streams through the web interface on port "+web_port+" or API.");
     }
-  }//connected to a terminal
+  }
   
   Controller::Log("CONF", "Controller started");
   Controller::conf.activate();//activate early, so threads aren't killed.

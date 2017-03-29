@@ -11,6 +11,8 @@ namespace Controller {
   extern tthread::mutex configMutex;///< Mutex for server config access.
   extern bool configChanged; ///< Bool that indicates config must be written to SHM.
   extern bool restarting;///< Signals if the controller is shutting down (false) or restarting (true).
+  extern bool isTerminal;///< True if connected to a terminal and not a log file.
+  extern bool isColorized;///< True if we colorize the output
   extern unsigned long long logCounter; ///<Count of logged messages since boot
   
   /// Store and print a log message.

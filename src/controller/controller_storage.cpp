@@ -20,12 +20,25 @@ namespace Controller{
   unsigned long long logCounter = 0;
   bool configChanged = false;
   bool restarting = false;
+  bool isTerminal = false;
+  bool isColorized = false;
 
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
   void Log(std::string kind, std::string message){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
+    std::string color_time, color_msg, color_end;
+    if (Controller::isColorized){
+      color_end = "\033[0m";
+      color_time = "\033[2m";
+      color_msg = color_end;
+      if (kind == "CONF"){color_msg = "\033[0;1;37m";}
+      if (kind == "FAIL"){color_msg = "\033[0;1;31m";}
+      if (kind == "ERROR"){color_msg = "\033[0;31m";}
+      if (kind == "WARN"){color_msg = "\033[0;1;33m";}
+      if (kind == "INFO"){color_msg = "\033[0;36m";}
+    }
     JSON::Value m;
     m.append(Util::epoch());
     m.append(kind);
@@ -38,7 +51,7 @@ namespace Controller{
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-    std::cout << "[" << buffer << "] " << kind << ": " << message << std::endl;
+    std::cout << color_time << "[" << buffer << "] " << color_msg << kind << ": " << message << color_end << std::endl;
     logCounter++;
   }
 

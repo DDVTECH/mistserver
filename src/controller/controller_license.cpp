@@ -14,6 +14,7 @@
 namespace Controller{
   
   static JSON::Value currentLicense;
+  static uint64_t lastCheck = 0;
   
   const JSON::Value & getLicense(){
     return currentLicense;
@@ -27,10 +28,14 @@ namespace Controller{
       INFO_MSG("Reading license from storage")
       readLicense(Storage["license_id"].asInt(), Storage["license"].asStringRef());
       if (!isLicensed()){
-        updateLicense();
+        updateLicense("&boot=1");
+        checkLicense();
+      }else{
+        lastCheck = std::min(Util::epoch(), currentLicense["valid_from"].asInt());
       }
     }else{
-      updateLicense();
+      updateLicense("&boot=1");
+      checkLicense();
     }
   }
 
@@ -55,6 +60,7 @@ namespace Controller{
   }
   
   bool checkLicense(){
+    if (!conf.is_active){return true;}
     if (!currentLicense.isMember("interval")){
       currentLicense["interval"] = 3600ll;
     }
@@ -62,8 +68,10 @@ namespace Controller{
     if(!isLicensed()){
       FAIL_MSG("Not licensed, shutting down");
       kill(getpid(), SIGINT);
+      conf.is_active = false;
       return false;
     }
+    lastCheck = Util::epoch();
     return true;
   }
   
@@ -75,8 +83,8 @@ namespace Controller{
     }
   }
   
-  void updateLicense(){
-    INFO_MSG("Running license updater");
+  void updateLicense(const std::string & extra){
+    INFO_MSG("Running license updater %s", extra.c_str());
     JSON::Value response;
     
     HTTP::Parser http;
@@ -89,7 +97,7 @@ namespace Controller{
     //Sending request to server.
     //http.url = "/licensing.php"
     //also see statics at start function.
-    http.url = "/license.php?release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&lid="+currentLicense["lic_id"].asString();
+    http.url = "/license.php?release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&lid="+currentLicense["lic_id"].asString() + extra;
     long long currID = currentLicense["lic_id"].asInt();
     http.method = "GET";
     http.SetHeader("Host", "releases.mistserver.org");
@@ -156,7 +164,7 @@ namespace Controller{
     
     //verify checksum
     if (deCrypted.size() < 33 || Secure::md5(deCrypted.substr(32)) != deCrypted.substr(0,32)){
-      FAIL_MSG("Could not decode license");
+      WARN_MSG("Could not decode license");
       Storage.removeMember("license");
       return;
     }
@@ -177,15 +185,14 @@ namespace Controller{
   }
   
   void licenseLoop(void * np){
-    unsigned long now = std::min(Util::epoch(), currentLicense["valid_from"].asInt());
     while (conf.is_active){
-      if (Util::epoch() - now > currentLicense["interval"].asInt()){
+      if (Util::epoch() - lastCheck > currentLicense["interval"].asInt()){
         updateLicense();
-        if (checkLicense()){
-          now = Util::epoch();
-        }
+        checkLicense();
       }
       Util::sleep(1000);//sleep a bit
     }
+    updateLicense("&shutdown=1");
   }
 }
+

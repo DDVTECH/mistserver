@@ -270,6 +270,71 @@ namespace DTSC {
     memcpy(data+offset+11+packDataSize, "\000\000\356", 3);
   }
 
+  ///clear the keyframe byte.
+  void Packet::clearKeyFrame(){
+    uint32_t offset = 23;
+    while (data[offset] != 'd' && data[offset] != 'k'){
+      switch (data[offset]){
+        case 'o': offset += 17; break;
+        case 'b': offset += 15; break;
+        default:
+          FAIL_MSG("Errrrrrr");
+      }
+    }
+
+    if(data[offset] == 'k'){
+      data[offset] = 'K';
+      data[offset+16] = 0;
+    }
+  }
+
+  void Packet::appendData(const char * appendData, uint32_t appendLen){
+    resize(dataLen + appendLen);
+    memcpy(data + dataLen-3, appendData, appendLen);
+    memcpy(data + dataLen-3 + appendLen, "\000\000\356", 3);  //end container
+    dataLen += appendLen;
+    Bit::htobl(data+4, Bit::btohl(data +4)+appendLen);
+    uint32_t offset = getDataStringLenOffset();
+    Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen);
+  }
+
+  void Packet::appendNal(const char * appendData, uint32_t appendLen, uint32_t totalLen){
+    if(totalLen ==0){
+      return;
+    }
+
+//    INFO_MSG("totallen: %d, appendLen: %d",totalLen,appendLen);
+    resize(dataLen + appendLen +4);
+    Bit::htobl(data+dataLen -3, totalLen);
+    memcpy(data + dataLen-3+4, appendData, appendLen);
+    memcpy(data + dataLen-3+4 + appendLen, "\000\000\356", 3);  //end container
+    dataLen += appendLen +4;
+    Bit::htobl(data+4, Bit::btohl(data +4)+appendLen+4);
+    uint32_t offset = getDataStringLenOffset();
+    Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen+4);
+  }
+
+  uint32_t Packet::getDataStringLen(){
+    return Bit::btohl(data+getDataStringLenOffset());
+  }
+
+  ///Method can only be used when using internal functions to build the data.
+  uint32_t Packet::getDataStringLenOffset(){
+    uint32_t offset = 23;
+    while (data[offset] != 'd'){
+      switch (data[offset]){
+        case 'o': offset += 17; break;
+        case 'b': offset += 15; break;
+        case 'k': offset += 19; break;
+        default:
+          FAIL_MSG("Errrrrrr");
+          return -1;
+      }
+    }
+    return offset +5;
+  }
+
+
   /// Helper function for skipping over whole DTSC parts
   static char * skipDTSC(char * p, char * max) {
     if (p + 1 >= max || p[0] == 0x00) {

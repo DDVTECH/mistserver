@@ -118,6 +118,7 @@ namespace DTSC {
       void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe);
+      void appendData(const char * appendData, uint32_t appendLen);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, int & result) const;
@@ -125,11 +126,15 @@ namespace DTSC {
       void getFlag(const char * identifier, bool & result) const;
       bool getFlag(const char * identifier) const;
       bool hasMember(const char * identifier) const;
+      void appendNal(const char * appendData, uint32_t appendLen, uint32_t totalLen);
+      void clearKeyFrame();
       long long unsigned int getTime() const;
       long int getTrackId() const;
       char * getData() const;
       int getDataLen() const;
       int getPayloadLen() const;
+      uint32_t getDataStringLen();
+      uint32_t getDataStringLenOffset();
       JSON::Value toJSON() const;
       std::string toSummary() const;
       Scan getScan() const;

@@ -121,6 +121,9 @@ static inline void show_stackframe(){}
 /// Does not affect live streams.
 #define FLIP_MIN_DURATION 20000
 
+/// Interval where the input refreshes the user data for stats etc.
+#define INPUT_USER_INTERVAL 1000
+
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
 #define STRMSTAT_OFF 0

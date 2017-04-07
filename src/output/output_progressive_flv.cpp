@@ -22,8 +22,8 @@ namespace Mist {
     capa["codecs"][0u][1u].append("Nellymoser");
     capa["codecs"][0u][1u].append("PCM");
     capa["codecs"][0u][1u].append("ADPCM");
-    capa["codecs"][0u][1u].append("G711a");
-    capa["codecs"][0u][1u].append("G711mu");
+    capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/7";
     capa["methods"][0u]["priority"] = 5ll;

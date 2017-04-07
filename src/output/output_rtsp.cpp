@@ -59,6 +59,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("ALAW");
     
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
@@ -118,18 +119,6 @@ namespace Mist {
       callBack = sendTCP;
     }
     
-    if(myMeta.tracks[tid].codec == "MP3"){
-      tracks[tid].pack.setTimestamp(timestamp * 90);
-      tracks[tid].pack.sendData(socket, callBack, dataPointer, dataLen, tracks[tid].channel, "MP3");
-      return;
-    }
-
-    if( myMeta.tracks[tid].codec == "AC3" || myMeta.tracks[tid].codec == "AAC"){
-      tracks[tid].pack.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
-      tracks[tid].pack.sendData(socket, callBack, dataPointer, dataLen, tracks[tid].channel,myMeta.tracks[tid].codec);
-      return;
-    }
-
     if(myMeta.tracks[tid].codec == "H264"){
       long long offset = thisPacket.getInt("offset");
       tracks[tid].pack.setTimestamp(90 * (timestamp + offset));
@@ -141,6 +130,10 @@ namespace Mist {
       }
       return;
     }
+
+    //Default packager
+    tracks[tid].pack.setTimestamp(timestamp * ((double) myMeta.tracks[tid].rate / 1000.0));
+    tracks[tid].pack.sendData(socket, callBack, dataPointer, dataLen, tracks[tid].channel,myMeta.tracks[tid].codec);
     
   }
 
@@ -580,8 +573,6 @@ namespace Mist {
     DTSC::Packet nextPack;
     nextPack.genericFill(newTs, offset, track, buffer, len, 0, isKey);
     tracks[track].packCount++;
-    nProxy.streamName = streamName;
-    continueNegotiate(track);
     bufferLivePacket(nextPack);
   }
 
@@ -590,6 +581,13 @@ namespace Mist {
   void OutRTSP::handleIncomingRTP(const uint64_t track, const RTP::Packet & pkt){
     if (!tracks[track].firstTime){
       tracks[track].firstTime = pkt.getTimeStamp() + 1;
+    }
+    if (myMeta.tracks[track].codec == "ALAW"){
+      char * pl = pkt.getPayload();
+      DTSC::Packet nextPack;
+      nextPack.genericFill((pkt.getTimeStamp() - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl, pkt.getPayloadSize(), 0, false);
+      bufferLivePacket(nextPack);
+      return;
     }
     if (myMeta.tracks[track].codec == "AAC"){
       //assume AAC packets are single AU units
@@ -606,8 +604,6 @@ namespace Mist {
         nextPack.genericFill((pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl+headLen+offset, std::min(auSize, pkt.getPayloadSize() - headLen - offset), 0, false);
         offset += auSize;
         sampleOffset += samples;
-        nProxy.streamName = streamName;
-        continueNegotiate(track);
         bufferLivePacket(nextPack);
       }
       return;
@@ -784,6 +780,7 @@ namespace Mist {
     std::string to;
     uint64_t trackNo = 0;
     bool nope = true; //true if we have no valid track to fill
+    DTSC::Track * thisTrack = 0;
     while(std::getline(ss,to,'\n')){
       if (!to.empty() && *to.rbegin() == '\r'){to.erase(to.size()-1, 1);}
 
@@ -791,11 +788,12 @@ namespace Mist {
       if (to.substr(0,2) == "m="){
         nope = true;
         ++trackNo;
+        thisTrack = &(myMeta.tracks[trackNo]);
         std::stringstream words(to.substr(2));
         std::string item;
         if (getline(words, item, ' ') && (item == "audio" || item == "video")){
-            myMeta.tracks[trackNo].type = item;
-            myMeta.tracks[trackNo].trackID = trackNo;
+            thisTrack->type = item;
+            thisTrack->trackID = trackNo;
         }else{
           WARN_MSG("Media type not supported: %s", item.c_str());
           continue;
@@ -805,7 +803,29 @@ namespace Mist {
           WARN_MSG("Media transport not supported: %s", item.c_str());
           continue;
         }
-        nope = false;
+        if (getline(words, item, ' ')){
+          uint64_t avp_type = JSON::Value(item).asInt();
+          switch (avp_type){
+            case 8: //PCM A-law
+              INFO_MSG("PCM A-law payload type");
+              nope = false;
+              thisTrack->codec = "ALAW";
+              thisTrack->rate = 8000;
+              thisTrack->channels = 1;
+              INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+              break;
+            default:
+              //dynamic type
+              if (avp_type >= 96 && avp_type <= 127){
+                INFO_MSG("Dynamic payload type (%llu) detected", avp_type);
+                nope = false;
+                continue;
+              }else{
+                FAIL_MSG("Payload type %llu not supported!", avp_type);
+                continue;
+              }
+          }
+        }
         continue;
       }
       if (nope){continue;}//ignore lines if we have no valid track
@@ -813,25 +833,25 @@ namespace Mist {
       if (to.substr(0, 8) == "a=rtpmap"){
         std::string mediaType = to.substr(to.find(' ', 8)+1);
         std::string trCodec = mediaType.substr(0, mediaType.find('/'));
+        //convert to fullcaps
         for(unsigned int i=0;i<trCodec.size();++i){
           if(trCodec[i]<=122 && trCodec[i]>=97){trCodec[i]-=32;}
         }
-        if (trCodec == "H264"){
-          myMeta.tracks[trackNo].codec = "H264";
-        }
-        if (trCodec == "MPEG4-GENERIC"){
-          myMeta.tracks[trackNo].codec = "AAC";
+        if (thisTrack->type == "audio"){
           std::string extraInfo = mediaType.substr(mediaType.find('/')+1);
           if (extraInfo.find('/') != std::string::npos){
             size_t lastSlash = extraInfo.find('/');
-            myMeta.tracks[trackNo].rate = atoll(extraInfo.substr(0, lastSlash).c_str());
-            myMeta.tracks[trackNo].channels = atoll(extraInfo.substr(lastSlash+1).c_str());
+            thisTrack->rate = atoll(extraInfo.substr(0, lastSlash).c_str());
+            thisTrack->channels = atoll(extraInfo.substr(lastSlash+1).c_str());
           }else{
-            myMeta.tracks[trackNo].rate = atoll(extraInfo.c_str());
-            myMeta.tracks[trackNo].channels = 1;
+            thisTrack->rate = atoll(extraInfo.c_str());
+            thisTrack->channels = 1;
           }
         }
-        INFO_MSG("Incoming track %s", myMeta.tracks[trackNo].getIdentifier().c_str());
+        if (trCodec == "H264"){thisTrack->codec = "H264";}
+        if (trCodec == "PCMA"){thisTrack->codec = "ALAW";}
+        if (trCodec == "MPEG4-GENERIC"){thisTrack->codec = "AAC";}
+        INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         continue;
       }
       if (to.substr(0, 10) == "a=control:"){
@@ -840,7 +860,7 @@ namespace Mist {
       }
       if (to.substr(0, 7) == "a=fmtp:"){
         tracks[trackNo].fmtp = to.substr(7);
-        if (myMeta.tracks[trackNo].codec == "AAC"){
+        if (thisTrack->codec == "AAC"){
           if (tracks[trackNo].getParamString("mode") != "AAC-hbr"){
             //a=fmtp:97 profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3; config=120856E500
             FAIL_MSG("AAC transport mode not supported: %s", tracks[trackNo].getParamString("mode").c_str());
@@ -849,11 +869,11 @@ namespace Mist {
             tracks.erase(trackNo);
             continue;
           }
-          myMeta.tracks[trackNo].init = Encodings::Hex::decode(tracks[trackNo].getParamString("config"));
+          thisTrack->init = Encodings::Hex::decode(tracks[trackNo].getParamString("config"));
           //myMeta.tracks[trackNo].rate = aac::AudSpecConf::rate(myMeta.tracks[trackNo].init);
 
         }
-        if (myMeta.tracks[trackNo].codec == "H264"){
+        if (thisTrack->codec == "H264"){
           //a=fmtp:96 packetization-mode=1; sprop-parameter-sets=Z0LAHtkA2D3m//AUABqxAAADAAEAAAMAMg8WLkg=,aMuDyyA=; profile-level-id=42C01E
           std::string sprop = tracks[trackNo].getParamString("sprop-parameter-sets");
           size_t comma = sprop.find(',');

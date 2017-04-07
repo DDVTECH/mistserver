@@ -37,6 +37,7 @@ namespace Mist {
         cPort = 0;
         rtpSeq = 0;
         fpsTime = 0;
+        fpsMeta = 0;
         fps = 0;
       }
       std::string getParamString(const std::string & param) const{
@@ -87,6 +88,14 @@ namespace Mist {
           mediaDesc << "m=audio 0 RTP/AVP 100" << "\r\n"
           "a=rtpmap:100 AC3/" << trk.rate << "/" << trk.channels << "\r\n"
           "a=control:track" << trk.trackID << "\r\n";
+        }else if ( trk.codec == "ALAW") {
+          if (trk.channels == 1 && trk.rate == 8000){
+            mediaDesc << "m=audio 0 RTP/AVP 8" << "\r\n";
+          }else{
+            mediaDesc << "m=audio 0 RTP/AVP 101" << "\r\n";
+            mediaDesc << "a=rtpmap:101 PCMA/" << trk.rate <<  "/" << trk.channels << "\r\n";
+          }
+          mediaDesc << "a=control:track" << trk.trackID << "\r\n";
         }
         return mediaDesc.str();
       }
@@ -100,11 +109,16 @@ namespace Mist {
           pack = RTP::Packet(100, 1, 0, SSrc);
         }else if(trk.codec == "MP3"){
           pack = RTP::Packet(14, 1, 0, SSrc);
+        }else if(trk.codec == "ALAW"){
+          if (trk.channels == 1 && trk.rate == 8000){
+            pack = RTP::Packet(8, 1, 0, SSrc);
+          }else{
+            pack = RTP::Packet(101, 1, 0, SSrc);
+          }
         }else{
           ERROR_MSG("Unsupported codec %s for RTSP on track %u", trk.codec.c_str(), trk.trackID);
           return false;
         }
-        std::cerr << transport << std::endl;
         if (transport.find("TCP") != std::string::npos) {
           std::string chanE =  transport.substr(transport.find("interleaved=") + 12, (transport.size() - transport.rfind('-') - 1)); //extract channel ID
           channel = atol(chanE.c_str());
@@ -136,10 +150,9 @@ namespace Mist {
       }
       std::string rtpInfo(const DTSC::Track & trk, const std::string & source, uint64_t currentTime){
         unsigned int timeMultiplier = 1;
+        timeMultiplier = ((double)trk.rate / 1000.0);
         if (trk.codec == "H264") {
           timeMultiplier = 90;
-        } else if (trk.codec == "AAC" || trk.codec == "MP3" || trk.codec == "AC3") {
-          timeMultiplier = ((double)trk.rate / 1000.0);
         }
         std::stringstream rInfo;
         rInfo << "url=" << source << "/track" << trk.trackID << ";"; //get the current url, not localhost

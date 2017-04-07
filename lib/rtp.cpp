@@ -155,13 +155,10 @@ namespace RTP {
     
     ((int *)rtcpData)[2] = htonl(2208988800UL + Util::epoch()); //epoch is in seconds
     ((int *)rtcpData)[3]  = htonl((Util::getMS() % 1000) * 4294967.295);
-    if (metadata.tracks[tid].codec == "H264" || metadata.tracks[tid].codec == "MP3") {
+    if (metadata.tracks[tid].codec == "H264") {
       ((int *)rtcpData)[4] = htonl((ntpTime - 0) * 90000); //rtpts
-    } else if (metadata.tracks[tid].codec == "AAC" || metadata.tracks[tid].codec == "AC3") {
-      ((int *)rtcpData)[4] = htonl((ntpTime - 0) * metadata.tracks[tid].rate); //rtpts
     } else {
-      DEBUG_MSG(DLVL_FAIL, "Unsupported codec: %s", metadata.tracks[tid].codec.c_str());
-      return;
+      ((int *)rtcpData)[4] = htonl((ntpTime - 0) * metadata.tracks[tid].rate); //rtpts
     }
     //it should be the time packet was sent maybe, after all?
     //*((int *)(rtcpData+16) ) = htonl(getTimeStamp());//rtpts

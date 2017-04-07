@@ -194,9 +194,9 @@ const char * FLV::Tag::getAudioCodec() {
     case 0x60:
       return "Nellymoser";
     case 0x70:
-      return "G711A";
+      return "ALAW";
     case 0x80:
-      return "G711mu";
+      return "ULAW";
     case 0x90:
       return "reserved";
     case 0xA0:
@@ -500,10 +500,10 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
         data[11] |= 0x60;
       }
     }
-    if (track.codec == "G711a") {
+    if (track.codec == "ALAW") {
       data[11] |= 0x70;
     }
-    if (track.codec == "G711mu") {
+    if (track.codec == "ULAW") {
       data[11] |= 0x80;
     }
     if (track.codec == "Speex") {

@@ -266,8 +266,8 @@ namespace Mist {
     capa["codecs"][0u][1u].append("Nellymoser");
     capa["codecs"][0u][1u].append("PCM");
     capa["codecs"][0u][1u].append("ADPCM");
-    capa["codecs"][0u][1u].append("G711a");
-    capa["codecs"][0u][1u].append("G711mu");
+    capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "rtmp";
     capa["methods"][0u]["type"] = "flash/10";
     capa["methods"][0u]["priority"] = 7ll;
@@ -384,10 +384,10 @@ namespace Mist {
           dataheader[0] |= 0x60;
         }
       }
-      if (track.codec == "G711a") {
+      if (track.codec == "ALAW") {
         dataheader[0] |= 0x70;
       }
-      if (track.codec == "G711mu") {
+      if (track.codec == "ULAW") {
         dataheader[0] |= 0x80;
       }
       if (track.codec == "Speex") {

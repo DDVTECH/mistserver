@@ -305,9 +305,7 @@ namespace Mist {
 
 
     if (myMeta.live){
-      //Update the metadata
-      DTSC::Packet updatePack(myPage.mapped + curOffset, size + 8, true);
-      myMeta.update(updatePack);
+      myMeta.update(pack);
     }
 
     //End of brain melt
@@ -402,6 +400,7 @@ namespace Mist {
     myMeta.live = true;
     //Store the trackid for easier access
     unsigned long tid = packet.getTrackId();
+    VERYHIGH_MSG("Buffering %s packet on track %lu: %llums, %db", myMeta.tracks[tid].codec.c_str(), tid, packet.getTime(), packet.getPayloadLen());
     //Do nothing if the trackid is invalid
     if (!tid) {
       WARN_MSG("Packet without trackid!");

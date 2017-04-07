@@ -1387,6 +1387,7 @@ namespace DTSC {
     }
     vod = (packBytePos > 0);
     live = !vod;
+    EXTREME_MSG("Updating meta with %lld@%lld+%lld", packTrack, packTime, packOffset);
     if (packTrack > 0 && tracks.count(packTrack)){
       tracks[packTrack].update(packTime, packOffset, packDataSize, packBytePos, isKeyframe, packSendSize, segment_size);
     }

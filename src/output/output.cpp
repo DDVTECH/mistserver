@@ -198,6 +198,7 @@ namespace Mist{
     if (nProxy.userClient.getData()){
       nProxy.userClient.finish();
     }
+    nProxy.streamName = streamName;
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     unsigned int attempts = 0;

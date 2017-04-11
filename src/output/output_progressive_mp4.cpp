@@ -616,6 +616,7 @@ namespace Mist {
 
     //Oh god why do we do this.
     if (chromeWorkaround && hasAudio && fragSeqNum == 1){
+      INFO_MSG("Activating Chrome MP4 compatibility workaround!");
       MP4::TRAF trafBox;
       MP4::TRUN trunBox;
       trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration);

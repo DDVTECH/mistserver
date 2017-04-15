@@ -100,6 +100,8 @@ namespace Mist {
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
       bool pushing;
+      std::string UA; ///< User Agent string, if known.
+      uint16_t uaDelay;///<Seconds to wait before setting the UA.
       uint64_t lastRecv;
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       virtual std::string getConnectedHost();

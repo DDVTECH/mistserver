@@ -258,6 +258,7 @@ namespace Mist {
 
 
   OutHLS::OutHLS(Socket::Connection & conn) : TSOutput(conn) {
+    uaDelay = 0;
     realTime = 0;
     until=0xFFFFFFFFFFFFFFFFull;
   }

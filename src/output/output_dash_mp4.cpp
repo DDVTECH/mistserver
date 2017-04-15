@@ -8,7 +8,10 @@
 #include <iomanip>
 
 namespace Mist {
-  OutDashMP4::OutDashMP4(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
+  OutDashMP4::OutDashMP4(Socket::Connection & conn) : HTTPOutput(conn){
+    uaDelay = 0;
+    realTime = 0;
+  }
   OutDashMP4::~OutDashMP4(){}
   
   std::string OutDashMP4::makeTime(uint64_t time){

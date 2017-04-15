@@ -131,6 +131,8 @@ namespace Mist {
   } //BuildManifest
   
   OutHDS::OutHDS(Socket::Connection & conn) : HTTPOutput(conn) {
+    uaDelay = 0;
+    realTime = 0;
     audioTrack = 0;
     playUntil = 0;
   }

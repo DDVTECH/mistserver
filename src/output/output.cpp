@@ -67,6 +67,7 @@ namespace Mist{
     lastStats = 0;
     maxSkipAhead = 7500;
     minSkipAhead = 5000;
+    uaDelay = 10;
     realTime = 1000;
     lastRecv = Util::epoch();
     if (myConn){
@@ -1207,6 +1208,17 @@ namespace Mist{
       }else{
         tmpEx.lastSecond(0);
       }
+      /*LTS-START*/
+      //Tag the session with the user agent
+      static bool newUA = true;//we only do this once per connection
+      if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
+        std::string APIcall = "{\"tag_sessid\":{\"" + tmpEx.getSessId() + "\":" + JSON::string_escape("UA:"+UA) + "}}";
+        Socket::UDPConnection uSock;
+        uSock.SetDestination("localhost", 4242);
+        uSock.SendNow(APIcall);
+        newUA = false;
+      }
+      /*LTS-END*/
       statsPage.keepAlive();
     }
     doSync();

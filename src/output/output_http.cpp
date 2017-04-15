@@ -213,6 +213,9 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
+      if (H.hasHeader("User-Agent")){
+        UA = H.GetHeader("User-Agent");
+      }
       if (hasSessionIDs()){
         if (H.GetVar("sessId").size()){
           std::string ua = H.GetVar("sessId");
@@ -222,8 +225,8 @@ namespace Mist {
           crc = checksum::crc32(0, ua.data(), ua.size());
         }
       }else{
-        std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
-        crc = checksum::crc32(0, ua.data(), ua.size());
+        std::string mixed_ua = UA + H.GetHeader("X-Playback-Session-Id");
+        crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());

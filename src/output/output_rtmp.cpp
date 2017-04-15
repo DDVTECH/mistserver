@@ -597,6 +597,9 @@ namespace Mist {
       if (amfData.getContentP(2)->getContentP("objectEncoding")) {
         objencoding = amfData.getContentP(2)->getContentP("objectEncoding")->NumValue();
       }
+      if (amfData.getContentP(2)->getContentP("flashVer")) {
+        UA = amfData.getContentP(2)->getContentP("flashVer")->StrValue();
+      }
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       reqUrl = app_name;//LTS
       app_name = app_name.substr(app_name.find('/', 7) + 1);

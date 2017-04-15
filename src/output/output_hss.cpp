@@ -46,7 +46,10 @@ std::string toUTF16(std::string original) {
 
 
 namespace Mist {
-  OutHSS::OutHSS(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
+  OutHSS::OutHSS(Socket::Connection & conn) : HTTPOutput(conn){
+    uaDelay = 0;
+    realTime = 0;
+  }
   OutHSS::~OutHSS(){}
 
   void OutHSS::init(Util::Config * cfg) {

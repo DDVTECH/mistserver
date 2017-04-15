@@ -284,7 +284,7 @@ static std::string UTF16(uint32_t c){
   }
 }
 
-static std::string string_escape(const std::string val) {
+std::string JSON::string_escape(const std::string & val) {
   std::string out = "\"";
   for (unsigned int i = 0; i < val.size(); ++i) {
     const char & c = val.data()[i];
@@ -1059,7 +1059,7 @@ std::string JSON::Value::toString() const {
         break;
       }
     case STRING: {
-        return string_escape(strVal);
+        return JSON::string_escape(strVal);
         break;
       }
     case ARRAY: {
@@ -1080,7 +1080,7 @@ std::string JSON::Value::toString() const {
         std::string tmp2 = "{";
         if (objVal.size() > 0) {
           jsonForEachConst(*this, i){
-            tmp2 += string_escape(i.key()) + ":";
+            tmp2 += JSON::string_escape(i.key()) + ":";
             tmp2 += i->toString();
             if (i.num()+1 != objVal.size()) {
               tmp2 += ",";
@@ -1114,7 +1114,7 @@ std::string JSON::Value::toPrettyString(int indentation) const {
             return "\"" + JSON::Value((long long int)strVal.size()).asString() + " bytes of data\"";
           }
         }
-        return string_escape(strVal);
+        return JSON::string_escape(strVal);
         break;
       }
     case ARRAY: {
@@ -1141,7 +1141,7 @@ std::string JSON::Value::toPrettyString(int indentation) const {
           }
           std::string tmp2 = "{" + std::string((shortMode ? "" : "\n"));
           jsonForEachConst(*this, i){
-            tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + string_escape(i.key()) + ":";
+            tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) + JSON::string_escape(i.key()) + ":";
             tmp2 += i->toPrettyString(indentation + 2);
             if (i.num() + 1 != objVal.size()) {
               tmp2 += "," + std::string((shortMode ? " " : "\n"));
@@ -1249,7 +1249,13 @@ unsigned int JSON::Value::size() const {
 }
 
 /// Converts a std::string to a JSON::Value.
-JSON::Value JSON::fromString(std::string json) {
+JSON::Value JSON::fromString(const char * data, const uint32_t data_len) {
+  const std::string str(data, data_len);
+  return JSON::fromString(str);
+}
+
+/// Converts a std::string to a JSON::Value.
+JSON::Value JSON::fromString(const std::string & json) {
   std::istringstream is(json);
   return JSON::Value(is);
 }

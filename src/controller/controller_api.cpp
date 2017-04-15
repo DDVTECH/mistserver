@@ -187,7 +187,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
       //invalid request? send the web interface, unless requested as "/api"
-      if ( !Request.isObject() && H.url != "/api"){
+      if ( !Request.isObject() && H.url != "/api" && H.url != "/api2"){
         #include "server.html.h"
         H.Clean();
         H.SetHeader("Content-Type", "text/html");
@@ -199,6 +199,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         conn.SendNow(server_html, server_html_len);
         H.Clean();
         break;
+      }
+      if (H.url == "/api2"){
+        Request["minimal"] = true;
       }
       {//lock the config mutex here - do not unlock until done processing
         tthread::lock_guard<tthread::mutex> guard(configMutex);
@@ -214,494 +217,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           authorized |= authorize(Request, Response, conn);
         }
         if (authorized){
-          //Parse config and streams from the request.
-          if (Request.isMember("config")){
-            Controller::checkConfig(Request["config"], Controller::Storage["config"]);
-          }
-          if (Request.isMember("streams")){
-            Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
-          }
-          /*LTS-START*/
-          /// 
-          /// \api
-          /// `"addstream"` requests (LTS-only) take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///   "streamname": {
-          ///     //Stream configuration - see the "streams" call for details on this format.
-          ///   }
-          ///   /// Optionally, repeat for more streams.
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// These requests will add new streams or update existing streams with the same names, without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
-          /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
-          /// 
-          if (Request.isMember("addstream")){
-            Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
-          }
-          /// 
-          /// \api
-          /// `"deletestream"` requests (LTS-only) take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///   "streamname": {} //any contents in this object are ignored
-          ///   /// Optionally, repeat for more streams.
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// OR
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   "streamname",
-          ///   /// Optionally, repeat for more streams.
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// OR
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// "streamname"
-          /// ~~~~~~~~~~~~~~~
-          /// These requests will remove the named stream(s), without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
-          /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
-          ///
-          if (Request.isMember("deletestream")){
-            //if array, delete all elements
-            //if object, delete all entries
-            //if string, delete just the one
-            if (Request["deletestream"].isString()){
-              Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
-            }
-            if (Request["deletestream"].isArray()){
-              jsonForEach(Request["deletestream"], it){
-                Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
-              }
-            }
-            if (Request["deletestream"].isObject()){
-              jsonForEach(Request["deletestream"], it){
-                Controller::deleteStream(it.key(), Controller::Storage["streams"]); 
-              }
-            }
-          }
-          /// 
-          /// \api
-          /// `"addprotocol"` requests (LTS-only) take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///   "connector": "HTTP" //Name of the connector to enable
-          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// OR
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   {
-          ///     "connector": "HTTP" //Name of the connector to enable
-          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-          ///   }
-          ///   /// Optionally, repeat for more protocols.
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// These requests will add the given protocol configurations, without touching existing configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
-          /// There is no response to this call.
-          ///
-          if (Request.isMember("addprotocol")){
-            if (Request["addprotocol"].isArray()){
-              jsonForEach(Request["addprotocol"], it){
-                Controller::Storage["config"]["protocols"].append(*it);
-              }
-            }
-            if (Request["addprotocol"].isObject()){
-              Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
-            }
-          }
-          /// 
-          /// \api
-          /// `"deleteprotocol"` requests (LTS-only) take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///   "connector": "HTTP" //Name of the connector to enable
-          ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// OR
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   {
-          ///     "connector": "HTTP" //Name of the connector to enable
-          ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-          ///   }
-          ///   /// Optionally, repeat for more protocols.
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// These requests will remove the given protocol configurations (exact matches only), without touching other configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
-          /// There is no response to this call.
-          ///
-          if (Request.isMember("deleteprotocol")){
-            if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
-              JSON::Value newProtocols;
-              jsonForEach(Controller::Storage["config"]["protocols"], it){
-                bool add = true;
-                jsonForEach(Request["deleteprotocol"], pit){
-                  if (*it == *pit){
-                    add = false;
-                    break;
-                  }
-                }
-                if (add){
-                  newProtocols.append(*it);
-                }
-              }
-              Controller::Storage["config"]["protocols"] = newProtocols;
-            }
-            if (Request["deleteprotocol"].isObject()){
-              JSON::Value newProtocols;
-              jsonForEach(Controller::Storage["config"]["protocols"], it){
-                if (*it != Request["deleteprotocol"]){
-                  newProtocols.append(*it);
-                }
-              }
-              Controller::Storage["config"]["protocols"] = newProtocols;
-            }
-          }
-          /*LTS-END*/
-          if (Request.isMember("capabilities")){
-            Controller::checkCapable(capabilities);
-            Response["capabilities"] = capabilities;
-          }
-          /// \todo Re-enable conversion API at some point.
-          /*
-          if (Request.isMember("conversion")){
-            if (Request["conversion"].isMember("encoders")){
-              Response["conversion"]["encoders"] = myConverter.getEncoders();
-            }
-            if (Request["conversion"].isMember("query")){
-              if (Request["conversion"]["query"].isMember("path")){
-                Response["conversion"]["query"] = myConverter.queryPath(Request["conversion"]["query"]["path"].asString());
-              }else{
-                Response["conversion"]["query"] = myConverter.queryPath("./");
-              }
-            }
-            if (Request["conversion"].isMember("convert")){
-              for (JSON::ObjIter it = Request["conversion"]["convert"].ObjBegin(); it != Request["conversion"]["convert"].ObjEnd(); it++){
-                myConverter.startConversion(it->first,it->second);
-                Controller::Log("CONV","Conversion " + it->second["input"].asString() + " to " + it->second["output"].asString() + " started.");
-              }
-            }
-            if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){
-              if (Request["conversion"].isMember("clear")){
-                myConverter.clearStatus();
-              }
-              Response["conversion"]["status"] = myConverter.getStatus();
-            }
-          }
-          */
-
-          /// This takes a "browse" request, and fills in the response data.
-          /// 
-          /// \api
-          /// `"browse"` requests take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          ///   //A string, containing the path for which to discover contents. Empty means current working directory.
-          ///   "/tmp/example"
-          /// ~~~~~~~~~~~~~~~
-          /// and are responded to as:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   //The folder path
-          ///   "path":"/tmp/example"
-          ///   //An array of strings showing all files 
-          ///   "files":
-          ///     ["file1.dtsc",
-          ///      "file2.mp3",
-          ///      "file3.exe"
-          ///     ]
-          ///   //An array of strings showing all subdirectories
-          ///   "subdirectories":[
-          ///   "folder1"
-          ///   ]
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// 
-          if(Request.isMember("browse")){                    
-            if(Request["browse"] == ""){
-              Request["browse"] = ".";
-            }
-            DIR *dir;
-            struct dirent *ent;
-            struct stat filestat;
-            char* rpath = realpath(Request["browse"].asString().c_str(),0);
-            if(rpath == NULL){
-              Response["browse"]["path"].append(Request["browse"].asString());
-            }else{
-              Response["browse"]["path"].append(rpath);//Request["browse"].asString());
-              if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
-                while ((ent = readdir (dir)) != NULL) {
-                  if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
-                    std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
-                    if (stat( filepath.c_str(), &filestat )) continue;
-                    if (S_ISDIR( filestat.st_mode)){
-                      Response["browse"]["subdirectories"].append(ent->d_name);
-                    }else{
-                      Response["browse"]["files"].append(ent->d_name);
-                    }
-                  }
-                }
-                closedir (dir);
-              }
-            }
-            free(rpath);
-          }
-
-          /// 
-          /// \api
-          /// `"save"` requests are always empty:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {}
-          /// ~~~~~~~~~~~~~~~
-          /// Sending this request will cause the controller to write out its currently active configuration to the configuration file it was loaded from (the default being `./config.json`).
-          /// 
-          if (Request.isMember("save")){
-            if( Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
-              Controller::Log("CONF", "Config written to file on request through API");
-            }else{
-              Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
-            }
-          }
-          /// 
-          /// \api
-          /// `"ui_settings"` requests can take two forms. The first is the "set" form:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///    //Any data here
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// The second is the "request" form, and takes any non-object as argument.
-          /// When using the set form, this will write the given object verbatim into the controller storage.
-          /// No matter which form is used, the current contents of the ui_settings object are always returned in the response.
-          /// This API call is intended to store User Interface settings across sessions, and its contents are completely ignored by the controller itself. Besides the requirement of being an object, the contents are entirely free-form and may technically be used for any purpose.
-          /// 
-          if (Request.isMember("ui_settings")){
-            if (Request["ui_settings"].isObject()){
-              Storage["ui_settings"] = Request["ui_settings"];
-            }
-            Response["ui_settings"] = Storage["ui_settings"];
-          }
-          /*LTS-START*/
-          /// 
-          /// \api
-          /// LTS builds will always include an `"LTS"` response, set to 1.
-          /// 
-          Response["LTS"] = 1;
-          /// 
-          /// \api
-          /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
-          /// 
-          #ifdef UPDATER
-          if (Request.isMember("autoupdate")){
-            Controller::CheckUpdates();
-          }
-          if (Request.isMember("checkupdate")){
-            Controller::updates = Controller::CheckUpdateInfo();
-          }
-          if (Request.isMember("update") || Request.isMember("checkupdate")){
-            Response["update"] = Controller::updates;
-          }
-          #endif
-          /*LTS-END*/
-          /*LTS-START*/
-          if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
-            if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
-              Response["streams"]["incomplete list"] = 1ll;
-              if (Request.isMember("addstream")){
-                jsonForEach(Request["addstream"], jit){
-                  if (Controller::Storage["streams"].isMember(jit.key())){
-                    Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
-                  }
-                }
-              }
-            }else{
-              Response["streams"] = Controller::Storage["streams"];
-            }
-          }
-          //sent current configuration, if not minimal or was changed/requested
-          if (!Request.isMember("minimal") || Response.isMember("config")){
-            Response["config"] = Controller::Storage["config"];
-            Response["config"]["version"] = PACKAGE_VERSION;
-            /*LTS-START*/
-            #ifdef LICENSING
-            Response["config"]["license"] = getLicense();
-            #endif
-            /*LTS-END*/
-            //add required data to the current unix time to the config, for syncing reasons
-            Response["config"]["time"] = Util::epoch();
-            if ( !Response["config"].isMember("serverid")){
-              Response["config"]["serverid"] = "";
-            }
-          }
-          //sent any available logs and statistics
-          /// 
-          /// \api
-          /// `"log"` responses are always sent, and cannot be requested:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   [
-          ///     1398978357, //unix timestamp of this log message
-          ///     "CONF", //shortcode indicating the type of log message
-          ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
-          ///   ],
-          ///   //the above structure repeated for all logs
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
-          /// 
-          if (Request.isMember("clearstatlogs") || !Request.isMember("minimal")){
-            tthread::lock_guard<tthread::mutex> guard(logMutex);
-            if (!Request.isMember("minimal")){
-              Response["log"] = Controller::Storage["log"];
-            }
-            //clear log if requested
-            if (Request.isMember("clearstatlogs")){
-              Controller::Storage["log"].null();
-            }
-          }
-          /*LTS-END*/
-          if (Request.isMember("clients")){
-            if (Request["clients"].isArray()){
-              for (unsigned int i = 0; i < Request["clients"].size(); ++i){
-                Controller::fillClients(Request["clients"][i], Response["clients"][i]);
-              }
-            }else{
-              Controller::fillClients(Request["clients"], Response["clients"]);
-            }
-          }
-          if (Request.isMember("totals")){
-            if (Request["totals"].isArray()){
-              for (unsigned int i = 0; i < Request["totals"].size(); ++i){
-                Controller::fillTotals(Request["totals"][i], Response["totals"][i]);
-              }
-            }else{
-              Controller::fillTotals(Request["totals"], Response["totals"]);
-            }
-          }
-          if (Request.isMember("active_streams")){
-            Controller::fillActive(Request["active_streams"], Response["active_streams"], true);
-          }
-          if (Request.isMember("stats_streams")){
-            Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
-          }
-
-          if (Request.isMember("invalidate_sessions")){
-            if (Request["invalidate_sessions"].isArray()){
-              for (unsigned int i = 0; i < Request["invalidate_sessions"].size(); ++i){
-                Controller::sessions_invalidate(Request["invalidate_sessions"][i].asStringRef());
-              }
-            }else{
-              Controller::sessions_invalidate(Request["invalidate_sessions"].asStringRef());
-            }
-          }
-
-          if (Request.isMember("stop_sessions")){
-            if (Request["stop_sessions"].isArray() || Request["stop_sessions"].isObject()){
-              jsonForEach(Request["stop_sessions"], it){
-                Controller::sessions_shutdown(it);
-              }
-            }else{
-              Controller::sessions_shutdown(Request["stop_sessions"].asStringRef());
-            }
-          }
-
-          if (Request.isMember("stop_sessid")){
-            if (Request["stop_sessid"].isArray() || Request["stop_sessid"].isObject()){
-              jsonForEach(Request["stop_sessid"], it){
-                Controller::sessId_shutdown(it->asStringRef());
-              }
-            }else{
-              Controller::sessId_shutdown(Request["stop_sessid"].asStringRef());
-            }
-          }
-
-          if (Request.isMember("stop_tag")){
-            if (Request["stop_tag"].isArray() || Request["stop_tag"].isObject()){
-              jsonForEach(Request["stop_tag"], it){
-                Controller::tag_shutdown(it->asStringRef());
-              }
-            }else{
-              Controller::tag_shutdown(Request["stop_tag"].asStringRef());
-            }
-          }
-
-          if (Request.isMember("tag_sessid")){
-            if (Request["tag_sessid"].isObject()){
-              jsonForEach(Request["tag_sessid"], it){
-                Controller::sessId_tag(it.key(), it->asStringRef());
-              }
-            }
-          }
-
-
-          if (Request.isMember("push_start")){
-            std::string stream;
-            std::string target;
-            if (Request["push_start"].isArray()){
-              stream = Request["push_start"][0u].asStringRef();
-              target = Request["push_start"][1u].asStringRef();
-            }else{
-              stream = Request["push_start"]["stream"].asStringRef();
-              target = Request["push_start"]["target"].asStringRef();
-            }
-            Util::sanitizeName(stream);
-            if (*stream.rbegin() != '+'){
-              startPush(stream, target);
-            }else{
-              if (activeStreams.size()){
-                for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
-                  if (jt->first.substr(0, stream.size()) == stream){
-                    std::string streamname = jt->first;
-                    std::string target_tmp = target;
-                    startPush(streamname, target_tmp);
-                  }
-                }
-              }
-            }
-          }
-
-          if (Request.isMember("push_list")){
-            Controller::listPush(Response["push_list"]);
-          }
-          
-          if (Request.isMember("push_stop")){
-            if (Request["push_stop"].isArray()){
-              jsonForEach(Request["push_stop"], it){
-                Controller::stopPush(it->asInt());
-              }
-            }else{
-              Controller::stopPush(Request["push_stop"].asInt());
-            }
-          }
-
-          if (Request.isMember("push_auto_add")){
-            Controller::addPush(Request["push_auto_add"]);
-          }
-
-          if (Request.isMember("push_auto_remove")){
-            if (Request["push_auto_remove"].isArray()){
-              jsonForEach(Request["push_auto_remove"], it){
-                Controller::removePush(*it);
-              }
-            }else{
-              Controller::removePush(Request["push_auto_remove"]);
-            }
-          }
-
-          if (Request.isMember("push_auto_list")){
-            Response["push_auto_list"] = Controller::Storage["autopushes"];
-          }
-
-          if (Request.isMember("push_settings")){
-            Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
-          }
-
-
-          Controller::configChanged = true;
-          
+          handleAPICommands(Request, Response);
         }else{//unauthorized
           Util::sleep(1000);//sleep a second to prevent bruteforcing 
           logins++;
@@ -730,3 +246,518 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
   }//while connected
   return 0;
 }
+
+
+void Controller::handleUDPAPI(void * np){
+  Socket::UDPConnection uSock(true);
+  if (!uSock.bind(4242, "localhost")){
+    FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
+    return;
+  }
+  while (Controller::conf.is_active){
+    if (uSock.Receive()){
+      INFO_MSG("UDP API: %s", uSock.data);
+      JSON::Value Request = JSON::fromString(uSock.data, uSock.data_len);
+      Request["minimal"] = true;
+      JSON::Value Response;
+      if (Request.isObject()){
+        handleAPICommands(Request, Response);
+      }else{
+        WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
+      }
+    }else{
+      Util::sleep(500);
+    }
+  }
+}
+
+void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response){
+  //Parse config and streams from the request.
+  if (Request.isMember("config")){
+    Controller::checkConfig(Request["config"], Controller::Storage["config"]);
+  }
+  if (Request.isMember("streams")){
+    Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+  }
+  /*LTS-START*/
+  /// 
+  /// \api
+  /// `"addstream"` requests (LTS-only) take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "streamname": {
+  ///     //Stream configuration - see the "streams" call for details on this format.
+  ///   }
+  ///   /// Optionally, repeat for more streams.
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// These requests will add new streams or update existing streams with the same names, without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+  /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
+  /// 
+  if (Request.isMember("addstream")){
+    Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
+  }
+  /// 
+  /// \api
+  /// `"deletestream"` requests (LTS-only) take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "streamname": {} //any contents in this object are ignored
+  ///   /// Optionally, repeat for more streams.
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// OR
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   "streamname",
+  ///   /// Optionally, repeat for more streams.
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// OR
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// "streamname"
+  /// ~~~~~~~~~~~~~~~
+  /// These requests will remove the named stream(s), without touching other streams. In other words, this call can be used for incremental updates to the stream list instead of complete updates, like the "streams" call.
+  /// Sending `"addstream"` or `"deletestream"` as part of your request will alter the `"streams"` response. As opposed to a full list of streams, this will now include a property `"incomplete list"` set to 1 and only include successfully added streams. As deletions cannot fail, these are never mentioned.
+  ///
+  if (Request.isMember("deletestream")){
+    //if array, delete all elements
+    //if object, delete all entries
+    //if string, delete just the one
+    if (Request["deletestream"].isString()){
+      Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
+    }
+    if (Request["deletestream"].isArray()){
+      jsonForEach(Request["deletestream"], it){
+        Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
+      }
+    }
+    if (Request["deletestream"].isObject()){
+      jsonForEach(Request["deletestream"], it){
+        Controller::deleteStream(it.key(), Controller::Storage["streams"]); 
+      }
+    }
+  }
+  /// 
+  /// \api
+  /// `"addprotocol"` requests (LTS-only) take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "connector": "HTTP" //Name of the connector to enable
+  ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// OR
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   {
+  ///     "connector": "HTTP" //Name of the connector to enable
+  ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  ///   }
+  ///   /// Optionally, repeat for more protocols.
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// These requests will add the given protocol configurations, without touching existing configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+  /// There is no response to this call.
+  ///
+  if (Request.isMember("addprotocol")){
+    if (Request["addprotocol"].isArray()){
+      jsonForEach(Request["addprotocol"], it){
+        Controller::Storage["config"]["protocols"].append(*it);
+      }
+    }
+    if (Request["addprotocol"].isObject()){
+      Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
+    }
+  }
+  /// 
+  /// \api
+  /// `"deleteprotocol"` requests (LTS-only) take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///   "connector": "HTTP" //Name of the connector to enable
+  ///   //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// OR
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   {
+  ///     "connector": "HTTP" //Name of the connector to enable
+  ///     //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
+  ///   }
+  ///   /// Optionally, repeat for more protocols.
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// These requests will remove the given protocol configurations (exact matches only), without touching other configurations. In other words, this call can be used for incremental updates to the protocols list instead of complete updates, like the "config" call.
+  /// There is no response to this call.
+  ///
+  if (Request.isMember("deleteprotocol")){
+    if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
+      JSON::Value newProtocols;
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        bool add = true;
+        jsonForEach(Request["deleteprotocol"], pit){
+          if (*it == *pit){
+            add = false;
+            break;
+          }
+        }
+        if (add){
+          newProtocols.append(*it);
+        }
+      }
+      Controller::Storage["config"]["protocols"] = newProtocols;
+    }
+    if (Request["deleteprotocol"].isObject()){
+      JSON::Value newProtocols;
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        if (*it != Request["deleteprotocol"]){
+          newProtocols.append(*it);
+        }
+      }
+      Controller::Storage["config"]["protocols"] = newProtocols;
+    }
+  }
+  /*LTS-END*/
+  if (Request.isMember("capabilities")){
+    Controller::checkCapable(capabilities);
+    Response["capabilities"] = capabilities;
+  }
+  /// \todo Re-enable conversion API at some point.
+  /*
+  if (Request.isMember("conversion")){
+    if (Request["conversion"].isMember("encoders")){
+      Response["conversion"]["encoders"] = myConverter.getEncoders();
+    }
+    if (Request["conversion"].isMember("query")){
+      if (Request["conversion"]["query"].isMember("path")){
+        Response["conversion"]["query"] = myConverter.queryPath(Request["conversion"]["query"]["path"].asString());
+      }else{
+        Response["conversion"]["query"] = myConverter.queryPath("./");
+      }
+    }
+    if (Request["conversion"].isMember("convert")){
+      for (JSON::ObjIter it = Request["conversion"]["convert"].ObjBegin(); it != Request["conversion"]["convert"].ObjEnd(); it++){
+        myConverter.startConversion(it->first,it->second);
+        Controller::Log("CONV","Conversion " + it->second["input"].asString() + " to " + it->second["output"].asString() + " started.");
+      }
+    }
+    if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){
+      if (Request["conversion"].isMember("clear")){
+        myConverter.clearStatus();
+      }
+      Response["conversion"]["status"] = myConverter.getStatus();
+    }
+  }
+  */
+
+  /// This takes a "browse" request, and fills in the response data.
+  /// 
+  /// \api
+  /// `"browse"` requests take the form of:
+  /// ~~~~~~~~~~~~~~~{.js}
+  ///   //A string, containing the path for which to discover contents. Empty means current working directory.
+  ///   "/tmp/example"
+  /// ~~~~~~~~~~~~~~~
+  /// and are responded to as:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   //The folder path
+  ///   "path":"/tmp/example"
+  ///   //An array of strings showing all files 
+  ///   "files":
+  ///     ["file1.dtsc",
+  ///      "file2.mp3",
+  ///      "file3.exe"
+  ///     ]
+  ///   //An array of strings showing all subdirectories
+  ///   "subdirectories":[
+  ///   "folder1"
+  ///   ]
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// 
+  if(Request.isMember("browse")){                    
+    if(Request["browse"] == ""){
+      Request["browse"] = ".";
+    }
+    DIR *dir;
+    struct dirent *ent;
+    struct stat filestat;
+    char* rpath = realpath(Request["browse"].asString().c_str(),0);
+    if(rpath == NULL){
+      Response["browse"]["path"].append(Request["browse"].asString());
+    }else{
+      Response["browse"]["path"].append(rpath);//Request["browse"].asString());
+      if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
+        while ((ent = readdir (dir)) != NULL) {
+          if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
+            std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
+            if (stat( filepath.c_str(), &filestat )) continue;
+            if (S_ISDIR( filestat.st_mode)){
+              Response["browse"]["subdirectories"].append(ent->d_name);
+            }else{
+              Response["browse"]["files"].append(ent->d_name);
+            }
+          }
+        }
+        closedir (dir);
+      }
+    }
+    free(rpath);
+  }
+
+  /// 
+  /// \api
+  /// `"save"` requests are always empty:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {}
+  /// ~~~~~~~~~~~~~~~
+  /// Sending this request will cause the controller to write out its currently active configuration to the configuration file it was loaded from (the default being `./config.json`).
+  /// 
+  if (Request.isMember("save")){
+    if( Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
+      Controller::Log("CONF", "Config written to file on request through API");
+    }else{
+      Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
+    }
+  }
+  /// 
+  /// \api
+  /// `"ui_settings"` requests can take two forms. The first is the "set" form:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// {
+  ///    //Any data here
+  /// }
+  /// ~~~~~~~~~~~~~~~
+  /// The second is the "request" form, and takes any non-object as argument.
+  /// When using the set form, this will write the given object verbatim into the controller storage.
+  /// No matter which form is used, the current contents of the ui_settings object are always returned in the response.
+  /// This API call is intended to store User Interface settings across sessions, and its contents are completely ignored by the controller itself. Besides the requirement of being an object, the contents are entirely free-form and may technically be used for any purpose.
+  /// 
+  if (Request.isMember("ui_settings")){
+    if (Request["ui_settings"].isObject()){
+      Storage["ui_settings"] = Request["ui_settings"];
+    }
+    Response["ui_settings"] = Storage["ui_settings"];
+  }
+  /*LTS-START*/
+  /// 
+  /// \api
+  /// LTS builds will always include an `"LTS"` response, set to 1.
+  /// 
+  Response["LTS"] = 1;
+  /// 
+  /// \api
+  /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
+  /// 
+  #ifdef UPDATER
+  if (Request.isMember("autoupdate")){
+    Controller::CheckUpdates();
+  }
+  if (Request.isMember("checkupdate")){
+    Controller::updates = Controller::CheckUpdateInfo();
+  }
+  if (Request.isMember("update") || Request.isMember("checkupdate")){
+    Response["update"] = Controller::updates;
+  }
+  #endif
+  /*LTS-END*/
+  /*LTS-START*/
+  if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
+    if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
+      Response["streams"]["incomplete list"] = 1ll;
+      if (Request.isMember("addstream")){
+        jsonForEach(Request["addstream"], jit){
+          if (Controller::Storage["streams"].isMember(jit.key())){
+            Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
+          }
+        }
+      }
+    }else{
+      Response["streams"] = Controller::Storage["streams"];
+    }
+  }
+  //sent current configuration, if not minimal or was changed/requested
+  if (!Request.isMember("minimal") || Response.isMember("config")){
+    Response["config"] = Controller::Storage["config"];
+    Response["config"]["version"] = PACKAGE_VERSION;
+    /*LTS-START*/
+    #ifdef LICENSING
+    Response["config"]["license"] = getLicense();
+    #endif
+    /*LTS-END*/
+    //add required data to the current unix time to the config, for syncing reasons
+    Response["config"]["time"] = Util::epoch();
+    if ( !Response["config"].isMember("serverid")){
+      Response["config"]["serverid"] = "";
+    }
+  }
+  //sent any available logs and statistics
+  /// 
+  /// \api
+  /// `"log"` responses are always sent, and cannot be requested:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   [
+  ///     1398978357, //unix timestamp of this log message
+  ///     "CONF", //shortcode indicating the type of log message
+  ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
+  ///   ],
+  ///   //the above structure repeated for all logs
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
+  /// 
+  if (Request.isMember("clearstatlogs") || !Request.isMember("minimal")){
+    tthread::lock_guard<tthread::mutex> guard(logMutex);
+    if (!Request.isMember("minimal")){
+      Response["log"] = Controller::Storage["log"];
+    }
+    //clear log if requested
+    if (Request.isMember("clearstatlogs")){
+      Controller::Storage["log"].null();
+    }
+  }
+  /*LTS-END*/
+  if (Request.isMember("clients")){
+    if (Request["clients"].isArray()){
+      for (unsigned int i = 0; i < Request["clients"].size(); ++i){
+        Controller::fillClients(Request["clients"][i], Response["clients"][i]);
+      }
+    }else{
+      Controller::fillClients(Request["clients"], Response["clients"]);
+    }
+  }
+  if (Request.isMember("totals")){
+    if (Request["totals"].isArray()){
+      for (unsigned int i = 0; i < Request["totals"].size(); ++i){
+        Controller::fillTotals(Request["totals"][i], Response["totals"][i]);
+      }
+    }else{
+      Controller::fillTotals(Request["totals"], Response["totals"]);
+    }
+  }
+  if (Request.isMember("active_streams")){
+    Controller::fillActive(Request["active_streams"], Response["active_streams"], true);
+  }
+  if (Request.isMember("stats_streams")){
+    Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
+  }
+
+  if (Request.isMember("invalidate_sessions")){
+    if (Request["invalidate_sessions"].isArray()){
+      for (unsigned int i = 0; i < Request["invalidate_sessions"].size(); ++i){
+        Controller::sessions_invalidate(Request["invalidate_sessions"][i].asStringRef());
+      }
+    }else{
+      Controller::sessions_invalidate(Request["invalidate_sessions"].asStringRef());
+    }
+  }
+
+  if (Request.isMember("stop_sessions")){
+    if (Request["stop_sessions"].isArray() || Request["stop_sessions"].isObject()){
+      jsonForEach(Request["stop_sessions"], it){
+        Controller::sessions_shutdown(it);
+      }
+    }else{
+      Controller::sessions_shutdown(Request["stop_sessions"].asStringRef());
+    }
+  }
+
+  if (Request.isMember("stop_sessid")){
+    if (Request["stop_sessid"].isArray() || Request["stop_sessid"].isObject()){
+      jsonForEach(Request["stop_sessid"], it){
+        Controller::sessId_shutdown(it->asStringRef());
+      }
+    }else{
+      Controller::sessId_shutdown(Request["stop_sessid"].asStringRef());
+    }
+  }
+
+  if (Request.isMember("stop_tag")){
+    if (Request["stop_tag"].isArray() || Request["stop_tag"].isObject()){
+      jsonForEach(Request["stop_tag"], it){
+        Controller::tag_shutdown(it->asStringRef());
+      }
+    }else{
+      Controller::tag_shutdown(Request["stop_tag"].asStringRef());
+    }
+  }
+
+  if (Request.isMember("tag_sessid")){
+    if (Request["tag_sessid"].isObject()){
+      jsonForEach(Request["tag_sessid"], it){
+        Controller::sessId_tag(it.key(), it->asStringRef());
+      }
+    }
+  }
+
+
+  if (Request.isMember("push_start")){
+    std::string stream;
+    std::string target;
+    if (Request["push_start"].isArray()){
+      stream = Request["push_start"][0u].asStringRef();
+      target = Request["push_start"][1u].asStringRef();
+    }else{
+      stream = Request["push_start"]["stream"].asStringRef();
+      target = Request["push_start"]["target"].asStringRef();
+    }
+    Util::sanitizeName(stream);
+    if (*stream.rbegin() != '+'){
+      startPush(stream, target);
+    }else{
+      if (activeStreams.size()){
+        for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+          if (jt->first.substr(0, stream.size()) == stream){
+            std::string streamname = jt->first;
+            std::string target_tmp = target;
+            startPush(streamname, target_tmp);
+          }
+        }
+      }
+    }
+  }
+
+  if (Request.isMember("push_list")){
+    Controller::listPush(Response["push_list"]);
+  }
+  
+  if (Request.isMember("push_stop")){
+    if (Request["push_stop"].isArray()){
+      jsonForEach(Request["push_stop"], it){
+        Controller::stopPush(it->asInt());
+      }
+    }else{
+      Controller::stopPush(Request["push_stop"].asInt());
+    }
+  }
+
+  if (Request.isMember("push_auto_add")){
+    Controller::addPush(Request["push_auto_add"]);
+  }
+
+  if (Request.isMember("push_auto_remove")){
+    if (Request["push_auto_remove"].isArray()){
+      jsonForEach(Request["push_auto_remove"], it){
+        Controller::removePush(*it);
+      }
+    }else{
+      Controller::removePush(Request["push_auto_remove"]);
+    }
+  }
+
+  if (Request.isMember("push_auto_list")){
+    Response["push_auto_list"] = Controller::Storage["autopushes"];
+  }
+
+  if (Request.isMember("push_settings")){
+    Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
+  }
+
+
+  Controller::configChanged = true;
+}
+

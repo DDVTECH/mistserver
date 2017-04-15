@@ -362,6 +362,8 @@ int main_loop(int argc, char ** argv){
   tthread::thread uplinkThread(Controller::uplinkConnection, 0);/*LTS*/
   //start push checking thread
   tthread::thread pushThread(Controller::pushCheckLoop, 0);
+  //start UDP API thread
+  tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
 
   
   //start main loop
@@ -410,6 +412,8 @@ int main_loop(int argc, char ** argv){
   uplinkThread.join();
   HIGH_MSG("Joining push thread...");
   pushThread.join();
+  HIGH_MSG("Joining UDP API thread...");
+  UDPAPIThread.join();
   #ifdef LICENSING
   HIGH_MSG("Joining license thread...");
   licenseThread.join();

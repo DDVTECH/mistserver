@@ -107,6 +107,7 @@ namespace OGG {
   /// Reads an OGG Page from the source and if valid, removes it from source.
   bool Page::read(std::string & newData){
     int len = newData.size();
+    int total = 0;
     segments.clear();
     if (newData.size() < 27){
       return false;
@@ -119,14 +120,25 @@ namespace OGG {
     if (newData.size() < 27u + getPageSegments()){ //check input size
       return false;
     }
-    newData.erase(0, 27);
-    memcpy(data + 27, newData.c_str(), getPageSegments());
-    newData.erase(0, getPageSegments());
+    memcpy(data + 27, newData.data()+27, getPageSegments());
     std::deque<unsigned int> segSizes = decodeXiphSize(data + 27, getPageSegments());
+    for (std::deque<unsigned int>::iterator it = segSizes.begin(); it != segSizes.end(); it++){
+      total += *it;
+    }
+
+    total += 27;
+    //return false if the segment is not complete
+    total += getPageSegments();
+    if(total >= len){
+      return false;
+    }
+
+    newData.erase(0, getPageSegments()+27);
     for (std::deque<unsigned int>::iterator it = segSizes.begin(); it != segSizes.end(); it++){
       segments.push_back(std::string(newData.data(), *it));
       newData.erase(0, *it);
     }
+
     INFO_MSG("Erased %lu bytes from the input", len - newData.size());
     return true;
   }

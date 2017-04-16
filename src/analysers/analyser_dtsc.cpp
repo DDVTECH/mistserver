@@ -1,124 +1,124 @@
-#include <iostream>
-#include <mist/defines.h>
-#include <sstream>
-#include <string>
-#include <unistd.h>
-
 #include "analyser_dtsc.h"
-#include <mist/config.h>
 #include <mist/h264.h>
-#include <mist/json.h>
 
-dtscAnalyser::dtscAnalyser(Util::Config config) : analysers(config) {
-  conn = Socket::Connection(fileno(stdout), fileno(stdin));
-  std::cout << "connection initialized" << std::endl;
+void AnalyserDTSC::init(Util::Config &conf){
+  Analyser::init(conf);
+}
 
-  F.reInit(conn);
+AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
+  conn = Socket::Connection(0, fileno(stdin));
   totalBytes = 0;
+}
 
-  //  F = DTSC::Packet(config.getString("filename"));
-  if (!F) {
-    std::cerr << "Not a valid DTSC file" << std::endl;
-    mayExecute = false;
-    return;
+bool AnalyserDTSC::parsePacket(){
+  P.reInit(conn);
+  if (conn && !P){
+    FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes)
+    return false;
+  }
+  if (!conn && !P){
+    stop();
+    return false;
   }
 
-  if (F.getVersion() == DTSC::DTSC_HEAD) // for meta
-  {
-    DTSC::Meta m(F);
-
-    if (detail > 0) {
+  switch (P.getVersion()){
+  case DTSC::DTSC_V1:{
+    if (detail >= 2){
+      std::cout << "DTSCv1 packet: " << P.getScan().toPrettyString() << std::endl;
+    }
+    break;
+  }
+  case DTSC::DTSC_V2:{
+    mediaTime = P.getTime();
+    if (detail >= 2){
+      std::cout << "DTSCv2 packet (Track " << P.getTrackId() << ", time " << P.getTime()
+                << "): " << P.getScan().toPrettyString() << std::endl;
+    }
+    break;
+  }
+  case DTSC::DTSC_HEAD:{
+    if (detail >= 2){std::cout << "DTSC header: " << P.getScan().toPrettyString() << std::endl;}
+    if (detail == 1){
+      bool hasH264 = false;
+      bool hasAAC = false;
       JSON::Value result;
-      for (std::map<unsigned int, DTSC::Track>::iterator it = m.tracks.begin(); it != m.tracks.end(); it++) {
+      std::stringstream issues;
+      DTSC::Meta M(P);
+      for (std::map<unsigned int, DTSC::Track>::iterator it = M.tracks.begin();
+           it != M.tracks.end(); it++){
         JSON::Value track;
-        if (it->second.type == "video") {
-          std::stringstream tStream;
-          track["resolution"] = JSON::Value((long long)it->second.width).asString() + "x" + JSON::Value((long long)it->second.height).asString();
-          track["fps"] = (long long)((double)it->second.fpks / 1000);
+        track["kbits"] = (long long)((double)it->second.bps * 8 / 1024);
+        track["codec"] = it->second.codec;
+        uint32_t shrtest_key = 0xFFFFFFFFul;
+        uint32_t longest_key = 0;
+        uint32_t shrtest_prt = 0xFFFFFFFFul;
+        uint32_t longest_prt = 0;
+        uint32_t shrtest_cnt = 0xFFFFFFFFul;
+        uint32_t longest_cnt = 0;
+        for (std::deque<DTSC::Key>::iterator k = it->second.keys.begin();
+             k != it->second.keys.end(); k++){
+          if (!k->getLength()){continue;}
+          if (k->getLength() > longest_key){longest_key = k->getLength();}
+          if (k->getLength() < shrtest_key){shrtest_key = k->getLength();}
+          if (k->getParts() > longest_cnt){longest_cnt = k->getParts();}
+          if (k->getParts() < shrtest_cnt){shrtest_cnt = k->getParts();}
+          if (k->getParts()){
+            if ((k->getLength() / k->getParts()) > longest_prt){
+              longest_prt = (k->getLength() / k->getParts());
+            }
+            if ((k->getLength() / k->getParts()) < shrtest_prt){
+              shrtest_prt = (k->getLength() / k->getParts());
+            }
+          }
+        }
+        track["keys"]["ms_min"] = (long long)shrtest_key;
+        track["keys"]["ms_max"] = (long long)longest_key;
+        track["keys"]["frame_ms_min"] = (long long)shrtest_prt;
+        track["keys"]["frame_ms_max"] = (long long)longest_prt;
+        track["keys"]["frames_min"] = (long long)shrtest_cnt;
+        track["keys"]["frames_max"] = (long long)longest_cnt;
+        if (longest_prt > 500){
+          issues << "unstable connection (" << longest_prt << "ms " << it->second.codec
+                 << " frame)! ";
+        }
+        if (shrtest_cnt < 6){
+          issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec
+                 << " frames in key)! ";
+        }
+        if (it->second.codec == "AAC"){hasAAC = true;}
+        if (it->second.codec == "H264"){hasH264 = true;}
+        if (it->second.type == "video"){
+          track["width"] = (long long)it->second.width;
+          track["height"] = (long long)it->second.height;
           track["fpks"] = it->second.fpks;
-          tStream << it->second.bps * 8 << " b/s, " << (double)it->second.bps * 8 / 1024 << " kb/s, " << (double)it->second.bps * 8 / 1024 / 1024
-                  << " mb/s";
-          track["bitrate"] = tStream.str();
-          tStream.str("");
-          track["keyframe_duration"] = (long long)((float)(it->second.lastms - it->second.firstms) / it->second.keys.size());
-          tStream << ((double)(it->second.lastms - it->second.firstms) / it->second.keys.size()) / 1000;
-          track["keyframe_interval"] = tStream.str();
-
-          tStream.str("");
-          if (it->second.codec == "H264") {
+          if (it->second.codec == "H264"){
             h264::sequenceParameterSet sps;
             sps.fromDTSCInit(it->second.init);
             h264::SPSMeta spsData = sps.getCharacteristics();
-            track["encoding"]["width"] = spsData.width;
-            track["encoding"]["height"] = spsData.height;
-            tStream << spsData.fps;
-            track["encoding"]["fps"] = tStream.str();
-            track["encoding"]["profile"] = spsData.profile;
-            track["encoding"]["level"] = spsData.level;
+            track["h264"]["profile"] = spsData.profile;
+            track["h264"]["level"] = spsData.level;
           }
-        }
-        if (it->second.type == "audio") {
-          std::stringstream tStream;
-          tStream << it->second.bps * 8 << " b/s, " << (double)it->second.bps * 8 / 1024 << " kb/s, " << (double)it->second.bps * 8 / 1024 / 1024
-                  << " mb/s";
-          track["bitrate"] = tStream.str();
-          track["keyframe_interval"] = (long long)((float)(it->second.lastms - it->second.firstms) / it->second.keys.size());
         }
         result[it->second.getWritableIdentifier()] = track;
       }
-      std::cout << result.toString();
+      if ((hasAAC || hasH264) && M.tracks.size() > 1){
+        if (!hasAAC){issues << "HLS no audio!";}
+        if (!hasH264){issues << "HLS no video!";}
+      }
+      if (issues.str().size()){result["issues"] = issues.str();}
+      std::cout << result.toString() << std::endl;
+      stop();
     }
-
-    if (m.vod || m.live) { m.toPrettyString(std::cout, 0, 0x03); }
+    break;
   }
-}
-
-bool dtscAnalyser::packetReady() {
-  return (F.getDataLen() > 0);
-}
-
-bool dtscAnalyser::hasInput() {
-  return F;
-}
-
-int dtscAnalyser::doAnalyse() {
-  if (analyse) { // always analyse..?
-    switch (F.getVersion()) {
-    case DTSC::DTSC_V1: {
-      std::cout << "DTSCv1 packet: " << F.getScan().toPrettyString() << std::endl;
-      break;
-    }
-    case DTSC::DTSC_V2: {
-      std::cout << "DTSCv2 packet (Track " << F.getTrackId() << ", time " << F.getTime() << "): " << F.getScan().toPrettyString() << std::endl;
-      break;
-    }
-    case DTSC::DTSC_HEAD: {
-      std::cout << "DTSC header: " << F.getScan().toPrettyString() << std::endl;
-      break;
-    }
-    case DTSC::DTCM: {
-      std::cout << "DTCM command: " << F.getScan().toPrettyString() << std::endl;
-      break;
-    }
-    default: DEBUG_MSG(DLVL_WARN, "Invalid dtsc packet @ bpos %llu", totalBytes); break;
-    }
+  case DTSC::DTCM:{
+    if (detail >= 2){std::cout << "DTCM command: " << P.getScan().toPrettyString() << std::endl;}
+    break;
+  }
+  default: FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes); break;
   }
 
-  totalBytes += F.getDataLen();
-
-  F.reInit(conn); 
-  return totalBytes;
+  totalBytes += P.getDataLen();
+  return true;
 }
 
-int main(int argc, char **argv) {
-  Util::Config conf = Util::Config(argv[0]);
-
-  analysers::defaultConfig(conf);
-  conf.parseArgs(argc, argv);
-
-  dtscAnalyser A(conf);
-
-  A.Run();
-
-  return 0;
-}

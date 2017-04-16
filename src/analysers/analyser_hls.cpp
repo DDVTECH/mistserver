@@ -9,213 +9,175 @@
 #include <string.h>
 #include <sys/sysinfo.h>
 
-// http://patchy.ddvtech.com:8080/hls/bbb/index.m3u8
-//
+void AnalyserHLS::init(Util::Config &conf){
+  Analyser::init(conf);
+  JSON::Value opt;
+  opt["long"] = "reconstruct";
+  opt["short"] = "R";
+  opt["arg"] = "string";
+  opt["default"] = "";
+  opt["help"] = "Reconstruct TS file from HLS to the given filename";
+  conf.addOption("reconstruct", opt);
+  opt.null();
+}
 
-std::deque<HLSPart> getParts(std::string &body, std::string &uri) {
-  size_t slashPos = uri.rfind('/');
-  std::string uri_prefix = uri.substr(0, slashPos + 1);
-  std::deque<HLSPart> out;
+void AnalyserHLS::getParts(const std::string &body){
   std::stringstream data(body);
   std::string line;
-  unsigned int start = 0;
-  unsigned int durat = 0;
-  do {
-    line = "";
+  uint64_t no = 0;
+  float durat = 0;
+  refreshAt = Util::bootSecs() + 10;
+  while (data.good()){
     std::getline(data, line);
-    if (line.size() && *line.rbegin() == '\r') { line.resize(line.size() - 1); }
-    if (line != "") {
-      if (line[0] != '#') {
-        out.push_back(HLSPart(uri_prefix + line, start, durat));
-        start += durat;
-      } else {
-        if (line.substr(0, 8) == "#EXTINF:") { durat = atof(line.substr(8).c_str()) * 1000; }
+    if (line.size() && *line.rbegin() == '\r'){line.resize(line.size() - 1);}
+    if (!line.size()){continue;}
+    if (line[0] != '#'){
+      if (line.find("m3u") != std::string::npos){
+        root = root.link(line);
+        INFO_MSG("Found a sub-playlist, re-targeting %s", root.getUrl().c_str());
+        refreshAt = Util::bootSecs();
+        return;
+      }
+      if (!parsedPart || no > parsedPart){
+        HTTP::URL newURL = root.link(line);
+        INFO_MSG("Discovered: %s", newURL.getUrl().c_str());
+        parts.push_back(HLSPart(newURL, no, durat));
+      }
+      ++no;
+    }else{
+      if (line.substr(0, 8) == "#EXTINF:"){durat = atof(line.c_str() + 8) * 1000;}
+      if (line.substr(0, 22) == "#EXT-X-MEDIA-SEQUENCE:"){no = atoll(line.c_str() + 22);}
+      if (line.substr(0, 14) == "#EXT-X-ENDLIST"){refreshAt = 0;}
+      if (line.substr(0, 22) == "#EXT-X-TARGETDURATION:" && refreshAt){
+        refreshAt = Util::bootSecs() + atoll(line.c_str() + 22) / 2;
       }
     }
-  } while (line != "");
-  return out;
+  }
 }
 
-hlsAnalyser::hlsAnalyser(Util::Config config) : analysers(config) {
-  port = 80;
-  url = conf.getString("url");
-  if (url.substr(0, 7) != "http://") {
-    DEBUG_MSG(DLVL_FAIL, "The URL must start with http://");
-    mayExecute = false;
-    return;
-  }
-  url = url.substr(7);
-
-  //check if url ends with .m3u8?
-  if((url.find('/') == std::string::npos) || (url.find(".m3u") == std::string::npos && url.find(".m3u8") == std::string::npos))
-  {
-    std::cout << "incorrect url"<<std::endl;
-    mayExecute = false;
-    return;
-  }
-
-  server = url.substr(0, url.find('/'));
-  url = url.substr(url.find('/'));
-
-  if (server.find(':') != std::string::npos) {
-    port = atoi(server.substr(server.find(':') + 1).c_str());
-    server = server.substr(0, server.find(':'));
-  }
-
-  startTime = Util::bootSecs();
-  abortTime = conf.getInteger("abort");
-
-  playlist = url;
-  repeat = true; // init to true, analyse at least one time
-  lastDown = "";
-  pos = 0;
-  output = (conf.getString("mode") == "output");
+/// Returns true if we either still have parts to download, or are still refreshing the playlist.
+bool AnalyserHLS::isOpen(){
+  return (*isActive) && (parts.size() || refreshAt);
 }
 
-void hlsAnalyser::doValidate() {
-  long long int endTime = Util::bootSecs();
-  std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
+void AnalyserHLS::stop(){
+  parts.clear();
+  refreshAt = 0;
 }
 
-int hlsAnalyser::doAnalyse() {
-  repeat = false;
-  while (url.size() > 4 && (url.find(".m3u") != std::string::npos || url.find(".m3u8") != std::string::npos)) {
-    playlist = url;
-    DEBUG_MSG(DLVL_DEVEL, "Retrieving playlist: %s", url.c_str());
-    if (!conn) { conn = Socket::Connection(server, port, false); }
-    HTTP::Parser H;
-    H.url = url;
-    H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString());
+bool AnalyserHLS::open(const std::string &url){
+  root = HTTP::URL(url);
+  if (root.protocol != "http"){
+    FAIL_MSG("Only http protocol is supported (%s not supported)", root.protocol.c_str());
+    return false;
+  }
+  return true;
+}
+
+AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
+  if (conf.getString("reconstruct") != ""){
+    reconstruct.open(conf.getString("reconstruct").c_str());
+    if (reconstruct.good()){
+      WARN_MSG("Will reconstruct to %s", conf.getString("reconstruct").c_str());
+    }
+  }
+  hlsTime = 0;
+  parsedPart = 0;
+  refreshAt = Util::bootSecs();
+}
+
+/// Downloads the given URL into 'H', returns true on success.
+/// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
+bool AnalyserHLS::download(const HTTP::URL &link){
+  if (!link.host.size()){return false;}
+  INFO_MSG("Retrieving %s", link.getUrl().c_str());
+  unsigned int loop = 6; // max 5 attempts
+  while (--loop){// loop while we are unsuccessful
+    H.Clean();
+    // Reconnect if needed
+    if (!conn || link.host != connectedHost || link.getPort() != connectedPort){
+      conn.close();
+      connectedHost = link.host;
+      connectedPort = link.getPort();
+      conn = Socket::Connection(connectedHost, connectedPort, true);
+    }
+    H.url = "/" + link.path;
+    if (link.port.size()){
+      H.SetHeader("Host", link.host + ":" + link.port);
+    }else{
+      H.SetHeader("Host", link.host);
+    }
     H.SendRequest(conn);
     H.Clean();
-    while (conn && (abortTime <= 0 || Util::bootSecs() < startTime + abortTime) && (!conn.spool() || !H.Read(conn))) {}
-    parts = getParts(H.body, url);
-    if (!parts.size()) {
-      DEBUG_MSG(DLVL_FAIL, "Playlist parsing error - cancelling. state: %s/%s body size: %u", conn ? "Conn" : "Disconn",
-                (Util::bootSecs() < (startTime + abortTime)) ? "NoTimeout" : "TimedOut", H.body.size());
-      if (conf.getString("mode") == "validate") {
-        long long int endTime = Util::bootSecs();
-        std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
-      }
-      return -1;
-    }
-    H.Clean();
-    url = parts.begin()->uri;
-  }
-
-  if (lastDown != "") {
-    while (parts.size() && parts.begin()->uri != lastDown) { parts.pop_front(); }
-    if (parts.size() < 2) {
-      repeat = true;
-      Util::sleep(1000);
-      //        continue;
-      return 0;
-    }
-    parts.pop_front();
-  }
-
-  unsigned int lastRepeat = 0;
-  unsigned int numRepeat = 0;
-  while (parts.size() > 0 && (abortTime <= 0 || Util::bootSecs() < startTime + abortTime)) {
-    HLSPart part = *parts.begin();
-    parts.pop_front();
-    DEBUG_MSG(DLVL_DEVEL, "Retrieving segment: %s (%u-%u)", part.uri.c_str(), part.start, part.start + part.dur);
-    if (!conn) { conn = Socket::Connection(server, port, false); }
-    HTTP::Parser H;
-    H.url = part.uri;
-    H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString());
-    H.SendRequest(conn);
-    H.Clean();
-    while (conn && (abortTime <= 0 || Util::bootSecs() < startTime + abortTime) && (!conn.spool() || !H.Read(conn))) {}
-
-    if (H.GetHeader("Content-Length") != "") {
-      if (H.body.size() != atoi(H.GetHeader("Content-Length").c_str())) {
-        DEBUG_MSG(DLVL_FAIL, "Expected %s bytes of data, but only received %lu.", H.GetHeader("Content-Length").c_str(), H.body.size());
-        if (lastRepeat != part.start || numRepeat < 500) {
-          DEBUG_MSG(DLVL_FAIL, "Retrying");
-          if (lastRepeat != part.start) {
-            numRepeat = 0;
-            lastRepeat = part.start;
-          } else {
-            numRepeat++;
-          }
-          parts.push_front(part);
-          Util::wait(1000);
-          continue;
-        } else {
-          DEBUG_MSG(DLVL_FAIL, "Aborting further downloading");
-          repeat = false;
-          break;
-        }
-      }
-    }
-    if (H.body.size() % 188) {
-      DEBUG_MSG(DLVL_FAIL, "Expected a multiple of 188 bytes, received %d bytes", H.body.size());
-      if (lastRepeat != part.start || numRepeat < 500) {
-        DEBUG_MSG(DLVL_FAIL, "Retrying");
-        if (lastRepeat != part.start) {
-          numRepeat = 0;
-          lastRepeat = part.start;
-        } else {
-          numRepeat++;
-        }
-        parts.push_front(part);
-        Util::wait(1000);
+    uint64_t reqTime = Util::bootSecs();
+    while (conn && Util::bootSecs() < reqTime + 5){
+      // No data? Wait for a second or so.
+      if (!conn.spool()){
+        Util::sleep(1000);
         continue;
-      } else {
-        DEBUG_MSG(DLVL_FAIL, "Aborting further downloading");
-        repeat = false;
-        break;
+      }
+      // Data! Check if we can parse it...
+      if (H.Read(conn)){
+        return true; // Success!
+      }
+      // reset the 5 second timeout
+      reqTime = Util::bootSecs();
+    }
+    if (conn){
+      FAIL_MSG("Timeout while retrieving %s", link.getUrl().c_str());
+      return false;
+    }
+    Util::sleep(500); // wait a bit before retrying
+  }
+  FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
+  return false;
+}
+
+bool AnalyserHLS::parsePacket(){
+  while (isOpen()){
+    // If needed, refresh the playlist
+    if (refreshAt && Util::bootSecs() >= refreshAt){
+      if (download(root)){
+        getParts(H.body);
+      }else{
+        FAIL_MSG("Could not refresh playlist!");
+        return false;
       }
     }
-    pos = part.start + part.dur;
-    if (conf.getString("mode") == "validate" && (Util::bootSecs() - startTime + 5) * 1000 < pos) {
-      Util::wait(pos - (Util::bootSecs() - startTime + 5) * 1000);
+
+    // If there are parts to download, get one.
+    if (parts.size()){
+      HLSPart part = *parts.begin();
+      parts.pop_front();
+      if (!download(part.uri)){return false;}
+      if (H.GetHeader("Content-Length") != ""){
+        if (H.body.size() != atoi(H.GetHeader("Content-Length").c_str())){
+          FAIL_MSG("Expected %s bytes of data, but only received %lu.",
+                   H.GetHeader("Content-Length").c_str(), H.body.size());
+          return false;
+        }
+      }
+      if (H.body.size() % 188){
+        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes", H.body.size());
+        return false;
+      }
+      parsedPart = part.no;
+      hlsTime += part.dur;
+      mediaTime = (uint64_t)hlsTime;
+      if (reconstruct.good()){reconstruct << H.body;}
+      H.Clean();
+      return true;
     }
-    lastDown = part.uri;
-    if (output) { std::cout << H.body; }
-    H.Clean();
+
+    // Hm. I guess we had no parts to get.
+    if (refreshAt && refreshAt > Util::bootSecs()){
+      // We're getting a live stream. Let's wait and check again.
+      uint32_t sleepSecs = (refreshAt - Util::bootSecs());
+      INFO_MSG("Sleeping for %lu seconds", sleepSecs);
+      Util::sleep(sleepSecs * 1000);
+    }
+    //The non-live case is already handled in isOpen()
   }
-  
-  return pos;
+  return false;
 }
 
-bool hlsAnalyser::hasInput() {
-  return repeat;
-}
-
-bool hlsAnalyser::packetReady() {
-  return repeat;
-}
-
-hlsAnalyser::~hlsAnalyser() {
-  // INFO_MSG("call destructor");
-  // DEBUG_MSG(DLVL_INFO, "mode: %s", conf.getString("mode").c_str());
-  //
-  /* call doValidate() from superclass
-
-  if (conf.getString("mode") == "validate") {
-    long long int endTime = Util::bootSecs();
-    std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
-  }
-  */
-}
-
-int main(int argc, char **argv) {
-  Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("mode", JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", \"default\":\"analyse\", \"help\":\"What to "
-                                          "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
-  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to HLS stream index file to retrieve.\"}"));
-  conf.addOption("abort", JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", \"default\":-1, \"help\":\"Abort after "
-                                           "this many seconds of downloading. Negative values mean unlimited, which is the default.\"}"));
-
-  conf.addOption(
-      "detail",
-      JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":2, \"help\":\"Detail level of analysis. \"}"));
- 
-  conf.parseArgs(argc, argv);
-  conf.activate();
-
-  hlsAnalyser A(conf);
-  A.Run();
-}

@@ -1,35 +1,22 @@
-#include <mist/flv_tag.h> //FLV support
-#include <mist/config.h>
 #include "analyser.h"
-
-#include <string>
 #include <fstream>
-#include <iostream>
-#include <mist/amf.h>
+#include <mist/flv_tag.h> //FLV support
 #include <mist/rtmpchunks.h>
-#include <mist/config.h>
-#include <mist/socket.h>
 
-class rtmpAnalyser : public analysers 
-{
-  FLV::Tag flvData;
-  long long filter;
+class AnalyserRTMP : public Analyser{
+private:
+  RTMPStream::Chunk next; ///< Holds the most recently parsed RTMP chunk
+  FLV::Tag F;///< Holds the most recently created FLV packet
+  unsigned int read_in; ///< Amounts of bytes read to fill 'strbuf' so far
+  Socket::Buffer strbuf;///< Internal buffer from where 'next' is filled
+  AMF::Object amfdata;///< Last read AMF object
+  AMF::Object3 amf3data;///<Last read AMF3 object
+  std::ofstream reconstruct;///< If reconstructing, a valid file handle
 
-  std::string inbuffer;
-  RTMPStream::Chunk next;
-  FLV::Tag F; //FLV holder
-  unsigned int read_in ;
-  Socket::Buffer strbuf;
-  AMF::Object amfdata;
-  AMF::Object3 amf3data;
-
-  int Detail;
-
-  public:
-    rtmpAnalyser(Util::Config config);
-    bool packetReady();
-    void PreProcessing();
-    //int Analyse();
-    int doAnalyse();
-//    void doValidate();
+public:
+  AnalyserRTMP(Util::Config & conf);
+  static void init(Util::Config & conf);
+  bool parsePacket();
+  virtual bool open(const std::string &filename);
 };
+

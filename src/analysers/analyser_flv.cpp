@@ -1,73 +1,40 @@
 #include "analyser_flv.h"
-#include <mist/config.h>
-#include <mist/defines.h>
-#include <string>
 
-flvAnalyser::flvAnalyser(Util::Config config) : analysers(config) {
-  
-  if(fileinput && open(filename.c_str(), O_RDONLY) <= 0)
-  {
-    mayExecute = false;
-    return;
-  }
+void AnalyserFLV::init(Util::Config &conf){
+  Analyser::init(conf);
+  JSON::Value opt;
+  opt["long"] = "filter";
+  opt["short"] = "F";
+  opt["arg"] = "num";
+  opt["default"] = "0";
+  opt["help"] =
+      "Only print information about this tag type (8 = audio, 9 = video, 18 = meta, 0 = all)";
+  conf.addOption("filter", opt);
+  opt.null();
+}
 
+AnalyserFLV::AnalyserFLV(Util::Config &conf) : Analyser(conf){
   filter = conf.getInteger("filter");
-  FLV::Tag flvData; // Temporary storage for incoming FLV data.
+}
 
-
-  //check for flv data
-  char flvHeader[3];
-  std::cin.read(flvHeader,3);
-  
-  if(flvHeader[0] != 0x46 || flvHeader[1] != 0x4C || flvHeader[2] != 0x56)
-  {
-    FAIL_MSG("No FLV Signature found!");
-    mayExecute = false;
-    return;
+bool AnalyserFLV::parsePacket(){
+  if (feof(stdin)){
+    stop();
+    return false;
   }
-  std::cin.seekg(0);
-}
-
-/*
-void flvAnalyser::doValidate()
-{
-  std::cout << "dfasdfsdafdsf" << std::endl;
-  std::cout << upTime << ", " << finTime << ", " << (finTime-upTime) << ", " << flvData.tagTime() << std::endl;
-}
-*/
-
-bool flvAnalyser::hasInput() {
-  return !feof(stdin);
-}
-
-bool flvAnalyser::packetReady() {
-  return flvData.FileLoader(stdin);
-}
-
-int flvAnalyser::doAnalyse() {
-  //  std::cout<< "do analyse" << std::endl;
-
-  if (analyse) { // always analyse..?
-    if (!filter || filter == flvData.data[0]) {
-      std::cout << "[" << flvData.tagTime() << "+" << flvData.offset() << "] " << flvData.tagType() << std::endl;
+  while (!feof(stdin)){
+    if (flvData.FileLoader(stdin)){break;}
+    if (feof(stdin)){
+      stop();
+      return false;
     }
   }
-  endTime = flvData.tagTime();
 
-  return endTime;
+  // If we arrive here, we've loaded a FLV packet
+  if (!filter || filter == flvData.data[0]){
+    DETAIL_MED("[%llu+%llu] %s", flvData.tagTime(), flvData.offset(), flvData.tagType().c_str());
+  }
+  mediaTime = flvData.tagTime();
+  return true;
 }
 
-int main(int argc, char **argv) {
-  Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("filter", JSON::fromString("{\"arg\":\"num\", \"short\":\"f\", \"long\":\"filter\", \"default\":0, \"help\":\"Only print info "
-                                            "about this tag type (8 = audio, 9 = video, 0 = all)\"}"));
-
-  analysers::defaultConfig(conf);
-  conf.parseArgs(argc, argv);
-
-  flvAnalyser A(conf);
-
-  A.Run();
-
-  return 0;
-}

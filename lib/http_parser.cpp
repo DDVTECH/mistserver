@@ -96,6 +96,35 @@ std::string HTTP::URL::getUrl() const{
   return ret;
 }
 
+///Returns a URL object for the given link, resolved relative to the current URL object.
+HTTP::URL HTTP::URL::link(const std::string &l){
+  //Full link
+  if (l.find("://") < l.find('/')){return URL(l);}
+  //Absolute link
+  if (l[0] == '/'){
+    if (l.size() > 1 && l[1] == '/'){
+      //Same-protocol full link
+      return URL(protocol+":"+l);
+    }else{
+      //Same-domain/port absolute link
+      URL tmp = *this;
+      tmp.args.clear();
+      tmp.path = l.substr(1);
+      //Abuse the fact that we don't check for arguments in getUrl()
+      return URL(tmp.getUrl());
+    }
+  }
+  //Relative link
+  std::string tmpUrl = getUrl();
+  size_t slashPos = tmpUrl.rfind('/');
+  if (slashPos == std::string::npos){
+    tmpUrl += "/";
+  }else{
+    tmpUrl.erase(slashPos+1);
+  }
+  return URL(tmpUrl+l);
+}
+
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
 HTTP::Parser::Parser() {

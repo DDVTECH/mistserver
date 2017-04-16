@@ -1,104 +1,99 @@
 #include "analyser.h"
 #include <iostream>
-#include <mist/defines.h>
 #include <mist/timing.h>
 
-analysers::analysers(Util::Config &config) {
-  conf = config;
-
-  //set default detailLevel
-  detail = 2;
-
-  if (conf.hasOption("filename")) {
-    fileinput = conf.getString("filename").length() > 0;
-  } else {
-    fileinput = 0;
-  }
-
-  analyse = conf.getString("mode") == "analyse";
-  validate = conf.getString("mode") == "validate";
-
-  if (validate) {
-    // conf.getOption("detail", true)[1] = 0ll;
-    detail = 0;
-  }
-
-  if (conf.hasOption("detail")) { detail = conf.getInteger("detail"); }
-
-  Prepare();
+/// Reads configuration and opens a passed filename replacing standard input if needed.
+Analyser::Analyser(Util::Config &conf){
+  validate = conf.getBool("validate");
+  detail = conf.getInteger("detail");
+  mediaTime = 0;
+  upTime = Util::bootSecs();
+  isActive = &conf.is_active;
 }
 
-int analysers::doAnalyse() {
-  return 0;
-}
-
-analysers::~analysers() {
-}
-
-void analysers::doValidate() {
-  std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << endTime << std::endl;
-}
-
-bool analysers::packetReady() {
-  return false;
-}
-
-// Fileinput as stdin
-void analysers::Prepare() {
-
-  if (fileinput) {
-    filename = conf.getString("filename");
-    int fp = open(filename.c_str(), O_RDONLY);
-
-    if (fp <= 0) { 
-      FAIL_MSG("Cannot open file: %s", filename.c_str()); 
+///Opens the filename. Supports stdin and plain files.
+bool Analyser::open(const std::string & filename){
+  if (filename.size() && filename != "-"){
+    int fp = ::open(filename.c_str(), O_RDONLY);
+    if (fp <= 0){
+      FAIL_MSG("Cannot open '%s': %s", filename.c_str(), strerror(errno));
+      return false;
     }
-
     dup2(fp, STDIN_FILENO);
     close(fp);
+    INFO_MSG("Parsing %s...", filename.c_str());
+  }else{
+    INFO_MSG("Parsing standard input...");
   }
+  return true;
 }
 
-bool analysers::hasInput() {
-  //  std::cout << std::cin.good() << std::endl;
-
-  return std::cin.good();
-  //  return !feof(stdin);
+/// Stops analysis by closing the standard input
+void Analyser::stop(){
+  close(STDIN_FILENO);
+  std::cin.setstate(std::ios_base::eofbit);
 }
 
-int analysers::Run() {
+/// Prints validation message if needed
+Analyser::~Analyser(){
+  if (validate){std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << std::endl;}
+}
 
-  if(mayExecute)
-  {
-    std::cout << "start analyser with detailLevel: " << detail << std::endl;
-    endTime = 0;
-    upTime = Util::bootSecs();
+///Checks if standard input is still valid.
+bool Analyser::isOpen(){
+  return (*isActive) && std::cin.good();
+}
 
-    while (hasInput() && mayExecute) {
-      while (packetReady()) {
-        // std::cout << "in loop..." << std::endl;
-        endTime = doAnalyse();
+/// Main loop for all analysers. Reads packets while not interrupted, parsing and/or printing them.
+int Analyser::run(Util::Config &conf){
+  isActive = &conf.is_active;
+  if (!open(conf.getString("filename"))){
+    return 1;
+  }
+  while (conf.is_active && isOpen()){
+    if (!parsePacket()){
+      if (isOpen()){
+        FAIL_MSG("Could not parse packet!");
+        return 1;
       }
+      INFO_MSG("Reached end of file");
+      return 0;
     }
-
-    finTime = Util::bootSecs();
-
-    if (validate) {
-      // std::cout << upTime << ", " << finTime << ", " << (finTime-upTime) << ", " << endTime << std::endl;
-      doValidate();
+    if (validate){
+      finTime = Util::bootSecs();
+      if ((finTime - upTime) > (mediaTime / 1000) + 2){
+        FAIL_MSG("Media time more than 2 seconds behind!");
+        return 1;
+      }
     }
   }
   return 0;
 }
 
-void analysers::defaultConfig(Util::Config &conf) {
-  conf.addOption("filename",
-                 JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"default\":\"\", \"help\":\"Filename of the file to analysed.\"}"));
+/// Sets options common to all analysers.
+/// Should generally be called by the init function of each analyser.
+void Analyser::init(Util::Config &conf){
+  JSON::Value opt;
 
-  conf.addOption("mode", JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", \"default\":\"analyse\", \"help\":\"What to "
-                                          "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
+  opt["arg_num"] = 1ll;
+  opt["arg"] = "string";
+  opt["default"] = "-";
+  opt["help"] = "Filename to analyse, or - for standard input (default)";
+  conf.addOption("filename", opt);
+  opt.null();
 
-  conf.addOption(
-      "detail",
-      JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":2, \"help\":\"Detail level of analysis. \"}"));
+  opt["long"] = "validate";
+  opt["short"] = "V";
+  opt["help"] = "Enable validation mode (default off)";
+  conf.addOption("validate", opt);
+  opt.null();
+
+  opt["long"] = "detail";
+  opt["short"] = "D";
+  opt["arg"] = "num";
+  opt["default"] = 2ll;
+  opt["help"] = "Detail level for analysis (0 = none, 2 = default, 10 = max)";
+  conf.addOption("detail", opt);
+  opt.null();
 }
+

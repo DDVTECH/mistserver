@@ -168,6 +168,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/util.h
   ${SOURCE_DIR}/lib/vorbis.h
   ${SOURCE_DIR}/lib/triggers.h
+  ${SOURCE_DIR}/lib/opus.h
 )
 
 ########################################
@@ -213,6 +214,7 @@ set(libSources
   ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
   ${SOURCE_DIR}/lib/triggers.cpp
+  ${SOURCE_DIR}/lib/opus.cpp
 )
 
 ########################################
@@ -251,11 +253,16 @@ add_custom_command(TARGET mist
 )
 
 ########################################
-# MistServer - Analysers        `      #
+# MistServer - Analysers               #
 ########################################
 macro(makeAnalyser analyserName format)
   add_executable(MistAnalyser${analyserName}
-    src/analysers/${format}_analyser.cpp
+    src/analysers/mist_analyse.cpp
+    src/analysers/analyser.cpp
+    src/analysers/analyser_${format}.cpp
+  )
+  set_target_properties(MistAnalyser${analyserName} 
+    PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
   target_link_libraries(MistAnalyser${analyserName}
     mist
@@ -266,89 +273,40 @@ macro(makeAnalyser analyserName format)
   )
 endmacro()
 
-add_executable(MistAnalyserMP4 src/analysers/analyser_mp4.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserMP4 mist)
-  install(
-    TARGETS MistAnalyserMP4
-    DESTINATION bin
-  )
-  
-  add_executable(MistAnalyserFLV src/analysers/analyser_flv.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserFLV mist)
-  install(
-    TARGETS MistAnalyserFLV
-    DESTINATION bin
-  )
-  
-add_executable(MistAnalyserRTMP src/analysers/analyser_rtmp.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserRTMP mist)
-  install(
-    TARGETS MistAnalyserRTMP
-    DESTINATION bin
-  )
-
-#niet nodig?
-add_executable(MistAnalyserRTP src/analysers/analyser_rtp.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserRTP mist)
-  install(
-    TARGETS MistAnalyserRTP
-    DESTINATION bin
-  )
-
-add_executable(MistAnalyserTS src/analysers/analyser_ts.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserTS mist)
-  install(
-    TARGETS MistAnalyserTS
-    DESTINATION bin
-  )
-
-add_executable(MistAnalyserDASH src/analysers/analyser_dash.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserDASH mist)
-  install(
-    TARGETS MistAnalyserDASH
-    DESTINATION bin
-  )
-
-add_executable(MistAnalyserHLS src/analysers/analyser_hls.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserHLS mist)
-  install(
-    TARGETS MistAnalyserHLS
-    DESTINATION bin
-  )
-
-add_executable(MistAnalyserDTSC src/analysers/analyser_dtsc.cpp src/analysers/analyser.cpp)
-target_link_libraries(MistAnalyserDTSC mist)
-  install(
-    TARGETS MistAnalyserDTSC
-    DESTINATION bin
-  )
-
-makeAnalyser(AMF amf) #hoeft niet
+makeAnalyser(RTMP rtmp)
+makeAnalyser(FLV flv)
+makeAnalyser(DTSC dtsc)
 makeAnalyser(OGG ogg)
-#makeAnalyser(RTP rtp) #LTS
-makeAnalyser(RTSP rtsp_rtp) #LTS ...
-#makeAnalyser(DTSC dtsc)
-
-#makeAnalyser(TS ts) #LTS
-#makeAnalyser(HLS hls) #LTS #url
-#makeAnalyser(RTMP rtmp)
-#makeAnalyser(FLV flv)
-#makeAnalyser(MP4 mp4)
-makeAnalyser(OGG ogg)
-makeAnalyser(RAX rax)
-#makeAnalyser(RTP rtp) #LTS
-makeAnalyser(RTSP rtsp_rtp) #LTS
+#makeAnalyser(RTSP rtsp) #LTS #Currently broken. Horribly.
 makeAnalyser(TS ts) #LTS
+makeAnalyser(MP4 mp4) #LTS
 makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
-makeAnalyser(DASH dash) #LTS
-makeAnalyser(TSStream tsstream) #LTS
-makeAnalyser(Stats stats) #LTS
 
+#LTS_START
+########################################
+# MistServer - Utilities               #
+########################################
+macro(makeUtil utilName utilFile)
+  add_executable(MistUtil${utilName}
+    src/utils/util_${utilFile}.cpp
+  )
+  target_link_libraries(MistUtil${utilName}
+    mist
+  )
+  install(
+    TARGETS MistUtil${utilName}
+    DESTINATION bin
+  )
+endmacro()
 
+makeUtil(Stats stats)
+makeUtil(RAX rax)
+makeUtil(AMF amf)
 if (DEFINED LOAD_BALANCE )
-  makeAnalyser(Load load) #LTS
+  makeUtil(Load load)
 endif()
+#LTS_END
 
 ########################################
 # MistServer - Inputs                  #

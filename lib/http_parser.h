@@ -72,7 +72,7 @@ namespace HTTP {
   ///URL parsing class. Parses full URL into its subcomponents
   class URL {
     public:
-      URL(const std::string & url);
+      URL(const std::string & url = "");
       uint32_t getPort() const;
       std::string getUrl() const;
       std::string host;///< Hostname or IP address of URL
@@ -80,6 +80,7 @@ namespace HTTP {
       std::string port;///<Port of URL
       std::string path;///<Path after the first slash (not inclusive) but before any question mark
       std::string args;///<Everything after the question mark in the path, if it was present
+      URL link(const std::string &l);
   };
 
 }//HTTP namespace

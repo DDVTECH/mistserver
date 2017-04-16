@@ -1,37 +1,41 @@
+#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <string>
-#include "analyser_rtp.h"
+#include <string.h>
+#include <vector>
+#include <sstream>
+#include <mist/socket.h>
+#include <mist/config.h>
+#include <mist/rtp.h>
+#include <mist/http_parser.h>
 
-rtpAnalyser::rtpAnalyser(Util::Config config) : analysers(config)
-{  
-  std::cout << "rtp constr" << std::endl; 
-  Socket::Connection conn("localhost", 554, true);
-  step = 0;
-  trackIt = 0;
+//rtsp://krabs:1935/vod/gear1.mp4
 
-}
-
-void rtpAnalyser::doValidate()
-{
-}
-
-bool rtpAnalyser::packetReady()
-{
-  return conn.connected();
-}
-
-int rtpAnalyser::doAnalyse()
-{  
-  if (analyse){ //always analyse..?
-    
+namespace Analysers {
+  int analyseRTP(){
+    Socket::Connection conn("localhost", 554, true);
+    //Socket::Connection conn("krabs", 1935, true);
+    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
+    int step = 0;
+    /*1 = sent describe
+      2 = recd describe
+      3 = sent setup
+      4 = received setup
+      5 = sent play"*/
+    std::vector<std::string> tracks;
+    std::vector<Socket::UDPConnection> connections;
+    unsigned int trackIt = 0;
+    while (conn.connected()){
     //  std::cerr << "loopy" << std::endl;
       if(step == 0){
         HTTP_S.protocol = "RTSP/1.0";
         HTTP_S.method = "DESCRIBE";
         //rtsp://krabs:1935/vod/gear1.mp4
         //rtsp://localhost/g1
-        //HTTP_S.url = "rtsp://localhost/steers";
-        HTTP_S.url = "rtsp://krabs:1935/vod/steers.mp4";
-
+        HTTP_S.url = "rtsp://localhost/steers";
+        //HTTP_S.url = "rtsp://krabs:1935/vod/steers.mp4";
         HTTP_S.SetHeader("CSeq",1);
         HTTP_S.SendRequest(conn); 
         step++;
@@ -186,19 +190,20 @@ int rtpAnalyser::doAnalyse()
           }                 
         }
       }
+    }
+    return 666;
   }
 
-  return endTime;
+
+
+
+
 }
+
+
 
 int main(int argc, char ** argv){
   Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("mode", JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", \"default\":\"analyse\", \"help\":\"What to do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
   conf.parseArgs(argc, argv);
-  
-  rtpAnalyser A(conf);
-  
-  A.Run();
-	
-  return 0;
+  return Analysers::analyseRTP();
 }

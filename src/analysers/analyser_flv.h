@@ -1,18 +1,14 @@
-#include <mist/flv_tag.h> //FLV support
-#include <mist/config.h>
 #include "analyser.h"
+#include <mist/flv_tag.h> //FLV support
 
-class flvAnalyser : public analysers 
-{
+class AnalyserFLV : public Analyser{
+public:
+  AnalyserFLV(Util::Config &conf);
+  bool parsePacket();
+  static void init(Util::Config &conf);
+
+private:
   FLV::Tag flvData;
   long long filter;
-  
-  public:
-    flvAnalyser(Util::Config config);
-    bool packetReady();
-    void PreProcessing();
-    //int Analyse();
-    int doAnalyse();
-    bool hasInput();
-//    void doValidate();
 };
+

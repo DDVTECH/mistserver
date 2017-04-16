@@ -1,55 +1,37 @@
-//http://cattop:8080/hls/bunny/index.m3u8 
-//
-#include <mist/config.h>
-#include <mist/timing.h>
-#include <mist/defines.h>
-#include <mist/http_parser.h>
-#include <iostream>
 #include "analyser.h"
+#include <fstream>
+#include <mist/http_parser.h>
 
-class HLSPart {
-  public:
-    HLSPart(std::string u, unsigned int s, unsigned int d) {
-      uri = u;
-      start = s;
-      dur = d;
-    }
-    std::string uri;
-    unsigned int start;
-    unsigned int dur;
+class HLSPart{
+public:
+  HLSPart(const HTTP::URL &u, uint64_t n, float d) : uri(u), no(n), dur(d){}
+  HTTP::URL uri;
+  uint64_t no;
+  float dur;
 };
 
+class AnalyserHLS : public Analyser{
 
-class hlsAnalyser : public analysers 
-{
-    
-  public:
-    hlsAnalyser(Util::Config config);
-    ~hlsAnalyser();
-    bool packetReady();
-    void PreProcessing();
-    //int Analyse();
-    int doAnalyse();
-    void doValidate();
-    bool hasInput();
-    void PostProcessing();
+public:
+  AnalyserHLS(Util::Config &conf);
+  bool parsePacket();
+  static void init(Util::Config &conf);
+  bool isOpen();
+  bool open(const std::string &filename);
+  void stop();
 
-  private:
-
-  unsigned int port;
-  std::string url;
-
-  std::string server;
-  long long int startTime;
-  long long int abortTime;
-
+private:
   std::deque<HLSPart> parts;
+  void getParts(const std::string &body);
+  HTTP::URL root;
+  float hlsTime;
+  uint64_t parsedPart;
+  uint64_t refreshAt;
+  HTTP::Parser H;
+  std::string connectedHost;
+  uint32_t connectedPort;
+  bool download(const HTTP::URL &link);
   Socket::Connection conn;
-
-  std::string playlist;
-  bool repeat;
-  std::string lastDown;
-  unsigned int pos;
-  bool output;
-
+  std::ofstream reconstruct;
 };
+

@@ -810,41 +810,66 @@ namespace h264 {
     out << "  Message of type " << payloadType << ", " << payloadSize << " bytes long" << std::endl;
   }
 
-  nalUnit * nalFactory(char * _data, size_t _len, size_t & offset, bool annexb) {
-    char * data = _data + offset;
-    size_t len = _len - offset;
-    nalUnit * result = NULL;
-    if (len < 4){
-      return result;
-    }
+  nalUnit * nalFactory(const char * _data, size_t _len, size_t & offset, bool annexb) {
     if (annexb){
-      FAIL_MSG("Not supported in annexb mode yet");
-      return result;
+      //check if we have a start marker at the beginning, if so, move the offset over
+      if (_len > offset && !_data[offset]){
+        for (size_t i = offset+1; i < _len; ++i){
+          if (_data[i] > 1){
+            FAIL_MSG("Encountered bullshit AnnexB data..?");
+            return 0;
+          }
+          if (_data[i] == 1){offset = i+1; break;}
+        }
+      }
+      //now we know we're starting at real data. Yay!
     }
-    uint32_t pktLen = Bit::btohl(data);
-    if (len < 4 + pktLen){
-      return result;
+    if (_len < offset + 4){
+      WARN_MSG("Not at least 4 bytes available - cancelling");
+      return 0;
     }
-    switch (data[5] & 0x1F){
+    uint32_t pktLen = 0;
+    if (!annexb){
+      //read the 4b size in front
+      pktLen = Bit::btohl(_data+offset);
+      if (_len < 4 + pktLen){
+        WARN_MSG("Not at least 4+%lu bytes available - cancelling", pktLen);
+        return 0;
+      }
+      offset += 4;
+    }
+    const char * data = _data + offset;
+    size_t len = _len - offset;
+    if (annexb){
+      //search for the next start marker
+      for (size_t i = 1; i < len-2; ++i){
+        if (data[i] == 0 && data[i+1] == 0 && data[i+2] == 1){
+          offset += i+2;
+          while (i && !data[i]){--i;}
+          pktLen = i;
+          break;
+        }
+      }
+    }else{
+      offset += pktLen;
+    }
+    if (!pktLen){
+      WARN_MSG("Cannot determine packet length - cancelling");
+      return 0;
+    }
+    switch (data[0] & 0x1F){
       case 1:
       case 5:
-        result = new codedSliceUnit(data + 4, pktLen);
-        break;
+        return new codedSliceUnit(data, pktLen);
       case 6:
-        result = new seiUnit(data + 4, pktLen);
-        break;
+        return new seiUnit(data, pktLen);
       case 7:
-        result = new spsUnit(data + 4, pktLen);
-        break;
+        return new spsUnit(data, pktLen);
       case 8:
-        result = new ppsUnit(data + 4, pktLen);
-        break;
+        return new ppsUnit(data, pktLen);
       default:
-        result = new nalUnit(data + 4, pktLen);
-        break;
+        return new nalUnit(data, pktLen);
     }
-    offset += 4 + pktLen;
-    return result;
   }
 
   nalUnit * nalFactory(FILE * in, bool annexb) {

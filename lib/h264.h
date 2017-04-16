@@ -76,6 +76,7 @@ namespace h264 {
     public:
       nalUnit(const char * data, size_t len) : payload(data, len) {}
       uint8_t getType() { return payload[0] & 0x1F; }
+      uint32_t getSize(){return payload.size();}
       virtual void toPrettyString(std::ostream & out){
         out << "Nal unit of type " << (((uint8_t)payload[0]) & 0x1F) << ", " << payload.size() << " bytes long" << std::endl;
       }
@@ -296,5 +297,5 @@ namespace h264 {
 
 
   nalUnit * nalFactory(FILE * in, bool annexb = true);
-  nalUnit * nalFactory(char * data, size_t len, size_t & offset, bool annexb = true);
+  nalUnit * nalFactory(const char * data, size_t len, size_t & offset, bool annexb = true);
 }

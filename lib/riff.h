@@ -41,6 +41,7 @@ namespace RIFF{
   /// WAVE "fmt " class.
   class fmt : public Chunk{
   public:
+    static std::string generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps, uint16_t blocksize, uint16_t size);
     fmt(const void *_p = 0, uint32_t len = 0) : Chunk(_p, len){}
     uint16_t getFormat() const;
     std::string getCodec() const;
@@ -59,6 +60,7 @@ namespace RIFF{
   /// WAVE fact class.
   class fact : public Chunk {
   public:
+    static std::string generate(uint32_t samples);
     fact(const void *_p = 0, uint32_t len = 0) : Chunk(_p, len){}
     uint32_t getSamplesPerChannel() const;
     virtual void toPrettyString(std::ostream &o, size_t indent = 0) const;

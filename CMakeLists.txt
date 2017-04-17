@@ -405,6 +405,7 @@ makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
+makeOutput(WAV wav)#LTS
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
   target_link_libraries(MistOutHTTPS mbedtls mbedcrypto mbedx509)

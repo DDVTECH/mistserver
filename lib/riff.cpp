@@ -132,6 +132,18 @@ namespace RIFF{
       }
     }
   }
+  std::string fmt::generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps, uint16_t blocksize, uint16_t size){
+    std::string ret("fmt \022\000\000\000", 8);
+    ret.append(std::string((size_t)18, '\000'));
+    Bit::htobs_le((char*)ret.data()+8, format);
+    Bit::htobs_le((char*)ret.data()+10, channels);
+    Bit::htobl_le((char*)ret.data()+12, hz);
+    Bit::htobl_le((char*)ret.data()+16, bps);
+    Bit::htobs_le((char*)ret.data()+20, blocksize);
+    Bit::htobs_le((char*)ret.data()+22, size);
+    Bit::htobs_le((char*)ret.data()+24, 0);
+    return ret;
+  }
 
   uint32_t fact::getSamplesPerChannel() const{
     if (!p){return 0;}
@@ -142,6 +154,11 @@ namespace RIFF{
       << "b):" << std::endl;
     indent += 1;
     o << std::string(indent, ' ') << "Samples per channel: " << getSamplesPerChannel() << std::endl;
+  }
+  std::string fact::generate(uint32_t samples){
+    std::string ret("fact\004\000\000\000\000\000\000\000", 12);
+    Bit::htobl_le((char*)ret.data()+8, samples);
+    return ret;
   }
 
   std::string ISFT::getSoftware() const{

@@ -169,6 +169,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/vorbis.h
   ${SOURCE_DIR}/lib/triggers.h
   ${SOURCE_DIR}/lib/opus.h
+  ${SOURCE_DIR}/lib/riff.h
 )
 
 ########################################
@@ -215,6 +216,7 @@ set(libSources
   ${SOURCE_DIR}/lib/vorbis.cpp
   ${SOURCE_DIR}/lib/triggers.cpp
   ${SOURCE_DIR}/lib/opus.cpp
+  ${SOURCE_DIR}/lib/riff.cpp
 )
 
 ########################################
@@ -282,6 +284,7 @@ makeAnalyser(TS ts) #LTS
 makeAnalyser(MP4 mp4) #LTS
 makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
+makeAnalyser(RIFF riff) #LTS
 
 #LTS_START
 ########################################

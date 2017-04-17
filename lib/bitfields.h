@@ -68,5 +68,58 @@ namespace Bit{
     p[7] = val & 0xFF;
   }
 
+  /// Retrieves a short in little endian from the pointer p.
+  inline unsigned short btohs_le(const char * p) {
+    return ((unsigned short)p[1] << 8) | p[0];
+  }
+
+  /// Stores a short value of val in little endian to the pointer p.
+  inline void htobs_le(char * p, unsigned short val) {
+    p[1] = (val >> 8) & 0xFF;
+    p[0] = val & 0xFF;
+  }
+
+  /// Retrieves a long in network order from the pointer p.
+  inline unsigned long btohl_le(const char * p) {
+    return ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) | p[0];
+  }
+
+  /// Stores a long value of val in little endian to the pointer p.
+  inline void htobl_le(char * p, unsigned long val) {
+    p[3] = (val >> 24) & 0xFF;
+    p[2] = (val >> 16) & 0xFF;
+    p[1] = (val >> 8) & 0xFF;
+    p[0] = val & 0xFF;
+  }
+
+  /// Retrieves a long in little endian from the pointer p.
+  inline unsigned long btoh24_le(const char * p) {
+    return ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) | p[0];
+  }
+
+  /// Stores a long value of val in network order to the pointer p.
+  inline void htob24_le(char * p, unsigned long val) {
+    p[2] = (val >> 16) & 0xFF;
+    p[1] = (val >> 8) & 0xFF;
+    p[0] = val & 0xFF;
+  }
+
+  /// Retrieves a long long in little endian from the pointer p.
+  inline unsigned long long btohll_le(const char * p) {
+    return ((unsigned long long)p[7] << 56) | ((unsigned long long)p[6] << 48) | ((unsigned long long)p[5] << 40) | ((unsigned long long)p[4] << 32) | ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) | p[0];
+  }
+
+  /// Stores a long value of val in little endian to the pointer p.
+  inline void htobll_le(char * p, unsigned long long val) {
+    p[7] = (val >> 56) & 0xFF;
+    p[6] = (val >> 48) & 0xFF;
+    p[5] = (val >> 40) & 0xFF;
+    p[4] = (val >> 32) & 0xFF;
+    p[3] = (val >> 24) & 0xFF;
+    p[2] = (val >> 16) & 0xFF;
+    p[1] = (val >> 8) & 0xFF;
+    p[0] = val & 0xFF;
+  }
+
 }
 

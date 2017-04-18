@@ -519,7 +519,7 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
         static std::string accLogFileName;
         if (accLogFileName != Controller::accesslog || !accLogFile.good()){
           accLogFile.close();
-          accLogFile.open(Controller::accesslog, std::ios_base::app);
+          accLogFile.open(Controller::accesslog.c_str(), std::ios_base::app);
           if (!accLogFile.good()){
             FAIL_MSG("Could not open access log file '%s': %s", Controller::accesslog.c_str(), strerror(errno));
           }else{

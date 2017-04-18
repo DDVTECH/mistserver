@@ -253,8 +253,12 @@ void Controller::SharedMemStats(void * config){
         unsigned long long cutOffPoint = Util::epoch() - STAT_CUTOFF;
         unsigned long long disconnectPoint = Util::epoch() - STATS_DELAY;
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          it->second.wipeOld(cutOffPoint);
           it->second.ping(it->first, disconnectPoint);
+          if (it->second.sync == 100){
+            it->second.wipeOld(disconnectPoint);
+          }else{
+            it->second.wipeOld(cutOffPoint);
+          }
           if (!it->second.hasData()){
             mustWipe.push_back(it->first);
           }else{

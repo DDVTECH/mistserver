@@ -1119,7 +1119,6 @@ namespace Mist {
               snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
               nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
             }
-            nProxy.streamName = streamName;
             bufferLivePacket(thisPacket);
           }
           break;

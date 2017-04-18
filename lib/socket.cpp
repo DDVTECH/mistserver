@@ -12,6 +12,7 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <ifaddrs.h>
 
 #define BUFFER_BLOCKSIZE 4096 // set buffer blocksize to 4KiB
 
@@ -656,21 +657,51 @@ bool Socket::Connection::isAddress(std::string addr){
   int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
   if (s != 0){return false;}
 
-  char newaddr[INET_ADDRSTRLEN];
+  char newaddr[INET6_ADDRSTRLEN];
   newaddr[0] = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next){
-    if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in *)rp->ai_addr)->sin_addr), newaddr, INET_ADDRSTRLEN)){
-      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '%s'", remotehost.c_str(), newaddr);
+    if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in *)rp->ai_addr)->sin_addr), newaddr, INET6_ADDRSTRLEN)){
+      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
       if (remotehost == newaddr){return true;}
-      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
+      INFO_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
       if (remotehost == std::string("::ffff:") + newaddr){return true;}
     }
-    if (rp->ai_family == AF_INET6 && inet_ntop(rp->ai_family, &(((sockaddr_in6 *)rp->ai_addr)->sin6_addr), newaddr, INET_ADDRSTRLEN)){
-      DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '%s'", remotehost.c_str(), newaddr);
+    if (rp->ai_family == AF_INET6 && inet_ntop(rp->ai_family, &(((sockaddr_in6 *)rp->ai_addr)->sin6_addr), newaddr, INET6_ADDRSTRLEN)){
+      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
       if (remotehost == newaddr){return true;}
     }
   }
   freeaddrinfo(result);
+  return false;
+}
+
+bool Socket::Connection::isLocal(){
+  struct ifaddrs * ifAddrStruct=NULL;
+  struct ifaddrs * ifa=NULL;
+  void * tmpAddrPtr=NULL;
+  char addressBuffer[INET6_ADDRSTRLEN];
+
+  getifaddrs(&ifAddrStruct);
+
+  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
+    if (!ifa->ifa_addr) {
+      continue;
+    }
+    if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+      tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+      inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == addressBuffer){return true;}
+      INFO_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
+    } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
+      tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+      inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == addressBuffer){return true;}
+    } 
+  }
+  if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
   return false;
 }
 

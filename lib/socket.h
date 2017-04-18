@@ -82,6 +82,7 @@ namespace Socket{
     std::string getError();         ///< Returns a string describing the last error that occured.
     bool connected() const;         ///< Returns the connected-state for this socket.
     bool isAddress(std::string addr);
+    bool isLocal(); ///< Returns true if remote address is a local address.
     // buffered i/o methods
     bool spool();                               ///< Updates the downbufferinternal variables.
     bool peek();                                ///< Clears the downbuffer and fills it with peek

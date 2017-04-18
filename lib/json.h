@@ -16,6 +16,8 @@ namespace JSON {
     EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT
   };
 
+  /// JSON-string-escapes a value
+  std::string string_escape(const std::string & val);
 
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value {
@@ -91,7 +93,8 @@ namespace JSON {
   Value fromDTMI2(const unsigned char * data, unsigned int len, unsigned int & i);
   Value fromDTMI(std::string & data);
   Value fromDTMI(const unsigned char * data, unsigned int len, unsigned int & i);
-  Value fromString(std::string json);
+  Value fromString(const std::string & json);
+  Value fromString(const char * data, const uint32_t data_len);
   Value fromFile(std::string filename);
   void fromDTMI2(std::string & data, Value & ret);
   void fromDTMI2(const unsigned char * data, unsigned int len, unsigned int & i, Value & ret);

@@ -179,6 +179,8 @@ namespace Mist{
         char initialSync = 0;
         //attempt to load sync status from session cache in shm
         {
+          IPC::semaphore cacheLock(SEM_SESSCACHE, O_RDWR, ACCESSPERMS, 1);
+          if (cacheLock){cacheLock.wait();}
           IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, false, false);
           if (shmSessions.mapped){
             char shmEmpty[SHM_SESSIONS_ITEM];
@@ -218,6 +220,7 @@ namespace Mist{
               shmOffset += SHM_SESSIONS_ITEM;
             }
           }
+          if (cacheLock){cacheLock.post();}
         }
         unsigned int i = 0;
         tmpEx.setSync(initialSync);

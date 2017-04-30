@@ -18,11 +18,11 @@ namespace Controller {
   extern bool killOnExit;
   extern unsigned int maxConnsPerIP;
 
-  //These functions keep track of which streams are currently active.
+  //These keep track of which streams are currently active.
   extern std::map<std::string, unsigned int> activeStreams;
   ///This function is ran whenever a stream becomes active.
   void streamStarted(std::string stream);
-  ///This function is ran whenever a stream becomes active.
+  ///This function is ran whenever a stream becomes inactive.
   void streamStopped(std::string stream);
   
   struct statLog {
@@ -130,6 +130,7 @@ namespace Controller {
   void sessId_tag(const std::string & sessId, const std::string & tag);
   void sessions_shutdown(const std::string & streamname, const std::string & protocol = "");
   bool hasViewers(std::string streamName);
+  void writeSessionCache(); /*LTS*/
 
 #define PROMETHEUS_TEXT 0
 #define PROMETHEUS_JSON 1

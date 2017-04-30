@@ -661,13 +661,13 @@ bool Socket::Connection::isAddress(std::string addr){
   newaddr[0] = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next){
     if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in *)rp->ai_addr)->sin_addr), newaddr, INET6_ADDRSTRLEN)){
-      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
       if (remotehost == newaddr){return true;}
-      INFO_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
+      INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
       if (remotehost == std::string("::ffff:") + newaddr){return true;}
     }
     if (rp->ai_family == AF_INET6 && inet_ntop(rp->ai_family, &(((sockaddr_in6 *)rp->ai_addr)->sin6_addr), newaddr, INET6_ADDRSTRLEN)){
-      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
       if (remotehost == newaddr){return true;}
     }
   }
@@ -690,14 +690,14 @@ bool Socket::Connection::isLocal(){
     if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
       tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
       inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
-      INFO_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
+      INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
     } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
       tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
       inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-      INFO_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
     } 
   }

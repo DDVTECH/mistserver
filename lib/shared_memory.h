@@ -11,6 +11,10 @@
 #include <semaphore.h>
 #endif
 
+#ifndef ACCESSPERMS
+#define ACCESSPERMS (S_IRWXU|S_IRWXG|S_IRWXO) 
+#endif
+
 #define STAT_EX_SIZE 177
 #define PLAY_EX_SIZE 2+6*SIMUL_TRACKS
 

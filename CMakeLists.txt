@@ -128,6 +128,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/ts_packet.h
   ${SOURCE_DIR}/lib/util.h
   ${SOURCE_DIR}/lib/vorbis.h
+  ${SOURCE_DIR}/lib/opus.h
 )
 
 ########################################
@@ -164,6 +165,7 @@ set(libSources
   ${SOURCE_DIR}/lib/ts_packet.cpp
   ${SOURCE_DIR}/lib/util.cpp
   ${SOURCE_DIR}/lib/vorbis.cpp
+  ${SOURCE_DIR}/lib/opus.cpp
 )
 
 ########################################
@@ -202,11 +204,16 @@ add_custom_command(TARGET mist
 )
 
 ########################################
-# MistServer - Analysers        `      #
+# MistServer - Analysers               #
 ########################################
 macro(makeAnalyser analyserName format)
   add_executable(MistAnalyser${analyserName}
-    src/analysers/${format}_analyser.cpp
+    src/analysers/mist_analyse.cpp
+    src/analysers/analyser.cpp
+    src/analysers/analyser_${format}.cpp
+  )
+  set_target_properties(MistAnalyser${analyserName} 
+    PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
   target_link_libraries(MistAnalyser${analyserName}
     mist
@@ -220,10 +227,27 @@ endmacro()
 makeAnalyser(RTMP rtmp)
 makeAnalyser(FLV flv)
 makeAnalyser(DTSC dtsc)
-makeAnalyser(AMF amf)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
-makeAnalyser(RAX rax)
+
+########################################
+# MistServer - Utilities               #
+########################################
+macro(makeUtil utilName utilFile)
+  add_executable(MistUtil${utilName}
+    src/utils/util_${utilFile}.cpp
+  )
+  target_link_libraries(MistUtil${utilName}
+    mist
+  )
+  install(
+    TARGETS MistUtil${utilName}
+    DESTINATION bin
+  )
+endmacro()
+
+makeUtil(RAX rax)
+makeUtil(AMF amf)
 
 ########################################
 # MistServer - Inputs                  #

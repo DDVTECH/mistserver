@@ -286,6 +286,14 @@ int main_loop(int argc, char ** argv){
   
   Controller::Log("CONF", "Controller started");
   Controller::conf.activate();//activate early, so threads aren't killed.
+  //Generate instanceId once per boot.
+  if (Controller::instanceId == ""){
+    srand(time(NULL));
+    do{
+      Controller::instanceId += (char)(64 + rand() % 62);
+    }while(Controller::instanceId.size() < 16);
+  }
+  
 
   //start stats thread
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);

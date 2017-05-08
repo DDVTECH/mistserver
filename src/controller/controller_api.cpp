@@ -351,6 +351,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   //sent current configuration, if not minimal or was changed/requested
   if (!Request.isMember("minimal") || Request.isMember("config")){
     Response["config"] = Controller::Storage["config"];
+    Response["config"]["iid"] = instanceId;
     Response["config"]["version"] = PACKAGE_VERSION;
     //add required data to the current unix time to the config, for syncing reasons
     Response["config"]["time"] = Util::epoch();

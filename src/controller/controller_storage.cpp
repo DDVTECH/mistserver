@@ -10,6 +10,7 @@
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {
+  std::string instanceId; /// instanceId (previously uniqId) is set in controller.cpp
 
   Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.

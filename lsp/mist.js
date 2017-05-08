@@ -347,10 +347,11 @@ var UI = {
   },
   findInOutput: function(where,name) {
     if ('capabilities' in mist.data) {
+      var output = false;
       var loc = mist.data.capabilities[where];
-      if (name in loc) { return loc[name]; }
-      if (name+'.exe' in loc) { return loc[name+'.exe']; }
-      return false;
+      if (name in loc) { output = loc[name]; }
+      if (name+'.exe' in loc) { output = loc[name+'.exe']; }
+      return output;
     }
     else {
       throw 'Request capabilities first';
@@ -2404,10 +2405,10 @@ var UI = {
                   $('<button>').text('Delete').click(function(){
                     var index = $(this).closest('tr').data('index');
                     if (confirm('Are you sure you want to delete the protocol "'+mist.data.config.protocols[index].connector+'"?')) {
-                      mist.data.config.protocols.splice(index,1);
                       mist.send(function(d){
                         UI.navto('Protocols');
-                      },{config: mist.data.config});
+                      },{deleteprotocol: mist.data.config.protocols[index]});
+                      mist.data.config.protocols.splice(index,1);
                     }
                   })
                 )
@@ -2420,7 +2421,7 @@ var UI = {
           mist.send(function(){
             updateProtocols();
           });
-        },30e3);
+        },10e3);
         break;
       case 'Edit Protocol':
         if (typeof mist.data.capabilities == 'undefined') {
@@ -2441,6 +2442,9 @@ var UI = {
         function buildProtocolSettings(kind) {
           var input = mist.data.capabilities.connectors[kind];
           var build = mist.convertBuildOptions(input,saveas);
+          if (editing) {
+            var orig = $.extend({},saveas);
+          }
           build.push({
             type: 'hidden',
             pointer: {
@@ -2456,18 +2460,17 @@ var UI = {
               type: 'save',
               label: 'Save',
               'function': function(){
+                ///\TODO test updateprotocol
+                var send = {};
                 if (editing) {
-                  mist.data.config.protocols[other] = saveas;
+                  send.updateprotocol = [orig,saveas];
                 }
                 else {
-                  if (!mist.data.config.protocols) {
-                    mist.data.config.protocols = [];
-                  }
-                  mist.data.config.protocols.push(saveas);
+                  send.addprotocol = saveas;
                 }
                 mist.send(function(d){
                   UI.navto('Protocols');
-                },{config: mist.data.config});
+                },send);
               }
             },{
               type: 'cancel',
@@ -2670,12 +2673,7 @@ var UI = {
                     if (confirm('Are you sure you want to delete the stream "'+streamname+'"?')) {
                       delete mist.data.streams[streamname];
                       var send = {};
-                      if (mist.data.LTS) {
-                        send.deletestream = [streamname];
-                      }
-                      else {
-                        send.streams = mist.data.streams;
-                      }
+                      send.deletestream = [streamname];
                       mist.send(function(d){
                         UI.navto('Streams');
                       },send);
@@ -3053,6 +3051,7 @@ var UI = {
         var $inputoptions = $('<div>');
         
         function save(tab) {
+          var send = {};
           
           if (!mist.data.streams) {
             mist.data.streams = {};
@@ -3063,17 +3062,11 @@ var UI = {
             delete mist.data.streams[other];
           }
           
-          var send = {};
-          if (mist.data.LTS) {
-            send.addstream = {};
-            send.addstream[saveas.name] = saveas;
-            if (other != saveas.name) {
-              send.deletestream = [other];
+          send.addstream = {};
+          send.addstream[saveas.name] = saveas;
+          if (other != saveas.name) {
+            send.deletestream = [other];
             }
-          }
-          else {
-            send.streams = mist.data.streams;
-          }
           if ((saveas.stop_sessions) && (other != '')) {
             send.stop_sessions = other;
             delete saveas.stop_sessions;
@@ -3428,6 +3421,7 @@ var UI = {
             target: $video[0],
             maxheight: window.innerHeight - $('header').height(),
             maxwidth: window.innerWidth - UI.elements.menu.width() - 100,
+            host: embedbase.replace(/\/$/,""),
             loop: true
           };
           if ($s_players.val() != '') {
@@ -5511,6 +5505,11 @@ var mist = {
             
             $.extend(true,mist.data,save);
             
+            //ensure deleted protocols are also deleted in our version
+            if (("config" in save) && ("protocols" in save.config)) {
+              mist.data.config.protocols = save.config.protocols;
+            }
+            
             mist.user.loggedin = true;
             UI.elements.connection.status.text('Connected').removeClass('red').addClass('green');
             UI.elements.connection.user_and_host.text(mist.user.name+' @ '+mist.user.host);
@@ -5698,8 +5697,8 @@ var mist = {
     }
     for (var s in match){
       var query = match[s].replace(/[^\w\s]/g,'\\$&'); //prefix any special chars with a \
-      query = query.replace(/\\\?/g,'.').replace(/\\\*/g,'(?:.)*'); //replace ? with . and * with any amount of .
-      var regex = new RegExp('^(?:[a-zA-Z]\:)?'+query+'$','i'); //case insensitive
+      query = query.replace(/\\\*/g,'.*'); //replace * with any amount of .*
+      var regex = new RegExp('^(?:[a-zA-Z]\:)?'+query+'(?:\\?[^\\?]*)?$','i'); //case insensitive, and ignore everything after the last ?
       if (regex.test(string)){
         return true;
       }

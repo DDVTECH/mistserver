@@ -242,16 +242,22 @@ int main_loop(int argc, char ** argv){
   if (Controller::Storage["config"]["controller"]["username"]){
     Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
-  if (Controller::Storage["config"]["controller"]["prometheus"]){
-    Controller::conf.getOption("prometheus", true)[0u] = Controller::Storage["config"]["controller"]["prometheus"];
+  if (Controller::Storage["config"]["controller"].isMember("prometheus")){
+    if (Controller::Storage["config"]["controller"]["prometheus"]){
+      Controller::Storage["config"]["prometheus"] = Controller::Storage["config"]["controller"]["prometheus"];
+    }
+    Controller::Storage["config"]["controller"].removeMember("prometheus");
+  }
+  if (Controller::Storage["config"]["prometheus"]){
+    Controller::conf.getOption("prometheus", true)[0u] = Controller::Storage["config"]["prometheus"];
   }
   if (Controller::Storage["config"].isMember("accesslog")){
     Controller::conf.getOption("accesslog", true)[0u] = Controller::Storage["config"]["accesslog"];
   }
   Controller::maxConnsPerIP = Controller::conf.getInteger("maxconnsperip");
-  Controller::Storage["config"]["controller"]["prometheus"] = Controller::conf.getString("prometheus");
+  Controller::Storage["config"]["prometheus"] = Controller::conf.getString("prometheus");
   Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
-  Controller::prometheus = Controller::Storage["config"]["controller"]["prometheus"].asStringRef();
+  Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
   {
     IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
@@ -421,16 +427,7 @@ int main_loop(int argc, char ** argv){
   /*LTS-END*/
   //write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
-  Controller::Storage.removeMember("log");
-  jsonForEach(Controller::Storage["streams"], it) {
-    it->removeMember("meta");
-  }
-  if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
-    std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
-    std::cerr << "**Config**" << std::endl;
-    std::cerr << Controller::Storage.toString() << std::endl;
-    std::cerr << "**End config**" << std::endl;
-  }
+  Controller::writeConfigToDisk();
   //stop all child processes
   Util::Procs::StopAll();
   //give everything some time to print messages

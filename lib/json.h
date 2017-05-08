@@ -6,6 +6,7 @@
 #include <map>
 #include <istream>
 #include <vector>
+#include <set>
 #include "socket.h"
 
 /// JSON-related classes and functions
@@ -42,7 +43,10 @@ namespace JSON {
       //comparison operators
       bool operator==(const Value & rhs) const;
       bool operator!=(const Value & rhs) const;
+      bool compareExcept(const Value & rhs, const std::set<std::string> & skip) const;
+      bool compareOnly(const Value & rhs, const std::set<std::string> & check) const;
       //assignment operators
+      Value & assignFrom(const Value & rhs, const std::set<std::string> & skip);
       Value & operator=(const Value & rhs);
       Value & operator=(const std::string & rhs);
       Value & operator=(const char * rhs);
@@ -78,6 +82,8 @@ namespace JSON {
       void prepend(const Value & rhs);
       void shrink(unsigned int size);
       void removeMember(const std::string & name);
+      void removeMember(const std::deque<Value*>::iterator & it);
+      void removeMember(const std::map<std::string, Value*>::iterator & it);
       bool isMember(const std::string & name) const;
       bool isInt() const;
       bool isString() const;
@@ -110,6 +116,7 @@ namespace JSON {
       Iter & operator++();///<Go to next iteration.
       const std::string & key() const;///<Return the name of the current indice.
       unsigned int num() const;///<Return the number of the current indice.
+      void remove();///<Delete the current indice from the parent JSON::Value.
     private:
       ValueType myType;
       Value * r;

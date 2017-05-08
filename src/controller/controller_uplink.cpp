@@ -59,10 +59,6 @@ void Controller::uplinkConnection(void * np) {
             if (inScan.hasMember("authorize") && inScan.getMember("authorize").hasMember("challenge")){
               uplink_chal = inScan.getMember("authorize").getMember("challenge").asString();
             }
-            if (inScan.hasMember("config")) {
-              curVal = inScan.getMember("config").asJSON();
-              Controller::checkConfig(curVal, Controller::Storage["config"]);
-            }
             if (inScan.hasMember("streams")) {
               curVal = inScan.getMember("streams").asJSON();
               Controller::CheckStreams(curVal, Controller::Storage["streams"]);

@@ -44,11 +44,11 @@ namespace Controller{
 #if DEBUG >= DLVL_DEVEL
     INFO_MSG("Verifying license against %llu: %s", now, currentLicense.toString().c_str());
 #endif
+    if (currentLicense.isMember("user_msg") && currentLicense["user_msg"].asStringRef().size()){
+      WARN_MSG("%s", currentLicense["user_msg"].asStringRef().c_str());
+    }
     //The loop below is timechecker loop
     if (!currentLicense.isMember("valid_from") || !currentLicense.isMember("valid_till") || now < currentLicense["valid_from"].asInt() || now > currentLicense["valid_till"].asInt()){
-      if (currentLicense.isMember("user_msg") && currentLicense["user_msg"].asStringRef().size()){
-        FAIL_MSG("%s", currentLicense["user_msg"].asStringRef().c_str());
-      }
       return false;//license is expired
     }
     if (RELEASE != currentLicense["release"].asStringRef() || PACKAGE_VERSION != currentLicense["version"].asStringRef()){

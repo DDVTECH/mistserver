@@ -77,6 +77,20 @@ unsigned int JSON::Iter::num() const{
   return i;
 }
 
+/// Delete the current indice from the parent JSON::Value.
+void JSON::Iter::remove(){
+  if (*this){
+    if (myType == JSON::ARRAY){
+      r->removeMember(aIt);
+      return;
+    }
+    if (myType == JSON::OBJECT){
+      r->removeMember(oIt);
+      return;
+    }
+  }
+}
+
 /// Construct from a root Value to iterate over.
 JSON::ConstIter::ConstIter(const Value & root){
   myType = root.myType;
@@ -565,6 +579,40 @@ bool JSON::Value::operator!=(const JSON::Value & rhs) const {
   return !((*this) == rhs);
 }
 
+bool JSON::Value::compareExcept(const Value & rhs, const std::set<std::string> & skip) const {
+  if (myType != OBJECT) {
+    return ((*this) == rhs);
+  }
+  jsonForEachConst(*this, it){
+    if (skip.count(it.key())){continue;}
+    if (!rhs.isMember(it.key()) || !(*it).compareExcept(rhs[it.key()], skip)) {
+      return false;
+    }
+  }
+  jsonForEachConst(rhs, it){
+    if (skip.count(it.key())){continue;}
+    if (!(*this).isMember(it.key())){return false;}
+  }
+  return true;
+}
+
+bool JSON::Value::compareOnly(const Value & rhs, const std::set<std::string> & check) const {
+  if (myType != OBJECT) {
+    return ((*this) == rhs);
+  }
+  jsonForEachConst(*this, it){
+    if (!check.count(it.key())){continue;}
+    if (!rhs.isMember(it.key()) || !(*it).compareOnly(rhs[it.key()], check)) {
+      return false;
+    }
+  }
+  jsonForEachConst(rhs, it){
+    if (!check.count(it.key())){continue;}
+    if (!(*this).isMember(it.key())){return false;}
+  }
+  return true;
+}
+
 /// Completely clears the contents of this value,
 /// changing its type to NULL in the process.
 void JSON::Value::null() {
@@ -572,6 +620,35 @@ void JSON::Value::null() {
   strVal.clear();
   intVal = 0;
   myType = EMPTY;
+}
+
+/// Assigns this JSON::Value to the given JSON::Value, skipping given member recursively.
+JSON::Value & JSON::Value::assignFrom(const Value & rhs, const std::set<std::string> & skip){
+  null();
+  myType = rhs.myType;
+  if (myType == STRING){
+    strVal = rhs.strVal;
+  }
+  if (myType == BOOL || myType == INTEGER){
+    intVal = rhs.intVal;
+  }
+  if (myType == OBJECT){
+    jsonForEachConst(rhs, i){
+      if (!skip.count(i.key())){
+        JSON::Value tmp;
+        tmp.assignFrom(*i, skip);
+        (*this)[i.key()] = tmp;
+      }
+    }
+  }
+  if (myType == ARRAY){
+    jsonForEachConst(rhs, i){
+      JSON::Value tmp;
+      tmp.assignFrom(*i, skip);
+      append(tmp);
+    }
+  }
+  return *this;
 }
 
 /// Sets this JSON::Value to be equal to the given JSON::Value.
@@ -1205,6 +1282,16 @@ void JSON::Value::removeMember(const std::string & name) {
     delete objVal[name];
     objVal.erase(name);
   }
+}
+
+void JSON::Value::removeMember(const std::deque<Value*>::iterator & it){
+  delete (*it);
+  arrVal.erase(it);
+}
+
+void JSON::Value::removeMember(const std::map<std::string, Value*>::iterator & it){
+  delete it->second;
+  objVal.erase(it);
 }
 
 /// For object JSON::Value objects, returns true if the

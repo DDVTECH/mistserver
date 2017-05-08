@@ -4,7 +4,7 @@
 #include <mist/tinythread.h>
 
 namespace Controller {
-  extern std::string instanceId; ///<global storage of instanceId (previously uniqID) for updater
+  extern std::string instanceId; ///<global storage of instanceId (previously uniqID) is set in controller.cpp
   extern std::string prometheus; ///< Prometheus access string
   extern std::string accesslog; ///< Where to write the access log
   extern Util::Config conf;///< Global storage of configuration.

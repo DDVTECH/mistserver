@@ -12,60 +12,6 @@
 #include "controller_capabilities.h"
 #include "controller_statistics.h"
 
-///\brief Check the submitted configuration and handle things accordingly.
-///\param in The new configuration.
-///\param out The location to store the resulting configuration.
-///
-/// \api
-/// `"config"` requests take the form of:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   "controller": { //controller settings
-///     "interface": null, //interface to listen on. Defaults to all interfaces.
-///     "port": 4242, //port to listen on. Defaults to 4242.
-///     "username": null //username to drop privileges to. Defaults to root.
-///   },
-///   "protocols": [ //enabled connectors / protocols
-///     {
-///       "connector": "HTTP" //Name of the connector to enable
-///       //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-///     },
-///     //above structure repeated for all enabled connectors / protocols
-///   ],
-///   "serverid": "", //human-readable server identifier, optional.
-/// }
-/// ~~~~~~~~~~~~~~~
-/// and are responded to as:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   "controller": { //controller settings
-///     "interface": null, //interface to listen on. Defaults to all interfaces.
-///     "port": 4242, //port to listen on. Defaults to 4242.
-///     "username": null //username to drop privileges to. Defaults to root.
-///   },
-///   "protocols": [ //enabled connectors / protocols
-///     {
-///       "connector": "HTTP" //Name of the connector to enable
-///       //any required and/or optional settings may be given here as "name": "value" pairs inside this object.
-///       "online": 1 //boolean value indicating if the executable is running or not
-///     },
-///     //above structure repeated for all enabled connectors / protocols
-///   ],
-///   "serverid": "", //human-readable server identifier, as configured.
-///   "time": 1398982430, //current unix time
-///   "version": "2.0.2/8.0.1-23-gfeb9322/Generic_64" //currently running server version string
-/// }
-/// ~~~~~~~~~~~~~~~
-void Controller::checkConfig(JSON::Value & in, JSON::Value & out){
-  out = in;
-  if (out.isMember("debug")){
-    if (Util::Config::printDebugLevel != out["debug"].asInt()){
-      Util::Config::printDebugLevel = out["debug"].asInt();
-      INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
-    }
-  }
-}
-
 ///\brief Checks an authorization request for a given user.
 ///\param Request The request to be parsed.
 ///\param Response The location to store the generated response.
@@ -159,7 +105,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
       //invalid request? send the web interface, unless requested as "/api"
-      if ( !Request.isObject() && H.url != "/api"){
+      if ( !Request.isObject() && H.url != "/api" && H.url != "/api2"){
         #include "server.html.h"
         H.Clean();
         H.SetHeader("Content-Type", "text/html");
@@ -171,6 +117,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         conn.SendNow(server_html, server_html_len);
         H.Clean();
         break;
+      }
+      if (H.url == "/api2"){
+        Request["minimal"] = true;
       }
       {//lock the config mutex here - do not unlock until done processing
         tthread::lock_guard<tthread::mutex> guard(configMutex);
@@ -186,189 +135,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           authorized |= authorize(Request, Response, conn);
         }
         if (authorized){
-          //Parse config and streams from the request.
-          if (Request.isMember("config")){
-            Controller::checkConfig(Request["config"], Controller::Storage["config"]);
-          }
-          if (Request.isMember("streams")){
-            Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
-          }
-          if (Request.isMember("capabilities")){
-            Controller::checkCapable(capabilities);
-            Response["capabilities"] = capabilities;
-          }
-          /// \todo Re-enable conversion API at some point.
-          /*
-          if (Request.isMember("conversion")){
-            if (Request["conversion"].isMember("encoders")){
-              Response["conversion"]["encoders"] = myConverter.getEncoders();
-            }
-            if (Request["conversion"].isMember("query")){
-              if (Request["conversion"]["query"].isMember("path")){
-                Response["conversion"]["query"] = myConverter.queryPath(Request["conversion"]["query"]["path"].asString());
-              }else{
-                Response["conversion"]["query"] = myConverter.queryPath("./");
-              }
-            }
-            if (Request["conversion"].isMember("convert")){
-              for (JSON::ObjIter it = Request["conversion"]["convert"].ObjBegin(); it != Request["conversion"]["convert"].ObjEnd(); it++){
-                myConverter.startConversion(it->first,it->second);
-                Controller::Log("CONV","Conversion " + it->second["input"].asString() + " to " + it->second["output"].asString() + " started.");
-              }
-            }
-            if (Request["conversion"].isMember("status") || Request["conversion"].isMember("convert")){
-              if (Request["conversion"].isMember("clear")){
-                myConverter.clearStatus();
-              }
-              Response["conversion"]["status"] = myConverter.getStatus();
-            }
-          }
-          */
-
-          /// This takes a "browse" request, and fills in the response data.
-          /// 
-          /// \api
-          /// `"browse"` requests take the form of:
-          /// ~~~~~~~~~~~~~~~{.js}
-          ///   //A string, containing the path for which to discover contents. Empty means current working directory.
-          ///   "/tmp/example"
-          /// ~~~~~~~~~~~~~~~
-          /// and are responded to as:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   //The folder path
-          ///   "path":"/tmp/example"
-          ///   //An array of strings showing all files 
-          ///   "files":
-          ///     ["file1.dtsc",
-          ///      "file2.mp3",
-          ///      "file3.exe"
-          ///     ]
-          ///   //An array of strings showing all subdirectories
-          ///   "subdirectories":[
-          ///   "folder1"
-          ///   ]
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// 
-          if(Request.isMember("browse")){                    
-            if(Request["browse"] == ""){
-              Request["browse"] = ".";
-            }
-            DIR *dir;
-            struct dirent *ent;
-            struct stat filestat;
-            char* rpath = realpath(Request["browse"].asString().c_str(),0);
-            if(rpath == NULL){
-              Response["browse"]["path"].append(Request["browse"].asString());
-            }else{
-              Response["browse"]["path"].append(rpath);//Request["browse"].asString());
-              if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
-                while ((ent = readdir (dir)) != NULL) {
-                  if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
-                    std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
-                    if (stat( filepath.c_str(), &filestat )) continue;
-                    if (S_ISDIR( filestat.st_mode)){
-                      Response["browse"]["subdirectories"].append(ent->d_name);
-                    }else{
-                      Response["browse"]["files"].append(ent->d_name);
-                    }
-                  }
-                }
-                closedir (dir);
-              }
-            }
-            free(rpath);
-          }
-
-          /// 
-          /// \api
-          /// `"save"` requests are always empty:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {}
-          /// ~~~~~~~~~~~~~~~
-          /// Sending this request will cause the controller to write out its currently active configuration to the configuration file it was loaded from (the default being `./config.json`).
-          /// 
-          if (Request.isMember("save")){
-            if( Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
-              Controller::Log("CONF", "Config written to file on request through API");
-            }else{
-              Controller::Log("ERROR", "Config " + Controller::conf.getString("configFile") + " could not be written");
-            }
-          }
-          /// 
-          /// \api
-          /// `"ui_settings"` requests can take two forms. The first is the "set" form:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// {
-          ///    //Any data here
-          /// }
-          /// ~~~~~~~~~~~~~~~
-          /// The second is the "request" form, and takes any non-object as argument.
-          /// When using the set form, this will write the given object verbatim into the controller storage.
-          /// No matter which form is used, the current contents of the ui_settings object are always returned in the response.
-          /// This API call is intended to store User Interface settings across sessions, and its contents are completely ignored by the controller itself. Besides the requirement of being an object, the contents are entirely free-form and may technically be used for any purpose.
-          /// 
-          if (Request.isMember("ui_settings")){
-            if (Request["ui_settings"].isObject()){
-              Storage["ui_settings"] = Request["ui_settings"];
-            }
-            Response["ui_settings"] = Storage["ui_settings"];
-          }
-          //sent current configuration, no matter if it was changed or not
-          Response["config"] = Controller::Storage["config"];
-          Response["config"]["version"] = PACKAGE_VERSION;
-          Response["streams"] = Controller::Storage["streams"];
-          //add required data to the current unix time to the config, for syncing reasons
-          Response["config"]["time"] = Util::epoch();
-          if ( !Response["config"].isMember("serverid")){
-            Response["config"]["serverid"] = "";
-          }
-          //sent any available logs and statistics
-          /// 
-          /// \api
-          /// `"log"` responses are always sent, and cannot be requested:
-          /// ~~~~~~~~~~~~~~~{.js}
-          /// [
-          ///   [
-          ///     1398978357, //unix timestamp of this log message
-          ///     "CONF", //shortcode indicating the type of log message
-          ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
-          ///   ],
-          ///   //the above structure repeated for all logs
-          /// ]
-          /// ~~~~~~~~~~~~~~~
-          /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
-          /// 
-          {
-            tthread::lock_guard<tthread::mutex> guard(logMutex);
-            Response["log"] = Controller::Storage["log"];
-            //clear log if requested
-            if (Request.isMember("clearstatlogs")){
-              Controller::Storage["log"].null();
-            }
-          }
-          if (Request.isMember("clients")){
-            if (Request["clients"].isArray()){
-              for (unsigned int i = 0; i < Request["clients"].size(); ++i){
-                Controller::fillClients(Request["clients"][i], Response["clients"][i]);
-              }
-            }else{
-              Controller::fillClients(Request["clients"], Response["clients"]);
-            }
-          }
-          if (Request.isMember("totals")){
-            if (Request["totals"].isArray()){
-              for (unsigned int i = 0; i < Request["totals"].size(); ++i){
-                Controller::fillTotals(Request["totals"][i], Response["totals"][i]);
-              }
-            }else{
-              Controller::fillTotals(Request["totals"], Response["totals"]);
-            }
-          }
-          
-          Controller::writeConfig();
-          
+          handleAPICommands(Request, Response);
         }else{//unauthorized
           Util::sleep(1000);//sleep a second to prevent bruteforcing 
           logins++;
@@ -395,4 +162,246 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
     }//if HTTP request received
   }//while connected
   return 0;
+}
+
+/// Local-only helper function that checks for duplicate protocols and removes them
+static void removeDuplicateProtocols(){
+  JSON::Value & P = Controller::Storage["config"]["protocols"];
+  std::set<std::string> ignores;
+  ignores.insert("online");
+  bool reloop = true;
+  while (reloop){
+    reloop = false;
+    jsonForEach(P, it){
+      jsonForEach(P, jt){
+        if (it.num() == jt.num()){continue;}
+        if ((*it).compareExcept(*jt, ignores)){
+          jt.remove();
+          reloop = true;
+          break;
+        }
+      }
+      if (reloop){break;}
+    }
+  }
+}
+
+void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response){
+  //Parse config and streams from the request.
+  if (Request.isMember("config") && Request["config"].isObject()){
+    const JSON::Value & in = Request["config"];
+    JSON::Value & out = Controller::Storage["config"];
+    if (in.isMember("debug")){
+      out["debug"] = in["debug"];
+      if (Util::Config::printDebugLevel != out["debug"].asInt()){
+        Util::Config::printDebugLevel = out["debug"].asInt();
+        INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
+      }
+    }
+    if (in.isMember("protocols")){
+      out["protocols"] = in["protocols"];
+      removeDuplicateProtocols();
+    }
+    if (in.isMember("controller")){
+      out["controller"] = in["controller"];
+    }
+    if (in.isMember("serverid")){
+      out["serverid"] = in["serverid"];
+    }
+  }
+  if (Request.isMember("streams")){
+    Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
+  }
+  if (Request.isMember("addstream")){
+    Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
+  }
+  if (Request.isMember("deletestream")){
+    //if array, delete all elements
+    //if object, delete all entries
+    //if string, delete just the one
+    if (Request["deletestream"].isString()){
+      Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
+    }
+    if (Request["deletestream"].isArray()){
+      jsonForEach(Request["deletestream"], it){
+        Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
+      }
+    }
+    if (Request["deletestream"].isObject()){
+      jsonForEach(Request["deletestream"], it){
+        Controller::deleteStream(it.key(), Controller::Storage["streams"]); 
+      }
+    }
+  }
+  if (Request.isMember("addprotocol")){
+    if (Request["addprotocol"].isArray()){
+      jsonForEach(Request["addprotocol"], it){
+        Controller::Storage["config"]["protocols"].append(*it);
+      }
+    }
+    if (Request["addprotocol"].isObject()){
+      Controller::Storage["config"]["protocols"].append(Request["addprotocol"]);
+    }
+    removeDuplicateProtocols();
+  }
+  if (Request.isMember("deleteprotocol")){
+    std::set<std::string> ignores;
+    ignores.insert("online");
+    if (Request["deleteprotocol"].isArray() && Request["deleteprotocol"].size()){
+      JSON::Value newProtocols;
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        bool add = true;
+        jsonForEach(Request["deleteprotocol"], pit){
+          if ((*it).compareExcept(*pit, ignores)){
+            add = false;
+            break;
+          }
+        }
+        if (add){
+          newProtocols.append(*it);
+        }
+      }
+      Controller::Storage["config"]["protocols"] = newProtocols;
+    }
+    if (Request["deleteprotocol"].isObject()){
+      JSON::Value newProtocols;
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        if (!(*it).compareExcept(Request["deleteprotocol"], ignores)){
+          newProtocols.append(*it);
+        }
+      }
+      Controller::Storage["config"]["protocols"] = newProtocols;
+    }
+  }
+  if (Request.isMember("updateprotocol")){
+    std::set<std::string> ignores;
+    ignores.insert("online");
+    if (Request["updateprotocol"].isArray() && Request["updateprotocol"].size() == 2){
+      jsonForEach(Controller::Storage["config"]["protocols"], it){
+        if ((*it).compareExcept(Request["updateprotocol"][0u], ignores)){
+          (*it) = Request["updateprotocol"][1u];
+        }
+      }
+      removeDuplicateProtocols();
+    }else{
+      FAIL_MSG("Cannot parse updateprotocol call: needs to be in the form [A, B]");
+    }
+  }
+
+  if (Request.isMember("capabilities")){
+    Controller::checkCapable(capabilities);
+    Response["capabilities"] = capabilities;
+  }
+
+  if(Request.isMember("browse")){                    
+    if(Request["browse"] == ""){
+      Request["browse"] = ".";
+    }
+    DIR *dir;
+    struct dirent *ent;
+    struct stat filestat;
+    char* rpath = realpath(Request["browse"].asString().c_str(),0);
+    if(rpath == NULL){
+      Response["browse"]["path"].append(Request["browse"].asString());
+    }else{
+      Response["browse"]["path"].append(rpath);//Request["browse"].asString());
+      if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
+        while ((ent = readdir (dir)) != NULL) {
+          if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
+            std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
+            if (stat( filepath.c_str(), &filestat )) continue;
+            if (S_ISDIR( filestat.st_mode)){
+              Response["browse"]["subdirectories"].append(ent->d_name);
+            }else{
+              Response["browse"]["files"].append(ent->d_name);
+            }
+          }
+        }
+        closedir (dir);
+      }
+    }
+    free(rpath);
+  }
+
+  if (Request.isMember("save")){
+    Controller::Log("CONF", "Writing config to file on request through API");
+    Controller::writeConfigToDisk();
+  }
+
+  if (Request.isMember("ui_settings")){
+    if (Request["ui_settings"].isObject()){
+      Storage["ui_settings"] = Request["ui_settings"];
+    }
+    Response["ui_settings"] = Storage["ui_settings"];
+  }
+  if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
+    if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
+      Response["streams"]["incomplete list"] = 1ll;
+      if (Request.isMember("addstream")){
+        jsonForEach(Request["addstream"], jit){
+          if (Controller::Storage["streams"].isMember(jit.key())){
+            Response["streams"][jit.key()] = Controller::Storage["streams"][jit.key()];
+          }
+        }
+      }
+    }else{
+      Response["streams"] = Controller::Storage["streams"];
+    }
+  }
+  //sent current configuration, if not minimal or was changed/requested
+  if (!Request.isMember("minimal") || Request.isMember("config")){
+    Response["config"] = Controller::Storage["config"];
+    Response["config"]["version"] = PACKAGE_VERSION;
+    //add required data to the current unix time to the config, for syncing reasons
+    Response["config"]["time"] = Util::epoch();
+    if ( !Response["config"].isMember("serverid")){
+      Response["config"]["serverid"] = "";
+    }
+  }
+  //sent any available logs and statistics
+  /// 
+  /// \api
+  /// `"log"` responses are always sent, and cannot be requested:
+  /// ~~~~~~~~~~~~~~~{.js}
+  /// [
+  ///   [
+  ///     1398978357, //unix timestamp of this log message
+  ///     "CONF", //shortcode indicating the type of log message
+  ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
+  ///   ],
+  ///   //the above structure repeated for all logs
+  /// ]
+  /// ~~~~~~~~~~~~~~~
+  /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
+  /// 
+  if (Request.isMember("clearstatlogs") || Request.isMember("log") || !Request.isMember("minimal")){
+    tthread::lock_guard<tthread::mutex> guard(logMutex);
+    if (!Request.isMember("minimal") || Request.isMember("log")){
+      Response["log"] = Controller::Storage["log"];
+    }
+    //clear log if requested
+    if (Request.isMember("clearstatlogs")){
+      Controller::Storage["log"].null();
+    }
+  }
+  if (Request.isMember("clients")){
+    if (Request["clients"].isArray()){
+      for (unsigned int i = 0; i < Request["clients"].size(); ++i){
+        Controller::fillClients(Request["clients"][i], Response["clients"][i]);
+      }
+    }else{
+      Controller::fillClients(Request["clients"], Response["clients"]);
+    }
+  }
+  if (Request.isMember("totals")){
+    if (Request["totals"].isArray()){
+      for (unsigned int i = 0; i < Request["totals"].size(); ++i){
+        Controller::fillTotals(Request["totals"][i], Response["totals"][i]);
+      }
+    }else{
+      Controller::fillTotals(Request["totals"], Response["totals"]);
+    }
+  }
+          
+  Controller::configChanged = true;
 }

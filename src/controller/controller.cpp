@@ -311,16 +311,7 @@ int main_loop(int argc, char ** argv){
   monitorThread.join();
   //write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
-  Controller::Storage.removeMember("log");
-  jsonForEach(Controller::Storage["streams"], it) {
-    it->removeMember("meta");
-  }
-  if ( !Controller::WriteFile(Controller::conf.getString("configFile"), Controller::Storage.toString())){
-    std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
-    std::cerr << "**Config**" << std::endl;
-    std::cerr << Controller::Storage.toString() << std::endl;
-    std::cerr << "**End config**" << std::endl;
-  }
+  Controller::writeConfigToDisk();
   //stop all child processes
   Util::Procs::StopAll();
   //give everything some time to print messages

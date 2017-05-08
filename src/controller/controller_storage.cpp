@@ -90,18 +90,38 @@ namespace Controller {
     fclose(output);
     close((long long int)err);
   }
-  
+
+  /// Writes the current config to the location set in the configFile setting.
+  /// On error, prints an error-level message and the config to stdout.
+  void writeConfigToDisk(){
+    JSON::Value tmp;
+    std::set<std::string> skip;
+    skip.insert("log");
+    skip.insert("online");
+    skip.insert("error");
+    tmp.assignFrom(Controller::Storage, skip);
+    if ( !Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
+      ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
+      std::cout << "**Config**" << std::endl;
+      std::cout << tmp.toString() << std::endl;
+      std::cout << "**End config**" << std::endl;
+    }
+  }
+
   /// Writes the current config to shared memory to be used in other processes
   void writeConfig(){
     static JSON::Value writeConf;
     bool changed = false;
-    if (writeConf["config"] != Storage["config"]){
-      writeConf["config"] = Storage["config"];
+    std::set<std::string> skip;
+    skip.insert("online");
+    skip.insert("error");
+    if (!writeConf["config"].compareExcept(Storage["config"], skip)){
+      writeConf["config"].assignFrom(Storage["config"], skip);
       VERYHIGH_MSG("Saving new config because of edit in server config structure");
       changed = true;
     }
-    if (writeConf["streams"] != Storage["streams"]){
-      writeConf["streams"] = Storage["streams"];
+    if (!writeConf["streams"].compareExcept(Storage["streams"], skip)){
+      writeConf["streams"].assignFrom(Storage["streams"], skip);
       VERYHIGH_MSG("Saving new config because of edit in streams");
       changed = true;
     }

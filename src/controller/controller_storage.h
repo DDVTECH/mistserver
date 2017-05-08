@@ -18,6 +18,7 @@ namespace Controller {
 
   /// Write contents to Filename.
   bool WriteFile(std::string Filename, std::string contents);
+  void writeConfigToDisk();
   
   void handleMsg(void * err);
 

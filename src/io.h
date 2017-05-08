@@ -56,6 +56,8 @@ namespace Mist {
       std::string streamName;///< Name of the stream to connect to
 
       void continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate = false);
+      void continueNegotiate(DTSC::Meta & myMeta);
+
       uint32_t negTimer; ///< How long we've been negotiating, in packets.
   };
 
@@ -70,6 +72,7 @@ namespace Mist {
       virtual void bufferLivePacket(DTSC::Packet & packet);
     protected:
       void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
+      void continueNegotiate();
 
 
 

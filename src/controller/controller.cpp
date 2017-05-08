@@ -104,21 +104,9 @@ void createAccount (std::string account){
 /// Status monitoring thread.
 /// Will check outputs, inputs and converters every five seconds
 void statusMonitor(void * np){
-  #ifdef UPDATER
-  unsigned long updatechecker = Util::epoch(); /*LTS*/
-  #endif
   IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
-    /*LTS-START*/
-    #ifdef UPDATER
-    if (Util::epoch() - updatechecker > 3600){
-      updatechecker = Util::epoch();
-      Controller::CheckUpdateInfo();
-    }
-    #endif
-    /*LTS-END*/
-
     //this scope prevents the configMutex from being locked constantly
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
@@ -349,7 +337,7 @@ int main_loop(int argc, char ** argv){
   /*LTS-START*/
   #ifdef UPDATER
   if (Controller::conf.getBool("update")){
-    Controller::CheckUpdates();
+    Controller::checkUpdates();
   }
   #endif
   #ifdef LICENSING
@@ -370,6 +358,10 @@ int main_loop(int argc, char ** argv){
   tthread::thread pushThread(Controller::pushCheckLoop, 0);
   //start UDP API thread
   tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
+#ifdef UPDATER
+  //start updater thread
+  tthread::thread updaterThread(Controller::updateThread, 0);
+#endif
 
   
   //start main loop
@@ -423,6 +415,10 @@ int main_loop(int argc, char ** argv){
   #ifdef LICENSING
   HIGH_MSG("Joining license thread...");
   licenseThread.join();
+  #endif
+  #ifdef UPDATER
+  HIGH_MSG("Joining updater thread...");
+  updaterThread.join();
   #endif
   /*LTS-END*/
   //write config

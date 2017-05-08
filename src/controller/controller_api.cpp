@@ -404,13 +404,10 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   /// 
   #ifdef UPDATER
   if (Request.isMember("autoupdate")){
-    Controller::CheckUpdates();
+    Controller::checkUpdates();
   }
-  if (Request.isMember("checkupdate")){
-    Controller::updates = Controller::CheckUpdateInfo();
-  }
-  if (Request.isMember("update") || Request.isMember("checkupdate")){
-    Response["update"] = Controller::updates;
+  if (Request.isMember("update") || Request.isMember("checkupdate") || Request.isMember("autoupdate")){
+    Controller::insertUpdateInfo(Response["update"]);
   }
   #endif
   /*LTS-END*/

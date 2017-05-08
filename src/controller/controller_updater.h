@@ -1,19 +1,16 @@
-/// \file controller_updater.cpp
+/// \file controller_updater.h
 /// Contains all code for the controller updater.
 
+#include <mist/json.h>
+#include <mist/socket.h>
 #include <string>
 
-#ifndef SHARED_SECRET
-#define SHARED_SECRET "empty"
-#endif
+namespace Controller{
+  void updateThread(void *np);
+  JSON::Value checkUpdateInfo();
+  void checkUpdates();
+  void insertUpdateInfo(JSON::Value &ret);
+  void updateComponent(const std::string &component, const std::string &md5sum,
+                       Socket::Connection &updrConn);
+}
 
-namespace Controller {
-  extern JSON::Value updates;
-
-  std::string readFile(std::string filename);
-  bool writeFile(std::string filename, std::string & contents);
-  JSON::Value CheckUpdateInfo();
-  void CheckUpdates();
-  void updateComponent(const std::string & component, const std::string & md5sum, Socket::Connection & updrConn);
-
-} //Controller namespace

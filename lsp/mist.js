@@ -451,7 +451,7 @@ var UI = {
                     }
                     else {
                       //this value was not entered
-                      delete pointer.main[pointer.index];
+                      pointer.main[pointer.index] = null;
                       return true; //continue
                     }
                   }
@@ -2050,6 +2050,7 @@ var UI = {
         var $errors = $('<span>').addClass('logs');
         var $viewers = $('<span>');
         var $servertime = $('<span>');
+        var $activeproducts = $('<span>').text("Unknown");
         var $protocols_on = $('<span>');
         var $protocols_off = $('<span>');
         
@@ -2081,6 +2082,11 @@ var UI = {
               main: mist.data.config.license,
               index: 'user'
             },
+            LTSonly: true
+          },{
+            type: 'span',
+            label: 'Active products',
+            value: $activeproducts,
             LTSonly: true
           },{
             type: 'span',
@@ -2148,18 +2154,45 @@ var UI = {
           }
         ]));
         if (mist.data.LTS) {
-          function update_update(info) {
-            if (!('uptodate' in info)) {
-              $versioncheck.text('Unknown');
+          function update_update(d) {
+            function update_progress(d) {
+              if (!d.update) {
+                UI.showTab("Overview");
+                return;
+              }
+              
+              var perc = "";
+              if ("progress" in d.update) {
+                perc = " ("+d.update.progress+"%)";
+              }
+              $versioncheck.text("Updating.."+perc);
+              setTimeout(function(){
+                mist.send(function(d){
+                  update_progress(d);
+                },{update:true});
+              },5e3);
+            }
+            
+            if ((!d.update) || (!('uptodate' in d.update))) {
+              $versioncheck.text('Unknown, checking..');
+              setTimeout(function(){
+                mist.send(function(d){
+                  update_update(d);
+                },{checkupdate:true});
+              },5e3);
               return;
             }
-            else if (info.error) {
-              $versioncheck.addClass('red').text(info.error);
+            else if (d.update.error) {
+              $versioncheck.addClass('red').text(d.update.error);
               return;
             }
-            else if (info.uptodate) {
+            else if (d.update.uptodate) {
               $versioncheck.text('Your version is up to date.').addClass('green');
               return;
+            }
+            else if (d.update.progress) {
+              $versioncheck.addClass('orange').removeClass('red').text('Updating..');
+              update_progress(d);
             }
             else {
               $versioncheck.addClass('red').text('Version outdated!').append(
@@ -2167,8 +2200,9 @@ var UI = {
                   if (confirm('Are you sure you want to execute a rolling update?')) {
                     $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
                     mist.stored.del('update');
+                    
                     mist.send(function(d){
-                      UI.navto('Overview');
+                      update_progress(d);
                     },{autoupdate: true});
                   }
                 })
@@ -2176,18 +2210,45 @@ var UI = {
             }
           }
           
-          if ((!mist.stored.get().update) || ((new Date()).getTime()-mist.stored.get().update.lastchecked > 3600e3)) {
-            var update = {};
-            update.lastchecked = (new Date()).getTime();
-            mist.send(function(d){
-              mist.stored.set('update',update);
-              update_update(d.update);
-            },{checkupdate: true});
-          }
-          else {
-            mist.send(function(d){
-              update_update(d.update);
-            },{update: true});
+          update_update(mist.data);
+          
+          //show license information
+          if ("license" in mist.data.config) {
+            if (("active_products" in mist.data.config.license) && (Object.keys(mist.data.config.license.active_products).length)) {
+              var $t = $("<table>").css("text-indent","0");
+              $activeproducts.html($t);
+              $t.append(
+                $("<tr>").append(
+                  $("<th>").append("Product")
+                ).append(
+                  $("<th>").append("Updates until")
+                ).append(
+                  $("<th>").append("Use until")
+                ).append(
+                  $("<th>").append("Max. simul. instances")
+                )
+              );
+              for (var i in mist.data.config.license.active_products) {
+                var p = mist.data.config.license.active_products[i];
+                $t.append(
+                  $("<tr>").append(
+                    $("<td>").append(p.name)
+                  ).append(
+                    $("<td>").append((p.updates_final ? p.updates_final : "&infin;"))
+                  ).append(
+                    $("<td>").append(p.use_final)
+                  ).append(
+                    $("<td>").append((p.amount ? p.amount : "&infin;"))
+                  )
+                );
+              }
+            }
+            else {
+              $activeproducts.text("None.");
+            }
+            $activeproducts.append(
+              $("<a>").text("More details").attr("href","https://shop.mistserver.org/myinvoices").attr("target","_blank")
+            );
           }
         }
         else {
@@ -5399,7 +5460,14 @@ var UI = {
         $(a[0]).focus();
         return false;
       }
-    })
+    });
+    
+    if ((!navigator.doNotTrack) && (mist.user.loggedin)) {
+      ///GA tracking; only if connected
+      $main.append(
+        $("<img>").attr("src","https://www.google-analytics.com/collect?v=1&tid=UA-32426932-1&cid="+mist.data.config.iid+"&t=pageview&dp="+encodeURIComponent("/MI/"+tab)+"&dh=MI."+(mist.data.LTS ? "Pro" : "OS")).css({width:"1px",height:"1px","min-width":"1px",opacity:0.1,position:"absolute",left:"-1000px"})
+      );
+    }
   }
 };
 

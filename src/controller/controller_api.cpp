@@ -196,8 +196,8 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     JSON::Value & out = Controller::Storage["config"];
     if (in.isMember("debug")){
       out["debug"] = in["debug"];
-      if (Util::Config::printDebugLevel != out["debug"].asInt()){
-        Util::Config::printDebugLevel = out["debug"].asInt();
+      if (Util::Config::printDebugLevel != (out["debug"].isInt()?out["debug"].asInt():DEBUG)){
+        Util::Config::printDebugLevel = (out["debug"].isInt()?out["debug"].asInt():DEBUG);
         INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
       }
     }

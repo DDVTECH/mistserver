@@ -193,7 +193,7 @@ int main_loop(int argc, char ** argv){
   if (Controller::conf.getOption("debug",true).size() > 1){
     Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");
   }
-  if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("debug")){
+  if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("debug") && Controller::Storage["config"]["debug"].isInt()){
     Util::Config::printDebugLevel = Controller::Storage["config"]["debug"].asInt();
   }
   //check for port, interface and username in arguments

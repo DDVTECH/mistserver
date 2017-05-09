@@ -167,6 +167,9 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
 /// Local-only helper function that checks for duplicate protocols and removes them
 static void removeDuplicateProtocols(){
   JSON::Value & P = Controller::Storage["config"]["protocols"];
+  jsonForEach(P, it){
+    it->removeNullMembers();
+  }
   std::set<std::string> ignores;
   ignores.insert("online");
   bool reloop = true;

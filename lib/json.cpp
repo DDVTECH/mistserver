@@ -1294,6 +1294,20 @@ void JSON::Value::removeMember(const std::map<std::string, Value*>::iterator & i
   objVal.erase(it);
 }
 
+void JSON::Value::removeNullMembers(){
+  bool again = true;
+  while (again){
+    again = false;
+    jsonForEach(*this, m){
+      if (m.key().size() && m->isNull()){
+        removeMember(m.key());
+        again = true;
+        break;
+      }
+    }
+  }
+}
+
 /// For object JSON::Value objects, returns true if the
 /// given name is a member. Returns false otherwise.
 bool JSON::Value::isMember(const std::string & name) const {

@@ -2077,11 +2077,7 @@ var UI = {
           },{
             type: 'span',
             label: 'Licensed to',
-            'default': 'unknown',
-            pointer: {
-              main: mist.data.config.license,
-              index: 'user'
-            },
+            value: ("license" in mist.data.config ? mist.data.config.license.name : ""),
             LTSonly: true
           },{
             type: 'span',
@@ -2199,7 +2195,6 @@ var UI = {
                 $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
                   if (confirm('Are you sure you want to execute a rolling update?')) {
                     $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
-                    mist.stored.del('update');
                     
                     mist.send(function(d){
                       update_progress(d);

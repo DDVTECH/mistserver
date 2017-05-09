@@ -2,6 +2,7 @@
 #include <mist/json.h>
 
 namespace Controller{
+  extern uint64_t exitDelay;
   
   const JSON::Value & getLicense();
   void initLicense();

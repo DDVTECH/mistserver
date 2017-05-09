@@ -13,6 +13,7 @@
 
 namespace Controller{
   
+  uint64_t exitDelay = 0;
   static JSON::Value currentLicense;
   static uint64_t lastCheck = 0;
   
@@ -67,6 +68,9 @@ namespace Controller{
     INFO_MSG("Checking license time");
     if(!isLicensed()){
       FAIL_MSG("Not licensed, shutting down");
+      if (currentLicense.isMember("delay") && currentLicense["delay"].asInt()){
+        exitDelay = currentLicense["delay"].asInt();
+      }
       kill(getpid(), SIGINT);
       conf.is_active = false;
       return false;

@@ -429,6 +429,12 @@ int main_loop(int argc, char ** argv){
   //give everything some time to print messages
   Util::wait(100);
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
+  if (Controller::exitDelay){
+    std::cout << "Delaying shutdown by " << Controller::exitDelay << " seconds, on license server request..." << std::endl;
+    while (Controller::exitDelay--){
+      Util::wait(1000);
+    }
+  }
   if (Controller::restarting){
     return 42;
   }

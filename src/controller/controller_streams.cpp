@@ -189,10 +189,21 @@ namespace Controller {
           }
           /*LTS-END*/
           out[jit.key()] = (*jit);
+          out[jit.key()].removeNullMembers();
           out[jit.key()]["name"] = jit.key();
           Log("STRM", std::string("Updated stream ") + jit.key());
         }
       }else{
+        std::string checked = jit.key();
+        Util::sanitizeName(checked);
+        if (checked != jit.key() || !checked.size()){
+          if (!checked.size()){
+            FAIL_MSG("Invalid stream name '%s'", jit.key().c_str());
+          }else{
+            FAIL_MSG("Invalid stream name '%s'. Suggested alternative: '%s'", jit.key().c_str(), checked.c_str());
+          }
+          continue;
+        }
         /*LTS-START*/
         if(Triggers::shouldTrigger("STREAM_ADD")){
           std::string payload = jit.key()+"\n"+jit->toString();
@@ -202,6 +213,7 @@ namespace Controller {
         }
         /*LTS-END*/
         out[jit.key()] = (*jit);
+        out[jit.key()].removeNullMembers();
         out[jit.key()]["name"] = jit.key();
         Log("STRM", std::string("New stream ") + jit.key());
       }

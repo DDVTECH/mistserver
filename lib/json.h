@@ -84,6 +84,7 @@ namespace JSON {
       void removeMember(const std::string & name);
       void removeMember(const std::deque<Value*>::iterator & it);
       void removeMember(const std::map<std::string, Value*>::iterator & it);
+      void removeNullMembers();
       bool isMember(const std::string & name) const;
       bool isInt() const;
       bool isString() const;

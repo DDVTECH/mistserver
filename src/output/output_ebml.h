@@ -11,6 +11,7 @@ namespace Mist{
     uint32_t clusterSize(uint64_t start, uint64_t end);
 
   private:
+    bool isRecording();
     std::string doctype;
     void sendElemTrackEntry(const DTSC::Track & Trk);
     uint32_t sizeElemTrackEntry(const DTSC::Track & Trk);

@@ -12,6 +12,34 @@ namespace Mist{
     cuesSize = 0;
     seekheadSize = 0;
     doctype = "matroska";
+    if (config->getString("target").size()){
+      if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
+      initialize();
+      if (!streamName.size()){
+        WARN_MSG("Recording unconnected EBML output to file! Cancelled.");
+        conn.close();
+        return;
+      }
+      if (config->getString("target") == "-"){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Outputting %s to stdout in EBML format", streamName.c_str());
+        return;
+      }
+      if (!myMeta.tracks.size()){
+        INFO_MSG("Stream not available - aborting");
+        conn.close();
+        return;
+      }
+      if (connectToFile(config->getString("target"))){
+        parseData = true;
+        wantRequest = false;
+        INFO_MSG("Recording %s to %s in EBML format", streamName.c_str(),
+                 config->getString("target").c_str());
+        return;
+      }
+      conn.close();
+    }
   }
 
   void OutEBML::init(Util::Config *cfg){
@@ -40,7 +68,18 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
     capa["methods"][0u]["priority"] = 8ll;
+    capa["push_urls"].append("/*.mkv");
+    capa["push_urls"].append("/*.webm");
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1ll;
+    opt["help"] = "Target filename to store EBML file as, or - for stdout.";
+    cfg->addOption("target", opt);
   }
+
+  bool OutEBML::isRecording(){return config->getString("target").size();}
 
   /// Calculates the size of a Cluster (contents only) and returns it.
   /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.

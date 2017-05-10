@@ -40,12 +40,12 @@ namespace Mist {
           streamOut = streamName;
         }
       }
-      if (streamName.find('?') != std::string::npos){
-        streamName = streamName.substr(0, streamName.find('?'));
+      if (streamName.rfind('?') != std::string::npos){
+        streamName = streamName.substr(0, streamName.rfind('?'));
       }
-      if (streamOut.find('?') != std::string::npos){
-        std::string tmpVars = streamOut.substr(streamOut.find('?') + 1);
-        streamOut = streamOut.substr(0, streamOut.find('?'));
+      if (streamOut.rfind('?') != std::string::npos){
+        std::string tmpVars = streamOut.substr(streamOut.rfind('?') + 1);
+        streamOut = streamOut.substr(0, streamOut.rfind('?'));
         parseVars(tmpVars);
       }
       initialize();

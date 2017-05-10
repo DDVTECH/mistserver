@@ -58,7 +58,9 @@ p.prototype.build = function (options,callback) {
     var ele = me.getElement('video');
     cont.appendChild(ele);
     ele.className = '';
-    ele.crossOrigin = 'anonymous'; //required for subtitles
+    if (options.source.type != "html5/video/ogg") {
+      ele.crossOrigin = 'anonymous'; //required for subtitles, but if ogg, the video won't load
+    }
     
     var shortmime = options.source.type.split('/');
     shortmime.shift();
@@ -105,6 +107,8 @@ p.prototype.build = function (options,callback) {
     
     //forward events
     ele.addEventListener('error',function(e){
+      if (!e.isTrusted) { return; } //don't trigger on errors we have thrown ourselves
+      
       var msg;
       if ('message' in e) {
         msg = e.message;
@@ -144,13 +148,8 @@ p.prototype.build = function (options,callback) {
             break;
         }
       }
-      //prevent onerror loops
-      if (e.target == me.element) {
-        e.message = msg;
-      }
-      else {
-        me.adderror(msg);
-      }
+      
+      me.adderror(msg);
       
     });
     var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];

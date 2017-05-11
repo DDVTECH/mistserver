@@ -92,6 +92,10 @@ namespace Mist{
     return buffer.size();
   }
 
+  bool Output::isRecording(){
+    return config->hasOption("target") && config->getString("target").size();
+  }
+
   void Output::updateMeta(){
     //cancel if not alive or pushing a new stream
     if (!nProxy.userClient.isAlive() || (isPushing() && myMeta.tracks.size())){

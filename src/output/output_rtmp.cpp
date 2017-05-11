@@ -15,7 +15,8 @@ namespace Mist {
       streamName = config->getString("streamname");
       std::string pushStr= config->getString("target");
       pushStr = pushStr.substr(7);
-      std::string host, app = "default", streamOut = streamName;
+      std::string host, app = "default";
+      streamOut = streamName;
       int port = 1935;
 
       size_t slash = pushStr.find('/');
@@ -88,46 +89,16 @@ namespace Mist {
         amfReply.getContentP(2)->addContent(AMF::Object("app", app));
         amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
         amfReply.getContentP(2)->addContent(AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
-        amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
+        if (port != 1935){
+          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + ":" + JSON::Value((long long)port).asString() + "/" + app));
+        }else{
+          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
+        }
         sendCommand(amfReply, 20, 0);
       }
       RTMPStream::chunk_snd_max = 10240000; //10000KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
-      {
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "releaseStream")); //command
-        amfReply.addContent(AMF::Object("", (double)2)); //transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
-        amfReply.addContent(AMF::Object("", streamOut)); //stream name
-        sendCommand(amfReply, 20, 0);
-      }
-      {
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "FCPublish")); //command
-        amfReply.addContent(AMF::Object("", (double)3)); //transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
-        amfReply.addContent(AMF::Object("", streamOut)); //stream name
-        sendCommand(amfReply, 20, 0);
-      }
-      {
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "createStream")); //command
-        amfReply.addContent(AMF::Object("", (double)4)); //transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
-        sendCommand(amfReply, 20, 0);
-      }
-      {
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "publish")); //command
-        amfReply.addContent(AMF::Object("", (double)5)); //transaction ID
-        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
-        amfReply.addContent(AMF::Object("", streamOut)); //stream name
-        amfReply.addContent(AMF::Object("", "live")); //stream name
-        sendCommand(amfReply, 20, 1);
-      }
-      HIGH_MSG("Publish starting");
-      realTime = 0;
-      parseData = true;
+      HIGH_MSG("Waiting for server to acknowledge connect request...");
     }else{
       setBlocking(true);
       while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
@@ -801,6 +772,9 @@ namespace Mist {
       sendCommand(amfReply, messageType, streamId);
       return;
     } //checkBandwidth
+    if (amfData.getContentP(0)->StrValue() == "onBWDone") {
+      return;
+    }
     if ((amfData.getContentP(0)->StrValue() == "play") || (amfData.getContentP(0)->StrValue() == "play2")) {
       //set reply number and stream name, actual reply is sent up in the ss.spool() handler
       int playTransaction = amfData.getContentP(1)->NumValue();
@@ -968,7 +942,45 @@ namespace Mist {
       return;
     }
     if ((amfData.getContentP(0)->StrValue() == "_result") || (amfData.getContentP(0)->StrValue() == "onFCPublish") || (amfData.getContentP(0)->StrValue() == "onStatus")) {
-      //Results are ignored. We don't really care.
+      if (isRecording() && amfData.getContentP(0)->StrValue() == "_result" && amfData.getContentP(1)->NumValue() == 1){
+        {
+          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+          amfReply.addContent(AMF::Object("", "releaseStream")); //command
+          amfReply.addContent(AMF::Object("", (double)2)); //transaction ID
+          amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
+          amfReply.addContent(AMF::Object("", streamOut)); //stream name
+          sendCommand(amfReply, 20, 0);
+        }
+        {
+          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+          amfReply.addContent(AMF::Object("", "FCPublish")); //command
+          amfReply.addContent(AMF::Object("", (double)3)); //transaction ID
+          amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
+          amfReply.addContent(AMF::Object("", streamOut)); //stream name
+          sendCommand(amfReply, 20, 0);
+        }
+        {
+          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+          amfReply.addContent(AMF::Object("", "createStream")); //command
+          amfReply.addContent(AMF::Object("", (double)4)); //transaction ID
+          amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
+          sendCommand(amfReply, 20, 0);
+        }
+        {
+          AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+          amfReply.addContent(AMF::Object("", "publish")); //command
+          amfReply.addContent(AMF::Object("", (double)5)); //transaction ID
+          amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //options
+          amfReply.addContent(AMF::Object("", streamOut)); //stream name
+          amfReply.addContent(AMF::Object("", "live")); //stream name
+          sendCommand(amfReply, 20, 1);
+        }
+        HIGH_MSG("Publish starting");
+        realTime = 0;
+        parseData = true;
+      }
+
+      //Other results are ignored. We don't really care.
       return;
     }
 

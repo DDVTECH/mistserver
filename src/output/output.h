@@ -129,7 +129,7 @@ namespace Mist {
       bool sentHeader;///< If false, triggers sendHeader if parseData is true.
 
       std::map<int,DTSCPageData> bookKeeping;
-      virtual bool isRecording(){return false;};
+      virtual bool isRecording();
       virtual bool isPushing(){return pushing;};
       bool allowPush(const std::string & passwd);
       void bufferLivePacket(DTSC::Packet & packet);

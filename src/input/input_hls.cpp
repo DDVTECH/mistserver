@@ -41,6 +41,7 @@ namespace Mist {
     initDone = false;
     lastTimestamp = 0;
     uri = uriSrc;
+    startTime = Util::bootSecs();
     
     if (uri.size()){
       std::string line;
@@ -628,7 +629,7 @@ namespace Mist {
 
     thisPacket.null();
 
-    while (!hasPacket && config->is_active) {
+    while (!hasPacket && config->is_active && nProxy.userClient.isAlive()) {
       if (playlists[currentPlaylist].isUrl()) {
 
         endOfFile = playlists[currentPlaylist].atEnd();
@@ -675,7 +676,7 @@ namespace Mist {
           int playlistTime = reloadNext.at(currentPlaylist) - Util::bootSecs() - 1;
 
           if (playlistTime < segmentTime) {
-            while (playlistTime > 0) {
+            while (playlistTime > 0 && nProxy.userClient.isAlive()) {
               Util::wait(900);
               nProxy.userClient.keepAlive();
               playlistTime--;
@@ -1004,7 +1005,7 @@ namespace Mist {
     int segmentTime = playlists[pListId].entries.front().timestamp - Util::bootSecs();
     if (segmentTime){
       --segmentTime;
-      while (segmentTime > 1) {
+      while (segmentTime > 1 && nProxy.userClient.isAlive()) {
         Util::wait(1000);
         --segmentTime;
         continueNegotiate();

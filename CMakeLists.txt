@@ -433,7 +433,9 @@ add_executable(MistOutHTTP
   generated/videojs.js.h
   generated/img.js.h
   generated/playerdash.js.h
+  generated/playerdashlic.js.h
   generated/playervideo.js.h
+  generated/playerhlsvideo.js.h
   generated/core.js.h
   generated/mist.css.h
 )
@@ -535,13 +537,21 @@ add_custom_command(OUTPUT generated/img.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/img.js img_js generated/img.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/img.js
 )
+add_custom_command(OUTPUT generated/playerdashlic.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js playerdashlic_js generated/playerdashlic.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js
+)
 add_custom_command(OUTPUT generated/playerdash.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js playerdash_js generated/playerdash.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js playerdash_js generated/playerdash.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js
 )
 add_custom_command(OUTPUT generated/playervideo.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs.js playervideo_js generated/playervideo.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/players/videojs.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/video.min.js playervideo_js generated/playervideo.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/video.min.js
+)
+add_custom_command(OUTPUT generated/playerhlsvideo.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs-contrib-hls.min.js playerhlsvideo_js generated/playerhlsvideo.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/videojs-contrib-hls.min.js
 )
 add_custom_command(OUTPUT generated/core.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js generated/core.js.h
@@ -555,9 +565,9 @@ add_custom_command(OUTPUT generated/mist.css.h
 ########################################
 # Local Settings Page                  #
 ########################################
-set(lspSOURCES 
-  ${SOURCE_DIR}/lsp/plugins/jquery.js 
-  ${SOURCE_DIR}/lsp/plugins/jquery.flot.min.js 
+set(lspSOURCES
+  ${SOURCE_DIR}/lsp/plugins/jquery.js
+  ${SOURCE_DIR}/lsp/plugins/jquery.flot.min.js
   ${SOURCE_DIR}/lsp/plugins/jquery.flot.time.min.js
   ${SOURCE_DIR}/lsp/plugins/jquery.qrcode.min.js
   ${SOURCE_DIR}/lsp/minified.js

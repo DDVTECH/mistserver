@@ -1,6 +1,6 @@
 mistplayers.html5 = {
   name: 'HTML5 video player',
-  version: '1.0',
+  version: '1.1',
   mimes: ['html5/application/vnd.apple.mpegurl','html5/video/mp4','html5/video/ogg','html5/video/webm','html5/audio/mp3','html5/audio/webm','html5/audio/ogg','html5/audio/wav'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -32,7 +32,7 @@ mistplayers.html5 = {
 };
 var p = mistplayers.html5.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var cont = document.createElement('div');
   cont.className = 'mistplayer';
   var me = this; //to allow nested functions to access the player class itself
@@ -43,7 +43,11 @@ p.prototype.build = function (options) {
   var ele = this.getElement((shortmime[0] == 'audio' ? 'audio' : 'video'));
   ele.className = '';
   cont.appendChild(ele);
-  ele.crossOrigin = 'anonymous'; //required for subtitles
+  
+  if (options.source.type != "html5/video/ogg") {
+    ele.crossOrigin = 'anonymous'; //required for subtitles, but if ogg, the video won't load
+  }
+  
   if (shortmime[0] == 'audio') {
     this.setTracks = function() { return false; }
     this.fullscreen = false;
@@ -100,6 +104,7 @@ p.prototype.build = function (options) {
   
   //forward events
   ele.addEventListener('error',function(e){
+    if (!e.isTrusted) { return; } //don't trigger on errors we have thrown ourselves
     
     if (options.live) {
       if ((ele.error) && (ele.error.code == 3)) {
@@ -160,13 +165,8 @@ p.prototype.build = function (options) {
           break;
       }
     }
-    //prevent onerror loops
-    if (e.target == me.element) {
-      e.message = msg;
-    }
-    else {
-      me.adderror(msg);
-    }
+    
+    me.adderror(msg);
   });
   var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting','progress'];
   for (var i in events) {
@@ -174,7 +174,7 @@ p.prototype.build = function (options) {
       me.addlog('Player event fired: '+e.type);
     });
   }
-  return cont;
+  callback(cont);
 }
 p.prototype.play = function(){ return this.element.play(); };
 p.prototype.pause = function(){ return this.element.pause(); };

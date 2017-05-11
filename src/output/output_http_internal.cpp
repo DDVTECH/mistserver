@@ -74,6 +74,8 @@ namespace Mist {
     capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/player.js");
     capa["url_match"].append("/player.css");
+    capa["url_match"].append("/videojs.js");
+    capa["url_match"].append("/dashjs.js");
     capa["url_match"].append("/embed_$.js");
     capa["url_match"].append("/flashplayer.swf");
     capa["url_match"].append("/oldflashplayer.swf");
@@ -603,15 +605,11 @@ namespace Mist {
           used = true;
         }
         if (it->asStringRef() == "dashjs"){
-          #include "playerdash.js.h"
-          response.append((char*)playerdash_js, (size_t)playerdash_js_len);
           #include "dashjs.js.h"
           response.append((char*)dash_js, (size_t)dash_js_len);
           used = true;
         }
         if (it->asStringRef() == "videojs"){
-          #include "playervideo.js.h"
-          response.append((char*)playervideo_js, (size_t)playervideo_js_len);
           #include "videojs.js.h"
           response.append((char*)video_js, (size_t)video_js_len);
           used = true;
@@ -647,6 +645,50 @@ namespace Mist {
       
       #include "mist.css.h"
       response.append((char*)mist_css, (size_t)mist_css_len);
+      
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (H.url == "/videojs.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      
+      #include "playervideo.js.h"
+      response.append((char*)playervideo_js, (size_t)playervideo_js_len);
+      #include "playerhlsvideo.js.h"
+      response.append((char*)playerhlsvideo_js, (size_t)playerhlsvideo_js_len);
+      
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (H.url == "/dashjs.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      
+      #include "playerdashlic.js.h"
+      response.append((char*)playerdashlic_js, (size_t)playerdashlic_js_len);
+      #include "playerdash.js.h"
+      response.append((char*)playerdash_js, (size_t)playerdash_js_len);
       
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);

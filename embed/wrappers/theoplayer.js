@@ -1,6 +1,6 @@
 mistplayers.theoplayer = {
   name: 'TheoPlayer',
-  version: '0.1',
+  version: '0.2',
   mimes: ['html5/application/vnd.apple.mpegurl','dash/video/mp4'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -17,7 +17,7 @@ mistplayers.theoplayer = {
 };
 var p = mistplayers.theoplayer.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   var ele = this.getElement('video');
   
   ele.src = options.src;
@@ -40,7 +40,7 @@ p.prototype.build = function (options) {
   this.theoplayer = theoplayer(ele);
   
   this.addlog('Built html');
-  return ele;
+  callback(ele);
 }
 p.prototype.play = function(){ return this.theoplayer.play(); };
 p.prototype.pause = function(){ return this.theoplayer.pause(); };

@@ -1,6 +1,6 @@
 mistplayers.silverlight = {
   name: 'Silverlight',
-  version: '1.0',
+  version: '1.1',
   mimes: ['silverlight'],
   priority: Object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
@@ -25,7 +25,7 @@ mistplayers.silverlight = {
 };
 var p = mistplayers.silverlight.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options) {
+p.prototype.build = function (options,callback) {
   function createParam(name,value) {
     var p = document.createElement('param');
     p.setAttribute('name',name);
@@ -52,5 +52,5 @@ p.prototype.build = function (options) {
   img.setAttribute('style','border-style: none;')
   
   this.addlog('Built html');
-  return ele;
+  callback(ele);
 }

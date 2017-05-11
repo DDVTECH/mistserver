@@ -27,12 +27,12 @@ MistPlayer.prototype.sendEvent = function(type,message,target) {
   return true;
 }
 MistPlayer.prototype.addlog = function(msg) {
-  this.sendEvent('log',msg,this.element);
+  this.sendEvent('log',msg,(this.element ? this.element: this.target));
 }
 MistPlayer.prototype.adderror = function(msg) {
-  this.sendEvent('error',msg,this.element);
+  this.sendEvent('error',msg,(this.element ? this.element: this.target));
 }
-MistPlayer.prototype.build = function () {
+MistPlayer.prototype.build = function (options,callback) {
   this.addlog('Error in player implementation');
   var err = document.createElement('div');
   var msgnode = document.createTextNode(msg);
@@ -673,7 +673,12 @@ MistPlayer.prototype.askNextCombo = function(msg){
   err.style.width = '100%';
   err.style['margin-left'] = 0;
   this.target.appendChild(err);
-  this.element.style.opacity = '0.2';
+  if (this.element) { 
+    this.element.style.opacity = '0.2';
+    if (this.element.parentElement != this.target) {
+      err.style.position = '';
+    }
+  }
   
   //if there is a next source/player, show a button to activate it
   var opts = this.mistplaySettings.options;
@@ -788,14 +793,16 @@ MistPlayer.prototype.report = function(msg) {
 }
 MistPlayer.prototype.unload = function(){
   this.addlog('Unloading..');
-  if (('pause' in this) && (this.pause)) { this.pause(); }
-  if ('updateSrc' in this) {
-    this.updateSrc('');
-    this.element.load(); //dont use this.load() to avoid interrupting play/pause
+  if (this.element) {
+    if (('pause' in this) && (this.pause)) { this.pause(); }
+    if ('updateSrc' in this) {
+      this.updateSrc('');
+      this.element.load(); //dont use this.load() to avoid interrupting play/pause
+    }
+    this.element.innerHTML = '';
   }
   this.timer.clear();
   this.target.innerHTML = '';
-  this.element.innerHTML = '';
 };
 
 function mistCheck(streaminfo,options,embedLog) {
@@ -1187,6 +1194,142 @@ function mistPlay(streamName,options) {
         }
       }
       
+      function onplayerbuilt(element) {
+        options.target.appendChild(element);
+        element.setAttribute('data-player',mistPlayer);
+        element.setAttribute('data-mime',source.type);
+        player.report({
+          type: 'init',
+          info: 'Player built'
+        });
+        
+        if (player.setTracks(false)) {
+          player.onready(function(){
+            //player.setTracks(usetracks);
+            if ('setTracks' in options) { player.setTracks(options.setTracks); }
+          });
+        }
+        
+        //monitor for errors
+        element.sendPingTimeout = setInterval(function(){
+          if (player.paused) { return; }
+          player.report({
+            type: 'playback',
+            info: 'ping'
+          });
+        },150e3);
+        element.addEventListener('error',function(e){
+          player.askNextCombo('The player has thrown an error');
+          var r = {
+            type: 'playback',
+            error: 'The player has thrown an error'
+          };
+          if ('readyState' in player.element) {
+            r.readyState = player.element.readyState;
+          }
+          if ('networkState' in player.element) {
+            r.networkState = player.element.networkState;
+          }
+          if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
+            r.code = player.element.error.code;
+          }
+          player.report(r);
+        });
+        element.checkStalledTimeout = false;
+        var stalled = function(e){
+          if (element.checkStalledTimeout) { return; }
+          var curpos = player.element.currentTime;
+          if (curpos == 0) { return; }
+          element.checkStalledTimeout = player.timer.add(function(){
+            if ((player.paused) || (curpos != player.element.currentTime)) { return; }
+            player.askNextCombo('Playback has stalled');
+            player.report({
+              'type': 'playback',
+              'warn': 'Playback was stalled for > 30 sec'
+            });
+          },30e3);
+        };
+        element.addEventListener('stalled',stalled,true);
+        element.addEventListener('waiting',stalled,true);
+        
+        if (playerOpts.live) {
+          element.checkProgressTimeout = false;
+          var progress = function(e){
+            if (element.checkStalledTimeout) {
+              player.timer.remove(element.checkStalledTimeout);
+              element.checkStalledTimeout = false;
+              player.cancelAskNextCombo();
+            }
+          };
+          //element.addEventListener('progress',progress,true); //sometimes, there is progress but no playback
+          element.addEventListener('playing',progress,true);
+          element.addEventListener('play',function(){
+            player.paused = false;
+            if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
+              //check if the progress made is equal to the time spent
+              var lasttime = player.element.currentTime;
+              element.checkProgressTimeout = player.timer.add(function(){
+                var newtime = player.element.currentTime;
+                var progress = newtime - lasttime;
+                lasttime = newtime;
+                if (progress < 0) { return; } //its probably a looping VOD or we've just seeked
+                if (progress == 0) {
+                  var msg = 'There should be playback but nothing was played';
+                  var r = {
+                    type: 'playback',
+                    warn: msg
+                  };
+                  player.addlog(msg);
+                  if ('readyState' in player.element) {
+                    r.readyState = player.element.readyState;
+                  }
+                  if ('networkState' in player.element) {
+                    r.networkState = player.element.networkState;
+                  }
+                  if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
+                    r.code = player.element.error.code;
+                  }
+                  player.report(r);
+                  player.askNextCombo('No playback');
+                  return;
+                }
+                player.cancelAskNextCombo();
+                if (progress < 20) {
+                  var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/30s)'
+                  player.addlog(msg);
+                  player.report({
+                    type: 'playback',
+                    warn: msg
+                  });
+                  return;
+                }
+              },30e3,true);
+            }
+          },true);
+          element.addEventListener('pause',function(){
+            player.paused = true;
+            if (element.checkProgressTimeout) {
+              player.timer.remove(element.checkProgressTimeout);
+              element.checkProgressTimeout = false;
+            }
+          },true);
+        }
+        
+        if (player.resize) {
+          //monitor for resizes and fire if needed 
+          window.addEventListener('resize',function(){
+            player.resize(calcSize());
+          });
+        }
+        
+        for (var i in player.onreadylist) {
+          player.onreadylist[i]();
+        }
+        
+        protoplay.sendEvent('initialized','',options.target);
+        if (options.callback) { options.callback(player); }
+      }
+      
       //build the player
       player.mistplaySettings = {
         streamname: streamName,
@@ -1198,11 +1341,10 @@ function mistPlay(streamName,options) {
       };
       player.options = playerOpts;
       try {
-        var element = player.build(playerOpts);
+        var element = player.build(playerOpts,onplayerbuilt);
       }
       catch (e) {
         //show the next player/reload buttons if there is an error in the player build code
-        options.target.appendChild(player.element);
         player.askNextCombo('Error while building player: '+e.stack);
         throw e;
         player.report({
@@ -1211,139 +1353,6 @@ function mistPlay(streamName,options) {
         });
         return;
       }
-      options.target.appendChild(element);
-      element.setAttribute('data-player',mistPlayer);
-      element.setAttribute('data-mime',source.type);
-      player.report({
-        type: 'init',
-        info: 'Player built'
-      });
-      
-      if (player.setTracks(false)) {
-        player.onready(function(){
-          //player.setTracks(usetracks);
-          if ('setTracks' in options) { player.setTracks(options.setTracks); }
-        });
-      }
-      
-      //monitor for errors
-      element.sendPingTimeout = setInterval(function(){
-        if (player.paused) { return; }
-        player.report({
-          type: 'playback',
-          info: 'ping'
-        });
-      },150e3);
-      element.addEventListener('error',function(e){
-        player.askNextCombo('The player has thrown an error');
-        var r = {
-          type: 'playback',
-          error: 'The player has thrown an error'
-        };
-        if ('readyState' in player.element) {
-          r.readyState = player.element.readyState;
-        }
-        if ('networkState' in player.element) {
-          r.networkState = player.element.networkState;
-        }
-        if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
-          r.code = player.element.error.code;
-        }
-        player.report(r);
-      });
-      element.checkStalledTimeout = false;
-      var stalled = function(e){
-        if (element.checkStalledTimeout) { return; }
-        var curpos = player.element.currentTime;
-        if (curpos == 0) { return; }
-        element.checkStalledTimeout = player.timer.add(function(){
-          if ((player.paused) || (curpos != player.element.currentTime)) { return; }
-          player.askNextCombo('Playback has stalled');
-          player.report({
-            'type': 'playback',
-            'warn': 'Playback was stalled for > 30 sec'
-          });
-        },30e3);
-      };
-      element.addEventListener('stalled',stalled,true);
-      element.addEventListener('waiting',stalled,true);
-      
-      if (playerOpts.live) {
-        element.checkProgressTimeout = false;
-        var progress = function(e){
-          if (element.checkStalledTimeout) {
-            player.timer.remove(element.checkStalledTimeout);
-            element.checkStalledTimeout = false;
-            player.cancelAskNextCombo();
-          }
-        };
-        //element.addEventListener('progress',progress,true); //sometimes, there is progress but no playback
-        element.addEventListener('playing',progress,true);
-        element.addEventListener('play',function(){
-          player.paused = false;
-          if ((!element.checkProgressTimeout) && (player.element) && ('currentTime' in player.element)) {
-            //check if the progress made is equal to the time spent
-            var lasttime = player.element.currentTime;
-            element.checkProgressTimeout = player.timer.add(function(){
-              var newtime = player.element.currentTime;
-              var progress = newtime - lasttime;
-              lasttime = newtime;
-              if (progress < 0) { return; } //its probably a looping VOD or we've just seeked
-              if (progress == 0) {
-                var msg = 'There should be playback but nothing was played';
-                var r = {
-                  type: 'playback',
-                  warn: msg
-                };
-                player.addlog(msg);
-                if ('readyState' in player.element) {
-                  r.readyState = player.element.readyState;
-                }
-                if ('networkState' in player.element) {
-                  r.networkState = player.element.networkState;
-                }
-                if (('error' in player.element) && (player.element.error) && ('code' in player.element.error)) {
-                  r.code = player.element.error.code;
-                }
-                player.report(r);
-                player.askNextCombo('No playback');
-                return;
-              }
-              player.cancelAskNextCombo();
-              if (progress < 20) {
-                var msg = 'It seems playback is lagging (progressed '+Math.round(progress*100)/100+'/30s)'
-                player.addlog(msg);
-                player.report({
-                  type: 'playback',
-                  warn: msg
-                });
-                return;
-              }
-            },30e3,true);
-          }
-        },true);
-        element.addEventListener('pause',function(){
-          player.paused = true;
-          if (element.checkProgressTimeout) {
-            player.timer.remove(element.checkProgressTimeout);
-            element.checkProgressTimeout = false;
-          }
-        },true);
-      }
-      
-      if (player.resize) {
-        //monitor for resizes and fire if needed 
-        window.addEventListener('resize',function(){
-          player.resize(calcSize());
-        });
-      }
-      
-      for (var i in player.onreadylist) {
-        player.onreadylist[i]();
-      }
-      
-      protoplay.sendEvent('initialized','',options.target);
-      if (options.callback) { options.callback(player); }
     }
     else {
       if (streaminfo.error) {

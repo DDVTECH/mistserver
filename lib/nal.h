@@ -16,4 +16,6 @@ namespace nalu {
 
   unsigned long toAnnexB(const char * data, unsigned long dataSize, char *& result);
   unsigned long fromAnnexB(const char * data, unsigned long dataSize, char *& result);
+  void scanAnnexB(const char * data, uint32_t dataSize, const char *& packetPointer);
+  const char* nalEndPosition(const char * data, uint32_t dataSize);
 }

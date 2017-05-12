@@ -69,6 +69,56 @@ namespace nalu {
     return dataSize;
   }
 
+  const char* nalEndPosition(const char * data, uint32_t dataSize){
+    while(dataSize > 0 && memcmp(data+dataSize-1, "\000",1) == 0 ){
+      dataSize--;
+    }
+    
+    return data+dataSize;
+  }
+
+  ///scan data stream for startcode. return pointer to location when found, NULL otherwise
+  void scanAnnexB(const char * data, uint32_t dataSize, const char *& packetPointer){
+    int offset = 0;
+
+    while(offset+2 < dataSize){
+      const char * begin = data + offset;
+//      int t = ((((int*)begin)[0]) >> 8) & 0x00FFFFFF;
+      int t = (int)((begin[0] << 8)|((begin[1]) << 8)|(begin[2])); 
+      //int t = (int)((begin[0]|begin[1]) << 1)|(begin[2]); 
+      //search for startcode
+
+      //if(memcmp(begin, "\000\000\001",3) != 0){
+      if(t != 1){
+
+        //if((t & 0x0000FF != 0 )) 
+        if((int)begin[2] != 0 )                                   //XX1
+        {
+          offset +=3;
+        }else if(((int)begin[1] == 1) && ((int)begin[2] ==0)){    //X10 
+          offset +=2; 
+        }else{
+          offset++;   //[X00]? incr with 1 because the startcode could be one at 1byte offset.
+        }
+/*
+        if(t != 0 )
+        {
+          offset += 3;
+        }else{
+          offset++;
+        }
+*/
+
+//        offset++;
+      }else{
+        packetPointer = begin;
+        return;
+      }
+    }
+
+    packetPointer = NULL;
+  }
+
   unsigned long fromAnnexB(const char * data, unsigned long dataSize, char *& result){
     const char * lastCheck = data + dataSize - 3;
     if (!result){

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include "dtsc.h"
 #include "checksum.h"
+#include <fstream>
 
 /// Holds all TS processing related code.
 namespace TS {
@@ -26,6 +27,7 @@ namespace TS {
       ~Packet();      
       bool FromPointer(const char * data);
       bool FromFile(FILE * data);
+      bool FromStream(std::istream & data);
 
       //Base properties
       void setPID(int NewPID);

@@ -585,9 +585,21 @@ namespace Mist {
     nProxy.continueNegotiate(tid, myMeta, quickNegotiate);
   }
 
+  void InOutBase::continueNegotiate() {
+    nProxy.continueNegotiate(myMeta);
+  }
+
   negotiationProxy::negotiationProxy(){
     encrypt = false;
     negTimer = 0;
+  }
+
+  void negotiationProxy::continueNegotiate(DTSC::Meta & myMeta) {
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      if (!trackState.count(it->first) || (trackState[it->first] != FILL_ACC  && trackState[it->first] != FILL_DEC)){
+        continueNegotiate(it->first, myMeta);
+      }
+    }
   }
 
   void negotiationProxy::continueNegotiate(unsigned long tid, DTSC::Meta & myMeta, bool quickNegotiate) {

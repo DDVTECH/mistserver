@@ -48,6 +48,26 @@ namespace TS {
     return true;
   }
 
+  bool Packet::FromStream(std::istream & data)
+  {
+    long long int bPos = data.tellg();
+    if(!data.read (strBuf,188))
+    {
+      HIGH_MSG("failed to read 188 bytes");
+      return false;
+    }
+    
+    if(strBuf[0] != 0x47)
+    {
+      HIGH_MSG("Failed to read a good packet on pos %lld", bPos);
+      return false;
+    }
+    
+    pos = 188;
+    return true;
+  }
+
+
 ///This funtion fills a Packet from
 ///a char array. It fills the content with
 ///the first 188 characters of a char array

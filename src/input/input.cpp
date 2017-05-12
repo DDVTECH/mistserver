@@ -109,7 +109,17 @@ namespace Mist {
   /// Starts checks the SEM_INPUT lock, starts an angel process and then 
   int Input::boot(int argc, char * argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
-    streamName = config->getString("streamname");
+    streamName = nProxy.streamName = config->getString("streamname");
+   
+    if (config->getBool("json")) {
+      std::cout << capa.toString() << std::endl;
+      return 0;
+    }
+
+    if (!setup()) {
+      FAIL_MSG("Setup failed - exiting");
+      return 0;
+    }
 
     IPC::semaphore playerLock;
     if (needsLock() && streamName.size()){
@@ -168,18 +178,6 @@ namespace Mist {
   }
 
   int Input::run() {
-    if (config->getBool("json")) {
-      std::cout << capa.toString() << std::endl;
-      return 0;
-    }
-
-    nProxy.streamName = streamName;
-
-    if (!setup()) {
-      FAIL_MSG("Setup failed - exiting");
-      return 0;
-    }
-
     checkHeaderTimes(config->getString("input"));
     if (!readHeader()) {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
@@ -348,16 +346,19 @@ namespace Mist {
       pullLock.close();
       return;
     }
+
     if (Util::streamAlive(streamName)){
       pullLock.post();
       pullLock.close();
       pullLock.unlink();
+      WARN_MSG("Stream already online, cancelling");
       return;
     }
     if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"))) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
       pullLock.unlink();
+      WARN_MSG("Could not start buffer, cancelling");
       return;
     }
 
@@ -381,6 +382,7 @@ namespace Mist {
       pullLock.post();
       pullLock.close();
       pullLock.unlink();
+      WARN_MSG("No tracks found, cancelling");
       return;
     }
     nProxy.userClient.countAsViewer = false;
@@ -618,7 +620,7 @@ namespace Mist {
     if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum) {
       stopTime = myMeta.tracks[track].keys[keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum].getTime();
     }
-    DEBUG_MSG(DLVL_HIGH, "Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
+    HIGH_MSG("Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
     getNext();
     //in case earlier seeking was inprecise, seek to the exact point
     while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()) {

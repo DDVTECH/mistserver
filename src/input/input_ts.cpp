@@ -130,7 +130,6 @@ namespace Mist {
     }
   }
 
-
   ///Live Setup of TS Input
   bool inputTS::setup() {
     const std::string & inpt = config->getString("input");
@@ -205,7 +204,17 @@ namespace Mist {
         }
         myMeta.update(headerPack);
       }
-
+    }
+    
+    DTSC::Packet headerPack;
+    tsStream.getEarliestPacket(headerPack);
+  
+    while (headerPack) {
+      if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
+        tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+      }
+      myMeta.update(headerPack);
+      tsStream.getEarliestPacket(headerPack);
     }
 
     fseek(inFile, 0, SEEK_SET);
@@ -230,9 +239,6 @@ namespace Mist {
       hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
     }
     if (!hasPacket) {
-      if (!feof(inFile)) {
-        getNext();
-      }
       return;
     }
     if (selectedTracks.size() == 1) {
@@ -264,14 +270,12 @@ namespace Mist {
     }
 
     //Clear leaves the PMT in place
-    tsStream.clear();
-
+    tsStream.partialClear();
 
     //Restore original file position
     if (fseek(inFile, bpos, SEEK_SET)) {
       return;
     }
-
   }
 
   ///Seeks to a specific time

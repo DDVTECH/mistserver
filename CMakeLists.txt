@@ -339,6 +339,7 @@ macro(makeInput inputName format)
   )
 endmacro()
 
+makeInput(HLS hls)
 makeInput(DTSC dtsc)
 makeInput(DTSCCrypt dtsccrypt)
 makeInput(MP3 mp3)

@@ -68,9 +68,9 @@ namespace TS{
     std::map<unsigned long, unsigned long long> lastPMT;
     std::map<unsigned long, ProgramMappingTable> mappingTable;
 
-    std::map<unsigned long, std::deque<Packet>> pesStreams;
-    std::map<unsigned long, std::deque<unsigned long long>> pesPositions;
-    std::map<unsigned long, std::deque<DTSC::Packet>> outPackets;
+    std::map<unsigned long, std::deque<Packet> > pesStreams;
+    std::map<unsigned long, std::deque<unsigned long long> > pesPositions;
+    std::map<unsigned long, std::deque<DTSC::Packet> > outPackets;
     std::map<unsigned long, DTSC::Packet> buildPacket;
     std::map<unsigned long, unsigned long> pidToCodec;
     std::map<unsigned long, aac::adts> adtsInfo;

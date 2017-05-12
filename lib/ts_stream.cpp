@@ -122,7 +122,7 @@ namespace TS{
   void Stream::finish(){
     if (!pesStreams.size()){return;}
 
-    for (std::map<unsigned long, std::deque<Packet>>::const_iterator i = pesStreams.begin();
+    for (std::map<unsigned long, std::deque<Packet> >::const_iterator i = pesStreams.begin();
          i != pesStreams.end(); i++){
       parsePES(i->first, true);
     }
@@ -191,7 +191,7 @@ namespace TS{
     // Handle PMT packets
     if (pmtTracks.count(tid)){
       ///\todo Keep track of updates in PMT instead of keeping only the last PMT per program as a
-      ///reference
+      /// reference
       if (threaded){globalSem.wait();}
       mappingTable[tid] = trackPackets.back();
       lastPMT[tid] = Util::bootSecs();
@@ -318,7 +318,8 @@ namespace TS{
     }
 
     if (outPackets.size()){
-      for (std::map<unsigned long, std::deque<DTSC::Packet>>::const_iterator i = outPackets.begin();
+      for (std::map<unsigned long, std::deque<DTSC::Packet> >::const_iterator i =
+               outPackets.begin();
            i != outPackets.end(); i++){
         if (i->second.size()){
           if (threaded){globalSem.post();}
@@ -327,7 +328,7 @@ namespace TS{
       }
     }
 
-    for (std::map<unsigned long, std::deque<Packet>>::const_iterator i = pesStreams.begin();
+    for (std::map<unsigned long, std::deque<Packet> >::const_iterator i = pesStreams.begin();
          i != pesStreams.end(); i++){
       std::deque<Packet>::const_iterator curPack = i->second.begin();
 
@@ -804,7 +805,7 @@ namespace TS{
     unsigned long packTime = 0xFFFFFFFFull;
     unsigned long packTrack = 0;
 
-    for (std::map<unsigned long, std::deque<DTSC::Packet>>::iterator it = outPackets.begin();
+    for (std::map<unsigned long, std::deque<DTSC::Packet> >::iterator it = outPackets.begin();
          it != outPackets.end(); it++){
       if (it->second.front().getTime() < packTime){
         packTrack = it->first;

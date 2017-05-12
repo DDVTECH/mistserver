@@ -485,9 +485,6 @@ namespace TS{
       }
 
       const char *pesPayload = pesHeader + pesOffset;
-
-      if (memmem(pesPayload, realPayloadSize, "DTP2", 4) != 0){INFO_MSG("dtp found");}
-
       parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos);
 
       // We are done with the realpayload size, reverse calculation so we know the correct offset

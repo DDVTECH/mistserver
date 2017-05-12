@@ -28,31 +28,34 @@ namespace Mist {
 
   class Playlist {
     public:
-      Playlist();
-    std::string codecs;
-    std::string video;
-    std::string audio;
-    std::string uri;
-    std::string uri_root;
+      Playlist(const std::string & uriSrc = "");
+      bool atEnd() const;
+      bool isUrl() const;
+      bool reload();
+      void addEntry(const std::string & filename, float duration, uint64_t & totalBytes);
+      bool loadURL(const std::string & loadUrl);
 
-    std::string source;  
-    const char *packetPtr;
+      std::string uri;
+      std::string uri_root;
 
-    int id;
-    bool playlistEnd;
-    int noChangeCount;
-    int version;
-    int targetDuration;
-    uint64_t media_sequence;
-    int lastFileIndex;
-    int waitTime;
-    bool vodLive;
-    PlaylistType playlistType;
-    std::deque<playListEntries> entries;
-    int entryCount;
-    int programId;
-    int bandwidth;
-    unsigned int lastTimestamp;
+      std::string source;  
+      const char *packetPtr;
+
+      int id;
+      bool initDone;
+      bool playlistEnd;
+      int noChangeCount;
+      int version;
+      uint64_t media_sequence;
+      int lastFileIndex;
+
+
+      int waitTime;
+      PlaylistType playlistType;
+      std::deque<playListEntries> entries;
+      int entryCount;
+      unsigned int lastTimestamp;
+      unsigned int startTime;
   };
 
   
@@ -79,9 +82,6 @@ namespace Mist {
       int media_sequence;
       bool endPlaylist;
       int currentPlaylist;
-     
-      bool initDone;
-      std::string init_source;  
 
       //std::vector<playListEntries> entries;
       std::vector<Playlist> playlists;
@@ -89,28 +89,21 @@ namespace Mist {
       std::map<int,int> pidMapping;
       std::map<int,int> pidMappingR;
 
-      std::string playlistFile;
-      std::string playlistRootPath;
       std::vector<int> reloadNext;
 
-
-      bool liveStream;
       int currentIndex;
       std::string currentFile;
       std::ifstream in;
-      bool isUrl;
 
       TS::Stream tsStream;///<Used for parsing the incoming ts stream
-      bool pushing;
-      Socket::UDPConnection udpCon;
-      std::string udpDataBuffer;
+
       Socket::Connection conn;
       TS::Packet tsBuf;
 
       int getFirstPlaylistToReload();
 
       int firstSegment();
-      bool getNextSegment();
+      void waitForNextSegment();
       void readPMT();
       bool setup();
       bool preSetup();
@@ -120,27 +113,18 @@ namespace Mist {
       void trackSelect(std::string trackSpec);
       FILE * inFile;
       FILE * tsFile;
-      bool openURL(std::string urlString, Playlist &p);
 
-
-      void printContent();
-      void printBuffer();
       bool readIndex();
-      bool initPlaylist(std::string uri);
-      bool readPlaylist(std::string uri);
-      bool reloadPlaylist(Playlist &p);
+      bool initPlaylist(const std::string & uri);
+      bool readPlaylist(const std::string & uri);
       bool readNextFile();
 
-
-
       void parseStreamHeader();
-      void addEntryToPlaylist(Playlist &p, std::string filename, float duration, uint64_t &totalBytes);
 
       int getMappedTrackId(int id);
       int getMappedTrackPlaylist(int id);
       int getOriginalTrackId(int playlistId, int id);
       int getEntryId(int playlistId, uint64_t bytePos);
-      int cleanLine(std::string &s);
   };
 }
 

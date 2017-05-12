@@ -866,10 +866,12 @@ namespace Mist {
         // The extra 600ms here is for the metadata sync delay.
         // It can be removed once we get rid of that.
         // (sync delay = ~1s, minimum lookAhead is 420ms -> ~600ms extra needed)
-        if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 600 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
-          INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
-          seek(mainTrk.keys.rbegin()->getTime());
-          return;
+        if (myMeta.sourceURI.find("http://") == std::string::npos || myMeta.sourceURI.find(".m3u") == std::string::npos){
+          if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 600 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
+            INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
+            seek(mainTrk.keys.rbegin()->getTime());
+            return;
+          }
         }
         //building set first
         buildFragment();//map with metadata for keyframe

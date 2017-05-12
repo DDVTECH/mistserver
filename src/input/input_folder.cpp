@@ -17,7 +17,7 @@ namespace Mist {
 
   int inputFolder::boot(int argc, char * argv[]){
     if (!config->parseArgs(argc, argv)){return 1;}
-    if (config->getBool("json")){return run();}
+    if (config->getBool("json")){return Input::boot(argc,argv);}
     
     streamName = config->getString("streamname");
     if (streamName.find_first_of("+ ") == std::string::npos){

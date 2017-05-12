@@ -229,20 +229,21 @@ namespace TS{
     bool parsePes = false;
 
     int packNum = 1;
+    // Usually we append a packet at a time, so the start code is expected to show up at the end.
     std::deque<Packet> &inStream = pesStreams[tid];
-    if (!inStream.rbegin()->getUnitStart()){
-      if (threaded){globalSem.post();}
-      return;
-    }
-    std::deque<Packet>::iterator lastPack = inStream.end();
-    std::deque<Packet>::iterator curPack = inStream.begin();
-    curPack++;
-    while (curPack != lastPack && !curPack->getUnitStart()){
+    if (inStream.rbegin()->getUnitStart()){
+      parsePes = true;
+    }else{
+      //But, sometimes (e.g. live) we do multiples, and need to check all of it...
+      std::deque<Packet>::iterator lastPack = inStream.end();
+      std::deque<Packet>::iterator curPack = inStream.begin();
       curPack++;
-      packNum++;
+      while (curPack != lastPack && !curPack->getUnitStart()){
+        curPack++;
+        packNum++;
+      }
+      if (curPack != lastPack){parsePes = true;}
     }
-    if (curPack != lastPack){parsePes = true;}
-
     if (threaded){globalSem.post();}
 
     if (parsePes){parsePES(tid);}
@@ -697,7 +698,7 @@ namespace TS{
     if (threaded){globalSem.post();}
 
     if (!packetReady){
-      ERROR_MSG("Obtaining a packet on track %lu failed", tid);
+      ERROR_MSG("Track %lu: PES without valid packets?", tid);
       return;
     }
 

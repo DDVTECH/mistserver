@@ -6,7 +6,7 @@ namespace aac {
   class adts {
     public:
       adts();
-      adts(char * _data, unsigned long _len);
+      adts(const char * _data, unsigned long _len);
       adts(const adts & rhs);
       ~adts();
       adts& operator = (const adts & rhs);

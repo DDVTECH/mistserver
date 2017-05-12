@@ -12,7 +12,7 @@ namespace aac {
     len = 0;
   }
 
-  adts::adts(char * _data, unsigned long _len){
+  adts::adts(const char * _data, unsigned long _len){
     len = _len;
     data = (char*)malloc(len);
     memcpy(data, _data, len);

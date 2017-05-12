@@ -37,7 +37,11 @@ bool AnalyserDTSC::parsePacket(){
     break;
   }
   case DTSC::DTSC_HEAD:{
-    if (detail >= 2){std::cout << "DTSC header: " << P.getScan().toPrettyString() << std::endl;}
+    if (detail >= 3){
+      std::cout << "DTSC header: ";
+      DTSC::Meta(P).toPrettyString(std::cout, 0, (detail == 3 ? 0 : (detail == 4 ? 0x01 : (detail == 5 ? 0x03 : 0x07))));
+    }
+    if (detail == 2){std::cout << "DTSC header: " << P.getScan().toPrettyString() << std::endl;}
     if (detail == 1){
       bool hasH264 = false;
       bool hasAAC = false;

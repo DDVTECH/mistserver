@@ -9,6 +9,7 @@
 #include <mist/ogg.h>
 #include <mist/defines.h>
 #include <mist/bitstream.h>
+#include <mist/opus.h>
 #include "input_ogg.h"
 
 ///\todo Whar be Opus support?
@@ -49,6 +50,7 @@ namespace Mist {
     capa["source_match"] = "/*.ogg";
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][1u].append("vorbis");
+    capa["codecs"][0u][1u].append("opus");
   }
 
   bool inputOGG::setup(){
@@ -73,10 +75,7 @@ namespace Mist {
       theora::header tmpHead((char*)bosPage.getSegment(0), bosPage.getSegmentLen(0));
       oggTracks[tid].codec = OGG::THEORA;
       oggTracks[tid].msPerFrame = (double)(tmpHead.getFRD() * 1000) / (double)tmpHead.getFRN();   //this should be: 1000/( tmpHead.getFRN()/ tmpHead.getFRD() )
-      DEBUG_MSG(DLVL_DEVEL, "theora trackID: %u msperFrame %f ", tid, oggTracks[tid].msPerFrame);
       oggTracks[tid].KFGShift = tmpHead.getKFGShift(); //store KFGShift for granule calculations
-      DEVEL_MSG("read theora header size: %d, tid: %u", tmpHead.datasize, tid);
-
       myMeta.tracks[tid].type = "video";
       myMeta.tracks[tid].codec = "theora";
       myMeta.tracks[tid].trackID = tid;
@@ -88,6 +87,7 @@ namespace Mist {
         myMeta.tracks[tid].init += (char)(bosPage.getPayloadSize() & 0xFF);
         myMeta.tracks[tid].init.append(bosPage.getSegment(0), bosPage.getSegmentLen(0));
       }
+      INFO_MSG("Track %lu is %s", tid, myMeta.tracks[tid].codec.c_str());
     }
     if (memcmp(bosPage.getSegment(0) + 1, "vorbis", 6) == 0){
       vorbis::header tmpHead((char*)bosPage.getSegment(0), bosPage.getSegmentLen(0));
@@ -106,6 +106,17 @@ namespace Mist {
       myMeta.tracks[tid].rate = tmpHead.getAudioSampleRate();
       myMeta.tracks[tid].trackID = tid;
       myMeta.tracks[tid].channels = tmpHead.getAudioChannels();
+      INFO_MSG("Track %lu is %s", tid, myMeta.tracks[tid].codec.c_str());
+    }
+    if (memcmp(bosPage.getSegment(0), "OpusHead", 8) == 0){
+      oggTracks[tid].codec = OGG::OPUS;
+      myMeta.tracks[tid].type = "audio";
+      myMeta.tracks[tid].codec = "opus";
+      myMeta.tracks[tid].rate = 48000;
+      myMeta.tracks[tid].trackID = tid;
+      myMeta.tracks[tid].init.assign(bosPage.getSegment(0), bosPage.getSegmentLen(0));
+      myMeta.tracks[tid].channels = myMeta.tracks[tid].init[9];
+      INFO_MSG("Track %lu is %s", tid, myMeta.tracks[tid].codec.c_str());
     }
   }
 
@@ -134,19 +145,14 @@ namespace Mist {
       // INFO_MSG("tid: %d",tid);
 
       //Parsing headers
-//      INFO_MSG("parsing headers for tid: %d",tid);
-      ///\todo make sure the header is ffmpeg compatible
       if (myMeta.tracks[tid].codec == "theora"){
-        //    INFO_MSG("theora");
         for (unsigned int i = 0; i < myPage.getAllSegments().size(); i++){
           unsigned long len = myPage.getSegmentLen(i);
-          INFO_MSG("Length for segment %d: %lu", i, len);
           theora::header tmpHead((char*)myPage.getSegment(i),len);
           if (!tmpHead.isHeader()){ //not copying the header anymore, should this check isHeader?
             DEBUG_MSG(DLVL_FAIL, "Theora Header read failed!");
             return false;
           }
-          DEBUG_MSG(DLVL_WARN, "Theora header, type %d", tmpHead.getHeaderType());
           switch (tmpHead.getHeaderType()){
             //Case 0 is being handled by parseBeginOfStream
             case 1: {
@@ -167,7 +173,7 @@ namespace Mist {
         }
       }
 
-      if (myMeta.tracks[tid].codec == "vorbis"){                
+      if (myMeta.tracks[tid].codec == "vorbis"){
         for (unsigned int i = 0; i < myPage.getAllSegments().size(); i++){
           unsigned long len = myPage.getSegmentLen(i);
           vorbis::header tmpHead((char*)myPage.getSegment(i), len);
@@ -175,7 +181,6 @@ namespace Mist {
             DEBUG_MSG(DLVL_FAIL, "Header read failed!");
             return false;
           }
-          DEBUG_MSG(DLVL_WARN, "Vorbis header, type %d", tmpHead.getHeaderType());
           switch (tmpHead.getHeaderType()){
             //Case 1 is being handled by parseBeginOfStream
             case 3: {
@@ -205,10 +210,14 @@ namespace Mist {
           }
         }
       }
+      if (myMeta.tracks[tid].codec == "opus"){
+        oggTracks[tid].parsedHeaders = true;
+      }
     }
 
     for (std::map<long unsigned int, OGG::oggTrack>::iterator it = oggTracks.begin(); it != oggTracks.end(); it++){
       fseek(inFile, 0, SEEK_SET);
+      INFO_MSG("Finding first data for track %lu", it->first);
       position tmp = seekFirstData(it->first);
       if (tmp.trackID){
         currentPositions.insert(tmp);
@@ -249,6 +258,11 @@ namespace Mist {
       if (oggTracks[tid].myPage.getHeaderType() != OGG::Plain){
         quitloop = false;
         continue;
+      }
+      if (oggTracks[tid].codec == OGG::OPUS){
+        if (std::string(oggTracks[tid].myPage.getSegment(0), 2) == "Op"){
+          quitloop = false;
+        }
       }
       if (oggTracks[tid].codec == OGG::VORBIS){
         vorbis::header tmpHead((char*)oggTracks[tid].myPage.getSegment(0), oggTracks[tid].myPage.getSegmentLen(0));
@@ -351,6 +365,10 @@ namespace Mist {
         //  INFO_MSG("thisTime: %d", thisPacket.getTime());
       }
       curPos.time += oggTracks[thisSegment.tid].msPerFrame;
+    } else if (oggTracks[thisSegment.tid].codec == OGG::OPUS){
+      if (thisSegment.parts.size()){
+        curPos.time += Opus::Opus_getDuration(thisSegment.parts.front().data());
+      }
     }
     if (readFullPacket){
       currentPositions.insert(curPos);
@@ -361,6 +379,9 @@ namespace Mist {
     switch (oggTracks[tid].codec){
       case OGG::VORBIS:
         return granule * oggTracks[tid].msPerFrame ; //= samples * samples per second
+        break;
+      case OGG::OPUS:
+        return granule / 48; //always 48kHz
         break;
       case OGG::THEORA:{
         long long unsigned int parseGranuleUpper = granule >> oggTracks[tid].KFGShift ;

@@ -2,11 +2,42 @@
 #include <sstream>
 
 namespace Opus{
+
+  unsigned int Opus_getDuration(const char *part){
+    const char config = part[0] >> 3;
+    const char code = part[0] & 3;
+    double dur = 0;
+    if (config < 14){
+      switch (config % 4){
+        case 0: dur = 10; break;
+        case 1: dur = 20; break;
+        case 2: dur = 40; break;
+        case 3: dur = 60; break;
+      }
+    } else if (config < 16){
+      if (config % 2 == 0){
+        dur = 10;
+      }else{
+        dur = 20;
+      }
+    } else {
+      switch (config % 4){
+        case 0: dur = 2.5; break;
+        case 1: dur = 5; break;
+        case 2: dur = 10; break;
+        case 3: dur = 20; break;
+      }
+    }
+    if (code == 0){return (unsigned int)dur;}
+    if (code < 3){return (unsigned int)(dur*2);}
+    return (unsigned int)(dur*(part[1] & 63));
+  }
+
   std::string Opus_prettyPacket(const char *part, int len){
     if (len < 1){return "Invalid packet (0 byte length)";}
     std::stringstream r;
-    char config = part[0] >> 3;
-    char code = part[0] & 3;
+    const char config = part[0] >> 3;
+    const char code = part[0] & 3;
     if ((part[0] & 4) == 4){
       r << "Stereo, ";
     }else{

@@ -133,8 +133,8 @@ namespace Mist {
 
     OGG::oggSegment newSegment;
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      parseInit(myMeta.tracks[*it].init,  initData[*it]);
       if (myMeta.tracks[*it].codec == "theora"){ //get size and position of init data for this page.
+        parseInit(myMeta.tracks[*it].init,  initData[*it]);
         pageBuffer[*it].codec = OGG::THEORA;
         pageBuffer[*it].totalFrames = 1; //starts at frame number 1, according to weird offDetectMeta function.
         std::string tempStr = initData[*it][0];
@@ -142,6 +142,7 @@ namespace Mist {
         pageBuffer[*it].split = tempHead.getKFGShift();
         INFO_MSG("got theora KFG shift: %d", pageBuffer[*it].split); //looks OK.
       } else if (myMeta.tracks[*it].codec == "vorbis"){
+        parseInit(myMeta.tracks[*it].init,  initData[*it]);
         pageBuffer[*it].codec = OGG::VORBIS;
         pageBuffer[*it].totalFrames = 0;
         pageBuffer[*it].sampleRate = myMeta.tracks[*it].rate;
@@ -155,17 +156,21 @@ namespace Mist {
       } else if (myMeta.tracks[*it].codec == "opus"){
         pageBuffer[*it].totalFrames = 0; //?
         pageBuffer[*it].codec = OGG::OPUS;
+        initData[*it].push_back(myMeta.tracks[*it].init);
+        initData[*it].push_back(std::string("OpusTags\000\000\000\012MistServer\000\000\000\000", 26));
       }
       pageBuffer[*it].clear(OGG::BeginOfStream, 0, *it, 0);   //CREATES a (map)pageBuffer object, *it = id, pagetype=BOS
-      newSegment.dataString = initData[*it][0];
+      newSegment.dataString = initData[*it].front();
+      initData[*it].pop_front();
       pageBuffer[*it].oggSegments.push_back(newSegment);
       pageBuffer[*it].sendTo(myConn, 0); //granule position of 0
     }
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      newSegment.dataString = initData[*it][1];
-      pageBuffer[*it].oggSegments.push_back(newSegment);
-      newSegment.dataString = initData[*it][2];
-      pageBuffer[*it].oggSegments.push_back(newSegment);
+      while (initData[*it].size()){
+        newSegment.dataString = initData[*it].front();
+        initData[*it].pop_front();
+        pageBuffer[*it].oggSegments.push_back(newSegment);
+      }
       while (pageBuffer[*it].oggSegments.size()){
         pageBuffer[*it].sendTo(myConn, 0); //granule position of 0
       }

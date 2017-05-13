@@ -60,6 +60,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("opus");
     
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
@@ -291,7 +292,7 @@ namespace Mist {
           if (!range.empty()) {
             range = range.substr(0, range.find('-'));
             uint64_t targetPos = 1000*atof(range.c_str());
-            if (targetPos){seek(targetPos);}
+            if (targetPos || myMeta.vod){seek(targetPos);}
           }
         }
         std::stringstream rangeStr;
@@ -589,6 +590,13 @@ namespace Mist {
       bufferLivePacket(nextPack);
       return;
     }
+    if (myMeta.tracks[track].codec == "opus"){
+      char * pl = pkt.getPayload();
+      DTSC::Packet nextPack;
+      nextPack.genericFill((pkt.getTimeStamp() - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl, pkt.getPayloadSize(), 0, false);
+      bufferLivePacket(nextPack);
+      return;
+    }
     if (myMeta.tracks[track].codec == "AAC"){
       //assume AAC packets are single AU units
       /// \todo Support other input than single AU units
@@ -849,6 +857,10 @@ namespace Mist {
           }
         }
         if (trCodec == "H264"){thisTrack->codec = "H264";}
+        if (trCodec == "OPUS"){
+          thisTrack->codec = "opus";
+          thisTrack->init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
+        }
         if (trCodec == "PCMA"){thisTrack->codec = "ALAW";}
         if (trCodec == "MPEG4-GENERIC"){thisTrack->codec = "AAC";}
         INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());

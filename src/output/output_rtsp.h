@@ -96,6 +96,10 @@ namespace Mist {
             mediaDesc << "a=rtpmap:101 PCMA/" << trk.rate <<  "/" << trk.channels << "\r\n";
           }
           mediaDesc << "a=control:track" << trk.trackID << "\r\n";
+        }else if ( trk.codec == "opus") {
+          mediaDesc << "m=audio 0 RTP/AVP 102" << "\r\n"
+          "a=rtpmap:102 opus/" << trk.rate << "/" << trk.channels << "\r\n"
+          "a=control:track" << trk.trackID << "\r\n";
         }
         return mediaDesc.str();
       }
@@ -115,6 +119,8 @@ namespace Mist {
           }else{
             pack = RTP::Packet(101, 1, 0, SSrc);
           }
+        }else if(trk.codec == "opus"){
+          pack = RTP::Packet(102, 1, 0, SSrc);
         }else{
           ERROR_MSG("Unsupported codec %s for RTSP on track %u", trk.codec.c_str(), trk.trackID);
           return false;

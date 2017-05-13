@@ -492,6 +492,8 @@ namespace OGG {
       tempGranule = (currentSegment.lastKeyFrameSeen << split) | currentSegment.framesSinceKeyFrame;
     } else if (codec == OGG::VORBIS){
       tempGranule = currentSegment.lastKeyFrameSeen;
+    } else if (codec == OGG::OPUS){
+      tempGranule = currentSegment.timeStamp*48;
     }
     return tempGranule;
   }

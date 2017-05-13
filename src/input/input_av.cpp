@@ -94,8 +94,6 @@ namespace Mist {
     if (readExistingHeader()){return true;}
 
     myMeta.tracks.clear();
-    myMeta.live = false;
-    myMeta.vod = true;
     for(unsigned int i=0; i < pFormatCtx->nb_streams; ){
       AVStream * strm = pFormatCtx->streams[i++];
       myMeta.tracks[i].trackID = i;
@@ -180,25 +178,21 @@ namespace Mist {
     AVPacket packet;
     while(av_read_frame(pFormatCtx, &packet)>=0){
       AVStream * strm = pFormatCtx->streams[packet.stream_index];
-      JSON::Value pkt;
-      pkt["trackid"] = (long long)packet.stream_index + 1;
-      pkt["data"] = std::string((char*)packet.data, packet.size);
-      pkt["time"] = (long long)(packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
-      if (pkt["time"].asInt() < 0){
-        pkt["time"] = 0ll;
+      long long packTime = (packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
+      long long packOffset = 0;
+      bool isKey = false;
+      if (packTime < 0){
+        packTime = 0;
       }
       if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
-        pkt["keyframe"] = 1ll;
-        pkt["bpos"] = (long long)packet.pos;
+        isKey = true;
       }
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
-        pkt["offset"] = (long long)((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
+        packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
-      myMeta.update(pkt);
+      myMeta.update(packTime, packOffset, packet.stream_index + 1, packet.size, packet.pos, isKey);
       av_free_packet(&packet);
     }
-    myMeta.live = false;
-    myMeta.vod = true;
     
     myMeta.toFile(config->getString("input") + ".dtsh");
     
@@ -215,22 +209,19 @@ namespace Mist {
         continue;
       }
       AVStream * strm = pFormatCtx->streams[packet.stream_index];
-      JSON::Value pkt;
-      pkt["trackid"] = (long long)packet.stream_index + 1;
-      pkt["data"] = std::string((char*)packet.data, packet.size);
-      pkt["time"] = (long long)(packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
-      if (pkt["time"].asInt() < 0){
-        pkt["time"] = 0ll;
+      long long packTime = (packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
+      long long packOffset = 0;
+      bool isKey = false;
+      if (packTime < 0){
+        packTime = 0;
       }
       if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
-        pkt["keyframe"] = 1ll;
-        pkt["bpos"] = (long long)packet.pos;
+        isKey = true;
       }
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
-        pkt["offset"] = (long long)((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
+        packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
-      pkt.netPrepare();
-      thisPacket.reInit(pkt.toNetPacked().data(), pkt.toNetPacked().size());
+      thisPacket.genericFill(packTime, packOffset, packet.stream_index + 1, (const char*)packet.data, packet.size, 0, isKey);
       av_free_packet(&packet);
       return;//success!
     }

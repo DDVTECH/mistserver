@@ -257,6 +257,20 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     if (in.isMember("serverid")){
       out["serverid"] = in["serverid"];
     }
+    if (in.isMember("triggers")){
+      out["triggers"] = in["triggers"];
+      if (!out["triggers"].isObject()){
+        out.removeMember("triggers");
+      }else{
+        jsonForEach(out["triggers"], it){
+          if (it->isArray()){
+            jsonForEach((*it), jt){
+              jt->removeNullMembers();
+            }
+          }
+        }
+      }
+    }
     if (in.isMember("accesslog")){
       out["accesslog"] = in["accesslog"];
       Controller::accesslog = out["accesslog"].asStringRef();

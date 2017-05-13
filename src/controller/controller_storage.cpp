@@ -200,7 +200,7 @@ namespace Controller{
           }
 
           if (triggIt->isObject()){
-            if (!triggIt->isMember("handler")){continue;}
+            if (!triggIt->isMember("handler") || (*triggIt)["handler"].isNull()){continue;}
             tPage.setString("url", (*triggIt)["handler"].asStringRef(), i);
             tPage.setInt("sync", ((*triggIt)["sync"].asBool() ? 1 : 0), i);
             char *strmP = tPage.getPointer("streams", i);
@@ -216,7 +216,7 @@ namespace Controller{
                 if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
               }
             }
-            if (triggIt->isMember("params")){
+            if (triggIt->isMember("params") && !(*triggIt)["params"].isNull()){
               tPage.setString("params", (*triggIt)["params"].asStringRef(), i);
             }else{
               tPage.setString("params", "", i);

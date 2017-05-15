@@ -127,7 +127,7 @@ namespace DTSC {
       bool getFlag(const char * identifier) const;
       bool hasMember(const char * identifier) const;
       void appendNal(const char * appendData, uint32_t appendLen, uint32_t totalLen);
-      void clearKeyFrame();
+      void setKeyFrame(bool kf);
       long long unsigned int getTime() const;
       long int getTrackId() const;
       char * getData() const;

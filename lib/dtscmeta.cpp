@@ -271,21 +271,23 @@ namespace DTSC {
     memcpy(data+offset+11+packDataSize, "\000\000\356", 3);
   }
 
-  ///clear the keyframe byte.
-  void Packet::clearKeyFrame(){
+  ///sets the keyframe byte.
+  void Packet::setKeyFrame(bool kf){
     uint32_t offset = 23;
-    while (data[offset] != 'd' && data[offset] != 'k'){
+    while (data[offset] != 'd' && data[offset] != 'k' && data[offset] != 'K'){
       switch (data[offset]){
         case 'o': offset += 17; break;
         case 'b': offset += 15; break;
         default:
-          FAIL_MSG("Errrrrrr");
+          FAIL_MSG("Unknown field: %c", data[offset]);
       }
     }
 
-    if(data[offset] == 'k'){
-      data[offset] = 'K';
-      data[offset+16] = 0;
+    if(data[offset] == 'k' || data[offset] == 'K'){
+      data[offset] = (kf?'k':'K');
+      data[offset+16] = (kf?1:0);
+    }else{
+      ERROR_MSG("Could not set keyframe - field not found!");
     }
   }
 
@@ -327,8 +329,9 @@ namespace DTSC {
         case 'o': offset += 17; break;
         case 'b': offset += 15; break;
         case 'k': offset += 19; break;
+        case 'K': offset += 19; break;
         default:
-          FAIL_MSG("Errrrrrr");
+          FAIL_MSG("Unknown field: %c", data[offset]);
           return -1;
       }
     }

@@ -310,7 +310,7 @@ namespace Mist {
     cfgPointer = config;
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();
-    while (config->is_active) {
+    while (config->is_active && nProxy.userClient.isAlive()) {
       if (inFile) {
         if (feof(inFile)){
           config->is_active = false;
@@ -403,7 +403,7 @@ namespace Mist {
       if (!inFile){
         Util::sleep(100);
         if (Util::bootSecs() - noDataSince > 20){
-          WARN_MSG("Data TS packets received for 20 seconds - disconnecting");
+          WARN_MSG("No packets received for 20 seconds - terminating");
           config->is_active = false;
         }
       }

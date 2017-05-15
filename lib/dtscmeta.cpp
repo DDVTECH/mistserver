@@ -208,6 +208,7 @@ namespace DTSC {
   
   /// Re-initializes this Packet to contain a generic DTSC packet with the given data fields.
   /// When given a NULL pointer, the data is reserved and memset to 0
+  /// If given a NULL pointer and a zero size, an empty packet is created.
   void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe){
     null();
     master = true;
@@ -217,7 +218,7 @@ namespace DTSC {
     //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
     //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
     //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
-    if (packDataSize < 1){
+    if (packData && packDataSize < 1){
       FAIL_MSG("Attempted to fill a packet with %lli bytes!", packDataSize);
       return;
     }

@@ -513,7 +513,6 @@ th.sorting-desc:after {
 .browse_contents .folder {
   background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAQElEQVQ4y2NgGDGgC4h/APF/NLyDGM0xQHwfiEWwyIEMYdiJxWRkfAmILXAY/h9OkAlGDRg1AK53B4GUiA/vAADa9zOQ4KKOyQAAAABJRU5ErkJggg==');
   background-repeat: no-repeat;
-  background-size: auto 100%;
   padding-left: 1.3em;
 }
 .field_container.limit_list, .limit_value_list {

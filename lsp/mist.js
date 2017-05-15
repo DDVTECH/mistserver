@@ -267,10 +267,7 @@ var UI = {
           'Mist Shop': {
             link: 'http://mistserver.org/products'
           },
-          'Email for Help': {},
-          'ToS': {
-            link: 'http://mistserver.org/documentation#Legal'
-          }
+          'Email for Help': {}
         }
       }
     }
@@ -2231,7 +2228,7 @@ var UI = {
                   ).append(
                     $("<td>").append((p.updates_final ? p.updates_final : "&infin;"))
                   ).append(
-                    $("<td>").append(p.use_final)
+                    $("<td>").append((p.use_final ? p.use_final : "&infin;"))
                   ).append(
                     $("<td>").append((p.amount ? p.amount : "&infin;"))
                   )
@@ -3142,13 +3139,16 @@ var UI = {
           var streamname = $main.find('[name=name]').val();
           if (!streamname) { return; }
           var host = parseURL(mist.user.host);
-          var passw = $main.find('[name=source]').val().match(/@.*/);
+          var source = $main.find('[name=source]').val();
+          var passw = source.match(/@.*/);
           if (passw) { passw = passw[0].substring(1); }
-          var ip = $main.find('[name=source]').val().replace(/(?:.+?):\/\//,'');
+          var ip = source.replace(/(?:.+?):\/\//,'');
           ip = ip.split('/');
           ip = ip[0];
           ip = ip.split(':');
           ip = ip[0];
+          var custport = source.match(/:\d+/);
+          if (custport) { custport = custport[0]; }
           
           
           var port = {};
@@ -3183,21 +3183,22 @@ var UI = {
           $livestreamhint.find('.field').closest('label').hide();
           for (var i in port) {
             var str;
+            var useport = (custport ? custport : port[i]);
             switch(i) {
               case 'RTMP':
               case 'RTMP.exe':
-                str = 'rtmp://'+host.host+port[i]+'/'+(passw ? passw : 'live')+'/';
+                str = 'rtmp://'+host.host+useport+'/'+(passw ? passw : 'live')+'/';
                 $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
                 $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
                 str += (streamname == '' ? 'STREAMNAME' : streamname);
                 break;
               case 'RTSP':
               case 'RTSP.exe':
-                str = 'rtsp://'+host.host+port[i]+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
+                str = 'rtsp://'+host.host+useport+'/'+(streamname == '' ? 'STREAMNAME' : streamname)+(passw ? '?pass='+passw : '');
                 break;
               case 'TS':
               case 'TS.exe':
-                str = 'udp://'+(ip == '' ? host.host : ip)+port[i]+'/';
+                str = 'udp://'+(ip == '' ? host.host : ip)+useport+'/';
                 break;
             }
             $livestreamhint.find('.field.'+i.replace('.exe','')).setval(str).closest('label').show();
@@ -3222,7 +3223,7 @@ var UI = {
               main: saveas,
               index: 'source'
             },
-            help: '<p>Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.</p><table><tr><td>Input</td><td>Syntax</td><td>Explanation</td></tr> <tr><th>File</th><td>Linux/MacOS:&nbsp;/PATH/FILE<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE</td><td>For file input please specify the proper path and file.<br>Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.</td></tr><th>Folder<br>(Pro&nbsp;only)</th><td>Linux/MacOS:&nbsp;/PATH/<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/</td><td>A folder stream makes all the recognised files in the selected folder available as a stream.</td></tr><tr><th>RTMP</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>Password is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. Password is MistServer Pro only. <tr><th>RTSP<br>(Pro&nbsp;only)</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td></tr> <tr><th>TS<br>(Pro&nbsp;only)</th><td>tsudp://(IP):PORT(/INTERFACE)</td><td>IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>PORT is the port you reserve for this stream on the chosen IP.<br>INTERFACE is the interface used, if left all interfaces will be used.</td></tr></table>',
+            help: '<p>Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.</p><table><tr><td>File input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>File</th><td>Linux/MacOS:&nbsp;/PATH/FILE<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE</td><td>For file input please specify the proper path and file.<br>Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.</td></tr><th>Folder<br>(Pro&nbsp;only)</th><td>Linux/MacOS:&nbsp;/PATH/<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/</td><td>A folder stream makes all the recognised files in the selected folder available as a stream.</td></tr><tr><td>Push input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>RTMP</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only. <tr><th>RTSP<br>(Pro&nbsp;only)</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td></tr> <tr><th>TS<br>(Pro&nbsp;only)</th><td>tsudp://(IP):PORT(/INTERFACE)</td><td>IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>PORT is the port you reserve for this stream on the chosen IP.<br>INTERFACE is the interface used, if left all interfaces will be used.</td></tr><tr><td>Pull input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>DTSC</th><td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td><td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>PORT is the DTSC port of the other MistServer. (default is 4200)<br>STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.</td></tr><tr><th>HLS<br>(Pro&nbsp;only)</th><td>http://URL/TO/STREAM.m3u8</td><td>The URL where the HLS stream is available to MistServer.</td></tr></table>',
             'function': function(){
               var source = $(this).val();
               $style.remove();
@@ -5566,12 +5567,7 @@ var mist = {
               }
             }
             
-            $.extend(true,mist.data,save);
-            
-            //ensure deleted protocols are also deleted in our version
-            if (("config" in save) && ("protocols" in save.config)) {
-              mist.data.config.protocols = save.config.protocols;
-            }
+            $.extend(mist.data,save);
             
             mist.user.loggedin = true;
             UI.elements.connection.status.text('Connected').removeClass('red').addClass('green');

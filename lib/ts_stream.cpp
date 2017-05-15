@@ -568,57 +568,55 @@ namespace TS{
     }
 
     if (pidToCodec[tid] == H264 || pidToCodec[tid] == H265){
-      // loop through scanAnnexB until startcode is found, if packetPointer equals NULL, then read
-      // next PES packet
-      bool completePES = false;
-      const char *packetPtr;
-      const char *nalEnd;
+      const char *nextPtr;
+      const char *pesEnd = pesPayload+realPayloadSize;
       bool isKeyFrame = false;
-      int nalRemove = 0;
-      bool clearKey = true;
+      uint32_t nalSize = 0;
 
-      nalu::scanAnnexB(pesPayload, realPayloadSize, packetPtr);
-      //        std::cerr << "\t\tNew PES Packet" << std::endl;
-      while (!completePES){
-        if (!packetPtr){
-          WARN_MSG("No H264 start code found in entire PES packet!");
-          break;
+      nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
+      if (!nextPtr){
+        WARN_MSG("No H264 start code found in entire PES packet!");
+        return;
+      }
+
+      while (nextPtr < pesEnd){
+        if (!nextPtr){nextPtr = pesEnd;}
+        //Calculate size of NAL unit, removing null bytes from the end
+        nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
+
+        if (nalSize){
+          // If we don't have a packet yet, init an empty packet with the key frame bit set to true
+          if (!buildPacket.count(tid)){
+            buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+            buildPacket[tid].setKeyFrame(false);
+          }
+
+          // Check if this is a keyframe
+          parseNal(tid, pesPayload, nextPtr, isKeyFrame);
+          // If yes, set the keyframe flag
+          if (isKeyFrame){
+            buildPacket[tid].setKeyFrame(true);
+          }
+
+          // If the timestamp differs from current PES timestamp, send the previous packet out and
+          // fill a new one.
+          if (buildPacket[tid].getTime() != timeStamp){
+            // Add the finished DTSC packet to our output buffer
+            if (threaded){globalSem.wait();}
+            outPackets[tid].push_back(buildPacket[tid]);
+            if (threaded){globalSem.post();}
+            // Create a new empty packet with the key frame bit set to true
+            buildPacket[tid].null();
+            buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+            buildPacket[tid].setKeyFrame(false);
+          }
+          // No matter what, now append the current NAL unit to the current packet
+          buildPacket[tid].appendNal(pesPayload, nalSize, nalSize);
         }
 
-        // Check if this is a keyframe
-        parseNal(tid, pesPayload, packetPtr, isKeyFrame);
-        // If yes, don't clear the keyframe flag
-        if (isKeyFrame){clearKey = false;}
-
-        nalEnd = nalu::nalEndPosition(pesPayload, packetPtr - pesPayload);
-        nalRemove = packetPtr - nalEnd;
-
-        // If we don't have a packet yet, init an empty packet with the key frame bit set to true
-        if (!buildPacket.count(tid)){
-          buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
-        }
-        // If the timestamp differs from current PES timestamp, send the previous packet out and
-        // fill a new one.
-        if (buildPacket[tid].getTime() != timeStamp){
-          // Clear the key frame bit if we didn't end up finding a key frame
-          if (clearKey){buildPacket[tid].clearKeyFrame();}
-
-          // Add the finished DTSC packet to our output buffer
-          if (threaded){globalSem.wait();}
-          outPackets[tid].push_back(buildPacket[tid]);
-          if (threaded){globalSem.post();}
-          // Create a new empty packet with the key frame bit set to true
-          buildPacket[tid].null();
-          buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
-        }
-        // No matter what, now append the current NAL unit to the current packet
-        buildPacket[tid].appendNal(pesPayload, (packetPtr - pesPayload) - nalRemove,
-                                   (packetPtr - pesPayload) - nalRemove);
-
-        realPayloadSize -= ((packetPtr - pesPayload) + 3); // decrease the total size
-        pesPayload = packetPtr + 3;
-
-        nalu::scanAnnexB(pesPayload, realPayloadSize, packetPtr);
+        realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
+        pesPayload = nextPtr + 3;
+        nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
       }
     }
   }
@@ -654,10 +652,8 @@ namespace TS{
     if (threaded){globalSem.post();}
   }
 
-  void Stream::parseNal(uint32_t tid, const char *pesPayload, const char *packetPtr,
+  void Stream::parseNal(uint32_t tid, const char *pesPayload, const char *nextPtr,
                         bool &isKeyFrame){
-    // bool isKeyFrame = false;
-    // const char * packetPtr;
     bool firstSlice = true;
     char typeNal;
 
@@ -671,8 +667,8 @@ namespace TS{
           firstSlice = false;
           if (!isKeyFrame){
             Utils::bitstream bs;
-            for (size_t i = 1; i < 10 && i < (packetPtr - pesPayload); i++){
-              if (i + 2 < (packetPtr - pesPayload) &&
+            for (size_t i = 1; i < 10 && i < (nextPtr - pesPayload); i++){
+              if (i + 2 < (nextPtr - pesPayload) &&
                   (memcmp(pesPayload + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
                 bs.append(pesPayload + i, 2);
                 i += 2;
@@ -695,13 +691,13 @@ namespace TS{
       }
       case 0x07:{
         if (threaded){globalSem.wait();}
-        spsInfo[tid] = std::string(pesPayload, (packetPtr - pesPayload));
+        spsInfo[tid] = std::string(pesPayload, (nextPtr - pesPayload));
         if (threaded){globalSem.post();}
         break;
       }
       case 0x08:{
         if (threaded){globalSem.wait();}
-        ppsInfo[tid] = std::string(pesPayload, (packetPtr - pesPayload));
+        ppsInfo[tid] = std::string(pesPayload, (nextPtr - pesPayload));
         if (threaded){globalSem.post();}
         break;
       }

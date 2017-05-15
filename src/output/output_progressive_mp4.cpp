@@ -863,11 +863,11 @@ namespace Mist {
       //if header needed
       if (!partListLength || partListSent >= partListLength) {
         DTSC::Track & mainTrk = myMeta.tracks[vidTrack];
-        // The extra 600ms here is for the metadata sync delay.
+        // The extra 2000ms here is for the metadata sync delay.
         // It can be removed once we get rid of that.
-        // (sync delay = ~1s, minimum lookAhead is 420ms -> ~600ms extra needed)
+        // (sync delay = ~1s, minimum lookAhead is 420ms -> ~600ms extra needed, we use 2000ms to be safe)
         if (myMeta.sourceURI.find("http://") == std::string::npos || myMeta.sourceURI.find(".m3u") == std::string::npos){
-          if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 600 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
+          if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 2000 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
             INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
             seek(mainTrk.keys.rbegin()->getTime());
             return;

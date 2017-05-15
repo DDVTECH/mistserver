@@ -96,9 +96,9 @@ namespace Mist {
       lastTimeSync = timestamp;
       updateMeta();
       DTSC::Track & mainTrk = myMeta.tracks[getMainSelectedTrack()];
-      // The extra 1000ms here is for the metadata sync delay.
+      // The extra 2000ms here is for the metadata sync delay.
       // It can be removed once we get rid of that.
-      if (timestamp + 1000 + needsLookAhead < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
+      if (timestamp + 2000 + needsLookAhead < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
         INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
         seek(mainTrk.keys.rbegin()->getTime());
         return;

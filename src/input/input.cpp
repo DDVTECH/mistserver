@@ -336,8 +336,6 @@ namespace Mist {
     }
 
     getNext();
-    unsigned long long lastTime = Util::getMS();
-    unsigned long long lastActive = Util::getMS();
     while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
       nProxy.bufferLivePacket(thisPacket, myMeta);
       getNext();

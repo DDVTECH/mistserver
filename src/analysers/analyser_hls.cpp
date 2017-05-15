@@ -7,7 +7,6 @@
 #include <mist/http_parser.h>
 #include <mist/timing.h>
 #include <string.h>
-#include <sys/sysinfo.h>
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);

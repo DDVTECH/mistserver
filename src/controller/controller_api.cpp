@@ -129,7 +129,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           authorized = true;
         }
         //if already authorized, do not re-check for authorization
-        if (authorized){
+        if (authorized && Storage["account"]){
           Response["authorize"]["status"] = "OK";
         }else{
           authorized |= authorize(Request, Response, conn);

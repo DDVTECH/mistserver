@@ -1220,6 +1220,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       }
     }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
+      INFO_MSG("UDP bind success on %s:%s (%s)", human_addr, human_port, addrFam(rp->ai_family));
       break;
     }
     if (err_str.size()){err_str += ", ";}

@@ -614,6 +614,7 @@ namespace TS{
           buildPacket[tid].appendNal(pesPayload, nalSize, nalSize);
         }
 
+        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){return;}//end of the line
         realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
         pesPayload = nextPtr + 3;
         nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);

@@ -64,7 +64,6 @@ namespace TS{
     ProgramAssociationTable associationTable;
     std::map<unsigned long, ADTSRemainder> remainders;
 
-    bool firstPacketFound;
     std::map<unsigned long, unsigned long long> lastPMT;
     std::map<unsigned long, ProgramMappingTable> mappingTable;
 
@@ -79,7 +78,6 @@ namespace TS{
     std::map<unsigned long, h265::initData> hevcInfo;
     std::map<unsigned long, std::string> metaInit;
     std::map<unsigned long, std::string> descriptors;
-    std::map<unsigned long, std::string> partialBuffer;
     mutable IPC::semaphore globalSem;
 
     bool threaded;

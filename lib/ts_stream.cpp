@@ -68,7 +68,6 @@ namespace TS{
 
   Stream::Stream(bool _threaded){
     threaded = _threaded;
-    firstPacketFound = false;
     if (threaded){
       globalSem.open("MstTSInputLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!globalSem){
@@ -96,7 +95,6 @@ namespace TS{
     pesPositions.clear();
     outPackets.clear();
     buildPacket.clear();
-    partialBuffer.clear();
     if (threaded){globalSem.post();}
   }
 
@@ -234,7 +232,7 @@ namespace TS{
     if (inStream.rbegin()->getUnitStart()){
       parsePes = true;
     }else{
-      //But, sometimes (e.g. live) we do multiples, and need to check all of it...
+      // But, sometimes (e.g. live) we do multiples, and need to check all of it...
       std::deque<Packet>::iterator lastPack = inStream.end();
       std::deque<Packet>::iterator curPack = inStream.begin();
       curPack++;
@@ -388,12 +386,15 @@ namespace TS{
     // Create a buffer for the current PES, and remove it from the pesStreams buffer.
     int paySize = 0;
 
+    // Loop over the packets we need, and calculate the total payload size
     curPack = inStream.begin();
     for (int i = 0; i < packNum; i++){
       paySize += curPack->getPayloadLength();
       curPack++;
     }
     VERYHIGH_MSG("Parsing PES for track %lu, length %i", tid, paySize);
+    // allocate a buffer, do it all again, but this time also copy the data bytes over to char*
+    // payload
     char *payload = (char *)malloc(paySize);
     paySize = 0;
     curPack = inStream.begin();
@@ -415,6 +416,8 @@ namespace TS{
     inStream.erase(inStream.begin(), curPack);
     inPositions.erase(inPositions.begin(), inPositions.begin() + packNum);
     if (threaded){globalSem.post();}
+    // we now have the whole PES packet in char* payload, with a total size of paySize (including
+    // headers)
 
     // Parse the PES header
     int offset = 0;
@@ -441,17 +444,19 @@ namespace TS{
       // Note: this is technically only allowed for video pes streams.
       unsigned long long realPayloadSize = (((int)pesHeader[4] << 8) | pesHeader[5]);
       if (!realPayloadSize){
-        realPayloadSize = paySize;
+        realPayloadSize = paySize; // PES header size already included here
       }else{
-        realPayloadSize += 6;
+        realPayloadSize += 6; // add the PES header size, always 6 bytes
       }
+      // realPayloadSize is now the whole packet
+      // We substract PES_header_data_length, plus the 9 bytes of mandatory header bytes
       realPayloadSize -= (9 + pesHeader[8]);
 
       // Read the metadata for this PES Packet
       ///\todo Determine keyframe-ness
       unsigned int timeStamp = 0;
       int64_t timeOffset = 0;
-      unsigned int pesOffset = 9;
+      unsigned int pesOffset = 9;       // mandatory headers
       if ((pesHeader[7] >> 6) & 0x02){// Check for PTS presence
         timeStamp = decodePTS(pesHeader + pesOffset);
         pesOffset += 5;
@@ -488,10 +493,9 @@ namespace TS{
       const char *pesPayload = pesHeader + pesOffset;
       parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos);
 
-      // We are done with the realpayload size, reverse calculation so we know the correct offset
-      // increase.
-      realPayloadSize += (9 + pesHeader[8]);
-      offset += realPayloadSize;
+      // Shift the offset by the payload size, the mandatory headers and the optional
+      // headers/padding
+      offset += realPayloadSize + (9 + pesHeader[8]);
     }
     free(payload);
   }
@@ -569,111 +573,50 @@ namespace TS{
       bool completePES = false;
       const char *packetPtr;
       const char *nalEnd;
-      bool checkForKeyFrame = true;
       bool isKeyFrame = false;
       int nalRemove = 0;
-      bool clearKey = false;
+      bool clearKey = true;
 
       nalu::scanAnnexB(pesPayload, realPayloadSize, packetPtr);
       //        std::cerr << "\t\tNew PES Packet" << std::endl;
       while (!completePES){
-
-        if (packetPtr){
-          // when startcode is found, check if we were already constructing a packet.
-          if (!partialBuffer[tid].empty()){
-            parseNal(tid, partialBuffer[tid].c_str(),
-                     partialBuffer[tid].c_str() + partialBuffer[tid].length(), isKeyFrame);
-          }else{
-            parseNal(tid, pesPayload, packetPtr, isKeyFrame);
-          }
-
-          if (!isKeyFrame || clearKey){clearKey = true;}
-
-          nalEnd = nalu::nalEndPosition(pesPayload, packetPtr - pesPayload);
-          nalRemove = packetPtr - nalEnd;
-
-          if (firstPacketFound && checkForKeyFrame){checkForKeyFrame = false;}
-
-          if (!buildPacket[tid] && !firstPacketFound){
-            // clean start
-            // remove everything before this point as this is the very first hal packet.
-            if (partialBuffer[tid].empty() && !firstPacketFound){// if buffer is empty
-              // very first packet, check for keyframe
-              checkForKeyFrame = true;
-            }
-            firstPacketFound = true;
-          }else{
-            if (!buildPacket[tid]){// when no data in packet -> genericFill
-              buildPacket[tid].genericFill(timeStamp, timeOffset, tid, "\000\000\000\002\011\360",
-                                           6, bPos, true);
-            }
-
-            // if the timestamp differs from current PES timestamp, send the previous packet out and
-            // fill a new one.
-            if (buildPacket[tid].getTime() != timeStamp){
-              // next packet's timestamp differs from current timestamp, add hal packet to
-              // buildpacket and send it out.
-              if (!partialBuffer[tid].empty()){
-                // std::cerr << "append remaining data to partialbuffer" << std::endl;
-                buildPacket[tid].appendNal(partialBuffer[tid].c_str(), partialBuffer[tid].length(),
-                                           partialBuffer[tid].length() + (packetPtr - pesPayload) -
-                                               nalRemove);
-                buildPacket[tid].appendData(pesPayload, (packetPtr - pesPayload) - nalRemove);
-                if (clearKey){buildPacket[tid].clearKeyFrame();}
-
-                outPackets[tid].push_back(buildPacket[tid]);
-                buildPacket[tid].null();
-                buildPacket[tid].genericFill(timeStamp, timeOffset, tid, "\000\000\000\002\011\360",
-                                             6, bPos, true);
-
-                partialBuffer[tid].clear();
-              }else{
-                if (clearKey){buildPacket[tid].clearKeyFrame();}
-
-                outPackets[tid].push_back(buildPacket[tid]);
-                buildPacket[tid].null();
-                buildPacket[tid].genericFill(timeStamp, timeOffset, tid, "\000\000\000\002\011\360",
-                                             6, bPos, true);
-
-                buildPacket[tid].appendNal(pesPayload, (packetPtr - pesPayload) - nalRemove,
-                                           (packetPtr - pesPayload) - nalRemove);
-              }
-
-              if (threaded){globalSem.wait();}
-
-              if (threaded){globalSem.post();}
-
-            }else{
-              // we have a partial packet which belongs to the previous packet in partialBuffer.
-              if (!partialBuffer[tid].empty()){// if buffer is used
-                buildPacket[tid].appendNal(partialBuffer[tid].c_str(), partialBuffer[tid].length(),
-                                           partialBuffer[tid].length() + (packetPtr - pesPayload) -
-                                               nalRemove);
-                buildPacket[tid].appendData(pesPayload, (packetPtr - pesPayload) - nalRemove);
-                partialBuffer.clear();
-
-              }else{
-                // hal packet at first position
-                //                  buildPacket[tid].appendData(pesPayload, packetPtr-pesPayload);
-                //                  //append part before the startcode.
-                buildPacket[tid].appendNal(pesPayload, (packetPtr - pesPayload) - nalRemove,
-                                           (packetPtr - pesPayload) -
-                                               nalRemove); // append part before the startcode.
-              }
-            }
-          }
-
-          realPayloadSize -= ((packetPtr - pesPayload) + 3); // decrease the total size
-          pesPayload = packetPtr + 3;
-        }else{// no startcode found...
-          if (partialBuffer[tid].empty()){
-            partialBuffer[tid].assign(pesPayload, realPayloadSize);
-          }else{
-            partialBuffer[tid].append(pesPayload, realPayloadSize);
-          }
-
-          completePES = true;
+        if (!packetPtr){
+          WARN_MSG("No H264 start code found in entire PES packet!");
+          break;
         }
+
+        // Check if this is a keyframe
+        parseNal(tid, pesPayload, packetPtr, isKeyFrame);
+        // If yes, don't clear the keyframe flag
+        if (isKeyFrame){clearKey = false;}
+
+        nalEnd = nalu::nalEndPosition(pesPayload, packetPtr - pesPayload);
+        nalRemove = packetPtr - nalEnd;
+
+        // If we don't have a packet yet, init an empty packet with the key frame bit set to true
+        if (!buildPacket.count(tid)){
+          buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+        }
+        // If the timestamp differs from current PES timestamp, send the previous packet out and
+        // fill a new one.
+        if (buildPacket[tid].getTime() != timeStamp){
+          // Clear the key frame bit if we didn't end up finding a key frame
+          if (clearKey){buildPacket[tid].clearKeyFrame();}
+
+          // Add the finished DTSC packet to our output buffer
+          if (threaded){globalSem.wait();}
+          outPackets[tid].push_back(buildPacket[tid]);
+          if (threaded){globalSem.post();}
+          // Create a new empty packet with the key frame bit set to true
+          buildPacket[tid].null();
+          buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
+        }
+        // No matter what, now append the current NAL unit to the current packet
+        buildPacket[tid].appendNal(pesPayload, (packetPtr - pesPayload) - nalRemove,
+                                   (packetPtr - pesPayload) - nalRemove);
+
+        realPayloadSize -= ((packetPtr - pesPayload) + 3); // decrease the total size
+        pesPayload = packetPtr + 3;
 
         nalu::scanAnnexB(pesPayload, realPayloadSize, packetPtr);
       }

@@ -516,7 +516,7 @@ bool FLV::Tag::DTSCLoader(DTSC::Packet & packData, DTSC::Track & track) {
     } else if (datarate >= 11025) {
       data[11] |= 0x04;
     }
-    if (track.size == 16) {
+    if (track.size != 8) {
       data[11] |= 0x02;
     }
     if (track.channels > 1) {
@@ -620,7 +620,7 @@ bool FLV::Tag::DTSCAudioInit(DTSC::Track & audio) {
   } else if (datarate >= 11025) {
     data[11] += 0x04;
   }
-  if (audio.size == 16) {
+  if (audio.size != 8) {
     data[11] += 0x02;
   }
   if (audio.channels > 1) {

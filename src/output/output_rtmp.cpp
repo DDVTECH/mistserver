@@ -371,7 +371,7 @@ namespace Mist {
       }else if (track.rate >= 11025){
         dataheader[0] |= 0x04;
       }
-      if (track.size == 16){
+      if (track.size != 8){
         dataheader[0] |= 0x02;
       }
       if (track.channels > 1){

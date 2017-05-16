@@ -17,6 +17,7 @@ namespace Controller {
   
   extern bool killOnExit;
   extern unsigned int maxConnsPerIP;
+  extern Controller::semaphore cacheLock;
 
   //These keep track of which streams are currently active.
   extern std::map<std::string, unsigned int> activeStreams;

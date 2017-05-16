@@ -46,7 +46,7 @@ unsigned int Controller::maxConnsPerIP = 0;
 /// Session cache shared memory page
 IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, true);
 /// Lock for the session cache shared memory page
-IPC::semaphore cacheLock(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+IPC::semaphore Controller::cacheLock(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
 
 //For server-wide totals. Local to this file only.
 struct streamTotals {

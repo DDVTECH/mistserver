@@ -164,7 +164,7 @@ namespace Mist {
     int pageSize = pagesByTrack[tid][pageNumber].dataSize;
     /*LTS-START*/
     if (encrypt){
-      pageSize = pageSize * 1.5;
+      pageSize += pageSize >> 1;
       HIGH_MSG("Page size X1.5 = %d", pageSize);
     }else{
       HIGH_MSG("Page size %d", pageSize);

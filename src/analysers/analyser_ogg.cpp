@@ -29,7 +29,7 @@ bool AnalyserOGG::parsePacket(){
     }
     if (sn2Codec[oggPage.getBitstreamSerialNumber()] != ""){
       INFO_MSG("Bitstream %llu recognized as %s", oggPage.getBitstreamSerialNumber(),
-               sn2Codec[oggPage.getBitstreamSerialNumber()]);
+               sn2Codec[oggPage.getBitstreamSerialNumber()].c_str());
     }else{
       WARN_MSG("Bitstream %llu not recognized!", oggPage.getBitstreamSerialNumber());
     }

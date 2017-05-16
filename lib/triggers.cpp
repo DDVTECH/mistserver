@@ -190,8 +190,13 @@ namespace Triggers{
       if (isHandled){
         INFO_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
         if (dryRun){return true;}
-        response = handleTrigger(type, uri, payload, sync); // do it.
-        retVal &= Util::stringToBool(response);
+        if (sync){
+          response = handleTrigger(type, uri, payload, sync); // do it.
+          retVal &= Util::stringToBool(response);
+        }else{
+          std::string unused_response = handleTrigger(type, uri, payload, sync); // do it.
+          retVal &= Util::stringToBool(unused_response);
+        }
       }
     }
 

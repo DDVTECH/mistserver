@@ -167,6 +167,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
   /*LTS-START*/
   if (config.getMember("hardlimit_active")) {
+    configLock.post();//unlock the config semaphore
     return false;
   }
   /*LTS-END*/
@@ -180,10 +181,12 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   /*LTS-START*/
   if (!filename.size()){
     if (stream_cfg && stream_cfg.getMember("hardlimit_active")) {
+      configLock.post();//unlock the config semaphore
       return false;
     }
     if(Triggers::shouldTrigger("STREAM_LOAD", smp)){
       if (!Triggers::doTrigger("STREAM_LOAD", streamname, smp)){
+        configLock.post();//unlock the config semaphore
         return false;
       }
     }

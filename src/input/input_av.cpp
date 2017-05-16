@@ -97,7 +97,7 @@ namespace Mist {
     for(unsigned int i=0; i < pFormatCtx->nb_streams; ){
       AVStream * strm = pFormatCtx->streams[i++];
       myMeta.tracks[i].trackID = i;
-      switch (strm->codec->codec_id){
+      switch (strm->codecpar->codec_id){
         case AV_CODEC_ID_HEVC:
           myMeta.tracks[i].codec = "HEVC";
           break;
@@ -124,7 +124,7 @@ namespace Mist {
           myMeta.tracks[i].codec = "AC3";
           break;  
         default:
-          const AVCodecDescriptor *desc = av_codec_get_codec_descriptor(strm->codec);
+          const AVCodecDescriptor *desc = avcodec_descriptor_get(strm->codecpar->codec_id);
           if (desc && desc->name){
             myMeta.tracks[i].codec = desc->name;
           }else{
@@ -132,46 +132,24 @@ namespace Mist {
           }
           break;
       }
-      if (strm->codec->extradata_size){
-        myMeta.tracks[i].init = std::string((char*)strm->codec->extradata, strm->codec->extradata_size);
+      if (strm->codecpar->extradata_size){
+        myMeta.tracks[i].init = std::string((char*)strm->codecpar->extradata, strm->codecpar->extradata_size);
       }
-      if(strm->codec->codec_type == AVMEDIA_TYPE_VIDEO){
+      if(strm->codecpar->codec_type == AVMEDIA_TYPE_VIDEO){
         myMeta.tracks[i].type = "video";
         if (strm->avg_frame_rate.den && strm->avg_frame_rate.num){
           myMeta.tracks[i].fpks = (strm->avg_frame_rate.num * 1000) / strm->avg_frame_rate.den;
         }else{
           myMeta.tracks[i].fpks = 0;
         }
-        myMeta.tracks[i].width = strm->codec->width;
-        myMeta.tracks[i].height = strm->codec->height;
+        myMeta.tracks[i].width = strm->codecpar->width;
+        myMeta.tracks[i].height = strm->codecpar->height;
       }
-      if(strm->codec->codec_type == AVMEDIA_TYPE_AUDIO){
+      if(strm->codecpar->codec_type == AVMEDIA_TYPE_AUDIO){
         myMeta.tracks[i].type = "audio";
-        myMeta.tracks[i].rate = strm->codec->sample_rate;
-        switch (strm->codec->sample_fmt){
-          case AV_SAMPLE_FMT_U8:
-          case AV_SAMPLE_FMT_U8P:
-            myMeta.tracks[i].size = 8;
-            break;
-          case AV_SAMPLE_FMT_S16:
-          case AV_SAMPLE_FMT_S16P:
-            myMeta.tracks[i].size = 16;
-            break;
-          case AV_SAMPLE_FMT_S32:
-          case AV_SAMPLE_FMT_S32P:
-          case AV_SAMPLE_FMT_FLT:
-          case AV_SAMPLE_FMT_FLTP:
-            myMeta.tracks[i].size = 32;
-            break;
-          case AV_SAMPLE_FMT_DBL:
-          case AV_SAMPLE_FMT_DBLP:
-            myMeta.tracks[i].size = 64;
-            break;
-          default:
-            myMeta.tracks[i].size = 0;
-            break;
-        }
-        myMeta.tracks[i].channels = strm->codec->channels;
+        myMeta.tracks[i].rate = strm->codecpar->sample_rate;
+        myMeta.tracks[i].size = strm->codecpar->frame_size;
+        myMeta.tracks[i].channels = strm->codecpar->channels;
       }
     }
     
@@ -191,7 +169,7 @@ namespace Mist {
         packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
       myMeta.update(packTime, packOffset, packet.stream_index + 1, packet.size, packet.pos, isKey);
-      av_free_packet(&packet);
+      av_packet_unref(&packet);
     }
     
     myMeta.toFile(config->getString("input") + ".dtsh");
@@ -222,7 +200,7 @@ namespace Mist {
         packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
       thisPacket.genericFill(packTime, packOffset, packet.stream_index + 1, (const char*)packet.data, packet.size, 0, isKey);
-      av_free_packet(&packet);
+      av_packet_unref(&packet);
       return;//success!
     }
     thisPacket.null();

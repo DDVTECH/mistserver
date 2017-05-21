@@ -1,27 +1,23 @@
-#include <mist/config.h>
+#pragma once
+
 #include "analyser.h"
-#include <cstdlib>
-#include <iomanip>
-#include <vector>
-#include <sstream>
-#include <mist/socket.h>
-#include <mist/rtp.h>
+#include <mist/h264.h>
 #include <mist/http_parser.h>
+#include <mist/rtp.h>
+#include <mist/sdp.h>
 
-class rtpAnalyser : public analysers 
-{
-  Socket::Connection conn;
-  HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
-  int step;
-  std::vector<std::string> tracks;
-  std::vector<Socket::UDPConnection> connections;
-  unsigned int trackIt;
+class AnalyserRTSP : public Analyser{
+public:
+  AnalyserRTSP(Util::Config &conf);
+  static void init(Util::Config &cfg);
+  bool parsePacket();
+  void incoming(const DTSC::Packet &pkt);
+  bool isOpen();
 
-  public:
-    rtpAnalyser(Util::Config config);
-    bool packetReady();
-    void PreProcessing();
-    //int Analyse();
-    int doAnalyse();
-    void doValidate();
+private:
+  Socket::Connection myConn;
+  HTTP::Parser HTTP;
+  DTSC::Meta myMeta;
+  SDP::State sdpState;
 };
+

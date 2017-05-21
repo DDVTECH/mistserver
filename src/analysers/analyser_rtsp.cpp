@@ -1,197 +1,119 @@
-#include <cstdlib>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <string.h>
-#include <vector>
+#include "analyser_rtsp.h"
 
-#include <mist/config.h>
-#include <mist/rtp.h>
-#include <mist/socket.h>
-#include <mist/http_parser.h>
-#include <sstream>
+AnalyserRTSP *classPointer = 0;
 
-namespace RtspRtp{
+void incomingPacket(const DTSC::Packet &pkt){
+  classPointer->incoming(pkt);
+}
 
-  int analyseRtspRtp(std::string rtspUrl){    
-    /*//parse hostname
-    std::string hostname = rtspUrl.substr(7);
-    hostname = hostname.substr(0,hostname.find('/'));
-    std::cout << hostname << std::endl;
-    HTTP::Parser HTTP_R, HTTP_S;//HTTP Receiver en HTTP Sender.
-    Socket::Connection conn(hostname,554,false);//setting rtsp connection
-    
-    bool optionsSent = false;
-    bool optionsRecvd = false;
-    bool descSent = false;
-    bool descRecvd = false;
-    bool setupComplete = false;
-    bool playSent = false;
-    int CSeq = 1;
-    while(conn.connected()){
-      if(!optionsSent){
-        HTTP_R.protocol="RTSP/1.0";
-        HTTP_R.method = "OPTIONS";
-        HTTP_R.url = rtspUrl;
-        HTTP_R.SetHeader("CSeq",CSeq);
-        CSeq++;
-        HTTP_R.SetHeader("User-Agent","mistANALyser");
-        HTTP_R.SendRequest(conn);
-        optionsSent = true;
-      }
-      
-      if (optionsSent&& !optionsRecvd && (conn.Received().size() || conn.spool() )){ 
-        if(HTTP_S.Read(conn)){
-          std::cout << "recv opts" << std::endl;
-          
-          std::cout << HTTP_S.BuildResponse(HTTP_S.method,HTTP_S.url);      
-          optionsRecvd = true;        
-        }
-      }
-      
+void AnalyserRTSP::init(Util::Config &conf){
+  Analyser::init(conf);
+}
 
-      
-      if(optionsRecvd && !descSent){
-        HTTP_S.Clean();
-        HTTP_R.protocol="RTSP/1.0";
-        HTTP_R.method = "DESCRIBE";
-        HTTP_R.url = rtspUrl;
-        HTTP_R.SetHeader("CSeq",CSeq);
-        CSeq++;
-        HTTP_R.SetHeader("User-Agent","mistANALyser");
-        HTTP_R.SendRequest(conn);
-        descSent = true;
-
-      }
-      
-      std::vector<std::string> trackIds;
-      
-      if (descSent&&!descRecvd && (conn.Received().size() || conn.spool() )){ 
-
-        if(HTTP_S.Read(conn)){
-          std::cout << "recv desc2" << std::endl;
-          std::cout << HTTP_S.BuildResponse(HTTP_S.method,HTTP_S.url);
-          size_t pos = HTTP_S.body.find("m=");
-          do{
-          //finding all track IDs
-             pos = HTTP_S.body.find("a=control:",pos);
-             if(pos !=std::string::npos){
-              trackIds.push_back(HTTP_S.body.substr(pos+10,HTTP_S.body.find("\r\n",pos)-pos-10 ) );//setting track IDs;
-              pos++;
-             }
-          }while(pos != std::string::npos);
-          //we have all the tracks
-
-          descRecvd = true;        
-        }
-      }
-
-      
-      unsigned int setupsSent = 0;
-      unsigned int setupsRecvd = 0;
-      Socket::UDPConnection connectors[trackIds.size()];
-      unsigned int setports[trackIds.size()];
-      uint32_t bport = 10000;
-      std::string sessionID = "";
-      
-      std::stringstream setup;
-      
-      if(descRecvd && !setupComplete){
-        //time to setup.
-        for(std::vector<std::string>::iterator it = trackIds.begin();it!=trackIds.end();it++){
-          std::cout << "setup " << setupsSent<< std::endl;        
-          while(!connectors[setupsSent].SetConnection( bport,false) ){
-            bport +=2;//finding an available port
-          }
-          std::cout << "setup" << bport<< std::endl;
-          setports[setupsSent] = bport;
-          bport +=2;
-          if(setupsSent == setupsRecvd){
-            //send only one setup
-            HTTP_S.Clean();
-            HTTP_R.protocol="RTSP/1.0";
-            HTTP_R.method = "SETUP";
-            HTTP_R.url = rtspUrl+ '/' + *(it);
-            setup << "RTP/AVP/UDP;unicast;client_port="<< setports[setupsSent] <<"-" <<setports[setupsSent]+1 ;
-            HTTP_R.SetHeader("Transport",setup.str() );
-            std:: cout << setup.str()<<std::endl;
-            setup.str(std::string());
-            setup.clear();
-            HTTP_R.SetHeader("CSeq",CSeq);
-            CSeq++;
-            if(sessionID != ""){
-             HTTP_R.SetHeader("Session",sessionID);
-            }
-            HTTP_R.SetHeader("User-Agent","mistANALyser");  
-            HTTP_R.SendRequest(conn);          
-            setupsSent ++;   
-          }
-                   
-
-          
-          while(setupsSent == setupsRecvd+1){
-            //lets Assume we assume we always receive a response          
-            if ( (conn.Received().size() || conn.spool() )){ 
-              if(HTTP_S.Read(conn)){
-                std::cout << "recv setup" << std::endl;
-                std::cout << HTTP_S.BuildResponse(HTTP_S.method,HTTP_S.url);      
-                optionsRecvd = true;    
-                sessionID = HTTP_S.GetHeader("Session");
-                setupsRecvd++;    
-              }
-            }
-          }     
-          //set up all parameters, and then after the for loop we have to listen to setups and all. sent if both are equal, and recv if one is sent          
-  
-        }
-        setupComplete = true;
-      }
-      
-      if(setupComplete && !playSent){
-      //time to play
-        HTTP_S.Clean();
-        HTTP_R.protocol="RTSP/1.0";
-        HTTP_R.method = "PLAY";
-        HTTP_R.url = rtspUrl;
-      
-        HTTP_R.SetHeader("CSeq",CSeq);
-        CSeq++;
-        HTTP_R.SetHeader("User-Agent","mistANALyser");
-        HTTP_R.SetHeader("Session",sessionID);
-        HTTP_R.SendRequest(conn);
-        playSent = true;
-        std::cout << "sent play" << std::endl;
-        char buffer[2000];
-        while(!connectors[0].iread((void*)buffer,2000)) {
-          std::cout << "buffer";
-        }
-        std::cout <<"buffer is not empty" << std::endl;
-        
-      }
-      
-      //streams set up
-      //time to read some packets
-
-
-      
-      
-      
-      if(descRecvd){
-        conn.close();
-      }
+void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
+  char *dataPtr;
+  uint32_t dataSize;
+  pkt.getString("data", dataPtr, dataSize);
+  DETAIL_MED("Received %ub %sfor track %lu (%s) @ %llums", dataSize, pkt.getFlag("keyframe")?"keyframe ":"", pkt.getTrackId(),
+             myMeta.tracks[pkt.getTrackId()].getIdentifier().c_str(), pkt.getTime());
+  if (detail >= 8){
+    for (uint32_t i = 0; i < dataSize; ++i){
+      std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)dataPtr[i] << " ";
+      if (i % 32 == 31){std::cout << std::endl;}
     }
-    conn.close();*/
-    return 0; 
+    std::cout << std::endl;
   }
-
-
 }
 
-
-
-int main(int argc, char ** argv){
-  Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("url",JSON::fromString("{\"arg\":\"string\",\"short\":\"u\",\"long\":\"url\",\"help\":\"URL To get.\", \"default\":\"rtsp://localhost/s1k\"}"));
-  conf.parseArgs(argc, argv);
-  return RtspRtp::analyseRtspRtp(conf.getString("url"));
+AnalyserRTSP::AnalyserRTSP(Util::Config &conf) : Analyser(conf){
+  myConn = Socket::Connection(1, 0);
+  sdpState.myMeta = &myMeta;
+  sdpState.incomingPacketCallback = incomingPacket;
+  classPointer = this;
 }
+
+bool AnalyserRTSP::isOpen(){
+  return myConn;
+}
+
+bool AnalyserRTSP::parsePacket(){
+  do{
+    // No new data? Sleep and retry, if connection still open
+    if (!myConn.Received().size() || !myConn.Received().available(1)){
+      if (!myConn.spool() && isOpen()){Util::sleep(500);}
+      continue;
+    }
+    if (myConn.Received().copy(1) != "$"){
+      // not a TCP RTP packet, read RTSP commands
+      if (HTTP.Read(myConn)){
+        if (HTTP.hasHeader("Content-Type") && HTTP.GetHeader("Content-Type") == "application/sdp"){
+          sdpState.parseSDP(HTTP.body);
+          HTTP.Clean();
+          return true;
+        }
+        if (HTTP.hasHeader("Transport")){
+          uint32_t trackNo = sdpState.parseSetup(HTTP, "", "");
+          if (trackNo){
+            DETAIL_MED("Parsed transport for track: %lu", trackNo);
+          }else{
+            DETAIL_MED("Could not parse transport string!");
+          }
+          HTTP.Clean();
+          return true;
+        }
+
+        std::cout << HTTP.BuildRequest() << std::endl;
+
+        HTTP.Clean();
+        return true;
+      }else{
+        if (!myConn.spool() && isOpen()){Util::sleep(500);}
+      }
+      continue;
+    }
+    if (!myConn.Received().available(4)){
+      if (!myConn.spool() && isOpen()){Util::sleep(500);}
+      continue;
+    }// a TCP RTP packet, but not complete yet
+
+    // We have a TCP packet! Read it...
+    // Format: 1 byte '$', 1 byte channel, 2 bytes len, len bytes binary data
+    std::string tcpHead = myConn.Received().copy(4);
+    uint16_t len = ntohs(*(short *)(tcpHead.data() + 2));
+    if (!myConn.Received().available(len + 4)){
+      if (!myConn.spool() && isOpen()){Util::sleep(500);}
+      continue;
+    }// a TCP RTP packet, but not complete yet
+    // remove whole packet from buffer, including 4 byte header
+    std::string tcpPacket = myConn.Received().remove(len + 4);
+    RTP::Packet pkt(tcpPacket.data() + 4, len);
+    uint8_t chan = tcpHead.data()[1];
+    uint32_t trackNo = sdpState.getTrackNoForChannel(chan);
+    DETAIL_HI("Received %ub RTP packet #%u on channel %u, time %llu", len,
+              (unsigned int)pkt.getSequence(), chan, pkt.getTimeStamp());
+    if (!trackNo && (chan % 2) != 1){
+      DETAIL_MED("Received packet for unknown track number on channel %u", chan);
+    }
+    if (trackNo){
+      sdpState.tracks[trackNo].rtpSeq = pkt.getSequence();
+    }
+
+    if (detail >= 10){
+      char *pl = pkt.getPayload();
+      uint32_t payLen = pkt.getPayloadSize();
+      for (uint32_t i = 0; i < payLen; ++i){
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)pl[i] << " ";
+        if (i % 32 == 31){std::cout << std::endl;}
+      }
+      std::cout << std::endl;
+    }
+
+    sdpState.handleIncomingRTP(trackNo, pkt);
+
+    return true;
+
+  }while (isOpen());
+
+  // if needed, parse TCP packets, and cancel if it is not safe (yet) to read HTTP/RTSP packets
+}
+

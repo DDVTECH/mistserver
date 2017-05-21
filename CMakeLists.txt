@@ -159,6 +159,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/rijndael.h
   ${SOURCE_DIR}/lib/rtmpchunks.h
   ${SOURCE_DIR}/lib/rtp.h
+  ${SOURCE_DIR}/lib/sdp.h
   ${SOURCE_DIR}/lib/shared_memory.h
   ${SOURCE_DIR}/lib/socket.h
   ${SOURCE_DIR}/lib/stream.h
@@ -208,6 +209,7 @@ set(libSources
   ${SOURCE_DIR}/lib/rijndael.cpp
   ${SOURCE_DIR}/lib/rtmpchunks.cpp
   ${SOURCE_DIR}/lib/rtp.cpp
+  ${SOURCE_DIR}/lib/sdp.cpp
   ${SOURCE_DIR}/lib/shared_memory.cpp
   ${SOURCE_DIR}/lib/socket.cpp
   ${SOURCE_DIR}/lib/stream.cpp
@@ -289,6 +291,7 @@ makeAnalyser(MP4 mp4) #LTS
 makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
+makeAnalyser(RTSP rtsp) #LTS
 
 #LTS_START
 ########################################

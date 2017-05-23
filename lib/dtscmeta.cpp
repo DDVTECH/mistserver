@@ -2081,7 +2081,9 @@ namespace DTSC {
   bool Meta::toFile(const std::string & fileName){
     std::ofstream oFile(fileName.c_str());
     oFile << toJSON().toNetPacked();
+    if (!oFile.good()){return false;}
     oFile.close();
+    return true;
   }
 
   ///\brief Converts a meta object to a human readable string

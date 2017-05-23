@@ -284,6 +284,10 @@ namespace Mist {
   void Input::stream(){
     IPC::semaphore pullLock;
     pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!pullLock){
+      FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
+      return;
+    }
     if (!pullLock.tryWait()){
       WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
       pullLock.close();

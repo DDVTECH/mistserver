@@ -222,6 +222,7 @@ namespace IPC {
 
   ///\brief Tries to wait for the semaphore, returns true if successful, false otherwise
   bool semaphore::tryWait() {
+    if (!(*this)){return false;}
     int result;
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 0);//wait at most 1ms
@@ -237,6 +238,7 @@ namespace IPC {
 
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false otherwise
   bool semaphore::tryWaitOneSecond() {
+    if (!(*this)){return false;}
     int result;
 #if defined(__CYGWIN__) || defined(_WIN32)
     result = WaitForSingleObject(mySem, 1000);//wait at most 1s

@@ -6,6 +6,7 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/timing.h>
+#include <mist/procs.h>
 #include "controller_api.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
@@ -193,6 +194,7 @@ void Controller::handleUDPAPI(void * np){
     FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
     return;
   }
+  Util::Procs::socketList.insert(uSock.getSock());
   while (Controller::conf.is_active){
     if (uSock.Receive()){
       INFO_MSG("UDP API: %s", uSock.data);

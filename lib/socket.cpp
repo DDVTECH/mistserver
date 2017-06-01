@@ -65,6 +65,10 @@ std::string uint2string(unsigned int i){
   return st.str();
 }
 
+Socket::Buffer::Buffer(){
+  splitter = "\n";
+}
+
 /// Returns the amount of elements in the internal std::deque of std::string objects.
 /// The back is popped as long as it is empty, first - this way this function is
 /// guaranteed to return 0 if the buffer is empty.
@@ -83,26 +87,58 @@ unsigned int Socket::Buffer::bytes(unsigned int max){
   return i;
 }
 
+/// Returns how many bytes to read until the next splitter, or 0 if none found.
+unsigned int Socket::Buffer::bytesToSplit(){
+  unsigned int i = 0;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    i += (*it).size();
+    if ((*it).size() >= splitter.size() && (*it).substr((*it).size()-splitter.size()) == splitter){
+      return i;
+    }
+  }
+  return 0;
+}
+
 /// Appends this string to the internal std::deque of std::string objects.
-/// It is automatically split every BUFFER_BLOCKSIZE bytes.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is encountered.
 void Socket::Buffer::append(const std::string &newdata){
-  append(newdata.c_str(), newdata.size());
+  append(newdata.data(), newdata.size());
+}
+
+///Helper function that does a short-circuiting string compare
+inline bool string_compare(const char *a, const char *b, const size_t len){
+  for (size_t i = 0; i < len; ++i){
+    if (a[i] != b[i]){return false;}
+  }
+  return true;
 }
 
 /// Appends this data block to the internal std::deque of std::string objects.
-/// It is automatically split every BUFFER_BLOCKSIZE bytes.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is encountered.
 void Socket::Buffer::append(const char *newdata, const unsigned int newdatasize){
-  unsigned int i = 0, j = 0;
+  uint32_t i = 0;
   while (i < newdatasize){
-    j = i;
-    while (j < newdatasize && j - i <= BUFFER_BLOCKSIZE){
-      j++;
-      if (newdata[j - 1] == '\n'){break;}
-    }
-    if (i != j){
-      data.push_front(std::string(newdata + i, (size_t)(j - i)));
-      i = j;
+    uint32_t j = 0;
+    if (!splitter.size()){
+      if (newdatasize - i > BUFFER_BLOCKSIZE){
+        j = BUFFER_BLOCKSIZE;
+      }else{
+        j = newdatasize - i;
+      }
     }else{
+      while (j+i < newdatasize && j < BUFFER_BLOCKSIZE){
+        j++;
+        if (j >= splitter.size()){
+          if (string_compare(newdata+i+j-splitter.size(), splitter.data(), splitter.size())){break;}
+        }
+      }
+    }
+    if (j){
+      data.push_front("");
+      data.front().assign(newdata + i, (size_t)j);
+      i += j;
+    }else{
+      FAIL_MSG("Appended an empty string to buffer: aborting!");
       break;
     }
   }

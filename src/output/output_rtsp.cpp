@@ -438,73 +438,6 @@ namespace Mist {
     }
   }
 
-  ///Helper function to determine if a H264 NAL unit is a keyframe or not
-  static inline bool isH264Keyframe(char * data, unsigned long len){
-    uint8_t nalType = (data[0] & 0x1F);
-    if (nalType == 0x05){return true;}
-    if (nalType != 0x01){return false;}
-    Utils::bitstream bs;
-    for (size_t i = 1; i < 10 && i < len; ++i) {
-      if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)) { //Emulation prevention bytes
-        bs.append(data + i, 2);
-        i += 2;
-      } else {
-        bs.append(data + i, 1);
-      }
-    }
-    bs.getExpGolomb();//Discard first_mb_in_slice
-    uint64_t sliceType = bs.getUExpGolomb();
-    //Slice types:
-    //  0: P - Predictive slice (at most 1 reference)
-    //  1: B - Bi-predictive slice (at most 2 references)
-    //  2: I - Intra slice (no external references)
-    //  3: SP - Switching predictive slice (at most 1 reference)
-    //  4: SI - Switching intra slice (no external references)
-    //  5-9: 0-4, but all in picture of same type
-    if (sliceType == 2 || sliceType == 4 || sliceType == 7 || sliceType == 9){
-      return true;
-    }
-    return false;
-  }
-
-  ///Helper function to determine a H264 NAL unit frame number
-  ///\returns -1 if there is no frame number
-  ///UNFINISHED. Reads all values, but doesn't return any sensible values. Be warned!
-  static inline int getH264FrameNum(char * data, unsigned long len, h264::SPSMeta & md){
-    char nalType = (data[0] & 0x1F);
-    if (nalType != 1 && nalType != 2 && nalType != 5){
-      return -1;
-    }
-    Utils::bitstream bs;
-    for (size_t i = 1; i < 20 && i < len; ++i) {
-      if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)) { //Emulation prevention bytes
-        bs.append(data + i, 2);
-        i += 2;
-      } else {
-        bs.append(data + i, 1);
-      }
-    }
-    bs.getUExpGolomb();//first_mb_in_slice
-    bs.getUExpGolomb();//slice_type
-    bs.getUExpGolomb();//pps_id
-    if (md.sep_col_plane){
-      bs.get(2);//colour_plane_id
-    }
-    uint16_t frame_num = bs.get(md.log2_max_frame_num);
-    if (!md.mbs_only){
-      if (bs.get(1)){bs.get(1);}//field_pic_flag && bottom_field_flag
-    }
-    if (nalType == 5){
-      bs.getUExpGolomb();//idr_pic_id
-    }
-    ///\todo Implement pic_order_cnt_type value 1
-    uint16_t order_cnt = 0;
-    if (md.cnt_type == 0){
-      order_cnt = bs.get(md.log2_max_order_cnt);
-    }
-    return -1;
-  }
-
   /// Handles a single H264 packet, checking if others are appended at the end in Annex B format.
   /// If so, splits them up and calls h264Packet for each. If not, calls it only once for the whole payload.
   void OutRTSP::h264MultiParse(uint64_t ts, const uint64_t track, char * buffer, const uint32_t len){
@@ -514,13 +447,13 @@ namespace Mist {
       if (buffer[i] == 0 && buffer[i+1] == 0 && buffer[i+2] == 0 && buffer[i+3] == 1){
         //if found, handle a packet from the last start code up to this start code
         Bit::htobl(buffer+lastStart, (i-lastStart-1)-4);//size-prepend
-        h264Packet(ts, track, buffer+lastStart, (i-lastStart-1), isH264Keyframe(buffer+lastStart+4, i-lastStart-5));
+        h264Packet(ts, track, buffer+lastStart, (i-lastStart-1), h264::isKeyframe(buffer+lastStart+4, i-lastStart-5));
         lastStart = i;
       }
     }
     //Last packet (might be first, if no start codes found)
     Bit::htobl(buffer+lastStart, (len-lastStart)-4);//size-prepend
-    h264Packet(ts, track, buffer+lastStart, (len-lastStart), isH264Keyframe(buffer+lastStart+4, len-lastStart-4));
+    h264Packet(ts, track, buffer+lastStart, (len-lastStart), h264::isKeyframe(buffer+lastStart+4, len-lastStart-4));
   }
 
   void OutRTSP::h264Packet(uint64_t ts, const uint64_t track, const char * buffer, const uint32_t len, bool isKey){
@@ -646,7 +579,7 @@ namespace Mist {
         }
         Bit::htobl(packBuffer, len);//size-prepend
         memcpy(packBuffer+4, pl, len);
-        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len+4, isH264Keyframe(packBuffer+4, len));
+        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len+4, h264::isKeyframe(packBuffer+4, len));
         return;
       }
       if ((pl[0] & 0x1F) == 24){
@@ -679,7 +612,7 @@ namespace Mist {
         bool isKey = false;
         while (pos + 1 < pkt.getPayloadSize()){
           unsigned int pLen = Bit::btohs(pl+pos);
-          isKey |= isH264Keyframe(pl+pos+2, pLen);
+          isKey |= h264::isKeyframe(pl+pos+2, pLen);
           Bit::htobl(packBuffer+len, pLen);//size-prepend
           memcpy(packBuffer+len+4, pl+pos+2, pLen);
           len += 4+pLen;
@@ -709,7 +642,7 @@ namespace Mist {
           }else{
             Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
             fuaBuffer[4] |= 0x80;//set error bit
-            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, h264::isKeyframe(fuaBuffer+4, fuaCurrLen-4));
           }
           fuaCurrLen = 0;
           return;
@@ -750,7 +683,7 @@ namespace Mist {
             h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen);
           }else{
             Bit::htobl(fuaBuffer, fuaCurrLen-4);//size-prepend
-            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, isH264Keyframe(fuaBuffer+4, fuaCurrLen-4));
+            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer, fuaCurrLen, h264::isKeyframe(fuaBuffer+4, fuaCurrLen-4));
           }
           fuaCurrLen = 0;
         }

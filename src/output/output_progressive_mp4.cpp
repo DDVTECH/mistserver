@@ -897,7 +897,7 @@ namespace Mist {
           myConn.close();
         }
       } else {
-        WARN_MSG("Did not receive expected %lu:%llu but got %ld:%llu - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
+        WARN_MSG("Did not receive expected %lu:%llu (%lub) but got %ld:%llu (%lub) - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, sortSet.begin()->size, thisPacket.getTrackId(), thisPacket.getTime(), len);
       }
       return;
     }

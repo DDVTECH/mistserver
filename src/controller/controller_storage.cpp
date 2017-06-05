@@ -232,7 +232,7 @@ namespace Controller{
     static bool serverStartTriggered;
     if (!serverStartTriggered){
       if (!Triggers::doTrigger("SYSTEM_START")){conf.is_active = false;}
-      serverStartTriggered++;
+      serverStartTriggered = true;
     }
     if (Triggers::shouldTrigger("SYSTEM_CONFIG")){
       std::string payload = writeConf.toString();

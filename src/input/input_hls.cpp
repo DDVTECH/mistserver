@@ -269,6 +269,9 @@ namespace Mist{
     capa["decs"] = "Enables HLS Input";
     capa["source_match"].append("/*.m3u8");
     capa["source_match"].append("http://*.m3u8");
+    //These two can/may be set to always-on mode
+    capa["always_match"].append("/*.m3u8");
+    capa["always_match"].append("http://*.m3u8");
 
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");

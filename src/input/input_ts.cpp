@@ -47,7 +47,7 @@ void parseThread(void * ignored) {
   }
 
   if (liveStream.isDataTrack(tid)){
-    if (!Util::startInput(globalStreamName, "push://INTERNAL_ONLY:"+cfgPointer->getString("input"))) {//manually override stream url to start the buffer
+    if (!Util::startInput(globalStreamName, "push://INTERNAL_ONLY:"+cfgPointer->getString("input"), true, true)) {//manually override stream url to start the buffer
       FAIL_MSG("Could not start buffer for %s", globalStreamName.c_str());
       return;
     }

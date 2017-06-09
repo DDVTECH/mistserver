@@ -525,9 +525,9 @@ namespace Mist {
     std::set <keyPart> trunOrder;
     //set with trackID, relative data offset, time and size
     for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
-      long unsigned int timeStamp = it->second.firstTime;
+      uint64_t timeStamp = it->second.firstTime;
       DTSC::Track & thisTrack = myMeta.tracks[it->first];
-      for (long unsigned int i = it->second.firstPart; i <= it->second.lastPart; i++) {
+      for (uint32_t i = it->second.firstPart; i <= it->second.lastPart; i++) {
         keyPart temp;
         temp.trackID = it->first;
         temp.size = thisTrack.parts[i].getSize();
@@ -786,13 +786,13 @@ namespace Mist {
 ///\todo See if we can use something more elegant than a member variable...
   void OutProgressiveMP4::buildFragment() {
     DTSC::Key & currKey = myMeta.tracks[vidTrack].getKey(getKeyForTime(vidTrack, thisPacket.getTime()));
-    long long int startms = thisPacket.getTime();
+    uint64_t startms = thisPacket.getTime();
     if (!needsLookAhead){
       needsLookAhead = 1000;
       currentPartSet.clear();
       return;
     }
-    long long int endms = startms + needsLookAhead;
+    uint64_t endms = startms + needsLookAhead;
     bool missingSome = true;
 
     while (missingSome){
@@ -814,8 +814,8 @@ namespace Mist {
         }
         thisRange.lastPart = thisRange.firstPart;
         thisRange.lastTime = thisRange.firstTime;
-        unsigned int curMS = thisRange.firstTime;
-        unsigned int nextMS = thisRange.firstTime;
+        uint64_t curMS = thisRange.firstTime;
+        uint64_t nextMS = thisRange.firstTime;
         bool first = true;
         size_t maxParts = thisTrack.parts.size(); 
         for (size_t i = thisRange.firstPart; i < maxParts; i++) {

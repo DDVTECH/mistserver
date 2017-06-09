@@ -367,10 +367,10 @@ namespace Mist {
   /// Returns a string with the full XML DASH manifest MPD file.
   std::string OutDashMP4::buildManifest(){
     initialize();
-    int lastVidTime = 0;
-    int vidInitTrack = 0;
-    int lastAudTime = 0;
-    int audInitTrack = 0;
+    uint64_t lastVidTime = 0;
+    uint64_t vidInitTrack = 0;
+    uint64_t lastAudTime = 0;
+    uint64_t audInitTrack = 0;
     /// \TODO DASH pretends there is only one audio/video track, and then prints them all using the same timing information. This is obviously wrong if the tracks are not in sync.
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
       if ((it->second.codec == "H264" || it->second.codec == "HEVC") && it->second.lastms > lastVidTime){

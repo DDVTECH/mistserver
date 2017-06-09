@@ -30,10 +30,10 @@ namespace Mist {
   };
   
   struct fragSet{
-    long unsigned int firstPart;
-    long unsigned int lastPart;
-    long long unsigned int firstTime;
-    long long unsigned int lastTime;
+    uint32_t firstPart;
+    uint32_t lastPart;
+    uint64_t firstTime;
+    uint64_t lastTime;
   };
   class OutProgressiveMP4 : public HTTPOutput {
     public:

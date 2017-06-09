@@ -305,9 +305,6 @@ namespace Mist {
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
     //these checks were already done in bufferSinglePacket, but we check again just to be sure
-    if (myMeta.live && pack.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
-      return;//ignore bullshit timestamps
-    }
     if (myMeta.live && pack.getTime() < myMeta.tracks[tid].lastms){
       DEBUG_MSG(multiWrong?DLVL_HIGH:DLVL_WARN, "Wrong order on track %lu ignored: %lu < %lu", tid, pack.getTime(), myMeta.tracks[tid].lastms);
       multiWrong = true;
@@ -516,10 +513,6 @@ namespace Mist {
     //For live streams, ignore packets that make no sense
     //This also happens in bufferNext, with the same rules
     if (myMeta.live){
-      if (packet.getTime() > 0xFFFF0000 && !myMeta.tracks[tid].lastms){
-        INFO_MSG("Ignoring packet with unexpected timestamp");
-        return;//ignore bullshit timestamps
-      }
       if (packet.getTime() < myMeta.tracks[tid].lastms){
         HIGH_MSG("Wrong order on track %lu ignored: %lu < %lu", tid, packet.getTime(), myMeta.tracks[tid].lastms);
         return;

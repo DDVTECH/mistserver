@@ -713,7 +713,7 @@ namespace Mist{
       tmp.time = tmpPack.getTime();
     }
     if (tmpPack){
-      HIGH_MSG("Sought to time %d in %s@%u", tmp.time, streamName.c_str(), tid);
+      HIGH_MSG("Sought to time %llu in %s@%u", tmp.time, streamName.c_str(), tid);
       buffer.insert(tmp);
       return true;
     }else{

@@ -67,4 +67,5 @@ namespace h264 {
       unsigned long dataLen;
   };
 
+  bool isKeyframe(const char * data, uint32_t len);
 }

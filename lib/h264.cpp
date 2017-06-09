@@ -9,6 +9,36 @@
 #include "defines.h"
 
 namespace h264 {
+  
+  ///Helper function to determine if a H264 NAL unit is a keyframe or not
+  bool isKeyframe(const char * data, uint32_t len){
+    uint8_t nalType = (data[0] & 0x1F);
+    if (nalType == 0x05){return true;}
+    if (nalType != 0x01){return false;}
+    Utils::bitstream bs;
+    for (size_t i = 1; i < 10 && i < len; ++i) {
+      if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)) { //Emulation prevention bytes
+        bs.append(data + i, 2);
+        i += 2;
+      } else {
+        bs.append(data + i, 1);
+      }
+    }
+    bs.getExpGolomb();//Discard first_mb_in_slice
+    uint64_t sliceType = bs.getUExpGolomb();
+    //Slice types:
+    //  0: P - Predictive slice (at most 1 reference)
+    //  1: B - Bi-predictive slice (at most 2 references)
+    //  2: I - Intra slice (no external references)
+    //  3: SP - Switching predictive slice (at most 1 reference)
+    //  4: SI - Switching intra slice (no external references)
+    //  5-9: 0-4, but all in picture of same type
+    if (sliceType == 2 || sliceType == 4 || sliceType == 7 || sliceType == 9){
+      return true;
+    }
+    return false;
+  }
+
   std::deque<nalu::nalData> analysePackets(const char * data, unsigned long len){
     std::deque<nalu::nalData> res;
 

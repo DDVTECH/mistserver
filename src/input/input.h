@@ -48,8 +48,8 @@ namespace Mist {
       virtual void convert();
       virtual void serve();
       virtual void stream();
-      
-      
+      bool isAlwaysOn();
+
       virtual void parseHeader();
       bool bufferFrame(unsigned int track, unsigned int keyNum);
 

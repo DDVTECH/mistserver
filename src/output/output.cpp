@@ -307,7 +307,7 @@ namespace Mist{
         return;
       }
     }else{
-      if (!Util::startInput(streamName)){
+      if (!Util::startInput(streamName, "", true, isPushing())){
         FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
         onFail();
         return;
@@ -346,8 +346,8 @@ namespace Mist{
     updateMeta();
     selectDefaultTracks();
     if (!myMeta.vod && !isReadyForPlay()){
-      unsigned long long waitUntil = Util::epoch() + 15;
-      while (!myMeta.vod && !isReadyForPlay()){
+      unsigned long long waitUntil = Util::epoch() + 30;
+      while (!myMeta.vod && !isReadyForPlay() && nProxy.userClient.isAlive()){
         if (Util::epoch() > waitUntil + 45 || (!selectedTracks.size() && Util::epoch() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(), getConnectedHost().c_str());
           break;

@@ -293,6 +293,7 @@ namespace Mist {
     }
     finish();
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
+    userPage.finishEach();
     //end player functionality
   }
 
@@ -358,7 +359,7 @@ namespace Mist {
       WARN_MSG("Stream already online, cancelling");
       return;
     }
-    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"))) {//manually override stream url to start the buffer
+    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true)) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
       pullLock.unlink();

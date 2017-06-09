@@ -184,8 +184,10 @@ namespace Mist {
       return 0;
     }
     myMeta.sourceURI = config->getString("input");
-    parseHeader();
-    MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
+    if (myMeta.vod){
+      parseHeader();
+      MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
+    }
 
     if (!streamName.size()) {
       MEDIUM_MSG("Starting convert");
@@ -241,6 +243,24 @@ namespace Mist {
       DEBUG_MSG(DLVL_FAIL, "No filename specified, exiting");
     }
   }
+  
+  ///Checks in the server configuration if this stream is set to always on or not.
+  /// Returns true if it is, or if the stream could not be found in the configuration.
+  bool Input::isAlwaysOn(){
+    bool ret = true;
+    std::string strName = streamName.substr(0, (streamName.find_first_of("+ ")));
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+    if (streamCfg){
+      if (!streamCfg.getMember("always_on") || !streamCfg.getMember("always_on").asBool()){
+        ret = false;
+      }
+    }
+    configLock.post();
+    return ret;
+  }
 
   /// The main loop for inputs in stream serving mode.
   /// 
@@ -278,19 +298,19 @@ namespace Mist {
       //unload pages that haven't been used for a while
       removeUnused();
       //If users are connected and tracks exist, reset the activity counter
-      if (userPage.connectedUsers) {
+      //Also reset periodically if the stream is configured as Always on
+      if (userPage.connectedUsers || ((Util::bootSecs() - activityCounter) > INPUT_TIMEOUT/2 && isAlwaysOn())) {
         if (myMeta.tracks.size()){
           activityCounter = Util::bootSecs();
         }
-        DEBUG_MSG(DLVL_INSANE, "Connected users: %d", userPage.connectedUsers);
-      } else {
-        DEBUG_MSG(DLVL_INSANE, "Timer running");
       }
+      INSANE_MSG("Connected: %d users, %d total", userPage.connectedUsers, userPage.amount);
       //if not shutting down, wait 1 second before looping
       if (config->is_active){
         Util::wait(1000);
       }
     }
+    config->is_active = false;
     finish();
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
     userPage.finishEach();
@@ -303,14 +323,6 @@ namespace Mist {
   /// For live streams, this is twice the biggest fragment duration.
   /// For non-live streams this is INPUT_TIMEOUT seconds.
   /// The default Pro implementation also allows cancelling the shutdown through the STREAM_UNLOAD trigger.
-  /// 
-  /// \triggers 
-  /// The `"STREAM_UNLOAD"` trigger is stream-specific, and is ran right before an input shuts down and stops serving a stream. If cancelled, the shut down is delayed. Its payload is:
-  /// ~~~~~~~~~~~~~~~
-  /// streamname
-  /// input name
-  /// ~~~~~~~~~~~~~~~
-  // 
   bool Input::keepRunning(){
     //We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
@@ -370,6 +382,7 @@ namespace Mist {
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
     nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    nProxy.userClient.countAsViewer = false;
 
     INFO_MSG("Input for stream %s started", streamName.c_str());
 

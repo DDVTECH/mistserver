@@ -72,6 +72,8 @@ namespace h264 {
       size_t dataLen;
   };
 
+  bool isKeyframe(const char * data, uint32_t len);
+
   class nalUnit {
     public:
       nalUnit(const char * data, size_t len) : payload(data, len) {}

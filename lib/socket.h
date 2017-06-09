@@ -32,8 +32,11 @@ namespace Socket{
     std::deque<std::string> data;
 
   public:
+    std::string splitter;///<String to automatically split on if encountered. \n by default
+    Buffer();
     unsigned int size();
     unsigned int bytes(unsigned int max);
+    unsigned int bytesToSplit();
     void append(const std::string &newdata);
     void append(const char *newdata, const unsigned int newdatasize);
     void prepend(const std::string &newdata);

@@ -81,6 +81,12 @@ long long int Util::bootSecs() {
   return t.tv_sec;
 }
 
+uint64_t Util::bootMS() {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return ((uint64_t)t.tv_sec) * 1000 + t.tv_nsec / 1000000;
+}
+
 /// Gets the current time in microseconds.
 long long unsigned int Util::getMicros() {
   struct timespec t;

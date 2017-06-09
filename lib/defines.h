@@ -37,12 +37,30 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #endif
 #endif
 
+#include <execinfo.h>
+static inline void show_stackframe() {
+  void *trace[16];
+  char **messages = 0;
+  int i, trace_size = 0;
+  trace_size = backtrace(trace, 16);
+  messages = backtrace_symbols(trace, trace_size);
+  for (i=1; i<trace_size; ++i){
+    size_t p = 0;
+    while(messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0){
+      ++p;
+    }
+    DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i]+p);
+  }
+}
+
 #else
 
 #define DEBUG_MSG(lvl, msg, ...) // Debugging disabled.
+static inline void show_stackframe(){}
 
 #endif
 
+#define BACKTRACE show_stackframe();
 #define FAIL_MSG(msg, ...) DEBUG_MSG(DLVL_FAIL, msg, ##__VA_ARGS__)
 #define ERROR_MSG(msg, ...) DEBUG_MSG(DLVL_ERROR, msg, ##__VA_ARGS__)
 #define WARN_MSG(msg, ...) DEBUG_MSG(DLVL_WARN, msg, ##__VA_ARGS__)

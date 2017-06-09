@@ -115,11 +115,11 @@ bool Util::streamAlive(std::string & streamname){
 }
 
 /// Assures the input for the given stream name is active.
-/// Does stream name sanitizion first, followed by a stream name length check (<= 100 chars).
-/// Then, checks if an input is already active by running streamAlive(). If yes, aborts.
-/// If no, loads up the server configuration and attempts to start the given stream according to current config.
+/// Does stream name sanitation first, followed by a stream name length check (<= 100 chars).
+/// Then, checks if an input is already active by running streamAlive(). If yes, return true.
+/// If no, loads up the server configuration and attempts to start the given stream according to current configuration.
 /// At this point, fails and aborts if MistController isn't running.
-bool Util::startInput(std::string streamname, std::string filename, bool forkFirst) {
+bool Util::startInput(std::string streamname, std::string filename, bool forkFirst, bool isProvider) {
   sanitizeName(streamname);
   if (streamname.size() > 100){
     FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
@@ -172,6 +172,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   DTSC::Scan inputs = config.getMember("capabilities").getMember("inputs");
   DTSC::Scan input;
   unsigned int input_size = inputs.getSize();
+  bool noProviderNoPick = false;
   for (unsigned int i = 0; i < input_size; ++i){
     DTSC::Scan tmp_input = inputs.getIndice(i);
     
@@ -185,6 +186,10 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
           MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), tmp_input.getMember("name").asString().c_str(), source.c_str());
           
           if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
+            if (tmp_input.getMember("non-provider") && !isProvider){
+              noProviderNoPick = true;
+              continue;
+            }
             player_bin = Util::getMyPath() + "MistIn" + tmp_input.getMember("name").asString();
             curPrio = tmp_input.getMember("priority").asInt();
             selected = true;
@@ -198,6 +203,10 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
         MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(), tmp_input.getMember("name").asString().c_str(), source.c_str());
         
         if (filename.substr(0,front.size()) == front && filename.substr(filename.size()-back.size()) == back){
+          if (tmp_input.getMember("non-provider") && !isProvider){
+            noProviderNoPick = true;
+            continue;
+          }
           player_bin = Util::getMyPath() + "MistIn" + tmp_input.getMember("name").asString();
           curPrio = tmp_input.getMember("priority").asInt();
           selected = true;
@@ -210,7 +219,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   
   if (!selected){
     configLock.post();//unlock the config semaphore
-    FAIL_MSG("No compatible input found for stream %s: %s", streamname.c_str(), filename.c_str());
+    if (noProviderNoPick){
+      INFO_MSG("Not a media provider for stream %s: %s", streamname.c_str(), filename.c_str());
+    }else{
+      FAIL_MSG("No compatible input found for stream %s: %s", streamname.c_str(), filename.c_str());
+    }
     return false;
   }
 

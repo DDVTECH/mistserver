@@ -53,11 +53,6 @@ namespace Mist {
     Output::onFail();
   }
 
-  /// The HTTP output is always ready to play
-  bool OutHTTP::isReadyForPlay() {
-    return true;
-  }
-  
   void OutHTTP::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa.removeMember("deps");
@@ -65,6 +60,7 @@ namespace Mist {
     capa["desc"] = "Generic HTTP handler, required for all other HTTP-based outputs.";
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
+    capa["codecs"][0u][0u].append("*");
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");
@@ -321,12 +317,11 @@ namespace Mist {
       }
       
       std::string trackSources;//this string contains all track sources for MBR smil
-      DTSC::Scan tracks = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName).getMember("meta").getMember("tracks");
-      unsigned int track_ctr = tracks.getSize();
-      for (unsigned int i = 0; i < track_ctr; ++i){//for all video tracks
-        DTSC::Scan trk = tracks.getIndice(i);
-        if (trk.getMember("type").asString() == "video"){
-          trackSources += "      <video src='"+ streamName + "?track=" + trk.getMember("trackid").asString() + "' height='" + trk.getMember("height").asString() + "' system-bitrate='" + trk.getMember("bps").asString() + "' width='" + trk.getMember("width").asString() + "' />\n";
+      initialize();
+      if (!myConn){return;}
+      for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+        if (trit->second.type == "video"){
+          trackSources += "      <video src='"+ streamName + "?track=" + JSON::Value((long long)trit->first).asString() + "' height='" + JSON::Value((long long)trit->second.height).asString() + "' system-bitrate='" + JSON::Value((long long)trit->second.bps).asString() + "' width='" + JSON::Value((long long)trit->second.width).asString() + "' />\n";
         }
       }
       configLock.post();
@@ -370,59 +365,41 @@ namespace Mist {
       }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp;
+      initialize();
+      if (!myConn){
+        return;
+      }
       IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      static char liveSemName[NAME_BUFFER_SIZE];
-      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-      IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      bool metaLock = false;
       configLock.wait();
       IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-      DTSC::Scan strm = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(streamName).getMember("meta");
-      IPC::sharedPage streamIndex;
-      if (!strm){
-        configLock.post();
-        //Stream metadata not found - attempt to start it
-        if (Util::startInput(streamName)){
-          char pageId[NAME_BUFFER_SIZE];
-          snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-          streamIndex.init(pageId, DEFAULT_STRM_PAGE_SIZE);
-          if (streamIndex.mapped){
-            metaLock = true;
-            metaLocker.wait();
-            strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
-          }
-        }
-        if (!strm){
-          //stream failed to start or isn't configured
-          response += "// Stream isn't configured and/or couldn't be started. Sorry.\n";
-        }
-        configLock.wait();
-      }
       DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
-      if (strm && prots){
-        DTSC::Scan trcks = strm.getMember("tracks");
-        unsigned int trcks_ctr = trcks.getSize();
-        for (unsigned int i = 0; i < trcks_ctr; ++i){
-          if (trcks.getIndice(i).getMember("width").asInt() > json_resp["width"].asInt()){
-            json_resp["width"] = trcks.getIndice(i).getMember("width").asInt();
-          }
-          if (trcks.getIndice(i).getMember("height").asInt() > json_resp["height"].asInt()){
-            json_resp["height"] = trcks.getIndice(i).getMember("height").asInt();
+      if (prots){
+        bool hasVideo = false;
+        for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+          if (trit->second.type == "video"){
+            hasVideo = true;
+            if (trit->second.width > json_resp["width"].asInt()){
+              json_resp["width"] = trit->second.width;
+            }
+            if (trit->second.height > json_resp["height"].asInt()){
+              json_resp["height"] = trit->second.height;
+            }
           }
         }
         if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
           json_resp["width"] = 640ll;
           json_resp["height"] = 480ll;
+          if (!hasVideo){json_resp["height"] = 20ll;}
         }
-        if (strm.getMember("vod")){
+        if (myMeta.vod){
           json_resp["type"] = "vod";
         }
-        if (strm.getMember("live")){
+        if (myMeta.live){
           json_resp["type"] = "live";
         }
         
         // show ALL the meta datas!
-        json_resp["meta"] = strm.asJSON();
+        json_resp["meta"] = myMeta.toJSON();
         jsonForEach(json_resp["meta"]["tracks"], it) {
           if (it->isMember("lang")){
             (*it)["language"] = Encodings::ISO639::decode((*it)["lang"].asStringRef());
@@ -485,10 +462,6 @@ namespace Mist {
       }else{
         json_resp["error"] = "The specified stream is not available on this server.";
       }
-      if (metaLock){
-        metaLocker.post();
-      }
-      
       configLock.post();
       configLock.close();
       if (rURL.substr(0, 6) != "/json_"){

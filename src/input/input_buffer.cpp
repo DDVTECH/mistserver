@@ -51,6 +51,7 @@ namespace Mist {
     option.null();
 
     capa["source_match"] = "push://*";
+    capa["non-provider"] = true;//Indicates we don't provide data, only collect it
     capa["priority"] = 9ll;
     capa["desc"] = "Provides buffered live input";
     capa["codecs"][0u][0u].append("*");

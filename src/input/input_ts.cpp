@@ -390,8 +390,12 @@ namespace Mist {
         IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         lock.wait();
         if (hasStarted && !threadTimer.size()){
-          INFO_MSG("Shutting down because no active threads and we had input in the past");
-          config->is_active = false;
+          if (!isAlwaysOn()){
+            INFO_MSG("Shutting down because no active threads and we had input in the past");
+            config->is_active = false;
+          }else{
+            hasStarted = false;
+          }
         }
         for (std::set<unsigned long>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
           if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))) {
@@ -417,8 +421,12 @@ namespace Mist {
       if (!inFile){
         Util::sleep(100);
         if (Util::bootSecs() - noDataSince > 20){
-          WARN_MSG("No packets received for 20 seconds - terminating");
-          config->is_active = false;
+          if (!isAlwaysOn()){
+            WARN_MSG("No packets received for 20 seconds - terminating");
+            config->is_active = false;
+          }else{
+            noDataSince = Util::bootSecs();
+          }
         }
       }
     }

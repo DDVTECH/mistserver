@@ -158,7 +158,7 @@ std::string HTTP::URL::getBareUrl() const{
 }
 
 ///Returns a URL object for the given link, resolved relative to the current URL object.
-HTTP::URL HTTP::URL::link(const std::string &l){
+HTTP::URL HTTP::URL::link(const std::string &l) const{
   //Full link
   if (l.find("://") < l.find('/') && l.find('/' != std::string::npos)){
     DONTEVEN_MSG("Full link: %s", l.c_str());

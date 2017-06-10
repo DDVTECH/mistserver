@@ -21,6 +21,7 @@ void AnalyserHLS::init(Util::Config &conf){
 }
 
 void AnalyserHLS::getParts(const std::string &body){
+  parts.clear();
   std::stringstream data(body);
   std::string line;
   uint64_t no = 0;
@@ -39,7 +40,7 @@ void AnalyserHLS::getParts(const std::string &body){
       }
       if (!parsedPart || no > parsedPart){
         HTTP::URL newURL = root.link(line);
-        INFO_MSG("Discovered: %s", newURL.getUrl().c_str());
+        INFO_MSG("Discovered #%llu: %s", no, newURL.getUrl().c_str());
         parts.push_back(HLSPart(newURL, no, durat));
       }
       ++no;
@@ -85,59 +86,12 @@ AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
   refreshAt = Util::bootSecs();
 }
 
-/// Downloads the given URL into 'H', returns true on success.
-/// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
-bool AnalyserHLS::download(const HTTP::URL &link){
-  if (!link.host.size()){return false;}
-  INFO_MSG("Retrieving %s", link.getUrl().c_str());
-  unsigned int loop = 6; // max 5 attempts
-  while (--loop){// loop while we are unsuccessful
-    H.Clean();
-    // Reconnect if needed
-    if (!conn || link.host != connectedHost || link.getPort() != connectedPort){
-      conn.close();
-      connectedHost = link.host;
-      connectedPort = link.getPort();
-      conn = Socket::Connection(connectedHost, connectedPort, true);
-    }
-    H.url = "/" + link.path;
-    if (link.port.size()){
-      H.SetHeader("Host", link.host + ":" + link.port);
-    }else{
-      H.SetHeader("Host", link.host);
-    }
-    H.SendRequest(conn);
-    H.Clean();
-    uint64_t reqTime = Util::bootSecs();
-    while (conn && Util::bootSecs() < reqTime + 5){
-      // No data? Wait for a second or so.
-      if (!conn.spool()){
-        Util::sleep(1000);
-        continue;
-      }
-      // Data! Check if we can parse it...
-      if (H.Read(conn)){
-        return true; // Success!
-      }
-      // reset the 5 second timeout
-      reqTime = Util::bootSecs();
-    }
-    if (conn){
-      FAIL_MSG("Timeout while retrieving %s", link.getUrl().c_str());
-      return false;
-    }
-    Util::sleep(500); // wait a bit before retrying
-  }
-  FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
-  return false;
-}
-
 bool AnalyserHLS::parsePacket(){
   while (isOpen()){
     // If needed, refresh the playlist
     if (refreshAt && Util::bootSecs() >= refreshAt){
-      if (download(root)){
-        getParts(H.body);
+      if (DL.get(root)){
+        getParts(DL.data());
       }else{
         FAIL_MSG("Could not refresh playlist!");
         return false;
@@ -148,23 +102,22 @@ bool AnalyserHLS::parsePacket(){
     if (parts.size()){
       HLSPart part = *parts.begin();
       parts.pop_front();
-      if (!download(part.uri)){return false;}
-      if (H.GetHeader("Content-Length") != ""){
-        if (H.body.size() != atoi(H.GetHeader("Content-Length").c_str())){
+      if (!DL.get(part.uri)){return false;}
+      if (DL.getHeader("Content-Length") != ""){
+        if (DL.data().size() != atoi(DL.getHeader("Content-Length").c_str())){
           FAIL_MSG("Expected %s bytes of data, but only received %lu.",
-                   H.GetHeader("Content-Length").c_str(), H.body.size());
+                   DL.getHeader("Content-Length").c_str(), DL.data().size());
           return false;
         }
       }
-      if (H.body.size() % 188){
-        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes", H.body.size());
+      if (DL.data().size() % 188){
+        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes", DL.data().size());
         return false;
       }
       parsedPart = part.no;
       hlsTime += part.dur;
       mediaTime = (uint64_t)hlsTime;
-      if (reconstruct.good()){reconstruct << H.body;}
-      H.Clean();
+      if (reconstruct.good()){reconstruct << DL.data();}
       return true;
     }
 
@@ -175,7 +128,7 @@ bool AnalyserHLS::parsePacket(){
       INFO_MSG("Sleeping for %lu seconds", sleepSecs);
       Util::sleep(sleepSecs * 1000);
     }
-    //The non-live case is already handled in isOpen()
+    // The non-live case is already handled in isOpen()
   }
   return false;
 }

@@ -1,6 +1,7 @@
 #include "analyser.h"
 #include <fstream>
 #include <mist/http_parser.h>
+#include <mist/downloader.h>
 
 class HLSPart{
 public:
@@ -11,7 +12,6 @@ public:
 };
 
 class AnalyserHLS : public Analyser{
-
 public:
   AnalyserHLS(Util::Config &conf);
   bool parsePacket();
@@ -27,11 +27,7 @@ private:
   float hlsTime;
   uint64_t parsedPart;
   uint64_t refreshAt;
-  HTTP::Parser H;
-  std::string connectedHost;
-  uint32_t connectedPort;
-  bool download(const HTTP::URL &link);
-  Socket::Connection conn;
   std::ofstream reconstruct;
+  HTTP::Downloader DL;
 };
 

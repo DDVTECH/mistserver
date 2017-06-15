@@ -78,7 +78,7 @@ namespace RTP {
 
   void Packet::sendH264(void * socket, void callBack(void *, char *, unsigned int, unsigned int), const char * payload, unsigned int payloadlen, unsigned int channel) {
     /// \todo This function probably belongs in DMS somewhere.
-    if (payloadlen+getHsize() <= MAX_SEND) {
+    if (payloadlen+getHsize()+2 <= maxDataLen) {
       data[1] |= 0x80;//setting the RTP marker bit to 1
       memcpy(data + getHsize(), payload, payloadlen);
       callBack(socket, data, getHsize() + payloadlen, channel);
@@ -88,7 +88,7 @@ namespace RTP {
     } else {
       data[1] &= 0x7F;//setting the RTP marker bit to 0
       unsigned int sent = 0;
-      unsigned int sending = MAX_SEND-getHsize()-2;//packages are of size MAX_SEND, except for the final one
+      unsigned int sending = maxDataLen-getHsize()-2;//packages are of size MAX_SEND, except for the final one
       char initByte = (payload[0] & 0xE0) | 0x1C;
       char serByte = payload[0] & 0x1F; //ser is now 000
       data[getHsize()] = initByte;
@@ -128,6 +128,20 @@ namespace RTP {
     }else if (codec == "AC3"){
       *((short *)(data + getHsize())) = htons(0x0001) ;//this is 6 bits MBZ, 2 bits FT = 0 = full frames and 8 bits saying we send 1 frame
       offsetLen = 2;
+    }
+    if (maxDataLen < getHsize() + offsetLen + payloadlen){
+      if (!managed){
+        FAIL_MSG("RTP data too big for packet, not sending!");
+        return;
+      }
+      uint32_t newMaxLen = getHsize() + offsetLen + payloadlen;
+      char * newData = new char[newMaxLen];
+      if (newData){
+        memcpy(newData, data, maxDataLen);
+        delete [] data;
+        data = newData;
+        maxDataLen = newMaxLen;
+      }
     }
     memcpy(data + getHsize() + offsetLen, payload, payloadlen);
     callBack(socket, data, getHsize() + offsetLen + payloadlen, channel);
@@ -176,8 +190,13 @@ namespace RTP {
   Packet::Packet(unsigned int payloadType, unsigned int sequence, unsigned int timestamp, unsigned int ssrc, unsigned int csrcCount) {
     managed = true;
     data = new char[12 + 4 * csrcCount + 2 + MAX_SEND]; //headerSize, 2 for FU-A, MAX_SEND for maximum sent size
-    data[0] = ((2) << 6) | ((0 & 1) << 5) | ((0 & 1) << 4) | (csrcCount & 15); //version, padding, extension, csrc count
-    data[1] = payloadType & 0x7F; //marker and payload type
+    if (data){
+      maxDataLen = 12 + 4 * csrcCount + 2 + MAX_SEND;
+      data[0] = ((2) << 6) | ((0 & 1) << 5) | ((0 & 1) << 4) | (csrcCount & 15); //version, padding, extension, csrc count
+      data[1] = payloadType & 0x7F; //marker and payload type
+    }else{
+      maxDataLen = 0;
+    }
     setSequence(sequence - 1); //we automatically increase the sequence each time when p
     setTimestamp(timestamp);
     setSSRC(ssrc);
@@ -187,15 +206,18 @@ namespace RTP {
 
   Packet::Packet(const Packet & o) {
     managed = true;
-    if (o.data) {
-      data = new char[o.getHsize() + 2 + MAX_SEND]; //headerSize, 2 for FU-A, MAX_SEND for maximum sent size
+    maxDataLen = 0;
+    if (o.data && o.maxDataLen) {
+      data = new char[o.maxDataLen]; //headerSize, 2 for FU-A, MAX_SEND for maximum sent size
       if (data) {
-        memcpy(data, o.data, o.getHsize() + 2 + MAX_SEND);
+        maxDataLen = o.maxDataLen;
+        memcpy(data, o.data, o.maxDataLen);
       }
     } else {
       data = new char[14 + MAX_SEND];//headerSize, 2 for FU-A, MAX_SEND for maximum sent size
       if (data) {
-        memset(data, 0, 14 + MAX_SEND);
+        maxDataLen = 14 + MAX_SEND;
+        memset(data, 0, maxDataLen);
       }
     }
     sentBytes = o.sentBytes;
@@ -204,12 +226,24 @@ namespace RTP {
 
   void Packet::operator=(const Packet & o) {
     managed = true;
-    if (data) {
+    maxDataLen = 0;
+    if (data && managed) {
       delete[] data;
     }
-    data = new char[o.getHsize() + 2 + MAX_SEND];
-    if (data) {
-      memcpy(data, o.data, o.getHsize() + 2 + MAX_SEND);
+    data = 0;
+
+    if (o.data && o.maxDataLen) {
+      data = new char[o.maxDataLen]; //headerSize, 2 for FU-A, MAX_SEND for maximum sent size
+      if (data) {
+        maxDataLen = o.maxDataLen;
+        memcpy(data, o.data, o.maxDataLen);
+      }
+    } else {
+      data = new char[14 + MAX_SEND];//headerSize, 2 for FU-A, MAX_SEND for maximum sent size
+      if (data) {
+        maxDataLen = 14 + MAX_SEND;
+        memset(data, 0, maxDataLen);
+      }
     }
     sentBytes = o.sentBytes;
     sentPackets = o.sentPackets;

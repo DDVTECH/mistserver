@@ -25,6 +25,7 @@ namespace RTP {
     private:
       bool managed;
       char * data; ///<The actual RTP packet that is being sent
+      uint32_t maxDataLen;///< Amount of reserved bytes for the packet(s)
       unsigned int datalen;  ///<Size of rtp packet
       int sentPackets;
       int sentBytes;//Because ugly is beautiful

@@ -8,8 +8,8 @@
 #include <cstring>
 #include <cstdlib>
 
-namespace Mist {
-  OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
+namespace Mist{
+  OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn){
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
       streamName = config->getString("streamname");
@@ -28,7 +28,7 @@ namespace Mist {
       }
 
       size_t colon = host.find(':');
-      if (colon != std::string::npos && colon != 0 && colon != host.size()) {
+      if (colon != std::string::npos && colon != 0 && colon != host.size()){
         port = atoi(host.substr(colon + 1, std::string::npos).c_str());
         host = host.substr(0, colon);
       }
@@ -65,13 +65,13 @@ namespace Mist {
       }
       *((uint32_t *)temp) = 0; //time zero
       *(((uint32_t *)(temp + 4))) = htonl(0x01020304); //version 1 2 3 4
-      for (int i = 8; i < 3072; ++i) {
+      for (int i = 8; i < 3072; ++i){
         temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
-      } //"random" data
+      }//"random" data
       myConn.SendNow(temp, 3072);
       free(temp);
       setBlocking(true);
-      while (!myConn.Received().available(3073) && myConn.connected() && config->is_active) {
+      while (!myConn.Received().available(3073) && myConn.connected() && config->is_active){
         myConn.spool();
       }
       if (!myConn || !config->is_active){return;}
@@ -101,7 +101,7 @@ namespace Mist {
       HIGH_MSG("Waiting for server to acknowledge connect request...");
     }else{
       setBlocking(true);
-      while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
+      while (!conn.Received().available(1537) && conn.connected() && config->is_active){
         conn.spool();
       }
       if (!conn || !config->is_active){
@@ -110,15 +110,15 @@ namespace Mist {
       RTMPStream::handshake_in.append(conn.Received().remove(1537));
       RTMPStream::rec_cnt += 1537;
 
-      if (RTMPStream::doHandshake()) {
+      if (RTMPStream::doHandshake()){
         conn.SendNow(RTMPStream::handshake_out);
-        while (!conn.Received().available(1536) && conn.connected() && config->is_active) {
+        while (!conn.Received().available(1536) && conn.connected() && config->is_active){
           conn.spool();
         }
         conn.Received().remove(1536);
         RTMPStream::rec_cnt += 1536;
         HIGH_MSG("Handshake success");
-      } else {
+      }else{
         MEDIUM_MSG("Handshake fail (this is not a problem, usually)");
       }
       setBlocking(false);
@@ -532,7 +532,7 @@ namespace Mist {
     Output::requestHandler();
   }
 
-  void OutRTMP::onRequest() {
+  void OutRTMP::onRequest(){
     parseChunk(myConn.Received());
   }
 
@@ -568,7 +568,7 @@ namespace Mist {
   /// current RTMP URL
   /// connected client host
   /// ~~~~~~~~~~~~~~~
-  void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId) {
+  void OutRTMP::parseAMFCommand(AMF::Object & amfData, int messageType, int streamId){
     MEDIUM_MSG("Received command: %s", amfData.Print().c_str());
     HIGH_MSG("AMF0 command: %s", amfData.getContentP(0)->StrValue().c_str());
     if (amfData.getContentP(0)->StrValue() == "xsbwtest"){
@@ -586,7 +586,7 @@ namespace Mist {
       if (amfData.getContentP(2)->getContentP("objectEncoding")){
         objencoding = amfData.getContentP(2)->getContentP("objectEncoding")->NumValue();
       }
-      if (amfData.getContentP(2)->getContentP("flashVer")) {
+      if (amfData.getContentP(2)->getContentP("flashVer")){
         UA = amfData.getContentP(2)->getContentP("flashVer")->StrValue();
       }
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
@@ -959,7 +959,7 @@ namespace Mist {
       WARN_MSG("Received error response: %s", amfData.Print().c_str());
       return;
     }
-    if ((amfData.getContentP(0)->StrValue() == "_result") || (amfData.getContentP(0)->StrValue() == "onFCPublish") || (amfData.getContentP(0)->StrValue() == "onStatus")) {
+    if ((amfData.getContentP(0)->StrValue() == "_result") || (amfData.getContentP(0)->StrValue() == "onFCPublish") || (amfData.getContentP(0)->StrValue() == "onStatus")){
       if (isRecording() && amfData.getContentP(0)->StrValue() == "_result" && amfData.getContentP(1)->NumValue() == 1){
         {
           AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

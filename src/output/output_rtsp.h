@@ -96,6 +96,16 @@ namespace Mist {
             mediaDesc << "a=rtpmap:101 PCMA/" << trk.rate <<  "/" << trk.channels << "\r\n";
           }
           mediaDesc << "a=control:track" << trk.trackID << "\r\n";
+        }else if ( trk.codec == "PCM") {
+          if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
+            mediaDesc << "m=audio 0 RTP/AVP 10" << "\r\n";
+          } else if (trk.size == 16 && trk.channels == 1 && trk.rate == 44100){
+            mediaDesc << "m=audio 0 RTP/AVP 11" << "\r\n";
+          }else{
+            mediaDesc << "m=audio 0 RTP/AVP 103" << "\r\n";
+            mediaDesc << "a=rtpmap:103 L" << trk.size << "/" << trk.rate <<  "/" << trk.channels << "\r\n";
+          }
+          mediaDesc << "a=control:track" << trk.trackID << "\r\n";
         }else if ( trk.codec == "opus") {
           mediaDesc << "m=audio 0 RTP/AVP 102" << "\r\n"
           "a=rtpmap:102 opus/" << trk.rate << "/" << trk.channels << "\r\n"
@@ -118,6 +128,14 @@ namespace Mist {
             pack = RTP::Packet(8, 1, 0, SSrc);
           }else{
             pack = RTP::Packet(101, 1, 0, SSrc);
+          }
+        }else if ( trk.codec == "PCM") {
+          if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
+            pack = RTP::Packet(10, 1, 0, SSrc);
+          } else if (trk.size == 16 && trk.channels == 1 && trk.rate == 44100){
+            pack = RTP::Packet(11, 1, 0, SSrc);
+          }else{
+            pack = RTP::Packet(103, 1, 0, SSrc);
           }
         }else if(trk.codec == "opus"){
           pack = RTP::Packet(102, 1, 0, SSrc);

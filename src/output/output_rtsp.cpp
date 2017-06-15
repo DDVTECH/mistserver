@@ -60,6 +60,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("PCM");
     capa["codecs"][0u][1u].append("opus");
     
     capa["methods"][0u]["handler"] = "rtsp";
@@ -516,14 +517,7 @@ namespace Mist {
     if (!tracks[track].firstTime){
       tracks[track].firstTime = pkt.getTimeStamp() + 1;
     }
-    if (myMeta.tracks[track].codec == "ALAW"){
-      char * pl = pkt.getPayload();
-      DTSC::Packet nextPack;
-      nextPack.genericFill((pkt.getTimeStamp() - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl, pkt.getPayloadSize(), 0, false);
-      bufferLivePacket(nextPack);
-      return;
-    }
-    if (myMeta.tracks[track].codec == "opus"){
+    if (myMeta.tracks[track].codec == "ALAW" || myMeta.tracks[track].codec == "opus" || myMeta.tracks[track].codec == "MP3" || myMeta.tracks[track].codec == "PCM"){
       char * pl = pkt.getPayload();
       DTSC::Packet nextPack;
       nextPack.genericFill((pkt.getTimeStamp() - tracks[track].firstTime + 1) / ((double)myMeta.tracks[track].rate / 1000.0), 0, track, pl, pkt.getPayloadSize(), 0, false);
@@ -555,6 +549,10 @@ namespace Mist {
       //Prints a WARN-level message if packet type is unsupported.
       /// \todo Support other H264 packets types?
       char * pl = pkt.getPayload();
+      if (!pkt.getPayloadSize()){
+        WARN_MSG("Empty packet ignored!");
+        return;
+      }
       if ((pl[0] & 0x1F) == 0){
         WARN_MSG("H264 packet type null ignored");
         return;
@@ -755,6 +753,24 @@ namespace Mist {
               thisTrack->channels = 1;
               INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
               break;
+            case 10: //PCM Stereo, 44.1kHz
+              INFO_MSG("Linear PCM stereo 44.1kHz payload type");
+              nope = false;
+              thisTrack->codec = "PCM";
+              thisTrack->size = 16;
+              thisTrack->rate = 44100;
+              thisTrack->channels = 2;
+              INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+              break;
+            case 11: //PCM Mono, 44.1kHz
+              INFO_MSG("Linear PCM mono 44.1kHz payload type");
+              nope = false;
+              thisTrack->codec = "PCM";
+              thisTrack->rate = 44100;
+              thisTrack->size = 16;
+              thisTrack->channels = 1;
+              INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+              break;
             default:
               //dynamic type
               if (avp_type >= 96 && avp_type <= 127){
@@ -795,6 +811,22 @@ namespace Mist {
           thisTrack->init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
         }
         if (trCodec == "PCMA"){thisTrack->codec = "ALAW";}
+        if (trCodec == "L8"){
+          thisTrack->codec = "PCM";
+          thisTrack->size = 8;
+        }
+        if (trCodec == "L16"){
+          thisTrack->codec = "PCM";
+          thisTrack->size = 16;
+        }
+        if (trCodec == "L20"){
+          thisTrack->codec = "PCM";
+          thisTrack->size = 20;
+        }
+        if (trCodec == "L24"){
+          thisTrack->codec = "PCM";
+          thisTrack->size = 24;
+        }
         if (trCodec == "MPEG4-GENERIC"){thisTrack->codec = "AAC";}
         INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         continue;

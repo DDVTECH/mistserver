@@ -40,6 +40,7 @@ namespace Mist{
     capa["url_match"] = "/$.wav";
     capa["codecs"][0u][0u].append("ALAW");
     capa["codecs"][0u][0u].append("MP3");
+    capa["codecs"][0u][0u].append("PCM");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/wav";
     capa["methods"][0u]["priority"] = 1ll;
@@ -59,6 +60,39 @@ namespace Mist{
     char *dataPointer = 0;
     unsigned int len = 0;
     thisPacket.getString("data", dataPointer, len);
+
+    //PCM must be converted to little-endian if > 8 bits per sample
+    static char * swappyPointer = 0;
+    static uint32_t swappySize = 0;
+    DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
+    if (trk.codec == "PCM"){
+      if (trk.size > 8){
+        if (swappySize < len){
+          char * tmp = (char*)realloc(swappyPointer, len);
+          if (!tmp){
+            FAIL_MSG("Could not allocate data for PCM endianness swap!");
+            return;
+          }
+          swappyPointer = tmp;
+          swappySize = len;
+        }
+      }
+      if (trk.size == 16){
+        for (uint32_t i = 0; i < len; i+=2){
+          swappyPointer[i] = dataPointer[i+1];
+          swappyPointer[i+1] = dataPointer[i];
+        }
+      }
+      if (trk.size == 24){
+        for (uint32_t i = 0; i < len; i+=3){
+          swappyPointer[i] = dataPointer[i+2];
+          swappyPointer[i+1] = dataPointer[i+1];
+          swappyPointer[i+2] = dataPointer[i];
+        }
+      }
+      dataPointer = swappyPointer;
+    }
+
     myConn.SendNow(dataPointer, len);
   }
 
@@ -88,14 +122,17 @@ namespace Mist{
     // Send format details
     uint16_t fmt = 0;
     if (Trk.codec == "ALAW"){fmt = 6;}
+    if (Trk.codec == "PCM"){fmt = 1;}
     if (Trk.codec == "MP3"){fmt = 85;}
     myConn.SendNow(RIFF::fmt::generate(fmt, Trk.channels, Trk.rate, Trk.bps,
                                        Trk.channels * (Trk.size << 3), Trk.size));
     // Send sample count per channel
-    if (!myMeta.live){
-      myConn.SendNow(RIFF::fact::generate(((Trk.lastms - Trk.firstms) * Trk.rate) / 1000));
-    }else{
-      myConn.SendNow(RIFF::fact::generate(0xFFFFFFFFul));
+    if (fmt != 1){//Not required for PCM
+      if (!myMeta.live){
+        myConn.SendNow(RIFF::fact::generate(((Trk.lastms - Trk.firstms) * Trk.rate) / 1000));
+      }else{
+        myConn.SendNow(RIFF::fact::generate(0xFFFFFFFFul));
+      }
     }
     // Send MistServer identifier
     myConn.SendNow("LIST\026\000\000\000infoISFT\012\000\000\000MistServer", 30);

@@ -182,7 +182,11 @@ const char * FLV::Tag::getVideoCodec() {
 const char * FLV::Tag::getAudioCodec() {
   switch (data[11] & 0xF0) {
     case 0x00:
-      return "PCMPE";
+      if (data[11] & 0x02){
+        return "PCMPE";//unknown endianness
+      }else{
+        return "PCM";//8 bit is always regular PCM
+      }
     case 0x10:
       return "ADPCM";
     case 0x20:

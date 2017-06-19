@@ -172,7 +172,17 @@ namespace Mist {
       H.Chunkify("", 0, myConn);
       return;
     }
-    tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
+    DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
+    tag.DTSCLoader(thisPacket, trk);
+    if (trk.codec == "PCM" && trk.size == 16){
+      char * ptr = tag.getData();
+      uint32_t ptrSize = tag.getDataLen();
+      for (uint32_t i = 0; i < ptrSize; i+=2){
+        char tmpchar = ptr[i];
+        ptr[i] = ptr[i+1];
+        ptr[i+1] = tmpchar;
+      }
+    }
     if (tag.len){
       H.Chunkify(tag.data, tag.len, myConn);
     }

@@ -31,7 +31,17 @@ namespace Mist {
   }
   
   void OutProgressiveFLV::sendNext(){
-    tag.DTSCLoader(thisPacket, myMeta.tracks[thisPacket.getTrackId()]);
+    DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
+    tag.DTSCLoader(thisPacket, trk);
+    if (trk.codec == "PCM" && trk.size == 16){
+      char * ptr = tag.getData();
+      uint32_t ptrSize = tag.getDataLen();
+      for (uint32_t i = 0; i < ptrSize; i+=2){
+        char tmpchar = ptr[i];
+        ptr[i] = ptr[i+1];
+        ptr[i+1] = tmpchar;
+      }
+    }
     myConn.SendNow(tag.data, tag.len); 
   }
 

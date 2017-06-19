@@ -342,7 +342,6 @@ int main_loop(int argc, char ** argv){
   #endif
   #ifdef LICENSING
   Controller::initLicense();
-  Controller::checkLicense();
   //start license checking thread
   tthread::thread licenseThread(Controller::licenseLoop, 0);
   #endif

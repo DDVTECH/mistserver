@@ -7,6 +7,7 @@
 *.bak
 *~
 .deps
+generated/
 Makefile.in
 Makefile
 version.m4

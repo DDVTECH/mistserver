@@ -132,6 +132,18 @@ namespace Mist {
       return getNext();
     }
     thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(), tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe); //init packet from tmpTags data
+
+    DTSC::Track & trk = myMeta.tracks[tmpTag.getTrackID()];
+    if (trk.codec == "PCM" && trk.size == 16){
+      char * ptr = 0;
+      uint32_t ptrSize = 0;
+      thisPacket.getString("data", ptr, ptrSize);
+      for (uint32_t i = 0; i < ptrSize; i+=2){
+        char tmpchar = ptr[i];
+        ptr[i] = ptr[i+1];
+        ptr[i+1] = tmpchar;
+      }
+    }
   }
 
   void inputFLV::seek(int seekTime) {

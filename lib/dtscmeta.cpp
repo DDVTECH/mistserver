@@ -1271,7 +1271,7 @@ namespace DTSC {
       } else {
         newKey.setNumber(1);
       }
-      if (packBytePos >= 0) { //For VoD
+      if (packBytePos) { //For VoD
         newKey.setBpos(packBytePos);
       } else {
         newKey.setBpos(0);
@@ -1519,10 +1519,10 @@ namespace DTSC {
       //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
       //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
       //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
-      packSendSize = 24 + (packOffset?17:0) + (packBytePos>=0?15:0) + (isKeyframe?19:0) + packDataSize+11;
+      packSendSize = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + packDataSize+11;
     }
     if (vod != (packBytePos > 0)){
-      INFO_MSG("Changing stream from %s to %s (bPos=%lld)", vod?"VoD":"live", (packBytePos >= 0)?"Vod":"live", packBytePos);
+      INFO_MSG("Changing stream from %s to %s (bPos=%lld)", vod?"VoD":"live", packBytePos?"Vod":"live", packBytePos);
     }
     vod = (packBytePos > 0);
     live = !vod;

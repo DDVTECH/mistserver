@@ -12,5 +12,6 @@ namespace Util {
   bool streamAlive(std::string & streamname);
   bool startInput(std::string streamname, std::string filename = "", bool forkFirst = true, bool isProvider = false);
   JSON::Value getStreamConfig(std::string streamname);
+  uint8_t getStreamStatus(std::string & streamname);
 }
 

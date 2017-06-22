@@ -130,6 +130,10 @@ namespace Mist {
         DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
         return 1;
       }
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+      streamStatus.init(pageName, 1, true, false);
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
     }
     config->activate();
     uint64_t reTimer = 0;
@@ -158,6 +162,7 @@ namespace Mist {
         MEDIUM_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
 #if DEBUG >= DLVL_DEVEL
       WARN_MSG("Aborting autoclean; this is a development build.");
       INFO_MSG("Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
@@ -178,6 +183,7 @@ namespace Mist {
   }
 
   int Input::run() {
+    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
     checkHeaderTimes(config->getString("input"));
     if (!readHeader()) {
       std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
@@ -287,6 +293,7 @@ namespace Mist {
       }
     }
     /*LTS-END*/
+    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_READY;}
 
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
     activityCounter = Util::bootSecs();
@@ -310,6 +317,7 @@ namespace Mist {
         Util::wait(1000);
       }
     }
+    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
     config->is_active = false;
     finish();
     DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());

@@ -107,6 +107,14 @@ static inline void show_stackframe(){}
 #define FLIP_MIN_DURATION 20000
 
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
+#define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
+#define STRMSTAT_OFF 0
+#define STRMSTAT_INIT 1
+#define STRMSTAT_BOOT 2
+#define STRMSTAT_WAIT 3
+#define STRMSTAT_READY 4
+#define STRMSTAT_SHUTDOWN 5
+#define STRMSTAT_INVALID 255
 #define SHM_TRACK_META "MstTRAK%s@%lu" //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX "MstTRID%s@%lu" //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX_SIZE 8192

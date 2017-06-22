@@ -69,6 +69,7 @@ namespace Mist {
 
       //Create server for user pages
       IPC::sharedServer userPage;
+      IPC::sharedPage streamStatus;
 
       std::map<unsigned int, std::map<unsigned int, unsigned int> > pageCounter;
 

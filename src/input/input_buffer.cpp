@@ -571,6 +571,7 @@ namespace Mist {
       }
     }
     updateMeta();
+    if (streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
     static bool everHadPush = false;
     if (hasPush) {
       hasPush = false;

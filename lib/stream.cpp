@@ -350,6 +350,15 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   // The target can hold variables like current time etc
   replace_variables(target);
   replace(target, "$stream", streamname);
+  if (streamname.find('+') != std::string::npos){
+    std::string strbase = streamname.substr(0, streamname.find('+'));
+    std::string strext = streamname.substr(streamname.find('+')+1);
+    replace(target, "$basename", strbase);
+    replace(target, "$wildcard", strext);
+  }else{
+    replace(target, "$basename", streamname);
+    replace(target, "$wildcard", "");
+  }
 
   //Attempt to load up configuration and find this stream
   IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);

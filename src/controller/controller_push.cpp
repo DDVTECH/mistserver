@@ -133,7 +133,7 @@ namespace Controller{
                 std::string streamname = jt->first;
                 std::string target = (*it)[1u];
                 if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
-                  if (!isPushActive(streamname, target)){
+                  if (!isPushActive(streamname, target) && Util::getStreamStatus(streamname) == STRMSTAT_READY){
                     if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
                       waitingPushes[streamname].erase(target);
                       if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}

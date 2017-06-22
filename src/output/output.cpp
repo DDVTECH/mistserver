@@ -431,7 +431,7 @@ namespace Mist{
     VERYHIGH_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
-    while (pageNum == -1){
+    while (config->is_active && myConn && pageNum == -1){
       if (!timeout){
         HIGH_MSG("Requesting page with key %lu:%lld", trackId, keyNum);
       }

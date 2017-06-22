@@ -133,6 +133,8 @@ namespace Mist {
       virtual bool isPushing(){return pushing;};
       bool allowPush(const std::string & passwd);
       void bufferLivePacket(DTSC::Packet & packet);
+      uint64_t firstPacketTime;
+      uint64_t lastPacketTime;
   };
 
 }

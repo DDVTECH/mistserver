@@ -58,6 +58,8 @@ namespace Mist{
   Output::Output(Socket::Connection & conn) : myConn(conn){
     pushing = false;
     firstTime = 0;
+    firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
+    lastPacketTime = 0;
     crc = getpid();
     parseData = false;
     wantRequest = true;
@@ -839,6 +841,10 @@ namespace Mist{
         }
         if (prepareNext()){
           if (thisPacket){
+            lastPacketTime = thisPacket.getTime();
+            if (firstPacketTime == 0xFFFFFFFFFFFFFFFFull){
+              firstPacketTime = lastPacketTime;
+            }
 
 
             //slow down processing, if real time speed is wanted
@@ -904,12 +910,22 @@ namespace Mist{
       Triggers::doTrigger("CONN_CLOSE", payload, streamName);
     }
     if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+      uint64_t rightNow = Util::epoch();
       std::stringstream payl;
       payl << streamName << '\n';
       payl << config->getString("target") << '\n';
       payl << capa["name"].asStringRef() << '\n';
       payl << myConn.dataUp() << '\n';
-      payl << (Util::epoch() - myConn.connTime()) << '\n';
+      payl << (rightNow - myConn.connTime()) << '\n';
+      payl << myConn.connTime() << '\n';
+      payl << rightNow << '\n';
+      if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
+        payl << (lastPacketTime - firstPacketTime) << '\n';
+      }else{
+        payl << 0 << '\n';
+      }
+      payl << firstPacketTime << '\n';
+      payl << lastPacketTime << '\n';
       Triggers::doTrigger("RECORDING_END", payl.str(), streamName);
     }
     /*LTS-END*/

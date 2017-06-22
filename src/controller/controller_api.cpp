@@ -572,7 +572,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       startPush(stream, target);
     }else{
       if (activeStreams.size()){
-        for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+        for (std::map<std::string, uint8_t>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
           if (jt->first.substr(0, stream.size()) == stream){
             std::string streamname = jt->first;
             std::string target_tmp = target;

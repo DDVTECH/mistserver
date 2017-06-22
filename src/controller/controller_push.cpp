@@ -129,7 +129,7 @@ namespace Controller{
           jsonForEach(Controller::Storage["autopushes"], it){
             const std::string &pStr = (*it)[0u].asStringRef();
             if (activeStreams.size()){
-              for (std::map<std::string, unsigned int>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+              for (std::map<std::string, uint8_t>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
                 std::string streamname = jt->first;
                 std::string target = (*it)[1u];
                 if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
@@ -195,7 +195,7 @@ namespace Controller{
     if (activeStreams.size()){
       const std::string &pStr = newPush[0u].asStringRef();
       std::string target = newPush[1u].asStringRef();
-      for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
+      for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
         std::string streamname = it->first;
         if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
 

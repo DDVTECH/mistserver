@@ -19,7 +19,7 @@ namespace Controller {
   extern unsigned int maxConnsPerIP;
 
   //These keep track of which streams are currently active.
-  extern std::map<std::string, unsigned int> activeStreams;
+  extern std::map<std::string, uint8_t> activeStreams;
   ///This function is ran whenever a stream becomes active.
   void streamStarted(std::string stream);
   ///This function is ran whenever a stream becomes inactive.

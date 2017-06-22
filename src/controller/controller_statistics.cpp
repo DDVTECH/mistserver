@@ -6,6 +6,7 @@
 #include <mist/shared_memory.h>
 #include <mist/dtsc.h>
 #include <mist/procs.h>
+#include <mist/stream.h>
 #include "controller_statistics.h"
 #include "controller_limits.h"
 #include "controller_push.h"
@@ -40,7 +41,7 @@ std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; /
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
-std::map<std::string, unsigned int> Controller::activeStreams;
+std::map<std::string, uint8_t> Controller::activeStreams;
 unsigned int Controller::maxConnsPerIP = 0;
 
 /// Session cache shared memory page
@@ -319,9 +320,17 @@ void Controller::SharedMemStats(void * config){
         }
       }
       if (activeStreams.size()){
-        for (std::map<std::string, unsigned int>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
-          if (++it->second > STATS_DELAY){
-            streamStopped(it->first);
+        for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
+          uint8_t newState = Util::getStreamStatus(it->first);
+          if (newState != activeStreams[it->first]){
+            activeStreams[it->first] = newState;
+            if (newState == STRMSTAT_READY){
+              streamStarted(it->first);
+            }else{
+              streamStopped(it->first);
+            }
+          }
+          if (newState == STRMSTAT_OFF){
             inactiveStreams.insert(it->first);
           }
         }
@@ -955,9 +964,8 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
       std::string strmName = tmpEx.streamName();
       if (strmName.size()){
         if (!activeStreams.count(strmName)){
-          streamStarted(strmName);
+          activeStreams[strmName] = 0;
         }
-        activeStreams[strmName] = 0;
       }
     }
   }

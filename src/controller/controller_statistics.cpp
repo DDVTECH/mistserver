@@ -322,12 +322,15 @@ void Controller::SharedMemStats(void * config){
       if (activeStreams.size()){
         for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
           uint8_t newState = Util::getStreamStatus(it->first);
-          if (newState != activeStreams[it->first]){
+          uint8_t oldState = activeStreams[it->first];
+          if (newState != oldState){
             activeStreams[it->first] = newState;
             if (newState == STRMSTAT_READY){
               streamStarted(it->first);
             }else{
-              streamStopped(it->first);
+              if (oldState == STRMSTAT_READY){
+                streamStopped(it->first);
+              }
             }
           }
           if (newState == STRMSTAT_OFF){

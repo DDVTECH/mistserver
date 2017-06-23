@@ -472,7 +472,7 @@ static std::string strftime_now(const std::string& format) {
   return buffer;
 }
 
-uint8_t Util::getStreamStatus(std::string & streamname){
+uint8_t Util::getStreamStatus(const std::string & streamname){
   char pageName[NAME_BUFFER_SIZE];
   snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
   IPC::sharedPage streamStatus(pageName, 1, false, false);

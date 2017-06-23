@@ -1,25 +1,29 @@
-#include <string>
 #include <deque>
 #include <map>
 #include <stdint.h>
+#include <string>
 
-namespace Util {
-  bool stringScan(const std::string & src, const std::string & pattern, std::deque<std::string> & result);
-  uint64_t ftell(FILE * stream);
-  uint64_t fseek(FILE * stream, uint64_t offset, int whence);
- 
-  ///Holds type, size and offset for RelAccX class internal data fields.
+namespace Util{
+  bool isDirectory(const std::string &path);
+  bool createPathFor(const std::string &file);
+  bool createPath(const std::string &path);
+  bool stringScan(const std::string &src, const std::string &pattern,
+                  std::deque<std::string> &result);
+  uint64_t ftell(FILE *stream);
+  uint64_t fseek(FILE *stream, uint64_t offset, int whence);
+
+  /// Holds type, size and offset for RelAccX class internal data fields.
   class RelAccXFieldData{
-    public:
-      uint8_t type;
-      uint32_t size;
-      uint32_t offset;
-      RelAccXFieldData(){}
-      RelAccXFieldData(uint8_t t, uint32_t s, uint32_t o){
-        type = t;
-        size = s;
-        offset = o;
-      }
+  public:
+    uint8_t type;
+    uint32_t size;
+    uint32_t offset;
+    RelAccXFieldData(){}
+    RelAccXFieldData(uint8_t t, uint32_t s, uint32_t o){
+      type = t;
+      size = s;
+      offset = o;
+    }
   };
 
   #define RAX_NESTED 0x01
@@ -41,8 +45,10 @@ namespace Util {
   #define RAX_512RAW 0x45
 
   /// Reliable Access class.
-  /// Provides reliable access to memory data structures, using dynamic static offsets and a status field.
-  /// All internal fields are host byte order (since no out-of-machine accesses happen), except 24 bit fields, which are network byte order.
+  /// Provides reliable access to memory data structures, using dynamic static offsets and a status
+  /// field.
+  /// All internal fields are host byte order (since no out-of-machine accesses happen), except 24
+  /// bit fields, which are network byte order.
   /// Data structure:
   ///     1 byte status bit fields (1 = ready, 2 = exit, 4 = reload)
   ///     1 byte field_offset (where the field description starts)
@@ -55,7 +61,8 @@ namespace Util {
   ///     @field_offset: offset-field_offset bytes fields:
   ///       5 bits field name len (< 32), 3 bits type len (1-5)
   ///       len bytes field name string (< 32 bytes)
-  ///       1 byte field type (0x01 = RelAccX, 0x1X = uint, 0x2X = int, 0x3X = string, 0x4X = binary)
+  ///       1 byte field type (0x01 = RelAccX, 0x1X = uint, 0x2X = int, 0x3X = string, 0x4X =
+  ///       binary)
   ///         if type-len > 1: rest-of-type-len bytes max len
   ///         else, for 0xYX:
   ///           Y=1/2: X+1 bytes maxlen (1-16b)
@@ -65,46 +72,50 @@ namespace Util {
   ///       0x1X/2X: X+1 bytes (u)int data
   ///       0x3X: max maxlen bytes string data, zero term'd
   ///       0x4X: maxlen bytes binary data
-  /// Setting ready means the record size, offset and fields will no longer change. Count may still go up (not down)
+  /// Setting ready means the record size, offset and fields will no longer change. Count may still
+  /// go up (not down)
   /// Setting exit means the writer has exited, and readers should exit too.
-  /// Setting reload means the writer needed to change fields, and the pointer should be closed and re-opened through outside means (e.g. closing and re-opening the containing shm page).
+  /// Setting reload means the writer needed to change fields, and the pointer should be closed and
+  /// re-opened through outside means (e.g. closing and re-opening the containing shm page).
   class RelAccX{
-    public:
-      RelAccX(char * data, bool waitReady = true);
-      //Read-only functions:
-      uint32_t getRCount() const;
-      uint32_t getRSize() const;
-      uint16_t getOffset() const;
-      uint32_t getStartPos() const;
-      uint64_t getDeleted() const;
-      uint32_t getPresent() const;
-      bool isReady() const;
-      bool isExit() const;
-      bool isReload() const;
-      bool isRecordAvailable(uint64_t recordNo) const;
-      uint32_t getRecordPosition(uint64_t recordNo) const;
-      uint32_t getSize(const std::string & name, uint64_t recordNo=0) const;
-      char * getPointer(const std::string & name, uint64_t recordNo=0) const;
-      uint64_t getInt(const std::string & name, uint64_t recordNo=0) const;
-      std::string toPrettyString() const;
-      //Read-write functions:
-      void addField(const std::string & name, uint8_t fType, uint32_t fLen=0);
-      void setRCount(uint32_t count);
-      void setStartPos(uint32_t n);
-      void setDeleted(uint64_t n);
-      void setPresent(uint32_t n);
-      void setReady();
-      void setExit();
-      void setReload();
-      void setString(const std::string & name, const std::string & val, uint64_t recordNo=0);
-      void setInt(const std::string & name, uint64_t val, uint64_t recordNo=0);
-      void deleteRecords(uint32_t amount);
-      void addRecords(uint32_t amount);
-    protected:
-      static uint32_t getDefaultSize(uint8_t fType);
-    private:
-      char * p;
-      std::map<std::string, RelAccXFieldData> fields;
-  };
+  public:
+    RelAccX(char *data, bool waitReady = true);
+    // Read-only functions:
+    uint32_t getRCount() const;
+    uint32_t getRSize() const;
+    uint16_t getOffset() const;
+    uint32_t getStartPos() const;
+    uint64_t getDeleted() const;
+    uint32_t getPresent() const;
+    bool isReady() const;
+    bool isExit() const;
+    bool isReload() const;
+    bool isRecordAvailable(uint64_t recordNo) const;
+    uint32_t getRecordPosition(uint64_t recordNo) const;
+    uint32_t getSize(const std::string &name, uint64_t recordNo = 0) const;
+    char *getPointer(const std::string &name, uint64_t recordNo = 0) const;
+    uint64_t getInt(const std::string &name, uint64_t recordNo = 0) const;
+    std::string toPrettyString() const;
+    // Read-write functions:
+    void addField(const std::string &name, uint8_t fType, uint32_t fLen = 0);
+    void setRCount(uint32_t count);
+    void setStartPos(uint32_t n);
+    void setDeleted(uint64_t n);
+    void setPresent(uint32_t n);
+    void setReady();
+    void setExit();
+    void setReload();
+    void setString(const std::string &name, const std::string &val, uint64_t recordNo = 0);
+    void setInt(const std::string &name, uint64_t val, uint64_t recordNo = 0);
+    void deleteRecords(uint32_t amount);
+    void addRecords(uint32_t amount);
 
+  protected:
+    static uint32_t getDefaultSize(uint8_t fType);
+
+  private:
+    char *p;
+    std::map<std::string, RelAccXFieldData> fields;
+  };
 }
+

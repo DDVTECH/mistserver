@@ -11,6 +11,7 @@
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include <mist/timing.h>
+#include <mist/util.h>
 #include "output.h"
 
 /*LTS-START*/
@@ -553,7 +554,7 @@ namespace Mist{
     VERYHIGH_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
     unsigned int timeout = 0;
     unsigned long pageNum = pageNumForKey(trackId, keyNum);
-    while (pageNum == -1){
+    while (config->is_active && myConn && pageNum == -1){
       if (!timeout){
         HIGH_MSG("Requesting page with key %lu:%lld", trackId, keyNum);
       }
@@ -1274,6 +1275,10 @@ namespace Mist{
   bool Output::connectToFile(std::string file){
     int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     int mode = O_RDWR | O_CREAT | O_TRUNC;
+    if (!Util::createPathFor(file)){
+      ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
+      return false;
+    }
     int outFile = open(file.c_str(), mode, flags);
     if (outFile < 0){
       ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));

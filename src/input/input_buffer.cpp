@@ -394,13 +394,16 @@ namespace Mist {
       }
     }
     updateMeta();
-    if (streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
+    if (config->is_active){
+      if (streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
+    }
     static bool everHadPush = false;
     if (hasPush) {
       hasPush = false;
       everHadPush = true;
     } else if (everHadPush && !resumeMode && config->is_active) {
       INFO_MSG("Shutting down buffer because resume mode is disabled and the source disconnected");
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
       userPage.finishEach();
     }
@@ -603,6 +606,8 @@ namespace Mist {
         if (!myMeta.tracks.count(finalMap)) {
           DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %d", finalMap);
           myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
+          myMeta.tracks[finalMap].firstms = 0;
+          myMeta.tracks[finalMap].lastms = 0;
           myMeta.tracks[finalMap].trackID = finalMap;
         }
         //Write the final mapped track number and keyframe number to the user page element

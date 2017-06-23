@@ -299,7 +299,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   return streamAlive(streamname);
 }
 
-uint8_t Util::getStreamStatus(std::string & streamname){
+uint8_t Util::getStreamStatus(const std::string & streamname){
   char pageName[NAME_BUFFER_SIZE];
   snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
   IPC::sharedPage streamStatus(pageName, 1, false, false);

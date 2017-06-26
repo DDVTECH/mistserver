@@ -4904,6 +4904,9 @@ var UI = {
                   params: saveas.params,
                   'default': saveas['default']
                 };
+                if (!("triggers" in mist.data.config)) {
+                  mist.data.config.triggers = {};
+                }
                 if (!(saveas.triggeron in mist.data.config.triggers)) {
                   mist.data.config.triggers[saveas.triggeron] = [];
                 }

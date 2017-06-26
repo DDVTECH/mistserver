@@ -291,30 +291,42 @@ namespace DTSC {
     }
   }
 
-  void Packet::appendData(const char * appendData, uint32_t appendLen){
-    resize(dataLen + appendLen);
-    memcpy(data + dataLen-3, appendData, appendLen);
-    memcpy(data + dataLen-3 + appendLen, "\000\000\356", 3);  //end container
-    dataLen += appendLen;
-    Bit::htobl(data+4, Bit::btohl(data +4)+appendLen);
-    uint32_t offset = getDataStringLenOffset();
-    Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen);
-  }
-
-  void Packet::appendNal(const char * appendData, uint32_t appendLen, uint32_t totalLen){
-    if(totalLen ==0){
+  void Packet::appendNal(const char * appendData, uint32_t appendLen){
+    if(appendLen ==0){
       return;
     }
 
 //    INFO_MSG("totallen: %d, appendLen: %d",totalLen,appendLen);
     resize(dataLen + appendLen +4);
-    Bit::htobl(data+dataLen -3, totalLen);
+    Bit::htobl(data+dataLen -3, appendLen);
     memcpy(data + dataLen-3+4, appendData, appendLen);
     memcpy(data + dataLen-3+4 + appendLen, "\000\000\356", 3);  //end container
     dataLen += appendLen +4;
     Bit::htobl(data+4, Bit::btohl(data +4)+appendLen+4);
     uint32_t offset = getDataStringLenOffset();
     Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen+4);
+
+    prevNalSize = appendLen;
+  }
+
+  void Packet::upgradeNal(const char * appendData, uint32_t appendLen){
+    if(appendLen ==0){
+      return;
+    }
+    uint64_t sizeOffset = dataLen - 3 - 4 - prevNalSize;
+    if (Bit::btohl(data + sizeOffset) != prevNalSize){
+      FAIL_MSG("PrevNalSize state not correct");
+      return;
+    }
+    resize(dataLen + appendLen);//Not + 4 as size bytes have already been written here.
+    Bit::htobl(data+sizeOffset, prevNalSize + appendLen);
+    prevNalSize += appendLen;
+    memcpy(data + dataLen - 3, appendData, appendLen);
+    memcpy(data + dataLen - 3 + appendLen, "\000\000\356", 3);  //end container
+    dataLen += appendLen;
+    Bit::htobl(data+4, Bit::btohl(data +4)+appendLen);
+    uint32_t offset = getDataStringLenOffset();
+    Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen);
   }
 
   uint32_t Packet::getDataStringLen(){

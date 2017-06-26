@@ -118,7 +118,6 @@ namespace DTSC {
       void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe);
-      void appendData(const char * appendData, uint32_t appendLen);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, int & result) const;
@@ -126,7 +125,8 @@ namespace DTSC {
       void getFlag(const char * identifier, bool & result) const;
       bool getFlag(const char * identifier) const;
       bool hasMember(const char * identifier) const;
-      void appendNal(const char * appendData, uint32_t appendLen, uint32_t totalLen);
+      void appendNal(const char * appendData, uint32_t appendLen);
+      void upgradeNal(const char * appendData, uint32_t appendLen);
       void setKeyFrame(bool kf);
       long long unsigned int getTime() const;
       long int getTrackId() const;
@@ -145,6 +145,8 @@ namespace DTSC {
       char * data;
       unsigned int bufferLen;
       unsigned int dataLen;
+
+      uint64_t prevNalSize;
   };
 
   /// A simple structure used for ordering byte seek positions.

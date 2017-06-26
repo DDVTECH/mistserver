@@ -2051,6 +2051,12 @@ var UI = {
         var $protocols_on = $('<span>');
         var $protocols_off = $('<span>');
         
+        var s = {
+          serverid: mist.data.config.serverid,
+          debug: mist.data.config.debug
+        };
+        
+        
         $main.append(UI.buildUI([
           {
             type: 'help',
@@ -2109,15 +2115,15 @@ var UI = {
             type: 'str',
             label: 'Human readable name',
             pointer: {
-              main: mist.data.config,
-              index: 'name'
+              main: s,
+              index: 'serverid'
             },
             help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
           },{
             type: 'debug',
             label: 'Debug level',
             pointer: {
-              main: mist.data.config,
+              main: s,
               index: 'debug'
             },
             help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
@@ -2125,7 +2131,7 @@ var UI = {
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
-              main: mist.data,
+              main: s,
               index: 'save'
             },
             help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box.'
@@ -2135,13 +2141,14 @@ var UI = {
               type: 'save',
               label: 'Save',
               'function': function(){
-                var send = {config: mist.data.config};
-                if (mist.data.save) {
-                  send.save = mist.data.save;
+                var save = {config: s};
+                if (s.save) {
+                  save.save = s.save;
                 }
+                delete s.save;
                 mist.send(function(){
                   UI.navto('Overview');
-                },send)
+                },save)
               }
             }]
           }
@@ -2170,7 +2177,9 @@ var UI = {
               $versioncheck.text('Unknown, checking..');
               setTimeout(function(){
                 mist.send(function(d){
-                  update_update(d);
+                  if ("update" in d) {
+                    update_update(d);
+                  }
                 },{checkupdate:true});
               },5e3);
               return;
@@ -4885,17 +4894,6 @@ var UI = {
                   //remove the old setting
                   mist.data.config.triggers[other[0]].splice(other[1],1);
                 }
-                
-                /*
-                var newtrigger = [
-                  saveas.url,
-                  (saveas.async ? true : false),
-                  (typeof saveas.appliesto != 'undefined' ? saveas.appliesto : [])
-                ];
-                if (typeof saveas['default'] != 'undefined') {
-                  newtrigger.push(saveas['default']);
-                }
-                */
                 
                 var newtrigger = {
                   handler: saveas.url,

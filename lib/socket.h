@@ -25,6 +25,9 @@ namespace Buffer{
 namespace Socket{
 
   void hostBytesToStr(const char *bytes, size_t len, std::string &target);
+  bool isBinAddress(const std::string &binAddr, std::string matchTo);
+  bool matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix);
+  std::string getBinForms(std::string addr);
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{
@@ -49,12 +52,16 @@ namespace Socket{
   };
   // Buffer
 
+  class Server;
+
   /// This class is for easy communicating through sockets, either TCP or Unix.
   class Connection{
+    friend Server;
   private:
     int sock;               ///< Internally saved socket number.
     int pipes[2];           ///< Internally saved file descriptors for pipe socket simulation.
     std::string remotehost; ///< Stores remote host address.
+    struct sockaddr_in6 remoteaddr;///< Stores remote host address.
     uint64_t up;
     uint64_t down;
     long long int conntime;
@@ -84,7 +91,7 @@ namespace Socket{
     int getPureSocket();            ///< Returns non-piped internal socket number.
     std::string getError();         ///< Returns a string describing the last error that occured.
     bool connected() const;         ///< Returns the connected-state for this socket.
-    bool isAddress(std::string addr);
+    bool isAddress(const std::string &addr);
     bool isLocal(); ///< Returns true if remote address is a local address.
     // buffered i/o methods
     bool spool();                               ///< Updates the downbufferinternal variables.

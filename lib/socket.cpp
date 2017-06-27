@@ -33,6 +33,107 @@ static const char* addrFam(int f){
   }
 }
 
+static std::string getIPv6BinAddr(const struct sockaddr_in6 & remoteaddr){
+  char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
+  switch (remoteaddr.sin6_family){
+    case AF_INET:
+      memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in*>(&remoteaddr)->sin_addr.s_addr), 4);
+      break;
+    case AF_INET6:
+      memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16);
+      break;
+    default:
+      return "";
+      break;
+  }
+  return std::string(tmpBuffer, 16);
+}
+
+/// Helper function that matches two binary-format IPv6 addresses with prefix bits of prefix.
+bool Socket::matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix){
+  if (!prefix){prefix = 128;}
+  if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
+    std::string Astr, Bstr;
+    Socket::hostBytesToStr(A.data(), 16, Astr);
+    Socket::hostBytesToStr(B.data(), 16, Bstr);
+    MEDIUM_MSG("Matching: %s to %s with %u prefix", Astr.c_str(), Bstr.c_str(), prefix);
+  }
+  if (memcmp(A.data(), B.data(), prefix / 8)){return false;}
+  if ((prefix % 8) && ((A.data()[prefix / 8] & (0xFF << (8 - (prefix % 8)))) !=
+                       (B.data()[prefix / 8] & (0xFF << (8 - (prefix % 8)))))){
+    return false;
+  }
+  return true;
+}
+
+/// Attempts to match the given address with optional subnet to the given binary-form IPv6 address.
+/// Returns true if match could be made, false otherwise.
+bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
+  //Check if we need to do prefix matching
+  uint8_t prefixLen = 0;
+  if (addr.find('/') != std::string::npos){
+    prefixLen = atoi(addr.c_str() + addr.find('/') + 1);
+    addr.erase(addr.find('/'), std::string::npos);
+  }
+  //Loops over all IPs for the given address and matches them in IPv6 form.
+  struct addrinfo *result, *rp, hints;
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
+  if (s != 0){return false;}
+
+  for (rp = result; rp != NULL; rp = rp->ai_next){
+    std::string tBinAddr = getIPv6BinAddr(*((sockaddr_in6 *)rp->ai_addr));
+    if (rp->ai_family == AF_INET){
+      if (matchIPv6Addr(tBinAddr, binAddr, prefixLen ? prefixLen + 96 : 0)){return true;}
+    }else{
+      if (matchIPv6Addr(tBinAddr, binAddr, prefixLen)){return true;}
+    }
+  }
+  freeaddrinfo(result);
+  return false;
+}
+
+/// Converts the given address with optional subnet to binary IPv6 form.
+/// Returns 16 bytes of address, followed by 1 byte of subnet bits, zero or more times.
+std::string Socket::getBinForms(std::string addr){
+  //Check if we need to do prefix matching
+  uint8_t prefixLen = 128;
+  if (addr.find('/') != std::string::npos){
+    prefixLen = atoi(addr.c_str() + addr.find('/') + 1);
+    addr.erase(addr.find('/'), std::string::npos);
+  }
+  //Loops over all IPs for the given address and converts to IPv6 binary form.
+  struct addrinfo *result, *rp, hints;
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
+  if (s != 0){return "";}
+  std::string ret;
+  for (rp = result; rp != NULL; rp = rp->ai_next){
+    ret += getIPv6BinAddr(*((sockaddr_in6 *)rp->ai_addr));
+    if (rp->ai_family == AF_INET){
+      ret += (char)(prefixLen<=32 ? prefixLen + 96 : prefixLen);
+    }else{
+      ret += (char)prefixLen;
+    }
+  }
+  freeaddrinfo(result);
+  return ret;
+}
+
 /// Checks bytes (length len) containing a binary-encoded IPv4 or IPv6 IP address, and writes it in human-readable notation to target.
 /// Writes "unknown" if it cannot decode to a sensible value.
 void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
@@ -624,40 +725,31 @@ std::string Socket::Connection::getHost() const{
   return remotehost;
 }
 
-/// Gets hostname for connection, if available.
+/// Gets binary IPv6 address for connection, if available.
 /// Guaranteed to be either empty or 16 bytes long.
 std::string Socket::Connection::getBinHost(){
-  if (remotehost.size()){
-    struct addrinfo *result, *rp, hints;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_ADDRCONFIG;
-    hints.ai_protocol = 0;
-    hints.ai_canonname = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_next = NULL;
-    int s = getaddrinfo(remotehost.c_str(), 0, &hints, &result);
-    if (s != 0){
-      DEBUG_MSG(DLVL_FAIL, "Could not resolve '%s'! Error: %s", remotehost.c_str(), gai_strerror(s));
-      return "";
-    }
-    char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
-    for (rp = result; rp != NULL; rp = rp->ai_next){
-      if (rp->ai_family == AF_INET){memcpy(tmpBuffer + 12, &((sockaddr_in *)rp->ai_addr)->sin_addr.s_addr, 4);}
-      if (rp->ai_family == AF_INET6){memcpy(tmpBuffer, ((sockaddr_in6 *)rp->ai_addr)->sin6_addr.s6_addr, 16);}
-    }
-    freeaddrinfo(result);
-    return std::string(tmpBuffer, 16);
-  }else{
-    return "";
-  }
+  return getIPv6BinAddr(remoteaddr);
 }
 
 /// Sets hostname for connection manually.
 /// Overwrites the detected host, thus possibily making it incorrect.
 void Socket::Connection::setHost(std::string host){
   remotehost = host;
+  struct addrinfo *result, *rp, hints;
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  hints.ai_protocol = 0;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+  int s = getaddrinfo(host.c_str(), 0, &hints, &result);
+  if (s != 0){return;}
+  if (result){
+    remoteaddr = *((sockaddr_in6 *)result->ai_addr);
+  }
+  freeaddrinfo(result);
 }
 
 /// Returns true if these sockets are the same socket.
@@ -680,35 +772,10 @@ Socket::Connection::operator bool() const{
 
 /// Returns true if the given address can be matched with the remote host.
 /// Can no longer return true after any socket error have occurred.
-bool Socket::Connection::isAddress(std::string addr){
-  struct addrinfo *result, *rp, hints;
-  memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
-  hints.ai_protocol = 0;
-  hints.ai_canonname = NULL;
-  hints.ai_addr = NULL;
-  hints.ai_next = NULL;
-  int s = getaddrinfo(addr.c_str(), 0, &hints, &result);
-  if (s != 0){return false;}
-
-  char newaddr[INET6_ADDRSTRLEN];
-  newaddr[0] = 0;
-  for (rp = result; rp != NULL; rp = rp->ai_next){
-    if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in *)rp->ai_addr)->sin_addr), newaddr, INET6_ADDRSTRLEN)){
-      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
-      if (remotehost == newaddr){return true;}
-      INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), newaddr);
-      if (remotehost == std::string("::ffff:") + newaddr){return true;}
-    }
-    if (rp->ai_family == AF_INET6 && inet_ntop(rp->ai_family, &(((sockaddr_in6 *)rp->ai_addr)->sin6_addr), newaddr, INET6_ADDRSTRLEN)){
-      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), newaddr);
-      if (remotehost == newaddr){return true;}
-    }
-  }
-  freeaddrinfo(result);
-  return false;
+bool Socket::Connection::isAddress(const std::string &addr){
+  //Retrieve current socket binary address
+  std::string myBinAddr = getBinHost();
+  return isBinAddress(myBinAddr, addr);
 }
 
 bool Socket::Connection::isLocal(){
@@ -719,23 +786,23 @@ bool Socket::Connection::isLocal(){
 
   getifaddrs(&ifAddrStruct);
 
-  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next) {
-    if (!ifa->ifa_addr) {
+  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next){
+    if (!ifa->ifa_addr){
       continue;
     }
-    if (ifa->ifa_addr->sa_family == AF_INET) { // check it is IP4
+    if (ifa->ifa_addr->sa_family == AF_INET){// check it is IP4
       tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
       inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
       INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
-    } else if (ifa->ifa_addr->sa_family == AF_INET6) { // check it is IP6
+    }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
       tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
       inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
-    } 
+    }
   }
   if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
   return false;
@@ -907,10 +974,10 @@ Socket::Server::Server(std::string address, bool nonblock){
 /// \returns A Socket::Connection, which may or may not be connected, depending on settings and circumstances.
 Socket::Connection Socket::Server::accept(bool nonblock){
   if (sock < 0){return Socket::Connection(-1);}
-  struct sockaddr_in6 addrinfo;
-  socklen_t len = sizeof(addrinfo);
+  struct sockaddr_in6 tmpaddr;
+  socklen_t len = sizeof(tmpaddr);
   static char addrconv[INET6_ADDRSTRLEN];
-  int r = ::accept(sock, (sockaddr *)&addrinfo, &len);
+  int r = ::accept(sock, (sockaddr *)&tmpaddr, &len);
   // set the socket to be nonblocking, if requested.
   // we could do this through accept4 with a flag, but that call is non-standard...
   if ((r >= 0) && nonblock){
@@ -919,21 +986,22 @@ Socket::Connection Socket::Server::accept(bool nonblock){
     fcntl(r, F_SETFL, flags);
   }
   Socket::Connection tmp(r);
+  tmp.remoteaddr = tmpaddr;
   if (r < 0){
     if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)){
       DEBUG_MSG(DLVL_FAIL, "Error during accept - closing server socket %d.", sock);
       close();
     }
   }else{
-    if (addrinfo.sin6_family == AF_INET6){
-      tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+    if (tmpaddr.sin6_family == AF_INET6){
+      tmp.remotehost = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
       DEBUG_MSG(DLVL_HIGH, "IPv6 addr [%s]", tmp.remotehost.c_str());
     }
-    if (addrinfo.sin6_family == AF_INET){
-      tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+    if (tmpaddr.sin6_family == AF_INET){
+      tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
       DEBUG_MSG(DLVL_HIGH, "IPv4 addr [%s]", tmp.remotehost.c_str());
     }
-    if (addrinfo.sin6_family == AF_UNIX){
+    if (tmpaddr.sin6_family == AF_UNIX){
       DEBUG_MSG(DLVL_HIGH, "Unix connection");
       tmp.remotehost = "UNIX_SOCKET";
     }
@@ -1251,7 +1319,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
     }
     if (multicast){
       const int optval = 1;
-      if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+      if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0){
         WARN_MSG("Could not set multicast UDP socket re-use!");
       }
     }
@@ -1408,3 +1476,4 @@ bool Socket::UDPConnection::Receive(){
 int Socket::UDPConnection::getSock(){
   return sock;
 }
+

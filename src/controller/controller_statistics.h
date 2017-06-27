@@ -25,6 +25,8 @@ namespace Controller {
   ///This function is ran whenever a stream becomes inactive.
   void streamStopped(std::string stream);
   
+  void updateBandwidthConfig();
+  
   struct statLog {
     long time;
     long lastSecond;
@@ -82,6 +84,7 @@ namespace Controller {
       std::deque<statStorage> oldConns;
       sessType sessionType;
       bool tracked;
+      uint8_t noBWCount;///<Set to 2 when not to count for external bandwidth
     public:
       statSession();
       uint32_t invalidate();

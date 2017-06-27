@@ -282,6 +282,18 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       Controller::prometheus = out["prometheus"].asStringRef();
     }
   }
+  if (Request.isMember("bandwidth")){
+    if (Request["bandwidth"].isObject()){
+      if (Request["bandwidth"].isMember("limit") && Request["bandwidth"]["limit"].isInt()){
+        Controller::Storage["bandwidth"]["limit"] = Request["bandwidth"]["limit"];
+      }
+      if (Request["bandwidth"].isMember("exceptions") && Request["bandwidth"]["exceptions"].isArray()){
+        Controller::Storage["bandwidth"]["exceptions"] = Request["bandwidth"]["exceptions"];
+      }
+      Controller::updateBandwidthConfig();
+    }
+    Response["bandwidth"] = Controller::Storage["bandwidth"];
+  }
   if (Request.isMember("streams")){
     Controller::CheckStreams(Request["streams"], Controller::Storage["streams"]);
   }

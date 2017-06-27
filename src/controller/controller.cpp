@@ -253,6 +253,7 @@ int main_loop(int argc, char ** argv){
   }
   Controller::writeConfig();
   Controller::checkAvailProtocols();
+  Controller::updateBandwidthConfig();
   createAccount(Controller::conf.getString("account"));
   
   //if a terminal is connected and we're not logging to file

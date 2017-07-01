@@ -574,7 +574,12 @@ namespace MP4 {
   }
 
   uint32_t AVCC::getSPSLen() {
-    return getInt16(6);
+    uint16_t len = getInt16(6);
+    if (len > payloadSize() - 8){
+      WARN_MSG("SPS length of %u is more than AVCC box size %lu", len, payloadSize());
+      return 0;
+    }
+    return len;
   }
 
   char * AVCC::getSPS() {
@@ -621,7 +626,16 @@ namespace MP4 {
 
   uint32_t AVCC::getPPSLen() {
     int offset = 8 + getSPSLen() + 1;
-    return getInt16(offset);
+    if (offset > payloadSize() - 2){
+      WARN_MSG("Invalid PPS length offset! Aborting PPS read.");
+      return 0;
+    }
+    uint16_t len = getInt16(offset);
+    if (len > payloadSize() - offset - 2){
+      WARN_MSG("PPS length of %u is more than AVCC box size %lu", len, payloadSize());
+      return 0;
+    }
+    return len;
   }
 
   char * AVCC::getPPS() {

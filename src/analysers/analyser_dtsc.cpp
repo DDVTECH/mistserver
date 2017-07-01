@@ -1,5 +1,6 @@
 #include "analyser_dtsc.h"
 #include <mist/h264.h>
+#include <iomanip>
 
 void AnalyserDTSC::init(Util::Config &conf){
   Analyser::init(conf);
@@ -33,6 +34,15 @@ bool AnalyserDTSC::parsePacket(){
     if (detail >= 2){
       std::cout << "DTSCv2 packet (Track " << P.getTrackId() << ", time " << P.getTime()
                 << "): " << P.getScan().toPrettyString() << std::endl;
+    }
+    if (detail >= 8){
+      char * payDat;
+      unsigned int payLen;
+      P.getString("data", payDat, payLen);
+      for (uint64_t i = 0; i < payLen; ++i){
+        if ((i % 32) == 0){std::cout << std::endl;}
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)payDat[i];
+      }
     }
     break;
   }

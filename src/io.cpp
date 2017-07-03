@@ -336,7 +336,7 @@ namespace Mist {
       Bit::htobll(iVec, iVecs[tid]);
       iVecs[tid] ++;
 
-      Encryption::encryptPlayReady(pack, myMeta.tracks[tid].codec, iVec, vmData.key.data());
+      Encryption::encryptPlayReady((DTSC::Packet&)pack, myMeta.tracks[tid].codec, iVec, vmData.key.data());
     }
 
     //First memcpy only the payload to the destination

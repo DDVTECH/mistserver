@@ -168,6 +168,7 @@ namespace Mist{
     if(Triggers::shouldTrigger("CONN_PLAY", streamName)){
       std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
+        INFO_MSG("Shutting down due to CONN_PLAY trigger rejection");
         onFinish();
         myConn.close();
       }
@@ -237,7 +238,7 @@ namespace Mist{
         unsigned int i = 0;
         tmpEx.setSync(initialSync);
         //wait max 10 seconds for sync
-        while ((!tmpEx.getSync() || tmpEx.getSync() == 2) && i++ < 100){
+        while ((!tmpEx.getSync() || tmpEx.getSync() == 2) && i++ < 100 && keepGoing()){
           Util::wait(100);
           stats(true);
           tmpEx = IPC::statExchange(statsPage.getData());
@@ -1216,6 +1217,7 @@ namespace Mist{
     if (statsPage.getData()){
       /*LTS-START*/
       if (!statsPage.isAlive()){
+        INFO_MSG("Shutting down on controller request");
         onFinish();
         myConn.close();
         return;

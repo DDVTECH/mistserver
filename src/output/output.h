@@ -87,8 +87,9 @@ namespace Mist {
       std::string getCountry(std::string ip);
       /*LTS-END*/
       void doSync(bool force = false);
-
-
+      inline bool keepGoing(){
+        return config->is_active && myConn;
+      }
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
@@ -132,6 +133,8 @@ namespace Mist {
       virtual bool isRecording();
       virtual bool isPushing(){return pushing;};
       bool allowPush(const std::string & passwd);
+      void waitForStreamPushReady();
+      bool pushIsOngoing;
       void bufferLivePacket(DTSC::Packet & packet);
       uint64_t firstPacketTime;
       uint64_t lastPacketTime;

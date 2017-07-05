@@ -662,3 +662,7 @@ target_link_libraries(aes_ctr128
   mist
 )
 add_test(AESTest COMMAND aes_ctr128)
+
+add_executable(urltest ${SOURCE_DIR}/test/url.cpp)
+target_link_libraries(urltest mist)
+add_test(URLTest COMMAND urltest)

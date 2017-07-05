@@ -27,13 +27,45 @@ HTTP::URL::URL(const std::string & url){
   }
   //proto_sep now points to the start of the host, guaranteed
   //continue by finding the path, if any
-  size_t first_slash = url.find('/', proto_sep);
+  size_t first_slash = url.find_first_of("/?#", proto_sep);
   if (first_slash != std::string::npos){
-    path = url.substr(first_slash+1);
+    if (url[first_slash] == '/'){
+      path = url.substr(first_slash+1);
+    }else{
+      path = url.substr(first_slash);
+    }
+    size_t hmark = path.find('#');
+    if (hmark != std::string::npos){
+      frag = path.substr(hmark+1);
+      path.erase(hmark);
+    }
     size_t qmark = path.find('?');
     if (qmark != std::string::npos){
       args = path.substr(qmark+1);
       path.erase(qmark);
+    }
+    if (path.size()){
+      size_t dots = path.find("/./");
+      while (dots != std::string::npos){
+        path.erase(dots, 2);
+        dots = path.find("/./");
+      }
+      dots = path.find("/../");
+      while (dots != std::string::npos){
+        size_t prevslash = path.rfind('/', dots-1);
+        if (prevslash == std::string::npos){
+          path.erase(0, dots+4);
+        }else{
+          path.erase(prevslash+1, dots-prevslash+3);
+        }
+        dots = path.find("/../");
+      }
+      if (path.substr(0, 2) == "./"){
+        path.erase(0, 2);
+      }
+      if (path.substr(0, 3) == "../"){
+        path.erase(0, 3);
+      }
     }
   }
   //host and port are now definitely between proto_sep and first_slash
@@ -60,8 +92,8 @@ HTTP::URL::URL(const std::string & url){
     //"normal" host - first find port, if any
     size_t colon = url.rfind(':', first_slash);
     if (colon == std::string::npos || colon < proto_sep){
-      //no port. Assume 80
-      port = "80";
+      //no port. Assume default
+      port = "";
       host = url.substr(proto_sep, first_slash-proto_sep);
     }else{
       //we have a port number, read it
@@ -79,8 +111,16 @@ HTTP::URL::URL(const std::string & url){
 
 ///Returns the port in numeric format
 uint32_t HTTP::URL::getPort() const{
-  if (!port.size()){return 80;}
+  if (!port.size()){return getDefaultPort();}
   return atoi(port.c_str());
+}
+
+///Returns the default port for the protocol in numeric format
+uint32_t HTTP::URL::getDefaultPort() const{
+  if (protocol == "https"){return 443;}
+  if (protocol == "rtmp"){return 1935;}
+  if (protocol == "dtsc"){return 4200;}
+  return 80;
 }
 
 ///Returns the full URL in string format
@@ -91,17 +131,38 @@ std::string HTTP::URL::getUrl() const{
   }else{
     ret = "//" + host;
   }
-  if (port.size()){ret += ":" + port;}
-  if (path.size()){ret += "/" + path;}
+  if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
+  ret += "/";
+  if (path.size()){ret += path;}
+  if (args.size()){ret += "?" + args;}
+  if (frag.size()){ret += "#" + frag;}
+  return ret;
+}
+
+///Returns the URL in string format without args and frag
+std::string HTTP::URL::getBareUrl() const{
+  std::string ret;
+  if (protocol.size()){
+    ret = protocol + "://" + host;
+  }else{
+    ret = "//" + host;
+  }
+  if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
+  ret += "/";
+  if (path.size()){ret += path;}
   return ret;
 }
 
 ///Returns a URL object for the given link, resolved relative to the current URL object.
 HTTP::URL HTTP::URL::link(const std::string &l){
   //Full link
-  if (l.find("://") < l.find('/')){return URL(l);}
+  if (l.find("://") < l.find('/') && l.find('/' != std::string::npos)){
+    DONTEVEN_MSG("Full link: %s", l.c_str());
+    return URL(l);
+  }
   //Absolute link
   if (l[0] == '/'){
+    DONTEVEN_MSG("Absolute link: %s", l.c_str());
     if (l.size() > 1 && l[1] == '/'){
       //Same-protocol full link
       return URL(protocol+":"+l);
@@ -115,13 +176,14 @@ HTTP::URL HTTP::URL::link(const std::string &l){
     }
   }
   //Relative link
-  std::string tmpUrl = getUrl();
+  std::string tmpUrl = getBareUrl();
   size_t slashPos = tmpUrl.rfind('/');
   if (slashPos == std::string::npos){
     tmpUrl += "/";
   }else{
     tmpUrl.erase(slashPos+1);
   }
+  DONTEVEN_MSG("Relative link: %s+%s", tmpUrl.c_str(), l.c_str());
   return URL(tmpUrl+l);
 }
 

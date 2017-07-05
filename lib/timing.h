@@ -3,6 +3,7 @@
 
 #pragma once
 #include <string>
+#include <stdint.h>
 
 namespace Util {
   void wait(int ms); ///< Sleeps for the indicated amount of milliseconds or longer.

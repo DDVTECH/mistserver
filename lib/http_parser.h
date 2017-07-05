@@ -74,11 +74,16 @@ namespace HTTP {
     public:
       URL(const std::string & url);
       uint32_t getPort() const;
+      uint32_t getDefaultPort() const;
+      std::string getUrl() const;
+      std::string getBareUrl() const;
       std::string host;///< Hostname or IP address of URL
       std::string protocol;///<Protocol of URL
       std::string port;///<Port of URL
       std::string path;///<Path after the first slash (not inclusive) but before any question mark
       std::string args;///<Everything after the question mark in the path, if it was present
+      std::string frag;///<Everything after the # in the path, if it was present
+      URL link(const std::string &l);
   };
 
 }//HTTP namespace

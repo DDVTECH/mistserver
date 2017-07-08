@@ -1,5 +1,6 @@
 #include "output_wav.h"
 #include <mist/riff.h>
+#include <mist/util.h>
 
 namespace Mist{
   OutWAV::OutWAV(Socket::Connection &conn) : HTTPOutput(conn){
@@ -62,35 +63,25 @@ namespace Mist{
     thisPacket.getString("data", dataPointer, len);
 
     //PCM must be converted to little-endian if > 8 bits per sample
-    static char * swappyPointer = 0;
-    static uint32_t swappySize = 0;
+    static Util::ResizeablePointer swappy;
     DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
     if (trk.codec == "PCM"){
-      if (trk.size > 8){
-        if (swappySize < len){
-          char * tmp = (char*)realloc(swappyPointer, len);
-          if (!tmp){
-            FAIL_MSG("Could not allocate data for PCM endianness swap!");
-            return;
+      if (trk.size > 8 && swappy.allocate(len)){
+        if (trk.size == 16){
+          for (uint32_t i = 0; i < len; i+=2){
+            swappy[i] = dataPointer[i+1];
+            swappy[i+1] = dataPointer[i];
           }
-          swappyPointer = tmp;
-          swappySize = len;
         }
-      }
-      if (trk.size == 16){
-        for (uint32_t i = 0; i < len; i+=2){
-          swappyPointer[i] = dataPointer[i+1];
-          swappyPointer[i+1] = dataPointer[i];
+        if (trk.size == 24){
+          for (uint32_t i = 0; i < len; i+=3){
+            swappy[i] = dataPointer[i+2];
+            swappy[i+1] = dataPointer[i+1];
+            swappy[i+2] = dataPointer[i];
+          }
         }
+        dataPointer = swappy;
       }
-      if (trk.size == 24){
-        for (uint32_t i = 0; i < len; i+=3){
-          swappyPointer[i] = dataPointer[i+2];
-          swappyPointer[i+1] = dataPointer[i+1];
-          swappyPointer[i+2] = dataPointer[i];
-        }
-      }
-      dataPointer = swappyPointer;
     }
 
     myConn.SendNow(dataPointer, len);

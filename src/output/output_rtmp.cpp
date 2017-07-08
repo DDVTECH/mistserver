@@ -3,6 +3,7 @@
 #include <mist/defines.h>
 #include <mist/stream.h>
 #include <mist/encode.h>
+#include <mist/util.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
@@ -181,8 +182,7 @@ namespace Mist {
                          0, 0, 0, 0}; //bytes 12-15 = extended timestamp
     char dataheader[] ={0, 0, 0, 0, 0};
     unsigned int dheader_len = 1;
-    static char * swappyPointer = 0;
-    static uint32_t swappySize = 0;
+    static Util::ResizeablePointer swappy;
     char * tmpData = 0;//pointer to raw media data
     unsigned int data_len = 0;//length of processed media data
     thisPacket.getString("data", tmpData, data_len);
@@ -234,21 +234,12 @@ namespace Mist {
         dataheader[0] |= 0x10;
       }
       if (track.codec == "PCM"){
-        if (track.size == 16){
-          if (swappySize < data_len){
-            char * tmp = (char*)realloc(swappyPointer, data_len);
-            if (!tmp){
-              FAIL_MSG("Could not allocate data for PCM endianness swap!");
-              return;
-            }
-            swappyPointer = tmp;
-            swappySize = data_len;
-          }
+        if (track.size == 16 && swappy.allocate(data_len)){
           for (uint32_t i = 0; i < data_len; i+=2){
-            swappyPointer[i] = tmpData[i+1];
-            swappyPointer[i+1] = tmpData[i];
+            swappy[i] = tmpData[i+1];
+            swappy[i+1] = tmpData[i];
           }
-          tmpData = swappyPointer;
+          tmpData = swappy;
         }
         dataheader[0] |= 0x30;
       }

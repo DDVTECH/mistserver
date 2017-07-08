@@ -14,20 +14,11 @@ namespace Mist {
     JSON::Value prep;
     prep["cmd"] = "hi";
     prep["version"] = "MistServer " PACKAGE_VERSION;
-#ifdef BIGMETA
     prep["pack_method"] = 2ll;
-#else
-    prep["pack_method"] = 1ll;
-#endif
     salt = Secure::md5("mehstuff"+JSON::Value((long long)time(0)).asString());
     prep["salt"] = salt;
     /// \todo Make this securererer.
-    unsigned long sendSize = prep.packedSize();
-    myConn.SendNow("DTCM");
-    char sSize[4] = {0, 0, 0, 0};
-    Bit::htobl(sSize, prep.packedSize());
-    myConn.SendNow(sSize, 4);
-    prep.sendTo(myConn);
+    sendCmd(prep);
     lastActive = Util::epoch();
   }
 
@@ -37,18 +28,36 @@ namespace Mist {
   void OutDTSC::stats(bool force){
     unsigned long long int now = Util::epoch();
     if (now - lastActive > 1 && !pushing){
-      MEDIUM_MSG("Ping!");
       JSON::Value prep;
       prep["cmd"] = "ping";
-      unsigned long sendSize = prep.packedSize();
-      myConn.SendNow("DTCM");
-      char sSize[4] = {0, 0, 0, 0};
-      Bit::htobl(sSize, prep.packedSize());
-      myConn.SendNow(sSize, 4);
-      prep.sendTo(myConn);
+      sendCmd(prep);
       lastActive = now;
     }
     Output::stats(force);
+  }
+
+  void OutDTSC::sendCmd(const JSON::Value &data){
+    MEDIUM_MSG("Sending DTCM: %s", data.toString().c_str());
+    unsigned long sendSize = data.packedSize();
+    myConn.SendNow("DTCM");
+    char sSize[4] = {0, 0, 0, 0};
+    Bit::htobl(sSize, data.packedSize());
+    myConn.SendNow(sSize, 4);
+    data.sendTo(myConn);
+  }
+
+  void OutDTSC::sendError(const std::string &msg){
+    JSON::Value err;
+    err["cmd"] = "error";
+    err["msg"] = msg;
+    sendCmd(err);
+  }
+
+  void OutDTSC::sendOk(const std::string &msg){
+    JSON::Value err;
+    err["cmd"] = "ok";
+    err["msg"] = msg;
+    sendCmd(err);
   }
 
   void OutDTSC::init(Util::Config * cfg){
@@ -151,12 +160,53 @@ namespace Mist {
         myConn.Received().remove(8);
         std::string dataPacket = myConn.Received().remove(rSize);
         DTSC::Scan dScan((char*)dataPacket.data(), rSize);
+        INFO_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
         if (dScan.getMember("cmd").asString() == "push"){handlePush(dScan); continue;}
         if (dScan.getMember("cmd").asString() == "play"){handlePlay(dScan); continue;}
+        if (dScan.getMember("cmd").asString() == "ping"){sendOk("Pong!"); continue;}
+        if (dScan.getMember("cmd").asString() == "ok"){INFO_MSG("Ok: %s", dScan.getMember("msg").asString().c_str()); continue;}
+        if (dScan.getMember("cmd").asString() == "error"){ERROR_MSG("%s", dScan.getMember("msg").asString().c_str()); continue;}
+        if (dScan.getMember("cmd").asString() == "reset"){myMeta.reset(); sendOk("Internal state reset"); continue;}
         WARN_MSG("Unhandled DTCM command: '%s'", dScan.getMember("cmd").asString().c_str());
+      }else if (myConn.Received().copy(4) == "DTSC"){
+        //Header packet
+        if (!isPushing()){
+          sendError("DTSC_HEAD ignored: you are not cleared for pushing data!");
+          onFail();
+          return;
+        }
+        std::string toRec = myConn.Received().copy(8);
+        unsigned long rSize = Bit::btohl(toRec.c_str()+4);
+        if (!myConn.Received().available(8+rSize)){return;}//abort - not enough data yet
+        std::string dataPacket = myConn.Received().remove(8+rSize);
+        DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
+        myMeta.reinit(metaPack);
+        std::stringstream rep;
+        rep << "DTSC_HEAD received with " << myMeta.tracks.size() << " tracks. Bring on those data packets!";
+        sendOk(rep.str());
+      }else if (myConn.Received().copy(4) == "DTP2"){
+        if (!isPushing()){
+          sendError("DTSC_V2 ignored: you are not cleared for pushing data!");
+          onFail();
+          return;
+        }
+        // Data packet
+        std::string toRec = myConn.Received().copy(8);
+        unsigned long rSize = Bit::btohl(toRec.c_str()+4);
+        if (!myConn.Received().available(8+rSize)){return;}//abort - not enough data yet
+        std::string dataPacket = myConn.Received().remove(8+rSize);
+        DTSC::Packet inPack(dataPacket.data(), dataPacket.size(), true);
+        if (!myMeta.tracks.count(inPack.getTrackId())){
+          sendError("DTSC_V2 received for a track that was not announced in the DTSC_HEAD!");
+          onFail();
+          return;
+        }
+        bufferLivePacket(inPack);
       }else{
-        // Non-command message
-        //
+        //Invalid
+        sendError("Invalid packet header received. Aborting.");
+        onFail();
+        return;
       }
     }
   }
@@ -174,9 +224,11 @@ namespace Mist {
     std::string passString = dScan.getMember("password").asString();
     Util::sanitizeName(streamName);
     if (!allowPush(passString)){
-      myConn.close();
+      sendError("Push not allowed - stream and/or password incorrect");
+      onFail();
       return;
     }
+    sendOk("You're cleared for pushing! DTSC_HEAD please?");
   }
 
 

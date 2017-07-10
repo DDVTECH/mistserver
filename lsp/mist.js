@@ -2829,20 +2829,6 @@ var UI = {
                 var i = 0;
                 $tbody.html('');
                 
-                /*if (mist.data.LTS) {
-                  //insert active wildcard streams (should overwrite active folder wildcard streams)
-                  for (var i in mist.data.active_streams) {
-                    var streamsplit = mist.data.active_streams[i].split('+');
-                    if (streamsplit.length < 2) { continue; }
-                    if (streamsplit[0] in mist.data.streams) {
-                      var wcstream = createWcStreamObject(mist.data.active_streams[i],mist.data.streams[streamsplit[0]]);
-                      wcstream.online = 1; //it's in active_streams, so it's active. Go figure.
-                      allstreams[mist.data.active_streams[i]] = wcstream;
-                    }
-                  }
-                }
-                
-                var streams = Object.keys(allstreams);*/
                 streams.sort();
                 for (var s in streams) {
                   var streamname = streams[s];
@@ -5413,7 +5399,7 @@ var UI = {
                 $(me).text('Sending..');
                 $.ajax({
                   type: 'POST',
-                  url: 'http://mistserver.org/contact?skin=plain',
+                  url: 'https://mistserver.org/contact?skin=plain',
                   data: saveas,
                   success: function(d) {
                     var $s = $('<span>').html(d);

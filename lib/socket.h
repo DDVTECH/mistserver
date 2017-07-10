@@ -52,11 +52,8 @@ namespace Socket{
   };
   // Buffer
 
-  class Server;
-
   /// This class is for easy communicating through sockets, either TCP or Unix.
   class Connection{
-    friend Server;
   private:
     int sock;               ///< Internally saved socket number.
     int pipes[2];           ///< Internally saved file descriptors for pipe socket simulation.

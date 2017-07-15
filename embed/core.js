@@ -1383,7 +1383,7 @@ function mistPlay(streamName,options) {
   else {
     //get info js
     var info = document.createElement('script');
-    info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js';
+    info.src = options.host+'/info_'+encodeURIComponent(streamName)+'.js'+(('urlappend' in options) && (options.urlappend) ? options.urlappend : '' );
     embedLog('Retrieving stream info from '+info.src);
     document.head.appendChild(info);
     info.onerror = function(){

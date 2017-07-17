@@ -16,6 +16,8 @@ namespace Controller{
   uint64_t exitDelay = 0;
   static JSON::Value currentLicense;
   static uint64_t lastCheck = 0;
+  static int32_t timeOffset = 0;
+  static bool everContactedServer = false;
   
   const JSON::Value & getLicense(){
     return currentLicense;
@@ -41,17 +43,19 @@ namespace Controller{
   }
 
   bool isLicensed(){
-    uint64_t now = Util::epoch();
+    uint64_t now = Util::epoch() + timeOffset;
 #if DEBUG >= DLVL_DEVEL
     INFO_MSG("Verifying license against %llu: %s", now, currentLicense.toString().c_str());
 #endif
+    //Print messages for user, if any
     if (currentLicense.isMember("user_msg") && currentLicense["user_msg"].asStringRef().size()){
       WARN_MSG("%s", currentLicense["user_msg"].asStringRef().c_str());
     }
-    //The loop below is timechecker loop
+    //Check time
     if (!currentLicense.isMember("valid_from") || !currentLicense.isMember("valid_till") || now < currentLicense["valid_from"].asInt() || now > currentLicense["valid_till"].asInt()){
       return false;//license is expired
     }
+    //Check release/version
     if (RELEASE != currentLicense["release"].asStringRef() || PACKAGE_VERSION != currentLicense["version"].asStringRef()){
       FAIL_MSG("Could not verify license");
       return false;
@@ -62,10 +66,10 @@ namespace Controller{
   
   bool checkLicense(){
     if (!conf.is_active){return true;}
-    if (!currentLicense.isMember("interval")){
-      currentLicense["interval"] = 3600ll;
+    INFO_MSG("Checking license validity");
+    if(!everContactedServer && !isLicensed()){
+      updateLicense("&expired=1");
     }
-    INFO_MSG("Checking license time");
     if(!isLicensed()){
       FAIL_MSG("Not licensed, shutting down");
       if (currentLicense.isMember("delay") && currentLicense["delay"].asInt()){
@@ -137,6 +141,7 @@ namespace Controller{
         }
         if (http.Read(updrConn.Received().get())){
           response = JSON::fromString(http.body);
+          everContactedServer = true;
           break; //break out of while loop
         }
       }
@@ -144,11 +149,11 @@ namespace Controller{
     updrConn.close();
     
     //read license
-    readLicense(response["lic_id"].asInt(), response["license"].asStringRef());
+    readLicense(response["lic_id"].asInt(), response["license"].asStringRef(), true);
     
   }
   
-  void readLicense(uint64_t licID, const std::string & input){
+  void readLicense(uint64_t licID, const std::string & input, bool fromServer){
     char aesKey[16];
     if (strlen(SUPER_SECRET) >= 32){
       parseKey(SUPER_SECRET SUPER_SECRET + 7,aesKey,16);
@@ -169,14 +174,32 @@ namespace Controller{
     //verify checksum
     if (deCrypted.size() < 33 || Secure::md5(deCrypted.substr(32)) != deCrypted.substr(0,32)){
       WARN_MSG("Could not decode license");
-      Storage.removeMember("license");
       return;
     }
-    currentLicense = JSON::fromString(deCrypted.substr(32));
-    if (RELEASE != currentLicense["release"].asStringRef() || PACKAGE_VERSION != currentLicense["version"].asStringRef()){
+    JSON::Value newLicense = JSON::fromString(deCrypted.substr(32));
+    if (RELEASE != newLicense["release"].asStringRef() || PACKAGE_VERSION != newLicense["version"].asStringRef()){
       FAIL_MSG("Could not verify license");
       return;
     }
+
+    if (fromServer){
+      uint64_t localTime = Util::epoch();
+      uint64_t remoteTime = newLicense["time"].asInt();
+      if (localTime > remoteTime + 60){
+        WARN_MSG("Your computer clock is %u seconds ahead! Please ensure your computer clock is set correctly.", localTime - remoteTime);
+      }
+      if (localTime < remoteTime - 60){
+        WARN_MSG("Your computer clock is %u seconds late! Please ensure your computer clock is set correctly.", remoteTime - localTime);
+      }
+      timeOffset = remoteTime - localTime;
+
+      if (newLicense.isMember("plid") && newLicense["plid"] != currentLicense["lic_id"]){
+        FAIL_MSG("Could not verify license ID");
+        return;
+      }
+    }
+
+    currentLicense = newLicense;
 
     //Store license here.
     if (currentLicense["store"].asBool()){
@@ -190,13 +213,18 @@ namespace Controller{
   
   void licenseLoop(void * np){
     while (conf.is_active){
-      if (Util::epoch() - lastCheck > currentLicense["interval"].asInt()){
-        updateLicense();
+      uint64_t interval = currentLicense["interval"].asInt();
+      if (Util::epoch() - lastCheck > (interval?interval:3600)){
+        if (interval){
+          updateLicense();
+        }
         checkLicense();
       }
       Util::sleep(1000);//sleep a bit
     }
-    updateLicense("&shutdown=1");
+    if (everContactedServer){
+      updateLicense("&shutdown=1");
+    }
   }
 }
 

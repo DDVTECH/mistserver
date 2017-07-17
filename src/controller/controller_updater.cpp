@@ -98,6 +98,15 @@ namespace Controller{
   /// Downloads the latest details on updates
   JSON::Value checkUpdateInfo(){
     JSON::Value ret;
+    if (strlen(SHARED_SECRET) < 8){
+      Log("UPDR", "Self-compiled build. Updater disabled.");
+      ret["uptodate"] = 1;
+      ret["needs_update"].null();
+      ret["release"] = "Self-compiled";
+      ret["version"] = "Unknown";
+      ret["date"] = "Now";
+      return ret;
+    }
     HTTP::Parser http;
     JSON::Value updrInfo;
     // retrieve update information

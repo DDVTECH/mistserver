@@ -37,6 +37,9 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #endif
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+static inline void show_stackframe(){}
+#else
 #include <execinfo.h>
 static inline void show_stackframe() {
   void *trace[16];
@@ -52,6 +55,7 @@ static inline void show_stackframe() {
     DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i]+p);
   }
 }
+#endif
 
 #else
 

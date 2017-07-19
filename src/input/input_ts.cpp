@@ -16,6 +16,7 @@
 #include "input_ts.h"
 
 #include <mist/tinythread.h>
+#include <mist/procs.h>
 #include <sys/stat.h>
 
 #define SEM_TS_CLAIM "/MstTSIN%s"
@@ -113,15 +114,18 @@ namespace Mist {
     capa["source_match"].append("/*.ts");
     capa["source_match"].append("stream://*.ts");
     capa["source_match"].append("tsudp://*");
-    //These two can/may be set to always-on mode
+    capa["source_match"].append("ts-exec:*");
+    //These can/may be set to always-on mode
     capa["always_match"].append("stream://*.ts");
     capa["always_match"].append("tsudp://*");
+    capa["always_match"].append("ts-exec:*");
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
     inFile = NULL;
+    inputProcess = 0;
   }
 
   inputTS::~inputTS() {
@@ -144,9 +148,36 @@ namespace Mist {
   bool inputTS::preRun() {
     const std::string & inpt = config->getString("input");
     //streamed standard input
-    if (inpt == "-") {
+    if (inpt == "-" || inpt.substr(0, 8) == "ts-exec:") {
       standAlone = false;
-      inFile = stdin;
+      if (inpt.size() > 1){
+        std::string input = inpt.substr(8);
+        char *args[128];
+        uint8_t argCnt = 0;
+        char *startCh = 0;
+        for (char *i = (char*)input.c_str(); i <= input.data() + input.size(); ++i){
+          if (!*i){
+            if (startCh){args[argCnt++] = startCh;}
+            break;
+          }
+          if (*i == ' '){
+            if (startCh){
+              args[argCnt++] = startCh;
+              startCh = 0;
+              *i = 0;
+            }
+          }else{
+            if (!startCh){startCh = i;}
+          }
+        }
+        args[argCnt] = 0;
+
+        int fin = -1, fout = -1, ferr = -1;
+        inputProcess = Util::Procs::StartPiped(args, &fin, &fout, &ferr);
+        inFile = fdopen(fout, "r");
+      }else{
+        inFile = stdin;
+      }
       return true;
     }
     //streamed file
@@ -240,7 +271,7 @@ namespace Mist {
     INSANE_MSG("Getting next");
     thisPacket.null();
     bool hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
-    while (!hasPacket && !feof(inFile) && config->is_active) {
+    while (!hasPacket && !feof(inFile) && (inputProcess == 0 || Util::Procs::childRunning(inputProcess)) && config->is_active) {
       unsigned int bPos = ftell(inFile);
       tsBuf.FromFile(inFile);
       if (selectedTracks.count(tsBuf.getPID())) {
@@ -460,7 +491,7 @@ namespace Mist {
     if (!standAlone){return false;}
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://"){
+    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:"){
       return true;
     }else{
       return false;

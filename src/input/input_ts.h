@@ -30,6 +30,7 @@ namespace Mist {
       Socket::UDPConnection udpCon;
       std::string udpDataBuffer;
       TS::Packet tsBuf;
+      pid_t inputProcess;
   };
 }
 

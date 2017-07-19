@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <string>
+#include <inttypes.h>
 #include <mist/stream.h>
 #include <mist/flv_tag.h>
 #include <mist/defines.h>
@@ -29,14 +30,12 @@ namespace Mist {
     cttsBox.clear();
     stszBox.clear();
     stcoBox.clear();
+    co64Box.clear();
+    stco64 = false;
   }
 
-  long unsigned int mp4TrackHeader::size(){
-    if (!stszBox.asBox()){
-      return 0;
-    }else{
-      return stszBox.getSampleCount();
-    }
+  uint64_t mp4TrackHeader::size(){
+    return (stszBox.asBox() ? stszBox.getSampleCount() : 0);
   }
 
   void mp4TrackHeader::read(MP4::TRAK & trakBox){
@@ -44,80 +43,40 @@ namespace Mist {
     std::string tmp;//temporary string for copying box data
     MP4::Box trakLoopPeek;
     timeScale = 1;
-    //for all in trak
-    for (uint32_t j = 0; j < trakBox.getContentCount(); j++){
-      trakLoopPeek = MP4::Box(trakBox.getContent(j).asBox(),false);
-      std::string trakBoxType = trakLoopPeek.getType();
-      if (trakBoxType == "mdia"){//fi tkhd & if mdia
-        MP4::Box mdiaLoopPeek;
-        //for all in mdia
-        for (uint32_t k = 0; k < ((MP4::MDIA&)trakLoopPeek).getContentCount(); k++){
-          mdiaLoopPeek = MP4::Box(((MP4::MDIA&)trakLoopPeek).getContent(k).asBox(),false);
-          std::string mdiaBoxType = mdiaLoopPeek.getType();
-          if (mdiaBoxType == "mdhd"){
-            timeScale = ((MP4::MDHD&)mdiaLoopPeek).getTimeScale();
-          }else if (mdiaBoxType == "minf"){//fi hdlr
-            //for all in minf
-            //get all boxes: stco stsz,stss
-            MP4::Box minfLoopPeek;
-            for (uint32_t l = 0; l < ((MP4::MINF&)mdiaLoopPeek).getContentCount(); l++){
-              minfLoopPeek = MP4::Box(((MP4::MINF&)mdiaLoopPeek).getContent(l).asBox(),false);
-              std::string minfBoxType = minfLoopPeek.getType();
-              ///\todo more stuff here
-              if (minfBoxType == "stbl"){
-                MP4::Box stblLoopPeek;
-                for (uint32_t m = 0; m < ((MP4::STBL&)minfLoopPeek).getContentCount(); m++){
-                  stblLoopPeek = MP4::Box(((MP4::STBL&)minfLoopPeek).getContent(m).asBox(),false);
-                  std::string stblBoxType = stblLoopPeek.getType();
-                  if (stblBoxType == "stts"){
-                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
-                    sttsBox.clear();
-                    sttsBox.read(tmp);
-                  }else if (stblBoxType == "ctts"){
-                    ///\todo this box should not have to be read, since its information is taken from the DTSH
-                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
-                    cttsBox.clear();
-                    cttsBox.read(tmp);
-                    hasCTTS = true;
-                  }else if (stblBoxType == "stsz"){
-                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
-                    stszBox.clear();
-                    stszBox.read(tmp);
-                  }else if (stblBoxType == "stco" || stblBoxType == "co64"){
-                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
-                    stcoBox.clear();
-                    stcoBox.read(tmp);
-                  }else if (stblBoxType == "stsc"){
-                    tmp = std::string(stblLoopPeek.asBox() ,stblLoopPeek.boxedSize());
-                    stscBox.clear();
-                    stscBox.read(tmp);
-                  }
-                }//rof stbl
-              }//fi stbl
-            }//rof minf
-          }//fi minf
-        }//rof mdia
-      }//fi mdia
-    }//rof trak
+
+    MP4::MDIA mdiaBox = trakBox.getChild<MP4::MDIA>();
+
+    timeScale = mdiaBox.getChild<MP4::MDHD>().getTimeScale();
+
+    MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
+
+    sttsBox.copyFrom(stblBox.getChild<MP4::STTS>());
+    cttsBox.copyFrom(stblBox.getChild<MP4::CTTS>());
+    stszBox.copyFrom(stblBox.getChild<MP4::STSZ>());
+    stcoBox.copyFrom(stblBox.getChild<MP4::STCO>());
+    co64Box.copyFrom(stblBox.getChild<MP4::CO64>());
+    stscBox.copyFrom(stblBox.getChild<MP4::STSC>());
+    stco64 = co64Box.isType("co64");
+    hasCTTS = cttsBox.isType("ctts");
   }
 
-  void mp4TrackHeader::getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, int32_t & timeOffset){
-
-
+  void mp4TrackHeader::getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset){
     if (index < sampleIndex){
       sampleIndex = 0;
       stscStart = 0;
     }
     
-    while (stscStart < stscBox.getEntryCount()){
+    uint64_t stscCount = stscBox.getEntryCount();
+    MP4::STSCEntry stscEntry;
+    while (stscStart < stscCount){
+      stscEntry = stscBox.getSTSCEntry(stscStart);
       //check where the next index starts
-      unsigned long long nextSampleIndex;
-      if (stscStart + 1 < stscBox.getEntryCount()){
-        nextSampleIndex = sampleIndex + (stscBox.getSTSCEntry(stscStart+1).firstChunk - stscBox.getSTSCEntry(stscStart).firstChunk) * stscBox.getSTSCEntry(stscStart).samplesPerChunk;
+      uint64_t nextSampleIndex;
+      if (stscStart + 1 < stscCount){
+        nextSampleIndex = sampleIndex + (stscBox.getSTSCEntry(stscStart+1).firstChunk - stscEntry.firstChunk) * stscEntry.samplesPerChunk;
       }else{
         nextSampleIndex = stszBox.getSampleCount();
       }
-      //if the next one is too far, we're in the right spot
       if (nextSampleIndex > index){
         break;
       }
@@ -126,19 +85,13 @@ namespace Mist {
     }
 
     if (sampleIndex > index){
-      FAIL_MSG("Could not complete seek - not in file (%llu > %lu)", sampleIndex, index);
+      FAIL_MSG("Could not complete seek - not in file (%" PRIu64 " > %" PRIu64 ")", sampleIndex, index);
     }
 
-    long long unsigned stcoPlace = (stscBox.getSTSCEntry(stscStart).firstChunk - 1 ) + ((index - sampleIndex) / stscBox.getSTSCEntry(stscStart).samplesPerChunk);
-    long long unsigned stszStart = sampleIndex + (stcoPlace - (stscBox.getSTSCEntry(stscStart).firstChunk - 1)) * stscBox.getSTSCEntry(stscStart).samplesPerChunk;
+    uint64_t stcoPlace = (stscEntry.firstChunk - 1 ) + ((index - sampleIndex) / stscEntry.samplesPerChunk);
+    uint64_t stszStart = sampleIndex + (stcoPlace - (stscEntry.firstChunk - 1)) * stscEntry.samplesPerChunk;
 
-    //set the offset to the correct value
-    if (stcoBox.getType() == "co64"){
-      offset = ((MP4::CO64*)&stcoBox)->getChunkOffset(stcoPlace);
-    }else{
-      offset = stcoBox.getChunkOffset(stcoPlace);
-    }
-
+    offset = (stco64 ? co64Box.getChunkOffset(stcoPlace) : stcoBox.getChunkOffset(stcoPlace));
     for (int j = stszStart; j < index; j++){
       offset += stszBox.getEntrySize(j);
     }
@@ -150,14 +103,14 @@ namespace Mist {
     }
 
     MP4::STTSEntry tmpSTTS;
-    while (deltaIndex < sttsBox.getEntryCount()){
+    uint64_t sttsCount = sttsBox.getEntryCount();
+    while (deltaIndex < sttsCount){
       tmpSTTS = sttsBox.getSTTSEntry(deltaIndex);
       if ((index - deltaPos) < tmpSTTS.sampleCount){
         break;
-      }else{
-        deltaTotal += tmpSTTS.sampleCount * tmpSTTS.sampleDelta;
-        deltaPos += tmpSTTS.sampleCount;
       }
+      deltaTotal += tmpSTTS.sampleCount * tmpSTTS.sampleDelta;
+      deltaPos += tmpSTTS.sampleCount;
       ++deltaIndex;
     }
     timestamp = ((deltaTotal + ((index-deltaPos) * tmpSTTS.sampleDelta))*1000) / timeScale;
@@ -169,20 +122,18 @@ namespace Mist {
     }
     if (hasCTTS){
       MP4::CTTSEntry tmpCTTS;
-      while (offsetIndex < cttsBox.getEntryCount()){
+      uint32_t cttsCount = cttsBox.getEntryCount();
+      while (offsetIndex < cttsCount){
         tmpCTTS = cttsBox.getCTTSEntry(offsetIndex);
         if ((index - offsetPos) < tmpCTTS.sampleCount){
-          timeOffset = (tmpCTTS.sampleOffset*1000)/(int32_t)timeScale;
+          timeOffset = (tmpCTTS.sampleOffset*1000)/timeScale;
           break;
         }
         offsetPos += tmpCTTS.sampleCount;
         ++offsetIndex;
       }
     }
-
-    //next lines are common for next-getting and seeking
     size = stszBox.getEntrySize(index);
-
   }
   
   inputMP4::inputMP4(Util::Config * cfg) : Input(cfg) {
@@ -220,6 +171,7 @@ namespace Mist {
         std::cerr << "File output in player mode not supported" << std::endl;
         return false;
       }
+      streamName = config->getString("streamname");
     }
     
     //open File
@@ -236,324 +188,230 @@ namespace Mist {
       INFO_MSG("inFile failed!");
       return false;
     }
-    //make trackmap here from inFile
-    long long unsigned int trackNo = 0;
     
-    std::string tmp;//temp string for reading boxes.
-
+    uint32_t trackNo = 0;
     
     //first we get the necessary header parts
     while(!feof(inFile)){
       std::string boxType = MP4::readBoxType(inFile);
+      if (boxType == "erro"){
+        break;
+      }
       if (boxType=="moov"){
         MP4::MOOV moovBox;
         moovBox.read(inFile);
         //for all box in moov
-        
-        MP4::Box moovLoopPeek;
-        for (uint32_t i = 0; i < moovBox.getContentCount(); i++){
-          tmp = std::string(moovBox.getContent(i).asBox() ,moovBox.getContent(i).boxedSize());
-          moovLoopPeek.read(tmp);
-          //if trak
-          if (moovLoopPeek.getType() == "trak"){
-            //create new track entry here
-            trackNo ++;
-            
-            headerData[trackNo].read((MP4::TRAK&)moovLoopPeek);
-          }
+
+        std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
+        for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
+          headerData[++trackNo].read(*trakIt);
         }
-      }else if (boxType == "erro"){
-        break;
-      }else{
-        if (!MP4::skipBox(inFile)){//moving on to next box
-          DEBUG_MSG(DLVL_FAIL,"Error in skipping box, exiting");
-          return false;
-        }
-      }//fi moov
-    }//when at the end of the file
-    //seek file to 0;
+        continue;
+      }
+      if (!MP4::skipBox(inFile)){//moving on to next box
+        FAIL_MSG("Error in skipping box, exiting");
+        return false;
+      }
+    }
     fseeko(inFile,0,SEEK_SET);
    
     //See whether a separate header file exists.
     if (readExistingHeader()){return true;}
+    HIGH_MSG("Not read existing header");
 
     trackNo = 0;
     //Create header file from MP4 data
     while(!feof(inFile)){
       std::string boxType = MP4::readBoxType(inFile);
+      if (boxType=="erro"){
+        break;
+      }
       if (boxType=="moov"){
         MP4::MOOV moovBox;
         moovBox.read(inFile);
-        //for all box in moov
-        MP4::Box moovLoopPeek;
-        for (uint32_t i = 0; i < moovBox.getContentCount(); i++){
-          tmp = std::string(moovBox.getContent(i).asBox(), moovBox.getContent(i).boxedSize());
-          moovLoopPeek.read(tmp);
-          //if trak
-          if (moovLoopPeek.getType() == "trak"){
-            //create new track entry here
-            long long unsigned int trackNo = myMeta.tracks.size()+1;
-            myMeta.tracks[trackNo].trackID = trackNo;
-            MP4::Box trakLoopPeek;
-            unsigned long int timeScale = 1;
-            //for all in trak
-            for (uint32_t j = 0; j < ((MP4::TRAK&)moovLoopPeek).getContentCount(); j++){
-              tmp = std::string(((MP4::MOOV&)moovLoopPeek).getContent(j).asBox(),((MP4::MOOV&)moovLoopPeek).getContent(j).boxedSize());
-              trakLoopPeek.read(tmp);
-              std::string trakBoxType = trakLoopPeek.getType();
-              //note: per track: trackID codec, type (vid/aud), init
-              //if tkhd
-              if (trakBoxType == "tkhd"){
-                MP4::TKHD tkhdBox(0,0,0,0);///\todo: this can be done with casting
-                tmp = std::string(trakLoopPeek.asBox(), trakLoopPeek.boxedSize());
-                tkhdBox.read(tmp);
-                //remember stuff for decoding stuff later
-                if (tkhdBox.getWidth() > 0){
-                  myMeta.tracks[trackNo].width = tkhdBox.getWidth();
-                  myMeta.tracks[trackNo].height = tkhdBox.getHeight();
-                }
-              }else if (trakBoxType == "mdia"){//fi tkhd & if mdia
-                MP4::Box mdiaLoopPeek;
-                //for all in mdia
-                for (uint32_t k = 0; k < ((MP4::MDIA&)trakLoopPeek).getContentCount(); k++){
-                  tmp = std::string(((MP4::MDIA&)trakLoopPeek).getContent(k).asBox(),((MP4::MDIA&)trakLoopPeek).getContent(k).boxedSize());
-                  mdiaLoopPeek.read(tmp);
-                  std::string mdiaBoxType = mdiaLoopPeek.getType();
-                  if (mdiaBoxType == "mdhd"){
-                    timeScale = ((MP4::MDHD&)mdiaLoopPeek).getTimeScale();
-                    myMeta.tracks[trackNo].lang = ((MP4::MDHD&)mdiaLoopPeek).getLanguage();
-                  }else if (mdiaBoxType == "hdlr"){//fi mdhd
-                    std::string handlerType = ((MP4::HDLR&)mdiaLoopPeek).getHandlerType();
-                    if (handlerType != "vide" && handlerType !="soun" && handlerType != "sbtl"){
-                      myMeta.tracks.erase(trackNo);
-                      //skip meta boxes for now
-                      break;
-                    }
-                  }else if (mdiaBoxType == "minf"){//fi hdlr
-                    //for all in minf
-                    //get all boxes: stco stsz,stss
-                    MP4::Box minfLoopPeek;
-                    for (uint32_t l = 0; l < ((MP4::MINF&)mdiaLoopPeek).getContentCount(); l++){
-                      tmp = std::string(((MP4::MINF&)mdiaLoopPeek).getContent(l).asBox(),((MP4::MINF&)mdiaLoopPeek).getContent(l).boxedSize());
-                      minfLoopPeek.read(tmp);
-                      std::string minfBoxType = minfLoopPeek.getType();
-                      ///\todo more stuff here
-                      if (minfBoxType == "stbl"){
-                        MP4::Box stblLoopPeek;
-                        MP4::STSS stssBox;
-                        MP4::STTS sttsBox;
-                        MP4::STSZ stszBox;
-                        MP4::STCO stcoBox;
-                        MP4::STSC stscBox;
-                        MP4::CTTS cttsBox;//optional ctts box
-                        bool hasCTTS = false;
-                        for (uint32_t m = 0; m < ((MP4::STBL&)minfLoopPeek).getContentCount(); m++){
-                          tmp = std::string(((MP4::STBL&)minfLoopPeek).getContent(m).asBox(),((MP4::STBL&)minfLoopPeek).getContent(m).boxedSize());
-                          std::string stboxRead = tmp;
-                          stblLoopPeek.read(tmp);
-                          std::string stblBoxType = stblLoopPeek.getType();
-                          if (stblBoxType == "stss"){
-                            stssBox.read(stboxRead);
-                          }else if (stblBoxType == "stts"){
-                            sttsBox.read(stboxRead);
-                          }else if (stblBoxType == "stsz"){
-                            stszBox.read(stboxRead);
-                          }else if (stblBoxType == "stco" || stblBoxType == "co64"){
-                            stcoBox.read(stboxRead);
-                          }else if (stblBoxType == "stsc"){
-                            stscBox.read(stboxRead);
-                          }else if (stblBoxType == "ctts"){
-                            cttsBox.read(stboxRead);
-                            hasCTTS = true;
-                          }else if (stblBoxType == "stsd"){
-                            //check for codec in here
-                            MP4::Box & tmpBox = ((MP4::STSD&)stblLoopPeek).getEntry(0);
-                            std::string tmpType = tmpBox.getType();
-                            INFO_MSG("Found track of type %s", tmpType.c_str()); 
-                            if (tmpType == "avc1" || tmpType == "h264" || tmpType == "mp4v"){
-                              myMeta.tracks[trackNo].type = "video";
-                              myMeta.tracks[trackNo].codec = "H264";
-                              if (!myMeta.tracks[trackNo].width){
-                                myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
-                                myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
-                              }
-                              MP4::Box tmpBox2 = tmpBox;
-                              MP4::Box tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getCLAP();
-                              if (tmpContent.getType() == "avcC"){
-                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
-                              }
-                              tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getPASP();
-                              if (tmpContent.getType() == "avcC"){
-                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
-                              }
-                              ///this is a hacky way around invalid FLV data (since it gets ignored nearly everywhere, but we do need correct data...
-                              if (!myMeta.tracks[trackNo].width || !myMeta.tracks[trackNo].height || !myMeta.tracks[trackNo].fpks){
-                                h264::sequenceParameterSet sps;
-                                sps.fromDTSCInit(myMeta.tracks[trackNo].init);
-                                h264::SPSMeta spsChar = sps.getCharacteristics();
-                                myMeta.tracks[trackNo].width = spsChar.width;
-                                myMeta.tracks[trackNo].height = spsChar.height;
-                              }
-                            }else if (tmpType == "hev1" || tmpType == "hvc1"){
-                              myMeta.tracks[trackNo].type = "video";
-                              myMeta.tracks[trackNo].codec = "HEVC";
-                              if (!myMeta.tracks[trackNo].width){
-                                myMeta.tracks[trackNo].width = ((MP4::VisualSampleEntry&)tmpBox).getWidth();
-                                myMeta.tracks[trackNo].height = ((MP4::VisualSampleEntry&)tmpBox).getHeight();
-                              }
-                              MP4::Box tmpBox2 = tmpBox;
-                              MP4::Box tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getCLAP();
-                              if (tmpContent.getType() == "hvcC"){
-                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
-                              }
-                              tmpContent = ((MP4::VisualSampleEntry&)tmpBox2).getPASP();
-                              if (tmpContent.getType() == "hvcC"){
-                                myMeta.tracks[trackNo].init = std::string(tmpContent.payload(),tmpContent.payloadSize());
-                              }
-                            }else if (tmpType == "mp4a" || tmpType == "aac " || tmpType == "ac-3"){
-                              myMeta.tracks[trackNo].type = "audio";
-                              myMeta.tracks[trackNo].channels = ((MP4::AudioSampleEntry&)tmpBox).getChannelCount();
-                              myMeta.tracks[trackNo].rate = (long long int)(((MP4::AudioSampleEntry&)tmpBox).getSampleRate());
-                              if (tmpType == "ac-3"){
-                                myMeta.tracks[trackNo].codec = "AC3";
-                              }else{
-                                MP4::Box esds = ((MP4::AudioSampleEntry&)tmpBox).getCodecBox();
-                                myMeta.tracks[trackNo].codec = ((MP4::ESDS&)esds).getCodec();
-                                myMeta.tracks[trackNo].init = ((MP4::ESDS&)esds).getInitData();
-                              }
-                              myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
-                              //get Visual sample entry -> esds -> startcodes
-                            }else if (tmpType == "tx3g"){//plain text subtitles
-                              myMeta.tracks[trackNo].type = "subtitle";
-                              myMeta.tracks[trackNo].codec = "TTXT";
-                            }else{
-                              myMeta.tracks.erase(trackNo);
-                            }
-                            
-                          }
-                        }//rof stbl
-                        uint64_t totaldur = 0;///\todo note: set this to begin time
-                        mp4PartBpos BsetPart;
-                        long long unsigned int entryNo = 0;
-                        long long unsigned int sampleNo = 0;
-                        MP4::STTSEntry tempSTTS;
-                        tempSTTS = sttsBox.getSTTSEntry(entryNo);
-                        long long unsigned int curSTSS = 0;
-                        bool vidTrack = (myMeta.tracks[trackNo].type == "video");
-                        //change to for over all samples
-                        unsigned int stcoIndex = 0;
-                        unsigned int stscIndex = 0;
-                        unsigned int cttsIndex = 0;//current ctts Index we are reading
-                        unsigned int cttsEntryRead = 0;//current part of ctts we are reading
-                        MP4::CTTSEntry cttsEntry;
-                        
-                        unsigned int fromSTCOinSTSC = 0;
-                        long long unsigned int tempOffset;
-                        bool stcoIs64 = (stcoBox.getType() == "co64");
-                        if (stcoIs64){
-                          tempOffset = ((MP4::CO64*)&stcoBox)->getChunkOffset(0);
-                        }else{
-                          tempOffset = stcoBox.getChunkOffset(0);
-                        }
-                        long long unsigned int nextFirstChunk;
-                        if (stscBox.getEntryCount() > 1){
-                          nextFirstChunk = stscBox.getSTSCEntry(1).firstChunk - 1;
-                        }else{
-                          if (stcoIs64){
-                            nextFirstChunk = ((MP4::CO64*)&stcoBox)->getEntryCount();
-                          }else{
-                            nextFirstChunk = stcoBox.getEntryCount();
-                          }
-                        }
-                        for(long long unsigned int sampleIndex = 0; sampleIndex < stszBox.getSampleCount(); sampleIndex ++){
-                          if (stcoIndex >= nextFirstChunk){//note
-                            stscIndex ++;
-                            if (stscIndex + 1 < stscBox.getEntryCount()){
-                              nextFirstChunk = stscBox.getSTSCEntry(stscIndex + 1).firstChunk - 1;
-                            }else{
-                              if (stcoIs64){
-                                nextFirstChunk = ((MP4::CO64*)&stcoBox)->getEntryCount();
-                              }else{
-                                nextFirstChunk = stcoBox.getEntryCount();
-                              }
-                            }
-                          }
-                          if (vidTrack && curSTSS < stssBox.getEntryCount() && sampleIndex + 1 == stssBox.getSampleNumber(curSTSS)){
-                            BsetPart.keyframe = true;
-                            curSTSS ++;
-                          }else{
-                            BsetPart.keyframe = false;
-                          }
-                          //in bpos set
-                          BsetPart.stcoNr=stcoIndex;
-                          //bpos = chunkoffset[samplenr] in stco
-                          BsetPart.bpos = tempOffset;
-                          fromSTCOinSTSC ++;
-                          if (fromSTCOinSTSC < stscBox.getSTSCEntry(stscIndex).samplesPerChunk){//as long as we are still in this chunk
-                            tempOffset += stszBox.getEntrySize(sampleIndex);
-                          }else{
-                            stcoIndex ++;
-                            fromSTCOinSTSC = 0;
-                            if (stcoIs64){
-                              tempOffset = ((MP4::CO64*)&stcoBox)->getChunkOffset(stcoIndex);
-                            }else{
-                              tempOffset = stcoBox.getChunkOffset(stcoIndex);
-                            }
-                          }
-                          //time = totaldur + stts[entry][sample]
-                          BsetPart.time = (totaldur*1000)/timeScale;
-                          totaldur += tempSTTS.sampleDelta;
-                          sampleNo++;
-                          if (sampleNo >= tempSTTS.sampleCount){
-                            entryNo++;
-                            sampleNo = 0;
-                            if (entryNo < sttsBox.getEntryCount()){
-                              tempSTTS = sttsBox.getSTTSEntry(entryNo);
-                            }
-                          }
-                          //set time offset
-                          if (hasCTTS){
-                            
-                            cttsEntry = cttsBox.getCTTSEntry(cttsIndex);
-                            cttsEntryRead++;
-                            if (cttsEntryRead >= cttsEntry.sampleCount){
-                              cttsIndex++;
-                              cttsEntryRead = 0;
-                            }
-                            BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000)/(int32_t)timeScale;
-                          }else{
-                            BsetPart.timeOffset = 0;
-                          }
-                          myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo, stszBox.getEntrySize(sampleIndex), BsetPart.bpos, BsetPart.keyframe);
-                        }//while over stsc
-                        if (vidTrack){
-                          //something wrong with the time formula, but the answer is right for some reason
-                          /// \todo Fix this. This makes no sense whatsoever. This isn't frame per kilosecond, but milli-STCO-entries per second.
-                          // (A single STCO entry may be more than 1 part, and 1 part may be a partial frame or multiple frames)
-                          if (stcoIs64){
-                            myMeta.tracks[trackNo].fpks = (((double)(((MP4::CO64*)&stcoBox)->getEntryCount()*1000))/((totaldur*1000)))*1000;
-                          }else{
-                            myMeta.tracks[trackNo].fpks = (((double)(stcoBox.getEntryCount()*1000))/((totaldur*1000)))*1000;
-                          }
-                        }
-                      }//fi stbl
-                    }//rof minf
-                  }//fi minf
-                }//rof mdia
-              }//fi mdia
-            }//rof trak
-          }//endif trak
-        }//rof moov
-      }else if (boxType == "erro"){
-        break;
-      }else{
-        if (!MP4::skipBox(inFile)){//moving on to next box
-          DEBUG_MSG(DLVL_FAIL,"Error in Skipping box, exiting");
-          return false;
+
+        std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
+        HIGH_MSG("Obtained %zu trak Boxes", trak.size());
+
+        for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
+          uint64_t trackNo = myMeta.tracks.size()+1;
+          myMeta.tracks[trackNo].trackID = trackNo;
+
+          MP4::TKHD tkhdBox = trakIt->getChild<MP4::TKHD>();
+          if (tkhdBox.getWidth() > 0){
+            myMeta.tracks[trackNo].width = tkhdBox.getWidth();
+            myMeta.tracks[trackNo].height = tkhdBox.getHeight();
+          }
+
+          MP4::MDIA mdiaBox = trakIt->getChild<MP4::MDIA>();
+
+          MP4::MDHD mdhdBox = mdiaBox.getChild<MP4::MDHD>();
+          uint64_t timescale = mdhdBox.getTimeScale();
+          myMeta.tracks[trackNo].lang = mdhdBox.getLanguage();
+
+          std::string hdlrType = mdiaBox.getChild<MP4::HDLR>().getHandlerType();
+          if (hdlrType != "vide" && hdlrType != "soun" && hdlrType != "stbl"){
+            break;
+          }
+
+          MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
+
+          MP4::STSD stsdBox = stblBox.getChild<MP4::STSD>();
+          MP4::Box sEntryBox = stsdBox.getEntry(0);
+          std::string sType = sEntryBox.getType();
+          HIGH_MSG("Found track %zu of type %s", trackNo, sType.c_str()); 
+
+          if (sType == "avc1" || sType == "h264" || sType == "mp4v"){
+            MP4::VisualSampleEntry & vEntryBox = (MP4::VisualSampleEntry&)sEntryBox;
+            myMeta.tracks[trackNo].type = "video";
+            myMeta.tracks[trackNo].codec = "H264";
+            if (!myMeta.tracks[trackNo].width){
+              myMeta.tracks[trackNo].width = vEntryBox.getWidth();
+              myMeta.tracks[trackNo].height = vEntryBox.getHeight();
+            }
+            MP4::Box initBox = vEntryBox.getCLAP();
+            if (initBox.isType("avcC")){
+              myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());
+            }
+            initBox = vEntryBox.getPASP();
+            if (initBox.isType("avcC")){
+              myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());
+            }
+            ///this is a hacky way around invalid FLV data (since it gets ignored nearly everywhere, but we do need correct data...
+            if (!myMeta.tracks[trackNo].width){
+              h264::sequenceParameterSet sps;
+              sps.fromDTSCInit(myMeta.tracks[trackNo].init);
+              h264::SPSMeta spsChar = sps.getCharacteristics();
+              myMeta.tracks[trackNo].width = spsChar.width;
+              myMeta.tracks[trackNo].height = spsChar.height;
+            }
+          }
+          if (sType == "hev1" || sType == "hvc1"){
+            MP4::VisualSampleEntry & vEntryBox = (MP4::VisualSampleEntry&)sEntryBox;
+            myMeta.tracks[trackNo].type = "video";
+            myMeta.tracks[trackNo].codec = "HEVC";
+            if (!myMeta.tracks[trackNo].width){
+              myMeta.tracks[trackNo].width = vEntryBox.getWidth();
+              myMeta.tracks[trackNo].height = vEntryBox.getHeight();
+            }
+            MP4::Box initBox = vEntryBox.getCLAP();
+            if (initBox.isType("hvcC")){
+              myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());
+            }
+            initBox = vEntryBox.getPASP();
+            if (initBox.isType("hvcC")){
+              myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());
+            }          
+          }
+          if (sType == "mp4a" || sType == "aac " || sType == "ac-3"){
+            MP4::AudioSampleEntry & aEntryBox = (MP4::AudioSampleEntry&)sEntryBox;
+            myMeta.tracks[trackNo].type = "audio";
+            myMeta.tracks[trackNo].channels = aEntryBox.getChannelCount();
+            myMeta.tracks[trackNo].rate = aEntryBox.getSampleRate();
+
+            if (sType == "ac-3"){
+              myMeta.tracks[trackNo].codec = "AC3";
+            }else{
+              MP4::ESDS esdsBox = (MP4::ESDS&)(aEntryBox.getCodecBox());
+              myMeta.tracks[trackNo].codec = esdsBox.getCodec();
+              myMeta.tracks[trackNo].init = esdsBox.getInitData();
+            }
+            myMeta.tracks[trackNo].size = 16;///\todo this might be nice to calculate from mp4 file;
+          }
+
+          if (sType == "tx3g"){//plain text subtitles
+            myMeta.tracks[trackNo].type = "subtitle";
+            myMeta.tracks[trackNo].codec = "TTXT";
+          }
+
+          MP4::STSS stssBox = stblBox.getChild<MP4::STSS>();
+          MP4::STTS sttsBox = stblBox.getChild<MP4::STTS>();
+          MP4::STSZ stszBox = stblBox.getChild<MP4::STSZ>();
+          MP4::STCO stcoBox = stblBox.getChild<MP4::STCO>();
+          MP4::CO64 co64Box = stblBox.getChild<MP4::CO64>();
+          MP4::STSC stscBox = stblBox.getChild<MP4::STSC>();
+          MP4::CTTS cttsBox = stblBox.getChild<MP4::CTTS>();//optional ctts box
+
+          bool stco64 = co64Box.isType("co64");
+          bool hasCTTS = cttsBox.isType("ctts");
+
+          uint64_t totaldur = 0;///\todo note: set this to begin time
+          mp4PartBpos BsetPart;
+
+          uint64_t entryNo = 0;
+          uint64_t sampleNo = 0;
+
+          uint64_t stssIndex = 0;
+          uint64_t stcoIndex = 0;
+          uint64_t stscIndex = 0;
+          uint64_t cttsIndex = 0;//current ctts Index we are reading
+          uint64_t cttsEntryRead = 0;//current part of ctts we are reading
+
+          uint64_t stssCount = stssBox.getEntryCount();
+          uint64_t stscCount = stscBox.getEntryCount();
+          uint64_t stszCount = stszBox.getSampleCount();
+          uint64_t stcoCount = (stco64 ? co64Box.getEntryCount() : stcoBox.getEntryCount());
+
+          MP4::STTSEntry sttsEntry = sttsBox.getSTTSEntry(0);
+
+          uint32_t fromSTCOinSTSC = 0;
+          uint64_t tmpOffset = (stco64 ? co64Box.getChunkOffset(0) : stcoBox.getChunkOffset(0));
+
+          uint64_t nextFirstChunk = (stscCount > 1 ? stscBox.getSTSCEntry(1).firstChunk - 1 : stcoCount);
+
+          for (uint64_t stszIndex = 0; stszIndex < stszCount; ++stszIndex){
+            if (stcoIndex >= nextFirstChunk){
+              ++stscIndex;
+              nextFirstChunk = (stscIndex + 1 < stscCount ? stscBox.getSTSCEntry(stscIndex + 1).firstChunk - 1 : stcoCount);
+            }
+            BsetPart.keyframe = (myMeta.tracks[trackNo].type == "video" && stssIndex < stssCount && stszIndex + 1 == stssBox.getSampleNumber(stssIndex));
+            if (BsetPart.keyframe){
+              ++stssIndex;
+            }
+            //in bpos set
+            BsetPart.stcoNr = stcoIndex;
+            //bpos = chunkoffset[samplenr] in stco
+            BsetPart.bpos = tmpOffset;
+            ++fromSTCOinSTSC;
+            if (fromSTCOinSTSC < stscBox.getSTSCEntry(stscIndex).samplesPerChunk){//as long as we are still in this chunk
+              tmpOffset += stszBox.getEntrySize(stszIndex);
+            }else{
+              ++stcoIndex;
+              fromSTCOinSTSC = 0;
+              tmpOffset = (stco64 ? co64Box.getChunkOffset(stcoIndex) : stcoBox.getChunkOffset(stcoIndex));
+            }
+            BsetPart.time = (totaldur*1000)/timescale;
+            totaldur += sttsEntry.sampleDelta;
+            sampleNo++;
+            if (sampleNo >= sttsEntry.sampleCount){
+              ++entryNo;
+              sampleNo = 0;
+              if (entryNo < sttsBox.getEntryCount()){
+                sttsEntry = sttsBox.getSTTSEntry(entryNo);
+              }
+            }
+            
+            if (hasCTTS){
+              MP4::CTTSEntry cttsEntry = cttsBox.getCTTSEntry(cttsIndex);
+              cttsEntryRead++;
+              if (cttsEntryRead >= cttsEntry.sampleCount){
+                ++cttsIndex;
+                cttsEntryRead = 0;
+              }
+              BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000)/timescale;
+            }else{
+              BsetPart.timeOffset = 0;
+            }
+            myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo, stszBox.getEntrySize(stszIndex), BsetPart.bpos, BsetPart.keyframe);
+          }
         }
-      }// if moov
-    }// end while file read
-    //for all in bpos set, find its data
+        continue;
+      }
+      if (!MP4::skipBox(inFile)){//moving on to next box
+        FAIL_MSG("Error in Skipping box, exiting");
+        return false;
+      }
+    }
     clearerr(inFile);
     
     //outputting dtsh file
@@ -582,7 +440,7 @@ namespace Mist {
       }
     }
     if (fseeko(inFile,curPart.bpos,SEEK_SET)){
-      DEBUG_MSG(DLVL_FAIL,"seek unsuccessful; bpos: %llu error: %s",curPart.bpos, strerror(errno));
+      FAIL_MSG("seek unsuccessful @bpos %" PRIu64 ": %s",curPart.bpos, strerror(errno));
       thisPacket.null();
       return;
     }
@@ -591,7 +449,7 @@ namespace Mist {
       malSize = curPart.size;
     }
     if (fread(data, curPart.size, 1, inFile)!=1){
-      DEBUG_MSG(DLVL_FAIL,"read unsuccessful at %ld", ftell(inFile));
+      FAIL_MSG("read unsuccessful at %" PRIu64, ftell(inFile));
       thisPacket.null();
       return;
     }

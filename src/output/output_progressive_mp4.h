@@ -9,29 +9,23 @@ namespace Mist {
         if (time < rhs.time){
           return true;
         }
-        if (time == rhs.time){
-          if (trackID < rhs.trackID){
-            return true;
-          }
-          if (trackID == rhs.trackID){
-            return index < rhs.index;
-          }
+        if (time > rhs.time){
+          return false;
         }
-        return false;
+        if (trackID < rhs.trackID){
+          return true;
+        }
+        return (trackID == rhs.trackID && index < rhs.index);
       }
-      long unsigned int trackID;
-      long unsigned int size;
-      long long unsigned int time;
-      long long unsigned int endTime;
-      long long unsigned int byteOffset;//added for MP4 fragmented
-      long int timeOffset;//added for MP4 fragmented
-      long unsigned int duration;//added for MP4 fragmented
-      long unsigned int index;
+      size_t trackID;
+      uint64_t time;
+      uint64_t byteOffset;//Stores relative bpos for fragmented MP4
+      uint64_t index;
   };
   
   struct fragSet{
-    uint32_t firstPart;
-    uint32_t lastPart;
+    uint64_t firstPart;
+    uint64_t lastPart;
     uint64_t firstTime;
     uint64_t lastTime;
   };
@@ -40,42 +34,43 @@ namespace Mist {
       OutProgressiveMP4(Socket::Connection & conn);
       ~OutProgressiveMP4();
       static void init(Util::Config * cfg);
-      void parseRange(std::string header, long long & byteStart, long long & byteEnd, long long & seekPoint, unsigned int headerSize);
-      std::string DTSCMeta2MP4Header(long long & size, int fragmented = 0);
+      void parseRange(std::string header, uint64_t & byteStart, uint64_t & byteEnd, uint64_t & seekPoint, uint64_t headerSize);
+      uint64_t mp4HeaderSize(uint64_t & fileSize, int fragmented = 0);
+      std::string DTSCMeta2MP4Header(uint64_t & size, int fragmented = 0);
       //int fragmented values: 0 = non fragmented stream, 1 = frag stream main header
       void buildFragment();//this builds the structure of the fragment header and stores it in a member variable
       void sendFragmentHeader();//this builds the moof box for fragmented MP4
-      void findSeekPoint(long long byteStart, long long & seekPoint, unsigned int headerSize);
+      void findSeekPoint(uint64_t byteStart, uint64_t & seekPoint, uint64_t headerSize);
       void onHTTP();
       void sendNext();
       void sendHeader();
     protected:
-      long long fileSize;
-      long long byteStart;
-      long long byteEnd;
-      long long leftOver;
-      long long currPos;
-      long long seekPoint;
+      uint64_t fileSize;
+      uint64_t byteStart;
+      uint64_t byteEnd;
+      int64_t leftOver;
+      uint64_t currPos;
+      uint64_t seekPoint;
       
       //variables for standard MP4
       std::set <keyPart> sortSet;//needed for unfragmented MP4, remembers the order of keyparts
 
       //variables for fragmented
-      int fragSeqNum;//the sequence number of the next keyframe/fragment when producing fragmented MP4's
-      long unsigned int vidTrack;//the video track we use as fragmenting base
-      long long unsigned int realBaseOffset;//base offset for every moof packet
+      size_t fragSeqNum;//the sequence number of the next keyframe/fragment when producing fragmented MP4's
+      size_t vidTrack;//the video track we use as fragmenting base
+      uint64_t realBaseOffset;//base offset for every moof packet
       //from sendnext
-      long unsigned int partListSent;//parts of current fragSet sent
-      long unsigned int partListLength;//amount of packets in current fragment
-      long int fragKeyNumberShift;//the difference between the first fragment Number and the first keyframe number
+      size_t partListSent;//parts of current fragSet sent
+      size_t partListLength;//amount of packets in current fragment
+      int64_t fragKeyNumberShift;//the difference between the first fragment Number and the first keyframe number
 
       
       bool sending3GP;
       bool chromeWorkaround;
-      long long unsigned estimateFileSize();
+      uint64_t estimateFileSize();
 
       //This is a dirty solution... but it prevents copying and copying and copying again
-      std::map<long unsigned int, fragSet> currentPartSet;
+      std::map<size_t, fragSet> currentPartSet;
   };
 }
 

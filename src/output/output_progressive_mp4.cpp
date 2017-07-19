@@ -5,6 +5,8 @@
 #include <mist/bitfields.h>
 #include "output_progressive_mp4.h"
 
+#include <inttypes.h>
+
 namespace Mist {
   OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn) {}
   OutProgressiveMP4::~OutProgressiveMP4() {}
@@ -29,8 +31,8 @@ namespace Mist {
     //capa["canRecord"].append("m3u");
   }
 
-  long long unsigned OutProgressiveMP4::estimateFileSize() {
-    long long unsigned retVal = 0;
+  uint64_t OutProgressiveMP4::estimateFileSize() {
+    uint64_t retVal = 0;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       for (std::deque<unsigned long>::iterator keyIt = myMeta.tracks[*it].keySizes.begin(); keyIt != myMeta.tracks[*it].keySizes.end(); keyIt++) {
         retVal += *keyIt;
@@ -39,8 +41,96 @@ namespace Mist {
     return retVal * 1.1;
   }
 
+  uint64_t OutProgressiveMP4::mp4HeaderSize(uint64_t & fileSize, int fragmented) {
+    bool useLargeBoxes = !fragmented && (estimateFileSize() > 0xFFFFFFFFull);
+    uint64_t res = 36 // FTYP Box
+      + 8 //MOOV box
+      + 108; //MVHD Box
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      DTSC::Track & thisTrack = myMeta.tracks[*it];
+      uint64_t tmpRes = 0;
+      uint64_t partCount = thisTrack.parts.size();
+
+      tmpRes += 8 //TRAK Box
+        + 92 //TKHD Box
+        + 36 //EDTS Box
+        + 8 //MDIA Box
+        + 32 //MDHD Box
+        + 33 + thisTrack.getIdentifier().size() // HDLR Box
+        + 8 //MINF Box
+        + 36 //DINF Box
+        + 8; // STBL Box
+
+      //These boxes are empty when generating fragmented output
+      tmpRes += 20 + (fragmented ? 0 : (partCount * 4));//STSZ
+      tmpRes += 16 + (fragmented ? 0 : (partCount * (useLargeBoxes ? 8 : 4)));//STCO
+      tmpRes += 16 + (fragmented ? 0 : (1 * 12));//STSC <-- Currently 1 entry, but might become more complex in near future
+      
+      //Type-specific boxes
+      if (thisTrack.type == "video"){
+        tmpRes += 20//VMHD Box 
+          + 16 //STSD
+          + 86 //AVC1
+          + 8 + thisTrack.init.size();//avcC
+        if (!fragmented){
+          tmpRes += 16 + (thisTrack.keys.size() * 4);//STSS
+        }
+      }
+      if (thisTrack.type == "audio"){
+        tmpRes += 16//SMHD Box
+          + 16//STSD
+          + 36//MP4A
+          + 37 + thisTrack.init.size();//ESDS
+      }
+      
+      if (!fragmented){
+        //Unfortunately, for our STTS and CTTS boxes, we need to loop through all parts of the track
+        uint64_t sttsCount = 1;
+        uint64_t prevDur = thisTrack.parts[0].getDuration();
+        uint64_t prevOffset = thisTrack.parts[0].getOffset();
+        uint64_t cttsCount = 1;
+        fileSize += thisTrack.parts[0].getSize();
+        for (unsigned int part = 1; part < partCount; ++part){
+          uint64_t partDur = thisTrack.parts[part].getDuration();
+          uint64_t partOffset = thisTrack.parts[part].getOffset();
+          uint64_t partSize = thisTrack.parts[part].getSize();
+          if (prevDur != partDur){
+            prevDur = partDur;
+            ++sttsCount;
+          }
+          if (partOffset != prevOffset){
+            prevOffset = partOffset;
+            ++cttsCount;
+          }
+          fileSize += partSize;
+        }
+        if (cttsCount == 1 && ! prevOffset){
+          cttsCount = 0;
+        }
+        tmpRes += 16 + (sttsCount * 8);//STTS
+        if (cttsCount){
+          tmpRes += 16 + (cttsCount * 8);//CTTS
+        }
+      } else{
+        tmpRes += 16;//empty STTS, no CTTS
+      }
+      
+      res += tmpRes;
+    }
+    if (fragmented){
+      res += 8 + (selectedTracks.size() * 32);//Mvex + trex boxes
+      res += 1; //Horrible horrible length fix;
+    }else{
+      res += 8; //mdat beginning
+    }
+    fileSize += res;
+    INFO_MSG("H size %llu, file: %llu", res, fileSize);
+    return res;
+  }
+
+
   ///\todo This function does not indicate errors anywhere... maybe fix this...
-  std::string OutProgressiveMP4::DTSCMeta2MP4Header(long long & size, int fragmented) {
+  std::string OutProgressiveMP4::DTSCMeta2MP4Header(uint64_t & size, int fragmented) {
     if (myMeta.live){
       needsLookAhead = 420;
     }
@@ -75,11 +165,11 @@ namespace Mist {
     //Then override it only when we are not sending a fragmented file
     if (!fragmented){
       //calculating longest duration
-      long long unsigned firstms = 0xFFFFFFFFFFFFFFull;
-      long long unsigned lastms = 0;
+      uint64_t firstms = 0xFFFFFFFFFFFFFFull;
+      uint64_t lastms = 0;
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
-        lastms = std::max(lastms, myMeta.tracks[*it].lastms);
-        firstms = std::min(firstms, myMeta.tracks[*it].firstms);
+        lastms = std::max(lastms, (uint64_t)myMeta.tracks[*it].lastms);
+        firstms = std::min(firstms, (uint64_t)myMeta.tracks[*it].firstms);
       }
       mvhdBox.setDuration(lastms - firstms);
     }
@@ -89,6 +179,8 @@ namespace Mist {
 
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       DTSC::Track & thisTrack = myMeta.tracks[*it];
+      size_t partCount = thisTrack.parts.size();
+      uint64_t tDuration = thisTrack.lastms - thisTrack.firstms;
       MP4::TRAK trakBox;
       //Keep track of the current index within the moovBox
       unsigned int trakOffset = 0;
@@ -106,11 +198,7 @@ namespace Mist {
       elstBox.setVersion(0);
       elstBox.setFlags(0);
       elstBox.setCount(1);
-      if (!fragmented){
-        elstBox.setSegmentDuration(0, thisTrack.lastms - thisTrack.firstms);
-      }else{
-        elstBox.setSegmentDuration(0, -1);
-      }
+      elstBox.setSegmentDuration(0, fragmented ? -1 : tDuration);
       elstBox.setMediaTime(0, 0);
       elstBox.setMediaRateInteger(0, 1);
       elstBox.setMediaRateFraction(0, 0);
@@ -118,10 +206,10 @@ namespace Mist {
       trakBox.setContent(edtsBox, trakOffset++);
 
       MP4::MDIA mdiaBox;
-      unsigned int mdiaOffset = 0;
+      size_t mdiaOffset = 0;
       
       //Add the mandatory MDHD and HDLR boxes to the MDIA
-      MP4::MDHD mdhdBox(thisTrack.lastms - thisTrack.firstms);
+      MP4::MDHD mdhdBox(tDuration);
       if (fragmented){
         mdhdBox.setDuration(-1);
       }
@@ -131,7 +219,7 @@ namespace Mist {
       mdiaBox.setContent(hdlrBox, mdiaOffset++);
       
       MP4::MINF minfBox;
-      unsigned int minfOffset = 0;
+      size_t minfOffset = 0;
       
       //Add a track-type specific box to the MINF box
       if (thisTrack.type == "video") {
@@ -151,7 +239,7 @@ namespace Mist {
 
      
       MP4::STBL stblBox;
-      unsigned int stblOffset = 0;
+      size_t stblOffset = 0;
 
       //Add STSD box
       MP4::STSD stsdBox(0);
@@ -164,30 +252,68 @@ namespace Mist {
       }
       stblBox.setContent(stsdBox, stblOffset++);
 
+
       //Add STTS Box
       //note: STTS is empty when fragmented
       MP4::STTS sttsBox(0);
+      //Add STSZ Box
+      //note: STSZ is empty when fragmented
+      MP4::STSZ stszBox(0);
       if (!fragmented) {
-        std::deque<std::pair<int, int> > sttsCounter;
-        for (unsigned int part = 0; part < thisTrack.parts.size(); ++part) {
-          //Create a new entry with current duration if EITHER there is no entry yet, or this parts duration differs from the previous
-          if (!sttsCounter.size() || sttsCounter.rbegin()->second != thisTrack.parts[part].getDuration()){
-            //Set the counter to 0, so we don't have to handle this situation diffent when updating
-            sttsCounter.push_back(std::pair<int,int>(0, thisTrack.parts[part].getDuration()));
-          }
-          //Then update the counter
-          sttsCounter.rbegin()->first++;
-        }
 
-        //Write all entries in reverse
-        for (unsigned int entry = sttsCounter.size(); entry > 0; --entry){
-          MP4::STTSEntry newEntry;
-          newEntry.sampleCount = sttsCounter[entry - 1].first;;
-          newEntry.sampleDelta = sttsCounter[entry - 1].second;
-          sttsBox.setSTTSEntry(newEntry, entry - 1);///\todo rewrite for sanity
+        MP4::CTTS cttsBox;
+        cttsBox.setVersion(0);
+
+
+        MP4::CTTSEntry tmpEntry;
+        tmpEntry.sampleCount = 0;
+        tmpEntry.sampleOffset = thisTrack.parts[0].getOffset();
+        
+        std::deque<std::pair<size_t, size_t> > sttsCounter;
+        stszBox.setEntrySize(0, partCount - 1);//Speed up allocation
+        size_t totalEntries = 0;
+
+        for (size_t part = 0; part < partCount; ++part){
+          stats();
+        
+          uint64_t partDur = thisTrack.parts[part].getDuration();
+          uint64_t partSize = thisTrack.parts[part].getSize();
+          uint64_t partOffset = thisTrack.parts[part].getOffset();
+
+          //Create a new entry with current duration if EITHER there is no entry yet, or this parts duration differs from the previous
+          if (!sttsCounter.size() || sttsCounter.rbegin()->second != partDur){
+            sttsCounter.push_back(std::pair<size_t,size_t>(0, partDur));
+          }
+          //Update the counter
+          sttsCounter.rbegin()->first++;
+
+          stszBox.setEntrySize(partSize, part);
+          size += partSize;
+
+          if (partOffset != tmpEntry.sampleOffset) {
+            //If the offset of this and previous part differ, write current values and reset
+            cttsBox.setCTTSEntry(tmpEntry, totalEntries++);///\todo Again, rewrite for sanity. index FIRST, value SECOND
+            tmpEntry.sampleCount = 0;
+            tmpEntry.sampleOffset = partOffset;
+          }
+          tmpEntry.sampleCount++;
+        }
+        
+        MP4::STTSEntry sttsEntry;
+        sttsBox.setSTTSEntry(sttsEntry, sttsCounter.size() - 1);
+        size_t sttsIdx = 0;
+        for (std::deque<std::pair<size_t, size_t> >::iterator it2 = sttsCounter.begin(); it2 != sttsCounter.end(); it2++){
+          sttsEntry.sampleCount = it2->first;
+          sttsEntry.sampleDelta = it2->second;
+          sttsBox.setSTTSEntry(sttsEntry, sttsIdx++);
+        }
+        if (totalEntries || tmpEntry.sampleOffset) {
+          cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
+          stblBox.setContent(cttsBox, stblOffset++);
         }
       }
       stblBox.setContent(sttsBox, stblOffset++);
+      stblBox.setContent(stszBox, stblOffset++);
 
       //Add STSS Box IF type is video and we are not fragmented
       if (thisTrack.type == "video" && !fragmented) {
@@ -209,63 +335,20 @@ namespace Mist {
       }
       stblBox.setContent(stscBox, stblOffset++);
 
-      bool containsOffsets = false;
 
-      //Add STSZ Box
-      //note: STSZ is empty when fragmented
-      MP4::STSZ stszBox(0);
-      if (!fragmented) {
-        if (thisTrack.parts.size()) {
-          std::deque<DTSC::Part>::reverse_iterator tmpIt = thisTrack.parts.rbegin();
-          for (unsigned int part = thisTrack.parts.size(); part > 0; --part) {
-            ///\todo rewrite for sanity
-            stszBox.setEntrySize(tmpIt->getSize(), part - 1); //in bytes in file
-            size += tmpIt->getSize();
-            containsOffsets |= tmpIt->getOffset();
-            tmpIt++;
-          }
-        }
-      }
-      stblBox.setContent(stszBox, stblOffset++);
-      
-      //Add CTTS Box only if the track contains time offsets
-      //note: CTTS will never exist in fragmented, since containsOffsets is set while generating the STSZ box
-      if (containsOffsets) {
-        MP4::CTTS cttsBox;
-        cttsBox.setVersion(0);
-
-        MP4::CTTSEntry tmpEntry;
-        tmpEntry.sampleCount = 0;
-        tmpEntry.sampleOffset = thisTrack.parts[0].getOffset();
-        unsigned int totalEntries = 0;
-        for (std::deque<DTSC::Part>::iterator tmpIt = thisTrack.parts.begin(); tmpIt != thisTrack.parts.end(); tmpIt++){
-          if (tmpIt->getOffset() != tmpEntry.sampleOffset) {
-            //If the offset of this and previous part differ, write current values and reset
-            cttsBox.setCTTSEntry(tmpEntry, totalEntries++);///\todo Again, rewrite for sanity. index FIRST, value SECOND
-            tmpEntry.sampleCount = 0;
-            tmpEntry.sampleOffset = tmpIt->getOffset();
-          }
-          tmpEntry.sampleCount++;
-        }
-        //set the last entry
-        cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
-        stblBox.setContent(cttsBox, stblOffset++);
-      }
-
-     
       //Create STCO Box (either stco or co64)
       //note: 64bit boxes will never be used in fragmented
       //note: Inserting empty values on purpose here, will be fixed later.
       if (useLargeBoxes) {
         MP4::CO64 CO64Box;
-        CO64Box.setChunkOffset(0, thisTrack.parts.size() - 1);
+        CO64Box.setChunkOffset(0, partCount - 1);
         stblBox.setContent(CO64Box, stblOffset++);
       } else {
         MP4::STCO stcoBox(0);
         if (fragmented) {
           stcoBox.setEntryCount(0);
         } else {
-          stcoBox.setChunkOffset(0, thisTrack.parts.size() - 1);
+          stcoBox.setChunkOffset(0, partCount - 1);
         }
         stblBox.setContent(stcoBox, stblOffset++);
       }
@@ -289,95 +372,62 @@ namespace Mist {
       moovBox.setContent(mvexBox, moovOffset++);
     }else{ //if we are making a non fragmented MP4 and there are parts
       //initial offset length ftyp, length moov + 8
-      unsigned long long int dataOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
-      //update all STCO or CO64 from the following maps;
-      std::map <long unsigned, MP4::STCO> checkStcoBoxes;
-      std::map <long unsigned, MP4::CO64> checkCO64Boxes;
-      //for all tracks
-      for (unsigned int i = 1; i < moovBox.getContentCount(); i++) {
-        //10 lines to get the STCO box.
-        MP4::TRAK checkTrakBox;
-        MP4::Box checkMdiaBox;
-        MP4::Box checkTkhdBox;
-        MP4::MINF checkMinfBox;
-        MP4::STBL checkStblBox;
-        //MP4::STCO checkStcoBox;
-        checkTrakBox = ((MP4::TRAK &)moovBox.getContent(i));
-        for (unsigned int j = 0; j < checkTrakBox.getContentCount(); j++) {
-          if (checkTrakBox.getContent(j).isType("mdia")) {
-            checkMdiaBox = checkTrakBox.getContent(j);
-            break;
-          }
-          if (checkTrakBox.getContent(j).isType("tkhd")) {
-            checkTkhdBox = checkTrakBox.getContent(j);
-          }
-        }
-        for (unsigned int j = 0; j < ((MP4::MDIA &)checkMdiaBox).getContentCount(); j++) {
-          if (((MP4::MDIA &)checkMdiaBox).getContent(j).isType("minf")) {
-            checkMinfBox = ((MP4::MINF &)((MP4::MDIA &)checkMdiaBox).getContent(j));
-            break;
-          }
-        }
-        for (unsigned int j = 0; j < checkMinfBox.getContentCount(); j++) {
-          if (checkMinfBox.getContent(j).isType("stbl")) {
-            checkStblBox = ((MP4::STBL &)checkMinfBox.getContent(j));
-            break;
-          }
-        }
-        for (unsigned int j = 0; j < checkStblBox.getContentCount(); j++) {
-          if (checkStblBox.getContent(j).isType("stco")) {
-            checkStcoBoxes.insert(std::pair<long unsigned, MP4::STCO>(((MP4::TKHD &)checkTkhdBox).getTrackID(), ((MP4::STCO &)checkStblBox.getContent(j))));
-            break;
-          }
-          if (checkStblBox.getContent(j).isType("co64")) {
-            checkCO64Boxes.insert(std::pair<long unsigned, MP4::CO64>(((MP4::TKHD &)checkTkhdBox).getTrackID(), ((MP4::CO64 &)checkStblBox.getContent(j))));
-            break;
-          }
+      uint64_t dataOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
+
+
+      std::map <size_t, MP4::STCO> checkStcoBoxes;
+      std::map <size_t, MP4::CO64> checkCO64Boxes;
+
+      std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
+      for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
+        MP4::TKHD tkhdBox = trakIt->getChild<MP4::TKHD>();
+        MP4::STBL stblBox = trakIt->getChild<MP4::MDIA>().getChild<MP4::MINF>().getChild<MP4::STBL>();
+        if (useLargeBoxes){
+          checkCO64Boxes.insert(std::pair<size_t, MP4::CO64>(tkhdBox.getTrackID(), stblBox.getChild<MP4::CO64>()));
+        }else{
+          checkStcoBoxes.insert(std::pair<size_t, MP4::STCO>(tkhdBox.getTrackID(), stblBox.getChild<MP4::STCO>()));
         }
       }
+
       //inserting right values in the STCO box header
       //total = 0;
       //Keep track of the current size of the data within the mdat
-      long long unsigned int dataSize = 0;
+      uint64_t dataSize = 0;
       //Current values are actual byte offset without header-sized offset
       std::set <keyPart> sortSet;//filling sortset for interleaving parts
       for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
         keyPart temp;
         temp.trackID = *subIt;
         temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
-        temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
-        temp.size = myMeta.tracks[*subIt].parts[0].getSize();//bytesize of frame (alle parts all together)
         temp.index = 0;
-        INFO_MSG("adding to sortSet: tid %lu time %llu", temp.trackID, temp.time);
+        INFO_MSG("adding to sortSet: tid %lu time %lu", temp.trackID, temp.time);
         sortSet.insert(temp);
       }
       while (!sortSet.empty()) {
-        std::set<keyPart>::iterator keyBegin = sortSet.begin();
+        stats();
+        keyPart temp = *sortSet.begin();
+        sortSet.erase(sortSet.begin());
+        
+        DTSC::Track & thisTrack = myMeta.tracks[temp.trackID];
+
         //setting the right STCO size in the STCO box
         if (useLargeBoxes){//Re-using the previously defined boolean for speedup
-          checkCO64Boxes[keyBegin->trackID].setChunkOffset(dataOffset + dataSize, keyBegin->index);
+          checkCO64Boxes[temp.trackID].setChunkOffset(dataOffset + dataSize, temp.index);
         } else {
-          checkStcoBoxes[keyBegin->trackID].setChunkOffset(dataOffset + dataSize, keyBegin->index);
+          checkStcoBoxes[temp.trackID].setChunkOffset(dataOffset + dataSize, temp.index);
         }
-        dataSize += keyBegin->size;
+        dataSize += thisTrack.parts[temp.index].getSize();
         
         //add next keyPart to sortSet
-        DTSC::Track & thisTrack = myMeta.tracks[keyBegin->trackID];
-        if (keyBegin->index < thisTrack.parts.size() - 1) {//Only create new element, when there are new elements to be added 
-          keyPart temp = *keyBegin;
-          temp.index ++;
-          temp.time = temp.endTime;
-          temp.endTime += thisTrack.parts[temp.index].getDuration();
-          temp.size = thisTrack.parts[temp.index].getSize();//bytesize of frame
+        if (temp.index + 1< thisTrack.parts.size()) {//Only create new element, when there are new elements to be added 
+          temp.time += thisTrack.parts[temp.index].getDuration();
+          ++temp.index;
           sortSet.insert(temp);
         }
-        //remove highest keyPart
-        sortSet.erase(keyBegin);
       }
 
       ///\todo Update this thing for boxes >4G?
       mdatSize = dataSize + 8;//+8 for mp4 header
-
     }
     header << std::string(moovBox.asBox(), moovBox.boxedSize());
     if (!fragmented) { //if we are making a non fragmented MP4 and there are parts
@@ -392,6 +442,7 @@ namespace Mist {
       header << (char)(0);
     }
     size += header.str().size();
+    INFO_MSG("Header %llu, file: %llu", header.str().size(), size);
     if (fragmented) {
       realBaseOffset = header.str().size();
     }
@@ -400,7 +451,7 @@ namespace Mist {
 
   /// Calculate a seekPoint, based on byteStart, metadata, tracks and headerSize.
   /// The seekPoint will be set to the timestamp of the first packet to send.
-  void OutProgressiveMP4::findSeekPoint(long long byteStart, long long & seekPoint, unsigned int headerSize) {
+  void OutProgressiveMP4::findSeekPoint(uint64_t byteStart, uint64_t & seekPoint, uint64_t headerSize) {
     seekPoint = 0;
     //if we're starting in the header, seekPoint is always zero.
     if (byteStart <= headerSize) {
@@ -410,28 +461,33 @@ namespace Mist {
     byteStart -= headerSize;
     //forward through the file by headers, until we reach the point where we need to be
     while (!sortSet.empty()) {
+      //find the next part and erase it
+      keyPart temp = *sortSet.begin();
+
+      DTSC::Track & thisTrack = myMeta.tracks[temp.trackID];
+      uint64_t partSize = thisTrack.parts[temp.index].getSize();
+
       //record where we are
-      seekPoint = sortSet.begin()->time;
+      seekPoint = temp.time;
       //substract the size of this fragment from byteStart
-      byteStart -= sortSet.begin()->size;
       //if that put us past the point where we wanted to be, return right now
-      if (byteStart < 0) {
-        INFO_MSG("We're starting at time %lld, skipping %lld bytes", seekPoint, byteStart+sortSet.begin()->size);
+      if (partSize > byteStart) {
+        INFO_MSG("We're starting at time %" PRIu64 ", skipping %" PRIu64 " bytes", seekPoint, partSize - byteStart);
         return;
       }
+      
+
+      byteStart -= partSize; 
+
       //otherwise, set currPos to where we are now and continue
-      currPos += sortSet.begin()->size;
-      //find the next part
-      keyPart temp;
-      temp.index = sortSet.begin()->index + 1;
-      temp.trackID = sortSet.begin()->trackID;
-      if (temp.index < myMeta.tracks[temp.trackID].parts.size()) { //only insert when there are parts left
-        temp.time = sortSet.begin()->endTime;//timeplace of frame
-        temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
-        temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize();//bytesize of frame
+      currPos += partSize;
+
+      if (temp.index + 1 < myMeta.tracks[temp.trackID].parts.size()){ //only insert when there are parts left
+        temp.time += thisTrack.parts[temp.index].getDuration();
+        ++temp.index;
         sortSet.insert(temp);
       }
-      //remove highest keyPart
+      //Remove just-parsed element
       sortSet.erase(sortSet.begin());
       //wash, rinse, repeat
     }
@@ -442,10 +498,10 @@ namespace Mist {
 /// Parses a "Range: " header, setting byteStart, byteEnd and seekPoint using data from metadata and tracks to do
 /// the calculations.
 /// On error, byteEnd is set to zero.
-  void OutProgressiveMP4::parseRange(std::string header, long long & byteStart, long long & byteEnd, long long & seekPoint, unsigned int headerSize) {
+  void OutProgressiveMP4::parseRange(std::string header, uint64_t & byteStart, uint64_t & byteEnd, uint64_t & seekPoint, uint64_t headerSize) {
     if (header.size() < 6 || header.substr(0, 6) != "bytes=") {
       byteEnd = 0;
-      DEBUG_MSG(DLVL_WARN, "Invalid range header: %s", header.c_str());
+      WARN_MSG("Invalid range header: %s", header.c_str());
       return;
     }
     header.erase(0, 6);
@@ -485,7 +541,7 @@ namespace Mist {
         break;
       }
       if (header[i] != '-') {
-        DEBUG_MSG(DLVL_WARN, "Invalid range header: %s", header.c_str());
+        WARN_MSG("Invalid range header: %s", header.c_str());
         byteEnd = 0;
         return;
       }
@@ -505,14 +561,13 @@ namespace Mist {
       } else {
         byteEnd = size;
       }
-      DEBUG_MSG(DLVL_MEDIUM, "Range request: %lli-%lli (%s)", byteStart, byteEnd, header.c_str());
+      MEDIUM_MSG("Range request: %" PRIu64 "-%" PRIu64 " (%s)", byteStart, byteEnd, header.c_str());
       findSeekPoint(byteStart, seekPoint, headerSize);
       return;
     }
   }
 
   void OutProgressiveMP4::sendFragmentHeader() {
-    long unsigned int dataOffset = 0;
     uint64_t mdatSize = 8;
     MP4::MOOF moofBox;
     MP4::MFHD mfhdBox;
@@ -530,24 +585,23 @@ namespace Mist {
       for (uint32_t i = it->second.firstPart; i <= it->second.lastPart; i++) {
         keyPart temp;
         temp.trackID = it->first;
-        temp.size = thisTrack.parts[i].getSize();
-        temp.duration = thisTrack.parts[i].getDuration();
         temp.time = timeStamp;
-        timeStamp += temp.duration;
-        temp.endTime = timeStamp;
-        temp.timeOffset = thisTrack.parts[i].getOffset();//this will be changed soon, so now it is used for B-frame offset
+        temp.index = i;
+        timeStamp += thisTrack.parts[temp.index].getDuration();
         trunOrder.insert(temp);
       }
     }
 
     //now all the parts have been sorted, we make a relative ByteOffset
-    long unsigned int relativeOffset = 0;
+    uint64_t relativeOffset = 0;
     for (std::set<keyPart>::iterator it = trunOrder.begin(); it != trunOrder.end(); it++) {
+      DTSC::Track & thisTrack = myMeta.tracks[it->trackID];
+      uint64_t partSize = thisTrack.parts[it->index].getSize();
       //We have to make a copy, because altering the element inside the set would invalidate the iterators
       keyPart temp = *it;
       temp.byteOffset = relativeOffset;
-      relativeOffset += it->size;
-      DONTEVEN_MSG("Anticipating tid: %lu size: %lu", it->trackID, it->size);
+      relativeOffset += partSize;
+      DONTEVEN_MSG("Anticipating tid: %lu size: %lu", it->trackID, partSize);
       sortSet.insert(temp);
     }
     trunOrder.clear();//erase the trunOrder set, to keep memory usage down
@@ -591,20 +645,24 @@ namespace Mist {
       unsigned int trafOffset = 1;
       for (std::set<keyPart>::iterator trunIt = sortSet.begin(); trunIt != sortSet.end(); trunIt++) {
         if (trunIt->trackID == tid) {
+          uint64_t partOffset = thisTrack.parts[trunIt->index].getOffset();
+          uint64_t partSize = thisTrack.parts[trunIt->index].getSize();
+          uint64_t partDur = thisTrack.parts[trunIt->index].getDuration();
+
           MP4::TRUN trunBox;
-          trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration | (trunIt->timeOffset ? MP4::trunsampleOffsets : 0));
+          trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration | (partOffset ? MP4::trunsampleOffsets : 0));
           //The value set here, will be updated afterwards to the correct value
           trunBox.setDataOffset(trunIt->byteOffset);
           trunBox.setFirstSampleFlags(MP4::isIPicture | (firstSample ? MP4::isKeySample : MP4::noKeySample));
           firstSample = false;
 
-          mdatSize += trunIt->size;
+          mdatSize += partSize;
 
           MP4::trunSampleInformation sampleInfo;
-          sampleInfo.sampleSize = trunIt->size;
-          sampleInfo.sampleDuration = trunIt->duration;
-          if (trunIt->timeOffset) {
-            sampleInfo.sampleOffset = trunIt->timeOffset;
+          sampleInfo.sampleSize = partSize;
+          sampleInfo.sampleDuration = partDur;
+          if (partOffset){
+            sampleInfo.sampleOffset = partOffset;
           }
           trunBox.setSampleInformation(sampleInfo, 0);
           trafBox.setContent(trunBox, trafOffset++);
@@ -706,9 +764,8 @@ namespace Mist {
     //Check if the url contains .3gp --> if yes, we will send a 3gp header
     sending3GP = (H.url.find(".3gp") != std::string::npos);
 
-    //For storing the header.
-    ///\todo Do we really need this though?
-    std::string headerData = DTSCMeta2MP4Header(fileSize, myMeta.live);
+    fileSize = 0;
+    uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live);
 
     seekPoint = 0;
     if (myMeta.live) {
@@ -726,21 +783,19 @@ namespace Mist {
       keyPart temp;
       temp.trackID = *subIt;
       temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
-      temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
-      temp.size = myMeta.tracks[*subIt].parts[0].getSize();//bytesize of frame (alle parts all together)
       temp.index = 0;
       sortSet.insert(temp);
     }
     if (!myMeta.live) {
       if (H.GetHeader("Range") != "") {
-        parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerData.size());
+        parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerSize);
         rangeType = H.GetHeader("Range")[0];
       }
     }
     H.Clean(); //make sure no parts of old requests are left in any buffers
     H.setCORSHeaders();
     H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
-    if (!myMeta.live) {
+    if (myMeta.vod) {
       H.SetHeader("Accept-Ranges", "bytes, parsec");
     }
     if (rangeType != ' ') {
@@ -764,7 +819,7 @@ namespace Mist {
         //H.StartResponse("206", "Partial content", HTTP_R, conn);
       }
     } else {
-      if (!myMeta.live) {
+      if (myMeta.vod) {
         H.SetHeader("Content-Length", byteEnd - byteStart + 1);
       }
       /// \todo Switch to chunked?
@@ -772,12 +827,12 @@ namespace Mist {
       //HTTP_S.StartResponse(HTTP_R, conn);
     }
     leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
-    if (byteStart < (long long)headerData.size()) {
-      /// \todo Switch to chunked?
-      myConn.SendNow(headerData.data() + byteStart, std::min((long long)headerData.size(), byteEnd) - byteStart); //send MP4 header
-      leftOver -= std::min((long long)headerData.size(), byteEnd) - byteStart;
+    if (byteStart < headerSize) {
+      std::string headerData = DTSCMeta2MP4Header(fileSize, myMeta.live);
+      myConn.SendNow(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart); //send MP4 header
+      leftOver -= std::min(headerSize, byteEnd) - byteStart;
     }
-    currPos += headerData.size();//we're now guaranteed to be past the header point, no matter what
+    currPos += headerSize;//we're now guaranteed to be past the header point, no matter what
   }
 
 ///Builds up a datastructure that allows for access in the fragment send header function
@@ -785,13 +840,14 @@ namespace Mist {
 ///We take the corresponding keyframe and interframes of the main video track and take concurrent frames from its secondary (audio) tracks
 ///\todo See if we can use something more elegant than a member variable...
   void OutProgressiveMP4::buildFragment() {
-    DTSC::Key & currKey = myMeta.tracks[vidTrack].getKey(getKeyForTime(vidTrack, thisPacket.getTime()));
-    uint64_t startms = thisPacket.getTime();
     if (!needsLookAhead){
       needsLookAhead = 1000;
       currentPartSet.clear();
       return;
     }
+
+    DTSC::Key & currKey = myMeta.tracks[vidTrack].getKey(getKeyForTime(vidTrack, thisPacket.getTime()));
+    uint64_t startms = thisPacket.getTime();
     uint64_t endms = startms + needsLookAhead;
     bool missingSome = true;
 
@@ -829,7 +885,7 @@ namespace Mist {
           //Make sure we always look ahead at least a single frame
           if (pDur > needsLookAhead){
             needsLookAhead = pDur;
-            INFO_MSG("Slow frame! Increasing lookAhead to %lums", needsLookAhead);
+            INFO_MSG("Slow frame! Increasing lookAhead to %ums", needsLookAhead);
           }
           thisRange.lastPart = i;
           thisRange.lastTime = curMS;
@@ -840,7 +896,7 @@ namespace Mist {
           endms = thisTrack.lastms;
           if (needsLookAhead != endms - startms){
             needsLookAhead = endms - startms;
-            INFO_MSG("False start! Increasing lookAhead to %lums", needsLookAhead);
+            INFO_MSG("False start! Increasing lookAhead to %ums", needsLookAhead);
             missingSome = true;
           }
           break;
@@ -869,7 +925,7 @@ namespace Mist {
         // (sync delay = ~1s, minimum lookAhead is 420ms -> ~600ms extra needed, we use 2000ms to be safe)
         if (myMeta.sourceURI.find("http://") == std::string::npos || myMeta.sourceURI.find(".m3u") == std::string::npos){
           if (fragSeqNum > 10 && thisPacket.getTime() + needsLookAhead + 2000 < mainTrk.keys.rbegin()->getTime() && mainTrk.lastms - mainTrk.keys.rbegin()->getTime() > needsLookAhead){
-            INFO_MSG("Skipping forward %llums (%llu ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
+            INFO_MSG("Skipping forward %llums (%u ms LA)", mainTrk.keys.rbegin()->getTime() - thisPacket.getTime(), needsLookAhead);
             seek(mainTrk.keys.rbegin()->getTime());
             return;
           }
@@ -889,15 +945,17 @@ namespace Mist {
       partListSent++;
     }
 
-    if ((unsigned long)thisPacket.getTrackId() != sortSet.begin()->trackID || thisPacket.getTime() != sortSet.begin()->time || len != sortSet.begin()->size) {
-      if (thisPacket.getTime() > sortSet.begin()->time || (unsigned long)thisPacket.getTrackId() > sortSet.begin()->trackID) {
+    keyPart thisPart = *sortSet.begin();
+    uint64_t thisSize = myMeta.tracks[thisPart.trackID].parts[thisPart.index].getSize();
+    if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisSize){
+      if (thisPacket.getTime() > sortSet.begin()->time || thisPacket.getTrackId() > sortSet.begin()->trackID) {
         if (perfect) {
-          WARN_MSG("Warning: input is inconsistent. Expected %lu:%llu but got %ld:%llu - cancelling playback", sortSet.begin()->trackID, sortSet.begin()->time, thisPacket.getTrackId(), thisPacket.getTime());
+          WARN_MSG("Warning: input is inconsistent. Expected %lu:%lu but got %ld:%llu - cancelling playback", thisPart.trackID, thisPart.time, thisPacket.getTrackId(), thisPacket.getTime());
           perfect = false;
           myConn.close();
         }
       } else {
-        WARN_MSG("Did not receive expected %lu:%llu (%lub) but got %ld:%llu (%lub) - throwing it away", sortSet.begin()->trackID, sortSet.begin()->time, sortSet.begin()->size, thisPacket.getTrackId(), thisPacket.getTime(), len);
+        WARN_MSG("Did not receive expected %lu:%lu (%lub) but got %ld:%llu (%ub) - throwing it away", thisPart.trackID, thisPart.time, thisSize, thisPacket.getTrackId(), thisPacket.getTime(), len);
       }
       return;
     }
@@ -909,35 +967,34 @@ namespace Mist {
     }
 
     if (currPos >= byteStart) {
-      myConn.SendNow(dataPointer, std::min(leftOver, (long long)len));
+      myConn.SendNow(dataPointer, std::min(leftOver, (int64_t)len));
       leftOver -= len;
     } else {
       if (currPos + (long long)len > byteStart) {
-        myConn.SendNow(dataPointer + (byteStart - currPos), std::min(leftOver, (long long)(len - (byteStart - currPos))));
+        myConn.SendNow(dataPointer + (byteStart - currPos), std::min(leftOver, (int64_t)(len - (byteStart - currPos))));
         leftOver -= len - (byteStart - currPos);
       }
     }
 
     //keep track of where we are
     if (!sortSet.empty()) {
-      keyPart temp;
-      temp.index = sortSet.begin()->index + 1;
-      temp.trackID = sortSet.begin()->trackID;
-      if (temp.index < myMeta.tracks[temp.trackID].parts.size()) { //only insert when there are parts left
-        temp.time = sortSet.begin()->endTime;//timeplace of frame
-        temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
-        temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize();//bytesize of frame
+      keyPart temp = *sortSet.begin();
+      sortSet.erase(sortSet.begin());
+
+
+
+      DTSC::Track & thisTrack = myMeta.tracks[temp.trackID];
+
+      currPos += thisTrack.parts[temp.index].getSize();
+      if (temp.index + 1 < thisTrack.parts.size()) { //only insert when there are parts left
+        temp.time += thisTrack.parts[temp.index].getDuration();
+        ++temp.index;
         sortSet.insert(temp);
       }
-      currPos += sortSet.begin()->size;
-      //remove highest keyPart
-      sortSet.erase(sortSet.begin());
+
     }
 
-
-
     if (leftOver < 1) {
-
       //stop playback, wait for new request
       stop();
       wantRequest = true;
@@ -958,7 +1015,7 @@ namespace Mist {
         }
       }
       if (reSeek){
-        INFO_MSG("Increased initial lookAhead of %lums", needsLookAhead);
+        INFO_MSG("Increased initial lookAhead of %ums", needsLookAhead);
         initialSeek();
       }
     }else{

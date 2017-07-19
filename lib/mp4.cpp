@@ -67,13 +67,25 @@ namespace MP4 {
     }
   }
 
+  void Box::copyFrom(const Box & rs){
+    clear();
+    if (data) {
+      free(data);
+      data = 0;
+    }
+    data = (char*)malloc(rs.data_size);
+    memcpy(data, rs.data, rs.data_size);
+    data_size = rs.data_size;
+    managed = true;
+    payloadOffset = rs.payloadOffset;
+  }
   /// Returns the values at byte positions 4 through 7.
   std::string Box::getType() {
     return std::string(data + 4, 4);
   }
 
   /// Returns true if the given 4-byte boxtype is equal to the values at byte positions 4 through 7.
-  bool Box::isType(const char * boxType) {
+  bool Box::isType(const char * boxType) const {
     return !memcmp(boxType, data + 4, 4);
   }
 
@@ -788,6 +800,29 @@ namespace MP4 {
       i++;
     }
     return getBox(tempLoc);
+  }
+
+  Box containerBox::getChild(const char * boxName){
+    uint32_t count = getContentCount();
+    for (uint32_t i = 0; i < count; i++){
+      Box & thisChild = getContent(i);
+      if (thisChild.isType(boxName)){
+        return Box(thisChild.asBox(), false);
+      }
+    }
+    return Box((char*)"\000\000\000\010erro", false);
+  }
+
+  std::deque<Box> containerBox::getChildren(const char * boxName){
+    std::deque<Box> res;
+    uint32_t count = getContentCount();
+    for (uint32_t i = 0; i < count; i++){
+      Box & thisChild = getContent(i);
+      if (thisChild.isType(boxName)){
+        res.push_back(Box(thisChild.asBox(), false));
+      }
+    }
+    return res;
   }
 
   std::string containerBox::toPrettyString(uint32_t indent) {

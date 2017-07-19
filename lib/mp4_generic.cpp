@@ -581,6 +581,26 @@ namespace MP4 {
     return payload() + 8;
   }
 
+  std::string AVCC::hexSPS(){
+    std::stringstream res;
+    char * data = getSPS();
+    uint32_t len = getSPSLen();
+    for (int i = 0; i < len; i++){
+      res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
+    }
+    return res.str();
+  }
+
+  std::string AVCC::hexPPS(){
+    std::stringstream res;
+    char * data = getPPS();
+    uint32_t len = getPPSLen();
+    for (int i = 0; i < len; i++){
+      res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
+    }
+    return res.str();
+  }
+
   void AVCC::setPPSNumber(uint32_t newPPSNumber) {
     int offset = 8 + getSPSLen();
     setInt8(newPPSNumber, offset);
@@ -617,9 +637,9 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Compatible Profiles: " << getCompatibleProfiles() << std::endl;
     r << std::string(indent + 1, ' ') << "Level: " << getLevel() << std::endl;
     r << std::string(indent + 1, ' ') << "SPS Number: " << getSPSNumber() << std::endl;
-    r << std::string(indent + 2, ' ') << getSPSLen() << " of SPS data" << std::endl;
+    r << std::string(indent + 2, ' ') << getSPSLen() << " of SPS data: " << hexSPS() << std::endl;
     r << std::string(indent + 1, ' ') << "PPS Number: " << getPPSNumber() << std::endl;
-    r << std::string(indent + 2, ' ') << getPPSLen() << " of PPS data" << std::endl;
+    r << std::string(indent + 2, ' ') << getPPSLen() << " of PPS data: " << hexPPS() << std::endl;
     return r.str();
   }
 
@@ -634,7 +654,7 @@ namespace MP4 {
 
   void AVCC::setPayload(std::string newPayload) {
     if (!reserve(0, payloadSize(), newPayload.size())) {
-      DEBUG_MSG(DLVL_ERROR, "Cannot allocate enough memory for payload");
+      ERROR_MSG("Cannot allocate enough memory for payload");
       return;
     }
     memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
@@ -842,7 +862,7 @@ namespace MP4 {
 
   void HVCC::setPayload(std::string newPayload) {
     if (!reserve(0, payloadSize(), newPayload.size())) {
-      DEBUG_MSG(DLVL_ERROR, "Cannot allocate enough memory for payload");
+      ERROR_MSG("Cannot allocate enough memory for payload");
       return;
     }
     memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
@@ -1478,7 +1498,7 @@ namespace MP4 {
     return r.str();
   }
 
-  HDLR::HDLR(std::string & type, std::string name) {
+  HDLR::HDLR(const std::string & type, const std::string & name) {
     memcpy(data + 4, "hdlr", 4);
     //reserve an entire box, except for the string part at the end
     if (!reserve(0, 8, 32)) {
@@ -2571,9 +2591,7 @@ namespace MP4 {
     for (unsigned int i = 0; i < getEntryCount(); i++) {
       static STTSEntry temp;
       temp = getSTTSEntry(i);
-      r << std::string(indent + 1, ' ') << "Entry[" << i << "]:" << std::endl;
-      r << std::string(indent + 2, ' ') << "SampleCount: " << temp.sampleCount << std::endl;
-      r << std::string(indent + 2, ' ') << "SampleDelta: " << temp.sampleDelta << std::endl;
+      r << std::string(indent + 1, ' ') << "Entry[" << i << "]: " << temp.sampleCount << " sample(s) of " << temp.sampleDelta << "ms each" << std::endl;
     }
     return r.str();
 

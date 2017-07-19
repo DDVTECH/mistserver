@@ -113,11 +113,13 @@ namespace MP4 {
       void setSPS(std::string newSPS);
       uint32_t getSPSLen();
       char * getSPS();
+      std::string hexSPS();
       void setPPSNumber(uint32_t newPPSNumber);
       uint32_t getPPSNumber();
       void setPPS(std::string newPPS);
       uint32_t getPPSLen();
       char * getPPS();
+      std::string hexPPS();
       std::string asAnnexB();
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);
@@ -333,7 +335,7 @@ namespace MP4 {
 
   class HDLR: public Box {
     public:
-      HDLR(std::string & type, std::string name);
+      HDLR(const std::string & type = "", const std::string & name = "");
       void setHandlerType(const char * newHandlerType);
       std::string getHandlerType();
       void setName(std::string newName);
@@ -472,7 +474,7 @@ namespace MP4 {
 
   class TKHD: public fullBox {
     public:
-      TKHD(uint32_t trackId, uint64_t duration, uint32_t width, uint32_t height);
+      TKHD(uint32_t trackId = 0, uint64_t duration = 0, uint32_t width = 0, uint32_t height = 0);
       TKHD(DTSC::Track & track, bool fragmented);
 
       void setCreationTime(uint64_t newCreationTime);
@@ -506,7 +508,7 @@ namespace MP4 {
 
   class MDHD: public fullBox {
     public:
-      MDHD(uint64_t duration);
+      MDHD(uint64_t duration = 0);
       void setCreationTime(uint64_t newCreationTime);
       uint64_t getCreationTime();
       void setModificationTime(uint64_t newModificationTime);

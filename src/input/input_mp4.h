@@ -9,49 +9,41 @@ namespace Mist {
       bool operator < (const mp4PartTime & rhs) const {
         if (time < rhs.time){
           return true;
-        }else{
-          if (time == rhs.time){
-            if (trackID < rhs.trackID){
-              return true;
-            }else{
-              if (trackID == rhs.trackID && bpos < rhs.bpos){
-                return true;
-              }
-            }
-          }
         }
-        return false;
+        if (time > rhs.time){
+          return false;
+        }
+        if (trackID < rhs.trackID){
+          return true;
+        }
+        return (trackID == rhs.trackID && bpos < rhs.bpos);
       }
-      long long unsigned int time;
+      uint64_t time;
       int32_t offset;
-      unsigned int trackID;
-      long long unsigned int bpos;
-      unsigned int size;
-      long unsigned int index;
+      size_t trackID;
+      uint64_t bpos;
+      uint32_t size;
+      uint64_t index;
   };
 
   struct mp4PartBpos{
     bool operator < (const mp4PartBpos & rhs) const {
       if (time < rhs.time){
         return true;
-      }else{
-        if (time == rhs.time){
-          if (trackID < rhs.trackID){
-            return true;
-          }else{
-            if (trackID == rhs.trackID && bpos < rhs.bpos){
-              return true;
-            }
-          }
-        }
       }
-      return false;
+      if (time > rhs.time){
+        return false;
+      }
+      if (trackID < rhs.trackID){
+        return true;
+      }
+      return (trackID == rhs.trackID && bpos < rhs.bpos);
     }
-    long long unsigned int time;
-    long long unsigned int trackID;
-    long long unsigned int bpos;
-    long long unsigned int size;
-    long long unsigned int stcoNr;
+    uint64_t time;
+    size_t trackID;
+    uint64_t bpos;
+    uint64_t size;
+    uint64_t stcoNr;
     int32_t timeOffset;
     bool keyframe;
   };
@@ -61,26 +53,29 @@ namespace Mist {
       mp4TrackHeader();
       void read(MP4::TRAK & trakBox);
       MP4::STCO stcoBox;
+      MP4::CO64 co64Box;
       MP4::STSZ stszBox;
       MP4::STTS sttsBox;
       bool hasCTTS;
       MP4::CTTS cttsBox;
       MP4::STSC stscBox;
-      long unsigned int timeScale;
-      void getPart(long unsigned int index, long long unsigned int & offset,unsigned int& size, long long unsigned int & timestamp, int32_t & timeOffset);
-      long unsigned int size();
+      uint64_t timeScale;
+      void getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset);
+      uint64_t size();
     private:
       bool initialised;
       //next variables are needed for the stsc/stco loop
-      long long unsigned int stscStart;
-      long long unsigned int sampleIndex;
+      uint64_t stscStart;
+      uint64_t sampleIndex;
       //next variables are needed for the stts loop
-      long long unsigned deltaIndex;///< Index in STTS box
-      long long unsigned deltaPos;///< Sample counter for STTS box
-      long long unsigned deltaTotal;///< Total timestamp for STTS box
+      uint64_t deltaIndex;///< Index in STTS box
+      uint64_t deltaPos;///< Sample counter for STTS box
+      uint64_t deltaTotal;///< Total timestamp for STTS box
       //for CTTS box loop
-      long long unsigned offsetIndex;///< Index in CTTS box
-      long long unsigned offsetPos;///< Sample counter for CTTS box
+      uint64_t offsetIndex;///< Index in CTTS box
+      uint64_t offsetPos;///< Sample counter for CTTS box
+
+      bool stco64;
   };
 
   class inputMP4 : public Input {
@@ -104,7 +99,7 @@ namespace Mist {
       std::map <unsigned int, unsigned int> nextKeyframe;
       
       //these next two variables keep a buffer for reading from filepointer inFile;
-      unsigned long long int malSize;
+      uint64_t malSize;
       char* data;///\todo rename this variable to a more sensible name, it is a temporary piece of memory to read from files
   };
 }

@@ -977,6 +977,8 @@ function mistPlay(streamName,options) {
     return;
   }
   
+  options.host = options.host.replace(/\/$/,""); //remove trailing slash
+  
   options.target.setAttribute('data-loading','');
   
   var classes = options.target.className.split(' ');

@@ -22,7 +22,7 @@ namespace Mist {
     inFile = 0;
   }
 
-  bool inputISMV::setup() {
+  bool inputISMV::checkArguments() {
     if (config->getString("input") == "-") {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
@@ -38,6 +38,9 @@ namespace Mist {
         return false;
       }
     }
+    return true;
+  }
+  bool inputISMV::preRun() {
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile) {

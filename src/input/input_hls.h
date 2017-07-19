@@ -101,7 +101,7 @@ namespace Mist{
     int firstSegment();
     void waitForNextSegment();
     void readPMT();
-    bool setup();
+    bool checkArguments();
     bool preSetup();
     bool readHeader();
     void getNext(bool smart = true);

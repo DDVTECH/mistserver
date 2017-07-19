@@ -19,7 +19,8 @@ namespace Mist {
       ~inputAV();
     protected:
       //Private Functions
-      bool setup();
+      bool checkArguments();
+      bool preRun();
       bool readHeader();
       void getNext(bool smart = true);
       void seek(int seekTime);

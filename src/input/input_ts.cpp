@@ -141,7 +141,7 @@ namespace Mist {
   }
 
   ///Live Setup of TS Input
-  bool inputTS::setup() {
+  bool inputTS::preRun() {
     const std::string & inpt = config->getString("input");
     //streamed standard input
     if (inpt == "-") {

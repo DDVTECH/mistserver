@@ -596,7 +596,7 @@ namespace Mist {
     /*LTS-START*/
     //Reload the configuration to make sure we stay up to date with changes through the api
     if (Util::epoch() - lastReTime > 4) {
-      setup();
+      preRun();
     }
     /*LTS-END*/
     //Static variable keeping track of the next temporary mapping to use for a track.

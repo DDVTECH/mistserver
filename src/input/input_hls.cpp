@@ -286,7 +286,7 @@ namespace Mist{
     if (inFile){fclose(inFile);}
   }
 
-  bool inputHLS::setup(){
+  bool inputHLS::checkArguments(){
     if (config->getString("input") == "-"){return false;}
 
     if (!initPlaylist(config->getString("input"))){return false;}

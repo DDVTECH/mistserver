@@ -156,7 +156,7 @@ namespace Mist {
     free(data);
   }
   
-  bool inputMP4::setup() {
+  bool inputMP4::checkArguments() {
     if (config->getString("input") == "-") {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
@@ -173,7 +173,10 @@ namespace Mist {
       }
       streamName = config->getString("streamname");
     }
+    return true;
+  }
     
+  bool inputMP4::preRun() {
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile) {

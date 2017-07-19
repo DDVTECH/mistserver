@@ -52,7 +52,7 @@ namespace Mist {
     srand(time(NULL));
   }
 
-  bool inputDTSC::setup() {
+  bool inputDTSC::checkArguments() {
     key = Encodings::Base64::decode(config->getString("key"));
     if (key == ""){
       if (config->getString("keyseed") == "" || config->getString("keyid") == ""){

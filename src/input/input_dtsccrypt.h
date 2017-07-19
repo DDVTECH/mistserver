@@ -7,7 +7,7 @@ namespace Mist {
       inputDTSC(Util::Config * cfg);
     protected:
       //Private Functions
-      bool setup();
+      bool checkArguments();
       bool readHeader();
       void getNext(bool smart = true);
       void seek(int seekTime);

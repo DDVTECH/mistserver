@@ -41,7 +41,7 @@ namespace Mist {
     }
   }
   
-  bool inputAV::setup() {
+  bool inputAV::checkArguments() {
     if (config->getString("input") == "-") {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
@@ -57,9 +57,12 @@ namespace Mist {
         return false;
       }
     }
+    return true;
+  }
 
+  bool inputAV::preRun(){
     //make sure all av inputs are registered properly, just in case
-    //setup() already does this, but under windows it doesn't remember that it has.
+    //the constructor already does this, but under windows it doesn't remember that it has.
     //Very sad, that. We may need to get windows some medication for it.
     av_register_all();
     
@@ -204,7 +207,7 @@ namespace Mist {
       return;//success!
     }
     thisPacket.null();
-    setup();
+    preRun();
     //failure :-(
     DEBUG_MSG(DLVL_FAIL, "getNext failed");
   }

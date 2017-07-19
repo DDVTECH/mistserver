@@ -26,10 +26,16 @@ namespace MP4 {
       Box(const Box & rs);
       Box & operator = (const Box & rs);
       ~Box();
+      operator bool() const {
+        return data && data_size >= 8 && !isType("erro");
+      }
+      void copyFrom(const Box & rs);
+
       std::string getType();
-      bool isType(const char * boxType);
+      bool isType(const char * boxType) const;
       bool read(FILE * newData);
       bool read(std::string & newData);
+
       uint64_t boxedSize();
       uint64_t payloadSize();
       char * asBox();
@@ -84,6 +90,24 @@ namespace MP4 {
       void setContent(Box & newContent, uint32_t no);
       Box & getContent(uint32_t no, bool unsafe = false);
       std::string toPrettyString(uint32_t indent = 0);
+      Box getChild(const char * boxName);
+      template <typename T>
+      T getChild(){
+        T a;
+        MP4::Box r = getChild(a.getType().c_str());
+        return (T&)r;
+      }
+      std::deque<Box> getChildren(const char * boxName);
+      template <typename T>
+      std::deque<T> getChildren(){
+        T a;
+        std::deque<Box> tmpRes = getChildren(a.getType().c_str());
+        std::deque<T> res;
+        for (std::deque<Box>::iterator it = tmpRes.begin(); it != tmpRes.end(); it++){
+          res.push_back((T&)*it);
+        }
+        return res;
+      }
   };
 
   class containerFullBox: public fullBox {

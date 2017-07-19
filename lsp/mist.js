@@ -2080,7 +2080,7 @@ var UI = {
           },{
             type: 'span',
             label: 'Licensed to',
-            value: ("license" in mist.data.config ? mist.data.config.license.name : ""),
+            value: ("license" in mist.data.config ? mist.data.config.license.user : ""),
             LTSonly: true
           },{
             type: 'span',

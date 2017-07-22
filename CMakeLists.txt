@@ -282,6 +282,7 @@ makeInput(MP3 mp3)
 makeInput(FLV flv)
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
+makeInput(H264 h264)
 
 ########################################
 # MistServer - Outputs                 #

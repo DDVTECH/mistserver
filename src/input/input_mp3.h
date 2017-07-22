@@ -16,7 +16,8 @@ namespace Mist {
       inputMP3(Util::Config * cfg);
     protected:
       //Private Functions
-      bool setup();
+      bool checkArguments();
+      bool preRun();
       bool readHeader();
       void getNext(bool smart = true);
       void seek(int seekTime);

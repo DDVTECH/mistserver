@@ -6,10 +6,10 @@ namespace Mist{
   class InputH264 : public Input{
   public:
     InputH264(Util::Config *cfg);
-    int run();
 
   protected:
-    bool setup();
+    bool checkArguments();
+    bool preRun();
     void getNext(bool smart = true);
     Socket::Connection myConn;
     std::string ppsInfo;

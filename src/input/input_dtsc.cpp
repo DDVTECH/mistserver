@@ -183,7 +183,7 @@ namespace Mist {
     srcConn.close();
   }
 
-  bool inputDTSC::setup() {
+  bool inputDTSC::checkArguments() {
     if (!needsLock()) {
       return true;
     } else {

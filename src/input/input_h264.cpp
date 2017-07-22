@@ -16,7 +16,7 @@ namespace Mist{
     inputProcess = 0;
   }
 
-  int InputH264::run(){
+  bool InputH264::preRun(){
     if (config->getString("input") != "-"){
       std::string input = config->getString("input");
       const char *argv[2];
@@ -55,10 +55,10 @@ namespace Mist{
     myMeta.tracks[1].codec = "H264";
     myMeta.tracks[1].trackID = 1;
     waitsSinceData = 0;
-    return Input::run();
+    return true;
   }
 
-  bool InputH264::setup(){
+  bool InputH264::checkArguments(){
     std::string input = config->getString("input");
     if (input != "-" && input.substr(0, 10) != "h264-exec:"){
       FAIL_MSG("Unsupported input type: %s", input.c_str());

@@ -27,17 +27,18 @@ namespace Mist {
       virtual bool needsLock(){return true;}
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
-      virtual bool setup() = 0;
+      virtual bool checkArguments() = 0;
       virtual bool readHeader() = 0;
+      virtual bool preRun(){return true;}
       virtual bool readExistingHeader();
       virtual bool atKeyFrame();
-      virtual void getNext(bool smart = true) {};
+      virtual void getNext(bool smart = true) {}
       virtual void seek(int seekTime){};
       virtual void finish();
       virtual bool keepRunning();
-      virtual bool openStreamSource() { return false; };
-      virtual void closeStreamSource() {};
-      virtual void parseStreamHeader() {};
+      virtual bool openStreamSource() { return false; }
+      virtual void closeStreamSource() {}
+      virtual void parseStreamHeader() {}
       void play(int until = 0);
       void playOnce();
       void quitPlay();

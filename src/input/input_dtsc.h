@@ -11,7 +11,7 @@ namespace Mist {
       bool openStreamSource();
       void closeStreamSource();
       void parseStreamHeader();
-      bool setup();
+      bool checkArguments();
       bool readHeader();
       void getNext(bool smart = true);
       void seek(int seekTime);

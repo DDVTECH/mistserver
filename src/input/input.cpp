@@ -100,7 +100,7 @@ namespace Mist {
       return 0;
     }
 
-    if (!setup()) {
+    if (!checkArguments()) {
       FAIL_MSG("Setup failed - exiting");
       return 0;
     }
@@ -125,6 +125,7 @@ namespace Mist {
       pid_t pid = fork();
       if (pid == 0){
         if (needsLock()){playerLock.close();}
+        if (!preRun()){return 0;}
         return run();
       }
       if (pid == -1){

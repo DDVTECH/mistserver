@@ -21,7 +21,7 @@ namespace Mist {
     timestamp = 0;
   }
 
-  bool inputMP3::setup() {
+  bool inputMP3::checkArguments() {
     if (config->getString("input") == "-") {
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
@@ -37,7 +37,10 @@ namespace Mist {
         return false;
       }
     }
+    return true;
+  }
     
+  bool inputMP3::preRun() {
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile) {

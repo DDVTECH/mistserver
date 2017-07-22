@@ -53,12 +53,15 @@ namespace Mist {
     capa["codecs"][0u][1u].append("opus");
   }
 
-  bool inputOGG::setup(){
+  bool inputOGG::checkArguments(){
     if (config->getString("input") == "-"){
       std::cerr << "Input from stream not yet supported" << std::endl;
       return false;
     }
+    return true;
+  }
 
+  bool inputOGG::preRun(){
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
     if (!inFile){

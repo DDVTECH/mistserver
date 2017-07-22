@@ -720,7 +720,7 @@ namespace Mist {
     }
   }
 
-  bool inputBuffer::setup() {
+  bool inputBuffer::preRun() {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));

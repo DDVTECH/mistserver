@@ -93,6 +93,7 @@ static inline void show_stackframe(){}
 #define SHM_DATASIZE 20
 #endif
 
+#define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
 
 #ifndef STATS_DELAY
 #define STATS_DELAY 15

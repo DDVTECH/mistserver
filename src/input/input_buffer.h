@@ -21,7 +21,8 @@ namespace Mist {
       IPC::semaphore * liveMeta;
     protected:
       //Private Functions
-      bool setup();
+      bool preRun();
+      bool checkArguments(){return true;}
       void updateMeta();
       bool readHeader();
       void getNext(bool smart = true);

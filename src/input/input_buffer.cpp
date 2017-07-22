@@ -935,7 +935,7 @@ namespace Mist {
     }
   }
 
-  bool inputBuffer::setup() {
+  bool inputBuffer::preRun() {
     lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);

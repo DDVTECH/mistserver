@@ -70,7 +70,8 @@ namespace Mist {
       inputOGG(Util::Config * cfg);
     protected:
       //Private Functions
-      bool setup();
+      bool checkArguments();
+      bool preRun();
       bool readHeader();
       position seekFirstData(long long unsigned int tid);      
       void getNext(bool smart = true);

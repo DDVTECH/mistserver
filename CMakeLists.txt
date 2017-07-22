@@ -142,6 +142,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/h264.h
   ${SOURCE_DIR}/lib/h265.h
   ${SOURCE_DIR}/lib/http_parser.h
+  ${SOURCE_DIR}/lib/downloader.h
   ${SOURCE_DIR}/lib/json.h
   ${SOURCE_DIR}/lib/langcodes.h
   ${SOURCE_DIR}/lib/mp4_adobe.h
@@ -190,6 +191,7 @@ set(libSources
   ${SOURCE_DIR}/lib/h264.cpp
   ${SOURCE_DIR}/lib/h265.cpp
   ${SOURCE_DIR}/lib/http_parser.cpp
+  ${SOURCE_DIR}/lib/downloader.cpp
   ${SOURCE_DIR}/lib/json.cpp
   ${SOURCE_DIR}/lib/langcodes.cpp
   ${SOURCE_DIR}/lib/mp4_adobe.cpp
@@ -350,6 +352,7 @@ if (DEFINED WITH_AV )
 endif()
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
+makeInput(H264 h264)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS

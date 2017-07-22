@@ -548,6 +548,9 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
       flags |= O_NONBLOCK;
       fcntl(sock, F_SETFL, flags);
     }
+    int optval = 1;
+    int optlen = sizeof(optval);
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
   }
 }// Socket::Connection TCP Contructor
 
@@ -984,6 +987,11 @@ Socket::Connection Socket::Server::accept(bool nonblock){
     int flags = fcntl(r, F_GETFL, 0);
     flags |= O_NONBLOCK;
     fcntl(r, F_SETFL, flags);
+  }
+  if (r >= 0){
+    int optval = 1;
+    int optlen = sizeof(optval);
+    setsockopt(r, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
   }
   Socket::Connection tmp(r);
   tmp.remoteaddr = tmpaddr;

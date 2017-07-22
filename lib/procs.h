@@ -15,7 +15,6 @@ namespace Util {
   /// Deals with spawning, monitoring and stopping child processes
   class Procs {
     private:
-      static bool childRunning(pid_t p);
       static tthread::mutex plistMutex;
       static std::set<pid_t> plist; ///< Holds active process list.
       static bool thread_handler;///< True while thread handler should be running.
@@ -25,6 +24,7 @@ namespace Util {
       static char* const* dequeToArgv(std::deque<std::string> & argDeq);
       static void grim_reaper(void * n);
     public:
+      static bool childRunning(pid_t p);
       static tthread::thread * reaper_thread;
       static bool handler_set; ///< If true, the sigchld handler has been setup.
       static void setHandler();

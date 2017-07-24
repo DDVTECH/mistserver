@@ -202,6 +202,7 @@ void Controller::handleUDPAPI(void * np){
       Request["minimal"] = true;
       JSON::Value Response;
       if (Request.isObject()){
+        tthread::lock_guard<tthread::mutex> guard(configMutex);
         handleAPICommands(Request, Response);
       }else{
         WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
@@ -632,6 +633,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   }
 
 
-  Controller::configChanged = true;
+  Controller::writeConfig();
+  Controller::configChanged = false;
 }
 

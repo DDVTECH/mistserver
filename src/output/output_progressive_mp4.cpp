@@ -124,7 +124,7 @@ namespace Mist {
       res += 8; //mdat beginning
     }
     fileSize += res;
-    INFO_MSG("H size %llu, file: %llu", res, fileSize);
+    MEDIUM_MSG("H size %llu, file: %llu", res, fileSize);
     return res;
   }
 
@@ -396,10 +396,12 @@ namespace Mist {
       //Current values are actual byte offset without header-sized offset
       std::set <keyPart> sortSet;//filling sortset for interleaving parts
       for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
+        DTSC::Track & thisTrack = myMeta.tracks[*subIt];
         keyPart temp;
         temp.trackID = *subIt;
-        temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
+        temp.time = thisTrack.firstms;//timeplace of frame
         temp.index = 0;
+        temp.size = thisTrack.parts[0].getDuration();
         INFO_MSG("adding to sortSet: tid %lu time %lu", temp.trackID, temp.time);
         sortSet.insert(temp);
       }
@@ -422,6 +424,7 @@ namespace Mist {
         if (temp.index + 1< thisTrack.parts.size()) {//Only create new element, when there are new elements to be added 
           temp.time += thisTrack.parts[temp.index].getDuration();
           ++temp.index;
+          temp.size = thisTrack.parts[temp.index].getSize();
           sortSet.insert(temp);
         }
       }
@@ -442,7 +445,7 @@ namespace Mist {
       header << (char)(0);
     }
     size += header.str().size();
-    INFO_MSG("Header %llu, file: %llu", header.str().size(), size);
+    MEDIUM_MSG("Header %llu, file: %llu", header.str().size(), size);
     if (fragmented) {
       realBaseOffset = header.str().size();
     }
@@ -485,6 +488,7 @@ namespace Mist {
       if (temp.index + 1 < myMeta.tracks[temp.trackID].parts.size()){ //only insert when there are parts left
         temp.time += thisTrack.parts[temp.index].getDuration();
         ++temp.index;
+        temp.size = thisTrack.parts[temp.index].getSize();
         sortSet.insert(temp);
       }
       //Remove just-parsed element
@@ -587,6 +591,7 @@ namespace Mist {
         temp.trackID = it->first;
         temp.time = timeStamp;
         temp.index = i;
+        temp.size = thisTrack.parts[temp.index].getSize();
         timeStamp += thisTrack.parts[temp.index].getDuration();
         trunOrder.insert(temp);
       }
@@ -596,12 +601,11 @@ namespace Mist {
     uint64_t relativeOffset = 0;
     for (std::set<keyPart>::iterator it = trunOrder.begin(); it != trunOrder.end(); it++) {
       DTSC::Track & thisTrack = myMeta.tracks[it->trackID];
-      uint64_t partSize = thisTrack.parts[it->index].getSize();
       //We have to make a copy, because altering the element inside the set would invalidate the iterators
       keyPart temp = *it;
       temp.byteOffset = relativeOffset;
-      relativeOffset += partSize;
-      DONTEVEN_MSG("Anticipating tid: %lu size: %lu", it->trackID, partSize);
+      relativeOffset += temp.size;
+      DONTEVEN_MSG("Anticipating tid: %lu size: %lu", it->trackID, temp.size);
       sortSet.insert(temp);
     }
     trunOrder.clear();//erase the trunOrder set, to keep memory usage down
@@ -780,10 +784,12 @@ namespace Mist {
     currPos = 0;
     sortSet.clear();
     for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
+      DTSC::Track & thisTrack = myMeta.tracks[*subIt];
       keyPart temp;
       temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
+      temp.time = thisTrack.firstms;//timeplace of frame
       temp.index = 0;
+      temp.size = thisTrack.parts[temp.index].getSize();
       sortSet.insert(temp);
     }
     if (!myMeta.live) {
@@ -894,7 +900,7 @@ namespace Mist {
         }
         if (first){
           endms = thisTrack.lastms;
-          if (needsLookAhead != endms - startms){
+          if (endms > startms && needsLookAhead < endms - startms){
             needsLookAhead = endms - startms;
             INFO_MSG("False start! Increasing lookAhead to %ums", needsLookAhead);
             missingSome = true;
@@ -946,8 +952,7 @@ namespace Mist {
     }
 
     keyPart thisPart = *sortSet.begin();
-    uint64_t thisSize = myMeta.tracks[thisPart.trackID].parts[thisPart.index].getSize();
-    if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisSize){
+    if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisPart.size){
       if (thisPacket.getTime() > sortSet.begin()->time || thisPacket.getTrackId() > sortSet.begin()->trackID) {
         if (perfect) {
           WARN_MSG("Warning: input is inconsistent. Expected %lu:%lu but got %ld:%llu - cancelling playback", thisPart.trackID, thisPart.time, thisPacket.getTrackId(), thisPacket.getTime());
@@ -955,7 +960,7 @@ namespace Mist {
           myConn.close();
         }
       } else {
-        WARN_MSG("Did not receive expected %lu:%lu (%lub) but got %ld:%llu (%ub) - throwing it away", thisPart.trackID, thisPart.time, thisSize, thisPacket.getTrackId(), thisPacket.getTime(), len);
+        WARN_MSG("Did not receive expected %lu:%lu (%lub) but got %ld:%llu (%ub) - throwing it away", thisPart.trackID, thisPart.time, thisPart.size, thisPacket.getTrackId(), thisPacket.getTime(), len);
       }
       return;
     }
@@ -989,6 +994,7 @@ namespace Mist {
       if (temp.index + 1 < thisTrack.parts.size()) { //only insert when there are parts left
         temp.time += thisTrack.parts[temp.index].getDuration();
         ++temp.index;
+        temp.size = thisTrack.parts[temp.index].getSize();
         sortSet.insert(temp);
       }
 

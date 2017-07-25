@@ -56,7 +56,7 @@ namespace TS{
     void eraseTrack(unsigned long tid);
     bool isDataTrack(unsigned long tid);
     void parseBitstream(uint32_t tid, const char *pesPayload, uint32_t realPayloadSize,
-                        uint64_t timeStamp, int64_t timeOffset, uint64_t bPos);
+                        uint64_t timeStamp, int64_t timeOffset, uint64_t bPos, bool alignment);
     std::set<unsigned long> getActiveTracks();
 
   private:

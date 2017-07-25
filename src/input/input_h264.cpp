@@ -116,7 +116,7 @@ namespace Mist{
         uint64_t ts = Util::bootMS() - startTime;
         if (myMeta.tracks[1].fpks){ts = frameCount * (1000000 / myMeta.tracks[1].fpks);}
         thisPacket.genericFill(ts, 0, 1, 0, 0, 0, h264::isKeyframe(NAL.data(), nalSize));
-        thisPacket.appendNal(NAL.data(), nalSize, nalSize);
+        thisPacket.appendNal(NAL.data(), nalSize);
         ++frameCount;
         return;
       }

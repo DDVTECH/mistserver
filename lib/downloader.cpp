@@ -35,6 +35,47 @@ namespace HTTP{
   /// Clears all extra/override headers for outgoing requests.
   void Downloader::clearHeaders(){extraHeaders.clear();}
 
+  /// Returns a reference to the internal HTTP class instance.
+  Parser &Downloader::getHTTP(){return H;}
+
+  /// Returns a reference to the internal Socket::Connection class instance.
+  Socket::Connection &Downloader::getSocket(){return S;}
+
+  /// Sends a request for the given URL, does no waiting.
+  void Downloader::doRequest(const HTTP::URL &link){
+    if (link.protocol != "http"){
+      FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
+      return;
+    }
+    INFO_MSG("Retrieving %s", link.getUrl().c_str());
+    H.Clean();
+    // Reconnect if needed
+    if (!S || link.host != connectedHost || link.getPort() != connectedPort){
+      S.close();
+      connectedHost = link.host;
+      connectedPort = link.getPort();
+      S = Socket::Connection(connectedHost, connectedPort, true);
+    }
+    H.url = "/" + link.path;
+    if (link.args.size()){H.url += "?" + link.args;}
+    if (link.port.size()){
+      H.SetHeader("Host", link.host + ":" + link.port);
+    }else{
+      H.SetHeader("Host", link.host);
+    }
+    H.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
+    H.SetHeader("X-Version", PACKAGE_VERSION);
+    H.SetHeader("Accept", "*/*");
+    if (extraHeaders.size()){
+      for (std::map<std::string, std::string>::iterator it = extraHeaders.begin();
+           it != extraHeaders.end(); ++it){
+        H.SetHeader(it->first, it->second);
+      }
+    }
+    H.SendRequest(S);
+    H.Clean();
+  }
+
   /// Downloads the given URL into 'H', returns true on success.
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
   bool Downloader::get(const HTTP::URL &link, uint8_t maxRecursiveDepth){
@@ -43,36 +84,9 @@ namespace HTTP{
       FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
       return false;
     }
-    INFO_MSG("Retrieving %s", link.getUrl().c_str());
     unsigned int loop = 6; // max 5 attempts
-
     while (--loop){// loop while we are unsuccessful
-      H.Clean();
-      // Reconnect if needed
-      if (!S || link.host != connectedHost || link.getPort() != connectedPort){
-        S.close();
-        connectedHost = link.host;
-        connectedPort = link.getPort();
-        S = Socket::Connection(connectedHost, connectedPort, true);
-      }
-      H.url = "/" + link.path;
-      if (link.args.size()){H.url += "?" + link.args;}
-      if (link.port.size()){
-        H.SetHeader("Host", link.host + ":" + link.port);
-      }else{
-        H.SetHeader("Host", link.host);
-      }
-      H.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
-      H.SetHeader("X-Version", PACKAGE_VERSION);
-      H.SetHeader("Accept", "*/*");
-      if (extraHeaders.size()){
-        for (std::map<std::string, std::string>::iterator it = extraHeaders.begin();
-             it != extraHeaders.end(); ++it){
-          H.SetHeader(it->first, it->second);
-        }
-      }
-      H.SendRequest(S);
-      H.Clean();
+      doRequest(link);
       uint64_t reqTime = Util::bootSecs();
       while (S && Util::bootSecs() < reqTime + 5){
         // No data? Wait for a second or so.

@@ -9,6 +9,11 @@
 #include <string>
 #include <vector>
 //#include <stdint.h>
+#include <mist/http_parser.h>
+#include <mist/downloader.h>
+
+
+
 
 #define BUFFERTIME 10
 
@@ -32,9 +37,15 @@ namespace Mist{
     bool reload();
     void addEntry(const std::string &filename, float duration, uint64_t &totalBytes);
     bool loadURL(const std::string &loadUrl);
+    bool isSupportedFile(const std::string filename);
 
-    std::string uri;
-    std::string uri_root;
+    std::string uri;  //link to the current playlistfile
+    std::string uri_root; 
+
+    HTTP::URL root;
+
+  HTTP::Downloader DL;
+
 
     std::string source;
     const char *packetPtr;
@@ -67,6 +78,7 @@ namespace Mist{
     ~inputHLS();
     bool needsLock();
     bool openStreamSource();
+    bool callback();
 
   protected:
     // Private Functions

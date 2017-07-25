@@ -21,6 +21,10 @@
 #include "config.h"
 static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "MEDIUM", "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
 
+#if !defined(PRIu64)
+#define PRIu64 "llu"
+#endif
+
 #if !defined(__APPLE__) && !defined(__MACH__) && defined(__GNUC__)
 #include <errno.h>
 

@@ -1,3 +1,4 @@
+#include <mist/util.h>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -13,14 +14,14 @@
 #include <mist/timing.h>
 #include <mist/mp4_generic.h>
 #include <mist/http_parser.h>
+#include <mist/downloader.h>
 #include "input_ts.h"
 
 #include <mist/tinythread.h>
 #include <mist/procs.h>
 #include <sys/stat.h>
 
-#define SEM_TS_CLAIM "/MstTSIN%s"
-
+tthread::mutex threadClaimMutex;
 std::string globalStreamName;
 TS::Stream liveStream(true);
 Util::Config * cfgPointer = NULL;
@@ -32,24 +33,14 @@ std::set<unsigned long> claimableThreads;
 
 void parseThread(void * ignored) {
 
-  char semName[NAME_BUFFER_SIZE];
-  snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
-  IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-
   int tid = -1;
-  lock.wait();
-  if (claimableThreads.size()) {
-    tid = *claimableThreads.begin();
-    claimableThreads.erase(claimableThreads.begin());
-  }
-  lock.post();
-  if (tid == -1) {
-    return;
-  }
-
-  if (liveStream.isDataTrack(tid)){
-    if (!Util::startInput(globalStreamName, "push://INTERNAL_ONLY:"+cfgPointer->getString("input"), true, true)) {//manually override stream url to start the buffer
-      FAIL_MSG("Could not start buffer for %s", globalStreamName.c_str());
+  {
+    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    if (claimableThreads.size()) {
+      tid = *claimableThreads.begin();
+      claimableThreads.erase(claimableThreads.begin());
+    }
+    if (tid == -1) {
       return;
     }
   }
@@ -59,17 +50,28 @@ void parseThread(void * ignored) {
   DTSC::Meta myMeta;
 
   if (liveStream.isDataTrack(tid)){
+    if (!Util::streamAlive(globalStreamName) && !Util::startInput(globalStreamName, "push://INTERNAL_ONLY:"+cfgPointer->getString("input"), true, true)) {
+      FAIL_MSG("Could not start buffer for %s", globalStreamName.c_str());
+      return;
+    }
+
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, globalStreamName.c_str());
     myProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     myProxy.userClient.countAsViewer = false;
   }
 
-
   threadTimer[tid] = Util::bootSecs();
   while (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active && (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive())) {
     liveStream.parse(tid);
-    if (liveStream.hasPacket(tid)){
+    if (!liveStream.hasPacket(tid)){
+      if (liveStream.isDataTrack(tid)){
+        myProxy.userClient.keepAlive();
+      }
+      Util::sleep(100);
+      continue;
+    }
+    while (liveStream.hasPacket(tid)){
       liveStream.initializeMetadata(myMeta, tid);
       DTSC::Packet pack;
       liveStream.getPacket(tid, pack);
@@ -77,19 +79,12 @@ void parseThread(void * ignored) {
         myProxy.continueNegotiate(tid, myMeta, true);
         myProxy.bufferLivePacket(pack, myMeta);
       }
-
-      lock.wait();
-      threadTimer[tid] = Util::bootSecs();
-      lock.post();
     }
-    if (!liveStream.hasPacket(tid)){
-      if (liveStream.isDataTrack(tid)){
-        myProxy.userClient.keepAlive();
-      }
-      Util::sleep(100);
+    {
+      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+      threadTimer[tid] = Util::bootSecs();
     }
   }
-  lock.wait();
   std::string reason = "unknown reason";
   if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){reason = "thread timeout";}
   if (!cfgPointer->is_active){reason = "input shutting down";}
@@ -97,9 +92,11 @@ void parseThread(void * ignored) {
     reason = "buffer disconnect";
     cfgPointer->is_active = false;
   }
-  INFO_MSG("Shutting down thread because %s", reason.c_str());
-  threadTimer.erase(tid);
-  lock.post();
+  INFO_MSG("Shutting down thread for %d because %s", tid, reason.c_str());
+  {
+    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    threadTimer.erase(tid);
+  }
   liveStream.eraseTrack(tid);
   myProxy.userClient.finish();
 }
@@ -115,10 +112,14 @@ namespace Mist {
     capa["source_match"].append("stream://*.ts");
     capa["source_match"].append("tsudp://*");
     capa["source_match"].append("ts-exec:*");
+    capa["source_match"].append("http://*.ts");
+    capa["source_match"].append("http-ts://*");
     //These can/may be set to always-on mode
     capa["always_match"].append("stream://*.ts");
     capa["always_match"].append("tsudp://*");
     capa["always_match"].append("ts-exec:*");
+    capa["always_match"].append("http://*.ts");
+    capa["always_match"].append("http-ts://*");
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
@@ -132,15 +133,13 @@ namespace Mist {
     if (inFile) {
       fclose(inFile);
     }
+    if (tcpCon){
+      tcpCon.close();
+    }
     if (!standAlone){
-      char semName[NAME_BUFFER_SIZE];
-      snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
-      IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      lock.wait();
+      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
       threadTimer.clear();
       claimableThreads.clear();
-      lock.post();
-      lock.unlink();
     }
   }
 
@@ -148,51 +147,62 @@ namespace Mist {
   bool inputTS::preRun() {
     const std::string & inpt = config->getString("input");
     //streamed standard input
-    if (inpt == "-" || inpt.substr(0, 8) == "ts-exec:") {
+    if (inpt == "-") {
       standAlone = false;
-      if (inpt.size() > 1){
-        std::string input = inpt.substr(8);
-        char *args[128];
-        uint8_t argCnt = 0;
-        char *startCh = 0;
-        for (char *i = (char*)input.c_str(); i <= input.data() + input.size(); ++i){
-          if (!*i){
-            if (startCh){args[argCnt++] = startCh;}
-            break;
-          }
-          if (*i == ' '){
-            if (startCh){
-              args[argCnt++] = startCh;
-              startCh = 0;
-              *i = 0;
-            }
-          }else{
-            if (!startCh){startCh = i;}
-          }
-        }
-        args[argCnt] = 0;
-
-        int fin = -1, fout = -1, ferr = -1;
-        inputProcess = Util::Procs::StartPiped(args, &fin, &fout, &ferr);
-        inFile = fdopen(fout, "r");
-      }else{
-        inFile = stdin;
+      tcpCon = Socket::Connection(fileno(stdout), fileno(stdin));
+      return true;
+    }
+    if (inpt.substr(0, 7) == "http://" || inpt.substr(0, 10) == "http-ts://"){
+      standAlone = false;
+      HTTP::URL url(inpt);
+      url.protocol = "http";
+      HTTP::Downloader DL;
+      DL.getHTTP().headerOnly = true;
+      if (!DL.get(url)){
+        return false;
       }
+      tcpCon = DL.getSocket();
+      return true;
+    }
+    if (inpt.substr(0, 8) == "ts-exec:") {
+      standAlone = false;
+      std::string input = inpt.substr(8);
+      char *args[128];
+      uint8_t argCnt = 0;
+      char *startCh = 0;
+      for (char *i = (char*)input.c_str(); i <= input.data() + input.size(); ++i){
+        if (!*i){
+          if (startCh){args[argCnt++] = startCh;}
+          break;
+        }
+        if (*i == ' '){
+          if (startCh){
+            args[argCnt++] = startCh;
+            startCh = 0;
+            *i = 0;
+          }
+        }else{
+          if (!startCh){startCh = i;}
+        }
+      }
+      args[argCnt] = 0;
+
+      int fin = -1, fout = -1, ferr = -1;
+      inputProcess = Util::Procs::StartPiped(args, &fin, &fout, &ferr);
+      tcpCon = Socket::Connection(-1, fout);
       return true;
     }
     //streamed file
     if (inpt.substr(0,9) == "stream://"){
       inFile = fopen(inpt.c_str()+9, "r");
+      tcpCon = Socket::Connection(-1, fileno(inFile));
       standAlone = false;
       return inFile;
     }
     //UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
     if (inpt.substr(0, 8) == "tsudp://"){
-      HTTP::URL input_url(inpt);
       standAlone = false;
-      udpCon.setBlocking(false);
-      udpCon.bind(input_url.getPort(), input_url.host, input_url.path);
-      return udpCon.getSock() != -1;
+      return true;
     }
     //plain VoD file
     inFile = fopen(inpt.c_str(), "r");
@@ -232,33 +242,33 @@ namespace Mist {
   bool inputTS::readHeader() {
     if (!inFile){return false;}
     TS::Packet packet;//to analyse and extract data
+    DTSC::Packet headerPack;
     fseek(inFile, 0, SEEK_SET);//seek to beginning
 
-    long long int lastBpos = 0;
+    uint64_t lastBpos = 0;
     while (packet.FromFile(inFile) && !feof(inFile)) {
       tsStream.parse(packet, lastBpos);
-      lastBpos = ftell(inFile);
-      while (tsStream.hasPacketOnEachTrack()) {
-        DTSC::Packet headerPack;
-        tsStream.getEarliestPacket(headerPack);
-        if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
-          tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+      lastBpos = Util::ftell(inFile);
+      if (packet.getUnitStart()){
+        while (tsStream.hasPacketOnEachTrack()) {
+          tsStream.getEarliestPacket(headerPack);
+          if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
+            tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+          }
+          myMeta.update(headerPack);
         }
-        myMeta.update(headerPack);
       }
     }
-    
-    DTSC::Packet headerPack;
-    tsStream.getEarliestPacket(headerPack);
-  
-    while (headerPack) {
+    tsStream.finish();
+    INFO_MSG("Reached %s at %llu bytes", feof(inFile)?"EOF":"error", lastBpos);
+    while (tsStream.hasPacket()) {
+      tsStream.getEarliestPacket(headerPack);
       if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
         tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
       }
       myMeta.update(headerPack);
-      tsStream.getEarliestPacket(headerPack);
     }
-
+    
     fseek(inFile, 0, SEEK_SET);
     myMeta.toFile(config->getString("input") + ".dtsh");
     return true;
@@ -273,12 +283,13 @@ namespace Mist {
     thisPacket.null();
     bool hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
     while (!hasPacket && !feof(inFile) && (inputProcess == 0 || Util::Procs::childRunning(inputProcess)) && config->is_active) {
-      unsigned int bPos = ftell(inFile);
       tsBuf.FromFile(inFile);
       if (selectedTracks.count(tsBuf.getPID())) {
-        tsStream.parse(tsBuf, bPos);
+        tsStream.parse(tsBuf, 0);//bPos == 0
+        if (tsBuf.getUnitStart()){
+          hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
+        }
       }
-      hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
     }
     if (!hasPacket) {
       return;
@@ -300,7 +311,7 @@ namespace Mist {
 
   void inputTS::readPMT() {
     //save current file position
-    int bpos = ftell(inFile);
+    uint64_t bpos = Util::ftell(inFile);
     if (fseek(inFile, 0, SEEK_SET)) {
       FAIL_MSG("Seek to 0 failed");
       return;
@@ -315,7 +326,7 @@ namespace Mist {
     tsStream.partialClear();
 
     //Restore original file position
-    if (fseek(inFile, bpos, SEEK_SET)) {
+    if (Util::fseek(inFile, bpos, SEEK_SET)) {
       return;
     }
   }
@@ -324,7 +335,7 @@ namespace Mist {
   void inputTS::seek(int seekTime) {
     tsStream.clear();
     readPMT();
-    unsigned long seekPos = 0xFFFFFFFFull;
+    uint64_t seekPos = 0xFFFFFFFFFFFFFFFFull;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
       unsigned long thisBPos = 0;
       for (std::deque<DTSC::Key>::iterator keyIt = myMeta.tracks[*it].keys.begin(); keyIt != myMeta.tracks[*it].keys.end(); keyIt++) {
@@ -337,63 +348,125 @@ namespace Mist {
         seekPos = thisBPos;
       }
     }
-    fseek(inFile, seekPos, SEEK_SET);//seek to the correct position
+    Util::fseek(inFile, seekPos, SEEK_SET);//seek to the correct position
   }
 
   void inputTS::stream() {
+    IPC::semaphore pullLock;
+    pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!pullLock){
+      FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
+      return;
+    }
+    if (!pullLock.tryWait()){
+      WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
+      pullLock.close();
+      return;
+    }
+    const std::string & inpt = config->getString("input");
+    if (inpt.substr(0, 8) == "tsudp://"){
+      HTTP::URL input_url(inpt);
+      udpCon.setBlocking(false);
+      udpCon.bind(input_url.getPort(), input_url.host, input_url.path);
+      if (udpCon.getSock() == -1){
+        FAIL_MSG("Could not open UDP socket. Aborting.");
+        pullLock.post();
+        pullLock.close();
+        pullLock.unlink();
+        return;
+      }
+    }
     IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     uint64_t downCounter = 0;
     uint64_t startTime = Util::epoch();
     uint64_t noDataSince = Util::bootSecs();
+    bool gettingData = false;
     bool hasStarted = false;
     cfgPointer = config;
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();
     while (config->is_active) {
-      if (inFile) {
-        if (feof(inFile)){
-          config->is_active = false;
-          INFO_MSG("Reached end of file on streamed input");
+      if (tcpCon) {
+        if (tcpCon.spool()){
+          while (tcpCon.Received().available(188)){
+            while (tcpCon.Received().get()[0] != 0x47 && tcpCon.Received().available(188)){
+              tcpCon.Received().remove(1);
+            }
+            if (tcpCon.Received().available(188) && tcpCon.Received().get()[0] == 0x47){
+              std::string newData = tcpCon.Received().remove(188);
+              tsBuf.FromPointer(newData.data());
+              liveStream.add(tsBuf);
+              if (!liveStream.isDataTrack(tsBuf.getPID())){
+                liveStream.parse(tsBuf.getPID());
+              }
+            }
+          }
+          noDataSince = Util::bootSecs();
+        }else{
+          Util::sleep(100);
         }
-        int ctr = 0;
-        while (ctr < 20 && tsBuf.FromFile(inFile) && !feof(inFile)){
-          liveStream.add(tsBuf);
-          downCounter += 188;
-          ctr++;
+        if (!tcpCon){
+          config->is_active = false;
+          INFO_MSG("End of streamed input");
         }
       } else {
         std::string leftData;
+        bool received = false;
         while (udpCon.Receive()) {
+          downCounter += udpCon.data_len;
+          received = true;
+          if (!gettingData){
+            gettingData = true;
+            INFO_MSG("Now receiving UDP data...");
+          }
           int offset = 0;
           //Try to read full TS Packets
           //Watch out! We push here to a global, in order for threads to be able to access it.
           while (offset < udpCon.data_len) {
-            if (udpCon.data[0] == 0x47){//check for sync byte
+            if (udpCon.data[offset] == 0x47){//check for sync byte
               if (offset + 188 <= udpCon.data_len){
-                liveStream.add(udpCon.data + offset);
-                noDataSince = Util::bootSecs();
-                downCounter += 188;
+                tsBuf.FromPointer(udpCon.data + offset);
+                liveStream.add(tsBuf);
+                if (!liveStream.isDataTrack(tsBuf.getPID())){
+                  liveStream.parse(tsBuf.getPID());
+                }
+                leftData.clear();
               }else{
                 leftData.append(udpCon.data + offset, udpCon.data_len - offset);
               }
               offset += 188;
             }else{
+              uint32_t maxBytes = std::min((uint32_t)(188 - leftData.size()), (uint32_t)(udpCon.data_len - offset));
+              uint32_t numBytes = maxBytes;
+              VERYHIGH_MSG("%lu bytes of non-sync-byte data received", numBytes);
               if (leftData.size()){
-                leftData.append(udpCon.data + offset, 1);
-                if (leftData.size() >= 188){
-                  liveStream.add((char*)leftData.data());
-                  noDataSince = Util::bootSecs();
-                  downCounter += 188;
+                leftData.append(udpCon.data + offset, numBytes);
+                while (leftData.size() >= 188){
+                  VERYHIGH_MSG("Assembled scrap packet");
+                  tsBuf.FromPointer((char*)leftData.data());
+                  liveStream.add(tsBuf);
+                  if (!liveStream.isDataTrack(tsBuf.getPID())){
+                    liveStream.parse(tsBuf.getPID());
+                  }
                   leftData.erase(0, 188);
                 }
               }
-              ++offset;
+              offset += numBytes;
             }
           }
         }
+        if (!received){
+          Util::sleep(100);
+        }else{
+          noDataSince = Util::bootSecs();
+        }
+      }
+      if (gettingData && Util::bootSecs() - noDataSince > 1){
+        gettingData = false;
+        INFO_MSG("No longer receiving data.");
       }
       //Check for and spawn threads here.
-      if (Util::bootSecs() - threadCheckTimer > 2) {
+      if (Util::bootSecs() - threadCheckTimer > 1) {
         //Connect to stats for INPUT detection
         uint64_t now = Util::epoch();
         if (!statsPage.getData()){
@@ -402,6 +475,9 @@ namespace Mist {
         if (statsPage.getData()){
           if (!statsPage.isAlive()){
             config->is_active = false;
+            pullLock.post();
+            pullLock.close();
+            pullLock.unlink();
             return;
           }
           IPC::statExchange tmpEx(statsPage.getData());
@@ -410,59 +486,58 @@ namespace Mist {
           tmpEx.streamName(streamName);
           tmpEx.connector("INPUT");
           tmpEx.up(0);
-          tmpEx.down(downCounter);
+          tmpEx.down(downCounter + tcpCon.dataDown());
           tmpEx.time(now - startTime);
           tmpEx.lastSecond(0);
           statsPage.keepAlive();
         }
 
         std::set<unsigned long> activeTracks = liveStream.getActiveTracks();
-        char semName[NAME_BUFFER_SIZE];
-        snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
-        IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-        lock.wait();
-        if (hasStarted && !threadTimer.size()){
-          if (!isAlwaysOn()){
-            INFO_MSG("Shutting down because no active threads and we had input in the past");
-            config->is_active = false;
-          }else{
-            hasStarted = false;
+        {
+          tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+          if (hasStarted && !threadTimer.size()){
+            if (!isAlwaysOn()){
+              INFO_MSG("Shutting down because no active threads and we had input in the past");
+              config->is_active = false;
+            }else{
+              hasStarted = false;
+            }
+          }
+          for (std::set<unsigned long>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
+            if (!liveStream.isDataTrack(*it)){continue;}
+            if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))) {
+              WARN_MSG("Thread for track %d timed out %d seconds ago without a clean shutdown.", *it, Util::bootSecs() - threadTimer[*it]);
+              threadTimer.erase(*it);
+            }
+            if (!hasStarted){
+              hasStarted = true;
+            }
+            if (!threadTimer.count(*it)) {
+
+              //Add to list of unclaimed threads
+              claimableThreads.insert(*it);
+
+              //Spawn thread here.
+              tthread::thread thisThread(parseThread, 0);
+              thisThread.detach();
+            }
           }
         }
-        for (std::set<unsigned long>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
-          if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))) {
-            WARN_MSG("Thread for track %d timed out %d seconds ago without a clean shutdown.", *it, Util::bootSecs() - threadTimer[*it]);
-            threadTimer.erase(*it);
-          }
-          if (!hasStarted){
-            hasStarted = true;
-          }
-          if (!threadTimer.count(*it)) {
-
-            //Add to list of unclaimed threads
-            claimableThreads.insert(*it);
-
-            //Spawn thread here.
-            tthread::thread thisThread(parseThread, 0);
-            thisThread.detach();
-          }
-        }
-        lock.post();
         threadCheckTimer = Util::bootSecs();
       }
-      if (!inFile){
-        Util::sleep(100);
-        if (Util::bootSecs() - noDataSince > 20){
-          if (!isAlwaysOn()){
-            WARN_MSG("No packets received for 20 seconds - terminating");
-            config->is_active = false;
-          }else{
-            noDataSince = Util::bootSecs();
-          }
+      if (Util::bootSecs() - noDataSince > 20){
+        if (!isAlwaysOn()){
+          WARN_MSG("No packets received for 20 seconds - terminating");
+          config->is_active = false;
+        }else{
+          noDataSince = Util::bootSecs();
         }
       }
     }
     finish();
+    pullLock.post();
+    pullLock.close();
+    pullLock.unlink();
     INFO_MSG("Input for stream %s closing clean", streamName.c_str());
   }
 
@@ -471,16 +546,12 @@ namespace Mist {
       Input::finish();
       return;
     }
-    char semName[NAME_BUFFER_SIZE];
-    snprintf(semName, NAME_BUFFER_SIZE, SEM_TS_CLAIM, globalStreamName.c_str());
-    IPC::semaphore lock(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-
-
     int threadCount = 0;
     do {
-      lock.wait();
-      threadCount = threadTimer.size();
-      lock.post();
+      {
+        tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+        threadCount = threadTimer.size();
+      }
       if (threadCount){
         Util::sleep(100);
       }
@@ -492,7 +563,7 @@ namespace Mist {
     if (!standAlone){return false;}
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:"){
+    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://"){
       return true;
     }else{
       return false;

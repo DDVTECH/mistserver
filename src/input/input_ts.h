@@ -29,7 +29,7 @@ namespace Mist {
       FILE * inFile;///<The input file with ts data
       TS::Stream tsStream;///<Used for parsing the incoming ts stream
       Socket::UDPConnection udpCon;
-      std::string udpDataBuffer;
+      Socket::Connection tcpCon;
       TS::Packet tsBuf;
       pid_t inputProcess;
   };

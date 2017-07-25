@@ -10,7 +10,7 @@
 namespace TS{
 
   void ADTSRemainder::setRemainder(const aac::adts &p, const void *source, const uint32_t avail,
-                                   const uint32_t bPos){
+                                   const uint64_t bPos){
     if (!p.getCompleteSize()){return;}
 
     if (max < p.getCompleteSize()){
@@ -62,26 +62,16 @@ namespace TS{
 
   uint32_t ADTSRemainder::getLength(){return len;}
 
-  uint32_t ADTSRemainder::getBpos(){return bpos;}
+  uint64_t ADTSRemainder::getBpos(){return bpos;}
 
   uint32_t ADTSRemainder::getTodo(){return len - now;}
   char *ADTSRemainder::getData(){return data;}
 
   Stream::Stream(bool _threaded){
     threaded = _threaded;
-    if (threaded){
-      globalSem.open("MstTSInputLock", O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!globalSem){
-        FAIL_MSG("Creating semaphore failed: %s", strerror(errno));
-        threaded = false;
-        DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
-        return;
-      }
-    }
   }
 
   Stream::~Stream(){
-    if (threaded){globalSem.unlink();}
   }
 
   void Stream::parse(char *newPack, unsigned long long bytePos){
@@ -91,17 +81,17 @@ namespace TS{
   }
 
   void Stream::partialClear(){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pesStreams.clear();
     pesPositions.clear();
     outPackets.clear();
     buildPacket.clear();
-    if (threaded){globalSem.post();}
+    seenUnitStart.clear();
   }
 
   void Stream::clear(){
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     partialClear();
-    if (threaded){globalSem.wait();}
     pidToCodec.clear();
     adtsInfo.clear();
     spsInfo.clear();
@@ -115,10 +105,10 @@ namespace TS{
     pmtTracks.clear();
     remainders.clear();
     associationTable = ProgramAssociationTable();
-    if (threaded){globalSem.post();}
   }
 
   void Stream::finish(){
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pesStreams.size()){return;}
 
     for (std::map<unsigned long, std::deque<Packet> >::const_iterator i = pesStreams.begin();
@@ -134,53 +124,47 @@ namespace TS{
   }
 
   void Stream::add(Packet &newPack, unsigned long long bytePos){
-    if (threaded){globalSem.wait();}
-
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     int tid = newPack.getPID();
+    bool unitStart = newPack.getUnitStart();
+    std::deque<Packet> & PS = pesStreams[tid];
     if ((pidToCodec.count(tid) || tid == 0 || newPack.isPMT()) &&
-        (pesStreams[tid].size() || newPack.getUnitStart())){
-      pesStreams[tid].push_back(newPack);
-      pesPositions[tid].push_back(bytePos);
+        (unitStart || PS.size())){
+      PS.push_back(newPack);
+      if (unitStart){
+        pesPositions[tid].push_back(bytePos);
+        ++(seenUnitStart[tid]);
+      }
     }
-
-    if (threaded){globalSem.post();}
   }
 
   bool Stream::isDataTrack(unsigned long tid){
     if (tid == 0){return false;}
-    if (threaded){globalSem.wait();}
-    bool result = !pmtTracks.count(tid);
-    if (threaded){globalSem.post();}
-    return result;
+    {
+      tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+      return !pmtTracks.count(tid);
+    }
   }
 
   void Stream::parse(unsigned long tid){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){
-      if (threaded){globalSem.post();}
       return;
     }
     std::deque<Packet> &trackPackets = pesStreams[tid];
-
-    if (threaded){globalSem.post();}
 
     // Handle PAT packets
     if (tid == 0){
       ///\todo Keep track of updates in PAT instead of keeping only the last PAT as a reference
 
-      if (threaded){globalSem.wait();}
       associationTable = trackPackets.back();
       associationTable.parsePIDs();
       lastPAT = Util::bootSecs();
-      if (threaded){globalSem.post();}
 
       int pmtCount = associationTable.getProgramCount();
       for (int i = 0; i < pmtCount; i++){pmtTracks.insert(associationTable.getProgramPID(i));}
 
-      if (threaded){globalSem.wait();}
       pesStreams.erase(0);
-      pesPositions.erase(0);
-      if (threaded){globalSem.post();}
       return;
     }
 
@@ -191,10 +175,8 @@ namespace TS{
     if (pmtTracks.count(tid)){
       ///\todo Keep track of updates in PMT instead of keeping only the last PMT per program as a
       /// reference
-      if (threaded){globalSem.wait();}
       mappingTable[tid] = trackPackets.back();
       lastPMT[tid] = Util::bootSecs();
-      if (threaded){globalSem.post();}
       ProgramMappingEntry entry = mappingTable[tid].getEntry(0);
       while (entry){
         unsigned long pid = entry.getElementaryPid();
@@ -215,42 +197,13 @@ namespace TS{
         entry.advance();
       }
 
-      if (threaded){globalSem.wait();}
       pesStreams.erase(tid);
-      pesPositions.erase(tid);
-      if (threaded){globalSem.post();}
-
       return;
     }
 
-  
-
-    if (threaded){globalSem.wait();}
-
-    bool parsePes = false;
-
-    int packNum = 1;
-    // Usually we append a packet at a time, so the start code is expected to show up at the end.
-    std::deque<Packet> &inStream = pesStreams[tid];
-    
-    if(inStream.size() > 1) {
-      if (inStream.rbegin()->getUnitStart()){
-        parsePes = true;
-      }else{
-        // But, sometimes (e.g. live) we do multiples, and need to check all of it...
-        std::deque<Packet>::iterator lastPack = inStream.end();
-        std::deque<Packet>::iterator curPack = inStream.begin();
-        curPack++;
-        while (curPack != lastPack && !curPack->getUnitStart()){
-          curPack++;
-          packNum++;
-        }
-        if (curPack != lastPack){parsePes = true;}
-      }
+    if(seenUnitStart[tid] > 1) {
+      parsePES(tid);
     }
-    if (threaded){globalSem.post();}
-
-    if (parsePes){parsePES(tid);}
   }
 
   void Stream::parse(Packet &newPack, unsigned long long bytePos){
@@ -261,11 +214,8 @@ namespace TS{
   }
 
   bool Stream::hasPacketOnEachTrack() const{
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pidToCodec.size()){
-
-      if (threaded){globalSem.post();}
-
       // INFO_MSG("no packet on each track 1, pidtocodec.size: %d, outpacket.size: %d",
       // pidToCodec.size(), outPackets.size());
       return false;
@@ -287,42 +237,27 @@ namespace TS{
       }
     }
 
-    if (threaded){globalSem.post();}
-
     return (!missing || (missing != pidToCodec.size() && lastTime - firstTime > 2000));
   }
 
   bool Stream::hasPacket(unsigned long tid) const{
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     std::map<unsigned long, std::deque<Packet> >::const_iterator pesIt = pesStreams.find(tid);
     if (pesIt == pesStreams.end()){
-      if (threaded){globalSem.post();}
       return false;
     }
     if (outPackets.count(tid) && outPackets.at(tid).size()){
-      if (threaded){globalSem.post();}
       return true;
     }
-    const std::deque<Packet> & thisStream = pesIt->second;
-    std::deque<Packet>::const_iterator curPack = thisStream.begin();
-    std::deque<Packet>::const_iterator endPack = thisStream.end();
-
-    if (curPack != endPack){curPack++;}
-
-    while (curPack != endPack && !curPack->getUnitStart()){curPack++;}
-
-    if (curPack != endPack){
-      if (threaded){globalSem.post();}
+    if (pidToCodec.count(tid) && seenUnitStart.count(tid) && seenUnitStart.at(tid) > 1){
       return true;
     }
-    if (threaded){globalSem.post();}
     return false;
   }
 
   bool Stream::hasPacket() const{
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pesStreams.size()){
-      if (threaded){globalSem.post();}
       return false;
     }
 
@@ -331,27 +266,18 @@ namespace TS{
                outPackets.begin();
            i != outPackets.end(); i++){
         if (i->second.size()){
-          if (threaded){globalSem.post();}
           return true;
         }
       }
     }
 
-    for (std::map<unsigned long, std::deque<Packet> >::const_iterator i = pesStreams.begin();
-         i != pesStreams.end(); i++){
-      std::deque<Packet>::const_iterator curPack = i->second.begin();
-
-      if (curPack != i->second.end()){curPack++;}
-
-      while (curPack != i->second.end() && !curPack->getUnitStart()){curPack++;}
-
-      if (curPack != i->second.end()){
-        if (threaded){globalSem.post();}
+    for (std::map<unsigned long, uint32_t>::const_iterator i = seenUnitStart.begin();
+         i != seenUnitStart.end(); i++){
+      if (pidToCodec.count(i->first) && i->second > 1){
         return true;
       }
     }
 
-    if (threaded){globalSem.post();}
     return false;
   }
 
@@ -370,11 +296,9 @@ namespace TS{
     if (!pidToCodec.count(tid)){
       return; // skip unknown codecs
     }
-    if (threaded){globalSem.wait();}
     std::deque<Packet> &inStream = pesStreams[tid];
-    std::deque<unsigned long long> &inPositions = pesPositions[tid];
     if (inStream.size() <= 1){
-      if (threaded){globalSem.post();}
+      INFO_MSG("No PES packets to parse");
       return;
     }
     // Find number of packets before unit Start
@@ -382,10 +306,10 @@ namespace TS{
 
     std::deque<Packet>::iterator curPack = inStream.begin();
 
-    if (inStream.rbegin()->getUnitStart()){
+    if (seenUnitStart[tid] == 2 && inStream.begin()->getUnitStart() && inStream.rbegin()->getUnitStart()){
       packNum = inStream.size() - 1;
       curPack = inStream.end();
-      curPack --;
+      curPack--;
     }else{
       curPack++;
       while (curPack != inStream.end() && !curPack->getUnitStart()){
@@ -394,18 +318,28 @@ namespace TS{
       }
     }
     if (!finished && curPack == inStream.end()){
-      if (threaded){globalSem.post();}
+      INFO_MSG("No PES packets to parse (%lu)", seenUnitStart[tid]);
       return;
     }
-
-    unsigned long long bPos = inPositions.front();
+    
+    // We now know we're deleting 1 UnitStart, so we can pop the pesPositions and lower the seenUnitStart counter.
+    --(seenUnitStart[tid]);
+    std::deque<unsigned long long> &inPositions = pesPositions[tid];
+    uint64_t bPos = inPositions.front();
+    inPositions.pop_front();
 
     // Create a buffer for the current PES, and remove it from the pesStreams buffer.
     int paySize = 0;
 
     // Loop over the packets we need, and calculate the total payload size
     curPack = inStream.begin();
+    int lastCtr = curPack->getContinuityCounter() - 1;
     for (int i = 0; i < packNum; i++){
+      if (curPack->getContinuityCounter() == lastCtr){
+        curPack++;
+        continue;
+      }
+      lastCtr = curPack->getContinuityCounter();
       paySize += curPack->getPayloadLength();
       curPack++;
     }
@@ -420,14 +354,14 @@ namespace TS{
 
     paySize = 0;
     curPack = inStream.begin();
-    int lastCtr = curPack->getContinuityCounter() - 1;
+    lastCtr = curPack->getContinuityCounter() - 1;
     for (int i = 0; i < packNum; i++){
       if (curPack->getContinuityCounter() == lastCtr){
         curPack++;
         continue;
       }
       if (curPack->getContinuityCounter() - lastCtr != 1 && curPack->getContinuityCounter()){
-        INFO_MSG("Parsing a pes on track %d, missed %d packets", tid,
+        INFO_MSG("Parsing PES on track %d, missed %d packets", tid,
                  curPack->getContinuityCounter() - lastCtr - 1);
       }
       lastCtr = curPack->getContinuityCounter();
@@ -436,8 +370,6 @@ namespace TS{
       curPack++;
     }
     inStream.erase(inStream.begin(), curPack);
-    inPositions.erase(inPositions.begin(), inPositions.begin() + packNum);
-    if (threaded){globalSem.post();}
     // we now have the whole PES packet in char* payload, with a total size of paySize (including
     // headers)
 
@@ -511,7 +443,7 @@ namespace TS{
       }
 
       if (paySize - offset - pesOffset < realPayloadSize){
-        WARN_MSG("Packet loss detected, glitches will occur");
+        WARN_MSG("Packet loss detected (%lu != %lu), glitches will occur", (uint32_t)(paySize-offset-pesOffset), (uint32_t)realPayloadSize);
         realPayloadSize = paySize - offset - pesOffset;
       }
 
@@ -536,7 +468,6 @@ namespace TS{
       // Parse all the ADTS packets
       unsigned long offsetInPes = 0;
       uint64_t msRead = 0;
-      if (threaded){globalSem.wait();}
 
       if (remainders.count(tid) && remainders[tid].getLength()){
         offsetInPes =
@@ -584,15 +515,12 @@ namespace TS{
           }
         }
       }
-      if (threaded){globalSem.post();}
     }
     if (thisCodec == ID3 || thisCodec == AC3){
-      if (threaded){globalSem.wait();}
       out.push_back(DTSC::Packet());
       out.back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize,
                                          bPos, 0);
 
-      if (threaded){globalSem.post();}
     }
 
     if (thisCodec == H264 || thisCodec == H265){
@@ -616,9 +544,7 @@ namespace TS{
           // fill a new one.
           if (buildPacket[tid].getTime() != timeStamp){
             // Add the finished DTSC packet to our output buffer
-            if (threaded){globalSem.wait();}
             out.push_back(buildPacket[tid]);
-            if (threaded){globalSem.post();}
 
             uint32_t size;
             char * tmp ;
@@ -626,7 +552,6 @@ namespace TS{
 
             INFO_MSG("buildpacket: size: %d, timestamp: %llu", size, buildPacket[tid].getTime())
 
-            if (threaded){globalSem.post();}
             // Create a new empty packet with the key frame bit set to true
             buildPacket[tid].null();
             buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
@@ -676,7 +601,6 @@ namespace TS{
           // fill a new one.
           if (buildPacket[tid].getTime() != timeStamp){
             // Add the finished DTSC packet to our output buffer
-            if (threaded){globalSem.wait();}
             out.push_back(buildPacket[tid]);
 
             uint32_t size;
@@ -684,7 +608,6 @@ namespace TS{
             buildPacket[tid].getString("data", tmp, size);
 
         //    INFO_MSG("buildpacket: size: %d, timestamp: %llu", size, buildPacket[tid].getTime())
-            if (threaded){globalSem.post();}
             // Create a new empty packet with the key frame bit set to true
             buildPacket[tid].null();
             buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
@@ -705,34 +628,30 @@ namespace TS{
   }
 
   void Stream::getPacket(unsigned long tid, DTSC::Packet &pack){
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
     if (!hasPacket(tid)){
       ERROR_MSG("Trying to obtain a packet on track %lu, but no full packet is available", tid);
       return;
     }
 
-    if (threaded){globalSem.wait();}
     bool packetReady = outPackets.count(tid) && outPackets[tid].size();
-    if (threaded){globalSem.post();}
 
-    if (!packetReady){parse(tid);}
-
-    if (threaded){globalSem.wait();}
-    packetReady = outPackets.count(tid) && outPackets[tid].size();
-    if (threaded){globalSem.post();}
+    if (!packetReady){
+      parse(tid);
+      packetReady = outPackets.count(tid) && outPackets[tid].size();
+    }
 
     if (!packetReady){
       ERROR_MSG("Track %lu: PES without valid packets?", tid);
       return;
     }
 
-    if (threaded){globalSem.wait();}
     pack = outPackets[tid].front();
     outPackets[tid].pop_front();
 
     if (!outPackets[tid].size()){outPackets.erase(tid);}
 
-    if (threaded){globalSem.post();}
   }
 
   void Stream::parseNal(uint32_t tid, const char *pesPayload, const char *nextPtr,
@@ -773,15 +692,11 @@ namespace TS{
         break;
       }
       case 0x07:{
-        if (threaded){globalSem.wait();}
         spsInfo[tid] = std::string(pesPayload, (nextPtr - pesPayload));
-        if (threaded){globalSem.post();}
         break;
       }
       case 0x08:{
-        if (threaded){globalSem.wait();}
         ppsInfo[tid] = std::string(pesPayload, (nextPtr - pesPayload));
-        if (threaded){globalSem.post();}
         break;
       }
       default: break;
@@ -808,9 +723,7 @@ namespace TS{
       case 32:
       case 33:
       case 34:{
-        if (threaded){globalSem.wait();}
         hevcInfo[tid].addUnit((char *)pesPayload); // may i convert to (char *)?
-        if (threaded){globalSem.post();}
         break;
       }
       default: break;
@@ -819,7 +732,7 @@ namespace TS{
   }
 
   void Stream::getEarliestPacket(DTSC::Packet &pack){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
 
     unsigned long packTime = 0xFFFFFFFFull;
@@ -832,13 +745,12 @@ namespace TS{
         packTime = it->second.front().getTime();
       }
     }
-    if (threaded){globalSem.post();}
 
     if (packTrack){getPacket(packTrack, pack);}
   }
 
   void Stream::initializeMetadata(DTSC::Meta &meta, unsigned long tid, unsigned long mappingId){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
 
     unsigned long mId = mappingId;
 
@@ -944,11 +856,10 @@ namespace TS{
       MEDIUM_MSG("Initialized track %lu as %s %s", it->first, meta.tracks[mId].codec.c_str(),
                  meta.tracks[mId].type.c_str());
     }
-    if (threaded){globalSem.post();}
   }
 
   std::set<unsigned long> Stream::getActiveTracks(){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     std::set<unsigned long> result;
     // Track 0 is always active
     result.insert(0);
@@ -978,16 +889,14 @@ namespace TS{
         }
       }
     }
-    if (threaded){globalSem.post();}
     return result;
   }
 
   void Stream::eraseTrack(unsigned long tid){
-    if (threaded){globalSem.wait();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pesStreams.erase(tid);
     pesPositions.erase(tid);
     outPackets.erase(tid);
-    if (threaded){globalSem.post();}
   }
 }
 

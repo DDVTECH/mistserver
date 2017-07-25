@@ -1,6 +1,7 @@
 #include "adts.h"
 #include "h265.h"
 #include "ts_packet.h"
+#include "tinythread.h"
 #include <deque>
 #include <map>
 #include <set>
@@ -16,16 +17,16 @@ namespace TS{
     uint32_t max;
     uint32_t now;
     uint32_t len;
-    uint32_t bpos;
+    uint64_t bpos;
 
   public:
     void setRemainder(const aac::adts &p, const void *source, const uint32_t avail,
-                      const uint32_t bPos);
+                      const uint64_t bPos);
 
     ADTSRemainder();
     ~ADTSRemainder();
     uint32_t getLength();
-    uint32_t getBpos();
+    uint64_t getBpos();
     uint32_t getTodo();
     char *getData();
 
@@ -78,7 +79,8 @@ namespace TS{
     std::map<unsigned long, h265::initData> hevcInfo;
     std::map<unsigned long, std::string> metaInit;
     std::map<unsigned long, std::string> descriptors;
-    mutable IPC::semaphore globalSem;
+    std::map<unsigned long, uint32_t> seenUnitStart;
+    mutable tthread::recursive_mutex tMutex;
 
     bool threaded;
 

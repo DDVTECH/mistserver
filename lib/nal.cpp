@@ -82,8 +82,8 @@ namespace nalu {
     int offset = 0;
     while(offset+2 < dataSize){
       const char * begin = data + offset;
-      int t = (int)((begin[0] << 8)|((begin[1]) << 8)|(begin[2])); 
-      if(t != 1){
+      bool t = (begin[2] == 1 && !begin[0] && !begin[1]);
+      if(!t){
         if (begin[2]){//skip three bytes if the last one isn't zero
           offset +=3;
         }else if (begin[1]){//skip two bytes if the second one isn't zero

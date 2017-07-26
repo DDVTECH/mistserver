@@ -120,8 +120,8 @@ namespace DTSC {
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
-      void getInt(const char * identifier, int & result) const;
-      int getInt(const char * identifier) const;
+      void getInt(const char * identifier, uint64_t & result) const;
+      uint64_t getInt(const char * identifier) const;
       void getFlag(const char * identifier, bool & result) const;
       bool getFlag(const char * identifier) const;
       bool hasMember(const char * identifier) const;

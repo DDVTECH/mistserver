@@ -19,12 +19,13 @@ namespace Mist {
       bool preRun();
       bool checkArguments(){return true;}
       void updateMeta();
-      bool readHeader();
-      void getNext(bool smart = true);
+      bool readHeader(){return false;}
+      bool needHeader(){return false;}
+      void getNext(bool smart = true){}
       void updateTrackMeta(unsigned long tNum);
       void updateMetaFromPage(unsigned long tNum, unsigned long pageNum);
-      void seek(int seekTime);
-      void trackSelect(std::string trackSpec); 
+      void seek(int seekTime){}
+      void trackSelect(std::string trackSpec){}
       bool removeKey(unsigned int tid);
       void removeUnused();
       void eraseTrackDataPages(unsigned long tid);

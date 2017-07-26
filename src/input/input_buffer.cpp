@@ -774,16 +774,5 @@ namespace Mist {
     return true;
   }
 
-  bool inputBuffer::readHeader() {
-    return true;
-  }
-
-  void inputBuffer::getNext(bool smart) {}
-
-  void inputBuffer::seek(int seekTime) {}
-
-  void inputBuffer::trackSelect(std::string trackSpec) {}
 }
-
-
 

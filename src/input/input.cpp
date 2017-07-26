@@ -168,13 +168,20 @@ namespace Mist {
   }
 
   int Input::run() {
+    myMeta.sourceURI = config->getString("input");
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
     checkHeaderTimes(config->getString("input"));
-    if (!readHeader()){
-      std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
-      return 0;
+    if (needHeader()){
+      uint64_t timer = Util::bootMS();
+      bool headerSuccess = readHeader();
+      if (!headerSuccess) {
+        std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
+        return 0;
+      }else{
+        timer = Util::bootMS() - timer;
+        DEBUG_MSG(DLVL_DEVEL, "Read header for '%s' in %llums", streamName.c_str(), timer);
+      }
     }
-    myMeta.sourceURI = config->getString("input");
     if (myMeta.vod){
       parseHeader();
       MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
@@ -585,7 +592,7 @@ namespace Mist {
       return false;
     }
     //Update keynum to point to the corresponding page
-    uint64_t bufferTimer = Util::getMS();
+    uint64_t bufferTimer = Util::bootMS();
     INFO_MSG("Loading key %u from page %lu", keyNum, (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
     keyNum = (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)){
@@ -620,7 +627,7 @@ namespace Mist {
       getNext();
     }
     bufferFinalize(track);
-    bufferTimer = Util::getMS() - bufferTimer;
+    bufferTimer = Util::bootMS() - bufferTimer;
     DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes) for track %d in %llums", keyNum, packCounter, byteCounter, track, bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
@@ -646,7 +653,6 @@ namespace Mist {
     playing = -1;
     playUntil = until;
     initialTime = 0;
-    benchMark = Util::getMS();
   }
 
   void Input::playOnce(){
@@ -654,7 +660,6 @@ namespace Mist {
       playing = 1;
     }
     ++playing;
-    benchMark = Util::getMS();
   }
 
   void Input::quitPlay(){

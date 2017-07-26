@@ -208,18 +208,14 @@ namespace Mist {
     return true;
   }
 
+  bool inputDTSC::needHeader(){
+    if (!needsLock()){return false;}
+    return Input::needHeader();
+  }
+
   bool inputDTSC::readHeader() {
-    if (!needsLock()) {
-      return true;
-    }
     if (!inFile) {
       return false;
-    }
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp) {
-      myMeta = tmp.getMeta();
-      DEBUG_MSG(DLVL_HIGH, "Meta read in with %lu tracks", myMeta.tracks.size());
-      return true;
     }
     if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0) {
       DEBUG_MSG(DLVL_FAIL, "Missing external header file");

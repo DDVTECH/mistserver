@@ -136,5 +136,5 @@ static inline void show_stackframe(){}
 #define SHM_CONF "MstConf"
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 
-#define SIMUL_TRACKS 10
+#define SIMUL_TRACKS 20
 

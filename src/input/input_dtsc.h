@@ -13,6 +13,7 @@ namespace Mist {
       void parseStreamHeader();
       bool checkArguments();
       bool readHeader();
+      bool needHeader();
       void getNext(bool smart = true);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);

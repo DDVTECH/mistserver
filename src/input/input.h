@@ -29,6 +29,7 @@ namespace Mist {
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool checkArguments() = 0;
       virtual bool readHeader() = 0;
+      virtual bool needHeader(){return !readExistingHeader();}
       virtual bool preRun(){return true;}
       virtual bool readExistingHeader();
       virtual bool atKeyFrame();
@@ -59,7 +60,6 @@ namespace Mist {
       int initialTime;
       int playing;
       unsigned int playUntil;
-      unsigned int benchMark;
 
       bool isBuffer;
       uint64_t activityCounter;

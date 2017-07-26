@@ -142,5 +142,5 @@ static inline void show_stackframe(){}
 
 #define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
 
-#define SIMUL_TRACKS 10
+#define SIMUL_TRACKS 20
 

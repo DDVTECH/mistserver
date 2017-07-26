@@ -51,8 +51,6 @@ namespace Mist {
 
   bool inputMP3::readHeader() {
     if (!inFile){return false;}
-    //See whether a separate header file exists.
-    if (readExistingHeader()){return true;}
     myMeta = DTSC::Meta();
     myMeta.tracks[1].trackID = 1;
     myMeta.tracks[1].type = "audio";

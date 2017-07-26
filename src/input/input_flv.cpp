@@ -78,8 +78,6 @@ namespace Mist {
 
   bool inputFLV::readHeader() {
     if (!inFile){return false;}
-    //See whether a separate header file exists.
-    if (readExistingHeader()){return true;}
     //Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);
     AMF::Object amf_storage;

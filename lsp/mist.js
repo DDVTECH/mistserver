@@ -2245,7 +2245,7 @@ var UI = {
               }
             }
             else {
-              $activeproducts.text("None.");
+              $activeproducts.text("None. ");
             }
             $activeproducts.append(
               $("<a>").text("More details").attr("href","https://shop.mistserver.org/myinvoices").attr("target","_blank")
@@ -2290,6 +2290,9 @@ var UI = {
           
           $errors.html('');
           var n = 0;
+          if (("license" in mist.data.config) && ("user_msg" in mist.data.config.license)) {
+            mist.data.log.unshift([mist.data.config.license.time,"ERROR",mist.data.config.license.user_msg]);
+          }
           for (var i in mist.data.log) {
             var l = mist.data.log[i];
             if (['FAIL','ERROR'].indexOf(l[1]) > -1) {

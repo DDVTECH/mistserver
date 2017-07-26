@@ -93,9 +93,6 @@ namespace Mist {
   }
 
   bool inputAV::readHeader() {
-    //See whether a separate header file exists.
-    if (readExistingHeader()){return true;}
-
     myMeta.tracks.clear();
     for(unsigned int i=0; i < pFormatCtx->nb_streams; ){
       AVStream * strm = pFormatCtx->streams[i++];

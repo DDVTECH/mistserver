@@ -53,8 +53,6 @@ namespace Mist {
     if (!inFile) {
       return false;
     }
-    //See whether a separate header file exists.
-    if (readExistingHeader()){return true;}
     //parse ismv header
     fseek(inFile, 0, SEEK_SET);
     std::string ftyp;

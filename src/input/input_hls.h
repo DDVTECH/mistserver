@@ -116,6 +116,7 @@ namespace Mist{
     bool checkArguments();
     bool preSetup();
     bool readHeader();
+    bool needHeader(){return true;}
     void getNext(bool smart = true);
     void seek(int seekTime);
     void trackSelect(std::string trackSpec);

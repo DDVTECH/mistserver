@@ -218,6 +218,11 @@ namespace Mist {
   }
 
 
+  bool inputTS::needHeader(){
+    if (!standAlone){return false;}
+    return Input::needHeader();
+  }
+
   ///Reads headers from a TS stream, and saves them into metadata
   ///It works by going through the entire TS stream, and every time
   ///It encounters a new PES start, it writes the currently found PES data
@@ -225,11 +230,7 @@ namespace Mist {
   ///it writes the remaining metadata.
   ///\todo Find errors, perhaps parts can be made more modular
   bool inputTS::readHeader() {
-    if (!standAlone){return true;}
     if (!inFile){return false;}
-    //See whether a separate header file exists.
-    if (readExistingHeader()){return true;}
-
     TS::Packet packet;//to analyse and extract data
     fseek(inFile, 0, SEEK_SET);//seek to beginning
 

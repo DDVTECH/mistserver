@@ -9,6 +9,7 @@ namespace Mist {
     protected:
       bool checkArguments(){return false;};
       bool readHeader(){return false;};
+      bool needHeader(){return false;};
   };
 }
 

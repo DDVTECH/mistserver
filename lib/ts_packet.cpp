@@ -1,6 +1,7 @@
 /// \file ts_packet.cpp
 /// Holds all code for the TS namespace.
 
+#include "util.h"
 #include <sstream>
 #include <iomanip>
 #include <string.h>
@@ -35,17 +36,35 @@ namespace TS {
 /// It fills the content with the next 188 bytes int he file.
 /// \param Data The data to be read into the packet.
 /// \return true if it was possible to read in a full packet, false otherwise.
-  bool Packet::FromFile(FILE * data) {    
-    long long int bPos = ftell(data);
-    if (!fread((void *)strBuf, 188, 1, data)) {
-      return false;
+  bool Packet::FromFile(FILE * data){
+    uint64_t bPos = Util::ftell(data);
+    uint16_t retries = 0;
+    while (retries < 256){
+      if (!fread((void *)strBuf, 188, 1, data)) {
+        if (!feof(data)){
+          FAIL_MSG("Could not read 188 bytes from file! %s", strerror(errno));
+        }
+        return false;
+      }
+      if (strBuf[0] == 0x47){
+        pos=188;
+        return true;
+      }
+      for (uint8_t i = 1; i < 188; ++i){
+        if (strBuf[i] == 0x47){
+          INFO_MSG("Shifting %u bytes", i);
+          memmove((void*)strBuf, (void*)(strBuf+i), 188-i);
+          if (!fread((void *)strBuf, i, 1, data)) {
+            return false;
+          }
+          pos=188;
+          return true;
+        }
+      }
+      INFO_MSG("Skipping invalid TS packet...");
     }
-    if (strBuf[0] != 0x47){
-      HIGH_MSG("Failed to read a good packet on pos %lld", bPos);
-      return false;
-    }
-    pos=188;
-    return true;
+    FAIL_MSG("Failed to read a good packet @ %lld bytes", bPos);
+    return false;
   }
 
   bool Packet::FromStream(std::istream & data)

@@ -415,15 +415,15 @@ namespace DTSC {
   ///\brief Retrieves a single parameter as an integer
   ///\param identifier The name of the parameter
   ///\param result The result is stored in this integer
-  void Packet::getInt(const char * identifier, int & result) const {
+  void Packet::getInt(const char * identifier, uint64_t & result) const {
     result = getScan().getMember(identifier).asInt();
   }
 
   ///\brief Retrieves a single parameter as an integer
   ///\param identifier The name of the parameter
   ///\result The requested parameter as an integer
-  int Packet::getInt(const char * identifier) const {
-    int result;
+  uint64_t Packet::getInt(const char * identifier) const {
+    uint64_t result;
     getInt(identifier, result);
     return result;
   }
@@ -432,7 +432,7 @@ namespace DTSC {
   ///\param identifier The name of the parameter
   ///\param result The result is stored in this boolean
   void Packet::getFlag(const char * identifier, bool & result) const {
-    int result_;
+    uint64_t result_;
     getInt(identifier, result_);
     result = (bool)result_;
   }

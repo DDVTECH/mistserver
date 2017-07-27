@@ -79,21 +79,24 @@ namespace nalu {
 
   ///Scan data for Annex B start code. Returns pointer to it when found, null otherwise.
   const char * scanAnnexB(const char * data, uint32_t dataSize){
-    int offset = 0;
-    while(offset+2 < dataSize){
-      const char * begin = data + offset;
-      bool t = (begin[2] == 1 && !begin[0] && !begin[1]);
-      if(!t){
-        if (begin[2]){//skip three bytes if the last one isn't zero
-          offset +=3;
-        }else if (begin[1]){//skip two bytes if the second one isn't zero
-          offset +=2; 
-        }else{//All other cases, skip one byte
-          offset++;
-        }
-      }else{
-        return begin;
+    char * offset = (char*)data;
+    const char * maxData = data + dataSize - 2;
+    while(offset < maxData){
+      if (offset[2] > 1){
+        //We have no zero in the third byte, so we need to skip at least 3 bytes forward
+        offset += 3;
+        continue;
       }
+      if (!offset[2]){
+        //We skip forward 1 or 2 bytes depending on contents of the second byte
+        offset += (offset[1]?2:1);
+        continue;
+      }
+      if (!offset[0] && !offset[1]){
+        return offset;
+      }
+      //We have no zero in the third byte, so we need to skip at least 3 bytes forward
+      offset += 3;
     }
     return 0;
   }

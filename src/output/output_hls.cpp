@@ -202,7 +202,7 @@ namespace Mist {
       if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3") {
         audioTracks.insert(it->first);
       }
-      if (it->second.codec == "H264" || it->second.codec == "H265"){
+      if (it->second.codec == "H264" || it->second.codec == "HEVC"){
         videoTracks.insert(it->first);
       }
     }

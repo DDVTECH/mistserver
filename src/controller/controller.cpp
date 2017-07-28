@@ -1,8 +1,10 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
+#include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
+#include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
@@ -29,8 +31,6 @@
 #include "controller_uplink.h"
 #include <mist/triggers.h>
 /*LTS-END*/
-#include "controller_api.h"
-#include "controller_push.h"
 
 #ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""
@@ -138,13 +138,6 @@ static unsigned long mix(unsigned long a, unsigned long b, unsigned long c){
 }
 
 ///\brief The main loop for the controller.
-///
-/// \triggers
-/// The `"SYSTEM_STOP"` trigger is global, and is ran when the controller shuts down. If cancelled,
-/// the controller does not shut down and will attempt to re-open the API socket. Its payload is:
-/// ~~~~~~~~~~~~~~~
-/// shutdown reason
-/// ~~~~~~~~~~~~~~~
 int main_loop(int argc, char **argv){
   Controller::isTerminal = Controller::isColorized = isatty(fileno(stdin));
   Controller::Storage = JSON::fromFile("config.json");
@@ -439,7 +432,7 @@ int main_loop(int argc, char **argv){
 #endif
 
   // start main loop
-  while (Controller::conf.is_active){/*LTS*/
+  while (Controller::conf.is_active){
     Controller::conf.serveThreadedSocket(Controller::handleAPIConnection);
     // print shutdown reason
     std::string shutdown_reason;
@@ -468,8 +461,8 @@ int main_loop(int argc, char **argv){
       Controller::Log("CONF", "Controller shutting down because of " + shutdown_reason);
       /*LTS-START*/
     }
-  }// indentation intentionally wrong, to minimize Pro/nonPro diffs
-  /*LTS-END*/
+    /*LTS-END*/
+  }
   // join all joinable threads
   HIGH_MSG("Joining stats thread...");
   statsThread.join();

@@ -6,6 +6,8 @@
 #include "nal.h"
 #include <sys/stat.h>
 #include <stdint.h>
+#include "mpeg.h"
+
 
 namespace TS{
 
@@ -187,6 +189,8 @@ namespace TS{
         case H265:
         case AC3:
         case ID3:
+        case MP2:
+        case MPEG2:
           pidToCodec[pid] = sType;
           if (sType == ID3){
             metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
@@ -517,10 +521,13 @@ namespace TS{
         }
       }
     }
-    if (thisCodec == ID3 || thisCodec == AC3){
+    if (thisCodec == ID3 || thisCodec == AC3 || thisCodec == MP2){
       out.push_back(DTSC::Packet());
       out.back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize,
                                          bPos, 0);
+      if (thisCodec == MP2 && !mp2Hdr.count(tid)){
+        mp2Hdr[tid] = std::string(pesPayload, realPayloadSize);
+      }
 
     }
 
@@ -626,6 +633,37 @@ namespace TS{
         nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
       }
     }
+    if (thisCodec == MPEG2){
+      const char *origBegin = pesPayload;
+      size_t origSize = realPayloadSize;
+      const char *nextPtr;
+      const char *pesEnd = pesPayload+realPayloadSize;
+      uint32_t nalSize = 0;
+
+      bool isKeyFrame = false;
+
+      nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
+      if (!nextPtr){
+        WARN_MSG("No start code found in entire PES packet!");
+        return;
+      }
+
+      while (nextPtr < pesEnd){
+        if (!nextPtr){nextPtr = pesEnd;}
+        //Calculate size of NAL unit, removing null bytes from the end
+        nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
+
+        // Check if this is a keyframe
+        parseNal(tid, pesPayload, nextPtr, isKeyFrame);
+
+        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){break;}//end of the loop
+        realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
+        pesPayload = nextPtr + 3;
+        nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
+      }
+      out.push_back(DTSC::Packet());
+      out.back().genericFill(timeStamp, timeOffset, tid, origBegin, origSize, bPos, isKeyFrame);
+    }
   }
 
   void Stream::getPacket(unsigned long tid, DTSC::Packet &pack){
@@ -660,11 +698,27 @@ namespace TS{
     bool firstSlice = true;
     char typeNal;
 
-    isKeyFrame = false;
     if (pidToCodec[tid] == MPEG2){
+      typeNal = pesPayload[0];
+      switch (typeNal){
+        case 0xB3:
+          if (!mpeg2SeqHdr.count(tid)){
+            mpeg2SeqHdr[tid] = std::string(pesPayload, (nextPtr - pesPayload));
+          }
+          break;
+        case 0xB5:
+          if (!mpeg2SeqExt.count(tid)){
+            mpeg2SeqExt[tid] = std::string(pesPayload, (nextPtr - pesPayload));
+          }
+          break;
+        case 0xB8:
+          isKeyFrame = true;
+          break;
+      }
       return;
     }
 
+    isKeyFrame = false;
     if (pidToCodec[tid] == H264){
       typeNal = pesPayload[0] & 0x1F;
       switch (typeNal){
@@ -816,6 +870,17 @@ namespace TS{
           }
         }
       }break;
+      case MPEG2:{
+        meta.tracks[mId].type = "video";
+        meta.tracks[mId].codec = "MPEG2";
+        meta.tracks[mId].trackID = mId;
+        meta.tracks[mId].init = std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] + std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
+
+        Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(meta.tracks[mId].init);
+        meta.tracks[mId].width = info.width;
+        meta.tracks[mId].height = info.height;
+        meta.tracks[mId].fpks = info.fps * 1000;
+      }break;
       case ID3:{
         meta.tracks[mId].type = "meta";
         meta.tracks[mId].codec = "ID3";
@@ -830,6 +895,18 @@ namespace TS{
         ///\todo Fix these 2 values
         meta.tracks[mId].rate = 0;
         meta.tracks[mId].channels = 0;
+      }break;
+      case MP2:{
+        meta.tracks[mId].type = "audio";
+        meta.tracks[mId].codec = "MP2";
+        meta.tracks[mId].trackID = mId;
+
+        Mpeg::MP2Info info = Mpeg::parseMP2Header(mp2Hdr[it->first]);
+        meta.tracks[mId].rate = info.sampleRate;
+        meta.tracks[mId].channels = info.channels;
+
+        ///\todo Fix this value
+        meta.tracks[mId].size = 0;
       }break;
       case AAC:{
         meta.tracks[mId].type = "audio";
@@ -887,7 +964,10 @@ namespace TS{
             case AAC:
             case H265:
             case AC3:
-            case ID3: result.insert(entry.getElementaryPid()); break;
+            case ID3:
+            case MP2:
+            case MPEG2:
+              result.insert(entry.getElementaryPid()); break;
             default: break;
             }
             entry.advance();

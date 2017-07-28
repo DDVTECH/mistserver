@@ -527,9 +527,13 @@ namespace TS {
 /// \param len The length of this frame.
 /// \param PTS The timestamp of the frame.
   std::string & Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS, unsigned long long offset, bool isAligned, uint64_t bps) {
-    len += (offset ? 13 : 8);
+    if (len){
+      len += (offset ? 13 : 8);
+    }
     if (bps >= 50){
-      len += 3;
+      if (len){
+        len += 3;
+      }
     }else{
       bps = 0;
     }
@@ -826,7 +830,7 @@ namespace TS {
       case 0x15: return "meta PES";
       case 0x16: return "meta section";
       case 0x1B: return "H264";
-      case 0x24: return "H265";
+      case 0x24: return "HEVC";
       case 0x81: return "AC3";
       default: return "unknown";
     }
@@ -1219,6 +1223,8 @@ namespace TS {
         entry.setStreamType(0x1B);
       }else if (myMeta.tracks[*it].codec == "HEVC"){
         entry.setStreamType(0x24);
+      }else if (myMeta.tracks[*it].codec == "MPEG2"){
+        entry.setStreamType(0x02);
       }else if (myMeta.tracks[*it].codec == "AAC"){
         entry.setStreamType(0x0F);
         std::string aac_info("\174\002\121\000", 4);//AAC descriptor: AAC Level 2. Hardcoded, because... what are AAC levels, anyway?
@@ -1229,7 +1235,7 @@ namespace TS {
           aac_info.append("\000", 1);
         }
         entry.setESInfo(aac_info);
-      }else if (myMeta.tracks[*it].codec == "MP3"){
+      }else if (myMeta.tracks[*it].codec == "MP3" || myMeta.tracks[*it].codec == "MP2"){
         entry.setStreamType(0x03);
       }else if (myMeta.tracks[*it].codec == "AC3"){
         entry.setStreamType(0x81);

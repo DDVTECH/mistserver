@@ -9,7 +9,7 @@
 #include "shared_memory.h"
 
 namespace TS{
-  enum codecType{H264 = 0x1B, AAC = 0x0F, AC3 = 0x81, MP3 = 0x03, H265 = 0x24, ID3 = 0x15};
+  enum codecType{H264 = 0x1B, AAC = 0x0F, AC3 = 0x81, MP3 = 0x03, H265 = 0x24, ID3 = 0x15, MPEG2 = 0x02, MP2 = 0x03};
 
   class ADTSRemainder{
   private:
@@ -80,6 +80,9 @@ namespace TS{
     std::map<unsigned long, std::string> metaInit;
     std::map<unsigned long, std::string> descriptors;
     std::map<unsigned long, uint32_t> seenUnitStart;
+    std::map<unsigned long, std::string> mpeg2SeqHdr;
+    std::map<unsigned long, std::string> mpeg2SeqExt;
+    std::map<unsigned long, std::string> mp2Hdr;
     mutable tthread::recursive_mutex tMutex;
 
     bool threaded;

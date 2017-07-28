@@ -123,8 +123,10 @@ namespace Mist {
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
+    capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("MP2");
     inFile = NULL;
     inputProcess = 0;
   }

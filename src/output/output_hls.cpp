@@ -19,14 +19,14 @@ namespace Mist {
     result << "#EXTM3U\r\n";
     int audioId = -1;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3") {
+      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3" || it->second.codec == "MP2") {
         audioId = it->first;
         break;
       }
     }
     unsigned int vidTracks = 0;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "H264" || it->second.codec == "HEVC") {
+      if (it->second.codec == "H264" || it->second.codec == "HEVC" || it->second.codec == "MPEG2") {
         vidTracks++;
         int bWidth = it->second.bps;
         if (bWidth < 5) {
@@ -56,7 +56,7 @@ namespace Mist {
     result << "#EXTM3U\r\n";
     std::set<unsigned int> audioTracks;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3") {
+      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3" || it->second.codec == "MP2") {
         audioTracks.insert(it->first);
       }
     }
@@ -65,7 +65,7 @@ namespace Mist {
     }
     unsigned int vidTracks = 0;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "H264" || it->second.codec == "HEVC") {
+      if (it->second.codec == "H264" || it->second.codec == "HEVC" || it->second.codec == "MPEG2") {
         for (std::set<unsigned int>::iterator audIt = audioTracks.begin(); audIt != audioTracks.end(); audIt++){
           vidTracks++;
           int bWidth = it->second.bps;
@@ -274,9 +274,11 @@ namespace Mist {
     capa["url_pushlist"] = "/hls/$/push/list";
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("MP2");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;

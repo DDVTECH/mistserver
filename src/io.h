@@ -32,10 +32,10 @@ namespace Mist {
       void clear();
       void initiateEncryption();//LTS
       bool bufferStart(unsigned long tid, unsigned long pageNumber, DTSC::Meta & myMeta);
-      void bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta);
+      void bufferNext(const DTSC::Packet & pack, DTSC::Meta & myMeta);
       void bufferFinalize(unsigned long tid, DTSC::Meta &myMeta);
-      void bufferLivePacket(DTSC::Packet & packet, DTSC::Meta & myMeta);
-      void bufferSinglePacket(DTSC::Packet & packet, DTSC::Meta & myMeta);
+      void bufferLivePacket(const DTSC::Packet & packet, DTSC::Meta & myMeta);
+      void bufferSinglePacket(const DTSC::Packet & packet, DTSC::Meta & myMeta);
       bool isBuffered(unsigned long tid, unsigned long keyNum);
       unsigned long bufferedOnPage(unsigned long tid, unsigned long keyNum);
 
@@ -73,10 +73,10 @@ namespace Mist {
     public:
       void initiateMeta();
       bool bufferStart(unsigned long tid, unsigned long pageNumber);
-      void bufferNext(DTSC::Packet & pack);
+      void bufferNext(const DTSC::Packet & pack);
       void bufferFinalize(unsigned long tid);
       void bufferRemove(unsigned long tid, unsigned long pageNumber);
-      virtual void bufferLivePacket(DTSC::Packet & packet);
+      virtual void bufferLivePacket(const DTSC::Packet & packet);
     protected:
       void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
       void continueNegotiate();

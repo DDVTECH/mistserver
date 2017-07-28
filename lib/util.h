@@ -12,6 +12,24 @@ namespace Util{
   uint64_t ftell(FILE *stream);
   uint64_t fseek(FILE *stream, uint64_t offset, int whence);
 
+  /// Helper class that maintains a resizeable pointer and will free it upon deletion of the class.
+  class ResizeablePointer{
+    public:
+      ResizeablePointer();
+      ~ResizeablePointer();
+      inline uint32_t& size(){return currSize;}
+      bool assign(void * p, uint32_t l);
+      bool append(void * p, uint32_t l);
+      bool allocate(uint32_t l);
+      inline operator char*(){return (char*)ptr;}
+      inline operator void*(){return ptr;}
+    private:
+      void * ptr;
+      uint32_t currSize;
+      uint32_t maxSize;
+
+  };
+
   /// Holds type, size and offset for RelAccX class internal data fields.
   class RelAccXFieldData{
   public:

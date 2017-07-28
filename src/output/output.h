@@ -135,7 +135,7 @@ namespace Mist {
       bool allowPush(const std::string & passwd);
       void waitForStreamPushReady();
       bool pushIsOngoing;
-      void bufferLivePacket(DTSC::Packet & packet);
+      void bufferLivePacket(const DTSC::Packet & packet);
       uint64_t firstPacketTime;
       uint64_t lastPacketTime;
   };

@@ -348,7 +348,7 @@ namespace DTSC {
         return vod || live;
       }
       void reinit(const DTSC::Packet & source);
-      void update(DTSC::Packet & pack, unsigned long segment_size = 5000);
+      void update(const DTSC::Packet & pack, unsigned long segment_size = 5000);
       void updatePosOverride(DTSC::Packet & pack, uint64_t bpos);
       void update(JSON::Value & pack, unsigned long segment_size = 5000);
       /*LTS

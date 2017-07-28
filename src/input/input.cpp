@@ -672,7 +672,7 @@ namespace Mist {
     }
     bufferFinalize(track);
     bufferTimer = Util::bootMS() - bufferTimer;
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes) for track %d in %llums", keyNum, packCounter, byteCounter, track, bufferTimer);
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes) for track %d (%s) in %llums", keyNum, packCounter, byteCounter, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
   }

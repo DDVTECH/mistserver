@@ -12,6 +12,7 @@
 #if defined(_WIN32)
 #include <direct.h> // _mkdir
 #endif
+#include <stdlib.h>
 
 #define RECORD_POINTER p + getOffset() + (getRecordPosition(recordNo) * getRSize()) + fd.offset
 #define RAXHDR_FIELDOFFSET p[1]
@@ -146,6 +147,46 @@ namespace Util{
   uint64_t fseek(FILE *stream, uint64_t offset, int whence){
     /// \TODO Windows implementation (e.g. _fseeki64 ?)
     return fseeko(stream, offset, whence);
+  }
+
+  ResizeablePointer::ResizeablePointer(){
+    currSize = 0;
+    ptr = 0;
+    maxSize = 0;
+  }
+
+  ResizeablePointer::~ResizeablePointer(){
+    if (ptr){free(ptr);}
+    currSize = 0;
+    ptr = 0;
+    maxSize = 0;
+  }
+
+  bool ResizeablePointer::assign(void * p, uint32_t l){
+    if (!allocate(l)){return false;}
+    memcpy(ptr, p, l);
+    currSize = l;
+    return true;
+  }
+
+  bool ResizeablePointer::append(void * p, uint32_t l){
+    if (!allocate(l+currSize)){return false;}
+    memcpy(((char*)ptr)+currSize, p, l);
+    currSize += l;
+    return true;
+  }
+
+  bool ResizeablePointer::allocate(uint32_t l){
+    if (l > maxSize){
+      void *tmp = realloc(ptr, l);
+      if (!tmp){
+        FAIL_MSG("Could not allocate %lu bytes of memory", l);
+        return false;
+      }
+      ptr = tmp;
+      maxSize = l;
+    }
+    return true;
   }
 
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.

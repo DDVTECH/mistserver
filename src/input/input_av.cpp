@@ -101,6 +101,13 @@ namespace Mist {
         case AV_CODEC_ID_HEVC:
           myMeta.tracks[i].codec = "HEVC";
           break;
+        case AV_CODEC_ID_MPEG1VIDEO:
+        case AV_CODEC_ID_MPEG2VIDEO:
+          myMeta.tracks[i].codec = "MPEG2";
+          break;
+        case AV_CODEC_ID_MP2:
+          myMeta.tracks[i].codec = "MP2";
+          break;
         case AV_CODEC_ID_H264:
           myMeta.tracks[i].codec = "H264";
           break;

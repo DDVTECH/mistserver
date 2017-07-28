@@ -39,7 +39,7 @@ namespace Mist{
     cfg->addOption("noinput", option);
   }
   
-  void Output::bufferLivePacket(DTSC::Packet & packet){
+  void Output::bufferLivePacket(const DTSC::Packet & packet){
     if (!pushIsOngoing){
       waitForStreamPushReady();
     }

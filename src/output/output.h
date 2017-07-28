@@ -119,7 +119,7 @@ namespace Mist {
       bool allowPush(const std::string & passwd);
       void waitForStreamPushReady();
       bool pushIsOngoing;
-      void bufferLivePacket(DTSC::Packet & packet);
+      void bufferLivePacket(const DTSC::Packet & packet);
   };
 
 }

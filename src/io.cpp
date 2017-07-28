@@ -253,11 +253,11 @@ namespace Mist {
 
   ///Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
-  void InOutBase::bufferNext(DTSC::Packet & pack) {
+  void InOutBase::bufferNext(const DTSC::Packet & pack) {
     nProxy.bufferNext(pack, myMeta);
   }
 
-  void negotiationProxy::bufferNext(DTSC::Packet & pack, DTSC::Meta & myMeta) {
+  void negotiationProxy::bufferNext(const DTSC::Packet & pack, DTSC::Meta & myMeta) {
     static bool multiWrong = false;
     //Save the trackid of the track for easier access
     unsigned long tid = pack.getTrackId();
@@ -388,11 +388,11 @@ namespace Mist {
   ///
   ///Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
-  void InOutBase::bufferLivePacket(DTSC::Packet & packet){
+  void InOutBase::bufferLivePacket(const DTSC::Packet & packet){
     nProxy.bufferLivePacket(packet, myMeta);
   }
 
-  void negotiationProxy::bufferLivePacket(DTSC::Packet & packet, DTSC::Meta & myMeta){
+  void negotiationProxy::bufferLivePacket(const DTSC::Packet & packet, DTSC::Meta & myMeta){
     myMeta.vod = false;
     myMeta.live = true;
     //Store the trackid for easier access
@@ -426,7 +426,7 @@ namespace Mist {
     }
   }
 
-  void negotiationProxy::bufferSinglePacket(DTSC::Packet & packet, DTSC::Meta & myMeta){
+  void negotiationProxy::bufferSinglePacket(const DTSC::Packet & packet, DTSC::Meta & myMeta){
     //Store the trackid for easier access
     unsigned long tid = packet.getTrackId();
     //This update needs to happen whether the track is accepted or not.

@@ -1438,7 +1438,7 @@ namespace DTSC {
   }
 
   ///\brief Updates a meta object given a DTSC::Packet
-  void Meta::update(DTSC::Packet & pack, unsigned long segment_size) {
+  void Meta::update(const DTSC::Packet & pack, unsigned long segment_size) {
     char * data;
     unsigned int dataLen;
     pack.getString("data", data, dataLen);

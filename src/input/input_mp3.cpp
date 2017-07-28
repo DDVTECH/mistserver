@@ -8,6 +8,7 @@
 #include <mist/stream.h>
 #include <mist/flv_tag.h>
 #include <mist/defines.h>
+#include <mist/mpeg.h>
 
 #include "input_mp3.h"
 
@@ -70,13 +71,9 @@ namespace Mist {
     fread(header, 4, 1, inFile);
     fseek(inFile, filePos, SEEK_SET);
 
-    //mpeg version is on the bits 0x18 of header[1], but only 0x08 is important --> 0 is version 2, 1 is version 1
-    //leads to 2 - value == version, -1 to get the right index for the array
-    int mpegVersion = 1 - ((header[1] >> 3) & 0x01);
-    //samplerate is encoded in bits 0x0C of header[2];
-    myMeta.tracks[1].rate = sampleRates[mpegVersion][((header[2] >> 2) & 0x03)] * 1000;
-    myMeta.tracks[1].channels = 2 - ( header[3] >> 7);
-
+    Mpeg::MP2Info mp2Info = Mpeg::parseMP2Header(header);
+    myMeta.tracks[1].rate = mp2Info.sampleRate;
+    myMeta.tracks[1].channels = mp2Info.channels;
 
     getNext();
     while (thisPacket){

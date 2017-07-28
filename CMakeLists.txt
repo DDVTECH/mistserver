@@ -152,6 +152,7 @@ set(libHeaders
   ${SOURCE_DIR}/lib/mp4_generic.h
   ${SOURCE_DIR}/lib/mp4.h
   ${SOURCE_DIR}/lib/mp4_ms.h
+  ${SOURCE_DIR}/lib/mpeg.h
   ${SOURCE_DIR}/lib/nal.h
   ${SOURCE_DIR}/lib/ogg.h
   ${SOURCE_DIR}/lib/procs.h
@@ -200,6 +201,7 @@ set(libSources
   ${SOURCE_DIR}/lib/mp4_encryption.cpp
   ${SOURCE_DIR}/lib/mp4_generic.cpp
   ${SOURCE_DIR}/lib/mp4_ms.cpp
+  ${SOURCE_DIR}/lib/mpeg.cpp
   ${SOURCE_DIR}/lib/nal.cpp
   ${SOURCE_DIR}/lib/ogg.cpp
   ${SOURCE_DIR}/lib/procs.cpp

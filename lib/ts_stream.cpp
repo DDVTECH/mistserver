@@ -192,7 +192,8 @@ namespace TS{
             metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
           }
           break;
-        default: break;
+        default:
+          break;
         }
         entry.advance();
       }
@@ -660,9 +661,12 @@ namespace TS{
     char typeNal;
 
     isKeyFrame = false;
-    typeNal = pesPayload[0] & 0x1F;
+    if (pidToCodec[tid] == MPEG2){
+      return;
+    }
 
     if (pidToCodec[tid] == H264){
+      typeNal = pesPayload[0] & 0x1F;
       switch (typeNal){
       case 0x01:{
         if (firstSlice){
@@ -702,6 +706,7 @@ namespace TS{
       default: break;
       }
     }else if (pidToCodec[tid] == H265){
+      typeNal = (((pesPayload[0] & 0x7E) >> 1) & 0xFF);
       switch (typeNal){
       case 2:
       case 3: // TSA Picture
@@ -723,7 +728,8 @@ namespace TS{
       case 32:
       case 33:
       case 34:{
-        hevcInfo[tid].addUnit((char *)pesPayload); // may i convert to (char *)?
+        tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+        hevcInfo[tid].addUnit(std::string(pesPayload, nextPtr - pesPayload)); // may i convert to (char *)?
         break;
       }
       default: break;

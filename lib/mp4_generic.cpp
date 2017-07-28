@@ -1,5 +1,6 @@
 #include "mp4_generic.h"
 #include "defines.h"
+#include "h265.h"
 
 namespace MP4 {
   MFHD::MFHD() {
@@ -866,12 +867,17 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Arrays:" << std::endl;
     std::deque<HVCCArrayEntry> arrays = getArrays();
     for (unsigned int i = 0; i < arrays.size(); i++){
-      r << std::string(indent + 2, ' ') << "Array with type " << (int)arrays[i].nalUnitType << std::endl;
+      r << std::string(indent + 2, ' ') << "Array with type " << h265::typeToStr(arrays[i].nalUnitType) << std::endl;
       for (unsigned int j = 0; j < arrays[i].nalUnits.size(); j++){
         r << std::string(indent + 3, ' ') << "Nal unit of " << arrays[i].nalUnits[j].size() << " bytes" << std::endl;
       }
     }
     return r.str();
+  }
+
+  h265::metaInfo HVCC::getMetaInfo(){
+    h265::initData init(std::string(payload(), payloadSize()));
+    return init.getMeta();
   }
 
   void HVCC::setPayload(std::string newPayload) {

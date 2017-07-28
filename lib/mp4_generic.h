@@ -1,6 +1,10 @@
 #pragma once
 #include "mp4.h"
 
+namespace h265 {
+  class metaInfo;
+}
+
 namespace MP4 {
   class MFHD: public Box {
     public:
@@ -174,6 +178,7 @@ namespace MP4 {
       std::string asAnnexB();
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);
+      h265::metaInfo getMetaInfo();
   };
 
   class Descriptor{

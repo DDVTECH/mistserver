@@ -303,7 +303,7 @@ namespace TS{
     }
     std::deque<Packet> &inStream = pesStreams[tid];
     if (inStream.size() <= 1){
-      INFO_MSG("No PES packets to parse");
+      HIGH_MSG("No PES packets to parse");
       return;
     }
     // Find number of packets before unit Start

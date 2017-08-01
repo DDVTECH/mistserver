@@ -460,6 +460,8 @@ INFO_MSG("parsestream");
           if (!hasHeader &&
               (!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
             tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
+            myMeta.tracks[packetId].minKeepAway = pListIt->waitTime * 2000;
+            FAIL_MSG("setting minKeepAway = %d for track: %d", myMeta.tracks[packetId].minKeepAway, packetId);
           }
         }
 

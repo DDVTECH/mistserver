@@ -786,6 +786,53 @@ namespace Mist{
     seek(seekPos);
   }
 
+  /// This function attempts to forward playback in live streams to a more live point.
+  /// It seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
+  /// Aborts if not live, there is no main track or it has no keyframes.
+  bool Output::liveSeek(){
+    unsigned long long seekPos = 0;
+    if (!myMeta.live){return false;}
+    long unsigned int mainTrack = getMainSelectedTrack();
+    //cancel if there are no keys in the main track
+    if (!myMeta.tracks.count(mainTrack)){return false;}
+    DTSC::Track & mainTrk = myMeta.tracks[mainTrack];
+    if (!mainTrk.keys.size()){return false;}
+    uint32_t minKeepAway = mainTrk.minKeepAway;
+
+    //Only skip forward if we can win at least 500ms
+    if (thisPacket.getTime() + 500 > mainTrk.keys.rbegin()->getTime()){
+      return false;
+    }
+
+    for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
+      seekPos = it->getTime();
+      if(seekPos <= thisPacket.getTime()){return false;}
+      bool good = true;
+      //check if all tracks have data for this point in time
+      for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
+        if (!myMeta.tracks.count(*ti)){
+          HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+          continue;
+        }//ignore missing tracks
+        DTSC::Track & thisTrack = myMeta.tracks[*ti];
+        if (thisTrack.lastms < seekPos+needsLookAhead+thisTrack.minKeepAway){good = false; break;}
+        if (mainTrack == *ti){continue;}//skip self
+        if (thisTrack.lastms == thisTrack.firstms){
+          HIGH_MSG("Skipping track %lu, last equals first", *ti);
+          continue;
+        }//ignore point-tracks
+        HIGH_MSG("Track %lu is good", *ti);
+      }
+      //if yes, seek here
+      if (good){
+        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA)", seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway);
+        seek(seekPos);
+        return true;
+      }
+    }
+    return false;
+  }
+
   void Output::requestHandler(){
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){

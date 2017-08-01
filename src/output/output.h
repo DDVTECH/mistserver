@@ -69,6 +69,7 @@ namespace Mist {
       virtual void onRequest();
       static void listener(Util::Config & conf, int (*callback)(Socket::Connection & S));
       virtual void initialSeek();
+      virtual bool liveSeek();
       virtual bool onFinish() {
         return false;
       }

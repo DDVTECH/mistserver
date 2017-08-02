@@ -362,12 +362,9 @@ namespace Mist{
     if (Util::Config::printDebugLevel >= DLVL_HIGH){
       for (std::vector<Playlist>::iterator pListIt = playlists.begin(); pListIt != playlists.end();
            pListIt++){
-        std::cout << pListIt->id << ": " << pListIt->uri << std::endl;
         int j = 0;
         for (std::deque<playListEntries>::iterator entryIt = pListIt->entries.begin();
              entryIt != pListIt->entries.end(); entryIt++){
-          std::cout << "    " << j++ << ": " << entryIt->filename
-                    << " bytePos: " << entryIt->bytePos << std::endl;
         }
       }
     }

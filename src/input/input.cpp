@@ -124,6 +124,11 @@ namespace Mist {
     while (config->is_active){
       pid_t pid = fork();
       if (pid == 0){
+        //Re-init streamStatus to fix Cygwin issues
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, false, false);
+        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         if (needsLock()){playerLock.close();}
         if (!preRun()){return 0;}
         return run();

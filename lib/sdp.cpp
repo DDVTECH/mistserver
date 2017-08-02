@@ -4,6 +4,7 @@
 #include "encode.h"
 #include "h264.h"
 #include "h265.h"
+#include "http_parser.h"
 #include "util.h"
 
 namespace SDP{
@@ -70,32 +71,31 @@ namespace SDP{
                                                      "a=framesize:104 "
                 << trk.width << '-' << trk.height << "\r\n"
                 << "a=fmtp:104 sprop-vps=";
-      const std::set<std::string> & vps = iData.getVPS();
+      const std::set<std::string> &vps = iData.getVPS();
       if (vps.size()){
-       for (std::set<std::string>::iterator it = vps.begin(); it != vps.end(); it++){
-         if (it != vps.begin()){mediaDesc << ",";}
-         mediaDesc << Encodings::Base64::encode(*it);
-       }
+        for (std::set<std::string>::iterator it = vps.begin(); it != vps.end(); it++){
+          if (it != vps.begin()){mediaDesc << ",";}
+          mediaDesc << Encodings::Base64::encode(*it);
+        }
       }
       mediaDesc << "; sprop-sps=";
-      const std::set<std::string> & sps = iData.getSPS();
+      const std::set<std::string> &sps = iData.getSPS();
       if (sps.size()){
-       for (std::set<std::string>::iterator it = sps.begin(); it != sps.end(); it++){
-         if (it != sps.begin()){mediaDesc << ",";}
-         mediaDesc << Encodings::Base64::encode(*it);
-       }
+        for (std::set<std::string>::iterator it = sps.begin(); it != sps.end(); it++){
+          if (it != sps.begin()){mediaDesc << ",";}
+          mediaDesc << Encodings::Base64::encode(*it);
+        }
       }
       mediaDesc << "; sprop-pps=";
-      const std::set<std::string> & pps = iData.getPPS();
+      const std::set<std::string> &pps = iData.getPPS();
       if (pps.size()){
-       for (std::set<std::string>::iterator it = pps.begin(); it != pps.end(); it++){
-         if (it != pps.begin()){mediaDesc << ",";}
-         mediaDesc << Encodings::Base64::encode(*it);
-       }
+        for (std::set<std::string>::iterator it = pps.begin(); it != pps.end(); it++){
+          if (it != pps.begin()){mediaDesc << ",";}
+          mediaDesc << Encodings::Base64::encode(*it);
+        }
       }
-      mediaDesc << "\r\na=framerate:"
-                << ((double)trk.fpks) / 1000.0 << "\r\n"
-                                                  "a=control:track"
+      mediaDesc << "\r\na=framerate:" << ((double)trk.fpks) / 1000.0 << "\r\n"
+                                                                        "a=control:track"
                 << trk.trackID << "\r\n";
     }else if (trk.codec == "MPEG2"){
       mediaDesc << "m=video 0 RTP/AVP 32\r\n"
@@ -423,9 +423,12 @@ namespace SDP{
           updateH264Init(trackNo);
         }
         if (thisTrack->codec == "HEVC"){
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-vps")));
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-sps")));
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-pps")));
+          tracks[trackNo].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-vps")));
+          tracks[trackNo].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-sps")));
+          tracks[trackNo].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-pps")));
           updateH265Init(trackNo);
         }
         continue;
@@ -498,29 +501,37 @@ namespace SDP{
       return trackCounter;
     }
 
+    HTTP::URL url(H.url);
+    std::string urlString = url.getBareUrl();
+    std::string pw = H.GetVar("pass");
+
     if (tracks.size()){
-    for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
-      if (!it->second.control.size()){
-        it->second.control = "track" + JSON::Value((long long)it->first).asString();
-        INFO_MSG("Control track: %s", it->second.control.c_str());
-      }
-      if (H.url.find(it->second.control) != std::string::npos ||
-           H.GetVar("pass").find(it->second.control) != std::string::npos){
-        INFO_MSG("Parsing SETUP against track %lu", it->first);
-        if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src,
-                                       myMeta->tracks[it->first])){
-          return 0;
+      for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+        if (!it->second.control.size()){
+          it->second.control = "/track" + JSON::Value((long long)it->first).asString();
+          INFO_MSG("Control track: %s", it->second.control.c_str());
         }
-        return it->first;
+
+        if ((urlString.size() >= it->second.control.size() &&
+             urlString.substr(urlString.size() - it->second.control.size()) ==
+                 it->second.control) ||
+            (pw.size() >= it->second.control.size() &&
+             pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
+          INFO_MSG("Parsing SETUP against track %lu", it->first);
+          if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src,
+                                         myMeta->tracks[it->first])){
+            return 0;
+          }
+          return it->first;
+        }
       }
-    }
     }
     if (H.url.find("/track") != std::string::npos){
       uint32_t trackNo = atoi(H.url.c_str() + H.url.find("/track") + 6);
       if (trackNo){
         INFO_MSG("Parsing SETUP against track %lu", trackNo);
         if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src,
-                                       myMeta->tracks[trackNo])){
+                                            myMeta->tracks[trackNo])){
           return 0;
         }
         return trackNo;
@@ -656,8 +667,9 @@ namespace SDP{
     if (incomingPacketCallback){incomingPacketCallback(nextPack);}
   }
 
-  ///Returns the multiplier to use to get milliseconds from the RTP payload type for the given track
-  double getMultiplier(const DTSC::Track & Trk){
+  /// Returns the multiplier to use to get milliseconds from the RTP payload type for the given
+  /// track
+  double getMultiplier(const DTSC::Track &Trk){
     if (Trk.type == "video" || Trk.codec == "MP2" || Trk.codec == "MP3"){return 90.0;}
     return ((double)Trk.rate / 1000.0);
   }
@@ -670,7 +682,8 @@ namespace SDP{
     uint64_t millis = (pkt.getTimeStamp() - tracks[track].firstTime + 1) / getMultiplier(Trk);
     char *pl = pkt.getPayload();
     uint32_t plSize = pkt.getPayloadSize();
-    INSANE_MSG("Received RTP packet for track %llu, time %llu -> %llu", track, pkt.getTimeStamp(), millis);
+    INSANE_MSG("Received RTP packet for track %llu, time %llu -> %llu", track, pkt.getTimeStamp(),
+               millis);
     if (Trk.codec == "ALAW" || Trk.codec == "opus" || Trk.codec == "PCM"){
       DTSC::Packet nextPack;
       nextPack.genericFill(millis, 0, track, pl, plSize, 0, false);
@@ -689,10 +702,9 @@ namespace SDP{
       uint32_t auSize = 0;
       for (uint32_t i = 2; i < headLen; i += 2){
         auSize = Bit::btohs(pl + i) >> 3; // only the upper 13 bits
-        nextPack.genericFill((pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime + 1) /
-                                 getMultiplier(Trk),
-                             0, track, pl + headLen + offset,
-                             std::min(auSize, plSize - headLen - offset), 0, false);
+        nextPack.genericFill(
+            (pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime + 1) / getMultiplier(Trk),
+            0, track, pl + headLen + offset, std::min(auSize, plSize - headLen - offset), 0, false);
         offset += auSize;
         sampleOffset += samples;
         if (incomingPacketCallback){incomingPacketCallback(nextPack);}
@@ -738,8 +750,7 @@ namespace SDP{
           HIGH_MSG("Not start of a new FU - throwing away");
           return;
         }
-        if (fuaBuffer.size() &&
-            ((pl[2] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
+        if (fuaBuffer.size() && ((pl[2] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
           WARN_MSG("H265 FU packet incompleted: %lu", fuaBuffer.size());
           Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
           fuaBuffer[4] |= 0x80;                        // set error bit
@@ -749,7 +760,7 @@ namespace SDP{
           return;
         }
 
-        unsigned long len = plSize - 3; // ignore the three FU bytes in front
+        unsigned long len = plSize - 3;      // ignore the three FU bytes in front
         if (!fuaBuffer.size()){len += 6;}// six extra bytes for the first packet
         if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
         if (!fuaBuffer.size()){
@@ -763,8 +774,9 @@ namespace SDP{
         fuaBuffer.size() += len;
 
         if (pl[2] & 0x40){// last packet
-          VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %lu", h265::typeToStr((fuaBuffer[4] & 0x7E) >> 1), (uint8_t)((fuaBuffer[4] & 0x7E) >> 1),
-                     fuaBuffer.size());
+          VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %lu",
+                       h265::typeToStr((fuaBuffer[4] & 0x7E) >> 1),
+                       (uint8_t)((fuaBuffer[4] & 0x7E) >> 1), fuaBuffer.size());
           Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
           h265Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer,
                      fuaBuffer.size(), h265::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
@@ -845,8 +857,7 @@ namespace SDP{
           HIGH_MSG("Not start of a new FU-A - throwing away");
           return;
         }
-        if (fuaBuffer.size() &&
-            ((pl[1] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
+        if (fuaBuffer.size() && ((pl[1] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
           WARN_MSG("Ending unfinished FU-A");
           INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaBuffer.size());
           uint8_t nalType = (fuaBuffer[4] & 0x1F);
@@ -864,7 +875,7 @@ namespace SDP{
           return;
         }
 
-        unsigned long len = plSize - 2; // ignore the two FU-A bytes in front
+        unsigned long len = plSize - 2;      // ignore the two FU-A bytes in front
         if (!fuaBuffer.size()){len += 5;}// five extra bytes for the first packet
         if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
         if (!fuaBuffer.size()){

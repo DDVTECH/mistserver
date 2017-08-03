@@ -13,12 +13,12 @@
 
 namespace Mist {
   Input * Input::singleton = NULL;
-  
-  void Input::userCallback(char * data, size_t len, unsigned int id){
-    for (int i = 0; i < 5; i++){
-      unsigned long tid = ((unsigned long)(data[i*6]) << 24) | ((unsigned long)(data[i*6+1]) << 16) | ((unsigned long)(data[i*6+2]) << 8) | ((unsigned long)(data[i*6+3]));
-      if (tid){
-        unsigned long keyNum = ((unsigned long)(data[i*6+4]) << 8) | ((unsigned long)(data[i*6+5]));
+
+  void Input::userCallback(char * data, size_t len, unsigned int id) {
+    for (int i = 0; i < SIMUL_TRACKS; i++) {
+      unsigned long tid = ((unsigned long)(data[i * 6]) << 24) | ((unsigned long)(data[i * 6 + 1]) << 16) | ((unsigned long)(data[i * 6 + 2]) << 8) | ((unsigned long)(data[i * 6 + 3]));
+      if (tid) {
+        unsigned long keyNum = ((unsigned long)(data[i * 6 + 4]) << 8) | ((unsigned long)(data[i * 6 + 5]));
         bufferFrame(tid, keyNum + 1);//Try buffer next frame
       }
     }

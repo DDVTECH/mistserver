@@ -321,6 +321,7 @@ namespace DTSC {
       std::string codec;
       std::string type;
       std::string lang;///< ISO 639-2 Language of track, empty or und if unknown.
+      uint32_t minKeepAway;///<Time in MS to never seek closer than live point to
       //audio only
       int rate;
       int size;

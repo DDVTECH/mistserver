@@ -16,7 +16,7 @@ namespace Mist {
   Input * Input::singleton = NULL;
 
   void Input::userCallback(char * data, size_t len, unsigned int id) {
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < SIMUL_TRACKS; i++) {
       unsigned long tid = ((unsigned long)(data[i * 6]) << 24) | ((unsigned long)(data[i * 6 + 1]) << 16) | ((unsigned long)(data[i * 6 + 2]) << 8) | ((unsigned long)(data[i * 6 + 3]));
       if (tid) {
         unsigned long keyNum = ((unsigned long)(data[i * 6 + 4]) << 8) | ((unsigned long)(data[i * 6 + 5]));
@@ -140,6 +140,11 @@ namespace Mist {
     while (config->is_active){
       pid_t pid = fork();
       if (pid == 0){
+        //Re-init streamStatus to fix Cygwin issues
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, false, false);
+        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         if (needsLock()){playerLock.close();}
         if (!preRun()){return 0;}
         return run();

@@ -1135,6 +1135,7 @@ namespace DTSC {
     width = 0;
     height = 0;
     fpks = 0;
+    minKeepAway = 0;
   }
 
   ///\brief Constructs a track from a JSON::Value
@@ -1183,6 +1184,11 @@ namespace DTSC {
       for (unsigned int i = 0; i < tmp.size(); i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
       }
+    }
+    if (trackRef.isMember("keepaway") && trackRef["keepaway"].isInt()){
+      minKeepAway = trackRef["keepaway"].asInt();
+    }else{
+      minKeepAway = 0;
     }
   }
 
@@ -1242,6 +1248,11 @@ namespace DTSC {
       for (unsigned int i = 0; i < tmplen; i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
       }
+    }
+    if (trackRef.getMember("keepaway").getType() == DTSC_INT){
+      minKeepAway = trackRef.getMember("keepaway").asInt();
+    }else{
+      minKeepAway = 0;
     }
   }
 
@@ -1712,6 +1723,9 @@ namespace DTSC {
     if (!skipDynamic && missedFrags) {
       result += 23;
     }
+    if (minKeepAway){
+      result += 19;
+    }
     return result;
   }
 
@@ -1814,6 +1828,10 @@ namespace DTSC {
       writePointer(p, "\000\004fpks\001", 7);
       writePointer(p, convertLongLong(fpks), 8);
     }
+    if (minKeepAway){
+      writePointer(p, "\000\010keepaway\001", 11);
+      writePointer(p, convertLongLong(minKeepAway), 8);
+    }
     writePointer(p, "\000\000\356", 3);//End this track Object
   }
 
@@ -1897,6 +1915,10 @@ namespace DTSC {
       conn.SendNow(convertLongLong(height), 8);
       conn.SendNow("\000\004fpks\001", 7);
       conn.SendNow(convertLongLong(fpks), 8);
+    }
+    if (minKeepAway){
+      conn.SendNow("\000\010keepaway\001", 11);
+      conn.SendNow(convertLongLong(minKeepAway), 8);
     }
     conn.SendNow("\000\000\356", 3);//End this track Object
   }
@@ -2058,6 +2080,11 @@ namespace DTSC {
       result["height"] = height;
       result["fpks"] = fpks;
     }
+
+    if(minKeepAway){
+      result["keepaway"] = minKeepAway;
+    }
+
     return result;
   }
 

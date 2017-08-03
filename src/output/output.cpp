@@ -624,7 +624,7 @@ namespace Mist{
 
   /// This function decides where in the stream initial playback starts.
   /// The default implementation calls seek(0) for VoD.
-  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead ms from the end.
+  /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
   /// Unless lastms < 5000, then it seeks to the first keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
@@ -640,17 +640,17 @@ namespace Mist{
         bool good = true;
         //check if all tracks have data for this point in time
         for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (myMeta.tracks[*ti].lastms < seekPos+needsLookAhead){good = false; break;}
-          if (mainTrack == *ti){continue;}//skip self
           if (!myMeta.tracks.count(*ti)){
             HIGH_MSG("Skipping track %lu, not in tracks", *ti);
             continue;
           }//ignore missing tracks
-          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
+          DTSC::Track & thisTrack = myMeta.tracks[*ti];
+          if (thisTrack.lastms < seekPos+needsLookAhead+thisTrack.minKeepAway){good = false; break;}
+          if (mainTrack == *ti){continue;}//skip self
+          if (thisTrack.lastms == thisTrack.firstms){
             HIGH_MSG("Skipping track %lu, last equals first", *ti);
             continue;
           }//ignore point-tracks
-          if (myMeta.tracks[*ti].lastms < seekPos){good = false; break;}
           HIGH_MSG("Track %lu is good", *ti);
         }
         //if yes, seek here
@@ -660,7 +660,7 @@ namespace Mist{
     MEDIUM_MSG("Initial seek to %llums", seekPos);
     seek(seekPos);
   }
-  
+
   void Output::requestHandler(){
     static bool firstData = true;//only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){

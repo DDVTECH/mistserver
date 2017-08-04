@@ -103,14 +103,6 @@ namespace Mist {
   inputBuffer::~inputBuffer() {
     config->is_active = false;
     if (myMeta.tracks.size()) {
-      /*LTS-START*/
-      if (myMeta.bufferWindow) {
-        if (Triggers::shouldTrigger("STREAM_BUFFER")) {
-          std::string payload = config->getString("streamname") + "\nEMPTY";
-          Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
-        }
-      }
-      /*LTS-END*/
       DEBUG_MSG(DLVL_DEVEL, "Cleaning up, removing last keyframes");
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
         std::map<unsigned long, DTSCPageData> & locations = bufferLocations[it->first];
@@ -432,6 +424,16 @@ namespace Mist {
   }
 
   void inputBuffer::finish() {
+    if (myMeta.tracks.size()) {
+      /*LTS-START*/
+      if (myMeta.bufferWindow) {
+        if (Triggers::shouldTrigger("STREAM_BUFFER")) {
+          std::string payload = config->getString("streamname") + "\nEMPTY";
+          Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        }
+      }
+      /*LTS-END*/
+    }
     Input::finish();
     updateMeta();
     if (bufferLocations.size()) {

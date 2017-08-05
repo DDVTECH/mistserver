@@ -9,6 +9,7 @@
 #include <mist/config.h>
 #include <mist/encryption.h>
 #include <mist/encode.h>
+#include <mist/downloader.h>
 
 
 namespace Controller{
@@ -95,21 +96,11 @@ namespace Controller{
     INFO_MSG("Running license updater %s", extra.c_str());
     JSON::Value response;
     
-    HTTP::Parser http;
-    Socket::Connection updrConn("releases.mistserver.org", 80, true);
-    if ( !updrConn){
-      WARN_MSG("Failed to reach licensing server");
-      return;
-    }
-    
-    //Sending request to server.
-    //http.url = "/licensing.php"
-    //also see statics at start function.
-    http.url = "/license.php?release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&lid="+currentLicense["lic_id"].asString() + extra;
+    HTTP::Downloader dl;
+    HTTP::URL url("http://releases.mistserver.org/license.php");
+    url.args = "release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&lid="+currentLicense["lic_id"].asString() + extra;
+
     long long currID = currentLicense["lic_id"].asInt();
-    http.method = "GET";
-    http.SetHeader("Host", "releases.mistserver.org");
-    http.SetHeader("X-Version", PACKAGE_VERSION);
     if (currID){
       char aesKey[16];
       if (strlen(SUPER_SECRET) >= 32){
@@ -122,35 +113,16 @@ namespace Controller{
       }
       char ivec[16];
       memset(ivec, 0, 16);
-      http.SetHeader("X-IRDGAF", Encodings::Base64::encode(Encryption::AES_Crypt(RELEASE "|" PACKAGE_VERSION, sizeof(RELEASE "|" PACKAGE_VERSION), aesKey, ivec)));
+      dl.setHeader("X-IRDGAF", Encodings::Base64::encode(Encryption::AES_Crypt(RELEASE "|" PACKAGE_VERSION, sizeof(RELEASE "|" PACKAGE_VERSION), aesKey, ivec)));
     }
-    updrConn.SendNow(http.BuildRequest());
-    http.Clean();
-    unsigned int startTime = Util::epoch();
-    while ((Util::epoch() - startTime < 10) && (updrConn || updrConn.Received().size())){
-      if (updrConn.spool() || updrConn.Received().size()){
-        if ( *(updrConn.Received().get().rbegin()) != '\n'){
-          std::string tmp = updrConn.Received().get();
-          updrConn.Received().get().clear();
-          if (updrConn.Received().size()){
-            updrConn.Received().get().insert(0, tmp);
-          }else{
-            updrConn.Received().append(tmp);
-          }
-          continue;
-        }
-        if (http.Read(updrConn.Received().get())){
-          response = JSON::fromString(http.body);
-          everContactedServer = true;
-          break; //break out of while loop
-        }
-      }
+    if (!dl.get(url) || !dl.isOk()){
+      return;
     }
-    updrConn.close();
+    response = JSON::fromString(dl.data());
+    everContactedServer = true;
     
     //read license
     readLicense(response["lic_id"].asInt(), response["license"].asStringRef(), true);
-    
   }
   
   void readLicense(uint64_t licID, const std::string & input, bool fromServer){

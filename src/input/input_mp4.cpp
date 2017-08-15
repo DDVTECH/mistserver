@@ -253,7 +253,9 @@ namespace Mist {
           myMeta.tracks[trackNo].lang = mdhdBox.getLanguage();
 
           std::string hdlrType = mdiaBox.getChild<MP4::HDLR>().getHandlerType();
-          if (hdlrType != "vide" && hdlrType != "soun" && hdlrType != "stbl"){
+          if (hdlrType != "vide" && hdlrType != "soun" && hdlrType != "sbtl"){
+            headerData.erase(trackNo);
+            myMeta.tracks.erase(trackNo);
             break;
           }
 

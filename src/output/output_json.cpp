@@ -18,8 +18,7 @@ namespace Mist {
     capa["name"] = "JSON";
     capa["desc"] = "Enables HTTP protocol JSON streaming.";
     capa["url_match"] = "/$.json";
-    capa["codecs"][0u][0u].append("srt");
-    capa["codecs"][0u][0u].append("TTXT");
+    capa["codecs"][0u][0u].append("@+meta");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/javascript";
     capa["methods"][0u]["priority"] = 0ll;
@@ -74,10 +73,6 @@ namespace Mist {
     jsonp = "";
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
-    if (H.GetVar("track") != ""){
-      selectedTracks.clear();
-      selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
-    }
     
     if (H.GetHeader("Upgrade") == "websocket"){
       ws = new HTTP::Websocket(myConn, H);
@@ -101,16 +96,7 @@ namespace Mist {
       H.Clean();
       return;
     }
-    
     first = true;
-    initialize();
-    if (!selectedTracks.size()){
-      for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.type == "meta" ){
-          selectedTracks.insert(it->first);
-        }
-      }
-    }
     parseData = true;
     wantRequest = false;
   }

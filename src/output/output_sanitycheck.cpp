@@ -48,7 +48,7 @@ namespace Mist {
     Output::init(cfg);
     capa["name"] = "SanityCheck";
     capa["desc"] = "Does sanity check on a stream";
-    capa["codecs"][0u][0u].append("*");
+    capa["codecs"][0u][0u].append("+*");
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
     cfg->addOption("seek", JSON::fromString("{\"arg\":\"string\",\"short\":\"S\",\"long\":\"seek\",\"help\":\"Time in ms to check from - by default start of stream\"}"));
     cfg->addBasicConnectorOptions(capa);

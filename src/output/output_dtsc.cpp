@@ -65,7 +65,7 @@ namespace Mist {
     capa["name"] = "DTSC";
     capa["desc"] = "Enables the DTSC protocol for efficient inter-server stream exchange.";
     capa["deps"] = "";
-    capa["codecs"][0u][0u].append("*");
+    capa["codecs"][0u][0u].append("+*");
     cfg->addConnectorOptions(4200, capa);
     config = cfg;
   }

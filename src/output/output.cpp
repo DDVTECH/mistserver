@@ -494,28 +494,22 @@ namespace Mist{
     unsigned int bestSoFarCount = 0;
     unsigned int index = 0;
     jsonForEach(capa["codecs"], it){
-      unsigned int genCounter = 0;
       unsigned int selCounter = 0;
       if ((*it).size() > 0){
         jsonForEach((*it), itb){
           if ((*itb).size() > 0){
-            bool found = false;
             jsonForEach(*itb, itc){
+              const std::string & strRef = (*itc).asStringRef();
+              bool byType = false;
+              bool multiSel = false;
+              uint8_t shift = 0;
+              if (strRef[shift] == '@'){byType = true; ++shift;}
+              if (strRef[shift] == '+'){multiSel = true; ++shift;}
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+                if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                   selCounter++;
-                  found = true;
-                  break;
-                }
-              }
-            }
-            if (!found){
-              jsonForEach(*itb, itc){
-                for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
-                    genCounter++;
-                    found = true;
-                    if ((*itc).asStringRef() != "*"){break;}
+                  if (!multiSel){
+                    break;
                   }
                 }
               }
@@ -523,10 +517,10 @@ namespace Mist{
           }
         }
         if (selCounter == selectedTracks.size()){
-          if (selCounter + genCounter > bestSoFarCount){
-            bestSoFarCount = selCounter + genCounter;
+          if (selCounter > bestSoFarCount){
+            bestSoFarCount = selCounter;
             bestSoFar = index;
-            HIGH_MSG("Match (%u/%u): %s", selCounter, selCounter + genCounter, (*it).toString().c_str());
+            HIGH_MSG("Matched %u: %s", selCounter, (*it).toString().c_str());
           }
         }else{
           VERYHIGH_MSG("Not a match for currently selected tracks: %s", (*it).toString().c_str());
@@ -541,31 +535,43 @@ namespace Mist{
       jsonForEach(capa["codecs"][bestSoFar], itb){
         if ((*itb).size() && myMeta.tracks.size()){
           bool found = false;
+          bool multiFind = false;
           jsonForEach((*itb), itc){
+            const std::string & strRef = (*itc).asStringRef();
+            bool byType = false;
+            uint8_t shift = 0;
+            if (strRef[shift] == '@'){byType = true; ++shift;}
+            if (strRef[shift] == '+'){multiFind = true; ++shift;}
             for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-              if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+              if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                 found = true;
                 break;
               }
             }
           }
-          if (!found){
+          if (!found || multiFind){
             jsonForEach((*itb), itc){
-              if (found){break;}
+              const std::string & strRef = (*itc).asStringRef();
+              bool byType = false;
+              bool multiSel = false;
+              uint8_t shift = 0;
+              if (strRef[shift] == '@'){byType = true; ++shift;}
+              if (strRef[shift] == '+'){multiSel = true; ++shift;}
+              if (found && !multiSel){continue;}
               if (myMeta.live){
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
+                  if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     selectedTracks.insert(trit->first);
                     found = true;
-                    if ((*itc).asStringRef() != "*"){break;}
+                    if (!multiSel){break;}
                   }
                 }
               }else{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
+                  if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     selectedTracks.insert(trit->first);
                     found = true;
-                    if ((*itc).asStringRef() != "*"){break;}
+                    if (!multiSel){break;}
                   }
                 }
               }

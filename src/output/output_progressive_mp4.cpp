@@ -583,7 +583,7 @@ namespace Mist {
     //sort all parts here
     std::set <keyPart> trunOrder;
     //set with trackID, relative data offset, time and size
-    for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+    for (std::map<size_t, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
       uint64_t timeStamp = it->second.firstTime;
       DTSC::Track & thisTrack = myMeta.tracks[it->first];
       for (uint32_t i = it->second.firstPart; i <= it->second.lastPart; i++) {
@@ -617,7 +617,7 @@ namespace Mist {
     //It doesn't care about the order or track IDs in the header.
     //But - the first TRAF must be a video TRAF, if video is present.
     std::deque<std::map<long unsigned int, fragSet>::iterator> sortedTracks;
-    for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+    for (std::map<size_t, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
       if (myMeta.tracks[it->first].type == "video"){
         sortedTracks.push_front(it);
       }else{
@@ -933,7 +933,7 @@ namespace Mist {
         sendFragmentHeader();
         partListSent = 0;
         partListLength = 0;
-        for (std::map<long unsigned int, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
+        for (std::map<size_t, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++) {
           partListLength += it->second.lastPart - it->second.firstPart + 1;
         }
       }

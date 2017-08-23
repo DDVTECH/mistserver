@@ -85,11 +85,23 @@ namespace Mist {
 
     singleton = this;
     isBuffer = false;
+
+    hasSrt = false;
+    srtTrack = 0;
   }
 
   void Input::checkHeaderTimes(std::string streamFile) {
     struct stat bufStream;
     struct stat bufHeader;
+    struct stat srtStream;
+
+    std::string srtFile = streamFile + ".srt";
+    if (stat(srtFile.c_str(), &srtStream) == 0) {
+      hasSrt = true;
+      srtSource.open(srtFile.c_str());
+      INFO_MSG("File %s opened as srt source", srtFile.c_str());
+    }
+
     if (stat(streamFile.c_str(), &bufStream) != 0) {
       INSANE_MSG("Source is not a file - ignoring header check");
       return;
@@ -104,7 +116,100 @@ namespace Mist {
       INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
       remove(headerFile.c_str());
     }
+
+
+    //the same second is not enough - add a 15 second window where we consider it too old
+    if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15) {
+      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+      remove(headerFile.c_str());
+    }
   }
+
+  void Input::readSrtHeader() {
+    if (!hasSrt){return;}
+    if (!srtSource.good()){return;}
+    srtTrack = myMeta.tracks.rbegin()->first + 1;
+
+    myMeta.tracks[srtTrack].trackID = srtTrack;
+    myMeta.tracks[srtTrack].type = "subtitle";
+    myMeta.tracks[srtTrack].codec = "srt";
+
+    getNextSrt();
+    while (srtPack){
+      myMeta.update(srtPack);
+      getNextSrt();
+    }
+    srtSource.seekg (0, srtSource.beg);
+    srtSource.clear();
+  }
+
+  void Input::getNextSrt(bool smart){
+    bool hasPacket = false;
+
+    thisPacket.null();
+    std::string line;
+
+    uint32_t index = 0;
+    uint64_t timestamp = 0;
+    uint32_t duration = 0;
+    int lineNr = 0;
+    std::string data;
+
+
+
+    while (std::getline(srtSource, line)){// && !line.empty()){
+      lineNr++;
+
+      if(line.empty() || (line.size() == 1 && line.at(0) == '\r') ){
+        lineNr = 0;
+        if (duration == 0){
+          continue;
+        }
+        static JSON::Value thisPack;
+        thisPack.null();
+        thisPack["trackid"] = srtTrack;
+        thisPack["bpos"] = (long long)srtSource.tellg();
+        thisPack["data"] = data;
+        thisPack["index"] = index;
+        thisPack["time"] = (long long)timestamp;
+        thisPack["duration"] = duration;
+
+        std::string tmpStr = thisPack.toNetPacked();
+        srtPack.reInit(tmpStr.data(), tmpStr.size());
+        return;
+      }else{
+        //INFO_MSG("printline size: %d, string: %s", line.size(), line.c_str()); 
+        if(lineNr == 1){
+          index = atoi(line.c_str());
+        }else if(lineNr == 2){
+          //timestamp
+          int from_hour = 0;
+          int from_min = 0;
+          int from_sec = 0;
+          int from_ms = 0;
+
+          int to_hour = 0;
+          int to_min = 0;
+          int to_sec = 0;
+          int to_ms = 0;
+          sscanf (line.c_str(),"%d:%d:%d,%d --> %d:%d:%d,%d",&from_hour, &from_min, &from_sec, &from_ms, &to_hour, &to_min, &to_sec, &to_ms);
+
+          timestamp = (from_hour * 60 * 60 *1000) + (from_min * 60 * 1000) + (from_sec * 1000) + from_ms;
+          duration = ((to_hour * 60 * 60 *1000) + (to_min * 60 * 1000) + (to_sec * 1000) + to_ms) - timestamp;
+        }else{
+          //subtitle
+          if(data.size() > 1){
+            data.append("\n");
+          }
+          data.append(line);
+        }
+      }
+    }
+
+    srtPack.null();
+    FAIL_MSG("Could not get next srt packet!");
+  }
+
 
   /// Starts checks the SEM_INPUT lock, starts an angel process and then 
   int Input::boot(int argc, char * argv[]){
@@ -494,6 +599,9 @@ namespace Mist {
   }
 
   void Input::parseHeader() {
+    if (hasSrt){
+      readSrtHeader();
+    }
     DEBUG_MSG(DLVL_DONTEVEN, "Parsing the header");
     selectedTracks.clear();
     std::stringstream trackSpec;
@@ -652,28 +760,55 @@ namespace Mist {
     std::stringstream trackSpec;
     trackSpec << track;
     trackSelect(trackSpec.str());
-    seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
+    bool isSrt = (hasSrt && track == myMeta.tracks.rbegin()->first);
+    if (isSrt){
+      srtTrack = track;
+      srtSource.seekg (0, srtSource.beg);
+      srtSource.clear();
+    }else{
+      seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
+    }
     long long unsigned int stopTime = myMeta.tracks[track].lastms + 1;
     if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum) {
       stopTime = myMeta.tracks[track].keys[keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum].getTime();
     }
     HIGH_MSG("Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
-    getNext();
-    //in case earlier seeking was inprecise, seek to the exact point
-    while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()) {
+    if (isSrt){
+      getNextSrt();
+      //in case earlier seeking was inprecise, seek to the exact point
+      while (srtPack && srtPack.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()) {
+        getNextSrt();
+      }
+    }else{
       getNext();
+      //in case earlier seeking was inprecise, seek to the exact point
+      while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()) {
+        getNext();
+      }
     }
     uint64_t lastBuffered = 0;
     uint64_t packCounter = 0;
     uint64_t byteCounter = 0;
-    while (thisPacket && thisPacket.getTime() < stopTime) {
-      if (thisPacket.getTime() >= lastBuffered){
-        bufferNext(thisPacket);
-        ++packCounter;
-        byteCounter += thisPacket.getDataLen();
-        lastBuffered = thisPacket.getTime();
+    if (isSrt){
+      while (srtPack && srtPack.getTime() < stopTime) {
+        if (srtPack.getTime() >= lastBuffered){
+          bufferNext(srtPack);
+          ++packCounter;
+          byteCounter += srtPack.getDataLen();
+          lastBuffered = srtPack.getTime();
+        }
+        getNextSrt();
       }
-      getNext();
+    }else{
+      while (thisPacket && thisPacket.getTime() < stopTime) {
+        if (thisPacket.getTime() >= lastBuffered){
+          bufferNext(thisPacket);
+          ++packCounter;
+          byteCounter += thisPacket.getDataLen();
+          lastBuffered = thisPacket.getTime();
+        }
+        getNext();
+      }
     }
     bufferFinalize(track);
     bufferTimer = Util::bootMS() - bufferTimer;

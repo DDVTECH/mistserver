@@ -6,6 +6,7 @@
 #include <mist/timing.h>
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
+#include <fstream>
 
 #include "../io.h"
 
@@ -75,6 +76,14 @@ namespace Mist {
       std::map<unsigned int, std::map<unsigned int, unsigned int> > pageCounter;
 
       static Input * singleton;
+
+      bool hasSrt;
+      std::ifstream srtSource;
+      unsigned int srtTrack;
+
+      void readSrtHeader();
+      void getNextSrt(bool smart = true);
+      DTSC::Packet srtPack;
   };
 
 }

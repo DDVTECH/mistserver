@@ -4,6 +4,7 @@
 #include "timing.h"
 #include "bitfields.h"
 #include "mpeg.h"
+#include "sdp.h"
 #include <arpa/inet.h>
 
 namespace RTP{
@@ -245,18 +246,19 @@ namespace RTP{
     increaseSequence();
   }
 
-  void Packet::sendRTCP(long long &connectedAt, void *socket, unsigned int tid,
+  void Packet::sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid,
                         DTSC::Meta &metadata,
                         void callBack(void *, char *, unsigned int, unsigned int)){
-    void *rtcpData = malloc(32);
+    char *rtcpData = (char*)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
       return;
     }
-    ((int *)rtcpData)[0] = htonl(0x80C80006);
-    ((int *)rtcpData)[1] = htonl(getSSRC());
-    // unsigned int tid = packet["trackid"].asInt();
-    // timestamp in ms
+    rtcpData[0] = 0x80;//version 2, no padding, zero receiver reports
+    rtcpData[1] = 200;//sender report
+    Bit::htobs(rtcpData+2, 6);//6 4-byte words follow the header
+    Bit::htobl(rtcpData+4, getSSRC());//set source identifier
+   // timestamp in ms
     double ntpTime = 2208988800UL + Util::epoch() + (Util::getMS() % 1000) / 1000.0;
     if (startRTCP < 1 && startRTCP > -1){startRTCP = ntpTime;}
     ntpTime -= startRTCP;
@@ -273,6 +275,32 @@ namespace RTP{
     ((int *)rtcpData)[5] = htonl(sentPackets); // packet
     ((int *)rtcpData)[6] = htonl(sentBytes);   // octet
     callBack(socket, (char *)rtcpData, 28, 0);
+    free(rtcpData);
+  }
+
+  void Packet::sendRTCP_RR(long long &connectedAt, SDP::Track & sTrk, unsigned int tid,
+                        DTSC::Meta &metadata,
+                        void callBack(void *, char *, unsigned int, unsigned int)){
+    char *rtcpData = (char*)malloc(32);
+    if (!rtcpData){
+      FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
+      return;
+    }
+    if (!(sTrk.lostCurrent + sTrk.packCurrent)){sTrk.packCurrent++;}
+    rtcpData[0] = 0x81;//version 2, no padding, one receiver report
+    rtcpData[1] = 201;//receiver report
+    Bit::htobs(rtcpData+2, 7);//7 4-byte words follow the header
+    Bit::htobl(rtcpData+4, sTrk.mySSRC);//set receiver identifier
+    Bit::htobl(rtcpData+8, sTrk.theirSSRC);//set source identifier
+    rtcpData[12] = (sTrk.lostCurrent * 255) / (sTrk.lostCurrent + sTrk.packCurrent); //fraction lost since prev RR
+    Bit::htob24(rtcpData+13, sTrk.lostTotal); //cumulative packets lost since start
+    Bit::htobl(rtcpData+16, sTrk.rtpSeq | (sTrk.packTotal & 0xFFFF0000ul)); //highest sequence received
+    Bit::htobl(rtcpData+20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
+    Bit::htobl(rtcpData+24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
+    Bit::htobl(rtcpData+28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
+    callBack(&(sTrk.rtcp), (char *)rtcpData, 32, 0);
+    sTrk.lostCurrent = 0;
+    sTrk.packCurrent = 0;
     free(rtcpData);
   }
 

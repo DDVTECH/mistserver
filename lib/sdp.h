@@ -19,6 +19,8 @@ namespace SDP{
     int channel; /// Channel number, used in TCP sending
     uint64_t packCount;
     uint16_t rtpSeq;
+    int32_t lostTotal, lostCurrent;
+    uint32_t packTotal, packCurrent;
     std::map<uint16_t, RTP::Packet> packBuffer;
     uint32_t cPort;
     std::string transportString; /// Current transport string.
@@ -26,6 +28,7 @@ namespace SDP{
     std::string fmtp; /// fmtp string, used by getParamString / getParamInt
     std::string spsData;
     std::string ppsData;
+    uint32_t mySSRC, theirSSRC;
     h265::initData hevcInfo;
     uint64_t fpsTime;
     double fpsMeta;

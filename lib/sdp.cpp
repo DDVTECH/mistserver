@@ -15,9 +15,14 @@ namespace SDP{
     packCount = 0;
     cPort = 0;
     rtpSeq = 0;
+    lostTotal = 0;
+    lostCurrent = 0;
+    packTotal = 0;
+    packCurrent = 0;
     fpsTime = 0;
     fpsMeta = 0;
     fps = 0;
+    mySSRC = rand();
   }
 
   /// Extracts a particular parameter from the fmtp string. fmtp member must be set before calling.
@@ -175,35 +180,34 @@ namespace SDP{
   /// \return True if successful, false otherwise.
   bool Track::parseTransport(const std::string &transport, const std::string &host,
                              const std::string &source, const DTSC::Track &trk){
-    unsigned int SSrc = rand();
     if (trk.codec == "H264"){
-      pack = RTP::Packet(97, 1, 0, SSrc);
+      pack = RTP::Packet(97, 1, 0, mySSRC);
     }else if (trk.codec == "HEVC"){
-      pack = RTP::Packet(104, 1, 0, SSrc);
+      pack = RTP::Packet(104, 1, 0, mySSRC);
     }else if (trk.codec == "MPEG2"){
-      pack = RTP::Packet(32, 1, 0, SSrc);
+      pack = RTP::Packet(32, 1, 0, mySSRC);
     }else if (trk.codec == "AAC"){
-      pack = RTP::Packet(96, 1, 0, SSrc);
+      pack = RTP::Packet(96, 1, 0, mySSRC);
     }else if (trk.codec == "AC3"){
-      pack = RTP::Packet(100, 1, 0, SSrc);
+      pack = RTP::Packet(100, 1, 0, mySSRC);
     }else if (trk.codec == "MP3" || trk.codec == "MP2"){
-      pack = RTP::Packet(14, 1, 0, SSrc);
+      pack = RTP::Packet(14, 1, 0, mySSRC);
     }else if (trk.codec == "ALAW"){
       if (trk.channels == 1 && trk.rate == 8000){
-        pack = RTP::Packet(8, 1, 0, SSrc);
+        pack = RTP::Packet(8, 1, 0, mySSRC);
       }else{
-        pack = RTP::Packet(101, 1, 0, SSrc);
+        pack = RTP::Packet(101, 1, 0, mySSRC);
       }
     }else if (trk.codec == "PCM"){
       if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
-        pack = RTP::Packet(10, 1, 0, SSrc);
+        pack = RTP::Packet(10, 1, 0, mySSRC);
       }else if (trk.size == 16 && trk.channels == 1 && trk.rate == 44100){
-        pack = RTP::Packet(11, 1, 0, SSrc);
+        pack = RTP::Packet(11, 1, 0, mySSRC);
       }else{
-        pack = RTP::Packet(103, 1, 0, SSrc);
+        pack = RTP::Packet(103, 1, 0, mySSRC);
       }
     }else if (trk.codec == "opus"){
-      pack = RTP::Packet(102, 1, 0, SSrc);
+      pack = RTP::Packet(102, 1, 0, mySSRC);
     }else{
       ERROR_MSG("Unsupported codec %s for RTSP on track %u", trk.codec.c_str(), trk.trackID);
       return false;
@@ -231,7 +235,7 @@ namespace SDP{
       std::stringstream tStr;
       tStr << "RTP/AVP/UDP;unicast;client_port=" << cPort << '-' << cPort + 1 << ";";
       if (source.size()){tStr << "source=" << source << ";";}
-      tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << SSrc << std::dec;
+      tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC << std::dec;
       transportString = tStr.str();
       INFO_MSG("Transport string: %s", transportString.c_str());
     }

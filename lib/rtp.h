@@ -15,6 +15,10 @@
 #include <string>
 #include <vector>
 
+namespace SDP{
+  class Track;
+};
+
 /// This namespace holds all RTP-parsing and sending related functionality.
 namespace RTP{
 
@@ -59,7 +63,9 @@ namespace RTP{
     void sendData(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
                   const char *payload, unsigned int payloadlen, unsigned int channel,
                   std::string codec);
-    void sendRTCP(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
+    void sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
+                  void callBack(void *, char *, unsigned int, unsigned int));
+    void sendRTCP_RR(long long &connectedAt, SDP::Track & sTrk, unsigned int tid, DTSC::Meta &metadata,
                   void callBack(void *, char *, unsigned int, unsigned int));
 
     Packet();

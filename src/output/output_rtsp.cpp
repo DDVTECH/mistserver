@@ -119,7 +119,7 @@ namespace Mist{
       callBack = sendUDP;
       if (Util::epoch() / 5 != sdpState.tracks[tid].rtcpSent){
         sdpState.tracks[tid].rtcpSent = Util::epoch() / 5;
-        sdpState.tracks[tid].pack.sendRTCP(connectedAt, &sdpState.tracks[tid].rtcp, tid, myMeta,
+        sdpState.tracks[tid].pack.sendRTCP_SR(connectedAt, &sdpState.tracks[tid].rtcp, tid, myMeta,
                                            sendUDP);
       }
     }else{
@@ -381,20 +381,28 @@ namespace Mist{
         myConn.addDown(s.data_len);
         RTP::Packet pack(s.data, s.data_len);
         if (!it->second.rtpSeq){it->second.rtpSeq = pack.getSequence();}
-        // packet is very early - assume dropped after 10 packets
-        while ((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) < -10){
+        // packet is very early - assume dropped after 30 packets
+        while ((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) < -30){
           WARN_MSG("Giving up on packet %u", it->second.rtpSeq);
           ++(it->second.rtpSeq);
+          ++(it->second.lostTotal);
+          ++(it->second.lostCurrent);
+          ++(it->second.packTotal);
+          ++(it->second.packCurrent);
           // send any buffered packets we may have
           while (it->second.packBuffer.count(it->second.rtpSeq)){
             sdpState.handleIncomingRTP(it->first, pack);
             ++(it->second.rtpSeq);
+            ++(it->second.packTotal);
+            ++(it->second.packCurrent);
           }
         }
         // send any buffered packets we may have
         while (it->second.packBuffer.count(it->second.rtpSeq)){
           sdpState.handleIncomingRTP(it->first, pack);
           ++(it->second.rtpSeq);
+          ++(it->second.packTotal);
+          ++(it->second.packCurrent);
         }
         // packet is slightly early - buffer it
         if (((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) < 0)){
@@ -404,6 +412,10 @@ namespace Mist{
         // packet is late
         if ((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) > 0){
           // negative difference?
+          --(it->second.lostTotal);
+          --(it->second.lostCurrent);
+          ++(it->second.packTotal);
+          ++(it->second.packCurrent);
           WARN_MSG("Dropped a packet that arrived too late! (%d packets difference)",
                    (int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())));
           return;
@@ -412,7 +424,16 @@ namespace Mist{
         if (it->second.rtpSeq == pack.getSequence()){
           sdpState.handleIncomingRTP(it->first, pack);
           ++(it->second.rtpSeq);
+          ++(it->second.packTotal);
+          ++(it->second.packCurrent);
+          if (!it->second.theirSSRC){
+            it->second.theirSSRC = pack.getSSRC();
+          }
         }
+      }
+      if (Util::epoch() / 5 != it->second.rtcpSent){
+        it->second.rtcpSent = Util::epoch() / 5;
+        it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
       }
     }
   }

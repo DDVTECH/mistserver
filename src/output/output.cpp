@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <sys/stat.h>
 /*LTS-END*/
 
 namespace Mist{
@@ -85,6 +86,43 @@ namespace Mist{
     }
     sentHeader = false;
     isRecordingToFile = false;
+    
+    if (config->getString("streamname").size()){
+      streamName = config->getString("streamname");
+    }
+
+    if(capa.isMember("push_urls")){
+      std::string tgt = config->getString("target");
+      struct stat tgtStat;
+      if (tgt.size()){
+        if(stat(tgt.substr(0, tgt.rfind('/')).c_str(), &tgtStat) != 0){
+          INFO_MSG("could not stat %s", tgt.substr(0, tgt.rfind('/')).c_str());
+          return;
+        }
+        if (!streamName.size()){
+          WARN_MSG("Recording unconnected %s output to file! Cancelled.", capa["nama"].asString().c_str());
+          conn.close();
+          return;
+        }
+        if (tgt == "-"){
+          parseData = true;
+          wantRequest = false;
+          INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(), capa["nama"].asString().c_str());
+          return;
+        }
+        std::string params = tgt.substr(tgt.find('?') + 1);
+        tgt = tgt.substr(0, tgt.find('?'));
+        if (connectToFile(tgt)){
+          parseData = true;
+          wantRequest = false;
+          INFO_MSG("Recording %s to %s with %s format", streamName.c_str(), tgt.c_str(), capa["nama"].asString().c_str());
+
+          HTTP::parseVars(params, recParams);
+        }else{
+          conn.close();
+        }
+      }
+    }
   }
 
   void Output::listener(Util::Config & conf, int (*callback)(Socket::Connection & S)){
@@ -781,6 +819,43 @@ namespace Mist{
         //if yes, seek here
         if (good){break;}
       }
+    } 
+    if (isRecordingToFile){
+      if (recParams.count("recuntil")){
+        long long endRec = atoll(recParams["recuntil"].c_str());
+        if (endRec < startTime()){
+          FAIL_MSG("Record range not available anymore");
+          config->is_active = false;
+          return;
+        }
+      }
+      if (recParams.count("recfrom") && atoll(recParams["recfrom"].c_str()) != 0){
+        unsigned long int mainTrack = getMainSelectedTrack();
+        long long startRec = atoll(recParams["recfrom"].c_str());
+        if (startRec > myMeta.tracks[mainTrack].lastms){
+          if (myMeta.vod){
+            FAIL_MSG("Record range out of bounds on vod file");
+            config->is_active = false;
+            return;
+          }
+          long unsigned int streamAvail = myMeta.tracks[mainTrack].lastms;
+          long unsigned int lastUpdated = Util::getMS();
+          while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail){
+            Util::sleep(500);
+            updateMeta();
+            if (myMeta.tracks[mainTrack].lastms > streamAvail){
+              stats();
+              streamAvail = myMeta.tracks[mainTrack].lastms;
+              lastUpdated = Util::getMS();
+            }
+          }
+        }
+        if (startRec < startTime()){
+          WARN_MSG("Record begin @ %llu ms not available, starting at %llu ms instead", startRec, startTime());
+          startRec = startTime();
+        }
+        seekPos = startRec;
+      }
     }
     MEDIUM_MSG("Initial seek to %llums", seekPos);
     seek(seekPos);
@@ -936,8 +1011,12 @@ namespace Mist{
                 needsLookAhead = 0;
               }
             }
-
-            sendNext();
+            
+            if (isRecordingToFile && recParams.count("recuntil") && atoll(recParams["recuntil"].c_str()) < lastPacketTime){
+              config->is_active = false;
+            }else{
+              sendNext();
+            }
           }else{
             /*LTS-START*/      
             if(Triggers::shouldTrigger("CONN_STOP", streamName)){

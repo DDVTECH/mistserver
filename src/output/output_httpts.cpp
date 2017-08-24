@@ -7,26 +7,6 @@
 namespace Mist {
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
     sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
-    if (config->getString("target").size()){
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected TS output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in TS format", streamName.c_str());
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in TS format", streamName.c_str(), config->getString("target").c_str());
-      }else{
-        conn.close();
-      }
-    }
   }
   
   OutHTTPTS::~OutHTTPTS() {}

@@ -3,35 +3,7 @@
 #include <mist/util.h>
 
 namespace Mist{
-  OutWAV::OutWAV(Socket::Connection &conn) : HTTPOutput(conn){
-    if (config->getString("target").size()){
-      initialize();
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected WAV output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in WAV format", streamName.c_str());
-        return;
-      }
-      if (!myMeta.tracks.size()){
-        INFO_MSG("Stream not available - aborting");
-        conn.close();
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in WAV format", streamName.c_str(),
-                 config->getString("target").c_str());
-        return;
-      }
-      conn.close();
-    }
-  }
+  OutWAV::OutWAV(Socket::Connection &conn) : HTTPOutput(conn){}
 
   void OutWAV::init(Util::Config *cfg){
     HTTPOutput::init(cfg);

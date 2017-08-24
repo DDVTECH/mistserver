@@ -1,34 +1,7 @@
 #include "output_progressive_flv.h"
 
 namespace Mist {
-  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){
-    if (config->getString("target").size()){
-      initialize();
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected FLV output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in FLV format", streamName.c_str());
-        return;
-      }
-      if (!myMeta.tracks.size()){
-        INFO_MSG("Stream not available - aborting");
-        conn.close();
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in FLV format", streamName.c_str(), config->getString("target").c_str());
-        return;
-      }
-      conn.close();
-    }
-  }
+  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){}
   
   void OutProgressiveFLV::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

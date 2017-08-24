@@ -374,6 +374,7 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
   DTSC::Scan outputs = config.getMember("capabilities").getMember("connectors");
   std::string output_bin = "";
+  std::string checkTarget = target.substr(0, target.find('?'));
   unsigned int outputs_size = outputs.getSize();
   for (unsigned int i = 0; i<outputs_size && !output_bin.size(); ++i){
     DTSC::Scan output = outputs.getIndice(i);
@@ -383,9 +384,9 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
         std::string tar_match = output.getMember("push_urls").getIndice(j).asString();
         std::string front = tar_match.substr(0,tar_match.find('*'));
         std::string back = tar_match.substr(tar_match.find('*')+1);
-        MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(), output.getMember("name").asString().c_str(), target.c_str());
+        MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(), output.getMember("name").asString().c_str(), checkTarget.c_str());
         
-        if (target.substr(0,front.size()) == front && target.substr(target.size()-back.size()) == back){
+        if (checkTarget.substr(0,front.size()) == front && checkTarget.substr(checkTarget.size()-back.size()) == back){
           output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
           break;
         }

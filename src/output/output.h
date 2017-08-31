@@ -96,13 +96,13 @@ namespace Mist {
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
       int pageNumMax(long unsigned int trackId);
       bool isRecordingToFile;
-      std::map<std::string, std::string> recParams;
       unsigned int lastStats;///<Time of last sending of stats.
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
       bool pushing;
+      std::map<std::string, std::string> targetParams; /*LTS*/
       std::string UA; ///< User Agent string, if known.
       uint16_t uaDelay;///<Seconds to wait before setting the UA.
       uint64_t lastRecv;
@@ -133,6 +133,7 @@ namespace Mist {
 
       std::map<int,DTSCPageData> bookKeeping;
       virtual bool isRecording();
+      virtual bool isFileTarget();
       virtual bool isPushing(){return pushing;};
       bool allowPush(const std::string & passwd);
       void waitForStreamPushReady();

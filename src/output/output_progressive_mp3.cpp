@@ -1,28 +1,7 @@
 #include "output_progressive_mp3.h"
 
 namespace Mist {
-  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : HTTPOutput(conn){
-    if (config->getString("target").size()){
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected MP3 output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in MP3 format", streamName.c_str());
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in MP3 format", streamName.c_str(), config->getString("target").c_str());
-      }else{
-        conn.close();
-      }
-    }
-  }
+  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : HTTPOutput(conn){}
 
   void OutProgressiveMP3::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

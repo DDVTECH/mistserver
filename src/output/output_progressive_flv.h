@@ -12,6 +12,7 @@ namespace Mist {
     private:
       FLV::Tag tag;
       bool isRecording();
+      bool isFileTarget(){return isRecording();}
   };
 }
 

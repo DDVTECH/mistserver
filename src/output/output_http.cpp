@@ -9,9 +9,6 @@ namespace Mist {
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
-    if (config->getString("streamname").size()){
-      streamName = config->getString("streamname");
-    }
     config->activate();
   }
   

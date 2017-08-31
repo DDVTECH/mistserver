@@ -374,7 +374,7 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
   DTSC::Scan outputs = config.getMember("capabilities").getMember("connectors");
   std::string output_bin = "";
-  std::string checkTarget = target.substr(0, target.find('?'));
+  std::string checkTarget = target.substr(0, target.rfind('?'));
   unsigned int outputs_size = outputs.getSize();
   for (unsigned int i = 0; i<outputs_size && !output_bin.size(); ++i){
     DTSC::Scan output = outputs.getIndice(i);

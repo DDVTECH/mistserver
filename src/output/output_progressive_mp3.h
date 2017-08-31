@@ -11,6 +11,7 @@ namespace Mist {
       void sendHeader();
     private:
       bool isRecording();
+      bool isFileTarget(){return isRecording();}
   };
 }
 

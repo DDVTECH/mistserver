@@ -11,6 +11,7 @@ namespace Mist {
       void sendTS(const char * tsData, unsigned int len=188);
     private:
       bool isRecording();
+      bool isFileTarget(){return isRecording();}
   };
 }
 

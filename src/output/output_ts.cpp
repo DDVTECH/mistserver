@@ -29,12 +29,8 @@ namespace Mist {
       }
       pushOut = true;
       udpSize = 5;
-      if (target.find('?') != std::string::npos){
-        std::map<std::string, std::string> vars;
-        HTTP::parseVars(target.substr(target.find('?')+1), vars);
-        if (vars.count("tracks")){tracks = vars["tracks"];}
-        if (vars.count("pkts")){udpSize = atoi(vars["pkts"].c_str());}
-      }
+      if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
+      if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
       packetBuffer.reserve(188*udpSize);
       int port = atoi(target.substr(target.find(":") + 1).c_str());
       target.erase(target.find(":"));//strip all after the colon
@@ -95,6 +91,18 @@ namespace Mist {
     opt["arg_num"] = 1ll;
     opt["help"] = "Target tsudp:// URL to push out towards.";
     cfg->addOption("target", opt);
+  }
+
+  void OutTS::initialSeek(){
+    //Adds passthrough support to the regular initialSeek function
+    if (targetParams.count("passthrough")){
+      selectedTracks.clear();
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+           it != myMeta.tracks.end(); it++){
+        selectedTracks.insert(it->first);
+      }
+    }
+    Output::initialSeek();
   }
 
   void OutTS::sendTS(const char * tsData, unsigned int len){

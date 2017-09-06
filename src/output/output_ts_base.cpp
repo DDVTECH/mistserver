@@ -3,8 +3,6 @@
 namespace Mist {
   TSOutput::TSOutput(Socket::Connection & conn) : TS_BASECLASS(conn){
     packCounter=0;
-    haveAvcc = false;
-    haveHvcc = false;
     ts_from = 0;
     setBlocking(true);
     sendRepeatingHeaders = 0;
@@ -89,19 +87,15 @@ namespace Mist {
         }
         if (keyframe){
           if (Trk.codec == "H264"){
-            if (!haveAvcc){
-              avccbox.setPayload(Trk.init);
-              haveAvcc = true;
-            }
+            MP4::AVCC avccbox;
+            avccbox.setPayload(Trk.init);
             bs = avccbox.asAnnexB();
             extraSize += bs.size();
           }
           /*LTS-START*/
           if (Trk.codec == "HEVC"){
-            if (!haveHvcc){
-              hvccbox.setPayload(Trk.init);
-              haveHvcc = true;
-            }
+            MP4::HVCC hvccbox;
+            hvccbox.setPayload(Trk.init);
             bs = hvccbox.asAnnexB();
             extraSize += bs.size();
           }
@@ -128,12 +122,16 @@ namespace Mist {
             }
             if (keyframe){
               if (Trk.codec == "H264"){
+                MP4::AVCC avccbox;
+                avccbox.setPayload(Trk.init);
                 bs = avccbox.asAnnexB();
                 fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
                 alreadySent += bs.size();
               }
               /*LTS-START*/
               if (Trk.codec == "HEVC"){
+                MP4::HVCC hvccbox;
+                hvccbox.setPayload(Trk.init);
                 bs = hvccbox.asAnnexB();
                 fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
                 alreadySent += bs.size();

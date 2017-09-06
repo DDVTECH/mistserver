@@ -4,12 +4,24 @@
 #include <mist/stream.h>
 #include <unistd.h>
 
-namespace Mist {
+namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
     sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
   }
   
-  OutHTTPTS::~OutHTTPTS() {}
+  OutHTTPTS::~OutHTTPTS(){}
+
+  void OutHTTPTS::initialSeek(){
+    //Adds passthrough support to the regular initialSeek function
+    if (targetParams.count("passthrough")){
+      selectedTracks.clear();
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+           it != myMeta.tracks.end(); it++){
+        selectedTracks.insert(it->first);
+      }
+    }
+    Output::initialSeek();
+  }
 
   void OutHTTPTS::init(Util::Config * cfg){
     HTTPOutput::init(cfg);

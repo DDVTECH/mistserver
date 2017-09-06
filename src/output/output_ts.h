@@ -8,6 +8,7 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void sendTS(const char * tsData, unsigned int len=188);
       static bool listenMode();
+      void initialSeek();
     private:
       unsigned int udpSize;
       bool pushOut;

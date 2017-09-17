@@ -1,4 +1,4 @@
-#include <cstdint>
+#include <stdint.h>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -18,12 +18,12 @@ unsigned int weight_cpu = 500;
 unsigned int weight_ram = 500;
 unsigned int weight_bw = 1000;
 unsigned int weight_bonus = 50;
-char *hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
+unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
 #define HOSTLOOP                                                                                   \
   unsigned long i = 0;                                                                             \
-  i < reinterpret_cast<std::uintptr_t>(hostsCounter);                                              \
+  i < hostsCounter;                                              \
   ++i
-#define HOST(no) (hosts[reinterpret_cast<std::uintptr_t>(no)])
+#define HOST(no) (hosts[no])
 #define HOSTCHECK                                                                                  \
   if (hosts[i].state != STATE_ONLINE){continue;}
 

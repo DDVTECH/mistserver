@@ -279,6 +279,9 @@ namespace RTP{
   Packet::Packet(){
     managed = false;
     data = 0;
+    maxDataLen = 0;
+    sentBytes = 0;
+    sentPackets = 0;
   }
 
   Packet::Packet(unsigned int payloadType, unsigned int sequence, unsigned int timestamp,
@@ -322,9 +325,9 @@ namespace RTP{
   }
 
   void Packet::operator=(const Packet &o){
+    if (data && managed){delete[] data;}
     managed = true;
     maxDataLen = 0;
-    if (data && managed){delete[] data;}
     data = 0;
 
     if (o.data && o.maxDataLen){
@@ -350,6 +353,9 @@ namespace RTP{
   Packet::Packet(const char *dat, unsigned int len){
     managed = false;
     datalen = len;
+    maxDataLen = len;
+    sentBytes = 0;
+    sentPackets = 0;
     data = (char *)dat;
   }
 

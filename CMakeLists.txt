@@ -676,3 +676,4 @@ add_test(AESTest COMMAND aes_ctr128)
 add_executable(urltest test/url.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(urltest mist)
 add_test(URLTest COMMAND urltest)
+

@@ -97,77 +97,39 @@ add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D
 # MistLib - Header Files               #
 ########################################
 set(libHeaders
-  ${SOURCE_DIR}/lib/amf.h
-  ${SOURCE_DIR}/lib/auth.h
-  ${SOURCE_DIR}/lib/encode.h
-  ${SOURCE_DIR}/lib/bitfields.h
-  ${SOURCE_DIR}/lib/bitstream.h
-  ${SOURCE_DIR}/lib/checksum.h
-  ${SOURCE_DIR}/lib/config.h
-  ${SOURCE_DIR}/lib/defines.h
-  ${SOURCE_DIR}/lib/dtsc.h
-  ${SOURCE_DIR}/lib/flv_tag.h
-  ${SOURCE_DIR}/lib/h264.h
-  ${SOURCE_DIR}/lib/http_parser.h
-  ${SOURCE_DIR}/lib/downloader.h
-  ${SOURCE_DIR}/lib/json.h
-  ${SOURCE_DIR}/lib/langcodes.h
-  ${SOURCE_DIR}/lib/mp4_adobe.h
-  ${SOURCE_DIR}/lib/mp4_generic.h
-  ${SOURCE_DIR}/lib/mp4.h
-  ${SOURCE_DIR}/lib/mp4_ms.h
-  ${SOURCE_DIR}/lib/nal.h
-  ${SOURCE_DIR}/lib/ogg.h
-  ${SOURCE_DIR}/lib/procs.h
-  ${SOURCE_DIR}/lib/rtmpchunks.h
-  ${SOURCE_DIR}/lib/shared_memory.h
-  ${SOURCE_DIR}/lib/socket.h
-  ${SOURCE_DIR}/lib/stream.h
-  ${SOURCE_DIR}/lib/theora.h
-  ${SOURCE_DIR}/lib/timing.h
-  ${SOURCE_DIR}/lib/tinythread.h
-  ${SOURCE_DIR}/lib/ts_packet.h
-  ${SOURCE_DIR}/lib/util.h
-  ${SOURCE_DIR}/lib/vorbis.h
-  ${SOURCE_DIR}/lib/opus.h
-)
-
-########################################
-# MistLib - Source Files               #
-########################################
-set(libSources 
-  ${SOURCE_DIR}/lib/amf.cpp
-  ${SOURCE_DIR}/lib/auth.cpp
-  ${SOURCE_DIR}/lib/encode.cpp
-  ${SOURCE_DIR}/lib/bitfields.cpp
-  ${SOURCE_DIR}/lib/bitstream.cpp
-  ${SOURCE_DIR}/lib/config.cpp
-  ${SOURCE_DIR}/lib/dtsc.cpp
-  ${SOURCE_DIR}/lib/dtscmeta.cpp
-  ${SOURCE_DIR}/lib/flv_tag.cpp
-  ${SOURCE_DIR}/lib/h264.cpp
-  ${SOURCE_DIR}/lib/http_parser.cpp
-  ${SOURCE_DIR}/lib/downloader.cpp
-  ${SOURCE_DIR}/lib/json.cpp
-  ${SOURCE_DIR}/lib/langcodes.cpp
-  ${SOURCE_DIR}/lib/mp4_adobe.cpp
-  ${SOURCE_DIR}/lib/mp4.cpp
-  ${SOURCE_DIR}/lib/mp4_generic.cpp
-  ${SOURCE_DIR}/lib/mp4_ms.cpp
-  ${SOURCE_DIR}/lib/nal.cpp
-  ${SOURCE_DIR}/lib/ogg.cpp
-  ${SOURCE_DIR}/lib/procs.cpp
-  ${SOURCE_DIR}/lib/rtmpchunks.cpp
-  ${SOURCE_DIR}/lib/shared_memory.cpp
-  ${SOURCE_DIR}/lib/socket.cpp
-  ${SOURCE_DIR}/lib/stream.cpp
-  ${SOURCE_DIR}/lib/theora.cpp
-  ${SOURCE_DIR}/lib/timing.cpp
-  ${SOURCE_DIR}/lib/tinythread.cpp
-  ${SOURCE_DIR}/lib/ts_packet.cpp
-  ${SOURCE_DIR}/lib/util.cpp
-  ${SOURCE_DIR}/lib/vorbis.cpp
-  ${SOURCE_DIR}/lib/opus.cpp
+  lib/amf.h
+  lib/auth.h
+  lib/encode.h
+  lib/bitfields.h
+  lib/bitstream.h
+  lib/checksum.h
+  lib/config.h
+  lib/defines.h
+  lib/dtsc.h
+  lib/flv_tag.h
+  lib/h264.h
+  lib/http_parser.h
+  lib/downloader.h
+  lib/json.h
+  lib/langcodes.h
+  lib/mp4_adobe.h
+  lib/mp4_generic.h
+  lib/mp4.h
+  lib/mp4_ms.h
+  lib/nal.h
+  lib/ogg.h
+  lib/procs.h
+  lib/rtmpchunks.h
+  lib/shared_memory.h
+  lib/socket.h
+  lib/stream.h
+  lib/theora.h
+  lib/timing.h
+  lib/tinythread.h
+  lib/ts_packet.h
+  lib/util.h
+  lib/vorbis.h
+  lib/opus.h
 )
 
 ########################################
@@ -175,7 +137,38 @@ set(libSources
 ########################################
 add_library (mist 
   ${libHeaders}
-  ${libSources} 
+  lib/amf.cpp
+  lib/auth.cpp
+  lib/encode.cpp
+  lib/bitfields.cpp
+  lib/bitstream.cpp
+  lib/config.cpp
+  lib/dtsc.cpp
+  lib/dtscmeta.cpp
+  lib/flv_tag.cpp
+  lib/h264.cpp
+  lib/http_parser.cpp
+  lib/downloader.cpp
+  lib/json.cpp
+  lib/langcodes.cpp
+  lib/mp4_adobe.cpp
+  lib/mp4.cpp
+  lib/mp4_generic.cpp
+  lib/mp4_ms.cpp
+  lib/nal.cpp
+  lib/ogg.cpp
+  lib/procs.cpp
+  lib/rtmpchunks.cpp
+  lib/shared_memory.cpp
+  lib/socket.cpp
+  lib/stream.cpp
+  lib/theora.cpp
+  lib/timing.cpp
+  lib/tinythread.cpp
+  lib/ts_packet.cpp
+  lib/util.cpp
+  lib/vorbis.cpp
+  lib/opus.cpp
 )
 if (NOT APPLE)
   set (LIBRT -lrt)
@@ -196,14 +189,29 @@ install(
 ########################################
 # MistLib - Local Header Install       #
 ########################################
-add_custom_command(TARGET mist
-  POST_BUILD
+if (${CMAKE_VERSION} VERSION_LESS 3.3.0)
+add_custom_command(OUTPUT ${BINARY_DIR}/mist/.headers
   COMMAND ${CMAKE_COMMAND}
   ARGS    -E make_directory ${BINARY_DIR}/mist
   COMMAND cp
-  ARGS    -a ${libHeaders} ${BINARY_DIR}/mist
+  ARGS    ${libHeaders} ${BINARY_DIR}/mist
+  COMMAND touch
+  ARGS    ${BINARY_DIR}/mist/.headers
+  WORKING_DIRECTORY ${SOURCE_DIR}
   DEPENDS ${libHeaders}
 )
+else()
+add_custom_command(OUTPUT ${BINARY_DIR}/mist/.headers
+  COMMAND ${CMAKE_COMMAND}
+  ARGS    -E make_directory ${BINARY_DIR}/mist
+  COMMAND ${CMAKE_COMMAND}
+  ARGS    -E copy ${libHeaders} ${BINARY_DIR}/mist
+  COMMAND ${CMAKE_COMMAND}
+  ARGS    -E touch ${BINARY_DIR}/mist/.headers
+  WORKING_DIRECTORY ${SOURCE_DIR}
+  DEPENDS ${libHeaders}
+)
+endif()
 
 ########################################
 # MistServer - Analysers               #
@@ -213,6 +221,7 @@ macro(makeAnalyser analyserName format)
     src/analysers/mist_analyse.cpp
     src/analysers/analyser.cpp
     src/analysers/analyser_${format}.cpp
+    ${BINARY_DIR}/mist/.headers
   )
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
@@ -238,6 +247,7 @@ makeAnalyser(OGG ogg)
 macro(makeUtil utilName utilFile)
   add_executable(MistUtil${utilName}
     src/utils/util_${utilFile}.cpp
+    ${BINARY_DIR}/mist/.headers
   )
   target_link_libraries(MistUtil${utilName}
     mist
@@ -260,6 +270,7 @@ macro(makeInput inputName format)
     src/input/input.cpp 
     src/input/input_${format}.cpp 
     src/io.cpp
+    ${BINARY_DIR}/mist/.headers
   )
 
   #Set compile definitions
@@ -308,6 +319,7 @@ macro(makeOutput outputName format)
     src/io.cpp
     ${httpOutput}
     ${tsOutput} 
+    ${BINARY_DIR}/mist/.headers
   )
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
@@ -501,36 +513,24 @@ add_custom_command(OUTPUT generated/server.html.h
 )
 
 ########################################
-# MistController - Header Files        #
-########################################
-set(controllerHeaders
-  ${SOURCE_DIR}/src/controller/controller_api.h
-  ${SOURCE_DIR}/src/controller/controller_statistics.h
-  ${SOURCE_DIR}/src/controller/controller_connectors.h
-  ${SOURCE_DIR}/src/controller/controller_storage.h
-  ${SOURCE_DIR}/src/controller/controller_capabilities.h
-  ${SOURCE_DIR}/src/controller/controller_streams.h
-)
-
-########################################
-# MistController - Source Files        #
-########################################
-set(controllerSources
-  ${SOURCE_DIR}/src/controller/controller.cpp
-  ${SOURCE_DIR}/src/controller/controller_streams.cpp
-  ${SOURCE_DIR}/src/controller/controller_storage.cpp
-  ${SOURCE_DIR}/src/controller/controller_connectors.cpp
-  ${SOURCE_DIR}/src/controller/controller_statistics.cpp
-  ${SOURCE_DIR}/src/controller/controller_capabilities.cpp
-  ${SOURCE_DIR}/src/controller/controller_api.cpp
-)
-########################################
 # MistController - Build               #
 ########################################
 add_executable(MistController
-  ${controllerHeaders}
-  ${controllerSources}
+  src/controller/controller_api.h
+  src/controller/controller_statistics.h
+  src/controller/controller_connectors.h
+  src/controller/controller_storage.h
+  src/controller/controller_capabilities.h
+  src/controller/controller_streams.h
+  src/controller/controller.cpp
+  src/controller/controller_streams.cpp
+  src/controller/controller_storage.cpp
+  src/controller/controller_connectors.cpp
+  src/controller/controller_statistics.cpp
+  src/controller/controller_capabilities.cpp
+  src/controller/controller_api.cpp
   generated/server.html.h
+  ${BINARY_DIR}/mist/.headers
 )
 set_target_properties(MistController
   PROPERTIES COMPILE_DEFINITIONS RELEASE=${RELEASE}

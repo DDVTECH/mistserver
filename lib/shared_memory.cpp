@@ -572,12 +572,12 @@ namespace IPC {
         }
       }
       if (handle == -1) {
-        perror(std::string("open for file " + name + " failed").c_str());
+        HIGH_MSG("shf_open for page %s failed: %s", name.c_str(), strerror(errno));
         return;
       }
       if (master) {
         if (ftruncate(handle, len) < 0) {
-          perror(std::string("ftruncate to len for file " + name + " failed").c_str());
+          INFO_MSG("ftruncate to len for shf page %s failed: %s", name.c_str(), strerror(errno));
           return;
         }
       } else {

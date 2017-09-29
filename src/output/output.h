@@ -52,6 +52,7 @@ namespace Mist {
       uint64_t currentTime();
       uint64_t startTime();
       uint64_t endTime();
+      uint64_t liveTime();
       void setBlocking(bool blocking);
       long unsigned int getMainSelectedTrack();
       void updateMeta();

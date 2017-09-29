@@ -685,6 +685,27 @@ namespace Mist{
     return end;
   }
 
+  ///Return the most live time stamp of the selected tracks, or 0 if unknown or non-live.
+  ///Returns the time stamp of the newest track if nothing is selected.
+  ///Returns zero if no tracks exist.
+  uint64_t Output::liveTime(){
+    if (!myMeta.live){return 0;}
+    if (!myMeta.tracks.size()){return 0;}
+    uint64_t end = 0;
+    if (selectedTracks.size()){
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it)){
+          if (end < myMeta.tracks[*it].lastms){end = myMeta.tracks[*it].lastms;}
+        }
+      }
+    }else{
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (end < it->second.lastms){end = it->second.lastms;}
+      }
+    }
+    return end;
+  }
+
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   void Output::seek(unsigned long long pos){
     sought = true;
@@ -808,6 +829,28 @@ namespace Mist{
     } 
     /*LTS-START*/
     if (isRecordingToFile){
+      if (myMeta.live && targetParams.count("recstartunix") || targetParams.count("recstopunix")){
+        uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
+        if (targetParams.count("recstartunix")){
+          long long startUnix = atoll(targetParams["recstartunix"].c_str());
+          if (startUnix < unixStreamBegin){
+            WARN_MSG("Recording start time is earlier than stream begin - starting earliest possible");
+            targetParams["recstart"] = "-1";
+          }else{
+            targetParams["recstart"] = JSON::Value((long long)((startUnix - unixStreamBegin)*1000)).asString();
+          }
+        }
+        if (targetParams.count("recstopunix")){
+          long long stopUnix = atoll(targetParams["recstopunix"].c_str());
+          if (stopUnix < unixStreamBegin){
+            FAIL_MSG("Recording stop time is earlier than stream begin - aborting");
+            onFail();
+            return;
+          }else{
+            targetParams["recstop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
+          }
+        }
+      }
       if (targetParams.count("recstop")){
         long long endRec = atoll(targetParams["recstop"].c_str());
         if (endRec < startTime()){

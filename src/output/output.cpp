@@ -65,7 +65,6 @@ namespace Mist{
     needsLookAhead = 0;
     lastStats = 0;
     maxSkipAhead = 7500;
-    minSkipAhead = 5000;
     realTime = 1000;
     lastRecv = Util::epoch();
     if (myConn){
@@ -703,7 +702,7 @@ namespace Mist{
             if (realTime){
               uint8_t i = 6;
               while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && keepGoing()){
-                Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime, 1000llu));
+                Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime, 1000llu));
                 stats();
               }
             }

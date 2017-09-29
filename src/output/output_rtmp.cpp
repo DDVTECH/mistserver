@@ -33,7 +33,6 @@ namespace Mist {
     }
     setBlocking(false);
     maxSkipAhead = 1500;
-    minSkipAhead = 500;
   }
 
   bool OutRTMP::onFinish(){

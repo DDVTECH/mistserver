@@ -9,8 +9,8 @@ namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
     sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
     
-    if(config->getString("target").substr(0,10) == "ts-exec://"){
-        std::string input = config->getString("target").substr(10);
+    if(config->getString("target").substr(0,8) == "ts-exec:"){
+        std::string input = config->getString("target").substr(8);
         char *args[128];
         uint8_t argCnt = 0;
         char *startCh = 0;
@@ -37,7 +37,6 @@ namespace Mist{
 
         wantRequest = false;
         parseData = true;
-        INFO_MSG("ts exec stream");
       }
   }
   
@@ -73,7 +72,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/video/mpeg";
     capa["methods"][0u]["priority"] = 1ll;
     capa["push_urls"].append("/*.ts");
-    capa["push_urls"].append("ts-exec://*");
+    capa["push_urls"].append("ts-exec:*");
 
     JSON::Value opt;
     opt["arg"] = "string";

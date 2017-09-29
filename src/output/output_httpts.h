@@ -12,7 +12,7 @@ namespace Mist {
       void initialSeek();
     private:
       bool isRecording();
-      bool isFileTarget(){return isRecording() && config->getString("target").substr(0,10) != "ts-exec://" ;}
+      bool isFileTarget(){return isRecording() && config->getString("target").substr(0,8) != "ts-exec:";}
   };
 }
 

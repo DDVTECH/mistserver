@@ -46,6 +46,7 @@ class hostDetails{
 private:
   tthread::mutex *hostMutex;
   std::map<std::string, struct streamDetails> streams;
+  std::set<std::string> conf_streams;
   unsigned int cpu;
   unsigned long long ramMax;
   unsigned long long ramCurr;
@@ -136,6 +137,10 @@ public:
     if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
       INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth,
                availBandwidth);
+      return 0;
+    }
+    if (conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
+      MEDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
       return 0;
     }
     // Calculate score
@@ -262,6 +267,12 @@ public:
       }
     }else{
       streams.clear();
+    }
+    conf_streams.clear();
+    if (d.isMember("conf_streams") && d["conf_streams"].size()){
+      jsonForEach(d["conf_streams"], it){
+        conf_streams.insert(it->asStringRef());
+      }
     }
     addBandwidth *= 0.75;
   }

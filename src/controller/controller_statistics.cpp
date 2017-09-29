@@ -1697,6 +1697,10 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       }
     }
 
+    jsonForEach(Storage["streams"], sIt){
+      resp["conf_streams"].append(sIt.key());
+    }
+
 
     H.Chunkify(resp.toString(), conn);
   }

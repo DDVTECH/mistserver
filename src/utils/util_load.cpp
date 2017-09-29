@@ -13,6 +13,7 @@
 Util::Config *cfg = 0;
 std::string passphrase;
 std::string fallback;
+bool localMode = false;
 
 unsigned int weight_cpu = 500;
 unsigned int weight_ram = 500;
@@ -297,6 +298,12 @@ int handleRequest(Socket::Connection &conn){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
       // Special commands
       if (H.url.size() == 1){
+        if (localMode && !conn.isLocal()){
+          H.SetBody("Configuration only accessible from local interfaces");
+          H.SendResponse("403", "Forbidden", conn);
+          H.Clean();
+          continue;
+        }
         std::string host = H.GetVar("host");
         std::string viewers = H.GetVar("viewers");
         std::string source = H.GetVar("source");
@@ -640,6 +647,12 @@ int main(int argc, char **argv){
   opt["value"].append((long long)weight_bonus);
   conf.addOption("extra", opt);
 
+  opt.null();
+  opt["short"] = "L";
+  opt["long"] = "localmode";
+  opt["help"] = "Control only from local interfaces, request balance from all";
+  conf.addOption("localmode", opt);
+
   conf.parseArgs(argc, argv);
 
   passphrase = conf.getOption("passphrase").asStringRef();
@@ -648,6 +661,8 @@ int main(int argc, char **argv){
   weight_bw = conf.getInteger("bw");
   weight_bonus = conf.getInteger("extra");
   fallback = conf.getString("fallback");
+  localMode = conf.getBool("localmode");
+  INFO_MSG("Local control only mode is %s", localMode?"on":"off");
 
   JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();

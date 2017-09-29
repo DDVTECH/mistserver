@@ -126,7 +126,6 @@ namespace Mist{
     }
 
     maxSkipAhead = 1500;
-    minSkipAhead = 500;
   }
 
   bool OutRTMP::listenMode(){

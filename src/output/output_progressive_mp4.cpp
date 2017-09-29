@@ -735,7 +735,6 @@ namespace Mist {
     //max lead time is set in MS, but the variable is in integer seconds for simplicity.
     if (H.GetVar("buffer") != "") {
       maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;
-      minSkipAhead = maxSkipAhead - std::min(2500u, maxSkipAhead / 2);
     }
     //allow setting of play back rate through buffer variable.
     //play back rate is set in MS per second, but the variable is a simple multiplier.

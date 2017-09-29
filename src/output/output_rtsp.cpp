@@ -25,7 +25,6 @@ namespace Mist{
     pausepoint = 0;
     setBlocking(false);
     maxSkipAhead = 0;
-    minSkipAhead = 0;
     expectTCP = false;
     lastTimeSync = 0;
     mainConn = &myConn;

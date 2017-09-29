@@ -75,7 +75,6 @@ namespace Mist{
     needsLookAhead = 0;
     lastStats = 0;
     maxSkipAhead = 7500;
-    minSkipAhead = 5000;
     uaDelay = 10;
     realTime = 1000;
     lastRecv = Util::epoch();
@@ -856,6 +855,7 @@ namespace Mist{
   /// It seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(){
+    static uint32_t seekCount = 2;
     unsigned long long seekPos = 0;
     if (!myMeta.live){return false;}
     long unsigned int mainTrack = getMainSelectedTrack();
@@ -865,14 +865,10 @@ namespace Mist{
     if (!mainTrk.keys.size()){return false;}
     uint32_t minKeepAway = mainTrk.minKeepAway;
 
-    //Only skip forward if we can win at least 500ms
-    if (thisPacket.getTime() + 500 > mainTrk.keys.rbegin()->getTime()){
-      return false;
-    }
-
     for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
       seekPos = it->getTime();
-      if(seekPos <= thisPacket.getTime()){return false;}
+      //Only skip forward if we can win a decent amount
+      if(seekPos <= thisPacket.getTime() + 250*seekCount){break;}
       bool good = true;
       //check if all tracks have data for this point in time
       for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
@@ -891,7 +887,8 @@ namespace Mist{
       }
       //if yes, seek here
       if (good){
-        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA)", seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway);
+        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA, > %lums)", seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway, seekCount*250);
+        if (seekCount < 20){++seekCount;}
         seek(seekPos);
         return true;
       }
@@ -999,7 +996,7 @@ namespace Mist{
             if (realTime){
               uint8_t i = 6;
               while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime && keepGoing()){
-                Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+minSkipAhead)/realTime, 1000llu));
+                Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime)*1000)+maxSkipAhead)/realTime, 1000llu));
                 stats();
               }
             }

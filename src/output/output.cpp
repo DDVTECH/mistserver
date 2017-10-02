@@ -462,6 +462,10 @@ namespace Mist{
       pageNum = pageNumForKey(trackId, keyNum);
     }
     
+    if (!keepGoing()){
+      return;
+    }
+
     if (keyNum){
       nxtKeyNum[trackId] = keyNum-1;
     }else{

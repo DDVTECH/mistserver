@@ -292,6 +292,7 @@ namespace DTSC {
       unsigned long long firstms;
       unsigned long long lastms;
       int bps;
+      int max_bps;
       int missedFrags;
       std::string init;
       std::string codec;

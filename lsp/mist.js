@@ -3610,17 +3610,17 @@ var UI = {
           var tables = {
             audio: {
               vheader: 'Audio',
-              labels: ['Codec','Duration','Peak bitrate','Channels','Samplerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language'],
               content: []
             },
             video: {
               vheader: 'Video',
-              labels: ['Codec','Duration','Peak bitrate','Size','Framerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language'],
               content: []
             },
             subtitle: {
               vheader: 'Subtitles',
-              labels: ['Codec','Duration','Peak bitrate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language'],
               content: []
             }
           }
@@ -3630,6 +3630,17 @@ var UI = {
             b = b.split('_').pop();
             return a-b;
           });
+          function peakoravg (track,key) {
+            if ("maxbps" in track) {
+              return UI.format.bytes(track[key],1);
+            }
+            else {
+              if (key == "maxbps") {
+                return UI.format.bytes(track.bps,1);
+              }
+              return "unknown";
+            }
+          }
           for (var k in keys) {
             var i = keys[k];
             var track = meta.tracks[i];
@@ -3640,10 +3651,11 @@ var UI = {
                   body: [
                     track.codec,
                     UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                    UI.format.bytes(track.bps,1),
+                    peakoravg(track,"bps"),
+                    peakoravg(track,"maxbps"),
                     track.channels,
                     UI.format.addUnit(UI.format.number(track.rate),'Hz'),
-                    ('lang' in track ? track.lang : 'unknown')
+                    ('language' in track ? track.language : 'unknown')
                   ]
                 });
                 break;
@@ -3653,24 +3665,29 @@ var UI = {
                   body: [
                     track.codec,
                     UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                    UI.format.bytes(track.bps,1),
+                    peakoravg(track,"bps"),
+                    peakoravg(track,"maxbps"),
                     UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
                     UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
-                    ('lang' in track ? track.lang : 'unknown')
+                    ('language' in track ? track.language : 'unknown')
                   ]
                 });
                 break;
+              case 'meta':
               case 'subtitle':
-                tables.subtitle.content.push({
-                  header: 'Track '+i.split('_').pop(),
-                  body: [
-                    track.codec,
-                    UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
-                    UI.format.bytes(track.bps,1),
-                    ('lang' in track ? track.lang : 'unknown')
-                  ]
-                });
-                break;
+                if ((track.codec == "subtitle") || (track.type == "subtitle")) {
+                  tables.subtitle.content.push({
+                    header: 'Track '+i.split('_').pop(),
+                    body: [
+                      track.codec,
+                      UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
+                      peakoravg(track,"bps"),
+                      peakoravg(track,"maxbps"),
+                      ('language' in track ? track.language : 'unknown')
+                    ]
+                  });
+                  break;
+                }
             }
           }
           var tracktypes = ['audio','video','subtitle'];

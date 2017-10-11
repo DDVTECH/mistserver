@@ -96,7 +96,9 @@ namespace Controller {
           p[it.key()] = p[it.key()].asString();
           if (p[it.key()].asStringRef().size() > 0){
             argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
-            argarr[argnum++] = (char*)(p[it.key()].asStringRef().c_str());
+            if (it->isMember("type")){
+              argarr[argnum++] = (char*)(p[it.key()].asStringRef().c_str());
+            }
           }
         }else{
           if (it.key() == "debug"){

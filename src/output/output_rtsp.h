@@ -27,6 +27,7 @@ namespace Mist{
     std::string source;
     uint64_t lastTimeSync;
     bool expectTCP;
+    bool checkPort;
     bool handleTCP();
     void handleUDP();
   };

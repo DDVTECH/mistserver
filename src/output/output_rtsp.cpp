@@ -26,6 +26,7 @@ namespace Mist{
     setBlocking(false);
     maxSkipAhead = 0;
     expectTCP = false;
+    checkPort = !config->getBool("ignsendport");
     lastTimeSync = 0;
     mainConn = &myConn;
     classPointer = this;
@@ -85,6 +86,12 @@ namespace Mist{
     capa["optional"]["maxsend"]["type"] = "uint";
     capa["optional"]["maxsend"]["option"] = "--max-packet-size";
     capa["optional"]["maxsend"]["short"] = "m";
+
+    capa["optional"]["ignsendport"]["name"] = "Ignore sending port #";
+    capa["optional"]["ignsendport"]["help"] = "Ignore the sending port number of incoming data";
+    capa["optional"]["ignsendport"]["default"] = false;
+    capa["optional"]["ignsendport"]["option"] = "--ignore-sending-port";
+    capa["optional"]["ignsendport"]["short"] = "I";
 
     cfg->addConnectorOptions(5554, capa);
     config = cfg;
@@ -372,7 +379,7 @@ namespace Mist{
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       while (s.Receive()){
-        if (s.getDestPort() != it->second.cPort){
+        if (s.getDestPort() != it->second.cPort && checkPort){
           // wrong sending port, ignore packet
           continue;
         }

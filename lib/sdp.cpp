@@ -13,7 +13,6 @@ namespace SDP{
     channel = -1;
     firstTime = 0;
     packCount = 0;
-    cPort = 0;
     rtpSeq = 0;
     lostTotal = 0;
     lostCurrent = 0;
@@ -23,6 +22,8 @@ namespace SDP{
     fpsMeta = 0;
     fps = 0;
     mySSRC = rand();
+    portA = portB = 0;
+    cPortA = cPortB = 0;
   }
 
   /// Extracts a particular parameter from the fmtp string. fmtp member must be set before calling.
@@ -173,6 +174,28 @@ namespace SDP{
     return mediaDesc.str();
   }
 
+  /// Generates a transport string suitable for in a SETUP request.
+  /// By default generates a TCP mode string.
+  /// Expects parseTransport to be called with the response from the server.
+  std::string Track::generateTransport(uint32_t trackNo, const std::string &dest, bool TCPmode){
+    if (TCPmode){
+      //We simply request interleaved delivery over a trackNo-based identifier.
+      //No need to set any internal state, parseTransport will handle it all.
+      std::stringstream tStr;
+      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-" << ((trackNo - 1) * 2 + 1);
+      return tStr.str();
+    }else{
+      //A little more tricky: we need to find free ports and remember them.
+      data.SetDestination(dest, 1337);
+      rtcp.SetDestination(dest, 1337);
+      portA = data.bind(0);
+      portB = rtcp.bind(0);
+      std::stringstream tStr;
+      tStr << "RTP/AVP/UDP;unicast;client_port=" << portA << "-" << portB;
+      return tStr.str();
+    }
+  }
+
   /// Sets the TCP/UDP connection details from a given transport string.
   /// Sets the transportString member to the current transport string on success.
   /// \param host The host connecting to us.
@@ -221,22 +244,55 @@ namespace SDP{
       transportString = transport;
     }else{
       channel = -1;
+      uint32_t sPortA = 0, sPortB = 0;
+      cPortA = cPortB = 0;
+      size_t sPort_loc = transport.rfind("server_port=") + 12;
+      if (sPort_loc != std::string::npos){
+        sPortA = atol(transport.substr(sPort_loc, transport.find('-', sPort_loc) - sPort_loc).c_str());
+        sPortB = atol(transport.substr(transport.find('-', sPort_loc)+1).c_str());
+      }
       size_t port_loc = transport.rfind("client_port=") + 12;
-      cPort = atol(transport.substr(port_loc, transport.rfind('-') - port_loc).c_str());
-      uint32_t portA, portB;
-      // find available ports locally;
+      if (port_loc != std::string::npos){
+        cPortA = atol(transport.substr(port_loc, transport.find('-', port_loc) - port_loc).c_str());
+        cPortB = atol(transport.substr(transport.find('-', port_loc)+1).c_str());
+      }
+      INFO_MSG("UDP ports: server %d/%d, client %d/%d", sPortA, sPortB, cPortA, cPortB);
       int sendbuff = 4 * 1024 * 1024;
-      data.SetDestination(host, cPort);
-      portA = data.bind(0);
-      setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
-      rtcp.SetDestination(host, cPort + 1);
-      portB = rtcp.bind(0);
-      setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
-      std::stringstream tStr;
-      tStr << "RTP/AVP/UDP;unicast;client_port=" << cPort << '-' << cPort + 1 << ";";
-      if (source.size()){tStr << "source=" << source << ";";}
-      tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC << std::dec;
-      transportString = tStr.str();
+      if (!sPortA || !sPortB){
+        //Server mode - find server ports
+        data.SetDestination(host, cPortA);
+        setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        rtcp.SetDestination(host, cPortB);
+        setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        portA = data.bind(0);
+        portB = rtcp.bind(0);
+        std::stringstream tStr;
+        tStr << "RTP/AVP/UDP;unicast;client_port=" << cPortA << '-' << cPortB << ";";
+        if (source.size()){tStr << "source=" << source << ";";}
+        tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC << std::dec;
+        transportString = tStr.str();
+      }else{
+        //Client mode - check ports and/or obey given ports if possible
+        data.SetDestination(host, sPortA);
+        setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        rtcp.SetDestination(host, sPortB);
+        setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+        if (portA != cPortA){
+          portA = data.bind(cPortA);
+          if (portA != cPortA){
+            FAIL_MSG("Server requested port %d, which we couldn't bind", cPortA);
+            return false;
+          }
+        }
+        if (portB != cPortB){
+          portB = data.bind(cPortB);
+          if (portB != cPortB){
+            FAIL_MSG("Server requested port %d, which we couldn't bind", cPortB);
+            return false;
+          }
+        }
+        transportString = transport;
+      }
       INFO_MSG("Transport string: %s", transportString.c_str());
     }
     return true;
@@ -260,6 +316,7 @@ namespace SDP{
     DTSC::Track *thisTrack = 0;
     while (std::getline(ss, to, '\n')){
       if (!to.empty() && *to.rbegin() == '\r'){to.erase(to.size() - 1, 1);}
+      if (to.empty()){continue;}
 
       // All tracks start with a media line
       if (to.substr(0, 2) == "m="){
@@ -289,7 +346,6 @@ namespace SDP{
             thisTrack->codec = "ALAW";
             thisTrack->rate = 8000;
             thisTrack->channels = 1;
-            INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
             break;
           case 10: // PCM Stereo, 44.1kHz
             INFO_MSG("Linear PCM stereo 44.1kHz payload type");
@@ -298,7 +354,6 @@ namespace SDP{
             thisTrack->size = 16;
             thisTrack->rate = 44100;
             thisTrack->channels = 2;
-            INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
             break;
           case 11: // PCM Mono, 44.1kHz
             INFO_MSG("Linear PCM mono 44.1kHz payload type");
@@ -307,7 +362,6 @@ namespace SDP{
             thisTrack->rate = 44100;
             thisTrack->size = 16;
             thisTrack->channels = 1;
-            INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
             break;
           case 14: // MPA
             INFO_MSG("MPA payload type");
@@ -316,18 +370,16 @@ namespace SDP{
             thisTrack->rate = 0;
             thisTrack->size = 0;
             thisTrack->channels = 0;
-            INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
             break;
           case 32: // MPV
             INFO_MSG("MPV payload type");
             nope = false;
             thisTrack->codec = "MPEG2";
-            INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
             break;
           default:
             // dynamic type
             if (avp_type >= 96 && avp_type <= 127){
-              INFO_MSG("Dynamic payload type (%llu) detected", avp_type);
+              HIGH_MSG("Dynamic payload type (%llu) detected", avp_type);
               nope = false;
               continue;
             }else{
@@ -336,6 +388,7 @@ namespace SDP{
             }
           }
         }
+        HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         continue;
       }
       if (nope){continue;}// ignore lines if we have no valid track
@@ -391,12 +444,28 @@ namespace SDP{
         if (!thisTrack->codec.size()){
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{
-          INFO_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+          HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         }
         continue;
       }
       if (to.substr(0, 10) == "a=control:"){
         tracks[trackNo].control = to.substr(10);
+        continue;
+      }
+      if (to.substr(0, 12) == "a=framerate:"){
+        if (!thisTrack->rate){
+          thisTrack->rate = atof(to.c_str() + 12)*1000;
+        }
+        continue;
+      }
+      if (to.substr(0, 12) == "a=framesize:"){
+        //Ignored for now.
+        /// \TODO Maybe implement?
+        continue;
+      }
+      if (to.substr(0, 11) == "a=cliprect:"){
+        //Ignored for now.
+        /// \TODO Maybe implement?
         continue;
       }
       if (to.substr(0, 7) == "a=fmtp:"){
@@ -443,6 +512,9 @@ namespace SDP{
       if (!trackNo){continue;}
       // at this point, the data is definitely for a track
       INFO_MSG("Unhandled SDP line for track %llu: %s", trackNo, to.c_str());
+    }
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta->tracks.begin(); it != myMeta->tracks.end(); ++it){
+      INFO_MSG("Detected track %s", it->second.getIdentifier().c_str());
     }
   }
 
@@ -573,6 +645,7 @@ namespace SDP{
 
     // Header data? Compare to init, set if needed, and throw away
     uint8_t nalType = (buffer[4] & 0x1F);
+    if (nalType == 9 && len < 20){return;}//ignore delimiter-only packets
     switch (nalType){
     case 7: // SPS
       if (tracks[track].spsData.size() != len - 4 ||

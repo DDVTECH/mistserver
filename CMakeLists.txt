@@ -374,6 +374,7 @@ makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
 makeInput(Folder folder)#LTS
 makeInput(Balancer balancer)#LTS
+makeInput(RTSP rtsp)#LTS
 
 ########################################
 # MistServer - Outputs                 #

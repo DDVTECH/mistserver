@@ -379,7 +379,7 @@ namespace Mist{
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       while (s.Receive()){
-        if (s.getDestPort() != it->second.cPort && checkPort){
+        if (s.getDestPort() != it->second.cPortA && checkPort){
           // wrong sending port, ignore packet
           continue;
         }

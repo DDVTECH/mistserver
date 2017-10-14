@@ -113,7 +113,6 @@ bool AnalyserRTSP::parsePacket(){
     return true;
 
   }while (isOpen());
-
-  // if needed, parse TCP packets, and cancel if it is not safe (yet) to read HTTP/RTSP packets
+  return false;
 }
 

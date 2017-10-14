@@ -22,18 +22,18 @@ namespace SDP{
     int32_t lostTotal, lostCurrent;
     uint32_t packTotal, packCurrent;
     std::map<uint16_t, RTP::Packet> packBuffer;
-    uint32_t cPort;
     std::string transportString; /// Current transport string.
     std::string control;
     std::string fmtp; /// fmtp string, used by getParamString / getParamInt
     std::string spsData;
     std::string ppsData;
-    uint32_t mySSRC, theirSSRC;
+    uint32_t mySSRC, theirSSRC, portA, portB, cPortA, cPortB;
     h265::initData hevcInfo;
     uint64_t fpsTime;
     double fpsMeta;
     double fps;
     Track();
+    std::string generateTransport(uint32_t trackNo, const std::string &dest = "", bool TCPmode = true);
     std::string getParamString(const std::string &param) const;
     uint64_t getParamInt(const std::string &param) const;
     bool parseTransport(const std::string &transport, const std::string &host,

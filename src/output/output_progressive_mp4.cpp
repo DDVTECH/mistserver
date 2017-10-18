@@ -80,7 +80,10 @@ namespace Mist {
         tmpRes += 16//SMHD Box
           + 16//STSD
           + 36//MP4A
-          + 37 + thisTrack.init.size();//ESDS
+          + 35;
+        if (thisTrack.init.size()){
+          tmpRes += 2 + thisTrack.init.size();//ESDS
+        }
       }
       
       if (!fragmented){

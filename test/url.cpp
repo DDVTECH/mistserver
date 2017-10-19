@@ -18,6 +18,9 @@ int main(int argc, char ** argv){
     std::cout << "Path: " << u.path << std::endl;
     std::cout << "Query: " << u.args << std::endl;
     std::cout << "Fragment: " << u.frag << std::endl;
+    std::cout << "Username: " << u.user << std::endl;
+    std::cout << "Password: " << u.pass << std::endl;
+    std::cout << std::endl;
   }
   return 0;
 }

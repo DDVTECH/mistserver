@@ -118,10 +118,12 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       if (Controller::prometheus.size()){
         if (H.url == "/"+Controller::prometheus){
           handlePrometheus(H, conn, PROMETHEUS_TEXT);
+          H.Clean();
           continue;
         }
         if (H.url == "/"+Controller::prometheus+".json"){
           handlePrometheus(H, conn, PROMETHEUS_JSON);
+          H.Clean();
           continue;
         }
       }

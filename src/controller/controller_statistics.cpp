@@ -329,11 +329,13 @@ void Controller::SharedMemStats(void * config){
       if (sessions.size()){
         std::list<sessIndex> mustWipe;
         unsigned long long cutOffPoint = Util::epoch() - STAT_CUTOFF;
-        unsigned long long disconnectPoint = Util::epoch() - STATS_DELAY;
+        unsigned long long disconnectPointIn = Util::epoch() - STATS_INPUT_DELAY;
+        unsigned long long disconnectPointOut = Util::epoch() - STATS_DELAY;
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          it->second.ping(it->first, disconnectPoint);
+          unsigned long long dPoint = it->second.getSessType() == SESS_INPUT ? disconnectPointIn : disconnectPointOut; 
+          it->second.ping(it->first, dPoint);
           if (it->second.sync == 100){
-            it->second.wipeOld(disconnectPoint);
+            it->second.wipeOld(dPoint);
           }else{
             it->second.wipeOld(cutOffPoint);
           }
@@ -1199,16 +1201,23 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //collect the data first
   std::set<std::string> streams;
   std::map<std::string, unsigned long> clients;
-  unsigned int t = Util::epoch() - STATS_DELAY;
+  unsigned int tOut = Util::epoch() - STATS_DELAY;
+  unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
   //check all sessions
   {
     tthread::lock_guard<tthread::mutex> guard(statsMutex);
     if (sessions.size()){
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-        if (!onlyNow || (it->second.hasDataFor(t) && it->second.isViewerOn(t))){
-          streams.insert(it->first.streamName);
-          if (it->second.getSessType() == SESS_VIEWER){
-            clients[it->first.streamName]++;
+        if (it->second.getSessType() == SESS_INPUT){
+          if (!onlyNow || (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn))){
+            streams.insert(it->first.streamName);
+          }
+        }else{
+          if (!onlyNow || (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut))){
+            streams.insert(it->first.streamName);
+            if (it->second.getSessType() == SESS_VIEWER){
+              clients[it->first.streamName]++;
+            }
           }
         }
       }
@@ -1438,7 +1447,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       break;
   }
   H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-  H.StartResponse("200", "OK", H, conn);
+  H.StartResponse("200", "OK", H, conn, true);
 
 
   //Collect core server stats
@@ -1549,28 +1558,32 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       std::map<std::string, struct streamTotals> streams;
       std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
-      unsigned int t = Util::epoch() - STATS_DELAY;
+      unsigned int tOut = Util::epoch() - STATS_DELAY;
+      unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-            switch (it->second.getSessType()){
-              case SESS_UNSET:
-              case SESS_VIEWER:
+          switch (it->second.getSessType()){
+            case SESS_UNSET:
+            case SESS_VIEWER:
+              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
                 streams[it->first.streamName].viewers++;
                 outputs[it->first.connector]++;
                 totViewers++;
-                break;
-              case SESS_INPUT:
+              }
+              break;
+            case SESS_INPUT:
+              if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
                 streams[it->first.streamName].inputs++;
                 totInputs++;
-                break;
-              case SESS_OUTPUT:
+              }
+              break;
+            case SESS_OUTPUT:
+              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
                 streams[it->first.streamName].outputs++;
                 totOutputs++;
-                break;
-            }
-
+              }
+              break;
           }
         }
       }
@@ -1639,28 +1652,32 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       std::map<std::string, struct streamTotals> streams;
       std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
-      unsigned int t = Util::epoch() - STATS_DELAY;
+      unsigned int tOut = Util::epoch() - STATS_DELAY;
+      unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          if (it->second.hasDataFor(t) && it->second.isViewerOn(t)){
-            switch (it->second.getSessType()){
-              case SESS_UNSET:
-              case SESS_VIEWER:
+          switch (it->second.getSessType()){
+            case SESS_UNSET:
+            case SESS_VIEWER:
+              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
                 streams[it->first.streamName].viewers++;
                 outputs[it->first.connector]++;
                 totViewers++;
-                break;
-              case SESS_INPUT:
+              }
+              break;
+            case SESS_INPUT:
+              if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
                 streams[it->first.streamName].inputs++;
                 totInputs++;
-                break;
-              case SESS_OUTPUT:
+              }
+              break;
+            case SESS_OUTPUT:
+              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
                 streams[it->first.streamName].outputs++;
                 totOutputs++;
-                break;
-            }
-
+              }
+              break;
           }
         }
       }

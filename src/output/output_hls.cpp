@@ -175,8 +175,13 @@ namespace Mist {
     }
 
     initialize();
+
+    if (!keepGoing()){
+      return;
+    }
+
     if (H.url.find(".m3u") == std::string::npos){
-      std::string tmpStr = H.getUrl().substr(5+streamName.size());
+      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
       long long unsigned int from;
       if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4){
         if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){

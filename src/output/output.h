@@ -75,9 +75,6 @@ namespace Mist {
       virtual void onFail();
       virtual void requestHandler();
     private://these *should* not be messed with in child classes.
-      inline bool keepGoing(){
-        return config->is_active && myConn;
-      }
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
@@ -119,6 +116,9 @@ namespace Mist {
       void waitForStreamPushReady();
       bool pushIsOngoing;
       void bufferLivePacket(const DTSC::Packet & packet);
+      inline bool keepGoing(){
+        return config->is_active && myConn;
+      }
   };
 
 }

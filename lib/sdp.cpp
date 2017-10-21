@@ -149,6 +149,16 @@ namespace SDP{
         mediaDesc << "a=rtpmap:101 PCMA/" << trk.rate << "/" << trk.channels << "\r\n";
       }
       mediaDesc << "a=control:track" << trk.trackID << "\r\n";
+    }else if (trk.codec == "ULAW"){
+      if (trk.channels == 1 && trk.rate == 8000){
+        mediaDesc << "m=audio 0 RTP/AVP 0"
+                  << "\r\n";
+      }else{
+        mediaDesc << "m=audio 0 RTP/AVP 104"
+                  << "\r\n";
+        mediaDesc << "a=rtpmap:104 PCMU/" << trk.rate << "/" << trk.channels << "\r\n";
+      }
+      mediaDesc << "a=control:track" << trk.trackID << "\r\n";
     }else if (trk.codec == "PCM"){
       if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
         mediaDesc << "m=audio 0 RTP/AVP 10"
@@ -220,6 +230,12 @@ namespace SDP{
         pack = RTP::Packet(8, 1, 0, mySSRC);
       }else{
         pack = RTP::Packet(101, 1, 0, mySSRC);
+      }
+    }else if (trk.codec == "ULAW"){
+      if (trk.channels == 1 && trk.rate == 8000){
+        pack = RTP::Packet(0, 1, 0, mySSRC);
+      }else{
+        pack = RTP::Packet(104, 1, 0, mySSRC);
       }
     }else if (trk.codec == "PCM"){
       if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
@@ -330,16 +346,27 @@ namespace SDP{
           thisTrack->trackID = trackNo;
         }else{
           WARN_MSG("Media type not supported: %s", item.c_str());
+          myMeta->tracks.erase(trackNo);
+          tracks.erase(trackNo);
           continue;
         }
         getline(words, item, ' ');
         if (!getline(words, item, ' ') || item != "RTP/AVP"){
           WARN_MSG("Media transport not supported: %s", item.c_str());
+          myMeta->tracks.erase(trackNo);
+          tracks.erase(trackNo);
           continue;
         }
         if (getline(words, item, ' ')){
           uint64_t avp_type = JSON::Value(item).asInt();
           switch (avp_type){
+          case 0: // PCM Mu-law
+            INFO_MSG("PCM Mu-law payload type");
+            nope = false;
+            thisTrack->codec = "ULAW";
+            thisTrack->rate = 8000;
+            thisTrack->channels = 1;
+            break;
           case 8: // PCM A-law
             INFO_MSG("PCM A-law payload type");
             nope = false;
@@ -384,6 +411,8 @@ namespace SDP{
               continue;
             }else{
               FAIL_MSG("Payload type %llu not supported!", avp_type);
+              myMeta->tracks.erase(trackNo);
+              tracks.erase(trackNo);
               continue;
             }
           }
@@ -424,6 +453,7 @@ namespace SDP{
           thisTrack->init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
         }
         if (trCodec == "PCMA"){thisTrack->codec = "ALAW";}
+        if (trCodec == "PCMU"){thisTrack->codec = "ULAW";}
         if (trCodec == "L8"){
           thisTrack->codec = "PCM";
           thisTrack->size = 8;
@@ -761,7 +791,7 @@ namespace SDP{
     uint32_t plSize = pkt.getPayloadSize();
     INSANE_MSG("Received RTP packet for track %llu, time %llu -> %llu", track, pkt.getTimeStamp(),
                millis);
-    if (Trk.codec == "ALAW" || Trk.codec == "opus" || Trk.codec == "PCM"){
+    if (Trk.codec == "ALAW" || Trk.codec == "opus" || Trk.codec == "PCM" || Trk.codec == "ULAW"){
       DTSC::Packet nextPack;
       nextPack.genericFill(millis, 0, track, pl, plSize, 0, false);
       if (incomingPacketCallback){incomingPacketCallback(nextPack);}

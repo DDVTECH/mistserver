@@ -12,6 +12,7 @@ namespace Mist{
     capa["url_rel"] = "/$.wav";
     capa["url_match"] = "/$.wav";
     capa["codecs"][0u][0u].append("ALAW");
+    capa["codecs"][0u][0u].append("ULAW");
     capa["codecs"][0u][0u].append("MP3");
     capa["codecs"][0u][0u].append("PCM");
     capa["methods"][0u]["handler"] = "http";
@@ -85,6 +86,7 @@ namespace Mist{
     // Send format details
     uint16_t fmt = 0;
     if (Trk.codec == "ALAW"){fmt = 6;}
+    if (Trk.codec == "ULAW"){fmt = 7;}
     if (Trk.codec == "PCM"){fmt = 1;}
     if (Trk.codec == "MP3"){fmt = 85;}
     myConn.SendNow(RIFF::fmt::generate(fmt, Trk.channels, Trk.rate, Trk.bps,

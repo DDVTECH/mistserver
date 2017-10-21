@@ -72,6 +72,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("ULAW");
     capa["codecs"][0u][1u].append("PCM");
     capa["codecs"][0u][1u].append("opus");
     capa["codecs"][0u][1u].append("MP2");

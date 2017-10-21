@@ -46,6 +46,7 @@ namespace HTTP {
       void Proxy(Socket::Connection & from, Socket::Connection & to);
       void Clean();
       void CleanPreserveHeaders();
+      void auth(const std::string & user, const std::string & pass, const std::string & authReq);
       std::string body;
       std::string method;
       std::string url;

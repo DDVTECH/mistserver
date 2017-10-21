@@ -5,6 +5,7 @@
 #include "encode.h"
 #include "timing.h"
 #include "defines.h"
+#include "auth.h"
 
 /// Helper function to check if the given c-string is numeric or not
 static bool is_numeric(const char * str){
@@ -272,6 +273,41 @@ void HTTP::Parser::CleanPreserveHeaders() {
   body.clear();
   length = 0;
   vars.clear();
+}
+
+/// Local-only helper function for use in auth()
+/// Returns the string contents of the given val from list
+static std::string findValIn(const std::string & list, const std::string & val){
+  size_t pos = list.find(val+"=\"");
+  if (pos == std::string::npos){return "";}
+  pos += val.size() + 2;
+  if (pos >= list.size()){return "";}
+  size_t ePos = list.find('"', pos);
+  if (ePos == std::string::npos){return "";}
+  return list.substr(pos, ePos - pos);
+}
+
+/// Attempts to send an authentication header with the given name and password. Uses authReq as WWW-Authenticate header.
+void HTTP::Parser::auth(const std::string & user, const std::string & pass, const std::string & authReq){
+  size_t space = authReq.find(' ');
+  if (space == std::string::npos || !user.size() || !pass.size()){
+    FAIL_MSG("No authentication possible");
+    return;
+  }
+  std::string meth = authReq.substr(0, space);
+  if (meth == "Basic"){
+    SetHeader("Authorization", "Basic "+Encodings::Base64::encode(user+":"+pass));
+    return;
+  }
+  if (meth == "Digest"){
+    std::string realm=findValIn(authReq, "realm"), nonce=findValIn(authReq, "nonce");
+    std::string A1 = Secure::md5(user+":"+realm+":"+pass);
+    std::string A2 = Secure::md5(method+":"+url);
+    std::string response = Secure::md5(A1+":"+nonce+":"+A2);
+    SetHeader("Authorization", "Digest username=\""+user+"\", realm=\""+realm+"\", nonce=\""+nonce+"\", uri=\""+url+"\", response=\""+response+"\"");
+    return;
+  }
+  FAIL_MSG("No authentication possible, unimplemented method '%s'", meth.c_str());
 }
 
 /// Sets the neccesary headers to allow Cross Origin Resource Sharing with all domains.

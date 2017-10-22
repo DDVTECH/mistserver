@@ -43,11 +43,29 @@ struct streamDetails{
   uint32_t prevTotal;
 };
 
+class outUrl{
+  public:
+  std::string pre, post;
+  outUrl(){};
+  outUrl(const std::string &u, const std::string &host){
+    std::string tmp = u;
+    if (u.find("HOST") != std::string::npos){
+      tmp = u.substr(0, u.find("HOST")) + host + u.substr(u.find("HOST")+4);
+    }
+    size_t dolsign = tmp.find('$');
+    pre = tmp.substr(0, dolsign);
+    if (dolsign != std::string::npos){
+      post = tmp.substr(dolsign+1);
+    }
+  }
+};
+
 class hostDetails{
 private:
   tthread::mutex *hostMutex;
   std::map<std::string, struct streamDetails> streams;
   std::set<std::string> conf_streams;
+  std::map<std::string, outUrl> outputs;
   unsigned int cpu;
   unsigned long long ramMax;
   unsigned long long ramCurr;
@@ -181,6 +199,13 @@ public:
                availBandwidth / 1024 / 1024, score);
     return score;
   }
+  std::string getUrl(std::string &s, std::string &proto){
+    if (!hostMutex){hostMutex = new tthread::mutex();}
+    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!outputs.count(proto)){return "";}
+    const outUrl& o = outputs[proto];
+    return o.pre + s + o.post;
+  }
   void addViewer(std::string &s){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
@@ -273,6 +298,12 @@ public:
     if (d.isMember("conf_streams") && d["conf_streams"].size()){
       jsonForEach(d["conf_streams"], it){
         conf_streams.insert(it->asStringRef());
+      }
+    }
+    outputs.clear();
+    if (d.isMember("outputs") && d["outputs"].size()){
+      jsonForEach(d["outputs"], op){
+        outputs[op.key()] = outUrl(op->asStringRef(), host);
       }
     }
     addBandwidth *= 0.75;
@@ -457,6 +488,9 @@ int handleRequest(Socket::Connection &conn){
       }
       // Balance given stream
       std::string stream = H.url.substr(1);
+      std::string proto = H.GetVar("proto");
+      H.SetVar("proto", "");
+      std::string vars = H.allVars();
       if (stream == "favicon.ico"){
         H.Clean();
         H.SendResponse("404", "No favicon", conn);
@@ -484,8 +518,16 @@ int handleRequest(Socket::Connection &conn){
         bestHost->details->addViewer(stream);
         H.SetBody(bestHost->details->host);
       }
-      H.SendResponse("200", "OK", conn);
-      H.Clean();
+      if (proto != "" && bestHost && bestScore){
+        H.Clean();
+        H.SetHeader("Location", bestHost->details->getUrl(stream, proto) + vars);
+        H.SetBody("<a href=\""+H.GetHeader("Location")+"\">Click here for stream</a>");
+        H.SendResponse("307", "Redirecting", conn);
+        H.Clean();
+      }else{
+        H.SendResponse("200", "OK", conn);
+        H.Clean();
+      }
     }// if HTTP request received
   }
   conn.close();
@@ -544,7 +586,7 @@ void handleServer(void *hostEntryPointer){
     unsigned int startTime = Util::epoch();
     while (cfg->is_active && servConn &&
            !((servConn.spool() || servConn.Received().size()) && H.Read(servConn))){
-      if (Util::epoch() - startTime > 10){
+      if (Util::epoch() - startTime > 25){
         FAIL_MSG("Server %s timed out", host.c_str());
         servConn.close();
         H.Clean();

@@ -1175,9 +1175,12 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
     destAddr = malloc(destAddr_size);
     if (!destAddr){return;}
     memcpy(destAddr, rp->ai_addr, rp->ai_addrlen);
-    close();
-    family = rp->ai_family;
-    sock = socket(family, SOCK_DGRAM, 0);
+    if (family != rp->ai_family){
+      INFO_MSG("Socket is wrong type (%s), re-opening as %s", addrFam(family), addrFam(rp->ai_family));
+      close();
+      family = rp->ai_family;
+      sock = socket(family, SOCK_DGRAM, 0);
+    }
     HIGH_MSG("Set UDP destination: %s:%d (%s)", destIp.c_str(), port, addrFam(family));
     freeaddrinfo(result);
     return;
@@ -1300,6 +1303,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   }
 
   std::string err_str;
+  uint16_t portNo = 0;
   for (rp = addr_result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
@@ -1332,7 +1336,17 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       }
     }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
-      INFO_MSG("UDP bind success on %s:%s (%s)", human_addr, human_port, addrFam(rp->ai_family));
+      //get port number
+      struct sockaddr_storage fin_addr;
+      socklen_t alen = sizeof(fin_addr);
+      if (getsockname(sock, (struct sockaddr*)&fin_addr, &alen) == 0){
+        if (family == AF_INET6){
+          portNo = ntohs(((struct sockaddr_in6*)&fin_addr)->sin6_port);
+        }else{
+          portNo = ntohs(((struct sockaddr_in*)&fin_addr)->sin_port);
+        }
+      }
+      INFO_MSG("UDP bind success on %s:%u (%s)", human_addr, portNo, addrFam(rp->ai_family));
       break;
     }
     if (err_str.size()){err_str += ", ";}
@@ -1428,18 +1442,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
     }
     freeaddrinfo(resmulti); // free resolved multicast addr
   }
-  //get port number
-  struct sockaddr_storage fin_addr;
-  socklen_t alen = sizeof(fin_addr);
-  if (getsockname(sock, (struct sockaddr*)&fin_addr, &alen) == 0){
-    if (family == AF_INET6){
-      return ntohs(((struct sockaddr_in6*)&fin_addr)->sin6_port);
-    }else{
-      return ntohs(((struct sockaddr_in*)&fin_addr)->sin_port);
-    }
-  }else{
-    return 0;
-  }
+  return portNo;
 }
 
 /// Attempt to receive a UDP packet.

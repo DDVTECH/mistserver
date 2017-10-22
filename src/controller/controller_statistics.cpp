@@ -11,6 +11,7 @@
 #include "controller_limits.h"
 #include "controller_push.h"
 #include "controller_storage.h"
+#include "controller_capabilities.h"
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -1701,6 +1702,59 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       resp["conf_streams"].append(sIt.key());
     }
 
+    //Loop over connectors
+    const JSON::Value &caps = capabilities["connectors"];
+    jsonForEachConst(Storage["config"]["protocols"], prtcl){
+      const std::string &cName = (*prtcl)["connector"].asStringRef();
+      if ((*prtcl)["online"].asInt() != 1){continue;}
+      if (!caps.isMember(cName)){continue;}
+      const JSON::Value & capa = caps[cName];
+      if (!capa.isMember("optional") || !capa["optional"].isMember("port")){continue;}
+      //We now know it's configured, online and has a listening port
+      HTTP::URL outURL("HOST");
+      //get the default port if none is set
+      if (prtcl->isMember("port")){
+        outURL.port = (*prtcl)["port"].asString();
+      }
+      if (!outURL.port.size()){
+        outURL.port = capa["optional"]["port"]["default"].asString();
+      }
+      //set the protocol
+      if (capa.isMember("protocol")){
+        outURL.protocol = capa["protocol"].asString();
+      }else{
+        if (capa.isMember("methods") && capa["methods"][0u].isMember("handler")){
+          outURL.protocol = capa["methods"][0u]["handler"].asStringRef();
+        }
+      }
+      if (outURL.protocol.find(':') != std::string::npos){
+        outURL.protocol.erase(outURL.protocol.find(':'));
+      }
+      //set the public access, if needed
+      if (prtcl->isMember("pubaddr") && (*prtcl)["pubaddr"].asString().size()){
+        HTTP::URL altURL((*prtcl)["pubaddr"].asString());
+        outURL.protocol = altURL.protocol;
+        if (altURL.host.size()){outURL.host = altURL.host;}
+        outURL.port = altURL.port;
+        outURL.path = altURL.path;
+      }
+      //Add the URL, if present
+      if (capa.isMember("url_rel")){
+        resp["outputs"][cName] = outURL.link("./"+capa["url_rel"].asStringRef()).getUrl();
+      }
+
+      //if this connector can be depended upon by other connectors, loop over the rest
+      if (capa.isMember("provides")){
+        const std::string &cProv = capa["provides"].asStringRef();
+        jsonForEachConst(Storage["config"]["protocols"], chld){
+          const std::string &child = (*chld)["connector"].asStringRef();
+          if (!caps.isMember(child) || !caps[child].isMember("deps")){continue;}
+          if (caps[child].isMember("deps") && caps[child]["deps"].asStringRef() == cProv && caps[child].isMember("url_rel")){
+            resp["outputs"][child] = outURL.link("./"+caps[child]["url_rel"].asStringRef()).getUrl();
+          }
+        }
+      }
+    }
 
     H.Chunkify(resp.toString(), conn);
   }

@@ -613,6 +613,7 @@ std::string HTTP::Parser::allVars(){
   std::string ret;
   if (!vars.size()){return ret;}
   for (std::map<std::string, std::string>::iterator it = vars.begin(); it != vars.end(); ++it){
+    if (!it->second.size()){continue;}
     if (ret.size() > 1){
       ret += "&";
     }else{

@@ -5938,24 +5938,29 @@ var mist = {
           if ('unit' in ele) {
             obj.unit = ele.unit;
           }
-          switch (ele.type) {
-            case 'int':
-              obj.type = 'int';
-              break;
-            case 'uint':
-              obj.type = 'int';
-              obj.min = 0;
-              break;
-            case 'debug':
-              obj.type = 'debug';
-              break;
-            case 'select':
-              obj.type = 'select';
-              obj.select = ele.select;
-              break;
-            case 'str':
-            default:
-              obj.type = 'str';
+          if ("type" in ele) {
+            switch (ele.type) {
+              case 'int':
+                obj.type = 'int';
+                break;
+              case 'uint':
+                obj.type = 'int';
+                obj.min = 0;
+                break;
+              case 'debug':
+                obj.type = 'debug';
+                break;
+              case 'select':
+                obj.type = 'select';
+                obj.select = ele.select;
+                break;
+              case 'str':
+              default:
+                obj.type = 'str';
+            }
+          }
+          else {
+            obj.type = "checkbox";
           }
           build.push(obj);
         }

@@ -5661,7 +5661,7 @@ var mist = {
           $('#message').addClass('red').text('An error occurred while attempting to communicate with MistServer:').append(
             $('<br>')
           ).append(
-            textStatus
+            $("<span>").text(textStatus)
           ).append(
             $('<a>').text('Send server request again').click(function(){
               mist.send(callback,sendData,opts);
@@ -5716,7 +5716,9 @@ var mist = {
             if (d.log) {
               var lastlog = d.log[d.log.length-1];
               UI.elements.connection.msg.append($('<br>')).append(
-                'Last log entry: '+UI.format.time(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2]
+                $("<span>").text(
+                  'Last log entry: '+UI.format.time(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2]
+                )
               );
             }
             if ('totals' in d) {

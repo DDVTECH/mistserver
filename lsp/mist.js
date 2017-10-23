@@ -5952,7 +5952,8 @@ var mist = {
                 break;
               case 'select':
                 obj.type = 'select';
-                obj.select = ele.select;
+                obj.select = ele.select.slice(0);
+                obj.select.unshift(["","Default"+("placeholder" in obj ? " ("+obj.placeholder+")" : "" )]);
                 break;
               case 'str':
               default:

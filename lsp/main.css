@@ -295,6 +295,9 @@ textarea.embed_code {
 select option[disabled] {
   display: none;
 }
+select option[value=""] {
+  color: #808080;
+}
 
 .description {
   color: #777;

@@ -61,6 +61,7 @@ namespace Mist {
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
     capa["codecs"][0u][0u].append("*");
+    capa["url_rel"] = "/$.html";
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");

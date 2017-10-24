@@ -455,12 +455,12 @@ MistPlayer.prototype.buildMistControls = function(){
           if ('name' in tracks[i][j]) {
             name = tracks[i][j].name;
           }
+          else if ('desc' in tracks[i][j]) {
+            name = tracks[i][j].desc;
+          }
           else if ('lang' in tracks[i][j]) {
             name = tracks[i][j].lang;
             o.setAttribute('data-lang',tracks[i][j].lang);
-          }
-          else if ('desc' in tracks[i][j]) {
-            name = tracks[i][j].desc;
           }
           else {
             name = 'Track '+(Number(j)+1);
@@ -1148,20 +1148,25 @@ function mistPlay(streamName,options) {
           var skip = false;
           switch (t.type) {
             case 'video':
-              t.desc = [t.width+'x'+t.height,/*Math.round(t.bps/1024)+'kbps',*/t.fpks/1e3+'fps',t.codec];
+              t.desc = [t.width+'x'+t.height,Math.round(t.bps/1024)+'kbps',t.fpks/1e3+'fps',t.codec];
               if (t.lang) {
-                t.desc.unshift(t.lang);
+                t.desc.unshift(t.language);
               }
               break;
             case 'audio':
-              t.desc = [(t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : t.channels+' channels')),/*Math.round(t.bps/1024)+'kbps',*/Math.round(t.rate/1000)+'kHz',t.codec];
+              t.desc = [(t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : t.channels+' channels')),Math.round(t.bps/1024)+'kbps',Math.round(t.rate/1000)+'kHz',t.codec];
               if (t.lang) {
-                t.desc.unshift(t.lang);
+                t.desc.unshift(t.language);
               }
               break;
+            case 'meta':
             case 'subtitle':
-              t.desc = [t.lang,t.codec];
-              break;
+              //subtitles are type meta and codec subtitle in Mist > v2.13, still support type subtitle though
+              if ((t.type == 'subtitle') || (t.codec == 'subtitle')) {
+                t.type = "subtitle";
+                t.desc = [t.language];
+                break;
+              }
             default:
               skip = true;
               break;

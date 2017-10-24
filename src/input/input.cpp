@@ -387,16 +387,7 @@ namespace Mist {
       it->second.lastms = 0;
     }
 
-    getNext();
-    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
-      nProxy.bufferLivePacket(thisPacket, myMeta);
-      getNext();
-      nProxy.userClient.keepAlive();
-    }
-    std::string reason = "Unknown";
-    if (!thisPacket){reason = "Invalid packet";}
-    if (!config->is_active){reason = "received deactivate signal";}
-    if (!nProxy.userClient.isAlive()){reason = "buffer shutdown";}
+    std::string reason = streamMainLoop();
 
     closeStreamSource();
 
@@ -409,9 +400,22 @@ namespace Mist {
     return;
   }
 
-  void Input::finish(){
-    for( std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++){
-      for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+  std::string Input::streamMainLoop(){
+    getNext();
+    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
+      nProxy.bufferLivePacket(thisPacket, myMeta);
+      getNext();
+      nProxy.userClient.keepAlive();
+    }
+    if (!thisPacket){return "Invalid packet";}
+    if (!config->is_active){return "received deactivate signal";}
+    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    return "Unknown";
+  }
+
+  void Input::finish() {
+    for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++) {
+      for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
         it2->second = 1;
       }
     }

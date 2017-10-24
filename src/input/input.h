@@ -50,6 +50,7 @@ namespace Mist {
       virtual void convert();
       virtual void serve();
       virtual void stream();
+      virtual std::string streamMainLoop();
       bool isAlwaysOn();
 
       virtual void parseHeader();

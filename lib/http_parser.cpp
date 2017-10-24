@@ -8,7 +8,7 @@
 
 /// Helper function to check if the given c-string is numeric or not
 static bool is_numeric(const char * str){
-  while (str != 0){
+  while (str[0] != 0){
     if (str[0] < 48 || str[0] > 57){return false;}
     ++str;
   }
@@ -17,6 +17,7 @@ static bool is_numeric(const char * str){
 
 ///Constructor that does the actual parsing
 HTTP::URL::URL(const std::string & url){
+  IPv6Addr = false;
   //first detect protocol at the start, if any
   size_t proto_sep = url.find("://");
   if (proto_sep != std::string::npos){
@@ -24,6 +25,9 @@ HTTP::URL::URL(const std::string & url){
     proto_sep += 3;
   }else{
     proto_sep = 0;
+    if (url.substr(0, 2) == "//"){
+      proto_sep = 2;
+    }
   }
   //proto_sep now points to the start of the host, guaranteed
   //continue by finding the path, if any
@@ -36,7 +40,7 @@ HTTP::URL::URL(const std::string & url){
     }
     size_t hmark = path.find('#');
     if (hmark != std::string::npos){
-      frag = path.substr(hmark+1);
+      frag = Encodings::URL::decode(path.substr(hmark+1));
       path.erase(hmark);
     }
     size_t qmark = path.find('?');
@@ -45,15 +49,28 @@ HTTP::URL::URL(const std::string & url){
       path.erase(qmark);
     }
     if (path.size()){
+      if (path[0] == '/'){
+        path.erase(0, 1);
+      }
       size_t dots = path.find("/./");
       while (dots != std::string::npos){
+        DONTEVEN_MSG("%s (/./ -> /)", path.c_str());
         path.erase(dots, 2);
         dots = path.find("/./");
+      }
+      dots = path.find("//");
+      while (dots != std::string::npos){
+        DONTEVEN_MSG("%s (// -> /)", path.c_str());
+        path.erase(dots, 1);
+        dots = path.find("//");
+      }
+      if (path[0] == '/'){
+        path.erase(0, 1);
       }
       dots = path.find("/../");
       while (dots != std::string::npos){
         size_t prevslash = path.rfind('/', dots-1);
-        if (prevslash == std::string::npos){
+        if (prevslash == std::string::npos || dots == 0){
           path.erase(0, dots+4);
         }else{
           path.erase(prevslash+1, dots-prevslash+3);
@@ -66,39 +83,59 @@ HTTP::URL::URL(const std::string & url){
       if (path.substr(0, 3) == "../"){
         path.erase(0, 3);
       }
+      path = Encodings::URL::decode(path);
     }
   }
-  //host and port are now definitely between proto_sep and first_slash
-  //we check for [ at the start because we may have an IPv6 address as host
-  if (url[proto_sep] == '['){
-    //IPv6 address - find matching brace
-    size_t closing_brace = url.find(']', proto_sep);
-    //check if it exists at all
-    if (closing_brace == std::string::npos || closing_brace > first_slash){
-      //assume host ends at first slash if there is no closing brace before it
-      closing_brace = first_slash;
+  //user, pass, host and port are now definitely between proto_sep and first_slash
+  std::string uphp = url.substr(proto_sep, first_slash-proto_sep);//user+pass+host+port
+  //Check if we have a user/pass before the host
+  size_t at_sign = uphp.find('@');
+  if (at_sign != std::string::npos){
+    std::string creds = uphp.substr(0, at_sign);
+    uphp.erase(0, at_sign+1);
+    size_t colon = creds.find(':');
+    if (colon != std::string::npos){
+      user = Encodings::URL::decode(creds.substr(0, colon));
+      pass = Encodings::URL::decode(creds.substr(colon+1));
+    }else{
+      user = Encodings::URL::decode(creds);
     }
-    host = url.substr(proto_sep+1, closing_brace-(proto_sep+1));
+  }
+  //we check for [ at the start because we may have an IPv6 address as host
+  if (uphp[0] == '['){
+    //IPv6 address - find matching brace
+    IPv6Addr = true;
+    size_t closing_brace = uphp.find(']');
+    host = uphp.substr(1, closing_brace-1);
     //continue by finding port, if any
-    size_t colon = url.rfind(':', first_slash);
-    if (colon == std::string::npos || colon <= closing_brace){
-      //no port. Assume 80
-      port = "80";
+    size_t colon = uphp.find(':', closing_brace);
+    if (colon == std::string::npos){
+      //no port. Assume default
+      port = "";
     }else{
       //we have a port number, read it
-      port = url.substr(colon+1, first_slash-(colon+1));
+      port = uphp.substr(colon+1);
+      if (!is_numeric(port.c_str())){
+        host += ":" + port;
+        port = "";
+      }
     }
   }else{
     //"normal" host - first find port, if any
-    size_t colon = url.rfind(':', first_slash);
-    if (colon == std::string::npos || colon < proto_sep){
+    size_t colon = uphp.rfind(':');
+    if (colon == std::string::npos){
       //no port. Assume default
       port = "";
-      host = url.substr(proto_sep, first_slash-proto_sep);
+      host = uphp;
     }else{
       //we have a port number, read it
-      port = url.substr(colon+1, first_slash-(colon+1));
-      host = url.substr(proto_sep, colon-proto_sep);
+      port = uphp.substr(colon+1);
+      host = uphp.substr(0, colon);
+      if (!is_numeric(port.c_str())){
+        IPv6Addr = true;
+        host += ":" + port;
+        port = "";
+      }
     }
   }
   //if the host is numeric, assume it is a port, instead
@@ -121,25 +158,35 @@ uint32_t HTTP::URL::getPort() const{
 
 ///Returns the default port for the protocol in numeric format
 uint32_t HTTP::URL::getDefaultPort() const{
+  if (protocol == "http"){return 80;}
   if (protocol == "https"){return 443;}
   if (protocol == "rtmp"){return 1935;}
   if (protocol == "dtsc"){return 4200;}
-  return 80;
+  if (protocol == "rtsp"){return 554;}
+  return 0;
 }
 
 ///Returns the full URL in string format
 std::string HTTP::URL::getUrl() const{
   std::string ret;
   if (protocol.size()){
-    ret = protocol + "://" + host;
+    ret = protocol + "://";
   }else{
-    ret = "//" + host;
+    ret = "//";
+  }
+  if (user.size() || pass.size()){
+    ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+  }
+  if (IPv6Addr){
+    ret += "[" + host + "]";
+  }else{
+    ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += path;}
+  if (path.size()){ret += Encodings::URL::encode(path);}
   if (args.size()){ret += "?" + args;}
-  if (frag.size()){ret += "#" + frag;}
+  if (frag.size()){ret += "#" + Encodings::URL::encode(frag);}
   return ret;
 }
 
@@ -147,13 +194,21 @@ std::string HTTP::URL::getUrl() const{
 std::string HTTP::URL::getBareUrl() const{
   std::string ret;
   if (protocol.size()){
-    ret = protocol + "://" + host;
+    ret = protocol + "://";
   }else{
-    ret = "//" + host;
+    ret = "//";
+  }
+  if (user.size() || pass.size()){
+    ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+  }
+  if (IPv6Addr){
+    ret += "[" + host + "]";
+  }else{
+    ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += path;}
+  if (path.size()){ret += Encodings::URL::encode(path);}
   return ret;
 }
 

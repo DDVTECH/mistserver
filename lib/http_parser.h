@@ -83,7 +83,10 @@ namespace HTTP {
       std::string path;///<Path after the first slash (not inclusive) but before any question mark
       std::string args;///<Everything after the question mark in the path, if it was present
       std::string frag;///<Everything after the # in the path, if it was present
+      std::string user;///<Username, if it was present
+      std::string pass;///<Password, if it was present
       URL link(const std::string &l) const;
+      bool IPv6Addr;
   };
 
 }//HTTP namespace

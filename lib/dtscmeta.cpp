@@ -1128,6 +1128,7 @@ namespace DTSC {
     firstms = 0;
     lastms = 0;
     bps = 0;
+    max_bps = 0;
     missedFrags = 0;
     rate = 0;
     size = 0;
@@ -1162,6 +1163,7 @@ namespace DTSC {
     firstms = trackRef["firstms"].asInt();
     lastms = trackRef["lastms"].asInt();
     bps = trackRef["bps"].asInt();
+    max_bps = trackRef["maxbps"].asInt();
     missedFrags = trackRef["missed_frags"].asInt();
     codec = trackRef["codec"].asStringRef();
     type = trackRef["type"].asStringRef();
@@ -1224,6 +1226,7 @@ namespace DTSC {
     firstms = trackRef.getMember("firstms").asInt();
     lastms = trackRef.getMember("lastms").asInt();
     bps = trackRef.getMember("bps").asInt();
+    max_bps = trackRef.getMember("maxbps").asInt();
     missedFrags = trackRef.getMember("missed_frags").asInt();
     codec = trackRef.getMember("codec").asString();
     type = trackRef.getMember("type").asString();
@@ -1317,10 +1320,14 @@ namespace DTSC {
         newFrag.setNumber(keys[keys.size() - 1].getNumber());
         if (fragments.size()) {
           fragments[fragments.size() - 1].setDuration(packTime - getKey(fragments[fragments.size() - 1].getNumber()).getTime());
-          unsigned int newBps = (fragments[fragments.size() - 1].getSize() * 1000) / fragments[fragments.size() - 1].getDuration();
-          if (newBps > bps){
-            bps = newBps;
+          uint64_t totalBytes = 0;
+          uint64_t totalDuration = 0;
+          for (std::deque<DTSC::Fragment>::iterator it = fragments.begin(); it != fragments.end(); it++){
+            totalBytes += it->getSize();
+            totalDuration += it->getDuration();
           }
+          bps = totalDuration ? (totalBytes * 1000) / totalDuration : 0;
+          max_bps = std::max(max_bps, (int)((fragments.rbegin()->getSize() * 1000) / fragments.rbegin()->getDuration()));
         }
         newFrag.setDuration(0);
         newFrag.setSize(0);
@@ -1431,6 +1438,7 @@ namespace DTSC {
     keySizes.clear();
     keys.clear();
     bps = 0;
+    max_bps = 0;
     firstms = 0;
     lastms = 0;
   }
@@ -1587,6 +1595,7 @@ namespace DTSC {
     str << std::string(indent + 2, ' ') << "Firstms: " << firstms << std::endl;
     str << std::string(indent + 2, ' ') << "Lastms: " << lastms << std::endl;
     str << std::string(indent + 2, ' ') << "Bps: " << bps << std::endl;
+    str << std::string(indent + 2, ' ') << "Peak bps: " << max_bps << std::endl;
     if (missedFrags) {
       str << std::string(indent + 2, ' ') << "missedFrags: " << missedFrags << std::endl;
     }
@@ -1702,7 +1711,7 @@ namespace DTSC {
 
   ///\brief Determines the "packed" size of a track
   int Track::getSendLen(bool skipDynamic) {
-    int result = 107 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
+    int result = 124 + init.size() + codec.size() + type.size() + getWritableIdentifier().size();
     if (!skipDynamic){
       result += fragments.size() * PACKED_FRAGMENT_SIZE + 16;
       result += keys.size() * PACKED_KEY_SIZE + 11;
@@ -1799,6 +1808,8 @@ namespace DTSC {
     writePointer(p, convertLongLong(lastms), 8);
     writePointer(p, "\000\003bps\001", 6);
     writePointer(p, convertLongLong(bps), 8);
+    writePointer(p, "\000\006maxbps\001", 9);
+    writePointer(p, convertLongLong(max_bps), 8);
     writePointer(p, "\000\004init\002", 7);
     writePointer(p, convertInt(init.size()), 4);
     writePointer(p, init);
@@ -1887,6 +1898,8 @@ namespace DTSC {
     conn.SendNow(convertLongLong(lastms), 8);
     conn.SendNow("\000\003bps\001", 6);
     conn.SendNow(convertLongLong(bps), 8);
+    conn.SendNow("\000\006maxbps\001", 9);
+    conn.SendNow(convertLongLong(max_bps), 8);
     conn.SendNow("\000\004init\002", 7);
     conn.SendNow(convertInt(init.size()), 4);
     conn.SendNow(init);
@@ -2066,6 +2079,7 @@ namespace DTSC {
     result["firstms"] = (long long)firstms;
     result["lastms"] = (long long)lastms;
     result["bps"] = bps;
+    result["maxbps"] = max_bps;
     if (missedFrags) {
       result["missed_frags"] = missedFrags;
     }

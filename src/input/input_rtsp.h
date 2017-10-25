@@ -26,8 +26,7 @@ namespace Mist{
     void parseStreamHeader();
     void seek(int seekTime){}
     void sendCommand(const std::string &cmd, const std::string &cUrl, const std::string &body,
-                     const std::map<std::string, std::string> &extraHeaders =
-                         std::map<std::string, std::string>());
+                     const std::map<std::string, std::string> *extraHeaders = 0);
     bool parsePacket();
     bool handleUDP();
     std::string streamMainLoop();

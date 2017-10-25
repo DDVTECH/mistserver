@@ -79,7 +79,7 @@ namespace Mist{
 
   void InputRTSP::sendCommand(const std::string &cmd, const std::string &cUrl,
                               const std::string &body,
-                              const std::map<std::string, std::string> &extraHeaders){
+                              const std::map<std::string, std::string> *extraHeaders){
     ++cSeq;
     sndH.Clean();
     sndH.protocol = "RTSP/1.0";
@@ -92,9 +92,9 @@ namespace Mist{
     sndH.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
     sndH.SetHeader("CSeq", JSON::Value((long long)cSeq).asString());
     if (session.size()){sndH.SetHeader("Session", session);}
-    if (extraHeaders.size()){
-      for (std::map<std::string, std::string>::const_iterator it = extraHeaders.begin();
-           it != extraHeaders.end(); ++it){
+    if (extraHeaders && extraHeaders->size()){
+      for (std::map<std::string, std::string>::const_iterator it = extraHeaders->begin();
+           it != extraHeaders->end(); ++it){
         sndH.SetHeader(it->first, it->second);
       }
     }
@@ -130,11 +130,11 @@ namespace Mist{
   void InputRTSP::parseStreamHeader(){
     std::map<std::string, std::string> extraHeaders;
     extraHeaders["Accept"] = "application/sdp";
-    sendCommand("DESCRIBE", url.getUrl(), "", extraHeaders);
+    sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
     parsePacket();
     if (!seenSDP && authRequest.size() && (username.size() || password.size()) && tcpCon){
       INFO_MSG("Authenticating...");
-      sendCommand("DESCRIBE", url.getUrl(), "", extraHeaders);
+      sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
       parsePacket();
     }
     if (!tcpCon || !seenSDP){
@@ -147,7 +147,7 @@ namespace Mist{
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-        sendCommand("SETUP", url.link(it->second.control).getUrl(), "", extraHeaders);
+        sendCommand("SETUP", url.link(it->second.control).getUrl(), "", &extraHeaders);
         parsePacket();
         if (!tcpCon || !transportSet){
           FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
@@ -159,7 +159,7 @@ namespace Mist{
     INFO_MSG("Setup complete");
     extraHeaders.clear();
     extraHeaders["Range"] = "npt=0.000-";
-    sendCommand("PLAY", url.getUrl(), "", extraHeaders);
+    sendCommand("PLAY", url.getUrl(), "", &extraHeaders);
     if (!TCPmode){
       tcpCon.setBlocking(false);
       connectedAt = Util::epoch() + 2208988800ll;

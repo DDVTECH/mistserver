@@ -110,6 +110,7 @@ namespace Mist {
       static int curFilled = 0;
       if (curFilled == udpSize){
         pushSock.SendNow(packetBuffer);
+        myConn.addUp(packetBuffer.size());
         packetBuffer.clear();
         packetBuffer.reserve(udpSize * len);
         curFilled = 0;

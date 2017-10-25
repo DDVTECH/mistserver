@@ -7,6 +7,7 @@
 #include <set>
 
 #include "shared_memory.h"
+#define TS_PTS_ROLLOVER 95443718 
 
 namespace TS{
   enum codecType{H264 = 0x1B, AAC = 0x0F, AC3 = 0x81, MP3 = 0x03, H265 = 0x24, ID3 = 0x15, MPEG2 = 0x02, MP2 = 0x03};
@@ -83,6 +84,11 @@ namespace TS{
     std::map<unsigned long, std::string> mpeg2SeqHdr;
     std::map<unsigned long, std::string> mpeg2SeqExt;
     std::map<unsigned long, std::string> mp2Hdr;
+
+
+    std::map<unsigned int, size_t> rolloverCount;
+    std::map<unsigned int, unsigned long long> lastms;
+
     mutable tthread::recursive_mutex tMutex;
 
     bool threaded;

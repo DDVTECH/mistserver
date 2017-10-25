@@ -430,6 +430,13 @@ namespace TS{
         }
       }
 
+      timeStamp += (rolloverCount[tid] * TS_PTS_ROLLOVER);
+
+      if ((timeStamp < lastms[tid]) && ((timeStamp + TS_PTS_ROLLOVER) > lastms[tid] )){
+        ++rolloverCount[tid];
+        timeStamp += TS_PTS_ROLLOVER;
+      }
+
 
       if (pesHeader[7] & 0x20){// ESCR - ignored
         pesOffset += 6;
@@ -454,6 +461,7 @@ namespace TS{
 
       const char *pesPayload = pesHeader + pesOffset;
       parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04 );
+      lastms[tid] = timeStamp;
 
       // Shift the offset by the payload size, the mandatory headers and the optional
       // headers/padding

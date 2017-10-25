@@ -18,6 +18,7 @@ namespace Controller{
   void doAutoPush(std::string &streamname);
   void pushCheckLoop(void *np);
   bool isPushActive(const std::string &streamname, const std::string &target);
+  void stopActivePushes(const std::string &streamname, const std::string &target);
 
   // for storing/retrieving settings
   void pushSettings(const JSON::Value &request, JSON::Value &response);

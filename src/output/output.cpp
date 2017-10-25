@@ -857,7 +857,7 @@ namespace Mist{
       }
       if (targetParams.count("recstop")){
         long long endRec = atoll(targetParams["recstop"].c_str());
-        if (endRec < startTime()){
+        if (endRec < 0 || endRec < startTime()){
           FAIL_MSG("Entire recording range is in the past");
           onFail();
           return;
@@ -867,12 +867,13 @@ namespace Mist{
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
         unsigned long int mainTrack = getMainSelectedTrack();
         long long startRec = atoll(targetParams["recstart"].c_str());
-        if (startRec > myMeta.tracks[mainTrack].lastms){
+        if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
           if (myMeta.vod){
             FAIL_MSG("Recording start past end of non-live source");
             onFail();
             return;
           }
+          INFO_MSG("Waiting for stream to reach recording starting point");
           long unsigned int streamAvail = myMeta.tracks[mainTrack].lastms;
           long unsigned int lastUpdated = Util::getMS();
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
@@ -885,7 +886,7 @@ namespace Mist{
             }
           }
         }
-        if (startRec < startTime()){
+        if (startRec < 0 || startRec < startTime()){
           WARN_MSG("Record begin at %llu ms not available, starting at %llu ms instead", startRec, startTime());
           startRec = startTime();
         }

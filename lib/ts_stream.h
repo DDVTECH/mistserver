@@ -61,6 +61,7 @@ namespace TS{
                         uint64_t timeStamp, int64_t timeOffset, uint64_t bPos, bool alignment);
     std::set<unsigned long> getActiveTracks();
 
+    void setLastms(uint32_t tid, uint64_t timestamp);
   private:
     unsigned long long lastPAT;
     ProgramAssociationTable associationTable;
@@ -84,7 +85,6 @@ namespace TS{
     std::map<unsigned long, std::string> mpeg2SeqHdr;
     std::map<unsigned long, std::string> mpeg2SeqExt;
     std::map<unsigned long, std::string> mp2Hdr;
-
 
     std::map<unsigned int, size_t> rolloverCount;
     std::map<unsigned int, unsigned long long> lastms;

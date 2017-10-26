@@ -472,6 +472,11 @@ namespace TS{
     free(payload);
   }
 
+  void Stream::setLastms(uint32_t tid, uint64_t timestamp){
+    lastms[tid] = timestamp;
+    rolloverCount[tid] = timestamp / TS_PTS_ROLLOVER;
+  }
+
   void Stream::parseBitstream(uint32_t tid, const char *pesPayload, uint32_t realPayloadSize,
                               uint64_t timeStamp, int64_t timeOffset, uint64_t bPos, bool alignment){
 //INFO_MSG("timestamp: %llu offset: %lld", timeStamp, timeOffset);

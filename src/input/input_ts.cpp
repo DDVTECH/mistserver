@@ -358,6 +358,7 @@ namespace Mist {
           break;
         }
         thisBPos = keyIt->getBpos();
+        tsStream.setLastms(*it, keyIt->getTime());
       }
       if (thisBPos < seekPos) {
         seekPos = thisBPos;

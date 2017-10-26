@@ -520,8 +520,9 @@ int handleRequest(Socket::Connection &conn){
       }
       if (proto != "" && bestHost && bestScore){
         H.Clean();
+        H.setCORSHeaders();
         H.SetHeader("Location", bestHost->details->getUrl(stream, proto) + vars);
-        H.SetBody("<a href=\""+H.GetHeader("Location")+"\">Click here for stream</a>");
+        H.SetBody(H.GetHeader("Location"));
         H.SendResponse("307", "Redirecting", conn);
         H.Clean();
       }else{

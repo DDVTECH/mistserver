@@ -89,6 +89,8 @@ namespace TS{
     outPackets.clear();
     buildPacket.clear();
     seenUnitStart.clear();
+    lastms.clear();
+    rolloverCount.clear();
   }
 
   void Stream::clear(){

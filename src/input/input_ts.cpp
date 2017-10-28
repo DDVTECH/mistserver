@@ -306,16 +306,24 @@ namespace Mist {
         }
       }
     }
+    if (feof(inFile)){
+      tsStream.finish();
+      hasPacket = true;
+    }
     if (!hasPacket) {
       return;
     }
     if (selectedTracks.size() == 1) {
-      tsStream.getPacket(*selectedTracks.begin(), thisPacket);
+      if (tsStream.hasPacket(*selectedTracks.begin())){
+        tsStream.getPacket(*selectedTracks.begin(), thisPacket);
+      }
     } else {
-      tsStream.getEarliestPacket(thisPacket);
+      if (tsStream.hasPacket()){
+        tsStream.getEarliestPacket(thisPacket);
+      }
     }
     if (!thisPacket){
-      FAIL_MSG("Could not getNext TS packet!");
+      INFO_MSG("Could not getNext TS packet!");
       return;
     }
     tsStream.initializeMetadata(myMeta);

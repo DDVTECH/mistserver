@@ -132,7 +132,7 @@ namespace Mist{
   bool Playlist::atEnd() const{return (packetPtr - source.data() + 188) > source.size();}
 
   bool Playlist::isUrl() const{
-    return (uri_root.size() ? uri_root.find("http://") == 0 : uri.find("http://") == 0);
+    return uri_root.find("://") != std::string::npos;
   }
 
   bool inputHLS::callback(){
@@ -148,8 +148,8 @@ namespace Mist{
     
     //root = HTTP::URL(loadUrl);
     HTTP::URL root = HTTP::URL(loadUrl);
-    if (root.protocol != "http"){
-      FAIL_MSG("Only http protocol is supported (%s not supported)", root.protocol.c_str());
+    if (root.protocol != "http" && root.protocol != "https"){
+      FAIL_MSG("Only http(s) protocols are supported (%s not supported)", root.protocol.c_str());
       return false;
     }
 
@@ -318,7 +318,7 @@ namespace Mist{
       lastTimestamp += duration;
       entry.timestamp = lastTimestamp + startTime ;
     }else{
-      INFO_MSG("set timestamp ZERO, load immediatly!");
+      INFO_MSG("set timestamp ZERO, load immediately!");
       entry.timestamp = 0; // read all segments immediatly at the beginning, then use delays
       //FAIL_MSG("e timestamp %llu", entry.timestamp);
     }
@@ -335,10 +335,18 @@ namespace Mist{
     capa["name"] = "HLS";
     capa["decs"] = "Enables HLS Input";
     capa["source_match"].append("/*.m3u8");
+    capa["source_match"].append("/*.m3u");
     capa["source_match"].append("http://*.m3u8");
+    capa["source_match"].append("http://*.m3u");
+    capa["source_match"].append("https://*.m3u8");
+    capa["source_match"].append("https://*.m3u");
     // These two can/may be set to always-on mode
     capa["always_match"].append("/*.m3u8");
+    capa["always_match"].append("/*.m3u");
     capa["always_match"].append("http://*.m3u8");
+    capa["always_match"].append("http://*.m3u");
+    capa["always_match"].append("https://*.m3u8");
+    capa["always_match"].append("https://*.m3u");
 
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
@@ -928,7 +936,7 @@ continueNegotiate();
     std::ifstream fileSource;
 
     bool isUrl = false;
-    if (uri.compare(0, 7, "http://") == 0){
+    if (uri.find("://") != std::string::npos){
       isUrl = true;
       Playlist p;
       p.loadURL(uri);

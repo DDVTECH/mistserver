@@ -16,7 +16,7 @@
 #include "triggers.h"
 #include "bitfields.h"   //for strToBool
 #include "defines.h"     //for FAIL_MSG and INFO_MSG
-#include "http_parser.h" //for sending http request
+#include "downloader.h" //for sending http request
 #include "procs.h"       //for StartPiped
 #include "shared_memory.h"
 #include "util.h"
@@ -36,36 +36,16 @@ namespace Triggers{
       return "true";
     }
     INFO_MSG("Executing %s trigger: %s (%s)", trigger.c_str(), value.c_str(), sync ? "blocking" : "asynchronous");
-    if (value.substr(0, 7) == "http://"){// interpret as url
-      std::string url = value.substr(value.find("://") + 3); // contains server+url
-      std::string server = url.substr(0, url.find('/'));
-      int port = 80;
-      if (server.find(':') != std::string::npos){
-        port = atoi(server.data() + server.find(':') + 1);
-        server.erase(server.find(':'));
+    if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
+      HTTP::Downloader DL;
+      DL.setHeader("X-Trigger", trigger);
+      DL.setHeader("Content-Type", "application/x-www-form-urlencoded");
+      HTTP::URL url(value);
+      if (DL.post(url, payload, sync) && sync && DL.isOk()){
+        return DL.data();
       }
-      url = url.substr(url.find('/'));
-
-      Socket::Connection conn(server, port, false);
-      HTTP::Parser H;
-      H.url = url;
-      H.method = "POST";
-      H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString());
-      H.SetHeader("Content-Type", "application/x-www-form-urlencoded");
-      H.SetHeader("X-Trigger", trigger);
-
-      H.SetBody(payload);
-      H.SendRequest(conn);
-      H.Clean();
-      if (sync){// if sync!=0 wait for response
-        while (conn && (!conn.spool() || !H.Read(conn))){}
-        conn.close();
-        /// \todo Handle errors!
-        return H.body;
-      }else{
-        conn.close();
-        return "true";
-      }
+      /// \TODO Send default response.
+      return "true";
     }else{// send payload to stdin of newly forked process
       int fdIn = -1;
       int fdOut = -1;

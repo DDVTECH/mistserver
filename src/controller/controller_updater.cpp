@@ -9,6 +9,7 @@
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/downloader.h>
 #include <mist/http_parser.h>
 #include <mist/timing.h>
 #include <signal.h>   //for raise
@@ -48,6 +49,7 @@ static bool writeFile(std::string filename, std::string &contents){
 tthread::mutex updaterMutex;
 uint8_t updatePerc = 0;
 JSON::Value updates;
+HTTP::Downloader DL;
 
 namespace Controller{
 
@@ -65,21 +67,14 @@ namespace Controller{
           updates = result;
         }
         if (!result["uptodate"] && updatePerc){
-          Socket::Connection updrConn("releases.mistserver.org", 80, true);
-          if (!updrConn){
-            FAIL_MSG("Could not connect to releases.mistserver.org for update");
-          }else{
-            // loop through the available components, update them
-            unsigned int needCount = result["needs_update"].size();
-            if (needCount){
-              jsonForEach(result["needs_update"], it){
-                if (!Controller::conf.is_active){break;}
-                updatePerc = ((it.num() * 99) / needCount) + 1;
-                updateComponent(it->asStringRef(), result[it->asStringRef()].asStringRef(),
-                                updrConn);
-              }
+          // loop through the available components, update them
+          unsigned int needCount = result["needs_update"].size();
+          if (needCount){
+            jsonForEach(result["needs_update"], it){
+              if (!Controller::conf.is_active){break;}
+              updatePerc = ((it.num() * 99) / needCount) + 1;
+              updateComponent(it->asStringRef(), result[it->asStringRef()].asStringRef());
             }
-            updrConn.close();
           }
           updatePerc = 0;
         }
@@ -109,29 +104,14 @@ namespace Controller{
     }
     HTTP::Parser http;
     JSON::Value updrInfo;
-    // retrieve update information
-    Socket::Connection updrConn("releases.mistserver.org", 80, true);
-    if (!updrConn){
-      Log("UPDR", "Could not connect to releases.mistserver.org to get update information.");
-      ret["error"] = "Could not connect to releases.mistserver.org to get update information.";
+    if (DL.get("http://releases.mistserver.org/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&iid=" + instanceId) && DL.isOk()){
+      updrInfo = JSON::fromString(DL.data());
+    }else{
+      Log("UPDR", "Error getting update info: "+DL.getStatusText());
+      ret["error"] = "Error getting update info: "+DL.getStatusText();
+      ret["uptodate"] = 1;
       return ret;
     }
-    http.url = "/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&iid=" + instanceId;
-    http.method = "GET";
-    http.SetHeader("Host", "releases.mistserver.org");
-    http.SetHeader("X-Version", PACKAGE_VERSION);
-    updrConn.SendNow(http.BuildRequest());
-    http.Clean();
-    unsigned int startTime = Util::epoch();
-    while ((Util::epoch() - startTime < 10) && (updrConn || updrConn.Received().size())){
-      if (updrConn.spool() && http.Read(updrConn)){
-        updrInfo = JSON::fromString(http.body);
-        break; // break out of while loop
-      }
-      Util::sleep(250);
-    }
-    updrConn.close();
-
     if (updrInfo){
       if (updrInfo.isMember("error")){
         Log("UPDR", updrInfo["error"].asStringRef());
@@ -173,46 +153,17 @@ namespace Controller{
   /// \param md5sum The MD5 sum of the latest version of this file.
   /// \param updrConn An connection to releases.mistserver.org to (re)use. Will be (re)opened if
   /// closed.
-  void updateComponent(const std::string &component, const std::string &md5sum,
-                       Socket::Connection &updrConn){
+  void updateComponent(const std::string &component, const std::string &md5sum){
     Log("UPDR", "Updating " + component);
-    std::string new_file;
-    HTTP::Parser http;
-    http.url = "/getfile.php?rel=" RELEASE "&pass=" SHARED_SECRET "&file=" + component;
-    http.method = "GET";
-    http.SetHeader("Host", "releases.mistserver.org");
-    http.SetHeader("X-Version", PACKAGE_VERSION);
-    if (!updrConn){
-      updrConn = Socket::Connection("releases.mistserver.org", 80, true);
-      if (!updrConn){
-        FAIL_MSG("Could not connect to releases.mistserver.org for file download.");
-        return;
-      }
-    }
-    http.SendRequest(updrConn);
-    http.Clean();
-    uint64_t startTime = Util::bootSecs();
-    while ((Util::bootSecs() < startTime + 10) && updrConn && Controller::conf.is_active){
-      if (!updrConn.spool()){
-        Util::sleep(250);
-        continue;
-      }
-      if (http.Read(updrConn)){
-        new_file = http.body;
-        break; // break out of while loop
-      }
-      startTime = Util::bootSecs();
-    }
-    http.Clean();
-    if (new_file == ""){
+    if (!DL.get("http://releases.mistserver.org/getfile.php?rel=" RELEASE "&pass=" SHARED_SECRET "&file=" + component) || !DL.isOk() || !DL.data().size()){
       FAIL_MSG("Could not retrieve new version of %s, continuing without", component.c_str());
       return;
     }
-    if (Secure::md5(new_file) != md5sum){
+    if (Secure::md5(DL.data()) != md5sum){
       FAIL_MSG("Checksum of %s incorrect, continuing without", component.c_str());
       return;
     }
-    if (!writeFile(Util::getMyPath() + component, new_file)){
+    if (!writeFile(Util::getMyPath() + component, DL.data())){
       FAIL_MSG("Could not write updated version of %s, continuing without", component.c_str());
       return;
     }

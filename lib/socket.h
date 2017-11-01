@@ -16,6 +16,15 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#ifdef SSL
+#include "mbedtls/net.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/debug.h"
+#include "mbedtls/error.h"
+#endif
+
 // for being friendly with Socket::Connection down below
 namespace Buffer{
   class user;
@@ -54,7 +63,7 @@ namespace Socket{
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
   class Connection{
-  private:
+  protected:
     int sock;               ///< Internally saved socket number.
     int pipes[2];           ///< Internally saved file descriptors for pipe socket simulation.
     std::string remotehost; ///< Stores remote host address.
@@ -63,8 +72,8 @@ namespace Socket{
     uint64_t down;
     long long int conntime;
     Buffer downbuffer;                                ///< Stores temporary data coming in.
-    int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
-    unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
+    virtual int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
+    virtual unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
     bool iread(Buffer &buffer, int flags = 0);        ///< Incremental write call that is compatible with Socket::Buffer.
     bool iwrite(std::string &buffer);                 ///< Write call that is compatible with std::string.
   public:
@@ -77,9 +86,9 @@ namespace Socket{
     Connection(std::string adres, bool nonblock = false);      ///< Create a new Unix Socket.
     Connection(int write, int read);                           ///< Simulate a socket using two file descriptors.
     // generic methods
-    void close();                    ///< Close connection.
+    virtual void close();                    ///< Close connection.
     void drop();                     ///< Close connection without shutdown.
-    void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
+    virtual void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking();               ///< Check if this socket is blocking (true) or nonblocking (false).
     std::string getHost() const;     ///< Gets hostname for connection, if available.
     std::string getBinHost();
@@ -87,7 +96,7 @@ namespace Socket{
     int getSocket();                ///< Returns internal socket number.
     int getPureSocket();            ///< Returns non-piped internal socket number.
     std::string getError();         ///< Returns a string describing the last error that occured.
-    bool connected() const;         ///< Returns the connected-state for this socket.
+    virtual bool connected() const;         ///< Returns the connected-state for this socket.
     bool isAddress(const std::string &addr);
     bool isLocal(); ///< Returns true if remote address is a local address.
     // buffered i/o methods
@@ -113,6 +122,27 @@ namespace Socket{
     bool operator!=(const Connection &B) const;
     operator bool() const;
   };
+
+#ifdef SSL
+  /// Version of Socket::Connection that uses mbedtls for SSL
+  class SSLConnection : public Connection{
+    public:
+      SSLConnection();
+      SSLConnection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
+      void close();                    ///< Close connection.
+      bool connected() const;         ///< Returns the connected-state for this socket.
+      void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
+    protected:
+      bool isConnected;
+      int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
+      unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
+      mbedtls_net_context * server_fd;
+      mbedtls_entropy_context * entropy;
+      mbedtls_ctr_drbg_context * ctr_drbg;
+      mbedtls_ssl_context * ssl;
+      mbedtls_ssl_config * conf;
+  };
+#endif
 
   /// This class is for easily setting up listening socket, either TCP or Unix.
   class Server{

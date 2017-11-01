@@ -23,7 +23,8 @@
 //Changelog:
 //  Version 0-2: Undocumented changes
 //  Version 3: switched to bigMeta-style by default, Parts layout switched from 3/2/4 to 3/3/3 bytes
-#define DTSH_VERSION 3
+//  Version 4: renamed bps to maxbps (peak bit rate) and added new value bps (average bit rate)
+#define DTSH_VERSION 4
 
 namespace DTSC {
 

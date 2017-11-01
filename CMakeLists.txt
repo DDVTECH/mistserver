@@ -72,6 +72,9 @@ endif()
 if (DEFINED BIGMETA )
   add_definitions(-DBIGMETA=1)
 endif()
+if (NOT DEFINED NOSSL )
+  add_definitions(-DSSL=1)
+endif()
 
 ########################################
 # Build Variables - Thread Names       #
@@ -177,6 +180,9 @@ target_link_libraries(mist
   -lpthread 
   ${LIBRT}
 )
+if (NOT DEFINED NOSSL )
+  target_link_libraries(mist mbedtls mbedx509 mbedcrypto)
+endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist

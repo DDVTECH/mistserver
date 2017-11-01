@@ -811,6 +811,207 @@ bool Socket::Connection::isLocal(){
   return false;
 }
 
+#ifdef SSL
+Socket::SSLConnection::SSLConnection() : Socket::Connection::Connection(){
+  isConnected = false;
+  server_fd = 0;
+  ssl = 0;
+  conf = 0;
+  ctr_drbg = 0;
+  entropy = 0;
+}
+
+static void my_debug(void *ctx, int level, const char *file, int line, const char *str){
+  ((void)level);
+  fprintf((FILE *)ctx, "%s:%04d: %s", file, line, str);
+  fflush((FILE *)ctx);
+}
+
+Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblock) : Socket::Connection(){
+  mbedtls_debug_set_threshold(0);
+  isConnected = true;
+  server_fd = new mbedtls_net_context;
+  ssl = new mbedtls_ssl_context;
+  conf = new mbedtls_ssl_config;
+  ctr_drbg = new mbedtls_ctr_drbg_context;
+  entropy = new mbedtls_entropy_context;
+  mbedtls_net_init(server_fd);
+  mbedtls_ssl_init(ssl);
+  mbedtls_ssl_config_init(conf);
+  mbedtls_ctr_drbg_init(ctr_drbg);
+  mbedtls_entropy_init(entropy);
+  DONTEVEN_MSG("SSL init");
+  if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char*)"meow", 4) != 0){
+    FAIL_MSG("SSL socket init failed");
+    close();
+    return;
+  }
+  DONTEVEN_MSG("SSL connect");
+  int ret = 0;
+  if ((ret = mbedtls_net_connect(server_fd, hostname.c_str(), JSON::Value((long long)port).asString().c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
+    FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+    close();
+    return;
+  }
+  if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                         MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
+    FAIL_MSG(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
+    close();
+    return;
+  }
+  mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
+  mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, ctr_drbg);
+  mbedtls_ssl_conf_dbg(conf, my_debug, stderr );
+  if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      FAIL_MSG("SSL setup error %d: %s", ret, estr);
+      close();
+      return;
+  }
+  if ((ret = mbedtls_ssl_set_hostname(ssl, hostname.c_str())) != 0){
+    FAIL_MSG(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+    close();
+    return;
+  }
+  mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+  while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
+    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      FAIL_MSG("SSL handshake error %d: %s", ret, estr);
+      close();
+      return;
+    }
+  }
+  Blocking = true;
+  if (nonblock){
+    setBlocking(false);
+  }
+}
+
+void Socket::SSLConnection::close(){
+  DONTEVEN_MSG("SSL close");
+  if (server_fd){
+    mbedtls_net_free(server_fd);
+    delete server_fd;
+    server_fd = 0;
+  }
+  if (ssl){
+    mbedtls_ssl_free(ssl);
+    delete ssl;
+    ssl = 0;
+  }
+  if (conf){
+    mbedtls_ssl_config_free(conf);
+    delete conf;
+    conf = 0;
+  }
+  if (ctr_drbg){
+    mbedtls_ctr_drbg_free(ctr_drbg);
+    delete ctr_drbg;
+    ctr_drbg = 0;
+  }
+  if (entropy){
+    mbedtls_entropy_free(entropy);
+    delete entropy;
+    entropy = 0;
+  }
+  isConnected = false;
+}
+
+/// Incremental read call. This function tries to read len bytes to the buffer from the socket,
+/// returning the amount of bytes it actually read.
+/// \param buffer Location of the buffer to read to.
+/// \param len Amount of bytes to read.
+/// \param flags Flags to use in the recv call. Ignored on fake sockets.
+/// \returns The amount of bytes actually read.
+int Socket::SSLConnection::iread(void *buffer, int len, int flags){
+  DONTEVEN_MSG("SSL iread");
+  if (!connected() || len < 1){return 0;}
+  int r;
+  /// \TODO Flags ignored... Bad.
+  r = mbedtls_ssl_read(ssl, (unsigned char*)buffer, len);
+  if (r < 0){
+    char estr[200];
+    mbedtls_strerror(r, estr, 200);
+    INFO_MSG("Read returns %d: %s", r, estr);
+  }
+  if (r < 0){
+    switch (errno){
+    case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
+    case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
+    case EWOULDBLOCK: return 0; break;
+    case EINTR: return 0; break;
+    default:
+      Error = true;
+      INSANE_MSG("Could not iread data! Error: %s", strerror(errno));
+      close();
+      return 0;
+      break;
+    }
+  }
+  if (r == 0){
+    DONTEVEN_MSG("Socket closed by remote");
+    close();
+  }
+  down += r;
+  return r;
+}
+
+/// Incremental write call. This function tries to write len bytes to the socket from the buffer,
+/// returning the amount of bytes it actually wrote.
+/// \param buffer Location of the buffer to write from.
+/// \param len Amount of bytes to write.
+/// \returns The amount of bytes actually written.
+unsigned int Socket::SSLConnection::iwrite(const void *buffer, int len){
+  DONTEVEN_MSG("SSL iwrite");
+  if (!connected() || len < 1){return 0;}
+  int r;
+  r = mbedtls_ssl_write(ssl, (const unsigned char*)buffer, len);
+  if (r < 0){
+    char estr[200];
+    mbedtls_strerror(r, estr, 200);
+    INFO_MSG("Write returns %d: %s", r, estr);
+  }
+  if (r < 0){
+    switch (errno){
+    case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
+    case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
+    case EWOULDBLOCK: return 0; break;
+    default:
+      Error = true;
+      INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
+      close();
+      return 0;
+      break;
+    }
+  }
+  if (r == 0 && (sock >= 0)){
+    DONTEVEN_MSG("Socket closed by remote");
+    close();
+  }
+  up += r;
+  return r;
+}
+
+bool Socket::SSLConnection::connected() const{
+  return isConnected;
+}
+
+void Socket::SSLConnection::setBlocking(bool blocking){
+  if (blocking != Blocking){return;}
+  if (blocking){
+    mbedtls_net_set_block(server_fd);
+    Blocking = true;
+  }else{
+    mbedtls_net_set_nonblock(server_fd);
+    Blocking = false;
+  }
+}
+
+#endif
+
 /// Create a new base Server. The socket is never connected, and a placeholder for later connections.
 Socket::Server::Server(){
   sock = -1;

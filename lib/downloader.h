@@ -4,18 +4,22 @@
 namespace HTTP{
   class Downloader{
   public:
-    Downloader(){progressCallback = 0;}
+    Downloader();
     std::string &data();
-    void doRequest(const HTTP::URL &link);
+    void doRequest(const HTTP::URL &link, const std::string &method="", const std::string &body="");
     bool get(const std::string &link);
     bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
+    bool post(const HTTP::URL &link, const std::string &payload, bool sync = true, uint8_t maxRecursiveDepth = 6);
     std::string getHeader(const std::string &headerName);
     std::string &getStatusText();
     uint32_t getStatusCode();
-    bool isOk();
+    bool isOk(); ///< True if the request was successful.
+    bool shouldContinue(); ///<True if the request should be followed-up with another. E.g. redirect or authenticate.
+    bool canContinue(const HTTP::URL &link);///<True if the request is able to continue, false if there is a state error or some such.
     bool (*progressCallback)(); ///< Called every time the socket stalls, up to 4X per second.
     void setHeader(const std::string &name, const std::string &val);
     void clearHeaders();
+    bool canRequest(const HTTP::URL &link);
     Parser &getHTTP();
     Socket::Connection &getSocket();
 
@@ -25,6 +29,14 @@ namespace HTTP{
     uint32_t connectedPort;                          ///< Currently connected port number
     Parser H;                                        ///< HTTP parser for downloader
     Socket::Connection S;                            ///< TCP socket for downloader
+#ifdef SSL
+    Socket::SSLConnection S_SSL; ///< SSL socket for downloader
+#endif
+    bool ssl;                 ///< True if ssl is currently in use.
+    std::string authStr;      ///< Most recently seen WWW-Authenticate request
+    std::string proxyAuthStr; ///< Most recently seen Proxy-Authenticate request
+    bool proxied;             ///< True if proxy server is configured.
+    HTTP::URL proxyUrl;       ///< Set to the URL of the configured proxy.
   };
-}
+}// namespace HTTP
 

@@ -438,7 +438,6 @@ makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
-  target_link_libraries(MistOutHTTPS mbedtls mbedcrypto mbedx509)
 endif()
 makeOutput(DASH dash_mp4       http)#LTS
 
@@ -683,4 +682,7 @@ add_test(AESTest COMMAND aes_ctr128)
 add_executable(urltest test/url.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(urltest mist)
 add_test(URLTest COMMAND urltest)
+add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(downloadertest mist)
+add_test(DownloaderTest COMMAND downloadertest)
 

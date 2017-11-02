@@ -3616,17 +3616,17 @@ var UI = {
           var tables = {
             audio: {
               vheader: 'Audio',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index'],
               content: []
             },
             video: {
               vheader: 'Video',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index'],
               content: []
             },
             subtitle: {
               vheader: 'Subtitles',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index'],
               content: []
             }
           }
@@ -3647,6 +3647,7 @@ var UI = {
               return "unknown";
             }
           }
+          var trackindex = {audio:1,video:1,subtitle:1};
           for (var k in keys) {
             var i = keys[k];
             var track = meta.tracks[i];
@@ -3661,9 +3662,11 @@ var UI = {
                     peakoravg(track,"maxbps"),
                     track.channels,
                     UI.format.addUnit(UI.format.number(track.rate),'Hz'),
-                    ('language' in track ? track.language : 'unknown')
+                    ('language' in track ? track.language : 'unknown'),
+                    (trackindex.audio)
                   ]
                 });
+                trackindex.audio++;
                 break;
               case 'video':
                 tables.video.content.push({
@@ -3675,9 +3678,11 @@ var UI = {
                     peakoravg(track,"maxbps"),
                     UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
                     UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
-                    ('language' in track ? track.language : 'unknown')
+                    ('language' in track ? track.language : 'unknown'),
+                    (trackindex.video)
                   ]
                 });
+                trackindex.video++
                 break;
               case 'meta':
               case 'subtitle':
@@ -3689,9 +3694,11 @@ var UI = {
                       UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
                       peakoravg(track,"bps"),
                       peakoravg(track,"maxbps"),
-                      ('language' in track ? track.language : 'unknown')
+                      ('language' in track ? track.language : 'unknown'),
+                      (trackindex.subtitle)
                     ]
                   });
+                  trackindex.subtitle++
                   break;
                 }
             }

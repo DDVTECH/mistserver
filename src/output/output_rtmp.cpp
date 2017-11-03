@@ -11,6 +11,8 @@
 
 namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn){
+    lastOutTime = 0;
+    rtmpOffset = 0;
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
       streamName = config->getString("streamname");
@@ -263,7 +265,6 @@ namespace Mist{
   }
   
   void OutRTMP::sendNext(){
-
     //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
     //Set sentHeader to false to force it to send init data
     if (myMeta.live && selectedTracks.size() < 2){
@@ -282,6 +283,16 @@ namespace Mist{
           }
         }
       }
+    }
+
+    if (streamOut.size()){
+      if (thisPacket.getTime() - rtmpOffset < lastOutTime){
+        int64_t OLD = rtmpOffset;
+        rtmpOffset -= (1 + lastOutTime - (thisPacket.getTime() - rtmpOffset));
+        INFO_MSG("Changing rtmpOffset from %lld to %lld", OLD, rtmpOffset);
+        realTime = 800;
+      }
+      lastOutTime = thisPacket.getTime() - rtmpOffset;
     }
 
 
@@ -390,9 +401,9 @@ namespace Mist{
     
     unsigned int timestamp = thisPacket.getTime() - rtmpOffset;
     //make sure we don't go negative
-    if (rtmpOffset > thisPacket.getTime()){
+    if (rtmpOffset > (int64_t)thisPacket.getTime()){
       timestamp = 0;
-      rtmpOffset = thisPacket.getTime();
+      rtmpOffset = (int64_t)thisPacket.getTime();
     }
     
     bool allow_short = RTMPStream::lastsend.count(4);

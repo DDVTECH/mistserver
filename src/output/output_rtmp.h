@@ -18,7 +18,8 @@ namespace Mist {
       bool onFinish();
     protected:
       std::string streamOut;///<When pushing out, the output stream name
-      uint64_t rtmpOffset;
+      int64_t rtmpOffset;
+      uint64_t lastOutTime;
       unsigned int maxbps;
       void parseVars(std::string data);
       std::string app_name;

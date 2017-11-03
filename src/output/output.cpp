@@ -472,7 +472,7 @@ namespace Mist{
           if (!found){
             jsonForEach((*itb), itc){
               if (found){break;}
-              for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+              for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                 if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
                   selectedTracks.insert(trit->first);
                   found = true;
@@ -1178,6 +1178,11 @@ namespace Mist{
     static int nonVideoCount = 0;
     static unsigned int emptyCount = 0;
     if (!buffer.size()){
+      if (isRecording() && myMeta.live){
+        selectDefaultTracks();
+        initialSeek();
+        return false;
+      }
       thisPacket.null();
       INFO_MSG("Buffer completely played out");
       return true;
@@ -1604,9 +1609,13 @@ namespace Mist{
         nProxy.userClient.finish();
         nProxy.userClient = IPC::sharedClient();
       }
+      if (statsPage.getData()){
+        statsPage.keepAlive();
+      }
       Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
+        INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
         reconnect();
         streamStatus = Util::getStreamStatus(streamName);
       }

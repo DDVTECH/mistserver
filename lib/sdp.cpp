@@ -51,30 +51,34 @@ namespace SDP{
       mediaDesc << "m=video 0 RTP/AVP 97\r\n"
                    "a=rtpmap:97 H264/90000\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width << "\r\n"
-                                                     "a=framesize:97 "
+                << trk.height << "," << trk.width
+                << "\r\n"
+                   "a=framesize:97 "
                 << trk.width << '-' << trk.height
                 << "\r\n"
                    "a=fmtp:97 packetization-mode=1;profile-level-id="
                 << std::hex << std::setw(2) << std::setfill('0') << (int)trk.init.data()[1]
                 << std::dec << "E0" << std::hex << std::setw(2) << std::setfill('0')
-                << (int)trk.init.data()[3] << std::dec << ";"
-                                                          "sprop-parameter-sets="
+                << (int)trk.init.data()[3] << std::dec
+                << ";"
+                   "sprop-parameter-sets="
                 << Encodings::Base64::encode(std::string(avccbox.getSPS(), avccbox.getSPSLen()))
                 << ","
                 << Encodings::Base64::encode(std::string(avccbox.getPPS(), avccbox.getPPSLen()))
                 << "\r\n"
                    "a=framerate:"
-                << ((double)trk.fpks) / 1000.0 << "\r\n"
-                                                  "a=control:track"
+                << ((double)trk.fpks) / 1000.0
+                << "\r\n"
+                   "a=control:track"
                 << trk.trackID << "\r\n";
     }else if (trk.codec == "HEVC"){
       h265::initData iData(trk.init);
       mediaDesc << "m=video 0 RTP/AVP 104\r\n"
                    "a=rtpmap:104 H265/90000\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width << "\r\n"
-                                                     "a=framesize:104 "
+                << trk.height << "," << trk.width
+                << "\r\n"
+                   "a=framesize:104 "
                 << trk.width << '-' << trk.height << "\r\n"
                 << "a=fmtp:104 sprop-vps=";
       const std::set<std::string> &vps = iData.getVPS();
@@ -100,14 +104,16 @@ namespace SDP{
           mediaDesc << Encodings::Base64::encode(*it);
         }
       }
-      mediaDesc << "\r\na=framerate:" << ((double)trk.fpks) / 1000.0 << "\r\n"
-                                                                        "a=control:track"
+      mediaDesc << "\r\na=framerate:" << ((double)trk.fpks) / 1000.0
+                << "\r\n"
+                   "a=control:track"
                 << trk.trackID << "\r\n";
     }else if (trk.codec == "MPEG2"){
       mediaDesc << "m=video 0 RTP/AVP 32\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width << "\r\n"
-                                                     "a=framesize:32 "
+                << trk.height << "," << trk.width
+                << "\r\n"
+                   "a=framesize:32 "
                 << trk.width << '-' << trk.height << "\r\n"
                 << "a=framerate:" << ((double)trk.fpks) / 1000.0 << "\r\n"
                 << "a=control:track" << trk.trackID << "\r\n";
@@ -129,15 +135,17 @@ namespace SDP{
       mediaDesc << "m=" << trk.type << " 0 RTP/AVP 14"
                 << "\r\n"
                    "a=rtpmap:14 MPA/90000/"
-                << trk.channels << "\r\n"
-                                   "a=control:track"
+                << trk.channels
+                << "\r\n"
+                   "a=control:track"
                 << trk.trackID << "\r\n";
     }else if (trk.codec == "AC3"){
       mediaDesc << "m=audio 0 RTP/AVP 100"
                 << "\r\n"
                    "a=rtpmap:100 AC3/"
-                << trk.rate << "/" << trk.channels << "\r\n"
-                                                      "a=control:track"
+                << trk.rate << "/" << trk.channels
+                << "\r\n"
+                   "a=control:track"
                 << trk.trackID << "\r\n";
     }else if (trk.codec == "ALAW"){
       if (trk.channels == 1 && trk.rate == 8000){
@@ -177,8 +185,9 @@ namespace SDP{
       mediaDesc << "m=audio 0 RTP/AVP 102"
                 << "\r\n"
                    "a=rtpmap:102 opus/"
-                << trk.rate << "/" << trk.channels << "\r\n"
-                                                      "a=control:track"
+                << trk.rate << "/" << trk.channels
+                << "\r\n"
+                   "a=control:track"
                 << trk.trackID << "\r\n";
     }
     return mediaDesc.str();
@@ -189,13 +198,14 @@ namespace SDP{
   /// Expects parseTransport to be called with the response from the server.
   std::string Track::generateTransport(uint32_t trackNo, const std::string &dest, bool TCPmode){
     if (TCPmode){
-      //We simply request interleaved delivery over a trackNo-based identifier.
-      //No need to set any internal state, parseTransport will handle it all.
+      // We simply request interleaved delivery over a trackNo-based identifier.
+      // No need to set any internal state, parseTransport will handle it all.
       std::stringstream tStr;
-      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-" << ((trackNo - 1) * 2 + 1);
+      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-"
+           << ((trackNo - 1) * 2 + 1);
       return tStr.str();
     }else{
-      //A little more tricky: we need to find free ports and remember them.
+      // A little more tricky: we need to find free ports and remember them.
       data.SetDestination(dest, 1337);
       rtcp.SetDestination(dest, 1337);
       portA = data.bind(0);
@@ -264,18 +274,19 @@ namespace SDP{
       cPortA = cPortB = 0;
       size_t sPort_loc = transport.rfind("server_port=") + 12;
       if (sPort_loc != std::string::npos){
-        sPortA = atol(transport.substr(sPort_loc, transport.find('-', sPort_loc) - sPort_loc).c_str());
-        sPortB = atol(transport.substr(transport.find('-', sPort_loc)+1).c_str());
+        sPortA =
+            atol(transport.substr(sPort_loc, transport.find('-', sPort_loc) - sPort_loc).c_str());
+        sPortB = atol(transport.substr(transport.find('-', sPort_loc) + 1).c_str());
       }
       size_t port_loc = transport.rfind("client_port=") + 12;
       if (port_loc != std::string::npos){
         cPortA = atol(transport.substr(port_loc, transport.find('-', port_loc) - port_loc).c_str());
-        cPortB = atol(transport.substr(transport.find('-', port_loc)+1).c_str());
+        cPortB = atol(transport.substr(transport.find('-', port_loc) + 1).c_str());
       }
       INFO_MSG("UDP ports: server %d/%d, client %d/%d", sPortA, sPortB, cPortA, cPortB);
       int sendbuff = 4 * 1024 * 1024;
       if (!sPortA || !sPortB){
-        //Server mode - find server ports
+        // Server mode - find server ports
         data.SetDestination(host, cPortA);
         setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
         rtcp.SetDestination(host, cPortB);
@@ -285,10 +296,11 @@ namespace SDP{
         std::stringstream tStr;
         tStr << "RTP/AVP/UDP;unicast;client_port=" << cPortA << '-' << cPortB << ";";
         if (source.size()){tStr << "source=" << source << ";";}
-        tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC << std::dec;
+        tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC
+             << std::dec;
         transportString = tStr.str();
       }else{
-        //Client mode - check ports and/or obey given ports if possible
+        // Client mode - check ports and/or obey given ports if possible
         data.SetDestination(host, sPortA);
         setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
         rtcp.SetDestination(host, sPortB);
@@ -483,18 +495,16 @@ namespace SDP{
         continue;
       }
       if (to.substr(0, 12) == "a=framerate:"){
-        if (!thisTrack->rate){
-          thisTrack->rate = atof(to.c_str() + 12)*1000;
-        }
+        if (!thisTrack->rate){thisTrack->rate = atof(to.c_str() + 12) * 1000;}
         continue;
       }
       if (to.substr(0, 12) == "a=framesize:"){
-        //Ignored for now.
+        // Ignored for now.
         /// \TODO Maybe implement?
         continue;
       }
       if (to.substr(0, 11) == "a=cliprect:"){
-        //Ignored for now.
+        // Ignored for now.
         /// \TODO Maybe implement?
         continue;
       }
@@ -543,7 +553,8 @@ namespace SDP{
       // at this point, the data is definitely for a track
       INFO_MSG("Unhandled SDP line for track %llu: %s", trackNo, to.c_str());
     }
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta->tracks.begin(); it != myMeta->tracks.end(); ++it){
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta->tracks.begin();
+         it != myMeta->tracks.end(); ++it){
       INFO_MSG("Detected track %s", it->second.getIdentifier().c_str());
     }
   }
@@ -610,37 +621,45 @@ namespace SDP{
     HTTP::URL url(H.url);
     std::string urlString = url.getBareUrl();
     std::string pw = H.GetVar("pass");
+    bool loop = true;
 
-    if (tracks.size()){
-      for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
-        if (!it->second.control.size()){
-          it->second.control = "/track" + JSON::Value((long long)it->first).asString();
-          INFO_MSG("Control track: %s", it->second.control.c_str());
-        }
-
-        if ((urlString.size() >= it->second.control.size() &&
-             urlString.substr(urlString.size() - it->second.control.size()) ==
-                 it->second.control) ||
-            (pw.size() >= it->second.control.size() &&
-             pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
-          INFO_MSG("Parsing SETUP against track %lu", it->first);
-          if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src,
-                                         myMeta->tracks[it->first])){
-            return 0;
+    while (loop){
+      if (tracks.size()){
+        for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+          if (!it->second.control.size()){
+            it->second.control = "/track" + JSON::Value((long long)it->first).asString();
+            INFO_MSG("Control track: %s", it->second.control.c_str());
           }
-          return it->first;
+
+          if ((urlString.size() >= it->second.control.size() &&
+               urlString.substr(urlString.size() - it->second.control.size()) ==
+                   it->second.control) ||
+              (pw.size() >= it->second.control.size() &&
+               pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
+            INFO_MSG("Parsing SETUP against track %lu", it->first);
+            if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src,
+                                           myMeta->tracks[it->first])){
+              return 0;
+            }
+            return it->first;
+          }
         }
       }
-    }
-    if (H.url.find("/track") != std::string::npos){
-      uint32_t trackNo = atoi(H.url.c_str() + H.url.find("/track") + 6);
-      if (trackNo){
-        INFO_MSG("Parsing SETUP against track %lu", trackNo);
-        if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src,
-                                            myMeta->tracks[trackNo])){
-          return 0;
+      if (H.url.find("/track") != std::string::npos){
+        uint32_t trackNo = atoi(H.url.c_str() + H.url.find("/track") + 6);
+        if (trackNo){
+          INFO_MSG("Parsing SETUP against track %lu", trackNo);
+          if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src,
+                                              myMeta->tracks[trackNo])){
+            return 0;
+          }
+          return trackNo;
         }
-        return trackNo;
+      }
+      if (urlString != url.path){
+        urlString = url.path;
+      }else{
+        loop = false;
       }
     }
     return 0;
@@ -675,7 +694,7 @@ namespace SDP{
 
     // Header data? Compare to init, set if needed, and throw away
     uint8_t nalType = (buffer[4] & 0x1F);
-    if (nalType == 9 && len < 20){return;}//ignore delimiter-only packets
+    if (nalType == 9 && len < 20){return;}// ignore delimiter-only packets
     switch (nalType){
     case 7: // SPS
       if (tracks[track].spsData.size() != len - 4 ||
@@ -1015,5 +1034,5 @@ namespace SDP{
       return;
     }
   }
-}
+}// namespace SDP
 

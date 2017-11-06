@@ -158,6 +158,7 @@ namespace h264 {
     }
 
     //vuiParameters
+    result.fps = 0;
     if (bs.get(1)) {
       //Skipping all the paramters we dont use
       if (bs.get(1)) {
@@ -185,8 +186,6 @@ namespace h264 {
         unsigned int timeScale = bs.get(32);
         result.fps = (double)timeScale / (2 * unitsInTick);
         bs.skip(1);
-      }else{
-        result.fps = 0;
       }
     }
 

@@ -619,6 +619,7 @@ var UI = {
           e.unit = $("<button>").text("Now").click(function(){
             $(this).closest(".field_container").find(".field").setval((new Date()).getTime()/1e3);
           });
+          break;
         case "selectinput":
           $field = $('<div>').addClass('selectinput');
           var $select = $("<select>");
@@ -2230,14 +2231,16 @@ var UI = {
               ["LOG","Log to MistServer log"],
               [{
                 type:"str",
-                label:"Path"
+                label:"Path",
+                LTSonly: true
               },"Log to file"]
             ],
             pointer: {
               main: s,
               index: "accesslog"
             },
-            help: "Enable access logs."
+            help: "Enable access logs.",
+            LTSonly: true
           },{
             type: "selectinput",
             label: "Prometheus stats output",
@@ -6269,6 +6272,7 @@ $.fn.setval = function(val){
           $(this).val(datetime.split("Z")[0]);
         }
         
+        break;
       case "selectinput":
         //check if val is one of the select options
         if (val === null) {

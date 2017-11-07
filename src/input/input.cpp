@@ -239,13 +239,15 @@ namespace Mist {
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
       streamStatus.init(pageName, 1, true, false);
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
+      streamStatus.master = false;
+      streamStatus.close();
     }
     config->activate();
     uint64_t reTimer = 0;
     while (config->is_active){
       pid_t pid = fork();
       if (pid == 0){
-        //Re-init streamStatus to fix Cygwin issues
+        //Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
         streamStatus.init(pageName, 1, false, false);
@@ -273,6 +275,9 @@ namespace Mist {
         MEDIUM_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+      streamStatus.init(pageName, 1, true, false);
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
 #if DEBUG >= DLVL_DEVEL
       WARN_MSG("Aborting autoclean; this is a development build.");
@@ -290,6 +295,11 @@ namespace Mist {
       playerLock.unlink();
       playerLock.close();
     }
+    char pageName[NAME_BUFFER_SIZE];
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+    streamStatus.init(pageName, 1, true, false);
+    streamStatus.close();
+    HIGH_MSG("Angel process for %s exiting", streamName.c_str());
     return 0;
   }
 

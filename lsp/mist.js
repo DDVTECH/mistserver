@@ -629,6 +629,12 @@ var UI = {
         case 'DOMfield':
           $field = e.DOMfield;
           break;
+        case "unix":
+          $field = $("<input>").attr("type","datetime-local").attr("step",1);
+          e.unit = $("<button>").text("Now").click(function(){
+            $(this).closest(".field_container").find(".field").setval((new Date()).getTime()/1e3);
+          });
+          break;
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -1045,7 +1051,7 @@ var UI = {
               }
               $ihc.prepend($err);
               if (focusonerror) { $(me).focus(); }
-              return true;
+              return ((typeof error == "object") && ("break" in error) ? error["break"] : true);
             }
           }
           return false;
@@ -3610,17 +3616,17 @@ var UI = {
           var tables = {
             audio: {
               vheader: 'Audio',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index'],
               content: []
             },
             video: {
               vheader: 'Video',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index'],
               content: []
             },
             subtitle: {
               vheader: 'Subtitles',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index'],
               content: []
             }
           }
@@ -3641,6 +3647,7 @@ var UI = {
               return "unknown";
             }
           }
+          var trackindex = {audio:1,video:1,subtitle:1};
           for (var k in keys) {
             var i = keys[k];
             var track = meta.tracks[i];
@@ -3655,9 +3662,11 @@ var UI = {
                     peakoravg(track,"maxbps"),
                     track.channels,
                     UI.format.addUnit(UI.format.number(track.rate),'Hz'),
-                    ('language' in track ? track.language : 'unknown')
+                    ('language' in track ? track.language : 'unknown'),
+                    (trackindex.audio)
                   ]
                 });
+                trackindex.audio++;
                 break;
               case 'video':
                 tables.video.content.push({
@@ -3669,9 +3678,11 @@ var UI = {
                     peakoravg(track,"maxbps"),
                     UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
                     UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
-                    ('language' in track ? track.language : 'unknown')
+                    ('language' in track ? track.language : 'unknown'),
+                    (trackindex.video)
                   ]
                 });
+                trackindex.video++
                 break;
               case 'meta':
               case 'subtitle':
@@ -3683,9 +3694,11 @@ var UI = {
                       UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
                       peakoravg(track,"bps"),
                       peakoravg(track,"maxbps"),
-                      ('language' in track ? track.language : 'unknown')
+                      ('language' in track ? track.language : 'unknown'),
+                      (trackindex.subtitle)
                     ]
                   });
+                  trackindex.subtitle++
                   break;
                 }
             }
@@ -4306,7 +4319,16 @@ var UI = {
           }
           function buildTr(push,type) {
             var $target = $('<span>');
-            if ((push.length >= 4) && (push[2] != push[3])) {
+            if ((type == "Automatic") && (push.length >= 4)) {
+              $target.append(
+                $('<span>').text(push[2])
+              ).append(
+                $('<span>').text(', schedule on '+(new Date(push[3]*1e3)).toLocaleString())
+              ).append(
+                $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
+              );
+            }
+            else if ((push.length >= 4) && (push[2] != push[3])) {
               $target.append(
                 $('<span>').text(push[2])
               ).append(
@@ -4330,12 +4352,10 @@ var UI = {
                     )
                   );
                   if (type == 'Automatic') {
+                    var a = push.slice(1);
                     mist.send(function(){
                       $tr.remove();
-                    },{'push_auto_remove':{
-                      stream: push[1],
-                      target: push[2]
-                    }});
+                    },{'push_auto_remove':[a]});
                   }
                   else {
                     mist.send(function(d){
@@ -4346,6 +4366,11 @@ var UI = {
               })
             );
             if (type == 'Automatic') {
+              $buttons.prepend(
+                $("<button>").text("Edit").click(function(){
+                  UI.navto("Start Push","auto_"+($(this).closest("tr").index()-1));
+                })
+              );
               $buttons.append(
                 $('<button>').text('Stop pushes').click(function(){
                   if (confirm("Are you sure you want to stop all pushes matching \n\""+push[1]+' to '+push[2]+"\"?"+(push_settings.wait != 0 ? "\n\nRetrying is enabled. You'll probably want to set that to 0." : ''))) {
@@ -4392,7 +4417,9 @@ var UI = {
           }
           if ('push_auto_list' in d) {
             for (var i in d.push_auto_list) {
-              $autopush.append(buildTr([-1,d.push_auto_list[i][0],d.push_auto_list[i][1]],'Automatic'));
+              var a = d.push_auto_list[i].slice();
+              a.unshift(-1);
+              $autopush.append(buildTr(a,'Automatic'));
             }
           }
           
@@ -4537,7 +4564,19 @@ var UI = {
         }
         
         var allthestreams;
-        function buildTheThings() {
+        function buildTheThings(edit) {
+          var editid = false;
+          var o = other.split("_");
+          other = o[0];
+          if (o.length == 2) { editid = o[1]; }
+          
+          if ((editid !== false) && (typeof edit == "undefined")) {
+            mist.send(function(d){
+              buildTheThings(d.push_auto_list[editid]);
+            },{push_auto_list: 1});
+            return;
+          }
+          
           //retrieve a list of valid targets
           var target_match = [];
           for (var i in mist.data.capabilities.connectors) {
@@ -4552,72 +4591,153 @@ var UI = {
           }
           
           var saveas = {};
-          $main.append(
-            UI.buildUI([{
-                label: 'Stream name',
-                type: 'str',
-                help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:<ul><li><i>a</i>: the stream configured as <i>a</i></li><li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li><li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li></ul>',
-                pointer: {
-                  main: saveas,
-                  index: 'stream'
-                },
-                validate: ['required',function(val,me){
-                  var shouldbestream = val.split('+');
-                  shouldbestream = shouldbestream[0];
-                  if (shouldbestream in mist.data.streams) {
-                    return false;
-                  }
-                  return {
-                    msg: "'"+shouldbestream+"' is not a stream name.",
-                    classes: ['red']
-                  };
-                }],
-                datalist: allthestreams,
-                LTSonly: 1
-              },{
-                label: 'Target',
-                type: 'str',
-                help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul> Valid text replacements:<ul><li>$stream - inserts the stream name used to push to MistServer</li><li>$day - inserts the current day number</li><li>$month - inserts the current month number</li><li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li><li>$minute - inserts the minute timestamp the stream was received</li><li>$seconds - inserts the seconds timestamp when the stream was received</li><li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>',
-                pointer: {
-                  main: saveas,
-                  index: 'target'
-                },
-                validate: ['required',function(val,me){
-                  for (var i in target_match) {
-                    if (mist.inputMatch(target_match[i],val)) {
-                      return false;
-                    }
-                  }
-                  return {
-                    msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
-                    classes: ['red']
-                  }
-                }],
-                LTSonly: 1
-              },{
-                type: 'buttons',
-                buttons: [
-                  {
-                    type: 'cancel',
-                    label: 'Cancel',
-                    'function': function(){
-                      UI.navto('Push');
-                    }
-                  },{
-                    type: 'save',
-                    label: 'Save',
-                    'function': function(){
-                      var obj = {};
-                      obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
-                      mist.send(function(){
-                        UI.navto('Push');
-                      },obj);
-                    }
-                  }
-                ]
+          if ((other == "auto") && (typeof edit != "undefined")) {
+            saveas = {
+              "stream": edit[0],
+              "target": edit[1]
+            };
+            if (edit.length >= 3) { saveas.scheduletime = edit[2]; }
+            if (edit.length >= 4) { saveas.completetime = edit[3]; }
+            if (saveas.target.indexOf("recstartunix=") > -1) {
+              
+              //retrieve recstartunix param value
+              var t = saveas.target.split("recstartunix=")[1];
+              saveas.recstartunix = t.split("&")[0];
+              
+              //remove param from target
+              saveas.target = saveas.target.replace("recstartunix="+saveas.recstartunix,"").replace("?&","?").replace("&&","&");
+              if (saveas.target[saveas.target.length-1] == "?") { saveas.target = saveas.target.slice(0,-1); }
+              
+            }
+          }
+          var build = [{
+            label: 'Stream name',
+            type: 'str',
+            help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:<ul><li><i>a</i>: the stream configured as <i>a</i></li><li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li><li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li></ul>',
+            pointer: {
+              main: saveas,
+              index: 'stream'
+            },
+            validate: ['required',function(val,me){
+              var shouldbestream = val.split('+');
+              shouldbestream = shouldbestream[0];
+              if (shouldbestream in mist.data.streams) {
+                return false;
               }
-            ])
-          );
+              return {
+                msg: "'"+shouldbestream+"' is not a stream name.",
+                classes: ['orange'],
+                "break": false
+              };
+            }],
+            datalist: allthestreams,
+            LTSonly: 1
+          },{
+            label: 'Target',
+            type: 'str',
+            help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul> Valid text replacements:<ul><li>$stream - inserts the stream name used to push to MistServer</li><li>$day - inserts the current day number</li><li>$month - inserts the current month number</li><li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li><li>$minute - inserts the minute timestamp the stream was received</li><li>$seconds - inserts the seconds timestamp when the stream was received</li><li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>',
+            pointer: {
+              main: saveas,
+              index: 'target'
+            },
+            validate: ['required',function(val,me){
+              for (var i in target_match) {
+                if (mist.inputMatch(target_match[i],val)) {
+                  return false;
+                }
+              }
+              return {
+                msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                classes: ['red']
+              }
+            }],
+            LTSonly: 1
+          }];
+          
+          if (other == "auto") { //options only for automatic pushes
+            
+            build.push({
+              type: "unix",
+              label: "Schedule time",
+              min: 0,
+              help: "TODO",
+              pointer: {
+                main: saveas,
+                index: "scheduletime"
+              }
+            },{
+              type: "unix",
+              label: "Recording start time",
+              min: 0,
+              help: "TODO",
+              pointer: {
+                main: saveas,
+                index: "recstartunix"
+              }
+            },{
+              type: "unix",
+              label: "Complete time",
+              min: 0,
+              help: "TODO",
+              pointer: {
+                main: saveas,
+                index: "completetime"
+              }
+            });
+            
+          }
+          
+          build.push({
+            type: 'buttons',
+            buttons: [{
+              type: 'cancel',
+              label: 'Cancel',
+              'function': function(){
+                UI.navto('Push');
+              }
+            },{
+              type: 'save',
+              label: 'Save',
+              'function': function(){
+                var params = {};
+                if (saveas.recstartunix) {
+                  //append recstartunix to target
+                  params["recstartunix"] = "recstartunix="+saveas.recstartunix;
+                }
+                else if (saveas.scheduletime) {
+                  params["recstartunix"] = "recstartunix="+saveas.scheduletime;
+                }
+                delete saveas.recstartunix;
+                if (Object.keys(params).length) {
+                  var append = "?";
+                  var curparams = saveas.target.split("?");
+                  if (curparams.length > 1) {
+                    append = "&";
+                    curparams = curparams[curparams.length-1];
+                    curparams = curparams.split("&");
+                    for (var i in curparams) {
+                      var key = curparams[i].split("=")[0];
+                      if (key in params) { delete params[key]; }
+                    }
+                  }
+                  if (Object.keys(params).length) {
+                    append += Object.values(params).join("&");
+                    saveas.target += append;
+                  }
+                }
+                
+                var obj = {};
+                obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
+                if (typeof edit != "undefined") { obj.push_auto_remove = [edit]; }
+                
+                mist.send(function(){
+                  UI.navto('Push');
+                },obj);
+              }
+            }]
+          });
+          
+          $main.append(UI.buildUI(build));
         }
         
         if (mist.data.LTS) {
@@ -5899,6 +6019,11 @@ $.fn.getval = function(){
           val = [];
         }*/
         break;
+      case "unix":
+        if (val != "") {
+          val = Math.round(new Date($(this).val()) / 1e3);
+        }
+        break;
     }
   }
   return val;
@@ -5942,6 +6067,15 @@ $.fn.setval = function(val){
         for (i in val) {
           $inputs.filter('[name="'+val[i]+'"]').prop('checked',true);
         }
+        break;
+      case "unix":
+        if (typeof val != "undefined") {
+          var datetime = new Date(Math.round(val) * 1e3);
+          datetime.setMinutes(datetime.getMinutes() - datetime.getTimezoneOffset()); //correct for the browser being a pain and converting to UTC
+          datetime = datetime.toISOString();
+          $(this).val(datetime.split("Z")[0]);
+        }
+        
         break;
     }
   }

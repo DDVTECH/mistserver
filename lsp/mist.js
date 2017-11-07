@@ -4667,7 +4667,7 @@ var UI = {
               type: "unix",
               label: "Schedule time",
               min: 0,
-              help: "TODO",
+              help: "The time where the push will become active. The default is to start immediately.",
               pointer: {
                 main: saveas,
                 index: "scheduletime"
@@ -4676,7 +4676,7 @@ var UI = {
               type: "unix",
               label: "Recording start time",
               min: 0,
-              help: "TODO",
+              help: "Where in the media buffer the recording will start. Defaults to the most recently received keyframe.<br>Only makes sense for live streams.",
               pointer: {
                 main: saveas,
                 index: "recstartunix"
@@ -4685,7 +4685,7 @@ var UI = {
               type: "unix",
               label: "Complete time",
               min: 0,
-              help: "TODO",
+              help: "The time where the push will stop. Defaults to never stop automatically.<br>Only makes sense for live streams.",
               pointer: {
                 main: saveas,
                 index: "completetime"

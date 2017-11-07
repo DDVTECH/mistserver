@@ -3156,7 +3156,7 @@ var UI = {
           
           
           var port = {};
-          var trythese = ['RTMP','RTSP','TS','RTMP.exe','RTSP.exe','TS.exe'];
+          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe'];
           for (var i in trythese) {
             if (trythese[i] in mist.data.capabilities.connectors) {
               port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
@@ -3183,6 +3183,8 @@ var UI = {
             if (port[protocol] == defport[protocol]) { port[protocol] = ''; }
             else { port[protocol] = ':'+port[protocol]; }
           }
+          port.TS = "";
+          port["TS.exe"] = "";
           
           $livestreamhint.find('.field').closest('label').hide();
           for (var i in port) {
@@ -3270,7 +3272,7 @@ var UI = {
                 $main.append($style);
               }
               else if (['Buffer','Buffer.exe','TS','TS.exe'].indexOf(input.name) > -1) {
-                var fields = [$('<span>').text('Configure your source to push to:')];
+                var fields = [$("<br>"),$('<span>').text('Configure your source to push to:')];
                 switch (input.name) {
                   case 'Buffer':
                   case 'Buffer.exe':
@@ -3308,16 +3310,21 @@ var UI = {
                     break;
                   case 'TS':
                   case 'TS.exe':
-                    fields.push({
-                      label: 'TS',
-                      type: 'span',
-                      clipboard: true,
-                      readonly: true,
-                      classes: ['TS']
-                    });
+                    if (source.charAt(0) == "/") {
+                      fields = [];
+                    }
+                    else {
+                      fields.push({
+                        label: 'TS',
+                        type: 'span',
+                        clipboard: true,
+                        readonly: true,
+                        classes: ['TS']
+                      });
+                    }
                     break;
                 }
-                $livestreamhint.html('<br>').append(UI.buildUI(fields));
+                $livestreamhint.html(UI.buildUI(fields));
                 updateLiveStreamHint();
               }
             }
@@ -4656,7 +4663,7 @@ var UI = {
           
           if (other == "auto") { //options only for automatic pushes
             
-            build.push({
+            build.push($("<h4>").text("Optional parameters"),{
               type: "unix",
               label: "Schedule time",
               min: 0,
@@ -4728,7 +4735,9 @@ var UI = {
                 
                 var obj = {};
                 obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
-                if (typeof edit != "undefined") { obj.push_auto_remove = [edit]; }
+                if ((typeof edit != "undefined") && ((edit[0] != saveas.stream) || (edit[1] != saveas.target))) {
+                  obj.push_auto_remove = [edit];
+                }
                 
                 mist.send(function(){
                   UI.navto('Push');

@@ -596,6 +596,7 @@ namespace Mist {
         temp.index = i;
         temp.size = thisTrack.parts[temp.index].getSize();
         timeStamp += thisTrack.parts[temp.index].getDuration();
+        HIGH_MSG("Fragment sortSet: tid %lu time %lu", temp.trackID, temp.time);
         trunOrder.insert(temp);
       }
     }
@@ -758,8 +759,6 @@ namespace Mist {
       }
     }
     /*LTS-END*/
-    //Always initialize before anything else
-    initialize();
 
     //Make sure we start receiving data after this function
     ///\todo Should this happen here?

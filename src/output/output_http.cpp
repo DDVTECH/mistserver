@@ -224,6 +224,7 @@ namespace Mist {
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());
+      initialize();
       if (H.GetVar("audio") != "" || H.GetVar("video") != ""){
         selectedTracks.clear();
         if (H.GetVar("audio") != ""){
@@ -252,6 +253,8 @@ namespace Mist {
         for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
           selectedTracks.erase(*it);
         }
+      }else{
+        selectDefaultTracks();
       }
 
       onHTTP();

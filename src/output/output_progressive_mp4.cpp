@@ -405,7 +405,7 @@ namespace Mist {
         temp.time = thisTrack.firstms;//timeplace of frame
         temp.index = 0;
         temp.size = thisTrack.parts[0].getDuration();
-        INFO_MSG("adding to sortSet: tid %lu time %lu", temp.trackID, temp.time);
+        HIGH_MSG("Header sortSet: tid %lu time %lu", temp.trackID, temp.time);
         sortSet.insert(temp);
       }
       while (!sortSet.empty()) {

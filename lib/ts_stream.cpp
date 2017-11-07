@@ -434,7 +434,7 @@ namespace TS{
 
       timeStamp += (rolloverCount[tid] * TS_PTS_ROLLOVER);
 
-      if ((timeStamp < lastms[tid]) && ((timeStamp + TS_PTS_ROLLOVER) > lastms[tid] )){
+      if ((timeStamp < lastms[tid]) && ((timeStamp % TS_PTS_ROLLOVER) < 0.1 * TS_PTS_ROLLOVER) && ((lastms[tid] % TS_PTS_ROLLOVER) > 0.9 * TS_PTS_ROLLOVER)){
         ++rolloverCount[tid];
         timeStamp += TS_PTS_ROLLOVER;
       }
@@ -472,7 +472,7 @@ namespace TS{
     free(payload);
   }
 
-  void Stream::setLastms(uint32_t tid, uint64_t timestamp){
+  void Stream::setLastms(unsigned long tid, uint64_t timestamp){
     lastms[tid] = timestamp;
     rolloverCount[tid] = timestamp / TS_PTS_ROLLOVER;
   }

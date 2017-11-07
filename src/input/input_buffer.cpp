@@ -25,6 +25,9 @@
 
 namespace Mist {
   inputBuffer::inputBuffer(Util::Config * cfg) : Input(cfg) {
+
+    capa["optional"].removeMember("realtime");
+
     liveMeta = 0;
     capa["name"] = "Buffer";
     JSON::Value option;
@@ -453,6 +456,9 @@ namespace Mist {
         eraseTrackDataPages(*it);
       }
     }
+    for (std::map<unsigned long, IPC::sharedPage>::iterator it = nProxy.metaPages.begin(); it != nProxy.metaPages.end(); ++it){
+      it->second.master = true;
+    }
   }
 
   /// \triggers
@@ -637,12 +643,28 @@ namespace Mist {
           }
           if (activeTracks.count(value)) {
             updateMeta();
-            eraseTrackDataPages(value);
             activeTracks.erase(value);
-            bufferLocations.erase(value);
+            if (!config->getBool("resume")){
+              bufferLocations.erase(value);
+              eraseTrackDataPages(value);
+            }else{
+              //finalize key count on page. We can NOT do this through bufferFinalize, as this triggers side effects....
+              for (int i = 0; i < 1024; i++) {
+                int * tmpOffset = (int *)(nProxy.metaPages[value].mapped + (i * 8));
+                int keyNum = ntohl(tmpOffset[0]);
+                int keyAmount = ntohl(tmpOffset[1]);
+                if(keyAmount == 1000){
+                  tmpOffset[1] = htonl(myMeta.tracks[value].keys.rbegin()->getNumber() - keyNum + 1);
+                  break;
+                }
+              }
+            }
           }
-          nProxy.metaPages[value].master = true;
-          nProxy.metaPages.erase(value);
+        
+          if (!config->getBool("resume")){
+            nProxy.metaPages[value].master = true;
+            nProxy.metaPages.erase(value);
+          }
           continue;
         }
       }
@@ -792,8 +814,8 @@ namespace Mist {
         if (finalMap == -1) {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
-          DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
-        /*LTS-START*/
+          MEDIUM_MSG("No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+          /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_ADD")) {
             std::string payload = config->getString("streamname") + "\n" + JSON::Value(finalMap).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_ADD", payload, config->getString("streamname"));
@@ -804,13 +826,16 @@ namespace Mist {
         //or if the firstms of the replacement track is later than the lastms on the existing track
         if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {
           if (myMeta.tracks.count(finalMap) && myMeta.tracks[finalMap].lastms > 0) {
-            INFO_MSG("Resume of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
+            MEDIUM_MSG("Resume of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
           } else {
-            INFO_MSG("New track detected, assigned track id %lu, coming from temporary track %lu of user %u", finalMap, value, id);
+            MEDIUM_MSG("New track detected, assigned track id %lu, coming from temporary track %lu of user %u", finalMap, value, id);
+            if (resumeMode && (myMeta.bufferWindow > 15000)){
+              WARN_MSG("Non-resumed track detected; playback will likely not be correct");
+            }
           }
         } else {
           //Otherwise replace existing track
-          INFO_MSG("Replacement of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
+          MEDIUM_MSG("Replacement of track %lu detected, coming from temporary track %lu of user %u", finalMap, value, id);
           myMeta.tracks.erase(finalMap);
           //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
           updateMeta();
@@ -837,7 +862,11 @@ namespace Mist {
         //Write the final mapped track number and keyframe number to the user page element
         //This is used to resume pushing as well as pushing new tracks
         userConn.setTrackId(index, finalMap);
-        userConn.setKeynum(index, myMeta.tracks[finalMap].keys.size());
+        if (myMeta.tracks[finalMap].keys.size()){
+          userConn.setKeynum(index, myMeta.tracks[finalMap].keys.rbegin()->getNumber());
+        }else{
+          userConn.setKeynum(index, 0);
+        }
         //Update the metadata to reflect all changes
         updateMeta();
       }
@@ -945,6 +974,7 @@ namespace Mist {
   }
 
   bool inputBuffer::preRun() {
+    //This function gets run periodically to make sure runtime updates of the config get parsed.
     lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);

@@ -497,7 +497,7 @@ namespace Mist {
       preBuffer[tid].push_back(packet);
     }else{
       if (preBuffer[tid].size()){
-        INFO_MSG("Track %lu accepted", tid);
+        INFO_MSG("Track %lu accepted as track %lu", tid, trackMap[tid] );
         while (preBuffer[tid].size()){
           bufferSinglePacket(preBuffer[tid].front(), myMeta);
           preBuffer[tid].pop_front();
@@ -564,7 +564,11 @@ namespace Mist {
       if (curPageNum.count(tid)) {
         nextPageNum = curPageNum[tid];
       }else{
-        nextPageNum = 1;
+        if (pagesByTrack.count(tid)){
+          nextPageNum = pagesByTrack[tid].begin()->first;
+        }else{
+          nextPageNum = 1;
+        }
       }
     }
     //If we have no pages by track, we have not received a starting keyframe yet. Drop this packet.
@@ -733,6 +737,10 @@ namespace Mist {
           DTSC::Meta tmpMeta;
           tmpMeta.tracks[newTid] = myMeta.tracks[tid];
           tmpMeta.tracks[newTid].trackID = newTid;
+          tmpMeta.tracks[newTid].fragments.clear();
+          tmpMeta.tracks[newTid].keySizes.clear();
+          tmpMeta.tracks[newTid].keys.clear();
+          tmpMeta.tracks[newTid].parts.clear();
           JSON::Value tmpVal = tmpMeta.toJSON();
           if (!myMeta.tracks[tid].type.size() || !myMeta.tracks[tid].codec.size()){
             FAIL_MSG("Negotiating a track without metadata. This is a serious issue, please report this to the developers.");
@@ -782,6 +790,7 @@ namespace Mist {
             break;
           }
 
+          firstPage++;
           MEDIUM_MSG("Buffer says %s:%lu should start writing on track %lu, page %lu", streamName.c_str(), tid, finalTid, firstPage);
           trackMap[tid] = finalTid;
           if (myMeta.tracks.count(finalTid) && myMeta.tracks[finalTid].lastms){
@@ -790,8 +799,17 @@ namespace Mist {
           trackState[tid] = FILL_ACC;
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);
-          metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
+          metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, false, false);
+          if (!metaPages[tid].mapped){
+            metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
+          }
           metaPages[tid].master = false;
+
+          if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
+            pagesByTrack[tid][firstPage].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
+            pagesByTrack[tid][firstPage].pageNum = firstPage;
+            pagesByTrack[tid][firstPage].firstTime = 0;
+          }
           break;
         }
       default:

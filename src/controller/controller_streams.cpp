@@ -115,7 +115,12 @@ namespace Controller {
     //new style always on
     if (data.isMember("always_on")){
       INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
-      Util::startInput(name, URL);
+      std::map<std::string, std::string> empty_overrides;
+      pid_t program = 0;
+      Util::startInput(name, URL, true, false, empty_overrides, &program);
+      if (program){
+        inputProcesses[name] = program;
+      }
     }
     //non-VoD stream
     if (URL.substr(0, 1) != "/"){return;}
@@ -182,6 +187,7 @@ namespace Controller {
           out[jit.key()] = (*jit);
           out[jit.key()].removeNullMembers();
           out[jit.key()]["name"] = jit.key();
+          checkParameters(out[jit.key()]);
           Log("STRM", std::string("Updated stream ") + jit.key());
         }
       }else{
@@ -206,6 +212,7 @@ namespace Controller {
         out[jit.key()] = (*jit);
         out[jit.key()].removeNullMembers();
         out[jit.key()]["name"] = jit.key();
+        checkParameters(out[jit.key()]);
         Log("STRM", std::string("New stream ") + jit.key());
       }
       Controller::writeStream(jit.key(), out[jit.key()]);
@@ -372,6 +379,36 @@ namespace Controller {
       inputProcesses.erase(name);
     }
     return ret;
+  }
+
+  bool isMatch(const std::string & source, const std::string & match){
+    std::string front = match.substr(0,match.find('*'));
+    std::string back = match.substr(match.find('*')+1);
+    return (source.substr(0,front.size()) == front && source.substr(source.size()-back.size()) == back);
+  }
+
+  void checkParameters(JSON::Value & streamObj){ 
+    JSON::Value & inpt = Controller::capabilities["inputs"];
+    std::string match;
+    jsonForEach(inpt, it){
+      if ((*it)["source_match"].isArray()){
+        jsonForEach((*it)["source_match"], subIt){
+          if (isMatch(streamObj["source"].asStringRef(), (*subIt).asStringRef())){
+            match = (*it)["name"].asString();
+          }
+        }
+      }
+      if ((*it)["source_match"].isString()){
+        if (isMatch(streamObj["source"].asStringRef(), (*it)["source_match"].asStringRef())){
+          match = (*it)["name"].asString();
+        }
+      }
+    }
+    if (match != ""){
+      jsonForEach(inpt[match]["hardcoded"], it){
+        streamObj[it.key()] = *it;
+      }
+    }
   }
 
 } //Controller namespace

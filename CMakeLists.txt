@@ -394,6 +394,7 @@ makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)
 makeInput(TS ts)#LTS
 makeInput(Folder folder)#LTS
+makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
 

@@ -1,5 +1,6 @@
 #include <dirent.h> //for browse API call
 #include <sys/stat.h> //for browse API call
+#include <fstream>
 #include <mist/http_parser.h>
 #include <mist/auth.h>
 #include <mist/stream.h>
@@ -29,6 +30,59 @@ std::string getChallenge(Socket::Connection & conn){
   std::stringstream Date;
   Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
   return Secure::md5(Date.str().c_str() + conn.getHost());
+}
+
+/// Executes a single Playlist-based API command. Recurses if necessary.
+static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines){
+  if (!cmd.isArray() || !cmd.size()){
+    FAIL_MSG("Not a valid playlist API command: %s", cmd.toString().c_str());
+    return;
+  }
+  if (cmd[0u].isArray()){
+    jsonForEach(cmd, it){
+      executePlsCommand(*it, lines);
+    }
+    return;
+  }
+  if (!cmd[0u].isString()){
+    FAIL_MSG("Not a valid playlist API command: %s", cmd.toString().c_str());
+    return;
+  }
+  if (cmd[0u].asStringRef() == "append" && cmd.size() == 2 && cmd[1u].isString()){
+    lines.push_back(cmd[1u].asStringRef());
+    return;
+  }
+  if (cmd[0u].asStringRef() == "clear" && cmd.size() == 1){
+    lines.clear();
+    return;
+  }
+  if (cmd[0u].asStringRef() == "remove" && cmd.size() == 2 && cmd[1u].isString()){
+    const std::string & toRemove = cmd[1u].asStringRef();
+    for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); ++it){
+      if ((*it) == toRemove){
+        (*it) = "";
+      }
+    }
+    return;
+  }
+  if (cmd[0u].asStringRef() == "line" && cmd.size() == 3 && cmd[1u].isInt() && cmd[2u].isString()){
+    if (cmd[1u].asInt() >= lines.size()){
+      FAIL_MSG("Line number %d does not exist in playlist - cannot modify line", (int)cmd[1u].asInt());
+      return;
+    }
+    lines[cmd[1u].asInt()] = cmd[2u].asStringRef();
+    return;
+  }
+  if (cmd[0u].asStringRef() == "replace" && cmd.size() == 3 && cmd[1u].isString() && cmd[2u].isString()){
+    const std::string & toReplace = cmd[1u].asStringRef();
+    for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); ++it){
+      if ((*it) == toReplace){
+        (*it) = cmd[2u].asStringRef();
+      }
+    }
+    return;
+  }
+  FAIL_MSG("Not a valid playlist API command: %s", cmd.toString().c_str());
 }
 
 ///\brief Checks an authorization request for a given user.
@@ -702,6 +756,78 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       }
     }
     free(rpath);
+  }
+
+  // Examples of valid playlist requests:
+  //"playlist":{"streamname": ["append", "path/to/file.ts"]}
+  //"playlist":{"streamname": ["remove", "path/to/file.ts"]}
+  //"playlist":{"streamname": ["line", 2, "path/to/file.ts"]}
+  //"playlist":{"streamname": true}
+  //"playlist":{"streamname": [["append", "path/to/file.ts"], ["remove", "path/to/file.ts"]]}
+  if (Request.isMember("playlist")){
+    if (!Request["playlist"].isObject()){
+      ERROR_MSG("Playlist API call requires object payload, no object given");
+    }else{
+      jsonForEach(Request["playlist"], it){
+        if (!Controller::Storage["streams"].isMember(it.key()) || !Controller::Storage["streams"][it.key()].isMember("source")){
+          FAIL_MSG("Playlist API call (partially) not executed: stream '%s' not configured", it.key().c_str());
+        }else{
+          std::string src = Controller::Storage["streams"][it.key()]["source"].asString();
+          if (src.substr(src.size() - 4) != ".pls"){
+            FAIL_MSG("Playlist API call (partially) not executed: stream '%s' is not playlist-based", it.key().c_str());
+          }else{
+            bool readFirst = true;
+            struct stat fileinfo;
+            if (stat(src.c_str(), &fileinfo) != 0){
+              if (errno == EACCES){
+                FAIL_MSG("Playlist API call (partially) not executed: stream '%s' playlist '%s' cannot be accessed (no file permissions)", it.key().c_str(), src.c_str());
+                break;
+              }
+              if (errno == ENOENT){
+                WARN_MSG("Creating playlist file: %s", src.c_str());
+                readFirst = false;
+              }
+            }
+            std::deque<std::string> lines;
+            if (readFirst){
+              std::ifstream plsRead(src.c_str());
+              if (!plsRead.good()){
+                FAIL_MSG("Playlist (%s) for stream '%s' could not be opened for reading; aborting command(s)", src.c_str(), it.key().c_str());
+                break;
+              }
+              std::string line;
+              do {
+                std::getline(plsRead, line);
+                if (line.size() || plsRead.good()){lines.push_back(line);}
+              } while(plsRead.good());
+            }
+            unsigned int plsNo = 0;
+            for (std::deque<std::string>::iterator plsIt = lines.begin(); plsIt != lines.end(); ++plsIt){
+              MEDIUM_MSG("Before playlist command item %u: %s", plsNo, plsIt->c_str());
+              ++plsNo;
+            }
+            if (!it->isBool()){
+              executePlsCommand(*it, lines);
+            }
+            JSON::Value & outPls = Response["playlist"][it.key()];
+            std::ofstream plsOutFile(src.c_str(), std::ios_base::trunc);
+            if (!plsOutFile.good()){
+              FAIL_MSG("Could not open playlist for writing: %s", src.c_str());
+              break;
+            }
+            plsNo = 0;
+            for (std::deque<std::string>::iterator plsIt = lines.begin(); plsIt != lines.end(); ++plsIt){
+              MEDIUM_MSG("After playlist command item %u: %s", plsNo, plsIt->c_str());
+              ++plsNo;
+              outPls.append(*plsIt);
+              if (plsNo < lines.size() || (*plsIt).size()){
+                plsOutFile << (*plsIt) << "\n";
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   if (Request.isMember("save")){

@@ -71,13 +71,35 @@ namespace Mist {
     capa["optional"]["verimatrix-playready"]["option"] = "--verimatrix-playready";
     capa["optional"]["verimatrix-playready"]["type"] = "str";
     capa["optional"]["verimatrix-playready"]["default"] = "";
+
     option.null();
+    option["long"] = "realtime";
+    option["short"] = "r";
+    option["help"] = "Feed the results of this input in realtime to the buffer";
+    config->addOption("realtime", option);
+    capa["optional"]["realtime"]["name"] = "Simulated Live";
+    capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
+    capa["optional"]["realtime"]["option"] = "--realtime";
+
+    option.null();
+    option["long"] = "simulated-starttime";
+    option["arg"] = "integer";
+    option["short"] = "S";
+    option["help"] = "Unix timestamp on which the simulated start of the stream is based.";
+    option["value"].append(0);
+    config->addOption("simulated-starttime", option);
+    capa["optional"]["simulated-starttime"]["name"] = "Simulated start time";
+    capa["optional"]["simulated-starttime"]["help"] = "The unix timestamp on which this stream is assumed to have started playback, or 0 for automatic";
+    capa["optional"]["simulated-starttime"]["option"] = "--simulated-starttime";
+    capa["optional"]["simulated-starttime"]["type"] = "uint";
+    capa["optional"]["simulated-starttime"]["default"] = 0;
 
     /*LTS-END*/
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "debug";
+
 
     packTime = 0;
     lastActive = Util::epoch();
@@ -574,7 +596,9 @@ namespace Mist {
     if(isSingular()){
       overrides["singular"] = "";
     }
-
+    if (config->getBool("realtime")){
+      overrides["resume"] = "1";
+    }
     if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
       WARN_MSG("Could not start buffer, cancelling");
       return;
@@ -602,13 +626,71 @@ namespace Mist {
       return;
     }
 
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      it->second.firstms = 0;
-      it->second.lastms = 0;
-      selectedTracks.insert(it->first);
+
+    timeOffset = 0;
+
+    //If resume mode is on, find matching tracks and set timeOffset values to make sure we append to the tracks.
+    if (config->getBool("realtime")){
+      seek(0);
+
+      
+      char nameBuf[NAME_BUFFER_SIZE];
+      snprintf(nameBuf, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str()); 
+      IPC::sharedPage curMeta(nameBuf);
+
+
+      static char liveSemName[NAME_BUFFER_SIZE];
+      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+      IPC::semaphore * liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1, !myMeta.live);
+      if (*liveSem){
+        liveSem->wait();
+      }else{
+        delete liveSem;
+        liveSem = 0;
+      }
+      DTSC::Packet tmpMeta(curMeta.mapped, curMeta.len, true);
+      if (liveSem){
+        liveSem->post();
+        delete liveSem;
+        liveSem = 0;
+      }
+      DTSC::Meta tmpM(tmpMeta);
+      unsigned int minKeepAway = 0;
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
+        for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin(); secondIt != tmpM.tracks.end(); ++secondIt){
+          if (it->second.codec == secondIt->second.codec && it->second.init == secondIt->second.init){
+            timeOffset = std::max(timeOffset, (uint64_t)secondIt->second.lastms);
+            minKeepAway = std::max(minKeepAway, secondIt->second.minKeepAway);
+          }
+        }
+      }
+      
+      if (timeOffset){
+        timeOffset += 1000;//Add an artificial second to make sure we append and not overwrite
+      }
     }
 
-    std::string reason = streamMainLoop();
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      originalFirstms[it->first] = it->second.firstms;
+      it->second.firstms = timeOffset;
+      it->second.lastms = 0;
+      selectedTracks.insert(it->first);
+      it->second.minKeepAway = SIMULATED_LIVE_BUFFER;
+    }
+    nProxy.pagesByTrack.clear();
+
+    simStartTime = config->getInteger("simulated-starttime");
+    if (!simStartTime){
+      simStartTime = Util::bootMS();
+    }
+
+
+    std::string reason;
+    if (config->getBool("realtime")){
+      reason = realtimeMainLoop();
+    }else{
+      reason = streamMainLoop();
+    }
 
     closeStreamSource();
 
@@ -631,17 +713,44 @@ namespace Mist {
     return "Unknown";
   }
 
+  std::string Input::realtimeMainLoop(){
+    getNext();
+    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
+      while (config->is_active&& nProxy.userClient.isAlive() && Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]) + simStartTime){
+        Util::sleep(std::min(((thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER), (uint64_t)1000));
+        nProxy.userClient.keepAlive();
+      }
+      uint64_t originalTime = thisPacket.getTime();
+      if (originalTime >= originalFirstms[thisPacket.getTrackId()]){
+        if (timeOffset || originalFirstms[thisPacket.getTrackId()]){
+          thisPacket.setTime(thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]);
+        }
+        nProxy.bufferLivePacket(thisPacket, myMeta);
+        if (timeOffset){
+          thisPacket.setTime(originalTime);
+        }
+      }
+      getNext();
+      nProxy.userClient.keepAlive();
+    }
+    if (!thisPacket){return "Invalid packet";}
+    if (!config->is_active){return "received deactivate signal";}
+    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    return "Unknown";
+  }
+
   void Input::finish() {
+    if (!standAlone){
+      return;
+    }
     for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++) {
       for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
         it2->second = 1;
       }
     }
     removeUnused();
-    if (standAlone) {
-      for (std::map<unsigned long, IPC::sharedPage>::iterator it = nProxy.metaPages.begin(); it != nProxy.metaPages.end(); it++) {
-        it->second.master = true;
-      }
+    for (std::map<unsigned long, IPC::sharedPage>::iterator it = nProxy.metaPages.begin(); it != nProxy.metaPages.end(); it++) {
+      it->second.master = true;
     }
   }
 

@@ -7,6 +7,7 @@ namespace Controller {
   void CheckStreams(JSON::Value & in, JSON::Value & out);
   void AddStreams(JSON::Value & in, JSON::Value & out);
   int deleteStream(const std::string & name, JSON::Value & out, bool sourceFileToo = false);
+  void checkParameters(JSON::Value & stream);
 
   struct liveCheck {
     long long int lastms;

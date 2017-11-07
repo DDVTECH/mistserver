@@ -5,6 +5,7 @@
 #include <mist/json.h>
 #include <mist/timing.h>
 #include <mist/dtsc.h>
+#include <mist/defines.h>
 #include <mist/shared_memory.h>
 #include <fstream>
 
@@ -25,10 +26,8 @@ namespace Mist {
       virtual int boot(int argc, char * argv[]);
       virtual ~Input() {};
 
-      virtual bool needsLock(){return true;}
-
       static Util::Config * config;
-
+      virtual bool needsLock(){return !config->getBool("realtime");}
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool checkArguments() = 0;
@@ -42,7 +41,7 @@ namespace Mist {
       virtual void seek(int seekTime){};
       virtual void finish();
       virtual bool keepRunning();
-      virtual bool openStreamSource() { return false; }
+      virtual bool openStreamSource() { return readHeader(); }
       virtual void closeStreamSource() {}
       virtual void parseStreamHeader() {}
       void play(int until = 0);
@@ -56,6 +55,7 @@ namespace Mist {
       virtual void serve();
       virtual void stream();
       virtual std::string streamMainLoop();
+      virtual std::string realtimeMainLoop();
       bool isAlwaysOn();
 
       virtual void parseHeader();
@@ -73,6 +73,8 @@ namespace Mist {
       JSON::Value capa;
       
       std::map<int,std::set<int> > keyTimes;
+      uint64_t timeOffset;
+      std::map<int, uint64_t> originalFirstms;
 
       //Create server for user pages
       IPC::sharedServer userPage;
@@ -89,6 +91,8 @@ namespace Mist {
       void readSrtHeader();
       void getNextSrt(bool smart = true);
       DTSC::Packet srtPack;
+
+      uint64_t simStartTime;
   };
 
 }

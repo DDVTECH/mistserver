@@ -177,3 +177,7 @@ static inline void show_stackframe(){}
 
 #define INVALID_TRACK_ID 0
 
+//The amount of milliseconds a simulated live stream is allowed to be "behind".
+//Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
+#define SIMULATED_LIVE_BUFFER 7000
+

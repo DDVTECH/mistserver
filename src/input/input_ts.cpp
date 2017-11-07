@@ -623,7 +623,7 @@ namespace Mist {
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
     if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 6) != "srt://" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" && inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
-      return true;
+      return Input::needsLock();
     }else{
       return false;
     }

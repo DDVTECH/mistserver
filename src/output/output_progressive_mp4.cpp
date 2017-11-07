@@ -339,7 +339,7 @@ namespace Mist {
       temp.trackID = *subIt;
       temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
       temp.index = 0;
-      INFO_MSG("adding to sortSet: tid %lu time %lu", temp.trackID, temp.time);
+      HIGH_MSG("Header sortSet: tid %lu time %lu", temp.trackID, temp.time);
       sortSet.insert(temp);
     }
     while (!sortSet.empty()) {
@@ -505,9 +505,6 @@ namespace Mist {
       return;
     }
 
-    //Always initialize before anything else
-    initialize();
-    
     //Make sure we start receiving data after this function
     ///\todo Should this happen here?
     parseData = true;

@@ -2262,7 +2262,7 @@ var UI = {
             type: "selectinput",
             label: "Load balancer bandwidth limit",
             selectinput: [
-              ["","Default (1 GiB/s)"],
+              ["","Default (1 gbps)"],
               [{
                 label: "Custom",
                 type: "int",

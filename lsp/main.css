@@ -269,7 +269,7 @@ main > button {
   text-indent: -1em;
   padding-left: 1em;
 }
-.input_container .field_container select.field {
+.input_container .field_container select.field, .input_container .field_container select:first-child  {
   min-width: 0;
   width: 100%;
   height: 1.8em;
@@ -294,6 +294,9 @@ textarea.embed_code {
 }
 select option[disabled] {
   display: none;
+}
+select option[value=""] {
+  color: #808080;
 }
 
 .description {
@@ -383,6 +386,18 @@ button, input[type=submit], input[type=button], .mistbutton {
   margin: 0 0.1em;
   text-decoration: none;
   cursor: pointer
+}
+/* double nested UI */
+.UIelement .UIelement .label {
+  width: 5em;
+}
+.UIelement .UIelement .field_container {
+  width: auto;
+  flex-grow: 1;
+  margin-right: 0;
+}
+.UIelement .UIelement .help_container {
+  display: none;
 }
 
 .red {
@@ -542,6 +557,15 @@ th.sorting-desc:after {
 .radioselect label > select {
   margin-left: 1em;
   flex-grow: 1;
+}
+.input_container .field_container .field.selectinput,
+.input_container .field_container .field.inputlist {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0.5em;
+}
+.input_container .field_container .field.inputlist > * {
+  width: 100%;
 }
 .input_container .field_container .field.checkcontainer {
   font-size: 0.8em;

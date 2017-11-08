@@ -598,21 +598,6 @@ var UI = {
         case 'checklist':
           $field = $('<div>').addClass('checkcontainer');
           $controls = $('<div>').addClass('controls');
-          /* All tends to be confusing: disable it for now
-          $controls.append(
-            $('<label>').text('All').prepend(
-                $('<input>').attr('type','checkbox').click(function(){
-                  if ($(this).is(':checked')) {
-                    $(this).closest('.checkcontainer').find('input[type=checkbox]').prop('checked',true);
-                  }
-                  else {
-                    $(this).closest('.checkcontainer').find('input[type=checkbox]').prop('checked',false);
-                  }
-                })
-              )
-          );
-          $field.append($controls);
-          */
           $checklist = $('<div>').addClass('checklist');
           $field.append($checklist);
           for (var i in e.checklist) {
@@ -634,6 +619,79 @@ var UI = {
           e.unit = $("<button>").text("Now").click(function(){
             $(this).closest(".field_container").find(".field").setval((new Date()).getTime()/1e3);
           });
+          break;
+        case "selectinput":
+          $field = $('<div>').addClass('selectinput');
+          var $select = $("<select>");
+          $field.append($select);
+          $select.data("input",false);
+          
+          if (('LTSonly' in e) && (!mist.data.LTS)) {
+            $select.prop('disabled',true);
+          }
+          
+          for (var i in e.selectinput) {
+            var $option = $("<option>");
+            $select.append($option);
+            if (typeof e.selectinput[i] == "string") {
+              $option.text(e.selectinput[i]);
+            }
+            else {
+              $option.text(e.selectinput[i][1]);
+              if (typeof e.selectinput[i][0] == "string") {
+                $option.val(e.selectinput[i][0])
+              }
+              else {
+                $option.val("CUSTOM");
+                if (!$select.data("input")) {
+                  $select.data("input",UI.buildUI([e.selectinput[i][0]]).children());
+                }
+              }
+            }
+          }
+          if ($select.data("input")) {
+            $field.append($select.data("input"));
+          }
+          $select.change(function(){
+            if ($(this).val() == "CUSTOM") {
+              $(this).data("input").css("display","flex");
+            }
+            else {
+              $(this).data("input").hide();
+            }
+          });
+          $select.trigger("change");
+          break;
+        case "inputlist":
+          $field = $('<div>').addClass('inputlist');
+          var newitem = function(){
+            var $part = $("<input>").attr("type","text").addClass("listitem");
+            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+              $part.prop('disabled',true);
+            }
+            var keyup = function(e){
+              if ($(this).is(":last-child")) {
+                if ($(this).val() != "") {
+                  $(this).after($part.clone().keyup(keyup).val(""));
+                }
+                else if (e.which == 8) { //backspace
+                  $(this).prev().focus();
+                }
+              }
+              else {
+                if ($(this).val() == "") {
+                  $(this).next().focus();
+                  $(this).remove();
+                }
+              }
+            };
+            
+            $part.keyup(keyup);
+            return $part;
+          };
+          $field.data("newitem",newitem);
+          
+          $field.append($field.data("newitem"));
           break;
         default:
           $field = $('<input>').attr('type','text');
@@ -1696,8 +1754,8 @@ var UI = {
     },
     duration: function(seconds) {
       //get the amounts
-      var multiplications = [1e-3,  1e3,   60,  60,   24,     7,1e9];
-      var units =           ['ms','sec','min','hr','day','week'];
+      var multiplications = [1e-3,  1e3,   60,  60,   24,     7,     52,1e9];
+      var units =           ['ms','sec','min','hr','day','week','year'];
       var amounts = {};
       var left = seconds;
       for (var i in units) {
@@ -1718,6 +1776,9 @@ var UI = {
       }
       var $s = $('<span>');
       switch (unit) {
+        case 'year':
+          $s.append(UI.format.addUnit(amounts.year,'years, ')).append(UI.format.addUnit(amounts.week,'wks'));
+          break;
         case 'week':
           $s.append(UI.format.addUnit(amounts.week,'wks, ')).append(UI.format.addUnit(amounts.day,'days'));
           break;
@@ -2048,6 +2109,15 @@ var UI = {
         
         break;
       case 'Overview':
+        
+        if (typeof mist.data.bandwidth == 'undefined') {
+          mist.send(function(d){
+            UI.navto(tab);
+          },{bandwidth: true});
+          $main.append('Loading..');
+          return;
+        }
+        
         var $versioncheck = $('<span>').text('Loading..');
         var $streamsactive = $('<span>');
         var $errors = $('<span>').addClass('logs');
@@ -2059,9 +2129,29 @@ var UI = {
         
         var s = {
           serverid: mist.data.config.serverid,
-          debug: mist.data.config.debug
+          debug: mist.data.config.debug,
+          accesslog: mist.data.config.accesslog,
+          prometheus: mist.data.config.prometheus
         };
-        
+        var b = {};
+        if ("bandwidth" in mist.data) {
+          b = mist.data.bandwidth;
+          if (b == null) { b = {}; }
+          if (!b.limit) {
+            b.limit = "";
+          }
+        }
+        var $bitunit = $("<select>").html(
+          $("<option>").val(1).text("bytes/s")
+        ).append(
+          $("<option>").val(1024).text("KiB/s")
+        ).append(
+          $("<option>").val(1048576).text("MiB/s")
+        ).append(
+          $("<option>").val(1073741824).text("GiB/s")
+        );
+        var host = parseURL(mist.user.host);
+        host = host.protocol+host.host+host.port;
         
         $main.append(UI.buildUI([
           {
@@ -2134,6 +2224,68 @@ var UI = {
             },
             help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
           },{
+            type: "selectinput",
+            label: "Access log",
+            selectinput: [
+              ["","Do not track"],
+              ["LOG","Log to MistServer log"],
+              [{
+                type:"str",
+                label:"Path",
+                LTSonly: true
+              },"Log to file"]
+            ],
+            pointer: {
+              main: s,
+              index: "accesslog"
+            },
+            help: "Enable access logs.",
+            LTSonly: true
+          },{
+            type: "selectinput",
+            label: "Prometheus stats output",
+            selectinput: [
+              ["","Disabled"],
+              [{
+                type: "str",
+                label:"Passphrase",
+                LTSonly: true
+              },"Enabled"]
+            ],
+            pointer: {
+              main: s,
+              index: "prometheus"
+            },
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
+            LTSonly: true
+          },{
+            type: "selectinput",
+            label: "Load balancer bandwidth limit",
+            selectinput: [
+              ["","Default (1 gbps)"],
+              [{
+                label: "Custom",
+                type: "int",
+                min: 0,
+                unit: $bitunit
+              },"Custom"]
+            ],
+            pointer: {
+              main: b,
+              index: "limit"
+            },
+            help: "This setting only applies when MistServer is combined with a load balancer. This is the amount of traffic this server is willing to handle.",
+            LTSonly: true
+          },{
+            type: "inputlist",
+            label: "Load balancer bandwidth exceptions",
+            pointer: {
+              main: b,
+              index: "exceptions"
+            },
+            help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
+            LTSonly: true
+          },{
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
@@ -2148,6 +2300,16 @@ var UI = {
               label: 'Save',
               'function': function(){
                 var save = {config: s};
+                
+                var bandwidth = {};
+                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
+                bandwidth.exceptions = b.exceptions;
+                if (bandwidth.exceptions === null) {
+                  bandwidth.exceptions = [];
+                }
+                
+                save.bandwidth = bandwidth;
+                
                 if (s.save) {
                   save.save = s.save;
                 }
@@ -2531,7 +2693,6 @@ var UI = {
               type: 'save',
               label: 'Save',
               'function': function(){
-                ///\TODO test updateprotocol
                 var send = {};
                 if (editing) {
                   send.updateprotocol = [orig,saveas];
@@ -5661,7 +5822,7 @@ var mist = {
           $('#message').addClass('red').text('An error occurred while attempting to communicate with MistServer:').append(
             $('<br>')
           ).append(
-            textStatus
+            $("<span>").text(textStatus)
           ).append(
             $('<a>').text('Send server request again').click(function(){
               mist.send(callback,sendData,opts);
@@ -5696,11 +5857,14 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals']; //streams was already copied above
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];
               }
+            }
+            if (("bandwidth" in data) && (!("bandwidth" in d))) {
+              save.bandwidth = null;
             }
             
             $.extend(mist.data,save);
@@ -5716,7 +5880,9 @@ var mist = {
             if (d.log) {
               var lastlog = d.log[d.log.length-1];
               UI.elements.connection.msg.append($('<br>')).append(
-                'Last log entry: '+UI.format.time(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2]
+                $("<span>").text(
+                  'Last log entry: '+UI.format.time(lastlog[0])+' ['+lastlog[1]+'] '+lastlog[2]
+                )
               );
             }
             if ('totals' in d) {
@@ -5936,24 +6102,30 @@ var mist = {
           if ('unit' in ele) {
             obj.unit = ele.unit;
           }
-          switch (ele.type) {
-            case 'int':
-              obj.type = 'int';
-              break;
-            case 'uint':
-              obj.type = 'int';
-              obj.min = 0;
-              break;
-            case 'debug':
-              obj.type = 'debug';
-              break;
-            case 'select':
-              obj.type = 'select';
-              obj.select = ele.select;
-              break;
-            case 'str':
-            default:
-              obj.type = 'str';
+          if ("type" in ele) {
+            switch (ele.type) {
+              case 'int':
+                obj.type = 'int';
+                break;
+              case 'uint':
+                obj.type = 'int';
+                obj.min = 0;
+                break;
+              case 'debug':
+                obj.type = 'debug';
+                break;
+              case 'select':
+                obj.type = 'select';
+                obj.select = ele.select.slice(0);
+                obj.select.unshift(["","Default"+("placeholder" in obj ? " ("+obj.placeholder+")" : "" )]);
+                break;
+              case 'str':
+              default:
+                obj.type = 'str';
+            }
+          }
+          else {
+            obj.type = "checkbox";
           }
           build.push(obj);
         }
@@ -6033,6 +6205,21 @@ $.fn.getval = function(){
           val = Math.round(new Date($(this).val()) / 1e3);
         }
         break;
+      case "selectinput": 
+        val = $(this).children("select").first().val();
+        if (val == "CUSTOM") {
+          //get value of input field
+          val = $(this).children("label").first().find(".field_container").children().first().getval();
+        }
+        break;
+      case "inputlist":
+        val = [];
+        $(this).children().each(function(){
+          if ($(this).val() != "") {
+            val.push($(this).val());
+          }
+        });
+        break;
     }
   }
   return val;
@@ -6085,6 +6272,39 @@ $.fn.setval = function(val){
           $(this).val(datetime.split("Z")[0]);
         }
         
+        break;
+      case "selectinput":
+        //check if val is one of the select options
+        if (val === null) {
+          val = "";
+        }
+        var found = false;
+        for (var i in opts.selectinput) {
+          var compare;
+          if (typeof opts.selectinput[i] == "string") {
+            compare = opts.selectinput[i];
+          }
+          else if (typeof opts.selectinput[i][0] == "string") {
+            compare = opts.selectinput[i][0];
+          }
+          if (compare == val) {
+            $(this).children("select").first().val(val);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          $(this).children("label").first().find(".field_container").children().first().setval(val);
+          $(this).children("select").first().val("CUSTOM").trigger("change");
+        }
+        break;
+      case "inputlist":
+        for (var i in val) {
+          $(this).append(
+            $(this).data("newitem")().val(val[i])
+          );
+        }
+        $(this).append($(this).children().first()); //put empty input last
         break;
     }
   }

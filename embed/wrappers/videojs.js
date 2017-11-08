@@ -206,7 +206,7 @@ if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.m
   };
 }
 p.prototype.updateSrc = function(src){
-  if (videojs in this) {
+  if ("videojs" in this) {
     if (src == '') {
       this.videojs.dispose();
       return;

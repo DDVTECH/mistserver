@@ -455,12 +455,12 @@ MistPlayer.prototype.buildMistControls = function(){
           if ('name' in tracks[i][j]) {
             name = tracks[i][j].name;
           }
+          else if ('desc' in tracks[i][j]) {
+            name = tracks[i][j].desc;
+          }
           else if ('lang' in tracks[i][j]) {
             name = tracks[i][j].lang;
             o.setAttribute('data-lang',tracks[i][j].lang);
-          }
-          else if ('desc' in tracks[i][j]) {
-            name = tracks[i][j].desc;
           }
           else {
             name = 'Track '+(Number(j)+1);
@@ -1148,27 +1148,93 @@ function mistPlay(streamName,options) {
           var skip = false;
           switch (t.type) {
             case 'video':
-              t.desc = [t.width+'x'+t.height,/*Math.round(t.bps/1024)+'kbps',*/t.fpks/1e3+'fps',t.codec];
-              if (t.lang) {
-                t.desc.unshift(t.lang);
-              }
+              t.desc = [
+                ("lang" in t ? t.language : "unknown"),
+                t.width+'x'+t.height,
+                (t.bps == 0 ? "unknown": (t.bps > 1024*1024/8 ? Math.round(t.bps/1024/1024*8)+'mbps': Math.round(t.bps/1024*8)+'kbps')),
+                (t.fpks == 0 ? "unknown" : t.fpks/1e3+'fps'),
+                t.codec
+              ];
               break;
             case 'audio':
-              t.desc = [(t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : t.channels+' channels')),/*Math.round(t.bps/1024)+'kbps',*/Math.round(t.rate/1000)+'kHz',t.codec];
-              if (t.lang) {
-                t.desc.unshift(t.lang);
-              }
+              t.desc = [
+                ("lang" in t ? t.language : "unknown"),
+                (t.channels == 2 ? 'Stereo' : (t.channels == 1 ? 'Mono' : "Surround ("+t.channels+'ch)')),
+                (t.bps == 0 ? "unknown": (t.bps > 1024*1024/8 ? Math.round(t.bps/1024/1024*8)+'mbps': Math.round(t.bps/1024*8)+'kbps')),
+                Math.round(t.rate/1000)+'kHz',
+                t.codec
+              ];
               break;
+            case 'meta':
             case 'subtitle':
-              t.desc = [t.lang,t.codec];
-              break;
+              //subtitles are type meta and codec subtitle in Mist > v2.13, still support type subtitle though
+              if ((t.type == 'subtitle') || (t.codec == 'subtitle')) {
+                t.type = "subtitle";
+                t.desc = [("lang" in t ? t.language : "unknown")];
+                break;
+              }
             default:
               skip = true;
               break;
           }
           if (skip) { continue; }
-          t.desc = t.desc.join(' ');
           tracks[t.type].push(t);
+        }
+        //loop through the tracks again and compare them to one another to decide what to display as description
+        for (var cat in tracks) {
+          if (tracks[cat].length == 1) {
+            //there is only one track, show all info that isn't "unknown"
+            for (var i in tracks[cat]) {
+              var t = tracks[cat][i];
+              for (var j = t.desc.length-1;  j >= 0; j--) {
+                if ((t.desc[j] == "unknown") && (t.desc.length > 1)) {
+                  t.desc.splice(j,1);
+                }
+              }
+              t.desc = t.desc.join(" ");
+            }
+          }
+          else {
+            var equal = false;
+            var show = [];
+            //sort by track id
+            tracks[cat].sort(function(a,b){
+              return a.trackid - b.trackid;
+            });
+            
+            for (var i in tracks[cat]) {
+              var t = tracks[cat][i];
+              if (equal == false) {
+                //set equal to the first track description
+                equal = t.desc;
+                continue;
+              }
+              for (var j in t.desc) {
+                //compare each value to the one in equal, if it's not the same, mark it
+                if ((t.desc[j] != equal[j]) && (show.indexOf(j) < 0)) {
+                  show.push(j);
+                }
+              }
+            }
+            if (show.length) {
+              for (var i in tracks[cat]) {
+                var t = tracks[cat][i];
+                //gather indexes in show
+                var str = [];
+                for (var j in show) {
+                  str.push(t.desc[show[j]]);
+                }
+                t.desc = str.join(" ");
+              }
+            }
+            else {
+              //all info is the same, show a track index
+              for (var i in tracks[cat]) {
+                var t = tracks[cat][i];
+                t.desc = "Track "+(Number(i)+1);
+              }
+            }
+          }
         }
         player.tracks = tracks;
         if (tracks.subtitle.length) {

@@ -4490,11 +4490,17 @@ var UI = {
             if ((type == "Automatic") && (push.length >= 4)) {
               $target.append(
                 $('<span>').text(push[2])
-              ).append(
-                $('<span>').text(', schedule on '+(new Date(push[3]*1e3)).toLocaleString())
-              ).append(
-                $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
               );
+              if (push[3]) {
+                $target.append(
+                  $('<span>').text(', schedule on '+(new Date(push[3]*1e3)).toLocaleString())
+                );
+              }
+              if ((push.length >= 5) && (push[4])) {
+                $target.append(
+                  $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
+                );
+              }
             }
             else if ((push.length >= 4) && (push[2] != push[3])) {
               $target.append(

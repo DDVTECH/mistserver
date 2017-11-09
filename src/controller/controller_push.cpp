@@ -318,7 +318,7 @@ namespace Controller{
   /// Starts all configured auto pushes for the given stream.
   void doAutoPush(std::string &streamname){
     jsonForEach(Controller::Storage["autopushes"], it){
-      if (it->size() > 2 || (*it)[2u].asInt() < Util::epoch()){continue;}
+      if (it->size() > 2 && (*it)[2u].asInt() < Util::epoch()){continue;}
       const std::string &pStr = (*it)[0u].asStringRef();
       if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
         std::string stream = streamname;

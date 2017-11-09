@@ -275,7 +275,9 @@ namespace Controller{
         for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
           std::string streamname = it->first;
           if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
-            startPush(streamname, target);
+            std::string tmpName = streamname;
+            std::string tmpTarget = target;
+            startPush(tmpName, tmpTarget);
           }
         }
       }

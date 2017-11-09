@@ -137,6 +137,16 @@ namespace Mist{
   bool OutRTMP::onFinish(){
     MEDIUM_MSG("Finishing stream %s, %s", streamName.c_str(), myConn?"while connected":"already disconnected");
     if (myConn){
+      if (isRecording()){
+        AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
+        amfreply.addContent(AMF::Object("", "deleteStream")); //status reply
+        amfreply.addContent(AMF::Object("", (double)6)); //transaction ID
+        amfreply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+        amfreply.addContent(AMF::Object("", (double)1)); //No clue. But OBS sends this, too.
+        sendCommand(amfreply, 20, 1);
+        myConn.close();
+        return false;
+      }
       myConn.SendNow(RTMPStream::SendUSR(1, 1)); //send UCM StreamEOF (1), stream 1
       AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);
       amfreply.addContent(AMF::Object("", "onStatus")); //status reply

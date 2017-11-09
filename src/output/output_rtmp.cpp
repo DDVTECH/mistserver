@@ -44,13 +44,9 @@ namespace Mist{
           streamOut = streamName;
         }
       }
-      if (streamName.rfind('?') != std::string::npos){
-        streamName = streamName.substr(0, streamName.rfind('?'));
-      }
-      if (streamOut.rfind('?') != std::string::npos){
-        std::string tmpVars = streamOut.substr(streamOut.rfind('?') + 1);
-        streamOut = streamOut.substr(0, streamOut.rfind('?'));
-        parseVars(tmpVars);
+      std::string origTarget = config->getOption("target", true)[0u].asStringRef();
+      if (origTarget.rfind('?') != std::string::npos){
+        parseVars(origTarget.substr(origTarget.rfind('?') + 1));
       }
       initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), host.c_str(), port, app.c_str(), streamOut.c_str());

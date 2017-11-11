@@ -438,7 +438,7 @@ namespace Mist {
       }
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       app_name = app_name.substr(app_name.find('/', 7) + 1);
-      RTMPStream::chunk_snd_max = 10240000;
+      RTMPStream::chunk_snd_max = 65536; //64KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
       myConn.SendNow(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
@@ -677,7 +677,7 @@ namespace Mist {
       rtmpOffset = currentTime();
       amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       sendCommand(amfreply, playMessageType, playStreamId);
-      RTMPStream::chunk_snd_max = 10240000; //10000KiB
+      RTMPStream::chunk_snd_max = 65536; //64KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
       myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1
@@ -738,7 +738,7 @@ namespace Mist {
         amfreply.getContentP(3)->addContent(AMF::Object("timecodeOffset", (double)rtmpOffset));
       }
       sendCommand(amfreply, playMessageType, playStreamId);
-      RTMPStream::chunk_snd_max = 10240000; //10000KiB
+      RTMPStream::chunk_snd_max = 65536; //64KiB
       myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
       //send dunno?
       myConn.SendNow(RTMPStream::SendUSR(32, 1)); //send UCM no clue?, stream 1

@@ -170,6 +170,7 @@ namespace Controller{
         tPage.addField("sync", RAX_UINT);
         tPage.addField("streams", RAX_256RAW);
         tPage.addField("params", RAX_128STRING);
+        tPage.addField("default", RAX_128STRING);
         tPage.setReady();
         uint32_t i = 0;
         uint32_t max = (32 * 1024 - tPage.getOffset()) / tPage.getRSize();
@@ -220,6 +221,11 @@ namespace Controller{
               tPage.setString("params", (*triggIt)["params"].asStringRef(), i);
             }else{
               tPage.setString("params", "", i);
+            }
+            if (triggIt->isMember("default") && !(*triggIt)["default"].isNull()){
+              tPage.setString("default", (*triggIt)["default"].asStringRef(), i);
+            }else{
+              tPage.setString("default", "", i);
             }
           }
 

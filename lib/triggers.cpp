@@ -30,7 +30,7 @@ namespace Triggers{
   ///\param payload This data will be sent to the destionation URL/program
   ///\param sync If true, handler is executed blocking and uses the response data.
   ///\returns String, false if further processing should be aborted.
-  std::string handleTrigger(const std::string &trigger, const std::string &value, const std::string &payload, int sync){
+  std::string handleTrigger(const std::string &trigger, const std::string &value, const std::string &payload, int sync, const std::string &defaultResponse){
     if (!value.size()){
       WARN_MSG("Trigger requested with empty destination");
       return "true";
@@ -44,8 +44,8 @@ namespace Triggers{
       if (DL.post(url, payload, sync) && sync && DL.isOk()){
         return DL.data();
       }
-      /// \TODO Send default response.
-      return "true";
+      FAIL_MSG("Trigger failed to execute (%s), using default response: %s", DL.getStatusText().c_str(), defaultResponse.c_str());
+      return defaultResponse;
     }else{// send payload to stdin of newly forked process
       int fdIn = -1;
       int fdOut = -1;
@@ -58,14 +58,28 @@ namespace Triggers{
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
       if (fdIn == -1 || fdOut == -1 || fdErr == -1){// verify fdIn
         FAIL_MSG("StartPiped returned invalid fd");
-        return "true"; /// \todo Return true/false based on config here.
+        return defaultResponse;
       }
       write(fdIn, payload.data(), payload.size());
       shutdown(fdIn, SHUT_RDWR);
       close(fdIn);
 
       if (sync){// if sync!=0 wait for response
-        while (Util::Procs::isActive(myProc)){Util::sleep(100);}
+        uint32_t counter = 0;
+        while (Util::Procs::isActive(myProc) && counter < 150){
+          Util::sleep(100);
+          ++counter;
+          if (counter >= 150){
+            if (counter == 150){
+              FAIL_MSG("Trigger taking too long - killing process");
+            }
+            if (counter >= 250){
+              Util::Procs::Stop(myProc);
+            }else{
+              Util::Procs::Murder(myProc);
+            }
+          }
+        }
         std::string ret;
         FILE *outFile = fdopen(fdOut, "r");
         char *fileBuf = 0;
@@ -75,11 +89,15 @@ namespace Triggers{
         free(fileBuf);
         close(fdOut);
         close(fdErr);
+        if (counter >= 150){
+          WARN_MSG("Using default trigger response: %s", defaultResponse.c_str());
+          return defaultResponse;
+        }
         return ret;
       }
       close(fdOut);
       close(fdErr);
-      return "true";
+      return defaultResponse;
     }
   }
 
@@ -166,15 +184,17 @@ namespace Triggers{
       if (isHandled && paramsCB){
         isHandled = paramsCB(trigs.getPointer("params", i), extraParam);
       }
+      std::string defaultResponse = trigs.getPointer("default", i);
+      if (!defaultResponse.size()){defaultResponse = "true";}
 
       if (isHandled){
         INFO_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
         if (dryRun){return true;}
         if (sync){
-          response = handleTrigger(type, uri, payload, sync); // do it.
+          response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.
           retVal &= Util::stringToBool(response);
         }else{
-          std::string unused_response = handleTrigger(type, uri, payload, sync); // do it.
+          std::string unused_response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.
           retVal &= Util::stringToBool(unused_response);
         }
       }

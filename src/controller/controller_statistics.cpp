@@ -317,6 +317,8 @@ void Controller::SharedMemStats(void * config){
   statPointer = &statServer;
   shmSessions = new IPC::sharedPage(SHM_SESSIONS, SHM_SESSIONS_SIZE, true);
   cacheLock = new IPC::semaphore(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  cacheLock->unlink();
+  cacheLock->open(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   std::set<std::string> inactiveStreams;
   while(((Util::Config*)config)->is_active){
     {

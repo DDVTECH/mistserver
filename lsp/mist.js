@@ -5173,7 +5173,7 @@ var UI = {
         },{
           label: 'Default response',
           type: 'str',
-          help: 'For blocking requests, the default response in case the handler cannot be executed for any reason.',
+          help: 'The default response in case the handler fails or is set to non-blocking.',
           pointer: {
             main: saveas,
             index: 'default'

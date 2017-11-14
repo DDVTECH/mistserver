@@ -12,6 +12,154 @@ namespace Controller {
   JSON::Value capabilities;
   //Converter::Converter * myConverter = 0;
   
+  ///Generate list of available triggers, storing in global 'capabilities' JSON::Value.
+  void checkAvailTriggers(){
+    JSON::Value & trgs = capabilities["triggers"];
+    trgs["SYSTEM_START"]["when"] = "After MistServer boot";
+    trgs["SYSTEM_START"]["stream_specific"] = false;
+    trgs["SYSTEM_START"]["payload"] = "";
+    trgs["SYSTEM_START"]["response"] = "always";
+    trgs["SYSTEM_START"]["response_action"] = "If false, shuts down the server.";
+
+    trgs["SYSTEM_STOP"]["when"] = "Before MistServer shuts down";
+    trgs["SYSTEM_STOP"]["stream_specific"] = false;
+    trgs["SYSTEM_STOP"]["payload"] = "shutdown reason (string)";
+    trgs["SYSTEM_STOP"]["response"] = "always";
+    trgs["SYSTEM_STOP"]["response_action"] = "If false, aborts shutdown.";
+
+    trgs["SYSTEM_CONFIG"]["when"] = "Every time MistServer's global configuration changes";
+    trgs["SYSTEM_CONFIG"]["stream_specific"] = false;
+    trgs["SYSTEM_CONFIG"]["payload"] = "newly active configuration (JSON)";
+    trgs["SYSTEM_CONFIG"]["response"] = "ignored";
+    trgs["SYSTEM_CONFIG"]["response_action"] = "None.";
+
+    trgs["OUTPUT_START"]["when"] = "Before a connector starts listening for connections";
+    trgs["OUTPUT_START"]["stream_specific"] = false;
+    trgs["OUTPUT_START"]["payload"] = "connector configuration (JSON)";
+    trgs["OUTPUT_START"]["response"] = "ignored";
+    trgs["OUTPUT_START"]["response_action"] = "None.";
+
+    trgs["OUTPUT_STOP"]["when"] = "Before a connector stops listening for connections";
+    trgs["OUTPUT_STOP"]["stream_specific"] = false;
+    trgs["OUTPUT_STOP"]["payload"] = "connector configuration (JSON)";
+    trgs["OUTPUT_STOP"]["response"] = "ignored";
+    trgs["OUTPUT_STOP"]["response_action"] = "None.";
+
+    trgs["STREAM_ADD"]["when"] = "Before a new stream is configured";
+    trgs["STREAM_ADD"]["stream_specific"] = true;
+    trgs["STREAM_ADD"]["payload"] = "stream name (string)\nstream configuration (JSON)";
+    trgs["STREAM_ADD"]["response"] = "always";
+    trgs["STREAM_ADD"]["response_action"] = "If false, does not accept the new stream.";
+
+    trgs["STREAM_CONFIG"]["when"] = "Every time a stream's configuration changes";
+    trgs["STREAM_CONFIG"]["stream_specific"] = true;
+    trgs["STREAM_CONFIG"]["payload"] = "stream name (string)\nnew stream configuration (JSON)";
+    trgs["STREAM_CONFIG"]["response"] = "always";
+    trgs["STREAM_CONFIG"]["response_action"] = "If false, rejects new configuration and reverts to current configuration.";
+
+    trgs["STREAM_REMOVE"]["when"] = "Before an existing stream is removed";
+    trgs["STREAM_REMOVE"]["stream_specific"] = true;
+    trgs["STREAM_REMOVE"]["payload"] = "stream name (string)";
+    trgs["STREAM_REMOVE"]["response"] = "always";
+    trgs["STREAM_REMOVE"]["response_action"] = "If false, prevents removal and reverts to current configuration.";
+
+    trgs["STREAM_SOURCE"]["when"] = "When a stream's source setting is loaded";
+    trgs["STREAM_SOURCE"]["stream_specific"] = true;
+    trgs["STREAM_SOURCE"]["payload"] = "stream name (string)";
+    trgs["STREAM_SOURCE"]["response"] = "when-blocking";
+    trgs["STREAM_SOURCE"]["response_action"] = "A non-empty response will set the stream source to the response value. An empty response will cause the stream source to not be changed from the normally configured stream source.";
+
+    trgs["STREAM_LOAD"]["when"] = "Before a stream input is loaded";
+    trgs["STREAM_LOAD"]["stream_specific"] = true;
+    trgs["STREAM_LOAD"]["payload"] = "stream name (string)";
+    trgs["STREAM_LOAD"]["response"] = "always";
+    trgs["STREAM_LOAD"]["response_action"] = "If false, prevents loading of stream input.";
+
+    trgs["STREAM_READY"]["when"] = "When a stream finished loading and is ready for playback";
+    trgs["STREAM_READY"]["stream_specific"] = true;
+    trgs["STREAM_READY"]["payload"] = "stream name (string)\ninput type (string)";
+    trgs["STREAM_READY"]["response"] = "always";
+    trgs["STREAM_READY"]["response_action"] = "If false, shuts down the stream input.";
+
+    trgs["STREAM_UNLOAD"]["when"] = "Before a stream input is unloaded";
+    trgs["STREAM_UNLOAD"]["stream_specific"] = true;
+    trgs["STREAM_UNLOAD"]["payload"] = "stream name (string)\ninput type (string)";
+    trgs["STREAM_UNLOAD"]["response"] = "always";
+    trgs["STREAM_UNLOAD"]["response_action"] = "If false, aborts the unload and keeps the stream loaded.";
+
+    trgs["STREAM_PUSH"]["when"] = "Before an incoming push is accepted";
+    trgs["STREAM_PUSH"]["stream_specific"] = true;
+    trgs["STREAM_PUSH"]["payload"] = "stream name (string)\nconnection address (string)\nconnector (string)\nrequest url (string)";
+    trgs["STREAM_PUSH"]["response"] = "always";
+    trgs["STREAM_PUSH"]["response_action"] = "If false, rejects the incoming push.";
+
+    trgs["STREAM_TRACK_ADD"]["when"] = "Before a new track is accepted by a live stream buffer";
+    trgs["STREAM_TRACK_ADD"]["stream_specific"] = true;
+    trgs["STREAM_TRACK_ADD"]["payload"] = "stream name (string)\ntrack ID (integer)\n";
+    trgs["STREAM_TRACK_ADD"]["response"] = "ignored";
+    trgs["STREAM_TRACK_ADD"]["response_action"] = "None.";
+
+    trgs["STREAM_TRACK_REMOVE"]["when"] = "Before a track is removed by a live stream buffer";
+    trgs["STREAM_TRACK_REMOVE"]["stream_specific"] = true;
+    trgs["STREAM_TRACK_REMOVE"]["payload"] = "stream name (string)\ntrack ID (integer)\n";
+    trgs["STREAM_TRACK_REMOVE"]["response"] = "ignored";
+    trgs["STREAM_TRACK_REMOVE"]["response_action"] = "None.";
+
+    trgs["STREAM_BUFFER"]["when"] = "Every time a live stream buffer changes state";
+    trgs["STREAM_BUFFER"]["stream_specific"] = true;
+    trgs["STREAM_BUFFER"]["payload"] = "stream name (string)\nbuffer state: EMPTY, FULL, DRY or RECOVER (string)\nbuffer health information (only if not EMPTY) (JSON)";
+    trgs["STREAM_BUFFER"]["response"] = "ignored";
+    trgs["STREAM_BUFFER"]["response_action"] = "None.";
+
+    trgs["RTMP_PUSH_REWRITE"]["when"] = "On incoming RTMP pushes, allows rewriting the RTMP URL to/from custom formatting";
+    trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = true;
+    trgs["RTMP_PUSH_REWRITE"]["payload"] = "full current RTMP url (string)\nconnection hostname (string)";
+    trgs["RTMP_PUSH_REWRITE"]["response"] = "when-blocking";
+    trgs["RTMP_PUSH_REWRITE"]["response_action"] = "If non-empty, overrides the full RTMP url to the response value. If empty, denies the incoming RTMP push.";
+
+    trgs["PUSH_OUT_START"]["when"] = "Before a push out (to file or other target type) is started";
+    trgs["PUSH_OUT_START"]["stream_specific"] = true;
+    trgs["PUSH_OUT_START"]["payload"] = "stream name (string)\npush target (string)";
+    trgs["PUSH_OUT_START"]["response"] = "when-blocking";
+    trgs["PUSH_OUT_START"]["response_action"] = "A non-empty response will set the push target to the response value. An empty response will abort the push. Variable substitution will still take place.";
+
+    trgs["RECORDING_END"]["when"] = "When a push to file finishes";
+    trgs["RECORDING_END"]["stream_specific"] = true;
+    trgs["RECORDING_END"]["payload"] = "stream name (string)\npush target (string)\nconnector / filetype (string)\nbytes recorded (integer)\nseconds spent recording (integer)\nunix time recording started (integer)\nunix time recording stopped (integer)\ntotal milliseconds of media data recorded (integer)\nmillisecond timestamp of first media packet (integer)\nmillisecond timestamp of last media packet (integer)\n";
+    trgs["RECORDING_END"]["response"] = "ignored";
+    trgs["RECORDING_END"]["response_action"] = "None.";
+
+    trgs["CONN_OPEN"]["when"] = "After a new connection is accepted";
+    trgs["CONN_OPEN"]["stream_specific"] = true;
+    trgs["CONN_OPEN"]["payload"] = "stream name (string)\nconnection address (string)\nconnector (string)\nrequest url (string)";
+    trgs["CONN_OPEN"]["response"] = "always";
+    trgs["CONN_OPEN"]["response_action"] = "If false, rejects the connection.";
+
+    trgs["CONN_CLOSE"]["when"] = "After a new connection is closed";
+    trgs["CONN_CLOSE"]["stream_specific"] = true;
+    trgs["CONN_CLOSE"]["payload"] = "stream name (string)\nconnection address (string)\nconnector (string)\nrequest url (string)";
+    trgs["CONN_CLOSE"]["response"] = "ignored";
+    trgs["CONN_CLOSE"]["response_action"] = "None.";
+
+    trgs["CONN_PLAY"]["when"] = "Before a connection first starts playback";
+    trgs["CONN_PLAY"]["stream_specific"] = true;
+    trgs["CONN_PLAY"]["payload"] = "stream name (string)\nconnection address (string)\nconnector (string)\nrequest url (string)";
+    trgs["CONN_PLAY"]["response"] = "always";
+    trgs["CONN_PLAY"]["response_action"] = "If false, rejects the playback attempt.";
+
+    trgs["USER_NEW"]["when"] = "Every time a new session is added to the session cache";
+    trgs["USER_NEW"]["stream_specific"] = true;
+    trgs["USER_NEW"]["payload"] = "stream name (string)\nconnection address (string)\nconnection identifier (integer)\nconnector (string)\nrequest url (string)\nsession identifier (integer)";
+    trgs["USER_NEW"]["response"] = "always";
+    trgs["USER_NEW"]["response_action"] = "If false, denies the session while it remains in the cache. If true, accepts the session while it remains in the cache.";
+
+    trgs["LIVE_BANDWIDTH"]["when"] = "Every time a new live stream key frame is received";
+    trgs["LIVE_BANDWIDTH"]["stream_specific"] = true;
+    trgs["LIVE_BANDWIDTH"]["payload"] = "stream name (string)\ncurrent bytes per second (integer)";
+    trgs["LIVE_BANDWIDTH"]["response"] = "always";
+    trgs["LIVE_BANDWIDTH"]["response_action"] = "If false, shuts down the stream buffer.";
+    trgs["LIVE_BANDWIDTH"]["argument"] = "Triggers only if current bytes per second exceeds this amount (integer)";
+  }
   
   ///Aquire list of available protocols, storing in global 'capabilities' JSON::Value.
   void checkAvailProtocols(){

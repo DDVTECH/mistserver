@@ -1,7 +1,9 @@
 #include <mist/json.h>
 
-namespace Controller {
+namespace Controller{
   extern JSON::Value capabilities; ///< Global storage of capabilities
-  void checkCapable(JSON::Value & capa);
+  void checkCapable(JSON::Value &capa);
   void checkAvailProtocols();
-}
+  void checkAvailTriggers(); /*LTS*/
+}// namespace Controller
+

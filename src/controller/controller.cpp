@@ -290,6 +290,7 @@ int main_loop(int argc, char **argv){
   }
   Controller::writeConfig();
   Controller::checkAvailProtocols();
+  Controller::checkAvailTriggers();
   Controller::updateBandwidthConfig();
   createAccount(Controller::conf.getString("account"));
   Controller::conf.activate(); // activate early, so threads aren't killed.

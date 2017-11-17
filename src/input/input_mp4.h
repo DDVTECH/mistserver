@@ -5,7 +5,7 @@
 namespace Mist {
   class mp4PartTime{
     public:
-      mp4PartTime() : time(0), offset(0), trackID(0), bpos(0), size(0), index(0) {}
+      mp4PartTime() : time(0), offset(0), trackID(0), bpos(0), size(0), index(0), duration(0) {}
       bool operator < (const mp4PartTime & rhs) const {
         if (time < rhs.time){
           return true;
@@ -19,6 +19,7 @@ namespace Mist {
         return (trackID == rhs.trackID && bpos < rhs.bpos);
       }
       uint64_t time;
+      uint64_t duration;
       int32_t offset;
       size_t trackID;
       uint64_t bpos;
@@ -60,7 +61,7 @@ namespace Mist {
       MP4::CTTS cttsBox;
       MP4::STSC stscBox;
       uint64_t timeScale;
-      void getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset);
+      void getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset, uint64_t & duration);
       uint64_t size();
     private:
       bool initialised;

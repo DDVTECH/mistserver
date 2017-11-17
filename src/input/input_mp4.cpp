@@ -60,7 +60,7 @@ namespace Mist{
     hasCTTS = cttsBox.isType("ctts");
   }
 
-  void mp4TrackHeader::getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset){
+  void mp4TrackHeader::getPart(uint64_t index, uint64_t & offset, uint32_t & size, uint64_t & timestamp, int32_t & timeOffset, uint64_t & duration){
     if (index < sampleIndex){
       sampleIndex = 0;
       stscStart = 0;
@@ -114,6 +114,24 @@ namespace Mist{
       ++deltaIndex;
     }
     timestamp = ((deltaTotal + ((index-deltaPos) * tmpSTTS.sampleDelta))*1000) / timeScale;
+    duration = 0;
+    
+    {
+      uint64_t tmpIndex = deltaIndex;
+      uint64_t tmpPos = deltaPos;
+      uint64_t tmpTotal = deltaTotal;
+      while (tmpIndex < sttsCount){
+        tmpSTTS = sttsBox.getSTTSEntry(tmpIndex);
+        if ((index+1 - tmpPos) < tmpSTTS.sampleCount){
+          duration = (((tmpTotal + ((index+1-tmpPos) * tmpSTTS.sampleDelta))*1000) / timeScale) - timestamp;
+          break;
+        }
+        tmpTotal += tmpSTTS.sampleCount * tmpSTTS.sampleDelta;
+        tmpPos += tmpSTTS.sampleCount;
+        ++tmpIndex;
+      }
+    }
+
     initialised = true;
 
     if (index < offsetPos){
@@ -486,11 +504,10 @@ namespace Mist{
         thisPack["trackid"] = (long long)curPart.trackID;
         thisPack["bpos"] = (long long)curPart.bpos; //(long long)fileSource.tellg();
         thisPack["data"] = std::string(data+2,txtLen);
-//        thisPack["index"] = index;
         thisPack["time"] = (long long)curPart.time;
-        thisPack["duration"] = 1000;
-
-        // thisPack["time"] = (long long)timestamp;
+        if (curPart.duration){
+          thisPack["duration"] = (long long)curPart.duration;
+        }
         thisPack["keyframe"] =  true;
         // Write the json value to lastpack
         std::string tmpStr = thisPack.toNetPacked();
@@ -506,7 +523,7 @@ namespace Mist{
     //get the next part for this track
     curPart.index ++;
     if (curPart.index < headerData[curPart.trackID].size()){
-      headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time, curPart.offset);
+      headerData[curPart.trackID].getPart(curPart.index, curPart.bpos, curPart.size, curPart.time, curPart.offset, curPart.duration);
       curPositions.insert(curPart);
     }
   }
@@ -525,7 +542,7 @@ namespace Mist{
       //for all indexes in those tracks
       for (unsigned int i = 0; i < headerData[*it].size(); i++){
         //if time > seekTime
-        headerData[*it].getPart(i, addPart.bpos, addPart.size, addPart.time, addPart.offset);
+        headerData[*it].getPart(i, addPart.bpos, addPart.size, addPart.time, addPart.offset, addPart.duration);
         //check for keyframe time in myMeta and update nextKeyframe
         //
         if (myMeta.tracks[*it].keys[(nextKeyframe[*it])].getTime() < addPart.time){

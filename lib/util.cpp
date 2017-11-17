@@ -137,6 +137,14 @@ namespace Util{
     return result.size() == positions.size();
   }
 
+  void stringToLower(std::string & val){
+    int i = 0;
+    while(val[i]){
+      val.at(i) = tolower(val.at(i));
+      i++;
+    }
+  }
+
   /// 64-bits version of ftell
   uint64_t ftell(FILE *stream){
     /// \TODO Windows implementation (e.g. _ftelli64 ?)

@@ -2,6 +2,8 @@
 #include "output_http.h"
 #include <mist/stream.h>
 #include <mist/checksum.h>
+#include <mist/util.h>
+#include <mist/langcodes.h>
 #include <set>
 
 namespace Mist {
@@ -207,7 +209,7 @@ namespace Mist {
       }
     }
   }
-  
+ 
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
       if (H.hasHeader("User-Agent")){
@@ -227,39 +229,11 @@ namespace Mist {
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());
+      if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
+      if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
+      if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
       initialize();
-      if (H.GetVar("audio") != "" || H.GetVar("video") != ""){
-        selectedTracks.clear();
-        if (H.GetVar("audio") != ""){
-          selectedTracks.insert(JSON::Value(H.GetVar("audio")).asInt());
-        }
-        if (H.GetVar("video") != ""){
-          selectedTracks.insert(JSON::Value(H.GetVar("video")).asInt());
-        }
-        selectDefaultTracks();
-        std::set<unsigned long> toRemove;
-        if (H.GetVar("video") == "0"){
-          for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-            if (myMeta.tracks.at(*it).type=="video"){
-              toRemove.insert(*it);
-            }
-          }
-        }
-        if (H.GetVar("audio") == "0"){
-          for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-            if (myMeta.tracks.at(*it).type=="audio"){
-              toRemove.insert(*it);
-            }
-          }
-        }
-        //remove those from selectedtracks
-        for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
-          selectedTracks.erase(*it);
-        }
-      }else{
-        selectDefaultTracks();
-      }
-
+      selectDefaultTracks();
       onHTTP();
       if (!H.bufferChunks){
         H.Clean();

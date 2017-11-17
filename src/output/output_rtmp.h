@@ -21,7 +21,6 @@ namespace Mist {
       int64_t rtmpOffset;
       uint64_t lastOutTime;
       unsigned int maxbps;
-      void parseVars(std::string data);
       std::string app_name;
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);

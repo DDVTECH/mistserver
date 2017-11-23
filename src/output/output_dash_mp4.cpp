@@ -7,7 +7,7 @@
 #include <mist/timing.h>
 #include <iomanip>
 
-namespace Mist {
+namespace Mist{
   OutDashMP4::OutDashMP4(Socket::Connection & conn) : HTTPOutput(conn){
     uaDelay = 0;
     realTime = 0;
@@ -158,6 +158,7 @@ namespace Mist {
       MP4::SMHD smhdBox;
       minfBox.setContent(smhdBox, 2);
     }
+
     mdiaBox.setContent(minfBox, 2);
     trakBox.setContent(mdiaBox, 1);
     moovBox.setContent(trakBox, 3);
@@ -183,6 +184,7 @@ namespace Mist {
     tfdtBox.setBaseMediaDecodeTime(Trk.getKey(Trk.fragments[fragIndice].getNumber()).getTime());
     trafBox.setContent(tfdtBox, 1);
     MP4::TRUN trunBox;
+
     if (Trk.type == "video"){
       uint32_t headSize = 0;
       if (Trk.codec == "H264"){
@@ -264,7 +266,7 @@ namespace Mist {
         }
       }
     }
-    char mdatstr[8] = {0, 0, 0, 0, 'm', 'd', 'a', 't'};
+    char mdatstr[8] ={0, 0, 0, 0, 'm', 'd', 'a', 't'};
     mdatstr[0] = (char)((size >> 24) & 0xFF);
     mdatstr[1] = (char)((size >> 16) & 0xFF);
     mdatstr[2] = (char)((size >> 8) & 0xFF);
@@ -319,7 +321,7 @@ namespace Mist {
     H.Chunkify(data, dataLen, myConn);
   }
 
-  std::string OutDashMP4::h264init(const std::string & initData) {
+  std::string OutDashMP4::h264init(const std::string & initData){
     std::stringstream r;
     MP4::AVCC avccBox;
     avccBox.setPayload(initData);
@@ -329,7 +331,7 @@ namespace Mist {
     return r.str();
   }
 
-  std::string OutDashMP4::h265init(const std::string & initData) {
+  std::string OutDashMP4::h265init(const std::string & initData){
     std::stringstream r;
     r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
     r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[6] << std::dec;
@@ -348,10 +350,10 @@ namespace Mist {
     bool first = true;
     //skip the first two fragments if live
     if (live && Trk.fragments.size() > 6){++(++it);}
-    for (; it != Trk.fragments.end(); it++) {
+    for (; it != Trk.fragments.end(); it++){
       uint64_t starttime = Trk.getKey(it->getNumber()).getTime();
       uint32_t duration = it->getDuration();
-      if (!duration) {
+      if (!duration){
         if (live){continue;}//skip last fragment when live
         duration = Trk.lastms - starttime;
       }
@@ -371,6 +373,8 @@ namespace Mist {
     uint64_t vidInitTrack = 0;
     uint64_t lastAudTime = 0;
     uint64_t audInitTrack = 0;
+    uint64_t subInitTrack = 0;
+
     /// \TODO DASH pretends there is only one audio/video track, and then prints them all using the same timing information. This is obviously wrong if the tracks are not in sync.
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
       if ((it->second.codec == "H264" || it->second.codec == "HEVC") && it->second.lastms > lastVidTime){
@@ -381,8 +385,12 @@ namespace Mist {
         lastAudTime = it->second.lastms;
         audInitTrack = it->first;
       }
+      if(it->second.codec == "subtitle"){
+        subInitTrack = it->first;
+      }
     }
     std::stringstream r;
+
     r << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << std::endl;
     r << "<MPD xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"urn:mpeg:dash:schema:mpd:2011\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xsi:schemaLocation=\"urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd\" profiles=\"urn:mpeg:dash:profile:isoff-live:2011\" ";
     if (myMeta.vod){
@@ -456,6 +464,20 @@ namespace Mist {
       }
       r << "    </AdaptationSet>" << std::endl;
     }
+
+    if(subInitTrack){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if(it->second.codec == "subtitle"){
+          subInitTrack = it->first;
+          std::string lang = (it->second.lang == "" ? "unknown" : it->second.lang);
+          r << "<AdaptationSet group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang <<  "\">";
+          r << " <Representation id=\"caption_en"<< it->first << "\" bandwidth=\"256\">";
+          r <<   " <BaseURL>../../" << streamName << ".vtt?track=" << it->first << "</BaseURL>";
+          r << " </Representation></AdaptationSet>" << std::endl;
+        }
+      }
+    }
+
     r << "  </Period>" << std::endl;
     r << "</MPD>" << std::endl;
 
@@ -474,6 +496,8 @@ namespace Mist {
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][2u].append("subtitle");
+
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;

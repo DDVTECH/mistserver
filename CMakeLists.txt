@@ -382,6 +382,8 @@ makeInput(Folder folder)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
 
+makeInput(SRT srt)#LTS
+
 ########################################
 # MistServer - Outputs                 #
 ########################################

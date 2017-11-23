@@ -1,5 +1,6 @@
 #include "output_hls.h"
 #include <mist/stream.h>
+#include <mist/langcodes.h> /*LTS*/
 #include <unistd.h>
 
 namespace Mist {

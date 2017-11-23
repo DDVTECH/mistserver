@@ -187,7 +187,7 @@ namespace Mist {
       }
     }
     if (i == 1024){
-      FAIL_MSG("Could not erase page %lu for track %lu->%lu stream %s from track index!", pageNumber, tid, mapTid, streamName.c_str());
+      ERROR_MSG("Could not erase page %lu for track %lu->%lu stream %s from track index!", pageNumber, tid, mapTid, streamName.c_str());
     }
 
     if (!nProxy.pagesByTrack.count(tid)){

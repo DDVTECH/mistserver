@@ -322,11 +322,21 @@ namespace Mist{
           if (!found){
             jsonForEach((*itb), itc){
               if (found){break;}
-              for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
-                  selectedTracks.insert(trit->first);
-                  found = true;
-                  if ((*itc).asStringRef() != "*"){break;}
+              if (myMeta.live){
+                for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
+                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
+                    selectedTracks.insert(trit->first);
+                    found = true;
+                    if ((*itc).asStringRef() != "*"){break;}
+                  }
+                }
+              }else{
+                for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+                  if (trit->second.codec == (*itc).asStringRef() || (*itc).asStringRef() == "*"){
+                    selectedTracks.insert(trit->first);
+                    found = true;
+                    if ((*itc).asStringRef() != "*"){break;}
+                  }
                 }
               }
             }

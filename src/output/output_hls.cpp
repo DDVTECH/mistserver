@@ -35,12 +35,19 @@ namespace Mist {
         if (audioId != -1) {
           bWidth += myMeta.tracks[audioId].bps;
         }
-        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8) << "\r\n";
+        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,SUBTITLES=\"sub1\",BANDWIDTH=" << (bWidth * 8) << "\r\n";
         result << it->first;
         if (audioId != -1) {
           result << "_" << audioId;
         }
         result << "/index.m3u8?sessId=" << getpid() << "\r\n";
+      }else if(it->second.codec == "subtitle"){
+
+        if(it->second.lang.empty()){
+          it->second.lang = "und";
+        }
+
+        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << it->second.lang << "\",NAME=\"" << Encodings::ISO639::decode(it->second.lang) << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8\"" << "\r\n";
       }
     }
     if (!vidTracks && audioId) {
@@ -145,10 +152,15 @@ namespace Mist {
         duration = myMeta.tracks[tid].lastms - starttime;
       }
       char lineBuf[400];
-      if (sessId.size()){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
+
+      if(myMeta.tracks[tid].codec == "subtitle"){
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.vtt?track=%d&from=%lld&to=%lld\r\n", streamName.c_str(),(double)duration/1000,tid, starttime, starttime + duration);
       }else{
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+        if (sessId.size()){
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
+        }else{
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+        }
       }
       durs.push_back(duration);
       total_dur += duration;

@@ -14,8 +14,7 @@ namespace Mist {
     capa["desc"] = "Enables HTTP protocol subtitle streaming in subrip and WebVTT formats.";
     capa["url_match"].append("/$.srt");
     capa["url_match"].append("/$.vtt");
-    capa["codecs"][0u][0u].append("srt");
-    capa["codecs"][0u][0u].append("TTXT");
+    capa["codecs"][0u][0u].append("subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/plain";
     capa["methods"][0u]["priority"] = 8ll;
@@ -30,6 +29,7 @@ namespace Mist {
     char * dataPointer = 0;
     unsigned int len = 0;
     thisPacket.getString("data", dataPointer, len);
+//    INFO_MSG("getting sub: %s", dataPointer);
     //ignore empty subs
     if (len == 0 || (len == 1 && dataPointer[0] == ' ')){
       return;
@@ -39,6 +39,20 @@ namespace Mist {
       tmp << lastNum++ << std::endl;
     }
     long long unsigned int time = thisPacket.getTime();
+ 
+    
+    //filter subtitle in specific timespan
+    if(filter_from > 0 && time < filter_from){
+    index++;    //when using seek, the index is lost.
+      seek(filter_from);
+      return;
+    }
+
+    if(filter_to > 0 && time > filter_to && filter_to > filter_from){
+      config->is_active = false;
+      return;
+    }
+
     char tmpBuf[50];
     int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
@@ -79,6 +93,18 @@ namespace Mist {
       selectedTracks.clear();
       selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
     }
+    
+    filter_from = 0;
+    filter_to = 0;
+    index = 0;
+
+    if (H.GetVar("from") != ""){
+      filter_from = JSON::Value(H.GetVar("from")).asInt();
+    }
+    if (H.GetVar("to") != ""){
+      filter_to = JSON::Value(H.GetVar("to")).asInt();
+    }
+
     H.Clean();
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){

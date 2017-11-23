@@ -13,6 +13,9 @@ namespace Mist {
     protected:
       bool webVTT;
       int lastNum;
+      uint32_t filter_from;
+      uint32_t filter_to;
+      uint32_t index;
   };
 }
 

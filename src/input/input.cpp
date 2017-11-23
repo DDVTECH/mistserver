@@ -131,8 +131,8 @@ namespace Mist {
     srtTrack = myMeta.tracks.rbegin()->first + 1;
 
     myMeta.tracks[srtTrack].trackID = srtTrack;
-    myMeta.tracks[srtTrack].type = "subtitle";
-    myMeta.tracks[srtTrack].codec = "srt";
+    myMeta.tracks[srtTrack].type = "meta";
+    myMeta.tracks[srtTrack].codec = "subtitle";
 
     getNextSrt();
     while (srtPack){

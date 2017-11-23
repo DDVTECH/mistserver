@@ -14,7 +14,7 @@
 
 #include "input_mp4.h"
 
-namespace Mist {
+namespace Mist{
 
   mp4TrackHeader::mp4TrackHeader(){
     initialised = false;
@@ -136,7 +136,7 @@ namespace Mist {
     size = stszBox.getEntrySize(index);
   }
   
-  inputMP4::inputMP4(Util::Config * cfg) : Input(cfg) {
+  inputMP4::inputMP4(Util::Config * cfg) : Input(cfg){
     malSize = 4;//initialise data read buffer to 0;
     data = (char*)malloc(malSize);
     capa["name"] = "MP4";
@@ -156,18 +156,18 @@ namespace Mist {
     free(data);
   }
   
-  bool inputMP4::checkArguments() {
-    if (config->getString("input") == "-") {
+  bool inputMP4::checkArguments(){
+    if (config->getString("input") == "-"){
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
     if (!config->getString("streamname").size()){
-      if (config->getString("output") == "-") {
+      if (config->getString("output") == "-"){
         std::cerr << "Output to stdout not yet supported" << std::endl;
         return false;
       }
     }else{
-      if (config->getString("output") != "-") {
+      if (config->getString("output") != "-"){
         std::cerr << "File output in player mode not supported" << std::endl;
         return false;
       }
@@ -176,18 +176,18 @@ namespace Mist {
     return true;
   }
     
-  bool inputMP4::preRun() {
+  bool inputMP4::preRun(){
     //open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile) {
+    if (!inFile){
       return false;
     }
     return true;
     
   }
 
-  bool inputMP4::readHeader() {
-    if (!inFile) {
+  bool inputMP4::readHeader(){
+    if (!inFile){
       INFO_MSG("inFile failed!");
       return false;
     }
@@ -306,7 +306,7 @@ namespace Mist {
             initBox = vEntryBox.getPASP();
             if (initBox.isType("hvcC")){
               myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());
-            }          
+            }
           }
           if (sType == "mp4a" || sType == "aac " || sType == "ac-3"){
             MP4::AudioSampleEntry & aEntryBox = (MP4::AudioSampleEntry&)sEntryBox;
@@ -325,8 +325,8 @@ namespace Mist {
           }
 
           if (sType == "tx3g"){//plain text subtitles
-            myMeta.tracks[trackNo].type = "subtitle";
-            myMeta.tracks[trackNo].codec = "TTXT";
+            myMeta.tracks[trackNo].type = "meta";
+            myMeta.tracks[trackNo].codec = "subtitle";
           }
 
           MP4::STSS stssBox = stblBox.getChild<MP4::STSS>();
@@ -407,7 +407,21 @@ namespace Mist {
             }else{
               BsetPart.timeOffset = 0;
             }
-            myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo, stszBox.getEntrySize(stszIndex), BsetPart.bpos, BsetPart.keyframe);
+
+            if(sType == "tx3g"){
+              if(stszBox.getEntrySize(stszIndex) <=2 && false){
+                FAIL_MSG("size <=2");
+              }else{
+                long long packSendSize = 0;
+                packSendSize = 24 + (BsetPart.timeOffset ? 17 : 0) + (BsetPart.bpos ? 15 : 0) + 19 +
+                               stszBox.getEntrySize(stszIndex) + 11-2  + 19;
+                myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo,
+                              stszBox.getEntrySize(stszIndex) -2 , BsetPart.bpos, true,
+                              packSendSize);
+              }
+            }else{
+              myMeta.update(BsetPart.time, BsetPart.timeOffset, trackNo, stszBox.getEntrySize(stszIndex), BsetPart.bpos, BsetPart.keyframe);
+            }
           }
         }
         continue;
@@ -424,7 +438,7 @@ namespace Mist {
     return true;
   }
   
-  void inputMP4::getNext(bool smart) {//get next part from track in stream
+  void inputMP4::getNext(bool smart){//get next part from track in stream
     if (curPositions.empty()){
       thisPacket.null();
       return;
@@ -459,13 +473,31 @@ namespace Mist {
       return;
     }
 
-
-    if (myMeta.tracks[curPart.trackID].codec == "TTXT"){
+    if (myMeta.tracks[curPart.trackID].codec == "subtitle"){
       unsigned int txtLen = Bit::btohs(data);
-      if (!txtLen){
-        thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, " ", 1, 0/*Note: no bpos*/, isKeyframe);
+      if (!txtLen && false ){
+        curPart.index ++;
+        return getNext(smart);
+        //thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, " ", 1, 0/*Note: no bpos*/, isKeyframe);
       }else{
-        thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data+2, txtLen, 0/*Note: no bpos*/, isKeyframe);
+
+        static JSON::Value thisPack;
+        thisPack.null();
+        thisPack["trackid"] = (long long)curPart.trackID;
+        thisPack["bpos"] = (long long)curPart.bpos; //(long long)fileSource.tellg();
+        thisPack["data"] = std::string(data+2,txtLen);
+//        thisPack["index"] = index;
+        thisPack["time"] = (long long)curPart.time;
+        thisPack["duration"] = 1000;
+
+        // thisPack["time"] = (long long)timestamp;
+        thisPack["keyframe"] =  true;
+        // Write the json value to lastpack
+        std::string tmpStr = thisPack.toNetPacked();
+        thisPacket.reInit(tmpStr.data(), tmpStr.size());
+        //return;
+
+        //thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data+2, txtLen, 0/*Note: no bpos*/, isKeyframe);
       }
     }else{
       thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data, curPart.size, 0/*Note: no bpos*/, isKeyframe);
@@ -479,7 +511,7 @@ namespace Mist {
     }
   }
 
-  void inputMP4::seek(int seekTime) {//seek to a point
+  void inputMP4::seek(int seekTime){//seek to a point
     nextKeyframe.clear();
     //for all tracks
     curPositions.clear();
@@ -509,16 +541,16 @@ namespace Mist {
     }//rof all tracks
   }
 
-  void inputMP4::trackSelect(std::string trackSpec) {
+  void inputMP4::trackSelect(std::string trackSpec){
     selectedTracks.clear();
     long long int index;
-    while (trackSpec != "") {
+    while (trackSpec != ""){
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
       VERYHIGH_MSG("Added track %d, index = %lld, (index == npos) = %d", atoi(trackSpec.substr(0, index).c_str()), index, index == std::string::npos);
-      if (index != std::string::npos) {
+      if (index != std::string::npos){
         trackSpec.erase(0, index + 1);
-      } else {
+      }else{
         trackSpec = "";
       }
     }

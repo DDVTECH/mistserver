@@ -443,8 +443,17 @@ namespace MP4 {
       case 0x73636869:
         return ((SCHI *)this)->toPrettyString(indent);
         break;
+      case 0x74783367:
+        INFO_MSG("TX3G box found!");
+        return ((TX3G *)this)->toPrettyString(indent);
+        break;
+      case 0x66746162:
+        INFO_MSG("FTAB box found!");
+        return ((FontTableBox *)this)->toPrettyString(indent);
+        break;
       /*LTS-END*/
       default:
+        INFO_MSG("no code found: 0x%0.8x",ntohl(*((int *)(data + 4))));
         break;
     }
     std::stringstream retval;

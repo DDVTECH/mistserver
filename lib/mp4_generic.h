@@ -366,6 +366,12 @@ namespace MP4 {
       int16_t getBalance();
       std::string toPrettyString(uint32_t indent = 0);
   };
+  
+  class STHD: public fullBox {
+    public:
+      STHD();
+      std::string toPrettyString(uint32_t indent = 0);
+  };
 
   class HMHD: public fullBox {
     public:
@@ -698,6 +704,88 @@ namespace MP4 {
       Box & getSINFBox(); /*LTS*/
       std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
+
+  struct BoxRecord {
+      int16_t top;
+      int16_t left;
+      int16_t bottom;
+      int16_t right;
+  };
+
+  struct StyleRecord {
+      uint16_t startChar;
+      uint16_t endChar;
+      uint16_t font_id;
+      uint8_t face_style_flags;
+      uint8_t font_size;
+      uint8_t text_color_rgba[4];
+  };
+
+  class FontRecord {
+    public:
+      FontRecord();
+      ~FontRecord();
+      uint16_t font_id;
+      uint8_t font_name_length;
+      char* font;
+      //uint8_t font[font_name_length];
+      
+      void setFont(const char* f);
+  };
+
+  class FontTableBox: public Box {
+    public:
+      FontTableBox();
+      void setEntryCount(uint16_t);
+      uint16_t getEntryCount();
+
+      void setFontRecord(FontRecord f);
+      FontRecord font_entry[1];
+      void setFontId(uint16_t id);
+    //FontRecord font_entry[entry_count];
+  };
+
+  class TextSampleEntry: public SampleEntry {
+    public:
+      TextSampleEntry();
+      TextSampleEntry(DTSC::Track & track);
+      void initialize();
+      void setHzJustification(int8_t n);
+      void setVtJustification(int8_t n);
+      uint32_t getDisplayFlags();
+      void setDisplayFlags(uint32_t flags);
+      int8_t getHzJustification();
+      int8_t getVtJustification();
+      uint8_t getBackGroundColorRGBA(uint8_t n = 0);
+      void setBackGroundColorRGBA(uint8_t pos, uint8_t value);
+
+      void setCodec(const char * newCodec);
+      void setCodecBox(Box & newBox);
+      Box & getCodecBox();
+
+      BoxRecord getBoxRecord();
+      void setBoxRecord(BoxRecord b);
+
+      StyleRecord getStyleRecord();
+      void setStyleRecord(StyleRecord s);
+
+      FontTableBox getFontTableBox();
+      void setFontTableBox(FontTableBox f);
+
+
+
+      std::string toPrettyTextString(uint32_t indent = 0, std::string name = "");
+  };
+
+
+  
+  class TX3G: public TextSampleEntry {
+    public:
+      TX3G();
+            std::string toPrettyString(uint32_t indent = 0);
+  };
+
+
 
   class MP4A: public AudioSampleEntry {
     public:

@@ -1532,6 +1532,10 @@ namespace MP4 {
     if (type == "audio") {
       setHandlerType("soun");
     }
+    if (type == "meta") {
+      setHandlerType("sbtl");
+    }
+
     setName(name);
   }
 
@@ -1627,6 +1631,10 @@ namespace MP4 {
     return r.str();
   }
 
+  STHD::STHD() {
+    memcpy(data + 4, "sthd", 4);
+  }
+
   HMHD::HMHD() {
     memcpy(data + 4, "hmhd", 4);
   }
@@ -1676,6 +1684,8 @@ namespace MP4 {
 
   NMHD::NMHD() {
     memcpy(data + 4, "nmhd", 4);
+    setVersion(0);
+    setFlags(0);
   }
 
   std::string NMHD::toPrettyString(uint32_t indent) {
@@ -3160,6 +3170,9 @@ namespace MP4 {
 
   }
 
+
+
+
   std::string VisualSampleEntry::toPrettyVisualString(uint32_t indent, std::string name) {
     std::stringstream r;
     r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
@@ -3288,8 +3301,256 @@ namespace MP4 {
     return r.str();
   }
 
+  TextSampleEntry::TextSampleEntry() {
+    initialize();
+  }
+
+  std::string TextSampleEntry::toPrettyTextString(uint32_t indent, std::string name) {
+    std::stringstream r;
+
+    r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "DisplayFlags: " << getDisplayFlags() << std::endl;
+    
+    r << std::string(indent + 1, ' ') << "Horizontal Justification: " << (int) getHzJustification() << std::endl;
+    r << std::string(indent + 1, ' ') << "Vertial Justification: " << (int)  getVtJustification() << std::endl;
+    
+    r << std::string(indent + 1, ' ') << "Background color rgba " << std::endl;
+
+    r << std::string(indent + 2, ' ') << "[0]: " << (int) getBackGroundColorRGBA(0) << std::endl;
+    r << std::string(indent + 2, ' ') << "[1]: " << (int) getBackGroundColorRGBA(1) << std::endl;
+    r << std::string(indent + 2, ' ') << "[2]: " << (int) getBackGroundColorRGBA(2) << std::endl;
+    r << std::string(indent + 2, ' ') << "[3]: " << (int) getBackGroundColorRGBA(3) << std::endl;
+
+    r << std::string(indent + 1, ' ') << "BoxRecord" << std::endl;
+
+    r << std::string(indent + 2, ' ') << "Top: " << getBoxRecord().top << std::endl;
+    r << std::string(indent + 2, ' ') << "Left: " << getBoxRecord().left << std::endl;
+    r << std::string(indent + 2, ' ') << "Bottom: " << getBoxRecord().bottom << std::endl;
+    r << std::string(indent + 2, ' ') << "Right: " << getBoxRecord().right << std::endl;
+
+
+    r << std::string(indent + 1, ' ') << "StyleRecord" << std::endl;
+
+    r << std::string(indent + 2, ' ') << "StartChar: " << getStyleRecord().startChar << std::endl;
+    r << std::string(indent + 2, ' ') << "EndChar: " << getStyleRecord().endChar << std::endl;
+    r << std::string(indent + 2, ' ') << "Font-ID: " << getStyleRecord().font_id << std::endl;
+    r << std::string(indent + 2, ' ') << "Face-Style-Flags: " << (int) getStyleRecord().face_style_flags << std::endl;
+    r << std::string(indent + 2, ' ') << "Font-Size: " << (int) getStyleRecord().font_size << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Text color rgba:" << std::endl;
+    r << std::string(indent + 2, ' ') << "[0]: " << (int) getStyleRecord().text_color_rgba[0] << std::endl;
+    r << std::string(indent + 2, ' ') << "[1]: " << (int) getStyleRecord().text_color_rgba[1] << std::endl;
+    r << std::string(indent + 2, ' ') << "[2]: " << (int) getStyleRecord().text_color_rgba[2] << std::endl;
+    r << std::string(indent + 2, ' ') << "[3]: " << (int) getStyleRecord().text_color_rgba[3] << std::endl;
+
+    return r.str();
+  }
+
+  TextSampleEntry::TextSampleEntry(DTSC::Track & track) {
+    initialize();
+
+     if (track.codec == "subtitle") {
+      setCodec("tx3g");
+    } else { 
+      //not supported codec
+      INFO_MSG("not supported codec: %s",track.codec.c_str());
+    }
+
+  }
+  
+  void TextSampleEntry::setCodec(const char * newCodec) {
+    memcpy(data + 4, newCodec, 4);
+  }
+
+  void TextSampleEntry::setCodecBox(Box & newBox) {
+    setBox(newBox, 8);
+  }
+
+  void TextSampleEntry::initialize() {
+    memcpy(data + 4, "erro", 4);
+    setHzJustification(1);
+    setVtJustification(-1);
+    setDisplayFlags(0);
+
+    StyleRecord res;
+    res.startChar = 0;
+    res.endChar = 0;
+    res.font_id= 1;
+
+    res.face_style_flags = 0;
+    res.font_size = 18;
+
+    res.text_color_rgba[0] = 255;
+    res.text_color_rgba[1] = 255;
+    res.text_color_rgba[2] = 255;
+    res.text_color_rgba[3] = 255;
+
+    setStyleRecord(res);
+
+    setBackGroundColorRGBA(0, 0);
+    setBackGroundColorRGBA(1, 0);
+    setBackGroundColorRGBA(2, 0);
+    setBackGroundColorRGBA(3, 0);
+
+    BoxRecord b;
+    b.top = 0;
+    b.left = 0;
+    b.bottom = 0 ;
+    b.right = 0;
+    setBoxRecord(b);
+   
+  }
+
+  FontRecord::FontRecord() {
+    INFO_MSG("fontrecord constr");
+    font = NULL;
+
+  }
+
+  void FontRecord::setFont(const char* f) {
+    if(font) {
+      free(font);
+    }
+    font_name_length = strlen(f);
+    font = (char*) malloc (font_name_length);
+    memcpy(font, f, font_name_length);
+    font[font_name_length] = 0;
+    INFO_MSG("font set");
+  }
+  
+  void FontTableBox::setFontId(uint16_t id) {
+    setInt16(id,1111);
+  }
+
+
+  FontRecord::~FontRecord() {
+//    if(font) {
+//      free(font);
+//    }
+  }
+
+  TX3G::TX3G() {
+    INFO_MSG("tx3g constructor");
+    memcpy(data +4, "tx3g", 4);
+  }
+
+  FontTableBox::FontTableBox() {
+    INFO_MSG("ftab constructor");
+
+    memcpy(data + 4, "ftab", 4);
+
+//    font_entry[0].font_id = 1;
+//    font_entry[0].setFont("Serif");
+
+    setEntryCount(1);
+
+    FontRecord fr;
+    fr.font_id = 1;
+    fr.setFont("Serif");
+    setFontRecord(fr);
+
+
+  }
+
+  void FontTableBox::setEntryCount(uint16_t val) {
+    setInt16(val, 0);
+  }
+
+  void FontTableBox::setFontRecord(FontRecord f) {
+    setInt16(f.font_id, 2);
+    setInt8(f.font_name_length, 4);
+    setString(f.font, f.font_name_length-1, 5);
+  }
+
+
+  BoxRecord TextSampleEntry::getBoxRecord() {
+    BoxRecord res;
+    res.top = getInt16(18);
+    res.left = getInt16(20);
+    res.bottom = getInt16(22);
+    res.right = getInt16(24);
+    return res;
+  }
+
+  void TextSampleEntry::setFontTableBox(FontTableBox f) {
+    setBox(f,38);
+  }
+
+  void TextSampleEntry::setBoxRecord(BoxRecord b) {
+    setInt16(b.top, 18);
+    setInt16(b.left, 20);
+    setInt16(b.bottom, 22);
+    setInt16(b.right, 24);
+  }
+
+  void TextSampleEntry::setStyleRecord(StyleRecord s) {
+    setInt16(s.startChar, 26);
+    setInt16(s.endChar, 28);
+    setInt16(s.font_id, 30);
+
+    setInt8(s.face_style_flags, 32);
+    setInt8(s.font_size, 33);
+
+    setInt8(s.text_color_rgba[0], 34);
+    setInt8(s.text_color_rgba[1], 35);
+    setInt8(s.text_color_rgba[2], 36);
+    setInt8(s.text_color_rgba[3], 37);
+  }
+
+  StyleRecord TextSampleEntry::getStyleRecord() {
+    StyleRecord res;
+    res.startChar = getInt16(26);
+    res.endChar = getInt16(28);
+    res.font_id= getInt16(30);
+
+    res.face_style_flags = getInt8(32);
+    res.font_size = getInt8(33);
+
+    res.text_color_rgba[0] = getInt8(34);
+    res.text_color_rgba[1] = getInt8(35);
+    res.text_color_rgba[2] = getInt8(36);
+    res.text_color_rgba[3] = getInt8(37);
+    return res;
+  }
+
+  uint32_t TextSampleEntry::getDisplayFlags() {
+    return getInt32(8);
+  }
+ 
+  void TextSampleEntry::setDisplayFlags(uint32_t flags) {
+    setInt32(flags, 8);
+  }
+
+  int8_t TextSampleEntry::getHzJustification() {
+    return getInt8(12);
+  }
+
+  int8_t TextSampleEntry::getVtJustification() {
+    return getInt8(13);
+  }
+
+  void TextSampleEntry::setHzJustification(int8_t n) {
+    setInt8(n, 12);
+  }
+
+  void TextSampleEntry::setVtJustification(int8_t n) {
+    setInt8(n, 13);
+  }
+
+  uint8_t TextSampleEntry::getBackGroundColorRGBA(uint8_t n) {
+    return getInt8(14 + n);
+  }
+
+  void TextSampleEntry::setBackGroundColorRGBA(uint8_t pos, uint8_t value) {
+    setInt8(value, 14 + pos);
+  }
+
   MP4A::MP4A() {
     memcpy(data + 4, "mp4a", 4);
+  }
+  
+  std::string TX3G::toPrettyString(uint32_t indent) {
+    return toPrettyTextString(indent, "[tx3g] MPEG-4 Timed Text");
   }
 
   std::string MP4A::toPrettyString(uint32_t indent) {

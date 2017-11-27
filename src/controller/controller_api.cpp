@@ -150,7 +150,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         tthread::lock_guard<tthread::mutex> guard(configMutex);
         //Are we local and not forwarded? Instant-authorized.
         if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
-          INFO_MSG("Local API access automatically authorized");
+          MEDIUM_MSG("Local API access automatically authorized");
           authorized = true;
         }
         //if already authorized, do not re-check for authorization

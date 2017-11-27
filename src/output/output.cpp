@@ -108,7 +108,7 @@ namespace Mist{
   }
 
   bool Output::isFileTarget(){
-    INFO_MSG("Default file target handler (false)");
+    VERYHIGH_MSG("Default file target handler (false)");
     return false;
   }
 

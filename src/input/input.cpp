@@ -612,7 +612,7 @@ namespace Mist {
     }
     //Update keynum to point to the corresponding page
     uint64_t bufferTimer = Util::bootMS();
-    INFO_MSG("Loading key %u from page %lu", keyNum, (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
+    MEDIUM_MSG("Loading key %u from page %lu", keyNum, (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
     keyNum = (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first;
     if (!bufferStart(track, keyNum)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
@@ -647,7 +647,7 @@ namespace Mist {
     }
     bufferFinalize(track);
     bufferTimer = Util::bootMS() - bufferTimer;
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes) for track %d (%s) in %llums", keyNum, packCounter, byteCounter, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes, %llu-%llums) for track %d (%s) in %llums", keyNum, packCounter, byteCounter, myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
   }

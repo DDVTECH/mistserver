@@ -199,7 +199,7 @@ void Controller::handleUDPAPI(void * np){
   Util::Procs::socketList.insert(uSock.getSock());
   while (Controller::conf.is_active){
     if (uSock.Receive()){
-      INFO_MSG("UDP API: %s", uSock.data);
+      MEDIUM_MSG("UDP API: %s", uSock.data);
       JSON::Value Request = JSON::fromString(uSock.data, uSock.data_len);
       Request["minimal"] = true;
       JSON::Value Response;

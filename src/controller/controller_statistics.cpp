@@ -234,7 +234,9 @@ void Controller::sessId_tag(const std::string & sessId, const std::string & tag)
       return;
     }
   }
-  WARN_MSG("Session %s not found - cannot tag with %s", sessId.c_str(), tag.c_str());
+  if (tag.substr(0, 3) != "UA:"){
+    WARN_MSG("Session %s not found - cannot tag with %s", sessId.c_str(), tag.c_str());
+  }
 }
 
 ///Shuts down sessions with the given tag set

@@ -85,7 +85,7 @@ namespace Controller {
         return;
       }
       //new style always on
-      if (data.isMember("always_on") && !Util::streamAlive(name)){
+      if (data.isMember("always_on") && Util::getStreamStatus(name) == STRMSTAT_OFF){
         INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
         Util::startInput(name, URL);
         return;

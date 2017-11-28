@@ -465,6 +465,10 @@ namespace Mist {
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
     bool ret = (config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)));
+    if (!ret && config->is_active && isAlwaysOn()){
+      ret = true;
+      activityCounter = Util::bootSecs();
+    }
     /*LTS-START*/
     if (!ret){
       if(Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){

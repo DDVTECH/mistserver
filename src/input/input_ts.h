@@ -24,7 +24,9 @@ namespace Mist {
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
       void readPMT();
-      void stream();
+      bool openStreamSource();
+      void parseStreamHeader();
+      std::string streamMainLoop();
       void finish();
       FILE * inFile;///<The input file with ts data
       TS::Stream tsStream;///<Used for parsing the incoming ts stream

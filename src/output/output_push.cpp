@@ -335,7 +335,7 @@ namespace Mist {
     capa["required"]["pushlist"]["short"] = "p";
     capa["required"]["pushlist"]["type"] = "str";
     capa["required"]["destination"]["name"] = "URL location of the destination";
-    capa["required"]["destination"]["help"] = "This is the location that the date will be pushed to.";
+    capa["required"]["destination"]["help"] = "This is the location that the data will be pushed to.";
     capa["required"]["destination"]["option"] = "--destination";
     capa["required"]["destination"]["short"] = "D";
     capa["required"]["destination"]["type"] = "str";

@@ -63,7 +63,7 @@ namespace Mist {
     capa["name"] = "TS";
     capa["desc"] = "Enables the raw MPEG Transport Stream protocol over TCP.";
     capa["deps"] = "";
-    capa["required"]["streamname"]["name"] = "Stream";
+    capa["required"]["streamname"]["name"] = "Source stream";
     capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";
     capa["required"]["streamname"]["type"] = "str";
     capa["required"]["streamname"]["option"] = "--stream";

@@ -188,10 +188,10 @@ namespace Mist {
       //NOTE: It is important that this only happens if the stream is live....
       bool inserted = false;
       for (int i = 0; i < 1024; i++) {
-        int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
-        if ((tmpOffset[0] == 0 && tmpOffset[1] == 0)) {
-          tmpOffset[0] = htonl(curPageNum[tid]);
-          tmpOffset[1] = htonl(1000);
+        char * tmpOffset = metaPages[tid].mapped + (i * 8);
+        if ((Bit::btohl(tmpOffset) == 0 && Bit::btohl(tmpOffset+4) == 0)) {
+          Bit::htobl(tmpOffset, curPageNum[tid]);
+          Bit::htobl(tmpOffset+4, 1000);
           inserted = true;
           break;
         }
@@ -222,10 +222,10 @@ namespace Mist {
     DEBUG_MSG(DLVL_HIGH, "Removing page %lu on track %lu~>%lu from the corresponding metaPage", pageNumber, tid, mapTid);
     int i = 0;
     for (; i < 1024; i++) {
-      int * tmpOffset = (int *)(nProxy.metaPages[tid].mapped + (i * 8));
-      if (ntohl(tmpOffset[0]) == pageNumber) {
-        tmpOffset[0] = 0;
-        tmpOffset[1] = 0;
+      char * tmpOffset = nProxy.metaPages[tid].mapped + (i * 8);
+      if (Bit::btohl(tmpOffset) == pageNumber) {
+        Bit::htobl(tmpOffset, 0);
+        Bit::htobl(tmpOffset+4, 0);
         break;
       }
     }
@@ -282,11 +282,11 @@ namespace Mist {
     //Loop over the index page
     int len = metaPages[tid].len / 8;
     for (int i = 0; i < len; ++i) {
-      int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
-      unsigned int keyAmount = ntohl(tmpOffset[1]);
+      char * tmpOffset = metaPages[tid].mapped + (i * 8);
+      unsigned int keyAmount = Bit::btohl(tmpOffset+4);
       if (keyAmount == 0){continue;}
       //Check whether the key is on this page
-      unsigned int pageNum = ntohl(tmpOffset[0]);
+      unsigned int pageNum = Bit::btohl(tmpOffset);
       if (pageNum <= keyNum && keyNum < pageNum + keyAmount) {
         return pageNum;
       }
@@ -394,25 +394,25 @@ namespace Mist {
     bool inserted = false;
     int lowest = 0;
     for (int i = 0; i < 1024; i++) {
-      int * tmpOffset = (int *)(metaPages[tid].mapped + (i * 8));
-      int keyNum = ntohl(tmpOffset[0]);
-      int keyAmount = ntohl(tmpOffset[1]);
+      char * tmpOffset = metaPages[tid].mapped + (i * 8);
+      int keyNum = Bit::btohl(tmpOffset);
+      int keyAmount = Bit::btohl(tmpOffset+4);
       if (!inserted){
         if (myMeta.live){
           if(keyNum == curPageNum[tid] && keyAmount == 1000){
-            tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
+            Bit::htobl(tmpOffset+4, pagesByTrack[tid][curPageNum[tid]].keyNum);
             inserted = true;
           }
         }else{
           //in case of vod, insert at the first "empty" spot
           if(keyNum == 0){
-            tmpOffset[0] = htonl(curPageNum[tid]);
-            tmpOffset[1] = htonl(pagesByTrack[tid][curPageNum[tid]].keyNum);
+            Bit::htobl(tmpOffset, curPageNum[tid]);
+            Bit::htobl(tmpOffset+4, pagesByTrack[tid][curPageNum[tid]].keyNum);
             inserted = true;
           }
         }
       }
-      keyNum = ntohl(tmpOffset[0]);
+      keyNum = Bit::btohl(tmpOffset);
       if (!keyNum) continue;
       if (!lowest || keyNum < lowest){
         lowest = keyNum;

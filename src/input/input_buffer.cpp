@@ -111,18 +111,18 @@ namespace Mist {
         }
         //First detect all entries on metaPage
         for (int i = 0; i < 8192; i += 8) {
-          int * tmpOffset = (int *)(nProxy.metaPages[it->first].mapped + i);
-          if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
+          char * tmpOffset = nProxy.metaPages[it->first].mapped + i;
+          if (Bit::btohl(tmpOffset) == 0 && Bit::btohl(tmpOffset+4) == 0) {
             continue;
           }
-          unsigned long keyNum = ntohl(tmpOffset[0]);
+          unsigned long keyNum = Bit::btohl(tmpOffset);
 
           //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
           if (!locations.count(keyNum)) {
             locations[keyNum].curOffset = 0;
           }
           locations[keyNum].pageNum = keyNum;
-          locations[keyNum].keyNum = ntohl(tmpOffset[1]);
+          locations[keyNum].keyNum = Bit::btohl(tmpOffset+4);
         }
         for (std::map<unsigned long, DTSCPageData>::iterator it2 = locations.begin(); it2 != locations.end(); it2++) {
           char thisPageName[NAME_BUFFER_SIZE];
@@ -180,11 +180,11 @@ namespace Mist {
       if (indexPage.mapped){
         char * mappedPointer = indexPage.mapped;
         for (int j = 0; j < 8192; j += 8) {
-          int * tmpOffset = (int *)(mappedPointer + j);
-          if (tmpOffset[0] == 0 && tmpOffset[1] == 0){
+          char * tmpOffset = mappedPointer + j;
+          if (Bit::btohl(tmpOffset) == 0 && Bit::btohl(tmpOffset+4) == 0){
             continue;
           }
-          unsigned long keyNum = ntohl(tmpOffset[0]);
+          unsigned long keyNum = Bit::btohl(tmpOffset);
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), i, keyNum);
           IPC::sharedPage erasePage(pageName, 1024, false, false);
           erasePage.master = true;
@@ -860,19 +860,19 @@ namespace Mist {
 
     //First detect all entries on metaPage
     for (int i = 0; i < 8192; i += 8) {
-      int * tmpOffset = (int *)(mappedPointer + i);
-      if (tmpOffset[0] == 0 && tmpOffset[1] == 0) {
+      char * tmpOffset = mappedPointer + i;
+      if (Bit::btohl(tmpOffset) == 0 && Bit::btohl(tmpOffset+4) == 0) {
         continue;
       }
-      unsigned long keyNum = ntohl(tmpOffset[0]);
+      unsigned long keyNum = Bit::btohl(tmpOffset);
 
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
       if (!locations.count(keyNum)) {
         locations[keyNum].curOffset = 0;
-        VERYHIGH_MSG("Page %d detected, with %d keys", keyNum, ntohl(tmpOffset[1]));
+        VERYHIGH_MSG("Page %d detected, with %d keys", keyNum, Bit::btohl(tmpOffset+4));
       }
       locations[keyNum].pageNum = keyNum;
-      locations[keyNum].keyNum = ntohl(tmpOffset[1]);
+      locations[keyNum].keyNum = Bit::btohl(tmpOffset+4);
     }
     //Since the map is ordered by keynumber, this loop updates the metadata for each page from oldest to newest
     for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++) {

@@ -131,7 +131,7 @@ HTTP::URL::URL(const std::string &url){
     }
   }
   // if the host is numeric, assume it is a port, instead
-  if (is_numeric(host.c_str())){
+  if (host.size() && is_numeric(host.c_str())){
     port = host;
     host = "";
   }

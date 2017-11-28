@@ -9,6 +9,7 @@
 #include <string>
 #include <mist/stream.h>
 #include <mist/defines.h>
+#include <mist/bitfields.h>
 
 #include "input_buffer.h"
 

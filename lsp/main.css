@@ -490,6 +490,10 @@ th.sorting-desc:after {
   content: '';
   background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAB3RJTUUH1wsGDC4gqCc4egAAAAlwSFlzAAAewQAAHsEBw2lUUwAAAARnQU1BAACxjwv8YQUAAADDSURBVHjaY2AgDdSyoYswI3MaGBT/KjMcR1HAhGA2MTBEMHxkiEhDUcAIY7Qw/BNSfMrL8fLHWenv7xZjMYFfaAsXx7s/3BwSWxj4Maxo4xfeLmX5/P45i2f3FSyltmOxYtGHL+9u2X59/VdU4TCLUJUAVk8WREz+mBSBKsaIYFYJqQAd+QLoyAXvsHizhV9qCz/H5z+CHHJbYvmxKBDfLmf57v51i9f3VSzltmNRwKf1/v5T2+6zj21f3xfRIjGGKAMAccw+PBxJau0AAAAASUVORK5CYII=);
 }
+table.valigntop td,
+table.valigntop th {
+  vertical-align: top;
+}
 
 .browse_container {
   flex-flow: column nowrap;
@@ -595,6 +599,7 @@ input[type=radio] {
   position: relative;
   outline: 1px solid rgba(0,0,0,0.2);
 }
+td.LTSonly { outline: none; }
 .LTSonly:after {
   content: 'Pro';
   font-size: 0.8em;

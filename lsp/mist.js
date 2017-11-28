@@ -3390,7 +3390,90 @@ var UI = {
               main: saveas,
               index: 'source'
             },
-            help: '<p>Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.</p><table><tr><td>File input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>File</th><td>Linux/MacOS:&nbsp;/PATH/FILE<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE</td><td>For file input please specify the proper path and file.<br>Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.</td></tr><th>Folder<br>(Pro&nbsp;only)</th><td>Linux/MacOS:&nbsp;/PATH/<br>Windows:&nbsp;/cygdrive/DRIVE/PATH/</td><td>A folder stream makes all the recognised files in the selected folder available as a stream.</td></tr><tr><td>Push input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>RTMP</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only. <tr><th>RTSP<br>(Pro&nbsp;only)</th><td>push://(IP)(@PASSWORD)</td><td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td></tr> <tr><th>TS<br>(Pro&nbsp;only)</th><td>tsudp://(IP):PORT(/INTERFACE)</td><td>IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>PORT is the port you reserve for this stream on the chosen IP.<br>INTERFACE is the interface used, if left all interfaces will be used.</td></tr><tr><td>Pull input</td><td>Syntax</td><td>Explanation</td></tr><tr><th>DTSC</th><td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td><td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>PORT is the DTSC port of the other MistServer. (default is 4200)<br>STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.</td></tr><tr><th>HLS<br>(Pro&nbsp;only)</th><td>http://URL/TO/STREAM.m3u8</td><td>The URL where the HLS stream is available to MistServer.</td></tr></table>',
+            help: ("<p>\
+                    Below is the explanation of the input methods for MistServer. Anything between brackets () will go to default settings if not specified.\
+                  </p>\
+                  <table class=valigntop>\
+                    <tr>\
+                      <th colspan=3><b>File inputs</b></th>\
+                    </tr>\
+                    <tr>\
+                      <th>File</th>\
+                      <td>\
+                        Linux/MacOS:&nbsp;/PATH/FILE<br>\
+                        Windows:&nbsp;/cygdrive/DRIVE/PATH/FILE\
+                      </td>\
+                      <td>\
+                        For file input please specify the proper path and file.<br>\
+                        Supported inputs are: DTSC, FLV, MP3. MistServer Pro has TS, MP4, ISMV added as input.\
+                      </td>\
+                    </tr>\
+                      <th>\
+                        Folder\
+                      </th>\
+                      <td>\
+                        Linux/MacOS:&nbsp;/PATH/<br>\
+                        Windows:&nbsp;/cygdrive/DRIVE/PATH/\
+                      </td>\
+                      <td class=LTSonly>\
+                        A folder stream makes all the recognised files in the selected folder available as a stream.\
+                      </td>\
+                    </tr>\
+                    <tr><td colspan=3>&nbsp;</td></tr>\
+                    <tr>\
+                      <th colspan=3><b>Push inputs</b></th>\
+                    </tr>\
+                    <tr>\
+                      <th>RTMP</th>\
+                      <td>push://(IP)(@PASSWORD)</td>\
+                      <td>\
+                        IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
+                        PASSWORD is the application under which to push to MistServer, if it doesn\'t match the stream will be rejected. PASSWORD is MistServer Pro only.\
+                      </td>\
+                    </tr>\
+                    <tr>\
+                      <th>RTSP</th>\
+                      <td>push://(IP)(@PASSWORD)</td>\
+                      <td class=LTSonly>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
+                    </tr>\
+                    <tr>\
+                      <th>TS</th>\
+                      <td>tsudp://(IP):PORT(/INTERFACE)</td>\
+                      <td class=LTSonly>\
+                        IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
+                        PORT is the port you reserve for this stream on the chosen IP.<br>\
+                        INTERFACE is the interface used, if left all interfaces will be used.\
+                      </td>\
+                    </tr>\
+                    <tr><td colspan=3>&nbsp;</td></tr>\
+                    <tr>\
+                      <th colspan=3><b>Pull inputs</b></th>\
+                    </tr>\
+                    <tr>\
+                      <th>DTSC</th>\
+                      <td>dtsc://MISTSERVER_IP:PORT/(STREAMNAME)</td>\
+                      <td>MISTSERVER_IP is the IP of another MistServer to pull from.<br>\
+                        PORT is the DTSC port of the other MistServer. (default is 4200)<br>\
+                        STREAMNAME is the name of the target stream on the other MistServer. If left empty, the name of this stream will be used.\
+                      </td>\
+                    </tr>\
+                    <tr>\
+                      <th>HLS</th>\
+                      <td>http://URL/TO/STREAM.m3u8</td>\
+                      <td class=LTSonly>The URL where the HLS stream is available to MistServer.</td>\
+                    </tr>\
+                    <tr>\
+                      <th>RTSP</th>\
+                      <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
+                      <td class=LTSonly>\
+                        USER:PASSWORD is the account used if authorization is required.<br>\
+                        IP is the IP address used to pull this stream from.<br>\
+                        PORT is the port used to connect through.<br>\
+                        PATH is the path to be used to identify the correct stream.\
+                      </td>\
+                    </tr>\
+                  </table>").replace(/LTSonly/g,(mist.data.LTS ? "\"\"" : "LTSonly"))
+        ,
             'function': function(){
               var source = $(this).val();
               $style.remove();
@@ -4394,58 +4477,14 @@ var UI = {
         $main.append($c);
         
         mist.send(function(d){
-          $c.html('');
+          $c.html(UI.buildUI([{
+            type: 'help',
+            help: 'You can push streams to files or other servers, allowing them to broadcast your stream as well.'
+          }]));
+          
           
           var push_settings = d.push_settings;
           if (!push_settings) { push_settings = {}; }
-          
-          $c.append(
-            UI.buildUI([
-              {
-                type: 'help',
-                help: 'You can push streams to files or other servers, allowing them to broadcast your stream as well.'
-              },
-              $('<h3>').text('Settings'),
-              {
-                label: 'Delay before retry',
-                unit: 's',
-                type: 'int',
-                min: 0,
-                help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
-                'default': 0,
-                pointer: {
-                  main: push_settings,
-                  index: 'wait'
-                },
-                LTSonly: 1
-              },{
-                label: 'Maximum retries',
-                unit: '/s',
-                type: 'int',
-                min: 0,
-                help: 'The maximum amount of retries per second (for all automatic pushes).<br>If set to 0, there is no limit.',
-                'default': 0,
-                pointer: {
-                  main: push_settings,
-                  index: 'maxspeed'
-                },
-                LTSonly: 1
-              },{
-                type: 'buttons',
-                buttons: [{
-                  type: 'save',
-                  label: 'Save',
-                  'function': function(){
-                    mist.send(function(d){
-                      UI.navto('Push');
-                    },{
-                      push_settings: push_settings
-                    })
-                  }
-                }]
-              }
-            ])
-          );
           
           var $push = $('<table>').append(
             $('<tr>').append(
@@ -4599,6 +4638,47 @@ var UI = {
           
           $c.append(
             $('<h3>').text('Automatic pushes')
+          ).append(
+            UI.buildUI([
+              {
+                label: 'Delay before retry',
+                unit: 's',
+                type: 'int',
+                min: 0,
+                help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
+                'default': 0,
+                pointer: {
+                  main: push_settings,
+                  index: 'wait'
+                },
+                LTSonly: 1
+              },{
+                label: 'Maximum retries',
+                unit: '/s',
+                type: 'int',
+                min: 0,
+                help: 'The maximum amount of retries per second (for all automatic pushes).<br>If set to 0, there is no limit.',
+                'default': 0,
+                pointer: {
+                  main: push_settings,
+                  index: 'maxspeed'
+                },
+                LTSonly: 1
+              },{
+                type: 'buttons',
+                buttons: [{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    mist.send(function(d){
+                      UI.navto('Push');
+                    },{
+                      push_settings: push_settings
+                    })
+                  }
+                }]
+              }
+            ])
           ).append(
             $('<button>').text('Add an automatic push').click(function(){
               UI.navto('Start Push','auto');
@@ -4787,7 +4867,12 @@ var UI = {
           var build = [{
             label: 'Stream name',
             type: 'str',
-            help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:<ul><li><i>a</i>: the stream configured as <i>a</i></li><li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li><li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li></ul>',
+            help: 'This may either be a full stream name, a partial wildcard stream name, or a full wildcard stream name.<br>For example, given the stream <i>a</i> you can use:\
+                    <ul>\
+                      <li><i>a</i>: the stream configured as <i>a</i></li>\
+                      <li><i>a+</i>: all streams configured as <i>a</i> with a wildcard behind it, but not <i>a</i> itself</li>\
+                      <li><i>a+b</i>: only the version of stream <i>a</i> that has wildcard <i>b</i></li>\
+                    </ul>',
             pointer: {
               main: saveas,
               index: 'stream'
@@ -4809,7 +4894,27 @@ var UI = {
           },{
             label: 'Target',
             type: 'str',
-            help: 'Where the stream will be pushed to.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul> Valid text replacements:<ul><li>$stream - inserts the stream name used to push to MistServer</li><li>$day - inserts the current day number</li><li>$month - inserts the current month number</li><li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li><li>$minute - inserts the minute timestamp the stream was received</li><li>$seconds - inserts the seconds timestamp when the stream was received</li><li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>',
+            help: 'Where the stream will be pushed to.<br>\
+                  Valid formats:\
+                  <ul>\
+                    <li>'+target_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  Valid text replacements:\
+                  <ul>\
+                    <li>$stream - inserts the stream name used to push to MistServer</li>\
+                    <li>$day - inserts the current day number</li><li>$month - inserts the current month number</li>\
+                    <li>$year - inserts the current year number</li><li>$hour - inserts the hour timestamp when stream was received</li>\
+                    <li>$minute - inserts the minute timestamp the stream was received</li>\
+                    <li>$seconds - inserts the seconds timestamp when the stream was received</li>\
+                    <li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>\
+                  </ul>\
+                  Valid URL parameters:\
+                  <ul>\
+                    <li>recstart=123 - media timestamp in milisseconds where the push should start</li>\
+                    <li>recstop=456 - media timestamp in miliseconds where the push should stop</li>\
+                    <li>recstartunix=150000000 - unix time in seconds where the push should start. This will override the recstart parameter.</li>\
+                    <li>recstopunix=150000000 - unix time in seconds where the push should stop. This will override the recstop parameter.</li>\
+                  </ul>',
             pointer: {
               main: saveas,
               index: 'target'
@@ -6101,6 +6206,14 @@ var mist = {
           }
           if ('default' in ele) {
             obj.placeholder = ele['default'];
+            if (ele.type == "select") {
+              for (var k in ele.select) {
+                if (ele.select[k][0] == ele["default"]) {
+                  obj.placeholder = ele.select[k][1];
+                  break;
+                }
+              }
+            }
           }
           if ('help' in ele) {
             obj.help = ele.help;

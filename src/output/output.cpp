@@ -398,10 +398,10 @@ namespace Mist{
     if (!nProxy.metaPages[trackId].mapped){return -1;}
     int len = nProxy.metaPages[trackId].len / 8;
     for (int i = 0; i < len; i++){
-      int * tmpOffset = (int *)(nProxy.metaPages[trackId].mapped + (i * 8));
-      long amountKey = ntohl(tmpOffset[1]);
+      char * tmpOffset = nProxy.metaPages[trackId].mapped + (i * 8);
+      long amountKey = Bit::btohl(tmpOffset+4);
       if (amountKey == 0){continue;}
-      long tmpKey = ntohl(tmpOffset[0]);
+      long tmpKey = Bit::btohl(tmpOffset);
       if (tmpKey <= keyNum && ((tmpKey?tmpKey:1) + amountKey) > keyNum){
         return tmpKey;
       }
@@ -420,10 +420,10 @@ namespace Mist{
     int len = nProxy.metaPages[trackId].len / 8;
     int highest = -1;
     for (int i = 0; i < len; i++){
-      int * tmpOffset = (int *)(nProxy.metaPages[trackId].mapped + (i * 8));
-      long amountKey = ntohl(tmpOffset[1]);
+      char * tmpOffset = nProxy.metaPages[trackId].mapped + (i * 8);
+      long amountKey = Bit::btohl(tmpOffset+4);
       if (amountKey == 0){continue;}
-      long tmpKey = ntohl(tmpOffset[0]);
+      long tmpKey = Bit::btohl(tmpOffset);
       if (tmpKey > highest){highest = tmpKey;}
     }
     return highest;
@@ -856,11 +856,15 @@ namespace Mist{
       return false;
     }
 
-    DONTEVEN_MSG("Loading track %u (next=%lu), %llu ms", nxt.tid, nxtKeyNum[nxt.tid], nxt.time);
+    DONTEVEN_MSG("Loading track %u (next=%lu), %llu ms, %llub", nxt.tid, nxtKeyNum[nxt.tid], nxt.time, nxt.offset);
    
     //if we're going to read past the end of the data page, load the next page
     //this only happens for VoD
     if (nxt.offset >= nProxy.curPage[nxt.tid].len){
+      if (myMeta.vod && nxt.time >= myMeta.tracks[nxt.tid].lastms){
+        dropTrack(nxt.tid, "end of VoD track reached", false);
+        return false;
+      }
       if (thisPacket){
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       }
@@ -876,7 +880,7 @@ namespace Mist{
           buffer.insert(nxt);
         }
       }else{
-        dropTrack(nxt.tid, "page load failure", true);
+        dropTrack(nxt.tid, "VoD page load failure");
       }
       return false;
     }
@@ -931,7 +935,7 @@ namespace Mist{
           MEDIUM_MSG("Next page for track %u starts at %llu.", nxt.tid, nxt.time);
         }
       }else{
-        dropTrack(nxt.tid, "page load failure");
+        dropTrack(nxt.tid, "next page load failure");
       }
       return false;
     }

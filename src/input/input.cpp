@@ -139,14 +139,14 @@ namespace Mist {
       myMeta.update(srtPack);
       getNextSrt();
     }
-    srtSource.seekg (0, srtSource.beg);
     srtSource.clear();
+    srtSource.seekg (0, srtSource.beg);
   }
 
   void Input::getNextSrt(bool smart){
     bool hasPacket = false;
 
-    thisPacket.null();
+    srtPack.null();
     std::string line;
 
     uint32_t index = 0;
@@ -206,8 +206,9 @@ namespace Mist {
       }
     }
 
-    srtPack.null();
-    FAIL_MSG("Could not get next srt packet!");
+    if (!srtSource.eof()){
+      FAIL_MSG("Could not get next subtitle packet");
+    }
   }
 
 
@@ -598,12 +599,6 @@ namespace Mist {
           if (!it2->second) {
             bufferRemove(it->first, it2->first);
             pageCounter[it->first].erase(it2->first);
-            for (int i = 0; i < 8192; i += 8) {
-              unsigned int thisKeyNum = ntohl(((((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
-              if (thisKeyNum == it2->first) {
-                (((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) = 0;
-              }
-            }
             change = true;
             break;
           }
@@ -777,8 +772,9 @@ namespace Mist {
     bool isSrt = (hasSrt && track == myMeta.tracks.rbegin()->first);
     if (isSrt){
       srtTrack = track;
-      srtSource.seekg (0, srtSource.beg);
       srtSource.clear();
+      srtSource.seekg (0, srtSource.beg);
+      srtPack.null();
     }else{
       seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
     }

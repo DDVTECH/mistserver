@@ -129,7 +129,8 @@ namespace Mist {
         //Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, false, false);
+        streamStatus.init(pageName, 1, true, false);
+        streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         if (needsLock()){playerLock.close();}
         if (!preRun()){return 0;}

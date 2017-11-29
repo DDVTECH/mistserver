@@ -231,7 +231,9 @@ namespace IPC {
       result = 0;
     }
 #else
-    result = sem_trywait(mySem);
+    do {
+      result = sem_trywait(mySem);
+    } while (result == -1 && errno == EINTR);
 #endif
     return (result == 0);
   }

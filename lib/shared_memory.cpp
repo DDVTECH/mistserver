@@ -121,7 +121,7 @@ namespace IPC {
 #if defined(__CYGWIN__) || defined(_WIN32)
     return mySem != 0;
 #else
-    return mySem && mySem != SEM_FAILED;
+    return mySem != SEM_FAILED;
 #endif
   }
 

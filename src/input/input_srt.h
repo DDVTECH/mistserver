@@ -20,7 +20,7 @@ namespace Mist{
       void getNext(bool smart = true);
       void seek(int seekTime);
       void trackSelect(std::string trackSpec);
-      bool vtt = false;
+      bool vtt;
 
       FILE * inFile;
 

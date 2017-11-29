@@ -3,6 +3,7 @@
 namespace Mist{
 
   InputSrt::InputSrt(Util::Config *cfg) : Input(cfg){
+    vtt = false;
     capa["name"] = "SRT";
     capa["decs"] = "Enables SRT Input";
     capa["source_match"].append("/*.srt");

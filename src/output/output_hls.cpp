@@ -26,6 +26,13 @@ namespace Mist {
       }
     }
     unsigned int vidTracks = 0;
+    bool hasSubs = false;
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+      if (it->second.codec == "subtitle"){
+        hasSubs = true;
+        break;
+      }
+    }
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
       if (it->second.codec == "H264" || it->second.codec == "HEVC" || it->second.codec == "MPEG2") {
         vidTracks++;
@@ -36,7 +43,11 @@ namespace Mist {
         if (audioId != -1) {
           bWidth += myMeta.tracks[audioId].bps;
         }
-        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,SUBTITLES=\"sub1\",BANDWIDTH=" << (bWidth * 8) << "\r\n";
+        if (!hasSubs){
+          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8) << "\r\n";
+        }else{
+          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,SUBTITLES=\"sub1\",BANDWIDTH=" << (bWidth * 8) << "\r\n";
+        }
         result << it->first;
         if (audioId != -1) {
           result << "_" << audioId;

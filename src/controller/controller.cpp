@@ -234,14 +234,42 @@ int main_loop(int argc, char **argv){
   Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
 
   {// spawn thread that reads stderr of process
-    int pipeErr[2];
-    if (pipe(pipeErr) >= 0){
-      dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
-      close(pipeErr[1]);               // close the unneeded pipe file descriptor
-      Util::Procs::socketList.insert(pipeErr[0]);
-      tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
-      msghandler.detach();
+    std::string logPipe = Util::getTmpFolder()+"MstLog";
+    if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
+      if (errno != EEXIST){
+        ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno));
+      }
     }
+    int inFD = -1;
+    if ((inFD = open(logPipe.c_str(), O_RDONLY | O_NONBLOCK)) == -1){
+      ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe", logPipe.c_str(), strerror(errno));
+      int pipeErr[2];
+      if (pipe(pipeErr) >= 0){
+        dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
+        close(pipeErr[1]);               // close the unneeded pipe file descriptor
+        //Start reading log messages from the unnamed pipe
+        Util::Procs::socketList.insert(pipeErr[0]); //Mark this FD as needing to be closed before forking
+        tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
+        msghandler.detach();
+      }
+    }else{
+      //Set the read end to blocking mode
+      int inFDflags = fcntl(inFD, F_GETFL, 0);
+      fcntl(inFD, F_SETFL, inFDflags & (~O_NONBLOCK));
+      //Start reading log messages from the named pipe
+      Util::Procs::socketList.insert(inFD); //Mark this FD as needing to be closed before forking
+      tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
+      msghandler.detach();
+      //Attempt to open and redirect log messages to named pipe
+      int outFD = -1;
+      if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
+        ERROR_MSG("Could not open log message pipe %s for writing! %s; falling back to standard error", logPipe.c_str(), strerror(errno));
+      }else{
+        dup2(outFD, STDERR_FILENO); // cause stderr to write to the pipe
+        close(outFD);               // close the unneeded pipe file descriptor
+      }
+    }
+    setenv("MIST_CONTROL", "1", 0);//Signal in the environment that the controller handles all children
   }
 
   if (Controller::conf.getOption("debug", true).size() > 1){

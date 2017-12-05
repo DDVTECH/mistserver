@@ -7,6 +7,7 @@
 #include <mist/downloader.h>
 #include <mist/timing.h>
 #include <mist/tinythread.h>
+#include <mist/util.h>
 #include <set>
 #include <string>
 
@@ -587,6 +588,7 @@ void handleServer(void *hostEntryPointer){
 }
 
 int main(int argc, char **argv){
+  Util::redirectLogsIfNeeded();
   memset(hosts, 0, sizeof(hosts)); // zero-fill the hosts list
   Util::Config conf(argv[0]);
   cfg = &conf;

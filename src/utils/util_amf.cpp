@@ -7,9 +7,11 @@
 #include <mist/amf.h>
 #include <mist/config.h>
 #include <mist/defines.h>
+#include <mist/util.h>
 #include <string>
 
 int main(int argc, char **argv){
+  Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
   JSON::Value opt;
   opt["arg_num"] = 1ll;

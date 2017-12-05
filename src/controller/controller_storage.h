@@ -18,7 +18,7 @@ namespace Controller {
   extern unsigned long long logCounter; ///<Count of logged messages since boot
   
   /// Store and print a log message.
-  void Log(std::string kind, std::string message);
+  void Log(std::string kind, std::string message, bool noWriteToLog = false);
 
   /// Write contents to Filename.
   bool WriteFile(std::string Filename, std::string contents);

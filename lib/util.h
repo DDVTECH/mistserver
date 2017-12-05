@@ -32,6 +32,9 @@ namespace Util{
 
   };
 
+  void logParser(int in, int out, bool colored, void callback(std::string, std::string, bool) = 0);
+  void redirectLogsIfNeeded();
+
   /// Holds type, size and offset for RelAccX class internal data fields.
   class RelAccXFieldData{
   public:

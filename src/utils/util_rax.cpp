@@ -3,6 +3,7 @@
 #include <mist/shared_memory.h>
 
 int main(int argc, char ** argv){
+  Util::redirectLogsIfNeeded();
   if (argc < 1){
     FAIL_MSG("Usage: %s MEMORY_PAGE_NAME");
     return 1;

@@ -2,6 +2,7 @@
 #include <mist/config.h>
 #include <mist/socket.h>
 #include <mist/defines.h>
+#include <mist/util.h>
 
 int spawnForked(Socket::Connection & S){
   mistOut tmp(S);
@@ -9,6 +10,7 @@ int spawnForked(Socket::Connection & S){
 }
 
 int main(int argc, char * argv[]) {
+  Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)) {

@@ -5,6 +5,7 @@
 #include "bitfields.h"
 #include "defines.h"
 #include "timing.h"
+#include "procs.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iostream>
 #include <stdio.h>
@@ -195,6 +196,137 @@ namespace Util{
       maxSize = l;
     }
     return true;
+  }
+
+
+  static int true_stderr = 2;
+  static int log_pipe = -1;
+  //Local-only helper function.
+  //Detects tty on stdin to decide whether or not colours should be used.
+  static void handleMsg(void *nul){
+    Util::logParser(log_pipe, true_stderr, isatty(true_stderr));
+  }
+
+  /// Redirects stderr to log parser, writes log parser to the old stderr.
+  /// Does nothing if the MIST_CONTROL environment variable is set.
+  void redirectLogsIfNeeded(){
+    //The controller sets this environment variable.
+    //We don't do anything if set, since the controller wants the messages raw.
+    if (getenv("MIST_CONTROL")){return;}
+    setenv("MIST_CONTROL", "1", 1);
+    //Okay, we're stand-alone, lets do some parsing!
+    true_stderr = dup(STDERR_FILENO);
+    int pipeErr[2];
+    if (pipe(pipeErr) >= 0){
+      dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
+      close(pipeErr[1]);               // close the unneeded pipe file descriptor
+      log_pipe = pipeErr[0];
+      //Start reading log messages from the unnamed pipe
+      Util::Procs::socketList.insert(log_pipe); //Mark this FD as needing to be closed before forking
+      Util::Procs::socketList.insert(true_stderr); //Mark this FD as needing to be closed before forking
+      tthread::thread msghandler(handleMsg, (void *)0);
+      msghandler.detach();
+    }
+  }
+
+  /// Parses log messages from the given file descriptor in, printing them to out, optionally calling the given callback for each valid message.
+  /// Closes the file descriptor on read error
+  void logParser(int in, int out, bool colored, void callback(std::string, std::string, bool)){
+    char buf[1024];
+    FILE *output = fdopen(in, "r");
+    char *color_time, *color_msg, *color_end, *CONF_msg, *FAIL_msg, *ERROR_msg, *WARN_msg, *INFO_msg;
+    if (colored){
+      color_end = (char*)"\033[0m";
+      if (getenv("MIST_COLOR_END")){color_end = getenv("MIST_COLOR_END");}
+      color_time = (char*)"\033[2m";
+      if (getenv("MIST_COLOR_TIME")){color_time = getenv("MIST_COLOR_TIME");}
+      CONF_msg = (char*)"\033[0;1;37m";
+      if (getenv("MIST_COLOR_CONF")){CONF_msg = getenv("MIST_COLOR_CONF");}
+      FAIL_msg = (char*)"\033[0;1;31m";
+      if (getenv("MIST_COLOR_FAIL")){FAIL_msg = getenv("MIST_COLOR_FAIL");}
+      ERROR_msg = (char*)"\033[0;31m";
+      if (getenv("MIST_COLOR_ERROR")){ERROR_msg = getenv("MIST_COLOR_ERROR");}
+      WARN_msg = (char*)"\033[0;1;33m";
+      if (getenv("MIST_COLOR_WARN")){WARN_msg = getenv("MIST_COLOR_WARN");}
+      INFO_msg = (char*)"\033[0;36m";
+      if (getenv("MIST_COLOR_INFO")){INFO_msg = getenv("MIST_COLOR_INFO");}
+    }else{
+      color_end = (char*)"";
+      color_time = (char*)"";
+      CONF_msg = (char*)"";
+      FAIL_msg = (char*)"";
+      ERROR_msg = (char*)"";
+      WARN_msg = (char*)"";
+      INFO_msg = (char*)"";
+    }
+    while (fgets(buf, 1024, output)){
+      unsigned int i = 0;
+      char * kind = buf;//type of message, at begin of string
+      char * progname = 0;
+      char * progpid = 0;
+      char * lineno = 0;
+      char * message = 0;
+      while (i < 9 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] == '|'){
+        buf[i] = 0;//insert null byte
+        ++i;
+        progname = buf+i;//progname starts here
+      }
+      while (i < 30 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] == '|'){
+        buf[i] = 0;//insert null byte
+        ++i;
+        progpid = buf+i;//progpid starts here
+      }
+      while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] == '|'){
+        buf[i] = 0;//insert null byte
+        ++i;
+        lineno = buf+i;//lineno starts here
+      }
+      while (i < 80 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] == '|'){
+        buf[i] = 0;//insert null byte
+        ++i;
+        message = buf+i;//message starts here
+      }
+      //find end of line, insert null byte
+      unsigned int j = i;
+      while (j < 1024 && buf[j] != '\n' && buf[j] != 0){++j;}
+      buf[j] = 0;
+      //print message
+      if (message){
+        if (callback){callback(kind, message, true);}
+        color_msg = color_end;
+        if (colored){
+          if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
+          if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
+          if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
+          if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
+          if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
+        }
+        time_t rawtime;
+        struct tm *timeinfo;
+        char buffer[100];
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+        strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+        dprintf(out, "%s[%s] ", color_time, buffer);
+        if (strlen(progname) && strlen(progpid)){
+          dprintf(out, "%s (%s) ", progname, progpid);
+        }
+        dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
+        if (strlen(lineno)){
+          dprintf(out, " (%s) ", lineno);
+        }
+        dprintf(out, "\n", lineno);
+      }else{
+        //could not be parsed as log string - print the whole thing
+        dprintf(out, "%s\n", buf);
+      }
+    }
+    fclose(output);
+    close(in);
   }
 
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.

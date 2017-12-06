@@ -139,7 +139,8 @@ static unsigned long mix(unsigned long a, unsigned long b, unsigned long c){
 
 ///\brief The main loop for the controller.
 int main_loop(int argc, char **argv){
-  Controller::isTerminal = Controller::isColorized = isatty(fileno(stdin));
+  Controller::isTerminal = Controller::isColorized = isatty(fileno(stdout));
+  if (!isatty(fileno(stdin))){Controller::isTerminal = false;}
   Controller::Storage = JSON::fromFile("config.json");
   JSON::Value stored_port =
       JSON::fromString("{\"long\":\"port\", \"short\":\"p\", \"arg\":\"integer\", \"help\":\"TCP "

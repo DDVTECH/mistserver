@@ -16,6 +16,19 @@ function mistCheckDeps {
   return 1
 }
 
+urlencode() {
+    # urlencode <string>
+    local LANG=C
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *) printf '%%%02X' "'$c" ;; 
+        esac
+    done
+}
+
 function mistCall {
   mistCheckDeps || return 3
 
@@ -28,32 +41,56 @@ function mistCall {
     echo "  {\"auth\":{...}, COMMAND, \"minimal\":1}" >&2
     echo "" >&2
   fi
-  if [ "$#" -ne 4 ] ; then
-    echo "ERROR: Usage: mistCall SERVER USERNAME PASSWORD COMMAND" >&2
+  if [ "$#" -gt 4 ] ; then
+    echo "ERROR: Usage: mistCall [SERVER] [USERNAME PASSWORD] COMMAND" >&2
     return 3
+  fi
+  ARG_CMD=""
+  ARG_SRV="localhost:4242"
+  ARG_USR=""
+  ARG_PWD=""
+  if [ "$#" -eq 1 ] ; then
+    ARG_CMD=$1
+  fi
+  if [ "$#" -eq 2 ] ; then
+    ARG_SRV=$1
+    ARG_CMD=$2
+  fi
+  if [ "$#" -eq 3 ] ; then
+    ARG_USR=$1
+    ARG_PWD=$2
+    ARG_CMD=$3
+  fi
+  if [ "$#" -eq 4 ] ; then
+    ARG_SRV=$1
+    ARG_USR=$2
+    ARG_PWD=$3
+    ARG_CMD=$4
   fi
 
   #Load auth, if any
   MIST_AUTH=`cat /tmp/MistBashAuth 2> /dev/null`
 
   #Send request
-  RESP=`curl -s -X POST -d "command={${MIST_AUTH}, ${4}, \"minimal\":1}" http://${1}/api/`
+  CMD=`urlencode "{${MIST_AUTH} ${ARG_CMD}}"`
+  RESP=`curl -s -X POST -d "command=$CMD" http://${ARG_SRV}/api2`
 
   #Catch problems with reaching the server, display clear error message
   if [ "$?" != "0" ] ; then
-    echo "ERROR: Could not contact server (${1}), is it correct and online?" >&2
+    echo "ERROR: Could not contact server (${ARG_SRV}), is it correct and online?" >&2
     return 1
   fi
 
   #Check if this is a challenge
   if [ `echo $RESP | jq -r .authorize.status` == "CHALL" ] ; then
     echo "Challenge detected, (re)calculating login string..." >&2
-    PASSW=`echo -n $3 | md5sum | cut -f 1 -d " "`""
+    PASSW=`echo -n ${ARG_PWD} | md5sum | cut -f 1 -d " "`""
     CHALL=`echo $RESP | jq -r .authorize.challenge`
     SUMMD=`echo -n $PASSW$CHALL | md5sum | cut -f 1 -d " "`
-    MIST_AUTH="\"authorize\":{\"username\":\"${2}\",\"password\":\"${SUMMD}\"}"
+    MIST_AUTH="\"authorize\":{\"username\":\"${ARG_USR}\",\"password\":\"${SUMMD}\"},"
     #Repeat request
-    RESP=`curl -s -X POST -d "command={${MIST_AUTH}, ${4}, \"minimal\":1}" http://${1}/api/`
+    CMD=`urlencode "{${MIST_AUTH} ${ARG_CMD}}"`
+    RESP=`curl -s -X POST -d "command=$CMD" http://${ARG_SRV}/api2`
   fi
 
   #Still a challenge? We must have invalid credentials

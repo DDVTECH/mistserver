@@ -624,7 +624,6 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
             accessStr << "[" << *it << "]";
           }
         }
-        accessStr << std::endl;
         Controller::Log("ACCS", accessStr.str());
       }else{
         static std::ofstream accLogFile;

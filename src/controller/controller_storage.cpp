@@ -1,14 +1,15 @@
-#include "controller_storage.h"
-#include "controller_capabilities.h"
-#include <algorithm>
-#include <fstream>
+#include <sys/stat.h>
 #include <iostream>
-#include <mist/defines.h>
+#include <fstream>
+#include <algorithm>
+#include <mist/timing.h>
 #include <mist/shared_memory.h>
+#include <mist/defines.h>
 #include <mist/timing.h>
 #include <mist/triggers.h> //LTS
 #include <mist/util.h>
-#include <sys/stat.h>
+#include "controller_storage.h"
+#include "controller_capabilities.h"
 
 ///\brief Holds everything unique to the controller.
 namespace Controller{

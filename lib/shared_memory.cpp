@@ -459,10 +459,6 @@ namespace IPC {
         return;
       }
       if (master) {
-        if (ftruncate(handle, 0) < 0) {
-          FAIL_MSG("truncate to zero for page %s failed: %s", name.c_str(), strerror(errno));
-          return;
-        }
         if (ftruncate(handle, len) < 0) {
           FAIL_MSG("truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
           return;
@@ -474,6 +470,10 @@ namespace IPC {
           return;
         }
         len = buffStats.st_size;
+        if (!len){
+          mapped = 0;
+          return;
+        }
       }
       mapped = (char *)mmap(0, len, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
       if (mapped == MAP_FAILED) {

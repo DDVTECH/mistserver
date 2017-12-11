@@ -159,7 +159,7 @@ namespace Mist {
     }
     
     if (H.url.find("hls") == std::string::npos){
-      myConn.close();
+      onFail();
       return;
     }
     
@@ -177,6 +177,7 @@ namespace Mist {
     initialize();
 
     if (!keepGoing()){
+      onFail();
       return;
     }
 

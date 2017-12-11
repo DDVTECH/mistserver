@@ -610,7 +610,6 @@ namespace Mist{
     }
     if (amfData.getContentP(0)->StrValue() == "deleteStream"){
       stop();
-      onFinish();
       return;
     }
     if ((amfData.getContentP(0)->StrValue() == "FCUnpublish") || (amfData.getContentP(0)->StrValue() == "releaseStream")){

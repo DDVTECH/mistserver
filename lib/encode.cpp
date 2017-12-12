@@ -91,14 +91,14 @@ namespace Encodings{
   }
 
   /// urlencodes std::string data, leaving only the characters A-Za-z0-9~!&()' alone.
-  std::string URL::encode(const std::string &c){
+  std::string URL::encode(const std::string &c, const std::string &ign){
     std::string escaped = "";
     int max = c.length();
     for (int i = 0; i < max; i++){
       if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') ||
           ('A' <= c[i] && c[i] <= 'Z') ||
           (c[i] == '$' || c[i] == '-' || c[i] == '_' || c[i] == '.' || c[i] == ',' || c[i] == '!' ||
-           c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '/' || c[i] == '\'')){
+           c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '/' || c[i] == '\'') || (ign.size() && ign.find(c[i]) != std::string::npos)){
         escaped.append(&c[i], 1);
       }else{
         if (c[i] == ' '){

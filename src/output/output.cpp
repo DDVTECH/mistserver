@@ -194,8 +194,7 @@ namespace Mist{
       std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
         INFO_MSG("Shutting down due to CONN_PLAY trigger rejection");
-        onFinish();
-        myConn.close();
+        onFail();
       }
     }
     doSync(true);
@@ -274,8 +273,7 @@ namespace Mist{
           std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
           if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
             MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
-            onFinish();
-            myConn.close();
+            onFail();
             tmpEx.setSync(100);//100 = denied
           }else{
             tmpEx.setSync(10);//10 = accepted
@@ -283,13 +281,11 @@ namespace Mist{
         }
         //100 = denied
         if (tmpEx.getSync() == 100){
-          onFinish();
-          myConn.close();
+          onFail();
           MEDIUM_MSG("Closing connection because denied by USER_NEW sync byte");
         }
         if (tmpEx.getSync() == 0 || tmpEx.getSync() == 2){
-          onFinish();
-          myConn.close();
+          onFail();
           FAIL_MSG("Closing connection because sync byte timeout!");
         }
         //anything else = accepted

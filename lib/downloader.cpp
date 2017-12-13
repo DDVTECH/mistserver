@@ -1,6 +1,7 @@
 #include "downloader.h"
 #include "defines.h"
 #include "timing.h"
+#include "encode.h"
 
 namespace HTTP{
 
@@ -103,7 +104,7 @@ namespace HTTP{
         H.SetHeader("Host", proxyUrl.host);
       }
     }else{
-      H.url = "/" + link.path;
+      H.url = "/" + Encodings::URL::encode(link.path);
       if (link.args.size()){H.url += "?" + link.args;}
       if (link.port.size()){
         H.SetHeader("Host", link.host + ":" + link.port);

@@ -1141,37 +1141,40 @@ namespace IPC {
       }
       memset(empty, 0, payLen);
     }
-    while (offsetOnPage == -1) {
-      {
-        for (char i = 'A'; i <= 'Z'; i++) {
-          myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
-          if (!myPage.mapped) {
-            break;
-          }
-          int offset = 0;
-          while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
+    uint32_t attempts = 0;
+    while (offsetOnPage == -1 && (++attempts) < 20) {
+      for (char i = 'A'; i <= 'Z'; i++) {
+        myPage.init(baseName.substr(1) + i, (4096 << (i - 'A')), false, false);
+        if (!myPage.mapped) {
+          break;
+        }
+        int offset = 0;
+        while (offset + payLen + (hasCounter ? 1 : 0) <= myPage.len) {
+          if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
+            semGuard tmpGuard(&mySemaphore);
             if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
-              semGuard tmpGuard(&mySemaphore);
-              if ((hasCounter && myPage.mapped[offset] == 0) || (!hasCounter && !memcmp(myPage.mapped + offset, empty, payLen))) {
-                offsetOnPage = offset;
-                if (hasCounter) {
-                  myPage.mapped[offset] = 1;
-                  *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
-                  HIGH_MSG("sharedClient received ID %d", offsetOnPage/(payLen+1));
-                }
-                break;
+              offsetOnPage = offset;
+              if (hasCounter) {
+                myPage.mapped[offset] = 1;
+                *((uint32_t *)(myPage.mapped + 1 + offset + len - 4)) = getpid();
+                HIGH_MSG("sharedClient received ID %d", offsetOnPage/(payLen+1));
               }
+              break;
             }
-            offset += payLen + (hasCounter ? 1 : 0);
           }
-          if (offsetOnPage != -1) {
-            break;
-          }
+          offset += payLen + (hasCounter ? 1 : 0);
+        }
+        if (offsetOnPage != -1) {
+          break;
         }
       }
       if (offsetOnPage == -1) {
         Util::wait(500);
       }
+    }
+    if (offsetOnPage == -1){
+      FAIL_MSG("Could not register on page for %s", baseName.c_str());
+      myPage.close();
     }
     if (empty) {
       free(empty);

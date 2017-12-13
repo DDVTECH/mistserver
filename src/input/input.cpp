@@ -542,7 +542,7 @@ namespace Mist {
       pullLock.post();
       pullLock.close();
       pullLock.unlink();
-      WARN_MSG("No tracks found, cancelling");
+      INFO_MSG("No tracks found, cancelling");
       return;
     }
     nProxy.userClient.countAsViewer = false;

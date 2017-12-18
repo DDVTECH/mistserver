@@ -14,7 +14,7 @@ namespace JSON {
 
   /// Lists all types of JSON::Value.
   enum ValueType {
-    EMPTY, BOOL, INTEGER, STRING, ARRAY, OBJECT
+    EMPTY, BOOL, INTEGER, DOUBLE, STRING, ARRAY, OBJECT
   };
 
   /// JSON-string-escapes a value
@@ -28,6 +28,8 @@ namespace JSON {
       ValueType myType;
       long long int intVal;
       std::string strVal;
+      double dblVal;
+      double dblDivider;
       std::deque<Value*> arrVal;
       std::map<std::string, Value*> objVal;
     public:
@@ -39,6 +41,7 @@ namespace JSON {
       Value(const std::string & val);
       Value(const char * val);
       Value(long long int val);
+      Value(double val);
       Value(bool val);
       //comparison operators
       bool operator==(const Value & rhs) const;
@@ -52,14 +55,17 @@ namespace JSON {
       Value & operator=(const char * rhs);
       Value & operator=(const long long int & rhs);
       Value & operator=(const int & rhs);
+      Value & operator=(const double & rhs);
       Value & operator=(const unsigned int & rhs);
       Value & operator=(const bool & rhs);
       //converts to basic types
       operator long long int() const;
       operator std::string() const;
       operator bool() const;
+      operator double() const;
       const std::string asString() const;
       const long long int asInt() const;
+      const double asDouble() const;
       const bool asBool() const;
       const std::string & asStringRef() const;
       const char * c_str() const;
@@ -87,6 +93,7 @@ namespace JSON {
       void removeNullMembers();
       bool isMember(const std::string & name) const;
       bool isInt() const;
+      bool isDouble() const;
       bool isString() const;
       bool isBool() const;
       bool isObject() const;

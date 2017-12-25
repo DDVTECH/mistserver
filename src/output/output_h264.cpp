@@ -4,6 +4,9 @@
 
 namespace Mist{
   OutH264::OutH264(Socket::Connection &conn) : HTTPOutput(conn){
+    if (targetParams.count("keysonly")){
+      keysOnly = 1;
+    }
     if (config->getString("target").size()){
       if (!streamName.size()){
         WARN_MSG("Recording unconnected H264 output to file! Cancelled.");
@@ -45,6 +48,7 @@ namespace Mist{
   bool OutH264::isRecording(){return config->getString("target").size();}
 
   void OutH264::sendNext(){
+    if (keysOnly && !thisPacket.getFlag("keyframe")){return;}
     char *dataPointer = 0;
     unsigned int len = 0;
     thisPacket.getString("data", dataPointer, len);
@@ -70,6 +74,8 @@ namespace Mist{
 
   void OutH264::onHTTP(){
     std::string method = H.method;
+    //Set mode to key frames only
+    keysOnly = (H.GetVar("keysonly") != "");
     H.Clean();
     H.SetHeader("Content-Type", "video/H264");
     H.protocol = "HTTP/1.0";

@@ -9,7 +9,9 @@
 #include <inttypes.h>
 
 namespace Mist{
-  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn){}
+  OutProgressiveMP4::OutProgressiveMP4(Socket::Connection & conn) : HTTPOutput(conn){
+    keysOnly = false;
+  }
   OutProgressiveMP4::~OutProgressiveMP4(){}
 
   void OutProgressiveMP4::init(Util::Config * cfg){
@@ -566,6 +568,22 @@ namespace Mist{
       uint64_t timeStamp = it->second.firstTime;
       DTSC::Track & thisTrack = myMeta.tracks[it->first];
       for (uint32_t i = it->second.firstPart; i <= it->second.lastPart; i++){
+        //If we're only sending keyframes, check if we have one.
+        if (keysOnly && thisTrack.type == "video"){
+          uint32_t kParts = 0;
+          //If kParts equals the part number, we have a keyframe.
+          for (std::deque<DTSC::Key>::iterator ki = thisTrack.keys.begin(); ki != thisTrack.keys.end(); ++ki){
+            timeStamp = ki->getTime();
+            if (kParts >= i){break;}
+            kParts += ki->getParts();
+          }
+          //Non keys are skipped completely.
+          if (kParts != i){
+            //Skip forward to the next key
+            if (kParts-1 > i){i = kParts-1;}
+            continue;
+          }
+        }
         keyPart temp;
         temp.trackID = it->first;
         temp.time = timeStamp;
@@ -632,6 +650,9 @@ namespace Mist{
           uint64_t partOffset = thisTrack.parts[trunIt->index].getOffset();
           uint64_t partSize = thisTrack.parts[trunIt->index].getSize();
           uint64_t partDur = thisTrack.parts[trunIt->index].getDuration();
+          if (keysOnly){
+            partDur = keysOnly;
+          }
 
           MP4::TRUN trunBox;
           trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize | MP4::trunsampleDuration | (partOffset ? MP4::trunsampleOffsets : 0));
@@ -744,6 +765,8 @@ namespace Mist{
         realTime = 0;
       }
     }
+    //Set mode to key frames only for video tracks
+    keysOnly = atoi(H.GetVar("keysonly").c_str());
 
     /*LTS-END*/
 
@@ -760,27 +783,22 @@ namespace Mist{
     uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live);
 
     seekPoint = 0;
-    if (myMeta.live){
-      //for live we use fragmented mode
-      fragSeqNum = 0;
-      partListSent = 0;
-      partListLength = 0;
-    }
+    fragSeqNum = 0;
     byteStart = 0;
     byteEnd = fileSize - 1;
     char rangeType = ' ';
     currPos = 0;
     sortSet.clear();
-    for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++){
-      DTSC::Track & thisTrack = myMeta.tracks[*subIt];
-      keyPart temp;
-      temp.trackID = *subIt;
-      temp.time = thisTrack.firstms;//timeplace of frame
-      temp.index = 0;
-      temp.size = thisTrack.parts[temp.index].getSize();
-      sortSet.insert(temp);
-    }
     if (!myMeta.live){
+      for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++){
+        DTSC::Track & thisTrack = myMeta.tracks[*subIt];
+        keyPart temp;
+        temp.trackID = *subIt;
+        temp.time = thisTrack.firstms;//timeplace of frame
+        temp.index = 0;
+        temp.size = thisTrack.parts[temp.index].getSize();
+        sortSet.insert(temp);
+      }
       if (H.GetHeader("Range") != ""){
         if (parseRange(byteStart, byteEnd)){
           findSeekPoint(byteStart, seekPoint, headerSize);
@@ -904,9 +922,15 @@ namespace Mist{
         currentPartSet[*it] = thisRange;
       }
     }
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      MEDIUM_MSG("Track %lu: %llu-%llu", *it, currentPartSet[*it].firstTime, currentPartSet[*it].lastTime);
+    }
   }
 
   void OutProgressiveMP4::sendNext(){
+    if (keysOnly && thisPacket.getTrackId() == vidTrack && !thisPacket.getFlag("keyframe")){
+      return;//skip non-keyframes
+    }
     static bool perfect = true;
     
     //Obtain a pointer to the data of this packet
@@ -917,25 +941,20 @@ namespace Mist{
 
     if (myMeta.live){
       //if header needed
-      if (!partListLength || partListSent >= partListLength){
-        if (fragSeqNum > 10){
+      if (!sortSet.size()){
+        if (fragSeqNum > 10 && !targetParams.count("start")){
           if (liveSeek()){return;}
         }
         //building set first
         buildFragment();//map with metadata for keyframe
         sendFragmentHeader();
-        partListSent = 0;
-        partListLength = 0;
-        for (std::map<size_t, fragSet>::iterator it = currentPartSet.begin(); it != currentPartSet.end(); it++){
-          partListLength += it->second.lastPart - it->second.firstPart + 1;
-        }
       }
-      //generate content in mdat, meaning: send right parts
-      DONTEVEN_MSG("Sending tid: %ld size: %u", thisPacket.getTrackId() , len);
-      myConn.SendNow(dataPointer, len);
-      partListSent++;
     }
 
+    if (!sortSet.size()){
+      FAIL_MSG("Sortset is empty!");
+      return;
+    }
     
     keyPart thisPart = *sortSet.begin();
     if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisPart.size){
@@ -953,6 +972,10 @@ namespace Mist{
 
        //The remainder of this function handles non-live situations
     if (myMeta.live){
+      //generate content in mdat, meaning: send right parts
+      DONTEVEN_MSG("Sending %ld:%lld,  size: %u", thisPacket.getTrackId(), thisPacket.getTime(), len);
+      myConn.SendNow(dataPointer, len);
+      //delete from sortset
       sortSet.erase(sortSet.begin());
       return;
     }

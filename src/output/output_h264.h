@@ -11,6 +11,7 @@ namespace Mist{
 
   private:
     bool isRecording();
+    bool keysOnly;
   };
 }
 

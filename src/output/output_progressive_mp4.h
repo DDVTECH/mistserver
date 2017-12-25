@@ -60,13 +60,10 @@ namespace Mist {
       size_t vidTrack;//the video track we use as fragmenting base
       uint64_t realBaseOffset;//base offset for every moof packet
       //from sendnext
-      size_t partListSent;//parts of current fragSet sent
-      size_t partListLength;//amount of packets in current fragment
-      int64_t fragKeyNumberShift;//the difference between the first fragment Number and the first keyframe number
-
       
       bool sending3GP;
       bool chromeWorkaround;
+      int keysOnly;
       uint64_t estimateFileSize();
 
       //This is a dirty solution... but it prevents copying and copying and copying again

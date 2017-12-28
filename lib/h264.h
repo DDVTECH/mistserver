@@ -294,6 +294,7 @@ namespace h264 {
 
       uint32_t payloadType;
       uint32_t payloadSize;
+      uint32_t payloadOffset;
   };
 
 

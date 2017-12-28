@@ -22,7 +22,6 @@ AnalyserH264::AnalyserH264(Util::Config &conf) : Analyser(conf){
 }
 
 bool AnalyserH264::parsePacket(){
-  prePos = curPos;
   // Read in smart bursts until we have enough data
   while (isOpen() && dataBuffer.size() < neededBytes()){
     uint64_t needed = neededBytes();
@@ -35,16 +34,22 @@ bool AnalyserH264::parsePacket(){
   }
 
   size_t size = 0;
-  h264::nalUnit *nalPtr =
-      h264::nalFactory(dataBuffer.data(), dataBuffer.size(), size, !sizePrepended);
+  h264::nalUnit *nalPtr;
+  do {
+    size = 0;
+    nalPtr = h264::nalFactory(dataBuffer.data(), dataBuffer.size(), size, !sizePrepended);
+    if (nalPtr){
+      HIGH_MSG("Read a %lu-byte NAL unit at position %llu", size, prePos);
+      if (detail >= 2){nalPtr->toPrettyString(std::cout);}
+      dataBuffer.erase(0, size); // erase the NAL unit we just read
+      prePos += size;
+    }
+  ///\TODO update mediaTime with current timestamp
+  } while(nalPtr);
   if (!nalPtr){
     FAIL_MSG("Could not read a NAL unit at position %llu", prePos);
     return false;
   }
-  HIGH_MSG("Read a %lu-byte NAL unit at position %llu", size, prePos);
-  dataBuffer.erase(0, size); // erase the NAL unit we just read
-  if (detail >= 2){nalPtr->toPrettyString(std::cout);}
-  ///\TODO update mediaTime with current timestamp
   return true;
 }
 

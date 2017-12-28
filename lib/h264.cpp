@@ -801,6 +801,7 @@ namespace h264 {
 
   seiUnit::seiUnit(const char * data, size_t len) : nalUnit(data, len) {
     Utils::bitstream bs;
+    payloadOffset = 1;
     for (size_t i = 1; i < len; i++) {
       if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)){//Emulation prevention bytes
         //Yes, we increase i here
@@ -812,25 +813,45 @@ namespace h264 {
       }
     }
     uint8_t tmp = bs.get(8);
+    ++payloadOffset;
     payloadType = 0;
     while (tmp == 0xFF){
       payloadType += tmp;
       tmp = bs.get(8);
+      ++payloadOffset;
     }
     payloadType += tmp;
     
     tmp = bs.get(8);
+    ++payloadOffset;
     payloadSize = 0;
     while (tmp == 0xFF){
       payloadSize += tmp;
       tmp = bs.get(8);
+      ++payloadOffset;
     }
     payloadSize += tmp;
   }
 
   void seiUnit::toPrettyString(std::ostream & out) {
     out << "Nal unit of type " << (((uint8_t)payload[0]) & 0x1F) << " [Supplemental Enhancement Unit] , " << payload.size() << " bytes long" << std::endl;
-    out << "  Message of type " << payloadType << ", " << payloadSize << " bytes long" << std::endl;
+    switch (payloadType){
+      case 5:{//User data, unregistered
+          out << "  Type 5: User data, unregistered." << std::endl;
+          std::stringstream uuid;
+          for (uint32_t i = payloadOffset; i < payloadOffset+16; ++i){
+            uuid << std::setw(2) << std::setfill('0') << std::hex << (int)(payload.data()[i]);
+          }
+          if (uuid.str() == "dc45e9bde6d948b7962cd820d923eeef"){
+            uuid.str("x264 encoder configuration");
+          }
+          out << "   UUID: " << uuid.str() << std::endl;
+          out << "   Payload: " << std::string(payload.data()+payloadOffset+16, payloadSize - 17) << std::endl;
+        }
+        break;
+      default:
+        out << "  Message of type " << payloadType << ", " << payloadSize << " bytes long" << std::endl;
+    }
   }
 
   nalUnit * nalFactory(const char * _data, size_t _len, size_t & offset, bool annexb) {
@@ -855,7 +876,7 @@ namespace h264 {
     if (!annexb){
       //read the 4b size in front
       pktLen = Bit::btohl(_data+offset);
-      if (_len < 4 + pktLen){
+      if (_len - offset < 4 + pktLen){
         WARN_MSG("Not at least 4+%lu bytes available - cancelling", pktLen);
         return 0;
       }
@@ -867,9 +888,9 @@ namespace h264 {
       //search for the next start marker
       for (size_t i = 1; i < len-2; ++i){
         if (data[i] == 0 && data[i+1] == 0 && data[i+2] == 1){
-          offset += i+3;
           while (i && !data[i]){--i;}
-          pktLen = i + 1;
+          pktLen = i+1;
+          offset += pktLen;
           break;
         }
       }
@@ -883,6 +904,7 @@ namespace h264 {
     switch (data[0] & 0x1F){
       case 1:
       case 5:
+      case 19:
         return new codedSliceUnit(data, pktLen);
       case 6:
         return new seiUnit(data, pktLen);
@@ -920,6 +942,7 @@ namespace h264 {
             switch (data[0] & 0x1F){
               case 1:
               case 5:
+              case 19:
                 result = new codedSliceUnit(data, nextPos);
                 break;
               case 6:

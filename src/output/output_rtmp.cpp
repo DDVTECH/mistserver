@@ -349,30 +349,40 @@ namespace Mist {
     //send the header
     myConn.setBlocking(true);
     myConn.SendNow(rtmpheader, header_len);
+    RTMPStream::snd_cnt += header_len; //update the sent data counter
     //set the header's first byte to the "continue" type chunk, for later use
     rtmpheader[0] = 0xC4;
+    if (timestamp >= 0x00ffffff){
+      rtmpheader[1] = timestamp & 0xff;
+      rtmpheader[2] = (timestamp >> 8) & 0xff;
+      rtmpheader[3] = (timestamp >> 16) & 0xff;
+      rtmpheader[4] = (timestamp >> 24) & 0xff;
+    }
 
     //sent actual data - never send more than chunk_snd_max at a time
     //interleave blocks of max chunk_snd_max bytes with 0xC4 bytes to indicate continue
     unsigned int len_sent = 0;
-    unsigned int steps = 0;
     while (len_sent < data_len){
       unsigned int to_send = std::min(data_len - len_sent, RTMPStream::chunk_snd_max);
       if (!len_sent){
         myConn.SendNow(dataheader, dheader_len);
+        RTMPStream::snd_cnt += dheader_len; //update the sent data counter
         to_send -= dheader_len;
         len_sent += dheader_len;
       }
       myConn.SendNow(tmpData+len_sent-dheader_len, to_send);
       len_sent += to_send;
       if (len_sent < data_len){
-        myConn.SendNow(rtmpheader, 1);
-        ++steps;
+        if (timestamp >= 0x00ffffff){
+          myConn.SendNow(rtmpheader, 5);
+          RTMPStream::snd_cnt += 5; //update the sent data counter
+        }else{
+          myConn.SendNow(rtmpheader, 1);
+          RTMPStream::snd_cnt += 1; //update the sent data counter
+        }
       }
     }
     myConn.setBlocking(false);
-    //update the sent data counter
-    RTMPStream::snd_cnt += header_len + data_len + steps;
   }
 
   void OutRTMP::sendHeader(){

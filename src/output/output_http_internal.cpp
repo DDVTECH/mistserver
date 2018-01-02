@@ -44,6 +44,9 @@ namespace Mist {
     if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
       JSON::Value json_resp;
       json_resp["error"] = "Could not retrieve stream. Sorry.";
+      if (config->getString("nostreamtext") != ""){
+        json_resp["on_error"] = config->getString("nostreamtext");
+      }
       if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
         H.Clean();
         H.SetBody(json_resp.toString());
@@ -224,6 +227,15 @@ namespace Mist {
   void OutHTTP::HTMLResponse(){
     std::string method = H.method;
     HTTP::URL fullURL(H.GetHeader("Host"));
+    /*LTS-START*/
+    if (config->getString("pubaddr") != ""){
+      HTTP::URL altURL(config->getString("pubaddr"));
+      fullURL.protocol = altURL.protocol;
+      if (altURL.host.size()){fullURL.host = altURL.host;}
+      fullURL.port = altURL.port;
+      fullURL.path = altURL.path;
+    }
+    /*LTS-END*/
     std::string uAgent = H.GetHeader("User-Agent");
     H.Clean();
     H.SetHeader("Content-Type", "text/html");

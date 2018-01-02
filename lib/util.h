@@ -1,3 +1,4 @@
+#pragma once
 #include <deque>
 #include <map>
 #include <stdint.h>

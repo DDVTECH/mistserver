@@ -37,19 +37,25 @@ namespace Mist {
       sendIcon();
       return;
     }
-    INFO_MSG("Failing: %s", H.url.c_str());
-    if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
-      if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
-          H.Clean();
-          H.SetBody("{\"error\":\"Could not retrieve stream. Sorry.\"}\n");
-        }else{
-          H.Clean();
-          H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = {\"error\":\"Could not retrieve stream. Sorry.\"};\n");
-        }
-        H.SendResponse("200", "Stream not found", myConn);
-    }else{
-      HTTPOutput::onFail();
+    if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
+      HTMLResponse();
+      return;
     }
+    if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
+      JSON::Value json_resp;
+      json_resp["error"] = "Could not retrieve stream. Sorry.";
+      if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
+        H.Clean();
+        H.SetBody(json_resp.toString());
+      }else{
+        H.Clean();
+        H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = "+json_resp.toString()+";\n");
+      }
+      H.SendResponse("200", "Stream not found", myConn);
+      return;
+    }
+    INFO_MSG("Failing: %s", H.url.c_str());
+    HTTPOutput::onFail();
     Output::onFail();
   }
 
@@ -214,6 +220,32 @@ namespace Mist {
       }
     }
   }
+
+  void OutHTTP::HTMLResponse(){
+    std::string method = H.method;
+    HTTP::URL fullURL(H.GetHeader("Host"));
+    std::string uAgent = H.GetHeader("User-Agent");
+    H.Clean();
+    H.SetHeader("Content-Type", "text/html");
+    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
+    std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
+    std::string mp4Url = "/"+streamName+".mp4";
+    
+    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><style>body{color:white;background:black;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')})</script></div></body></html>");
+    if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
+      H.SetHeader("Location",hlsUrl);
+      H.SendResponse("307", "HLS redirect", myConn);
+      return;
+    }
+    H.SendResponse("200", "OK", myConn);
+  }
   
   void OutHTTP::onHTTP(){
     std::string method = H.method;
@@ -275,43 +307,14 @@ namespace Mist {
     
     // send generic HTML page
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
-      HTTP::URL fullURL(H.GetHeader("Host"));
-      /*LTS-START*/
-      if (config->getString("pubaddr") != ""){
-        HTTP::URL altURL(config->getString("pubaddr"));
-        fullURL.protocol = altURL.protocol;
-        if (altURL.host.size()){fullURL.host = altURL.host;}
-        fullURL.port = altURL.port;
-        fullURL.path = altURL.path;
-      }
-      /*LTS-END*/
-      std::string uAgent = H.GetHeader("User-Agent");
-      H.Clean();
-      H.SetHeader("Content-Type", "text/html");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-      H.setCORSHeaders();
-      if(method == "OPTIONS" || method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      
-      std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
-      std::string mp4Url = "/"+streamName+".mp4";
-      
-      H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><style>body{color:white;background:black;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')})</script></div></body></html>");
-      if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
-        H.SetHeader("Location",hlsUrl);
-        H.SendResponse("307", "HLS redirect", myConn);
-        return;
-      }
-      H.SendResponse("200", "OK", myConn);
+      HTMLResponse();
       return;
     }
     
     // send smil MBR index
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".smil"){
       std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
+
       std::string port, url_rel;
       
       IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);

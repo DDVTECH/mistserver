@@ -9,6 +9,7 @@ namespace Mist {
       static void init(Util::Config * cfg);
       static bool listenMode();
       virtual void onFail();
+      void HTMLResponse();
       void onHTTP();
       void sendIcon();
   };

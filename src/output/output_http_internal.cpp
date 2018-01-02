@@ -37,19 +37,25 @@ namespace Mist {
       sendIcon();
       return;
     }
-    INFO_MSG("Failing: %s", H.url.c_str());
-    if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
-      if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
-          H.Clean();
-          H.SetBody("{\"error\":\"Could not retrieve stream. Sorry.\"}\n");
-        }else{
-          H.Clean();
-          H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = {\"error\":\"Could not retrieve stream. Sorry.\"};\n");
-        }
-        H.SendResponse("200", "Stream not found", myConn);
-    }else{
-      HTTPOutput::onFail();
+    if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
+      HTMLResponse();
+      return;
     }
+    if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
+      JSON::Value json_resp;
+      json_resp["error"] = "Could not retrieve stream. Sorry.";
+      if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
+        H.Clean();
+        H.SetBody(json_resp.toString());
+      }else{
+        H.Clean();
+        H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = "+json_resp.toString()+";\n");
+      }
+      H.SendResponse("200", "Stream not found", myConn);
+      return;
+    }
+    INFO_MSG("Failing: %s", H.url.c_str());
+    HTTPOutput::onFail();
     Output::onFail();
   }
 
@@ -129,7 +135,7 @@ namespace Mist {
     }
   };
   
-  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches, const std::string & protocol){
+  void addSource(const std::string & rel, std::set<JSON::Value, sourceCompare> & sources, const HTTP::URL & url, JSON::Value & conncapa, unsigned int most_simul, unsigned int total_matches){
     JSON::Value tmp;
     tmp["type"] = conncapa["type"];
     tmp["relurl"] = rel;
@@ -137,12 +143,16 @@ namespace Mist {
     if (conncapa.isMember("player_url")){tmp["player_url"] = conncapa["player_url"].asStringRef();}
     tmp["simul_tracks"] = most_simul;
     tmp["total_matches"] = total_matches;
-    tmp["url"] = protocol + host + ":" + port + rel;
+    if (url.path.size()){
+      tmp["url"] = url.protocol + "://" + url.host + ":" + url.port + "/" + url.path + rel;
+    }else{
+      tmp["url"] = url.protocol + "://" + url.host + ":" + url.port + rel;
+    }
     sources.insert(tmp);
   }
   
 
-  void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, std::string & host, const std::string & port, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string httpHost, JSON::Value * mainconn_capa = 0){
+  void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, HTTP::URL url, JSON::Value & conncapa, JSON::Value & strmMeta){
     const std::string & rel = conncapa["url_rel"].asStringRef();
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
@@ -180,10 +190,6 @@ namespace Mist {
       }else{
         relurl = "/";
       }
-      std::string protocol;
-      if (mainconn_capa && mainconn_capa->isMember("protocol")){
-        protocol = (*mainconn_capa)["protocol"].asStringRef();
-      }
       jsonForEach(conncapa["methods"], it) {
         if (it->isMember("url_rel")){
           size_t foundb = (*it)["url_rel"].asStringRef().find('$');
@@ -192,13 +198,39 @@ namespace Mist {
           }
         }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          if (!protocol.size() && it->isMember("handler")){
-            protocol = (*it)["handler"].asStringRef() + "://";
+          if (!url.protocol.size() && it->isMember("handler")){
+            url.protocol = (*it)["handler"].asStringRef();
           }
-          addSource(relurl, sources, host, port, *it, most_simul, total_matches, protocol);
+          addSource(relurl, sources, url, *it, most_simul, total_matches);
         }
       }
     }
+  }
+
+  void OutHTTP::HTMLResponse(){
+    std::string method = H.method;
+    HTTP::URL fullURL(H.GetHeader("Host"));
+    std::string uAgent = H.GetHeader("User-Agent");
+    H.Clean();
+    H.SetHeader("Content-Type", "text/html");
+    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.setCORSHeaders();
+    if(method == "OPTIONS" || method == "HEAD"){
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    
+    std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
+    std::string mp4Url = "/"+streamName+".mp4";
+    
+    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><style>body{color:white;background:black;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')})</script></div></body></html>");
+    if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
+      H.SetHeader("Location",hlsUrl);
+      H.SendResponse("307", "HLS redirect", myConn);
+      return;
+    }
+    H.SendResponse("200", "OK", myConn);
   }
   
   void OutHTTP::onHTTP(){
@@ -261,37 +293,13 @@ namespace Mist {
     
     // send generic HTML page
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
-      std::string fullHost = H.GetHeader("Host");
-      std::string uAgent = H.GetHeader("User-Agent");
-      H.Clean();
-      H.SetHeader("Content-Type", "text/html");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-      H.setCORSHeaders();
-      if(method == "OPTIONS" || method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      
-      std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
-      std::string mp4Url = "/"+streamName+".mp4";
-      
-      H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><style>body{color:white;background:black;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'//"+fullHost+"',target:document.getElementById('"+streamName+"')})</script></div></body></html>");
-      if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
-        H.SetHeader("Location",hlsUrl);
-        H.SendResponse("307", "HLS redirect", myConn);
-        return;
-      }
-      H.SendResponse("200", "OK", myConn);
+      HTMLResponse();
       return;
     }
     
     // send smil MBR index
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".smil"){
-      std::string host = H.GetHeader("Host");
-      if (host.rfind(':') != std::string::npos && *host.rbegin() != ']'){
-        host.resize(host.rfind(':'));
-      }
+      std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
       
       std::string port, url_rel;
       
@@ -337,20 +345,16 @@ namespace Mist {
         H.Clean();
         return;
       }
-      H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + host + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
+      H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + reqHost + ":" + port + url_rel + "' />\n  </head>\n  <body>\n    <switch>\n"+trackSources+"    </switch>\n  </body>\n</smil>");
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
     }
     
     if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
-      std::string fullHost = H.GetHeader("Host");
+      std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
       std::string response;
       std::string rURL = H.url;
-      std::string host = H.GetHeader("Host");
-      if (host.rfind(':') != std::string::npos && *host.rbegin() != ']'){
-        host.resize(host.rfind(':'));
-      }
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
@@ -426,15 +430,20 @@ namespace Mist {
           DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(cName);
           //if the connector has a port,
           if (capa.getMember("optional").getMember("port")){
+            HTTP::URL outURL(reqHost);
             //get the default port if none is set
-            std::string port = prots.getIndice(i).getMember("port").asString();
-            if (!port.size()){
-              port = capa.getMember("optional").getMember("port").getMember("default").asString();
+            outURL.port = prots.getIndice(i).getMember("port").asString();
+            if (!outURL.port.size()){
+              outURL.port = capa.getMember("optional").getMember("port").getMember("default").asString();
+            }
+            outURL.protocol = capa.getMember("protocol").asString();
+            if (outURL.protocol.find(':') != std::string::npos){
+              outURL.protocol.erase(outURL.protocol.find(':'));
             }
             //and a URL - then list the URL
             JSON::Value capa_json = capa.asJSON();
             if (capa.getMember("url_rel") || capa.getMember("methods")){
-              addSources(streamName, sources, host, port, capa_json, json_resp["meta"], fullHost);
+              addSources(streamName, sources, outURL, capa_json, json_resp["meta"]);
             }
             //Make note if this connector can be depended upon by other connectors
             if (capa.getMember("provides")){
@@ -447,7 +456,7 @@ namespace Mist {
                 //if it depends on this connector and has a URL, list it
                 if (conns.count(capa_lst.getIndiceName(j)) && capa_lst.getIndice(j).getMember("deps").asString() == cProv && capa_lst.getIndice(j).getMember("methods")){
                   JSON::Value subcapa_json = capa_lst.getIndice(j).asJSON();
-                  addSources(streamName, sources, host, port, subcapa_json, json_resp["meta"], fullHost, &capa_json);
+                  addSources(streamName, sources, outURL, subcapa_json, json_resp["meta"]);
                 }
               }
             }
@@ -488,13 +497,9 @@ namespace Mist {
     
     
     if (H.url == "/player.js"){
-      std::string fullHost = H.GetHeader("Host");
+      HTTP::URL fullURL(H.GetHeader("Host"));
       std::string response;
       std::string rURL = H.url;
-      std::string host = H.GetHeader("Host");
-      if (host.rfind(':') != std::string::npos && *host.rbegin() != ']'){
-        host.resize(host.rfind(':'));
-      }
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
@@ -505,7 +510,7 @@ namespace Mist {
         return;
       }
       
-      response.append("if (typeof mistoptions == 'undefined') { mistoptions = {}; }\nif (!('host' in mistoptions)) { mistoptions.host = 'http://"+fullHost+"'; }\n");
+      response.append("if (typeof mistoptions == 'undefined') { mistoptions = {}; }\nif (!('host' in mistoptions)) { mistoptions.host = '"+fullURL.getUrl()+"'; }\n");
       #include "core.js.h"
       response.append((char*)core_js, (size_t)core_js_len);
       jsonForEach(config->getOption("wrappers",true),it){

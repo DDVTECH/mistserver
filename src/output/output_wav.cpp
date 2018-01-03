@@ -15,6 +15,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("ULAW");
     capa["codecs"][0u][0u].append("MP3");
     capa["codecs"][0u][0u].append("PCM");
+    capa["codecs"][0u][0u].append("FLOAT");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/wav";
     capa["methods"][0u]["priority"] = 1ll;
@@ -88,6 +89,7 @@ namespace Mist{
     if (Trk.codec == "ALAW"){fmt = 6;}
     if (Trk.codec == "ULAW"){fmt = 7;}
     if (Trk.codec == "PCM"){fmt = 1;}
+    if (Trk.codec == "FLOAT"){fmt = 3;}
     if (Trk.codec == "MP3"){fmt = 85;}
     myConn.SendNow(RIFF::fmt::generate(fmt, Trk.channels, Trk.rate, Trk.bps,
                                        Trk.channels * (Trk.size << 3), Trk.size));

@@ -208,8 +208,12 @@ namespace SDP{
       // A little more tricky: we need to find free ports and remember them.
       data.SetDestination(dest, 1337);
       rtcp.SetDestination(dest, 1337);
-      portA = data.bind(0);
-      portB = rtcp.bind(0);
+      portA = portB = 0;
+      int retries = 0;
+      while (portB != portA+1 && retries < 10){
+        portA = data.bind(0);
+        portB = rtcp.bind(portA+1);
+      }
       std::stringstream tStr;
       tStr << "RTP/AVP/UDP;unicast;client_port=" << portA << "-" << portB;
       return tStr.str();

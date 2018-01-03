@@ -172,9 +172,9 @@ std::string HTTP::URL::getUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path);}
+  if (path.size()){ret += Encodings::URL::encode(path, "=");}
   if (args.size()){ret += "?" + args;}
-  if (frag.size()){ret += "#" + Encodings::URL::encode(frag);}
+  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "=");}
   return ret;
 }
 

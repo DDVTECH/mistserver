@@ -20,7 +20,7 @@ namespace Encodings {
       /// urldecodes std::string data, parsing out both %-encoded characters and +-encoded spaces.
       static std::string decode(const std::string & in);
       /// urlencodes std::string data, leaving only the characters A-Za-z0-9~!&()' alone.
-      static std::string encode(const std::string & c);
+      static std::string encode(const std::string & c, const std::string &ign = "");
 
   };
 

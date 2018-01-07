@@ -1352,6 +1352,20 @@ namespace DTSC {
     return keys[keyNum - keys[0].getNumber()];
   }
 
+  ///\brief Returns a fragment given its number, or an empty fragment if the number is out of bounds
+  Fragment & Track::getFrag(unsigned int fragNum) {
+    static Fragment empty;
+    if (!fragments.size() || fragNum < fragments[0].getNumber() || fragNum > fragments.rbegin()->getNumber()) {
+      return empty;
+    }
+    for (std::deque<Fragment>::iterator it = fragments.begin(); it != fragments.end(); ++it){
+      if (fragNum >= it->getNumber() && fragNum <= it->getNumber() + it->getLength()){
+        return *it;
+      }
+    }
+    return empty;
+  }
+
   /// Returns the number of the key containing timestamp, or last key if nowhere.
   unsigned int Track::timeToKeynum(unsigned int timestamp){
     unsigned int result = 0;

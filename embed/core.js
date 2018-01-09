@@ -930,8 +930,25 @@ function mistPlay(streamName,options) {
     
     if (!('type' in info) || (info.type != 'vod')) { //always show the button timer, unless its a vod
       //reload timeout
-      var delay = ('type' in info ? 20 : 60);
-      i.className = 'countdown'+delay;
+      var delay = 20;
+      if (!("type" in info)) {
+        if ("reloadDelay" in options) {
+          delay = options.reloadDelay;
+          
+          try {
+            var css = document.createElement("style");
+            i.appendChild(css);
+            css.sheet.insertRule(".countdown[data-delay=\""+delay+"\"] { animation-duration: "+delay+"s; }");
+            css.sheet.insertRule(".countdown[data-delay=\""+delay+"\"]:before { animation-duration: "+delay/2+"s,"+delay+"s; }");
+          }
+          catch (e) {}
+        }
+        else {
+          delay = 60;
+        }
+      }
+      i.className = 'countdown';
+      i.setAttribute("data-delay",delay);
       err.timeOut = protoplay.timer.add(function(){
         protoplay.report({
           type: 'playback',

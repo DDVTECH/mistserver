@@ -360,19 +360,18 @@
   }
 }
 
-.countdown, .countdown20, .countdown60 {
+.countdown {
   height: 1em;
   width: 1em;
   display: inline-block;
   vertical-align: bottom;
   border-radius: 50%;
   background-image: linear-gradient(to right,#bbb 50%,#333 0);
-  border: 1px solid black;
   margin: 0 0.2em;
   opacity: 0;
   animation: appear 20s step-start 1;
 }
-.countdown:before, .countdown20:before, .countdown60:before {
+.countdown:before {
   content: '';
   display: block;
   margin-left: 50%;
@@ -382,11 +381,11 @@
   transform-origin: 0 50%;
   animation: rotate 10s linear 2, bg 20s step-end 1;
 }
-.countdown60 {
-  animation: appear 60s step-start 1;
+.countdown[data-delay=60] {
+  animation-duration: 60s;
 }
-.coutndown60:before {
-  animation: rotate 30s linear 2, bg 60s step-end 1;
+.countdown[data-delay=60]:before {
+  animation-duration: 30s, 60s;
 }
 @keyframes rotate {
   to { transform: rotate(.5turn); }

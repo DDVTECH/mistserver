@@ -36,7 +36,7 @@ namespace HTTP{
     std::string &BuildRequest();
     std::string &BuildResponse();
     std::string &BuildResponse(std::string code, std::string message);
-    void SendRequest(Socket::Connection &conn, const std::string &reqbody = "");
+    void SendRequest(Socket::Connection &conn, const std::string &reqbody = "", bool allAtOnce = false);
     void SendResponse(std::string code, std::string message, Socket::Connection &conn);
     void StartResponse(std::string code, std::string message, Parser &request,
                        Socket::Connection &conn, bool bufferAllChunks = false);

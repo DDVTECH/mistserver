@@ -38,15 +38,17 @@ HTTP::URL::URL(const std::string &url){
     }else{
       path = url.substr(first_slash);
     }
-    size_t hmark = path.find('#');
-    if (hmark != std::string::npos){
-      frag = Encodings::URL::decode(path.substr(hmark + 1));
-      path.erase(hmark);
-    }
-    size_t qmark = path.find('?');
-    if (qmark != std::string::npos){
-      args = path.substr(qmark + 1);
-      path.erase(qmark);
+    if (protocol != "rtsp"){
+      size_t hmark = path.find('#');
+      if (hmark != std::string::npos){
+        frag = Encodings::URL::decode(path.substr(hmark + 1));
+        path.erase(hmark);
+      }
+      size_t qmark = path.find('?');
+      if (qmark != std::string::npos){
+        args = path.substr(qmark + 1);
+        path.erase(qmark);
+      }
     }
     if (path.size()){
       if (path[0] == '/'){path.erase(0, 1);}
@@ -172,7 +174,11 @@ std::string HTTP::URL::getUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path, "=");}
+  if (protocol == "rtsp"){
+    if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
+  }else{
+    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+  }
   if (args.size()){ret += "?" + args;}
   if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "=");}
   return ret;
@@ -193,7 +199,11 @@ std::string HTTP::URL::getProxyUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path);}
+  if (protocol == "rtsp"){
+    if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
+  }else{
+    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+  }
   if (args.size()){ret += "?" + args;}
   return ret;
 }
@@ -216,7 +226,11 @@ std::string HTTP::URL::getBareUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path);}
+  if (protocol == "rtsp"){
+    if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
+  }else{
+    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+  }
   return ret;
 }
 
@@ -399,8 +413,29 @@ std::string &HTTP::Parser::BuildRequest(){
 /// Creates and sends a valid HTTP 1.0 or 1.1 request.
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.
-void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqbody){
+void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqbody, bool allAtOnce){
   /// \todo Include GET/POST variable parsing?
+  if (allAtOnce){
+    /// \TODO Make this less duplicated / more pretty.
+
+    std::map<std::string, std::string>::iterator it;
+    if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
+    builder = method + " " + url + " " + protocol + "\r\n";
+    if (reqbody.size()){SetHeader("Content-Length", reqbody.length());}
+    for (it = headers.begin(); it != headers.end(); it++){
+      if ((*it).first != "" && (*it).second != ""){
+        builder += (*it).first + ": " + (*it).second + "\r\n";
+      }
+    }
+    builder += "\r\n";
+    if (reqbody.size()){
+      builder += reqbody;
+    }else{
+      builder += body;
+    }
+    conn.SendNow(builder);
+    return;
+  }
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
   builder = method + " " + url + " " + protocol + "\r\n";
@@ -799,6 +834,10 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
           body.clear();
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
+            if (body.capacity() < length){body.reserve(length);}
+          }
+          if (GetHeader("Content-length") != ""){
+            length = atoi(GetHeader("Content-length").c_str());
             if (body.capacity() < length){body.reserve(length);}
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){

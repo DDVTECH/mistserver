@@ -98,7 +98,7 @@ namespace Mist{
         sndH.SetHeader(it->first, it->second);
       }
     }
-    sndH.SendRequest(tcpCon);
+    sndH.SendRequest(tcpCon, "", true);
   }
 
   bool InputRTSP::checkArguments(){
@@ -129,6 +129,8 @@ namespace Mist{
 
   void InputRTSP::parseStreamHeader(){
     std::map<std::string, std::string> extraHeaders;
+    sendCommand("OPTIONS", url.getUrl(), "");
+    parsePacket();
     extraHeaders["Accept"] = "application/sdp";
     sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
     parsePacket();
@@ -215,7 +217,10 @@ namespace Mist{
           if (recH.hasHeader("Content-Location")){
             url = HTTP::URL(recH.GetHeader("Content-Location"));
           }
-          if (recH.hasHeader("Content-Base")){url = HTTP::URL(recH.GetHeader("Content-Base"));}
+          if (recH.hasHeader("Content-Base") && recH.GetHeader("Content-Base") != "" && recH.GetHeader("Content-Base") != url.getUrl()){
+            INFO_MSG("Changing base URL from %s to %s", url.getUrl().c_str(), recH.GetHeader("Content-Base").c_str());
+            url = HTTP::URL(recH.GetHeader("Content-Base"));
+          }
           if (recH.hasHeader("Session")){
             session = recH.GetHeader("Session");
             if (session.find(';') != std::string::npos){
@@ -224,12 +229,15 @@ namespace Mist{
           }
           if (recH.hasHeader("Content-Type") &&
               recH.GetHeader("Content-Type") == "application/sdp"){
+            INFO_MSG("Received SDP");
             seenSDP = true;
             sdpState.parseSDP(recH.body);
             recH.Clean();
+            INFO_MSG("SDP contained %llu tracks", myMeta.tracks.size());
             return true;
           }
           if (recH.hasHeader("Transport")){
+            INFO_MSG("Received setup response");
             uint32_t trackNo = sdpState.parseSetup(recH, url.host, "");
             if (trackNo){
               INFO_MSG("Parsed transport for track: %lu", trackNo);

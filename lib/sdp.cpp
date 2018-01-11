@@ -341,6 +341,7 @@ namespace SDP{
   }
 
   void State::parseSDP(const std::string &sdp){
+    DONTEVEN_MSG("Parsing %llu-byte SDP", sdp.size());
     std::stringstream ss(sdp);
     std::string to;
     uint64_t trackNo = 0;
@@ -349,6 +350,7 @@ namespace SDP{
     while (std::getline(ss, to, '\n')){
       if (!to.empty() && *to.rbegin() == '\r'){to.erase(to.size() - 1, 1);}
       if (to.empty()){continue;}
+      DONTEVEN_MSG("Parsing SDP line: %s", to.c_str());
 
       // All tracks start with a media line
       if (to.substr(0, 2) == "m="){

@@ -20,7 +20,7 @@ namespace Encodings{
     unsigned int i, x, n = 3;
     for (x = 0; x < in_len; x = x + 3){
       if ((in_len - x) / 3 == 0){n = (in_len - x) % 3;}
-      for (i = 0; i < 3; i++){triple[i] = '0';}
+      for (i = 0; i < 3; i++){triple[i] = '\000';}
       for (i = 0; i < n; i++){triple[i] = input[x + i];}
       quad[0] = chars[(triple[0] & 0xFC) >> 2];                               // FC = 11111100
       quad[1] = chars[((triple[0] & 0x03) << 4) | ((triple[1] & 0xF0) >> 4)]; // 03 = 11

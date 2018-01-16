@@ -341,6 +341,7 @@ Socket::Connection::Connection(int sockNo){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
+  skipCount = 0;
 }// Socket::Connection basic constructor
 
 /// Simulate a socket using two file descriptors.
@@ -355,6 +356,7 @@ Socket::Connection::Connection(int write, int read){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
+  skipCount = 0;
 }// Socket::Connection basic constructor
 
 /// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
@@ -368,6 +370,7 @@ Socket::Connection::Connection(){
   conntime = Util::epoch();
   Error = false;
   Blocking = false;
+  skipCount = 0;
 }// Socket::Connection basic constructor
 
 void Socket::Connection::resetCounter(){
@@ -629,6 +632,11 @@ void Socket::Connection::SendNow(const std::string &data){
   SendNow(data.data(), data.size());
 }
 
+void Socket::Connection::skipBytes(uint32_t byteCount){
+  INFO_MSG("Skipping first %lu bytes going to socket", byteCount);
+  skipCount = byteCount;
+}
+
 /// Incremental write call. This function tries to write len bytes to the socket from the buffer,
 /// returning the amount of bytes it actually wrote.
 /// \param buffer Location of the buffer to write from.
@@ -636,6 +644,18 @@ void Socket::Connection::SendNow(const std::string &data){
 /// \returns The amount of bytes actually written.
 unsigned int Socket::Connection::iwrite(const void *buffer, int len){
   if (!connected() || len < 1){return 0;}
+  if (skipCount){
+    //We have bytes to skip writing.
+    //Pretend we write them, but don't really.
+    if (len <= skipCount){
+      skipCount -= len;
+      return len;
+    }else{
+      unsigned int retCode = iwrite((((char*)buffer)+skipCount), len-skipCount);
+      skipCount = 0;
+      return retCode;
+    }
+  }
   int r;
   if (sock >= 0){
     r = send(sock, buffer, len, 0);

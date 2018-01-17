@@ -6,6 +6,7 @@
 Analyser::Analyser(Util::Config &conf){
   validate = conf.getBool("validate");
   detail = conf.getInteger("detail");
+  timeOut = conf.getInteger("timeout");
   mediaTime = 0;
   upTime = Util::bootSecs();
   isActive = &conf.is_active;
@@ -61,9 +62,26 @@ int Analyser::run(Util::Config &conf){
     }
     if (validate){
       finTime = Util::bootSecs();
+
+      //slow down to realtime + 10s
+      if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
+        uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
+        if ((finTime - upTime + sleepMs / 1000) >= timeOut){
+          WARN_MSG("Reached timeout of %llu seconds, stopping", timeOut);
+          return 3;
+        }
+        INFO_MSG("Sleeping for %lums", sleepMs);
+        Util::sleep(sleepMs);
+        finTime = Util::bootSecs();
+      }
+
       if ((finTime - upTime) > (mediaTime / 1000) + 2){
         FAIL_MSG("Media time more than 2 seconds behind!");
-        return 1;
+        return 4;
+      }
+      if ((finTime - upTime) >= timeOut){
+        WARN_MSG("Reached timeout of %llu seconds, stopping", timeOut);
+        return 3;
       }
     }
   }
@@ -86,6 +104,14 @@ void Analyser::init(Util::Config &conf){
   opt["short"] = "V";
   opt["help"] = "Enable validation mode (default off)";
   conf.addOption("validate", opt);
+  opt.null();
+
+  opt["long"] = "timeout";
+  opt["short"] = "T";
+  opt["arg"] = "num";
+  opt["default"] = 0ll;
+  opt["help"] = "Time out after X seconds of processing/retrieving";
+  conf.addOption("timeout", opt);
   opt.null();
 
   opt["long"] = "detail";

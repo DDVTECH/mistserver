@@ -31,6 +31,7 @@ public:
 protected:
   // These hold the current state and/or config
   bool validate;      ///< True of validation mode is enabled
+  uint64_t timeOut;   ///< After how many seconds a timeout should trigger
   int detail;         ///< Detail level of analyser
   uint64_t mediaTime; ///< Timestamp in ms of last media packet received
   uint64_t upTime;    ///< Unix time of analyser start

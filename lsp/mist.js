@@ -56,6 +56,7 @@ $(window).on('hashchange', function(e) {
   UI.showTab(tab[0],tab[1]);
 });
 
+var MistVideoObject = {};
 var otherhost = {
   host: false,
   https: false
@@ -179,6 +180,9 @@ var UI = {
       case 'html5/application/vnd.apple.mpegurl':
         human = 'HLS';
         break;
+      case 'html5/video/webm':
+        human = 'WebM';
+        break;
       case 'html5/video/mp4':
         human = 'MP4';
         break;
@@ -197,7 +201,11 @@ var UI = {
       case 'html5/audio/mp3':
         human = 'MP3';
         break;
+      case 'html5/audio/wav':
+        human = 'WAV';
+        break;
       case 'html5/video/mp2t':
+      case 'html5/video/mpeg':
         human = 'TS';
         break;
       case 'html5/application/vnd.ms-ss':
@@ -211,6 +219,12 @@ var UI = {
         break;
       case 'html5/text/javascript':
         human = 'JSON Subtitles';
+        break;
+      case 'rtsp':
+        human = 'RTSP';
+        break;
+      case 'webrtc':
+        human = "WebRTC";
         break;
     }
     return human;
@@ -426,9 +440,12 @@ var UI = {
             case 'save':
               $b.addClass('save').click(function(e){
                 var $ic = $(this).closest('.input_container');
-                //validate
+                
+                //skip any hidden fields
+                
+                //validate$()
                 var error = false;
-                $ic.find('.hasValidate').each(function(){
+                $ic.find('.hasValidate:visible, input[type="hidden"].hasValidate').each(function(){
                   var vf = $(this).data('validate');
                   error = vf(this,true); //focus the field if validation failed
                   if (error) {
@@ -438,7 +455,7 @@ var UI = {
                 if (error) { return; } //validation failed
                 
                 //for all inputs
-                $ic.find('.isSetting').each(function(){
+                $ic.find('.isSetting:visible, input[type="hidden"].isSetting').each(function(){
                   var val = $(this).getval();
                   var pointer = $(this).data('pointer');
                   
@@ -495,7 +512,7 @@ var UI = {
             $field.attr('min',e.min);
           }
           if ('max' in e) {
-            $field.attr('max',e.min);
+            $field.attr('max',e.max);
           }
           if ('validate' in e) {
             e.validate.push('int');
@@ -693,6 +710,92 @@ var UI = {
           
           $field.append($field.data("newitem"));
           break;
+        case "sublist": {
+          //saves an array with objects contain more settings
+          $field = $("<div>").addClass("sublist");
+          var $curvals = $("<div>").addClass("curvals");
+          $curvals.append($("<span>").text("None."));
+          var $itemsettings = $("<div>").addClass("itemsettings");
+          var $newitembutton = $("<button>").text("New "+e.itemLabel);
+          var sublist = e.sublist;
+          $field.data("build",function(values,index){
+            var savepos = index;
+            
+            //apply settings of var values
+            for (var i in e.saveas) {
+              if (!(i in values)) {
+                delete e.saveas[i];
+              }
+            }
+            e.saveas = Object.assign(e.saveas,values);
+            
+            var mode = "New";
+            if (typeof index != "undefined") {
+              mode = "Edit";
+            }
+            //Object.assign(e.saveas,values);
+            var newUI = UI.buildUI(
+              [$("<h4>").text(mode+" "+e.itemLabel)].concat(
+                sublist
+              ).concat([
+                {
+                  type: "buttons",
+                  buttons: [{
+                    label: "Cancel",
+                    type: "cancel",
+                    "function": function(){
+                      $itemsettings.html("");
+                      $newitembutton.show();
+                      $e.show();
+                    }
+                  },{
+                    label: "Save "+e.itemLabel,
+                    type: "save",
+                    "function": function(){
+                      var savelist = $field.getval();
+                      var save = Object.assign({},e.saveas);
+                      for (var i in save) {
+                        if (save[i] === null) {
+                          delete save[i];
+                        }
+                      }
+                      if (typeof savepos == "undefined") {
+                        savelist.push(save);
+                      }
+                      else {
+                        savelist[savepos] = save;
+                      }
+                      $field.setval(savelist);
+                      $itemsettings.html("");
+                      $newitembutton.show();
+                      $e.show();
+                    }
+                  }]
+                }
+              ])
+            );
+            $itemsettings.html(newUI);
+            $newitembutton.hide();
+            $e.hide();
+          });
+          $newitembutton.click(function(){
+            $field.data("build")({});
+          });
+          sublist.unshift({
+            type: "str",
+            label: "Human readable name",
+            placeholder: "none",
+            help: "A convenient name to describe this "+e.itemLabel+". It won't be used by MistServer.",
+            pointer: {
+              main: e.saveas,
+              index: "x-LSP-name"
+            }
+          });
+          $field.data("savelist",[]);
+          $field.append($curvals).append($newitembutton);
+          $c.append($itemsettings);
+          break;
+        }
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -782,6 +885,11 @@ var UI = {
       if (('LTSonly' in e) && (!mist.data.LTS)) {
         $fc.addClass('LTSonly');
         $field.prop('disabled',true);
+      }
+      if ("dependent" in e) {
+        for (var i in e.dependent) {
+          $e.attr("data-dependent-"+i,e.dependent[i]);
+        }
       }
       
       //additional field type code
@@ -979,7 +1087,7 @@ var UI = {
           }
         }
       }
-      if ('value' in e) {
+      if ((($field.getval() == "") || ($field.getval() == null)) && ('value' in e)) {
         $field.setval(e.value);
       }
       if ('datalist' in e) {
@@ -1056,8 +1164,10 @@ var UI = {
                   }
                 }
                 break;
-              case 'streamname':
+              case 'streamname': {
                 f = function(val,me) {
+                  if (val == "") { return; }
+                  
                   if (!isNaN(val.charAt(0))) {
                     return {
                       msg: 'The first character may not be a number.',
@@ -1088,14 +1198,62 @@ var UI = {
                   }
                 };
                 break;
+              }
+              case 'streamname_with_wildcard': {
+                f = function(val,me) {
+                  if (val == "") { return; }
+                  
+                  streampart = val.split("+");
+                  var wildpart = streampart.slice(1).join("+");
+                  streampart = streampart[0];
+                  
+                  //validate streampart
+                  if (!isNaN(streampart.charAt(0))) {
+                    return {
+                      msg: 'The first character may not be a number.',
+                      classes: ['red']
+                    };
+                  }
+                  if (streampart.toLowerCase() != streampart) {
+                    return {
+                      msg: 'Uppercase letters are not allowed in a stream name.',
+                      classes: ['red']
+                    };
+                  }
+                  if (streampart.replace(/[^\da-z_]/g,'') != streampart) {
+                    return {
+                      msg: 'Special characters (except for underscores) are not allowed in a stream name.',
+                      classes: ['red']
+                    };
+                  }
+                  
+                  if (streampart != val) {
+                    //validate wildcard part
+                    //anything is allowed except / and nullbytes
+                    if (wildpart.replace(/[\00|\0|\/]/g,'') != wildpart) {
+                      return {
+                        msg: 'Slashes or null bytes are not allowed in wildcards.',
+                        classes: ['red']
+                      };
+                    }
+                  }
+                };
+                break;
+              }
+              case 'track_selector': {
+                //something like "audio=1&video=eng"
+                //keep at default for now..
+              }
               default:
-                f = function(){}
+                f = function(){};
                 break;
             }
           }
           fs.push(f);
         }
         $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me,focusonerror){
+          if (!$(me).is(":visible")) { return; }
+          
           var val = $(me).getval();
           var fs = $(me).data('validate_functions');
           var $ihc = $(me).data('help_container');
@@ -1128,15 +1286,20 @@ var UI = {
       }
     }
     $c.on('keydown',function(e){
+      var $button = false;
       switch (e.which) {
         case 13:
           //enter
-          $(this).find('button.save').first().trigger('click');
+          $button = $(this).find('button.save').first();
           break;
         case 27:
           //escape
-          $(this).find('button.cancel').first().trigger('click');
+          $button = $(this).find('button.cancel').first();
           break;
+      }
+      if (($button) && ($button.length)) {
+        $button.trigger('click');
+        e.stopPropagation();
       }
     });
     
@@ -1906,18 +2069,8 @@ var UI = {
     }
     
     //unload any video's that might still be playing
-    if (typeof mistvideo != 'undefined') {
-      for (var s in mistvideo) {
-        if ('embedded' in mistvideo[s]) {
-          for (var i in mistvideo[s].embedded) {
-            try {
-              mistvideo[s].embedded[i].player.unload();
-              delete mistvideo[s].embedded[i];
-            }
-            catch (e) {}
-          }
-        }
-      }
+    if ((MistVideoObject) && (MistVideoObject.reference)) {
+      MistVideoObject.reference.unload();
     }
     
     UI.interval.clear();
@@ -1926,7 +2079,7 @@ var UI = {
     );
     switch (tab) {
       case 'Login':
-        if (mist.user.loggedin) { 
+        if (mist.user.loggedin) {
           //we're already logged in what are we doing here
           UI.navto('Overview');
           return;
@@ -2575,6 +2728,7 @@ var UI = {
             }
             
             if (confirm(msg) && dontskip.length) {
+              if (mist.data.config.protocols === null) { mist.data.config.protocols = []; }
               for (var i in dontskip) {
                 mist.data.config.protocols.push({connector: dontskip[i]});
               }
@@ -2629,9 +2783,10 @@ var UI = {
           $tbody.html('');
           for (var i in mist.data.config.protocols) {
             var protocol = mist.data.config.protocols[i];
+            var capa = mist.data.capabilities.connectors[protocol.connector];
             $tbody.append(
               $('<tr>').data('index',i).append(
-                $('<td>').text(protocol.connector)
+                $('<td>').text(capa && capa.friendly ? capa.friendly : protocol.connector)
               ).append(
                 $('<td>').html(UI.format.status(protocol))
               ).append(
@@ -2762,7 +2917,7 @@ var UI = {
           var saveas = {};
           var select = [['','']];
           for (var i in mist.data.capabilities.connectors) {
-            select.push([i,i]);
+            select.push([i,(mist.data.capabilities.connectors[i].friendly ? mist.data.capabilities.connectors[i].friendly : i)]);
           }
           var $cont = $('<span>');
           $main.append(UI.buildUI([{
@@ -2839,7 +2994,7 @@ var UI = {
         function createPage(type,streams,folders) {
           $loading.remove();
           switch (type) {
-            case 'thumbnails':
+            case 'thumbnails': {
               
               var $shortcuts = $('<div>').addClass('preview_icons');
               function selectastream(select,folders) {
@@ -2979,8 +3134,9 @@ var UI = {
               
               selectastream(streams,folders);
               break;
+            }
             case 'list':
-            default:
+            default: {
               var $tbody = $('<tbody>').append($('<tr>').append('<td>').attr('colspan',6).text('Loading..'));
               var $table = $('<table>').html(
                 $('<thead>').html(
@@ -3056,7 +3212,7 @@ var UI = {
                     );
                   }
                   
-                  var $streamnamelabel = $('<span>').text(streamname);
+                  var $streamnamelabel = $('<span>').text(stream.name);
                   if (stream.ischild) {
                     $streamnamelabel.css('padding-left','1em');
                   }
@@ -3067,7 +3223,7 @@ var UI = {
                   var $embed = $('<button>').text('Embed').click(function(){
                     UI.navto('Embed',$(this).closest('tr').data('index'));
                   });
-                  if ('filesfound' in allstreams[streamname]) {
+                  if (('filesfound' in allstreams[streamname]) || (stream.online < 0)) {
                     $online.html('');
                     $preview = '';
                     $viewers.html('');
@@ -3075,7 +3231,7 @@ var UI = {
                   }
                   $tbody.append(
                     $('<tr>').data('index',streamname).html(
-                      $('<td>').html($streamnamelabel).attr('title',streamname).addClass('overflow_ellipsis')
+                      $('<td>').html($streamnamelabel).attr('title',(stream.name == "..." ? "The results were truncated" : stream.name)).addClass('overflow_ellipsis')
                     ).append(
                       $('<td>').text(stream.source).attr('title',stream.source).addClass('description').addClass('overflow_ellipsis').css('max-width','20em')
                     ).append(
@@ -3128,13 +3284,27 @@ var UI = {
                     allstreams[s].filesfound = null;
                     mist.send(function(d,opts){
                       var s = opts.stream;
+                      var matches = 0;
+                      outer:
                       for (var i in d.browse.files) {
+                        inner:
                         for (var j in mist.data.capabilities.inputs) {
                           if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Buffer.exe') >= 0) || (j.indexOf('Folder') >= 0) || (j.indexOf('Folder.exe') >= 0)) { continue; }
                           if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
                             var streamname = s+'+'+d.browse.files[i];
                             allstreams[streamname] = createWcStreamObject(streamname,mist.data.streams[s]);
                             allstreams[streamname].source = mist.data.streams[s].source+d.browse.files[i];
+                            
+                            matches++;
+                            if (matches >= 500) {
+                              //stop retrieving more file names TODO properly display when this happens
+                              allstreams[s+"+zzzzzzzzz"] = {
+                                ischild: true,
+                                name: "...",
+                                online: -1
+                              };
+                              break outer;
+                            }
                           }
                         }
                       }
@@ -3178,6 +3348,7 @@ var UI = {
                 },5e3);
               }
               break;
+            }
           }
         }
         if (mist.data.LTS) {
@@ -3193,11 +3364,21 @@ var UI = {
               folders.push(s);
               mist.send(function(d,opts){
                 var s = opts.stream;
+                var matches = 0;
+                outer:
                 for (var i in d.browse.files) {
+                  inner:
                   for (var j in mist.data.capabilities.inputs) {
                     if ((j.indexOf('Buffer') >= 0) || (j.indexOf('Folder') >= 0)) { continue; }
                     if (mist.inputMatch(mist.data.capabilities.inputs[j].source_match,'/'+d.browse.files[i])) {
                       select[s+'+'+d.browse.files[i]] = true;
+                      
+                      matches++;
+                      if (matches >= 500) {
+                        //stop retrieving more file names
+                        select[s+"+zzzzzzzzz"] = true;
+                        break outer;
+                      }
                     }
                   }
                 }
@@ -3379,6 +3560,51 @@ var UI = {
           }
         }
         
+        var $processes = $('<div>');
+        var newproc = {};
+        var select = [];
+        var $subtypecont = $("<div>");
+        for (var i in mist.data.capabilities.processes) {
+          select.push([i,(mist.data.capabilities.processes[i].hrn ? mist.data.capabilities.processes[i].hrn :mist.data.capabilities.processes[i].name)]);
+        }
+        if (select.length) {
+          //if there are processes available
+          var sublist = [{
+            label: 'New process',
+            type: 'select',
+            select: select,
+            value: select[0][0], //set the default type to the first process
+            pointer: {
+              main: newproc,
+              index: "process"
+            },
+            "function": function(){
+              var type = $(this).getval();
+              if (type != null) {
+                var capabilities = mist.data.capabilities.processes[type];
+                var UIarr = [
+                  $("<h4>").text(capabilities.name+" Process options")
+                ];
+                $subtypecont.html(UI.buildUI(UIarr.concat(mist.convertBuildOptions(capabilities,newproc))));
+              }
+            }
+          },$subtypecont];
+          $processes.append(UI.buildUI([
+            $("<br>"),
+            $("<h3>").text("Stream processes"),
+            {
+              label: "Stream processes",
+              itemLabel: "stream process",
+              type: "sublist",
+              sublist: sublist,
+              saveas: newproc,
+              pointer: {
+                main: saveas,
+                index: "processes"
+              }
+            }
+          ]));
+        }
         $main.append(UI.buildUI([
           {
             label: 'Stream name',
@@ -3591,7 +3817,8 @@ var UI = {
           },$livestreamhint,$('<br>'),{
             type: 'custom',
             custom: $inputoptions
-          },$('<br>'),$('<h3>').text('Encryption'),{
+          },$processes,
+          $('<br>'),$('<h3>').text('Encryption'),{
             type: 'help',
             help: 'To enable encryption, the licence acquisition url must be entered, as well as either the content key or the key ID and seed.<br>Unsure how you should fill in your encryption or missing your preferred encryption? Please contact us.'
           },{
@@ -3676,7 +3903,12 @@ var UI = {
         var parsed = parseURL(mist.user.host);
         var embedbase = parsed.protocol+parsed.host+http_port+'/';
         
-        var $cont = $('<div>').css({'display':'flex','flex-flow':'row wrap'});
+        var $cont = $('<div>').css({
+          'display':'flex',
+          'flex-flow':'row wrap',
+          'flex-shrink':1,
+          'min-width':'auto'
+        });
         var $edit = '';
         if (other.indexOf('+') == -1) {
           $edit = $('<button>').text('Settings').addClass('settings').click(function(){
@@ -3697,99 +3929,111 @@ var UI = {
           $('<h2>').text('Preview of "'+other+'"')
         ).append($cont);
         var escapedstream = encodeURIComponent(other);
-        var $preview_cont = $('<div>');
+        var $preview_cont = $('<div>').css("flex-shrink","1").css("min-width","auto").css("max-width","100%");
         $cont.append($preview_cont);
         var $title = $('<div>');
-        var $s_players = $('<select>').append(
-          $('<option>').text('Automatic').val('')
-        ).change(function(){initPlayer();});
-        var $s_mimes = $('<select>').append(
-          $('<option>').text('Automatic').val('')
-        ).change(function(){initPlayer();});
-        var $switches = UI.buildUI([{
-          label: 'Use player',
-          type: 'DOMfield',
-          DOMfield: $s_players,
-          help: 'Choose a player to preview'
-        },{
-          label: 'Use source',
-          type: 'DOMfield',
-          DOMfield: $s_mimes,
-          help: 'Choose an output type to preview'
-        }]);
-        var $video = $('<div>').addClass('mistvideo').text('Loading player..');
-        $preview_cont.append($video).append($title).append($switches);
-        function initPlayer() {
-          $log.html('');
-          
-          //unload any video's that might still be playing
-          if (typeof mistvideo != 'undefined') {
-            for (var s in mistvideo) {
-              if ('embedded' in mistvideo[s]) {
-                for (var i in mistvideo[s].embedded) {
-                  try {
-                    mistvideo[s].embedded[i].player.unload();
-                  }
-                  catch (e) {}
-                }
-              }
-            }
+        var $video = $('<div>').addClass('mistvideo').text('Loading player..').css("max-width","100%").css("flex-shrink","1").css("min-width","auto");
+        var $controls = $('<div>').addClass('controls');
+        $preview_cont.append($video).append($title).append($controls);//.append($switches);
+        
+        if (!$("link#devcss").length) {
+          $main.append(
+            $("<link>").attr("rel","stylesheet").attr("type","text/css").attr("href",embedbase+"skins/dev.css").attr("id","devcss")
+          );
+        }
+        
+        function initPlayer(streamname) {
+          if ((tab != "Preview") || (!other) || (other == "") || (streamname != other)) {
+            return;
           }
+          
+          function afterInit() {
+            var MistVideo = MistVideoObject.reference;
+            
+            $controls.html("");
+            
+            $controls.append(MistVideo.UI.buildStructure({
+              type: "container",
+              classes: ["mistvideo-column"],
+              style: { flexShrink: 1 },
+              children: [
+                {
+                  "if": function(){
+                    return (this.playerName && this.source)
+                  },
+                  then: {
+                    type: "container",
+                    classes: ["mistvideo-description"],
+                    style: { display: "block" },
+                    children: [
+                      {type: "playername", style: { display: "inline" }},
+                      {type: "text", text: "is playing", style: {margin: "0 0.2em"}},
+                      {type: "mimetype"}
+                    ]
+                  }
+                },
+                {type:"decodingIssues", style: {"max-width":"30em","flex-flow":"column nowrap"}},
+                {
+                  type: "container",
+                  classes: ["mistvideo-column","mistvideo-devcontrols"],
+                  children: [
+                    {
+                      type: "text",
+                      text: "Player control"
+                    },{
+                      type: "container",
+                      classes: ["mistvideo-devbuttons"],
+                      style: {"flex-wrap": "wrap"},
+                      children: [
+                        {
+                          "if": function(){ return !!(this.player && this.player.api); },
+                            then: {
+                              type: "button",
+                              title: "Reload the video source",
+                              label: "Reload video",
+                              onclick: function(){
+                                this.player.api.load();
+                              }
+                            }
+                        },{
+                          type: "button",
+                          title: "Build MistVideo again",
+                          label: "Reload player",
+                          onclick: function(){
+                            this.reload();
+                          }
+                        },{
+                          type: "button",
+                          title: "Switch to the next available player and source combination",
+                          label: "Try next combination",
+                          onclick: function(){
+                            this.nextCombo();
+                          }
+                        }
+                      ]
+                    },
+                    {type:"forcePlayer"},
+                    {type:"forceType"},
+                    {type:"forceSource"}
+                  ]
+                },
+                {type:"log"}
+              ]
+            }));
+          }
+          $video[0].addEventListener("initialized",afterInit);
+          $video[0].addEventListener("initializeFailed",afterInit);
           
           var options = {
             target: $video[0],
-            maxheight: window.innerHeight - $('header').height(),
-            maxwidth: window.innerWidth - UI.elements.menu.width() - 100,
-            host: embedbase.replace(/\/$/,""),
-            loop: true
+            host: embedbase,
+            skin: "dev",
+            loop: true,
+            MistVideoObject: MistVideoObject,
           };
-          if ($s_players.val() != '') {
-            options.forcePlayer = $s_players.val()
-          }
-          if ($s_mimes.val() != '') {
-            options.forceSource = $s_mimes.val()
-          }
-          mistPlay(other,options);
+          MistVideoObject.reference = mistPlay(streamname,options);
         }
-        var $log = $('<div>').addClass('player_log');
-        $preview_cont.append(
-          $('<div>').append(
-            $('<h3>').text('Player log:')
-          ).append($log)
-        );
-        var lastlog = '';
-        $video.on('log error',function(e){
-          var scroll = false;
-          if ($log.height() + $log.scrollTop() == $log[0].scrollHeight) { scroll = true; }
-          
-          //if this new message is the same as the previous, merge them
-          var newlog = e.type+e.originalEvent.message;
-          var timestamp = '['+UI.format.time((new Date()).getTime() / 1e3)+']';
-          if (lastlog == newlog) {
-            var $div = $log.children().last();
-            var $span = $div.children('[data-amount]');
-            var amount = $span.attr('data-amount');
-            amount++;
-            $span.text('('+amount+'x)').attr('data-amount',amount);
-            $div.children('.timestamp').text(timestamp);
-          }
-          else {
-            $log.append(
-              $('<div>').append(
-                $('<span>').addClass('timestamp').text(timestamp).css('margin-right','0.5em')
-              ).append(
-                $('<span>').text(e.originalEvent.message)
-              ).append(
-                $('<span>').attr('data-amount',1).css('margin-left','0.5em')
-              ).addClass((e.type == 'error' ? 'red' : ''))
-            );
-            
-            if (scroll) {
-              $log.scrollTop($log[0].scrollHeight);
-            }
-          }
-          lastlog = newlog;
-        });
+        
         
         //load the player js
         function loadplayer() {
@@ -3805,34 +4049,19 @@ var UI = {
             );
           };
           script.onload = function(){
-            
-            for (var i in mistplayers) {
-              $s_players.append(
-                $('<option>').text(mistplayers[i].name).val(i)
-              );
-            }
-            
-            initPlayer();
-            
-            $video.on('initialized',function(){
-              if ($s_mimes.children().length <= 1) {
-                for (var i in mistvideo[other].source) {
-                  var s = mistvideo[other].source[i];
-                  var human = UI.humanMime(s.type);
-                  $s_mimes.append(
-                    $('<option>').val(i).text(
-                      (human ? human+' @ '+s.url.substring(s.url.length - s.relurl.length,0) : UI.format.capital(s.type)+' @ '+s.url.substring(s.url.length - s.relurl.length,0))
-                    )
-                  );
-                }
-              }
-              
-              var playerdata = mistvideo[other].embedded[mistvideo[other].embedded.length-1];
-              var human = UI.humanMime(playerdata.player.options.source.type);
-              $title.html('You\'re watching '+(human ? human+' <span class=description>('+playerdata.player.options.source.type+')</span>' : UI.format.capital(playerdata.player.options.source.type))+' through '+mistplayers[playerdata.selectedPlayer].name+'.');
-            });
-            
+            initPlayer(other);
             $main[0].removeChild(script);
+          };
+          
+          //allow destroying while this script is loading
+          MistVideoObject.reference = {
+            unload: function(){
+              script.onload = function(){
+                if (this.parentElement) {
+                  this.parentElement.removeChild(this);
+                }
+              };
+            }
           };
         }
         loadplayer();
@@ -3979,17 +4208,18 @@ var UI = {
           $tracktable.html(UI.buildUI(build));
         }
         
-        
-        $.ajax({
-          type: 'GET',
-          url: embedbase+'json_'+escapedstream+'.js',
-          success: function(d) {
-            buildTrackinfo(d);
-          },
-          error: function(){
-            $tracktable.html('Error while retrieving stream info.');
-          }
-        });
+        if (escapedstream != ""){
+          $.ajax({
+            type: 'GET',
+            url: embedbase+'json_'+escapedstream+'.js',
+            success: function(d) {
+              buildTrackinfo(d);
+            },
+            error: function(){
+              $tracktable.html('Error while retrieving stream info.');
+            }
+          });
+        }
         
         break;
       case 'Embed':
@@ -4042,17 +4272,14 @@ var UI = {
         if ((otherhost.host) || (otherhost.https)) {
           otherbase = (otherhost.https && ('s' in http) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && ('s' in http) ? http.s.port : http[''].port)+'/';
         }
-        
+        var done = false;
         var defaultembedoptions = {
           forcePlayer: '',
           forceType: '',
           controls: true,
           autoplay: true,
           loop: false,
-          width: '',
-          height: '',
-          maxwidth: '',
-          maxheight: '',
+          fillSpace: false,
           poster: '',
           urlappend: '',
           setTracks: {}
@@ -4107,13 +4334,34 @@ var UI = {
               return 
             }
           }
-          UI.stored.saveOpt('embedoptions',embedoptions);
+          if (done) { 
+            UI.stored.saveOpt('embedoptions',embedoptions); 
+          }
           
           var target = other+'_'+randomstring(12);
           
           var options = ['target: document.getElementById("'+target+'")'];
           for (var i in embedoptions) {
-            if ((embedoptions[i] != defaultembedoptions[i]) && ((typeof embedoptions[i] != 'object') || (JSON.stringify(embedoptions[i]) != JSON.stringify(defaultembedoptions[i])))) {
+            if (i == "prioritize_type") {
+              if ((embedoptions[i]) && (embedoptions[i] != "")) {
+                options.push("forcePriority: "+JSON.stringify({source:[["type",[embedoptions[i]]]]}));
+              }
+              continue;
+            }
+            if (i == "monitor_action") {
+              if ((embedoptions[i]) && (embedoptions[i] != "")) {
+                if (embedoptions[i] == "nextCombo") {
+                  options.push("monitor: {\n"+
+                  "          action: function(){\n"+
+                  '            this.MistVideo.log("Switching to nextCombo because of poor playback in "+this.MistVideo.source.type+" ("+Math.round(this.vars.score*1000)/10+"%)");'+"\n"+
+                  "            this.MistVideo.nextCombo();\n"+
+                  "          }\n"+
+                  "        }");
+                }
+              }
+              continue;
+            }
+            if ((embedoptions[i] != defaultembedoptions[i]) && (embedoptions[i] != null) && ((typeof embedoptions[i] != 'object') || (JSON.stringify(embedoptions[i]) != JSON.stringify(defaultembedoptions[i])))) {
               options.push(i+': '+maybequotes(embedoptions[i]));
             }
           }
@@ -4146,7 +4394,7 @@ var UI = {
         
         var $protocolurls = $('<span>').text('Loading..');
         var emhtml = embedhtml(embedoptions);
-        var $setTracks = $('<div>').text('Loading..').css('display','flex');
+        var $setTracks = $('<div>').text('Loading..').css('display','flex').css('flex-flow','column nowrap');
         
         
         var $usehttps = '';
@@ -4218,6 +4466,36 @@ var UI = {
             type: 'help',
             help: 'Use these controls to customise what this embedded video will look like.<br>Not all players have all of these options.'
           },{
+            label: 'Prioritize type',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'prioritize_type'
+            },
+            classes: ['prioritize_type'],
+            'function': function(){
+              if (!done) { return; }
+              embedoptions.prioritize_type = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Try to use this source type first, but full back to something else if it is not available.'
+          },{
+            label: 'Force type',
+            type: 'select',
+            select: [['','Automatic']],
+            pointer: {
+              main: embedoptions,
+              index: 'forceType'
+            },
+            classes: ['forceType'],
+            'function': function(){
+              if (!done) { return; }
+              embedoptions.forceType = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'Only use this particular source.'
+          },{
             label: 'Force player',
             type: 'select',
             select: [['','Automatic']],
@@ -4227,24 +4505,11 @@ var UI = {
             },
             classes: ['forcePlayer'],
             'function': function(){
+              if (!done) { return; }
               embedoptions.forcePlayer = $(this).getval();
               $('.embed_code').setval(embedhtml(embedoptions));
             },
             help: 'Only use this particular player.'
-          },{
-            label: 'Force source',
-            type: 'select',
-            select: [['','Automatic']],
-            pointer: {
-              main: embedoptions,
-              index: 'forceType'
-            },
-            classes: ['forceType'],
-            'function': function(){
-              embedoptions.forceType = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Only use this particular source.'
           },{
             label: 'Controls',
             type: 'select',
@@ -4294,61 +4559,17 @@ var UI = {
             },
             help: 'If the video should restart when the end is reached.'
           },{
-            label: 'Force width',
-            type: 'int',
-            min: 0,
-            unit: 'px',
+            label: 'Fill available space',
+            type: 'checkbox',
             pointer: {
               main: embedoptions,
-              index: 'width'
+              index: 'fillSpace'
             },
             'function': function(){
-              embedoptions.width = $(this).getval();
+              embedoptions.fillSpace = $(this).getval();
               $('.embed_code').setval(embedhtml(embedoptions));
             },
-            help: 'Enforce a fixed width.'
-          },{
-            label: 'Force height',
-            type: 'int',
-            min: 0,
-            unit: 'px',
-            pointer: {
-              main: embedoptions,
-              index: 'height'
-            },
-            'function': function(){
-              embedoptions.height = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'Enforce a fixed height.'
-          },{
-            label: 'Maximum width',
-            type: 'int',
-            min: 0,
-            unit: 'px',
-            pointer: {
-              main: embedoptions,
-              index: 'maxwidth'
-            },
-            'function': function(){
-              embedoptions.maxwidth = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'The maximum width this video can use.'
-          },{
-            label: 'Maximum height',
-            type: 'int',
-            min: 0,
-            unit: 'px',
-            pointer: {
-              main: embedoptions,
-              index: 'maxheight'
-            },
-            'function': function(){
-              embedoptions.maxheight = $(this).getval();
-              $('.embed_code').setval(embedhtml(embedoptions));
-            },
-            help: 'The maximum height this video can use.'
+            help: 'The video will fit the available space in its container, even if the video stream has a smaller resolution.'
           },{
             label: 'Poster',
             type: 'str',
@@ -4379,6 +4600,19 @@ var UI = {
             type: 'DOMfield',
             DOMfield: $setTracks,
             help: 'Pre-select these tracks.'
+          },{
+            label: 'Monitoring action',
+            type: 'select',
+            select: [['','Ask the viewer what to do'],['nextCombo','Try the next source / player combination']],
+            pointer: {
+              main: embedoptions,
+              index: 'monitor_action'
+            },
+            'function': function(){
+              embedoptions.monitor_action = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'What the player should do when playback is poor.'
           },$('<h3>').text('Protocol stream urls'),$protocolurls
         ]));
         
@@ -4389,6 +4623,7 @@ var UI = {
             
             var build = [];
             var $s_forceType = $embedlinks.find('.forceType');
+            var $s_prioritizeType = $embedlinks.find('.prioritize_type');
             for (var i in d.source) {
               var source = d.source[i];
               var human = UI.humanMime(source.type);
@@ -4402,11 +4637,17 @@ var UI = {
                 clipboard: true
               });
               var human = UI.humanMime(source.type);
-              $s_forceType.append(
-                $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
-              );
+              if ($s_forceType.children("option[value=\""+source.type+"\"]").length == 0) {
+                $s_forceType.append(
+                  $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
+                );
+                $s_prioritizeType.append(
+                  $('<option>').text((human ? human+' ('+source.type+')' : UI.format.capital(source.type))).val(source.type)
+                );
+              }
             }
-            var derp = 1;
+            $s_forceType.val(embedoptions.forceType);
+            $s_prioritizeType.val(embedoptions.prioritize_type);
             $protocolurls.html(UI.buildUI(build));
             
             $setTracks.html('');
@@ -4454,6 +4695,8 @@ var UI = {
             else {
               $setTracks.closest('label').hide();
             }
+            
+            done = true;
           },
           error: function(){
             $protocolurls.html('Error while retrieving stream info.');
@@ -5094,7 +5337,7 @@ var UI = {
         
         break;
       case 'Triggers':
-        if (!('triggers' in mist.data.config)) {
+        if (!('triggers' in mist.data.config) || (!mist.data.config.triggers)) {
           mist.data.config.triggers = {};
         }
         
@@ -5163,8 +5406,15 @@ var UI = {
         
         break;
       case 'Edit Trigger':
-        if (!('triggers' in mist.data.config)) {
+        if (!('triggers' in mist.data.config) || (!mist.data.config.triggers)) {
           mist.data.config.triggers = {};
+        }
+        if (typeof mist.data.capabilities == 'undefined') {
+          mist.send(function(d){
+            UI.navto(tab);
+          },{capabilities: true});
+          $main.append('Loading..');
+          return;
         }
         if (!other) {
           //new
@@ -5187,6 +5437,14 @@ var UI = {
           };
         }
         
+        var triggerSelect = [];
+        for (var i in mist.data.capabilities.triggers) {
+          var trigger = mist.data.capabilities.triggers[i];
+          triggerSelect.push([i,i+": "+trigger.when]);
+        }
+        var $triggerdesc = $("<div>").addClass("desc");
+        var $params_help = $("<div>");
+        
         $main.append(UI.buildUI([{
           label: 'Trigger on',
           pointer: {
@@ -5195,57 +5453,83 @@ var UI = {
           },
           help: 'For what event this trigger should activate.',
           type: 'select',
-          select: [
-            ['SYSTEM_START', 'SYSTEM_START: after MistServer boot'],
-            ['SYSTEM_STOP', 'SYSTEM_STOP: right before MistServer shutdown'],
-            ['SYSTEM_CONFIG', 'SYSTEM_CONFIG: after MistServer configurations have changed'],
-            ['OUTPUT_START', 'OUTPUT_START: right after the start command has been send to a protocol'],
-            ['OUTPUT_STOP', 'OUTPUT_STOP: right after the close command has been send to a protocol '],
-            ['STREAM_ADD', 'STREAM_ADD: right before new stream configured'],
-            ['STREAM_CONFIG', 'STREAM_CONFIG: right before a stream configuration has changed'],
-            ['STREAM_REMOVE', 'STREAM_REMOVE: right before a stream has been deleted'],
-            ['STREAM_SOURCE', 'STREAM_SOURCE: right before stream source is loaded'],
-            ['STREAM_LOAD', 'STREAM_LOAD: right before stream input is loaded in memory'],
-            ['STREAM_READY', 'STREAM_READY: when the stream input is loaded and ready for playback'],
-            ['STREAM_UNLOAD', 'STREAM_UNLOAD: right before the stream input is removed from memory'],
-            ['STREAM_PUSH', 'STREAM_PUSH: right before an incoming push is accepted'],
-            ['STREAM_TRACK_ADD', 'STREAM_TRACK_ADD: right before a track will be added to a stream; e.g.: additional push received'],
-            ['STREAM_TRACK_REMOVE', 'STREAM_TRACK_REMOVE: right before a track will be removed track from a stream; e.g.: push timeout'],
-            ['STREAM_BUFFER', 'STREAM_BUFFER: when a buffer changes between mostly full or mostly empty'],
-            ['RTMP_PUSH_REWRITE', 'RTMP_PUSH_REWRITE: allows rewriting of RTMP push URLs from external to internal representation before further parsing'],
-            ['PUSH_OUT_START', 'PUSH_OUT_START: before recording/pushing, allow target changes.'],
-            ['RECORDING_END', 'RECORDING_END: after a recording finishes.'],
-            ['CONN_OPEN', 'CONN_OPEN: right after a new incoming connection has been received'],
-            ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
-            ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],
-            ['USER_NEW', 'USER_NEW: a new user connects that hasn\'t been allowed or denied access before'],
-            ['USER_END', 'USER_END: a user session disconnects after receiving some media'],
-            ['LIVE_BANDWIDTH','LIVE_BANDWIDTH: when the value specified as param is surpassed']
-          ],
+          select: triggerSelect,
           LTSonly: true,
           validate: ['required'],
           'function': function(){
             var v = $(this).getval();
-            switch (v) {
-              case 'SYSTEM_START':
-              case 'SYSTEM_STOP':
-              case 'SYSTEM_CONFIG':
-              case 'OUTPUT_START':
-              case 'OUTPUT_STOP':
-              case 'RTMP_PUSH_REWRITE':
+            
+            var info = mist.data.capabilities.triggers[v];
+            $triggerdesc.html("");
+            if (info) {
+              function humanifyResponse(response) {
+                switch (response) {
+                  case "ignored":
+                    return "No. The trigger will ignore the response of the handler.";
+                    break;
+                  case "always":
+                    return "Yes. The trigger needs a response to proceed."
+                    break;
+                  case "when-blocking":
+                    return "The trigger needs a response to proceed if it is configured to be blocking."
+                    break;
+                  default:
+                    return response;
+                  
+                }
+              }
+              
+              var b = [$("<h4>").text("Trigger properties"),{
+                type: "help",
+                help: "The trigger \"<i>"+v+"</i>\" has the following properties:"
+              },{
+                type: "span",
+                label: "Triggers",
+                value: info.when,
+                help: "When this trigger is activated"
+              }];
+              if (info.payload != "") {
+                b.push({
+                  label: "Payload",
+                  type: "textarea",
+                  value: info.payload,
+                  rows: info.payload.split("\n").length,
+                  readonly: true,
+                  clipboard: true,
+                  help: "The information this trigger sends to the handler."
+                });
+              }
+              b.push({
+                type: "span",
+                label: "Requires response",
+                value: humanifyResponse(info.response),
+                help: "Whether this trigger requires a response from the trigger handler"
+              });
+              b.push({
+                type: "span",
+                label: "Response action",
+                value: info.response_action,
+                help: "What this trigger will do with its handler's response"
+              });
+              $triggerdesc.append(UI.buildUI(b));
+              
+              if (info.stream_specific) {
+                $('[name=appliesto]').closest('.UIelement').show();
+              }
+              else {
                 $('[name=appliesto]').setval([]).closest('.UIelement').hide();
-                $('[name=params]').setval('').closest('.UIelement').hide();
-                break;
-              case 'LIVE_BANDWIDTH':
-                $('[name=appliesto]').closest('.UIelement').show();
+              }
+              if (info.argument) {
                 $('[name=params]').closest('.UIelement').show();
-                break;
-              default:
-                $('[name=appliesto]').closest('.UIelement').show();
+                $params_help.text(info.argument);
+              }
+              else {
                 $('[name=params]').setval('').closest('.UIelement').hide();
+              }
             }
+            
           }
-        },{
+        },$triggerdesc,$("<h4>").text("Trigger settings"),{
           label: 'Applies to',
           pointer: {
             main: saveas,
@@ -5277,7 +5561,7 @@ var UI = {
         },{
           label: 'Parameters',
           type: 'str',
-          help: 'The extra data you want this trigger to use.',
+          help: $("<div>").text('The extra data you want this trigger to use.').append($params_help),
           pointer: {
             main: saveas,
             index: 'params'
@@ -5287,6 +5571,7 @@ var UI = {
           label: 'Default response',
           type: 'str',
           help: 'The default response in case the handler fails or is set to non-blocking.',
+          placeholder: 'true',
           pointer: {
             main: saveas,
             index: 'default'
@@ -6187,67 +6472,168 @@ var mist = {
         help: input.desc
       });
     }
-    for (var j in type) {
-      if (input[type[j]]) {
-        build.push(
-          $('<h4>').text(UI.format.capital(type[j])+' parameters')
-        );
-        for (var i in input[type[j]]) {
-          var ele = input[type[j]][i];
-          var obj = {
-            label: UI.format.capital(ele.name),
-            pointer: {
-              main: saveas,
-              index: i
-            },
-            validate: []
-          };
-          if ((type[j] == 'required') && ((!('default' in ele)) || (ele['default'] == ''))) {
-            obj.validate.push('required');
-          }
-          if ('default' in ele) {
-            obj.placeholder = ele['default'];
-            if (ele.type == "select") {
-              for (var k in ele.select) {
-                if (ele.select[k][0] == ele["default"]) {
-                  obj.placeholder = ele.select[k][1];
-                  break;
-                }
-              }
+    
+    function processEle(j,i,ele) {
+      var obj = {
+        label: UI.format.capital((ele.name ? ele.name : i)),
+        pointer: {
+          main: saveas,
+          index: i
+        },
+        validate: []
+      };
+      if ((type[j] == 'required') && ((!('default' in ele)) || (ele['default'] == ''))) {
+        obj.validate.push('required');
+      }
+      if ('default' in ele) {
+        obj.placeholder = ele['default'];
+        if (ele.type == "select") {
+          for (var k in ele.select) {
+            if (ele.select[k][0] == ele["default"]) {
+              obj.placeholder = ele.select[k][1];
+              break;
             }
           }
-          if ('help' in ele) {
-            obj.help = ele.help;
-          }
-          if ('unit' in ele) {
-            obj.unit = ele.unit;
-          }
-          if ("type" in ele) {
-            switch (ele.type) {
-              case 'int':
-                obj.type = 'int';
-                break;
-              case 'uint':
-                obj.type = 'int';
-                obj.min = 0;
-                break;
-              case 'debug':
-                obj.type = 'debug';
-                break;
-              case 'select':
-                obj.type = 'select';
-                obj.select = ele.select.slice(0);
-                obj.select.unshift(["","Default"+("placeholder" in obj ? " ("+obj.placeholder+")" : "" )]);
-                break;
-              case 'str':
-              default:
-                obj.type = 'str';
+        }
+      }
+      if ('help' in ele) {
+        obj.help = ele.help;
+      }
+      if ('unit' in ele) {
+        obj.unit = ele.unit;
+      }
+      if ('placeholder' in ele) {
+        obj.placeholder = ele.placeholder;
+      }
+      if ("type" in ele) {
+        switch (ele.type) {
+          case 'int':
+            obj.type = 'int';
+            if ("max" in ele) { obj.max = ele.max; }
+            if ("min" in ele) { obj.min = ele.min; }
+            break;
+          case 'uint':
+            obj.type = 'int';
+            obj.min = 0;
+            if ("max" in ele) { obj.max = ele.max; }
+            if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
+            break;
+          case 'debug':
+            obj.type = 'debug';
+            break;
+          case 'radioselect':
+            obj.type = 'radioselect';
+            obj.radioselect = ele.radioselect;
+            break;
+          case 'select':
+            obj.type = 'select';
+            obj.select = ele.select.slice(0);
+            if (obj.validate.indexOf("required") >= 0) {
+              obj.select.unshift(["",("placeholder" in obj ? "Default ("+obj.placeholder+")" : "" )]);
             }
+            break;
+          case 'sublist': {
+            obj.type = 'sublist';
+            //var subele = Object.assign({},ele);
+            //delete subele.type;
+            obj.saveas = {};
+            obj.itemLabel = ele.itemLabel;
+            obj.sublist = mist.convertBuildOptions(ele,obj.saveas);
+            break;
+          }
+          case 'str':
+          default:
+            obj.type = 'str';
+        }
+      }
+      else {
+        obj.type = "checkbox";
+      }
+      if ("influences" in ele) {
+        obj["function"] = function(){
+          var $cont = $(this).closest(".UIelement");
+          var style = $cont.find("style");
+          if (!style.length) {
+            style = $("<style>").addClass("dependencies")[0];
+            $cont.append(style);
           }
           else {
-            obj.type = "checkbox";
+            style = style[0];
           }
-          build.push(obj);
+          style.innerHTML = '.UIelement[data-dependent-'+i+']:not([data-dependent-'+i+'~="'+$(this).getval()+'"]) { display: none; }'+"\n";
+          
+          $(style).data("content",style.innerHTML);
+          //enable all styles
+          $("style.dependencies.hidden").each(function(){
+            $(this).html($(this).data("content")).removeClass("hidden");
+          });
+          //disable "hidden" styles
+          $(".UIelement:not(:visible) style.dependencies:not(.hidden)").each(function(){
+            $(this).addClass("hidden");
+            $(this).html("");
+          });
+        };
+      }
+      if ("dependent" in ele) {
+        obj.dependent = ele.dependent;
+      }
+      if ("value" in ele) {
+        obj.value = ele.value;
+      }
+      if ("validate" in ele) {
+        obj.validate = obj.validate.concat(ele.validate);
+      }
+      
+      return obj;
+    }
+    
+    if ("sort" in input) {
+      //sort by key input.sort
+      var list = [];
+      for (var j in type) {
+        if (input[type[j]]) {
+          for (var i in input[type[j]]) {
+            var ele = input[type[j]][i];
+            if (Array.isArray(ele)) {
+              for (var m in ele) {
+                ele[m].validate = type[j];
+                ele[m].id = i;
+                list.push(ele[m]);
+              }
+            }
+            else {
+              ele.validate = type[j];
+              ele.id = i;
+              list.push(ele);
+            }
+          }
+        }
+      }
+      list.sort(function(a,b){
+        return (""+a[input.sort]).localeCompare(b[input.sort]);
+      });
+      for (var i in list) {
+        var ele = list[i];
+        build.push(processEle(ele.validate,ele.id,ele));
+      }
+    }
+    else {
+      for (var j in type) {
+        if (input[type[j]]) {
+          build.push(
+            $('<h4>').text(UI.format.capital(type[j])+' parameters')
+          );
+          for (var i in input[type[j]]) {
+            var ele = input[type[j]][i];
+            if (Array.isArray(ele)) {
+              for (var m in ele) {
+                build.push(processEle(j,i,ele[m]));
+              }
+            }
+            else {
+              build.push(processEle(j,i,ele));
+            }
+          }
         }
       }
     }
@@ -6340,6 +6726,9 @@ $.fn.getval = function(){
           }
         });
         break;
+      case "sublist":
+        val = $(this).data("savelist");
+        break;
     }
   }
   return val;
@@ -6425,6 +6814,63 @@ $.fn.setval = function(val){
           );
         }
         $(this).append($(this).children().first()); //put empty input last
+        break;
+      case "sublist":
+        var $field = $(this);
+        var $curvals = $(this).children(".curvals");
+        $curvals.html("");
+        if (val && val.length) {
+          for (var i in val) {
+            var v = $.extend(true,{},val[i]);
+            
+            //don't display any keys that are set to null
+            function removeNull(v) {
+              for (var j in v) {
+                if (j.slice(0,6) == "x-LSP-") {
+                  delete v[j];
+                }
+                else if (typeof v[j] == "object") {
+                  removeNull(v[j])
+                }
+              }
+            }
+            removeNull(v);
+            
+            $curvals.append(
+              $("<div>").addClass("subitem").append(
+                $("<span>").addClass("itemdetails").text(
+                  (val[i]["x-LSP-name"] ? val[i]["x-LSP-name"] : JSON.stringify(v))
+                ).attr("title",JSON.stringify(v,null,2))
+              ).append(
+                $("<button>").addClass("move").text("^").attr("title","Move item up").click(function(){
+                  var i = $(this).parent().index();
+                  if (i == 0) { return; }
+                  var savelist = $field.getval();
+                  savelist.splice(i - 1,0,savelist.splice(i,1)[0]);
+                  $field.setval(savelist);
+                })
+              ).append(
+                $("<button>").text("Edit").click(function(){
+                  var index = $(this).parent().index();
+                  var $field = $(this).closest(".field");
+                  $field.data("build")(Object.assign({},$field.getval()[index]),index);
+                })
+              ).append(
+                $("<button>").text("x").attr("title","Remove item").click(function(e){
+                  var i = $(this).parent().index();
+                  var savelist = $field.data("savelist");
+                  savelist.splice(i,1);
+                  $field.setval(savelist);
+                  e.preventDefault(); //for some reason, if this is left out, the new item button gets activated when the last item is removed
+                })
+              )
+            );
+          }
+        }
+        else {
+          $curvals.append("None.");
+        }
+        $field.data("savelist",val);
         break;
     }
   }

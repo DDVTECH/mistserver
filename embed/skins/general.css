@@ -1,0 +1,224 @@
+.mistvideo {
+  display: inline-block;
+  position: relative;
+  color: $stroke;
+  font-family: sans-serif;
+  background-color: #000;
+  justify-content: center;
+  align-items: center;
+}
+.mistvideo-controls {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.mistvideo.novideo {
+  overflow: visible;
+}
+.mistvideo-video {
+  overflow: hidden;
+}
+svg.icon.loading {
+  z-index: -1; /* don't use display: none because of transition for [data-loading=stalled] */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  opacity: 0;
+}
+[data-loading] {
+  position: relative;
+}
+
+/*wait before showing icon when stalled*/
+[data-loading="stalled"] svg.icon.loading {
+  transition: opacity 0s 3s;
+}
+[data-loading] svg.icon.loading {
+  z-index: 2;
+  opacity: 1;
+}
+[data-loading-css] .mistvideo-controls {
+  display: none;
+}
+[data-hidecursor],
+[data-hidecursor] .mistvideo-pointer,
+[data-hidecursor] *
+{ cursor: none }
+.mistvideo-error {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: $background;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  z-index: 2; /*above progress bar*/
+  cursor: default; /*cursor won't show up if it was hidden because the mousemove event can no longer reach the video element*/
+  min-height: fit-content; /*overflow if needed*/
+  min-width: fit-content;
+}
+.mistvideo-error.show { display: flex; }
+.mistvideo-error .message { max-width: 80%; }
+.mistvideo-error .message .details table { text-align: left; }
+.mistvideo-video:not(.video-js) button,
+.mistvideo-error button,
+.mistvideo-controls button
+{
+  color: $stroke;
+  border: 1px solid $semiFill;
+  background-color: $background;
+  margin: 0.25em;
+  padding: 0.5em 1em;
+  opacity: 0.5;
+  cursor: pointer;
+}
+button:hover { opacity: 1; }
+select {
+  background-color: transparent;
+  color: $stroke;
+  border: none;
+  margin: 0 0.5em;
+  font-size: inherit;
+  cursor: pointer;
+  -ms-background-color: red;
+}
+select > option {
+  background-color: $background;
+}
+
+.browser-edge select, .browser-safari select {
+  /*These browsers don't show an arrow for select boxes, causing them to be invisible when a border is not applied */
+  border: 1px solid $semiFill;
+  border-top: none;
+  border-left: none;
+  margin-top: 2px;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+[data-fullscreen] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+video {
+  display: block;
+  flex-shrink: 0;
+}
+table { color: inherit; font-size: inherit; font-style: inherit; }
+audio:not([controls]) { display: block !important; }
+.mistvideo-padding { padding: 5px 10px; }
+.mistvideo-pointer { cursor: pointer; }
+.description { 
+  color: $semiFill;
+  font-size: 0.9em;
+}
+.mistvideo-container {
+  display: flex;
+  flex-wrap: nowrap;
+}
+.mistvideo-container.mistvideo { display: inline-flex; max-width: 100%; }
+.mistvideo-container.mistvideo-row { flex-direction: row; }
+.mistvideo-container.mistvideo-column { flex-direction: column; }
+.mistvideo-container.mistvideo-center { justify-content: center; }
+
+.mistvideo-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.hover_window_container.pos > .outer_window {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hover_window_container.pos > .outer_window > .inner_window {
+  position: absolute;
+  pointer-events: all;
+}
+.hover_window_container:not(:hover) > .outer_window > .inner_window,
+.hover_window_container > .outer_window[data-hidecursor] > .inner_window
+{ transition: all 0.5s ease-in 0.5s; }
+.outer_window > .inner_window { flex-grow: 1; }
+.hover_window_container > .outer_window > .inner_window > * { flex-shrink: 0; }
+
+.mistvideo-draggable {
+  overflow: hidden;
+}
+
+.mistvideo-tooltip {
+  position: absolute;
+  background-color: $background;
+  padding: 0.5em 1em;
+  z-index: 2;
+}
+*:not(:hover) > .mistvideo-tooltip { transition: opacity 0.25s ease-in; }
+.mistvideo-tooltip .triangle {
+  border: 10px solid $background;
+  position: absolute;
+}
+.mistvideo-tracks label {
+  display: block;
+}
+.mistvideo-tracks label > span {
+  margin-right: 1em;
+}
+
+a {
+  color: $accent;
+}
+.mistvideo-log .logs {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+.mistvideo-placeholder {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.mistvideo-topright {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.mistvideo-topleft {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.mistvideo-delay-display {
+  animation: appear 1s;
+  animation-iteration-count: 1;
+  animation-timing-function: steps(1,end);
+}
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+
+svg.icon {
+  display: block;
+  stroke-width: $strokeWidth;
+  fill: none;
+  stroke: none;
+}
+svg.icon.fill, svg.icon .fill { fill: $fill; }
+svg.icon.semiFill, svg.icon .semiFill { fill: $semiFill; }
+svg.icon.stroke, svg.icon .stroke { stroke: $stroke; vector-effect: non-scaling-stroke; }
+svg.icon.off .toggle.fill,
+svg.icon.off .toggle.semiFill,
+svg.icon.off .toggle .fill,
+svg.icon.off .toggle .semiFill { fill: none; }
+svg.icon.spin, svg.icon .spin {
+  animation: spin 1.5s infinite linear;
+  transform-origin: 50% 50%;
+}

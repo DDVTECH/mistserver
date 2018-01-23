@@ -13,10 +13,8 @@
    height="45"
    id="svg2"
    version="1.1"
-   inkscape:version="0.48.4 r9939"
-   sodipodi:docname="New document 1">
-  <defs
-     id="defs4" />
+   inkscape:version="0.92.2 5c3e80d, 2017-08-06"
+   sodipodi:docname="play.svg">
   <sodipodi:namedview
      id="base"
      pagecolor="#000000"
@@ -39,28 +37,34 @@
      inkscape:snap-page="true"
      inkscape:object-nodes="true"
      inkscape:snap-nodes="false"
-     inkscape:window-width="981"
-     inkscape:window-height="709"
-     inkscape:window-x="856"
-     inkscape:window-y="240"
+     inkscape:window-width="1868"
+     inkscape:window-height="1049"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="0">
     <sodipodi:guide
-       position="0,0"
+       inkscape:locked="false"
+       id="guide3785"
        orientation="0,45"
-       id="guide3785" />
+       position="0,0" />
     <sodipodi:guide
-       position="45,0"
+       inkscape:locked="false"
+       id="guide3787"
        orientation="-45,0"
-       id="guide3787" />
+       position="45,0" />
     <sodipodi:guide
-       position="45,45"
+       inkscape:locked="false"
+       id="guide3789"
        orientation="0,-45"
-       id="guide3789" />
+       position="45,45" />
     <sodipodi:guide
-       position="0,45"
+       inkscape:locked="false"
+       id="guide3791"
        orientation="45,0"
-       id="guide3791" />
+       position="0,45" />
   </sodipodi:namedview>
+  <defs
+     id="defs4" />
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -69,22 +73,17 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(0,-1007.3622)">
+     inkscape:groupmode="layer"
+     inkscape:label="Layer 1">
     <path
-       sodipodi:type="inkscape:offset"
-       inkscape:radius="0"
-       inkscape:original="M 10.3125 -6.34375 A 2.9416186 2.9416186 0 0 0 7.90625 -4.875 L -6.21875 19.625 A 2.9416186 2.9416186 0 0 0 -3.65625 24.03125 L 24.625 24.03125 A 2.9416186 2.9416186 0 0 0 27.15625 19.625 L 13 -4.875 A 2.9416186 2.9416186 0 0 0 10.3125 -6.34375 z "
-       style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none"
+       d="M6.26004984594 3.0550109625C5.27445051914 3.68940862462 4.67905105702 4.78142391497 4.67968264562 5.95354422781C4.67968264562 5.95354422781 4.70004942312 39.0717540916 4.70004942312 39.0717540916C4.70302341604 40.3033886636 5.36331656075 41.439734231 6.43188211452 42.0521884912C7.50044766829 42.6646427515 8.81469531629 42.6600161659 9.87892235656 42.0400537716C9.87892235656 42.0400537716 38.5612768409 25.4802882606 38.5612768409 25.4802882606C39.6181165777 24.8606067582 40.2663250096 23.7262617523 40.2636734301 22.5011460995C40.2610218505 21.2760304467 39.6079092743 20.1445019555 38.5483970356 19.5294009803C38.5483970356 19.5294009803 9.84567577375 2.9709566275 9.84567577375 2.9709566275C8.72898008118 2.32550764609 7.34527425735 2.35794451351 6.26004984594 3.0550109625C6.26004984594 3.0550109625 6.26004984594 3.0550109625 6.26004984594 3.0550109625"
        id="path3809"
-       d="M 10.3125,-6.34375 A 2.9416186,2.9416186 0 0 0 7.90625,-4.875 l -14.125,24.5 a 2.9416186,2.9416186 0 0 0 2.5625,4.40625 l 28.28125,0 A 2.9416186,2.9416186 0 0 0 27.15625,19.625 L 13,-4.875 a 2.9416186,2.9416186 0 0 0 -2.6875,-1.46875 z"
-       transform="matrix(1.0141827,-0.58553867,0.58553867,1.0141827,-0.48419831,1022.8893)" />
+       style="fill:#ffffff;fill-opacity:1;fill-rule:evenodd;stroke:none" />
   </g>
 </svg>

@@ -11,8 +11,9 @@
    id="svg3937"
    height="45"
    width="45"
-   inkscape:version="0.91 r13725"
-   sodipodi:docname="loop.svg">
+   inkscape:version="0.92.2 5c3e80d, 2017-08-06"
+   sodipodi:docname="loop.svg"
+   viewBox="0 0 45 45">
   <sodipodi:namedview
      pagecolor="#8bff39"
      bordercolor="#666666"
@@ -22,8 +23,8 @@
      guidetolerance="10"
      inkscape:pageopacity="1"
      inkscape:pageshadow="2"
-     inkscape:window-width="1920"
-     inkscape:window-height="1055"
+     inkscape:window-width="1868"
+     inkscape:window-height="1049"
      id="namedview3591"
      showgrid="false"
      showguides="true"
@@ -40,37 +41,17 @@
      inkscape:snap-smooth-nodes="true"
      inkscape:snap-midpoints="true"
      inkscape:zoom="14.833529"
-     inkscape:cx="30.216329"
-     inkscape:cy="21.135445"
+     inkscape:cx="21.722684"
+     inkscape:cy="25.7616"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="svg3937">
-    <sodipodi:guide
-       position="0,0"
-       orientation="0,45"
-       id="guide3615" />
-    <sodipodi:guide
-       position="45,0"
-       orientation="-45,0"
-       id="guide3617" />
-    <sodipodi:guide
-       position="45,45"
-       orientation="0,-45"
-       id="guide3619" />
-    <sodipodi:guide
-       position="0,45"
-       orientation="45,0"
-       id="guide3621" />
-    <sodipodi:guide
-       position="0,0"
-       orientation="-0.70710678,0.70710678"
-       id="guide3624" />
-    <sodipodi:guide
-       position="0,45"
-       orientation="0.70710678,0.70710678"
-       id="guide4491" />
-  </sodipodi:namedview>
+     inkscape:current-layer="svg3937"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     scale-x="1" />
   <defs
      id="defs3939" />
   <metadata
@@ -86,11 +67,8 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 0 0 L 0 45 L 45 45 L 45 0 L 0 0 z M 22.5 11.25 A 11.25 11.25 0 0 1 33.75 22.5 A 11.25 11.25 0 0 1 22.5 33.75 A 11.25 11.25 0 0 1 14.550781 30.449219 L 12.714844 32.285156 L 12.714844 25.785156 L 19.214844 25.785156 L 17.376953 27.623047 A 7.25 7.25 0 0 0 22.5 29.75 A 7.25 7.25 0 0 0 29.75 22.5 A 7.25 7.25 0 0 0 22.5 15.25 A 7.25 7.25 0 0 0 17.376953 17.376953 L 14.550781 14.550781 A 11.25 11.25 0 0 1 22.5 11.25 z "
-     id="rect4511" />
-  <path
-     style="opacity:1;fill:none;fill-opacity:0.8584475;fill-rule:evenodd;stroke:#ffffff;stroke-width:1.5;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-     d="M 22.5 11.25 A 11.25 11.25 0 0 0 14.550781 14.550781 L 17.376953 17.376953 A 7.25 7.25 0 0 1 22.5 15.25 A 7.25 7.25 0 0 1 29.75 22.5 A 7.25 7.25 0 0 1 22.5 29.75 A 7.25 7.25 0 0 1 17.376953 27.623047 L 19.214844 25.785156 L 12.714844 25.785156 L 12.714844 32.285156 L 14.550781 30.449219 A 11.25 11.25 0 0 0 22.5 33.75 A 11.25 11.25 0 0 0 33.75 22.5 A 11.25 11.25 0 0 0 22.5 11.25 z "
-     id="path4495" />
+     style="opacity:1;fill:none;fill-opacity:0.8584475;fill-rule:evenodd;stroke:#ffffff;stroke-width:2.50002718;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+     d="M 21.279283,3.749797 A 18.750203,18.750203 0 0 0 8.0304417,9.2511582 L 12.740779,13.961496 A 12.083464,12.083464 0 0 1 21.279283,10.416536 12.083464,12.083464 0 0 1 33.362748,22.5 12.083464,12.083464 0 0 1 21.279283,34.583464 12.083464,12.083464 0 0 1 12.740779,31.038504 l 3.063185,-3.063185 H 4.9705135 V 38.80877 L 8.0304417,35.748842 A 18.750203,18.750203 0 0 0 21.279283,41.250203 18.750203,18.750203 0 0 0 40.029486,22.5 18.750203,18.750203 0 0 0 21.279283,3.749797 Z"
+     id="path4495"
+     inkscape:connector-curvature="0" />
 </svg>

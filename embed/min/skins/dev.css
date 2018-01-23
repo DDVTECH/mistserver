@@ -1,0 +1,116 @@
+.mistvideo{display:inline-block;position:relative;color:$stroke;font-family:sans-serif;background-color:#000;justify-content:center;align-items:center}
+.mistvideo-controls{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+.mistvideo.novideo{overflow:visible}
+.mistvideo-video{overflow:hidden}
+svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
+[data-loading]{position:relative}
+[data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
+[data-loading] svg.icon.loading{z-index:2;opacity:1}
+[data-loading-css] .mistvideo-controls{display:none}
+[data-hidecursor],[data-hidecursor] *,[data-hidecursor] .mistvideo-pointer{cursor:none}
+.mistvideo-error{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background-color:$background;align-items:center;justify-content:center;text-align:center;z-index:2;cursor:default;min-height:fit-content;min-width:fit-content}
+.mistvideo-error.show{display:flex}
+.mistvideo-error .message{max-width:80%}
+.mistvideo-error .message .details table{text-align:left}
+.mistvideo-controls button,.mistvideo-error button,.mistvideo-video:not(.video-js) button{color:$stroke;border:1px solid $semiFill;background-color:$background;margin:.25em;padding:.5em 1em;opacity:.5;cursor:pointer}
+button:hover{opacity:1}
+select{background-color:transparent;color:$stroke;border:none;margin:0 .5em;font-size:inherit;cursor:pointer;-ms-background-color:red}
+select>option{background-color:$background}
+.browser-edge select,.browser-safari select{border:1px solid $semiFill;border-top:none;border-left:none;margin-top:2px}
+@keyframes spin{
+0%{transform:rotate(0)}
+100%{transform:rotate(360deg)}
+}
+[data-fullscreen]{position:fixed;top:0;left:0;right:0;bottom:0;width:100%!important;height:100%!important}
+video{display:block;flex-shrink:0}
+table{color:inherit;font-size:inherit;font-style:inherit}
+audio:not([controls]){display:block!important}
+.mistvideo-padding{padding:5px 10px}
+.mistvideo-pointer{cursor:pointer}
+.description{color:$semiFill;font-size:.9em}
+.mistvideo-container{display:flex;flex-wrap:nowrap}
+.mistvideo-container.mistvideo{display:inline-flex;max-width:100%}
+.mistvideo-container.mistvideo-row{flex-direction:row}
+.mistvideo-container.mistvideo-column{flex-direction:column}
+.mistvideo-container.mistvideo-center{justify-content:center}
+.mistvideo-align-right{margin-left:auto;margin-right:0}
+.hover_window_container.pos>.outer_window{position:absolute;pointer-events:none;overflow:hidden}
+.hover_window_container.pos>.outer_window>.inner_window{position:absolute;pointer-events:all}
+.hover_window_container:not(:hover)>.outer_window>.inner_window,.hover_window_container>.outer_window[data-hidecursor]>.inner_window{transition:all .5s ease-in .5s}
+.outer_window>.inner_window{flex-grow:1}
+.hover_window_container>.outer_window>.inner_window>*{flex-shrink:0}
+.mistvideo-draggable{overflow:hidden}
+.mistvideo-tooltip{position:absolute;background-color:$background;padding:.5em 1em;z-index:2}
+:not(:hover)>.mistvideo-tooltip{transition:opacity .25s ease-in}
+.mistvideo-tooltip .triangle{border:10px solid $background;position:absolute}
+.mistvideo-tracks label{display:block}
+.mistvideo-tracks label>span{margin-right:1em}
+a{color:$accent}
+.mistvideo-log .logs{-webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text}
+.mistvideo-placeholder{max-width:100%;max-height:100%}
+.mistvideo-topright{position:absolute;top:0;right:0}
+.mistvideo-topleft{position:absolute;top:0;left:0}
+.mistvideo-delay-display{animation:appear 1s;animation-iteration-count:1;animation-timing-function:steps(1,end)}
+@keyframes appear{
+from{opacity:0}
+to{opacity:1}
+}
+svg.icon{display:block;stroke-width:$strokeWidth;fill:none;stroke:none}
+svg.icon .fill,svg.icon.fill{fill:$fill}
+svg.icon .semiFill,svg.icon.semiFill{fill:$semiFill}
+svg.icon .stroke,svg.icon.stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
+svg.icon.off .toggle .fill,svg.icon.off .toggle .semiFill,svg.icon.off .toggle.fill,svg.icon.off .toggle.semiFill{fill:none}
+svg.icon .spin,svg.icon.spin{animation:spin 1.5s infinite linear;transform-origin:50% 50%}
+.mistvideo{line-height:1.2;font-size:14.5px}
+.mistvideo svg{margin:2.5px}
+.mistvideo-background{background-color:$background}
+.mistvideo-totalTime:before{content:'/';margin:.2em}
+.mistvideo-progress{padding:10px 0;margin:-10px 0;z-index:2}
+.mistvideo-progress>*{height:2px;background-color:$progressBackground;opacity:.95;position:relative}
+.mistvideo-novideo .mistvideo-progress>*,.mistvideo-progress:hover>*{height:10px}
+.mistvideo-progress:not(:hover)>*{transition:height .25s ease-in .5s}
+.mistvideo-progress .bar{height:inherit;width:0;position:absolute;border-right:inherit;background-color:$accent;z-index:2}
+.mistvideo-progress .buffer{height:inherit;width:0;position:absolute;background-color:$semiFill}
+.mistvideo-progress .bar:after{content:'';border:5px solid $accent;border-radius:5px;position:absolute;right:-5px;top:50%;transform:translateY(-50%)}
+.mistvideo-play[data-state=playing] svg.play{display:none}
+.mistvideo-play[data-state=paused] svg.pause{display:none}
+.mistvideo-main{align-items:center}
+svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right:.25em;vertical-align:top}
+.mist.largeplay,.mist.muted{position:absolute;opacity:.5}
+.mist.largeplay{top:50%;left:0;right:0;margin:auto;transform:translateY(-50%)}
+.mist.muted{top:0;right:0;margin:1em}
+.mistvideo-secondaryVideo{z-index:1;width:50%;height:50%}
+.mistvideo-polling{display:inline-block;position:relative;width:25px;height:25px}
+.mistvideo-polling svg.icon.loading{z-index:0;opacity:1}
+.mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}
+.mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}
+.mistvideo-error[data-passive]{bottom:auto;left:auto;margin:.5em;padding:.5em}
+.mistvideo-error[data-passive] .message{max-width:none}
+.mistvideo-error .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;justify-content:center}
+.mistvideo-error .mistvideo-buttoncontainer .mistvideo-button{white-space:nowrap}
+.browser-ie .mist.icon.loading{animation:spin 1.5s infinite linear;transform-origin:50% 50%}
+.browser-ie .mist.icon.loading .spin{animation:none}
+.mistvideo-log{margin:.5em 0}
+.mistvideo-log .logs{max-height:10em;min-height:5em;width:100%;padding:.2em 0;padding-right:1em;overflow-y:auto;overflow-x:hidden;font-size:.9em}
+.mistvideo-log .logs table td{vertical-align:top;padding:0}
+.mistvideo-log .logs .entry .message{margin:0 .2em}
+.mistvideo-log .logs .entry.type-error{color:$accent}
+.mistvideo-log .logs .counter,.mistvideo-log .logs .timestamp{color:$semiFill}
+.mistvideo-log .logs .timestamp:before{content:'['}
+.mistvideo-log .logs .timestamp:after{content:']'}
+.mistvideo-log .logs .counter:before{content:'('}
+.mistvideo-log .logs .counter:after{content:'\00d7)'}
+.mistvideo-devbuttons{font-size:.9em}
+.mistvideo-devbuttons button{font-size:.8em;margin:.1em;padding:.2em .4em}
+.mistvideo-forcePlayer>span,.mistvideo-forceSource>span,.mistvideo-forceType>span{display:inline-block;width:7em}
+.mistvideo-forcePlayer>select,.mistvideo-forceSource>select,.mistvideo-forceType>select{width:15em;min-width:auto}
+.mistvideo-devcontrols{margin:.5em 0}
+.mistvideo-decodingIssues>*{display:flex;width:50%;max-width:20em;flex-flow:row nowrap;align-items:flex-end;justify-content:space-between}
+.mistvideo-decodingIssues>*>:last-child{margin-right:.5em}
+.mistvideo-decodingIssues{display:flex;flex-flow:row wrap;justify-content:space-between}
+.mistvideo-decodingIssues label{position:relative}
+.mistvideo-decodingIssues label .value{font-size:.8em}
+svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
+select{border-radius:0}
+input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}
+input[type=checkbox]:checked:after{content:"\2713";position:absolute;bottom:-.2em;left:0;font-size:1.2em}

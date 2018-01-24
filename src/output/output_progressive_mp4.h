@@ -27,7 +27,6 @@ namespace Mist {
       OutProgressiveMP4(Socket::Connection & conn);
       ~OutProgressiveMP4();
       static void init(Util::Config * cfg);
-      void parseRange(std::string header, uint64_t & byteStart, uint64_t & byteEnd, uint64_t & seekPoint, uint64_t headerSize);
       uint64_t mp4HeaderSize(uint64_t & fileSize);
       std::string DTSCMeta2MP4Header(uint64_t & size);
       void findSeekPoint(uint64_t byteStart, uint64_t & seekPoint, uint64_t headerSize);

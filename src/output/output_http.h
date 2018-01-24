@@ -17,6 +17,7 @@ namespace Mist {
       static bool listenMode(){return false;}
       void reConnector(std::string & connector);
       std::string getHandler();
+      bool parseRange(uint64_t & byteStart, uint64_t & byteEnd);
   protected:
       HTTP::Parser H;
   };

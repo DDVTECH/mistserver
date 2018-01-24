@@ -464,6 +464,20 @@ namespace Mist {
     }
   }
   
+  void Input::trackSelect(std::string trackSpec){
+    selectedTracks.clear();
+    size_t index;
+    while (trackSpec != "") {
+      index = trackSpec.find(' ');
+      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
+      if (index != std::string::npos) {
+        trackSpec.erase(0, index + 1);
+      } else {
+        trackSpec = "";
+      }
+    }
+  }
+
   void Input::parseHeader(){
     DEBUG_MSG(DLVL_DONTEVEN,"Parsing the header");
     selectedTracks.clear();

@@ -70,6 +70,7 @@ namespace Mist {
       void bufferFinalize(unsigned long tid);
       void bufferRemove(unsigned long tid, unsigned long pageNumber);
       virtual void bufferLivePacket(const DTSC::Packet & packet);
+      long unsigned int getMainSelectedTrack();
     protected:
       void continueNegotiate(unsigned long tid, bool quickNegotiate = false);
       void continueNegotiate();

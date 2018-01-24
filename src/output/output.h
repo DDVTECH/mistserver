@@ -50,7 +50,6 @@ namespace Mist {
       uint64_t startTime();
       uint64_t endTime();
       void setBlocking(bool blocking);
-      long unsigned int getMainSelectedTrack();
       void updateMeta();
       void selectDefaultTracks();
       bool connectToFile(std::string file);

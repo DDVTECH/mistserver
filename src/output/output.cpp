@@ -771,20 +771,6 @@ namespace Mist{
     return 0;
   }
   
-  /// Returns the ID of the main selected track, or 0 if no tracks are selected.
-  /// The main track is the first video track, if any, and otherwise the first other track.
-  long unsigned int Output::getMainSelectedTrack(){
-    if (!selectedTracks.size()){
-      return 0;
-    }
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks.count(*it) && myMeta.tracks[*it].type == "video"){
-        return *it;
-      }
-    }
-    return *(selectedTracks.begin());
-  }
-  
   void Output::dropTrack(uint32_t trackId, std::string reason, bool probablyBad){
     //depending on whether this is probably bad and the current debug level, print a message
     unsigned int printLevel = DLVL_INFO;

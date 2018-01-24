@@ -133,6 +133,8 @@ set(libHeaders
   lib/util.h
   lib/vorbis.h
   lib/opus.h
+  lib/ebml.h
+  lib/ebml_socketglue.h
 )
 
 ########################################
@@ -172,6 +174,8 @@ add_library (mist
   lib/util.cpp
   lib/vorbis.cpp
   lib/opus.cpp
+  lib/ebml.cpp
+  lib/ebml_socketglue.cpp
 )
 if (NOT APPLE)
   set (LIBRT -lrt)
@@ -246,6 +250,7 @@ makeAnalyser(FLV flv)
 makeAnalyser(DTSC dtsc)
 makeAnalyser(MP4 mp4)
 makeAnalyser(OGG ogg)
+makeAnalyser(EBML ebml)
 
 ########################################
 # MistServer - Utilities               #
@@ -302,6 +307,7 @@ makeInput(FLV flv)
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
 makeInput(H264 h264)
+makeInput(EBML ebml)
 
 ########################################
 # MistServer - Outputs                 #
@@ -351,6 +357,7 @@ makeOutput(JSON json           http)
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+makeOutput(EBML ebml)
 
 add_executable(MistOutHTTP 
   src/output/mist_out.cpp

@@ -176,6 +176,8 @@ set(libHeaders
   lib/triggers.h
   lib/opus.h
   lib/riff.h
+  lib/ebml.h
+  lib/ebml_socketglue.h
 )
 
 ########################################
@@ -227,6 +229,8 @@ add_library (mist
   lib/triggers.cpp
   lib/opus.cpp
   lib/riff.cpp
+  lib/ebml.cpp
+  lib/ebml_socketglue.cpp
 )
 if (NOT APPLE)
   set (LIBRT -lrt)
@@ -300,6 +304,7 @@ makeAnalyser(RTMP rtmp)
 makeAnalyser(FLV flv)
 makeAnalyser(DTSC dtsc)
 makeAnalyser(OGG ogg)
+makeAnalyser(EBML ebml)
 #makeAnalyser(RTSP rtsp) #LTS #Currently broken. Horribly.
 makeAnalyser(TS ts) #LTS
 makeAnalyser(MP4 mp4) #LTS
@@ -375,6 +380,7 @@ endif()
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
 makeInput(H264 h264)
+makeInput(EBML ebml)
 makeInput(ISMV ismv)#LTS
 makeInput(MP4 mp4)#LTS
 makeInput(TS ts)#LTS
@@ -435,6 +441,7 @@ makeOutput(JSON json           http)
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+makeOutput(EBML ebml)
 makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS

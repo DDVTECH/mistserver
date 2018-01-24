@@ -133,6 +133,7 @@ set(libHeaders
   lib/util.h
   lib/vorbis.h
   lib/opus.h
+  lib/riff.h
   lib/ebml.h
   lib/ebml_socketglue.h
 )
@@ -174,6 +175,7 @@ add_library (mist
   lib/util.cpp
   lib/vorbis.cpp
   lib/opus.cpp
+  lib/riff.cpp
   lib/ebml.cpp
   lib/ebml_socketglue.cpp
 )

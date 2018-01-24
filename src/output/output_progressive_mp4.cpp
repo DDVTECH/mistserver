@@ -524,78 +524,6 @@ namespace Mist{
     //That's technically legal, of course.
   }
 
-/// Parses a "Range: " header, setting byteStart, byteEnd and seekPoint using data from metadata and tracks to do
-/// the calculations.
-/// On error, byteEnd is set to zero.
-  void OutProgressiveMP4::parseRange(std::string header, uint64_t & byteStart, uint64_t & byteEnd, uint64_t & seekPoint, uint64_t headerSize){
-    if (header.size() < 6 || header.substr(0, 6) != "bytes="){
-      byteEnd = 0;
-      WARN_MSG("Invalid range header: %s", header.c_str());
-      return;
-    }
-    header.erase(0, 6);
-    if (header.size() && header[0] == '-'){
-      //negative range = count from end
-      byteStart = 0;
-      for (unsigned int i = 1; i < header.size(); ++i){
-        if (header[i] >= '0' && header[i] <= '9'){
-          byteStart *= 10;
-          byteStart += header[i] - '0';
-          continue;
-        }
-        break;
-      }
-      if (byteStart > byteEnd){
-        //entire file if starting before byte zero
-        byteStart = 0;
-        findSeekPoint(byteStart, seekPoint, headerSize);
-        return;
-      }else{
-        //start byteStart bytes before byteEnd
-        byteStart = byteEnd - byteStart;
-        findSeekPoint(byteStart, seekPoint, headerSize);
-        return;
-      }
-    }else{
-      long long size = byteEnd;
-      byteEnd = 0;
-      byteStart = 0;
-      unsigned int i = 0;
-      for (; i < header.size(); ++i){
-        if (header[i] >= '0' && header[i] <= '9'){
-          byteStart *= 10;
-          byteStart += header[i] - '0';
-          continue;
-        }
-        break;
-      }
-      if (header[i] != '-'){
-        WARN_MSG("Invalid range header: %s", header.c_str());
-        byteEnd = 0;
-        return;
-      }
-      ++i;
-      if (i < header.size()){
-        for (; i < header.size(); ++i){
-          if (header[i] >= '0' && header[i] <= '9'){
-            byteEnd *= 10;
-            byteEnd += header[i] - '0';
-            continue;
-          }
-          break;
-        }
-        if (byteEnd > size){
-          byteEnd = size;
-        }
-      }else{
-        byteEnd = size;
-      }
-      MEDIUM_MSG("Range request: %" PRIu64 "-%" PRIu64 " (%s)", byteStart, byteEnd, header.c_str());
-      findSeekPoint(byteStart, seekPoint, headerSize);
-      return;
-    }
-  }
-
   void OutProgressiveMP4::sendFragmentHeader(){
     uint64_t mdatSize = 8;
     MP4::MOOF moofBox;
@@ -818,7 +746,9 @@ namespace Mist{
     }
     if (!myMeta.live){
       if (H.GetHeader("Range") != ""){
-        parseRange(H.GetHeader("Range"), byteStart, byteEnd, seekPoint, headerSize);
+        if (parseRange(byteStart, byteEnd)){
+          findSeekPoint(byteStart, seekPoint, headerSize);
+        }
         rangeType = H.GetHeader("Range")[0];
       }
     }

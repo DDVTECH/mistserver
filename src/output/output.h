@@ -54,7 +54,6 @@ namespace Mist {
       uint64_t endTime();
       uint64_t liveTime();
       void setBlocking(bool blocking);
-      long unsigned int getMainSelectedTrack();
       void updateMeta();
       void selectTrack(const std::string &trackType, const std::string &trackVal); /*LTS*/
       void selectDefaultTracks();

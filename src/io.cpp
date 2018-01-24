@@ -29,6 +29,20 @@ namespace Mist {
 
   }
 
+  /// Returns the ID of the main selected track, or 0 if no tracks are selected.
+  /// The main track is the first video track, if any, and otherwise the first other track.
+  long unsigned int InOutBase::getMainSelectedTrack(){
+    if (!selectedTracks.size()){
+      return 0;
+    }
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks.count(*it) && myMeta.tracks[*it].type == "video"){
+        return *it;
+      }
+    }
+    return *(selectedTracks.begin());
+  }
+
   void negotiationProxy::clear(){
     pagesByTrack.clear();
     trackOffset.clear();

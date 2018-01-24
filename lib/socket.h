@@ -106,6 +106,8 @@ namespace Socket{
     void SendNow(const std::string &data);      ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data);             ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data, size_t len); ///< Will not buffer anything but always send right away. Blocks.
+    void skipBytes(uint32_t byteCount);
+    uint32_t skipCount;
     // stats related methods
     unsigned int connTime();             ///< Returns the time this socket has been connected.
     uint64_t dataUp();                   ///< Returns total amount of bytes sent.

@@ -1,6 +1,7 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
+#include <mist/util.h>
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"

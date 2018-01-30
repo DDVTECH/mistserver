@@ -475,6 +475,7 @@ std::string Socket::Connection::getError(){
 /// \param address String containing the location of the Unix socket to connect to.
 /// \param nonblock Whether the socket should be nonblocking. False by default.
 Socket::Connection::Connection(std::string address, bool nonblock){
+  skipCount = 0;
   pipes[0] = -1;
   pipes[1] = -1;
   sock = socket(PF_UNIX, SOCK_STREAM, 0);
@@ -510,6 +511,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
 /// \param port String containing the port to connect to.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::Connection::Connection(std::string host, int port, bool nonblock){
+  skipCount = 0;
   pipes[0] = -1;
   pipes[1] = -1;
   struct addrinfo *result, *rp, hints;

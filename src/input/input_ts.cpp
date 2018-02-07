@@ -495,6 +495,7 @@ namespace Mist {
         if (statsPage.getData()){
           if (!statsPage.isAlive()){
             config->is_active = false;
+            statsPage.finish();
             return "received shutdown request from controller";
           }
           IPC::statExchange tmpEx(statsPage.getData());
@@ -516,6 +517,7 @@ namespace Mist {
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
+              statsPage.finish();
               return "no active threads and we had input in the past";
             }else{
               hasStarted = false;
@@ -546,12 +548,14 @@ namespace Mist {
       if (Util::bootSecs() - noDataSince > 20){
         if (!isAlwaysOn()){
           config->is_active = false;
+          statsPage.finish();
           return "No packets received for 20 seconds - terminating";
         }else{
           noDataSince = Util::bootSecs();
         }
       }
     }
+    statsPage.finish();
     return "received shutdown request";
   }
 

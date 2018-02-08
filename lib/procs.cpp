@@ -99,28 +99,27 @@ void Util::Procs::exit_handler() {
     return;
   }
 
-  WARN_MSG("Sending SIGINT to remaining %d children", (int)listcopy.size());
-  //send sigint to all remaining
-  if (!listcopy.empty()) {
-    for (it = listcopy.begin(); it != listcopy.end(); it++) {
-      DEBUG_MSG(DLVL_DEVEL, "SIGINT %d", *it);
-      kill(*it, SIGINT);
-    }
-  }
-
-  INFO_MSG("Waiting up to 5 seconds for %d children to terminate.", (int)listcopy.size());
+  INFO_MSG("Sending SIGINT and waiting up to 10 seconds for %d children to terminate.", (int)listcopy.size());
   waiting = 0;
-  //wait up to 5 seconds for applications to shut down
-  while (!listcopy.empty() && waiting <= 250) {
+  //wait up to 10 seconds for applications to shut down
+  while (!listcopy.empty() && waiting <= 500) {
+    bool doWait = true;
     for (it = listcopy.begin(); it != listcopy.end(); it++) {
       if (!childRunning(*it)) {
         listcopy.erase(it);
+        doWait = false;
         break;
       }
-      if (!listcopy.empty()) {
-        Util::wait(20);
-        ++waiting;
+    }
+    if (doWait && !listcopy.empty()) {
+      if ((waiting % 50) == 0){
+        for (it = listcopy.begin(); it != listcopy.end(); it++) {
+          INFO_MSG("SIGINT %d", *it);
+          kill(*it, SIGINT);
+        }
       }
+      Util::wait(20);
+      ++waiting;
     }
   }
   if (listcopy.empty()) {

@@ -71,13 +71,16 @@ void parseThread(void * ignored) {
       Util::sleep(100);
       continue;
     }
-    while (liveStream.hasPacket(tid)){
+    while (liveStream.hasPacket(tid) && (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active && (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive()))){
       liveStream.initializeMetadata(myMeta, tid);
       DTSC::Packet pack;
       liveStream.getPacket(tid, pack);
       if (pack && myMeta.tracks.count(tid)){
         myProxy.continueNegotiate(tid, myMeta, true);
         myProxy.bufferLivePacket(pack, myMeta);
+      }
+      if (!pack){
+        Util::sleep(500);
       }
     }
     {

@@ -171,14 +171,14 @@ namespace Util{
     maxSize = 0;
   }
 
-  bool ResizeablePointer::assign(void * p, uint32_t l){
+  bool ResizeablePointer::assign(const void * p, uint32_t l){
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);
     currSize = l;
     return true;
   }
 
-  bool ResizeablePointer::append(void * p, uint32_t l){
+  bool ResizeablePointer::append(const void * p, uint32_t l){
     if (!allocate(l+currSize)){return false;}
     memcpy(((char*)ptr)+currSize, p, l);
     currSize += l;

@@ -21,8 +21,8 @@ namespace Util{
       ResizeablePointer();
       ~ResizeablePointer();
       inline uint32_t& size(){return currSize;}
-      bool assign(void * p, uint32_t l);
-      bool append(void * p, uint32_t l);
+      bool assign(const void * p, uint32_t l);
+      bool append(const void * p, uint32_t l);
       bool allocate(uint32_t l);
       inline operator char*(){return (char*)ptr;}
       inline operator void*(){return ptr;}

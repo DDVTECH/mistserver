@@ -348,6 +348,18 @@ namespace IPC {
     close();
   }
 
+  /// Returns true if the open file still exists.
+  /// Not implemented under Windows.
+  bool sharedPage::exists(){
+#ifdef SHM_ENABLED
+    struct stat sb;
+    if (fstat(handle, &sb)){return false;}
+    return (sb.st_nlink > 0);
+#else
+    return true;
+#endif
+  }
+
 #ifdef SHM_ENABLED
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {

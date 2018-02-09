@@ -109,6 +109,7 @@ namespace IPC {
       bool operator < (const sharedFile & rhs) const {
         return name < rhs.name;
       }
+      bool exists(){return true;}
       void close();
       void unmap();
       ///\brief The fd handle of the opened shared file
@@ -143,6 +144,7 @@ namespace IPC {
     }
     void unmap();
     void close();
+    bool exists();
     #if defined(__CYGWIN__) || defined(_WIN32)
     ///\brief The handle of the opened shared memory page
     HANDLE handle;

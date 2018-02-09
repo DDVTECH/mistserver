@@ -1530,8 +1530,11 @@ namespace Mist{
       /*LTS-START*/
       if (!statsPage.isAlive()){
         INFO_MSG("Shutting down on controller request");
-        onFinish();
-        myConn.close();
+        if (!onFinish()){
+          myConn.close();
+        }else{
+          disconnect();
+        }
         return;
       }
       /*LTS-END*/

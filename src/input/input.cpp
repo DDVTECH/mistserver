@@ -382,6 +382,7 @@ namespace Mist {
   
   ///Checks in the server configuration if this stream is set to always on or not.
   /// Returns true if it is, or if the stream could not be found in the configuration.
+  /// If the compiled default debug level is < INFO, instead returns false if the stream is not found.
   bool Input::isAlwaysOn(){
     bool ret = true;
     std::string strName = streamName.substr(0, (streamName.find_first_of("+ ")));
@@ -393,6 +394,10 @@ namespace Mist {
       if (!streamCfg.getMember("always_on") || !streamCfg.getMember("always_on").asBool()){
         ret = false;
       }
+    }else{
+#if DEBUG < DLVL_DEVEL
+      ret = false;
+#endif
     }
     configLock.post();
     return ret;

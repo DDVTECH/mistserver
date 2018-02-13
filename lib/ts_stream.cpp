@@ -208,7 +208,7 @@ namespace TS{
       return;
     }
 
-    if(seenUnitStart[tid] > 1) {
+    while(seenUnitStart[tid] > 1) {
       parsePES(tid);
     }
   }

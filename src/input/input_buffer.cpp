@@ -73,7 +73,7 @@ namespace Mist {
 
     option["arg"] = "integer";
     option["long"] = "segment-size";
-    option["short"] = "S"
+    option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
     option["value"].append(5000LL);
     config->addOption("segmentsize", option);

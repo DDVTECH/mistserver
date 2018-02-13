@@ -14,7 +14,7 @@
 namespace Mist {
   inputMP3::inputMP3(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "MP3";
-    capa["desc"] = "Enables MP3 Input";
+    capa["desc"] = "This input allows you to stream MP3 Video on Demand files.";
     capa["source_match"] = "/*.mp3";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("MP3");

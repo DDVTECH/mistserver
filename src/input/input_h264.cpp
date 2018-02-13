@@ -5,7 +5,7 @@
 namespace Mist{
   InputH264::InputH264(Util::Config *cfg) : Input(cfg){
     capa["name"] = "H264";
-    capa["desc"] = "H264 Annex B input";
+    capa["desc"] = "This input allows you to take raw H264 Annex B data over a standard input pipe, and turn it into a live stream.";
     capa["source_match"] = "h264-exec:*";
     //May be set to always-on mode
     capa["always_match"].append("h264-exec:*");

@@ -54,7 +54,7 @@ namespace Mist {
     capa["source_match"] = "push://*";
     capa["non-provider"] = true;//Indicates we don't provide data, only collect it
     capa["priority"] = 9ll;
-    capa["desc"] = "Provides buffered live input";
+    capa["desc"] = "This input type is both used for push- and pull-based streams. It provides a buffer for live media data. The push://[host][@password] style source allows all enabled protocols that support push input to accept a push into MistServer, where you can accept incoming streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
     capa["codecs"][0u][0u].append("*");
     capa["codecs"][0u][1u].append("*");
     capa["codecs"][0u][2u].append("*");

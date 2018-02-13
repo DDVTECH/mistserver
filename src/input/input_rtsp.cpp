@@ -27,7 +27,7 @@ namespace Mist{
     seenSDP = false;
     cSeq = 0;
     capa["name"] = "RTSP";
-    capa["decs"] = "Allows pulling from live RTSP sources";
+    capa["desc"] = "This input allows pulling of live RTSP sources over either UDP or TCP.";
     capa["source_match"].append("rtsp://*");
     // These can/may be set to always-on mode
     capa["always_match"].append("rtsp://*");

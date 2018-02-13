@@ -17,7 +17,7 @@
 namespace Mist {
   inputFLV::inputFLV(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "FLV";
-    capa["desc"] = "Enables FLV Input";
+    capa["desc"] = "Allows loading FLV files for Video on Demand.";
     capa["source_match"] = "/*.flv";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");

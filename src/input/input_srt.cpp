@@ -5,7 +5,7 @@ namespace Mist{
   InputSrt::InputSrt(Util::Config *cfg) : Input(cfg){
     vtt = false;
     capa["name"] = "SRT";
-    capa["decs"] = "Enables SRT Input";
+    capa["decs"] = "This input allows streaming of SRT and WebVTT subtitle files as Video on Demand.";
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
     capa["priority"] = 9ll;

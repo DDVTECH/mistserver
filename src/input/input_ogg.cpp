@@ -46,7 +46,7 @@ namespace Mist {
 */
   inputOGG::inputOGG(Util::Config * cfg) : Input(cfg){
     capa["name"] = "OGG";
-    capa["desc"] = "Enables OGG input";
+    capa["desc"] = "This input allows streaming of OGG files as Video on Demand.";
     capa["source_match"] = "/*.ogg";
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][1u].append("vorbis");

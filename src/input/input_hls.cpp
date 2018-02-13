@@ -333,7 +333,7 @@ namespace Mist{
     currentPlaylist = 0;
     
     capa["name"] = "HLS";
-    capa["decs"] = "Enables HLS Input";
+    capa["desc"] = "This input allows you to both play Video on Demand and live HLS streams stored on the filesystem, as well as pull live HLS streams over HTTP and HTTPS.";
     capa["source_match"].append("/*.m3u8");
     capa["source_match"].append("/*.m3u");
     capa["source_match"].append("http://*.m3u8");

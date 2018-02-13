@@ -7,7 +7,7 @@
 namespace Mist {
   inputBalancer::inputBalancer(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "Balancer";
-    capa["desc"] = "Load balancer input, re-starts itself as the input a load balancer tells it it should be.";
+    capa["desc"] = "The load balancer input restarts itself as the input a load balancer tells it it should be. The syntax is in the form 'balance:http://HOST:PORT[?fallback=FALLBACK]', where HOST and PORT are the host and port of the load balancer and the FALLBACK is the full source URL that should be used if the load balancer cannot be reached.";
     capa["source_match"] = "balance:*";
     capa["priority"] = 9ll;
     capa["morphic"] = 1ll;

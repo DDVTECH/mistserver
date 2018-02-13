@@ -15,7 +15,7 @@
 namespace Mist {
   inputDTSC::inputDTSC(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "DTSC";
-    capa["desc"] = "Enables DTSC Input";
+    capa["desc"] = "Load DTSC files as Video on Demand sources, or dtsc:// URLs from other MistServer instances for live sources. This is the optimal method to pull live sources from other MistServer (or compatible) instances.";
     capa["priority"] = 9ll;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");

@@ -110,7 +110,7 @@ namespace Mist {
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "TS";
-    capa["decs"] = "MPEG2-TS input from static files, streamed files, or multicast/unicast UDP socket";
+    capa["desc"] = "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files or named pipes (stream://*.ts), streamed over HTTP (http://*.ts, http-ts://*), standard input (ts-exec:*), or multicast/unicast UDP sockets (tsudp://*).";
     capa["source_match"].append("/*.ts");
     capa["source_match"].append("stream://*.ts");
     capa["source_match"].append("tsudp://*");

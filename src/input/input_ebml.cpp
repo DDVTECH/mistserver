@@ -6,7 +6,7 @@
 namespace Mist{
   InputEBML::InputEBML(Util::Config *cfg) : Input(cfg){
     capa["name"] = "EBML";
-    capa["desc"] = "Enables MKV and WebM input";
+    capa["desc"] = "Allows loading MKV, MKA, MK3D, MKS and WebM files for Video on Demand.";
     capa["source_match"].append("/*.mkv");
     capa["source_match"].append("/*.mka");
     capa["source_match"].append("/*.mk3d");

@@ -13,7 +13,7 @@
 namespace Mist {
   inputISMV::inputISMV(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "ISMV";
-    capa["decs"] = "Enables ISMV Input";
+    capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");

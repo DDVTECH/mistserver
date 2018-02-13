@@ -75,12 +75,13 @@ void parseThread(void * ignored) {
       liveStream.initializeMetadata(myMeta, tid);
       DTSC::Packet pack;
       liveStream.getPacket(tid, pack);
-      if (pack && myMeta.tracks.count(tid)){
+      if (!pack){
+        Util::sleep(100);
+        break;
+      }
+      if (myMeta.tracks.count(tid)){
         myProxy.continueNegotiate(tid, myMeta, true);
         myProxy.bufferLivePacket(pack, myMeta);
-      }
-      if (!pack){
-        Util::sleep(500);
       }
     }
     {

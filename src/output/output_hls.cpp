@@ -379,11 +379,7 @@ namespace Mist {
         H.Clean();
         return;
       }
-      if (relPushUrl.find(".m3u8") != std::string::npos) {
-        H.SetHeader("Content-Type", "audio/x-mpegurl");
-      } else {
-        H.SetHeader("Content-Type", "audio/mpegurl");
-      }
+      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (relPushUrl == "/index.m3u8"){
         H.SetHeader("Cache-Control", "no-cache");
         H.setCORSHeaders();
@@ -478,11 +474,7 @@ namespace Mist {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.Clean();
-      if (H.url.find(".m3u8") != std::string::npos) {
-        H.SetHeader("Content-Type", "audio/x-mpegurl");
-      } else {
-        H.SetHeader("Content-Type", "audio/mpegurl");
-      }
+      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
       if (!myMeta.tracks.size()){

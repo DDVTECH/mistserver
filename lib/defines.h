@@ -17,7 +17,8 @@
 #if DEBUG > -1
 
 #include <stdio.h>
-#include <unistd.h>
+#include <inttypes.h>
+#include <stdint.h>
 #include "config.h"
 static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "MEDIUM", "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
 

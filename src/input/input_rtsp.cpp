@@ -259,8 +259,8 @@ namespace Mist{
             return true;
           }
 
-          // Print anything possibly interesting to cerr
-          std::cerr << recH.BuildRequest() << std::endl;
+          //DO NOT Print anything possibly interesting to cerr
+          //std::cerr << recH.BuildRequest() << std::endl;
           recH.Clean();
           return true;
         }

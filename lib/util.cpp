@@ -292,7 +292,7 @@ namespace Util{
       }
       //find end of line, insert null byte
       unsigned int j = i;
-      while (j < 1024 && buf[j] != '\n' && buf[j] != 0){++j;}
+      while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
       buf[j] = 0;
       //print message
       if (message){
@@ -312,11 +312,11 @@ namespace Util{
         timeinfo = localtime(&rawtime);
         strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
         dprintf(out, "%s[%s] ", color_time, buffer);
-        if (strlen(progname) && strlen(progpid)){
+        if (progname && progpid && strlen(progname) && strlen(progpid)){
           dprintf(out, "%s (%s) ", progname, progpid);
         }
         dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
-        if (strlen(lineno)){
+        if (lineno && strlen(lineno)){
           dprintf(out, " (%s) ", lineno);
         }
         dprintf(out, "\n", lineno);

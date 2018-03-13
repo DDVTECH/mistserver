@@ -411,13 +411,10 @@ namespace Util{
   /// Gets the size in bytes of a single record in the structure.
   uint32_t RelAccX::getRSize() const{return RAXHDR_RECORDSIZE;}
 
-  /// Gets the position in the records where the entries start
-  uint32_t RelAccX::getStartPos() const{return RAXHDR_STARTPOS;}
-
   /// Gets the number of deleted records
   uint64_t RelAccX::getDeleted() const{return RAXHDR_DELETED;}
 
-  //Gets the number of the last valid index
+  /// Gets the number of the last valid index
   uint64_t RelAccX::getEndPos() const{return RAXHDR_ENDPOS;}
 
   ///Gets the number of fields per recrd 
@@ -662,15 +659,11 @@ namespace Util{
   /// Sets the record counter to the given value.
   void RelAccX::setRCount(uint32_t count){RAXHDR_RECORDCNT = count;}
 
-  /// Sets the position in the records where the entries start
-  void RelAccX::setStartPos(uint32_t n){RAXHDR_STARTPOS = n;}
-
   /// Sets the number of deleted records
   void RelAccX::setDeleted(uint64_t n){RAXHDR_DELETED = n;}
 
-  /// Sets the number of records present
-  /// Defaults to the record count if set to zero.
-  void RelAccX::setPresent(uint32_t n){RAXHDR_PRESENT = n;}
+  /// Sets the number of the last valid index
+  void RelAccX::setEndPos(uint64_t n){RAXHDR_ENDPOS = n;}
 
   /// Sets the ready flag.
   /// After calling this function, addField() may no longer be called.
@@ -757,38 +750,14 @@ namespace Util{
 
   /// Updates the deleted record counter, the start position and the present record counter,
   /// shifting the ring buffer start position forward without moving the ring buffer end position.
-  /// If the records present counter would be pushed into the negative by this function, sets it to
-  /// zero, defaulting it to the record count for all relevant purposes.
   void RelAccX::deleteRecords(uint32_t amount){
-    uint32_t &startPos = RAXHDR_STARTPOS;
-    uint64_t &deletedRecs = RAXHDR_DELETED;
-    uint32_t &recsPresent = RAXHDR_PRESENT;
-    startPos += amount;    // update start position
-    deletedRecs += amount; // update deleted record counter
-    if (recsPresent >= amount){
-      recsPresent -= amount; // decrease records present
-    }else{
-      WARN_MSG("Depleting recordCount!");
-      recsPresent = 0;
-    }
+    RAXHDR_DELETED += amount; // update deleted record counter
   }
 
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
-  /// If the records present counter would be pushed past the record counter by this function, sets
-  /// it to zero, defaulting it to the record count for all relevant purposes.
   void RelAccX::addRecords(uint32_t amount){
-    uint32_t & recsPresent = RAXHDR_PRESENT;
-    uint32_t & recordsCount = RAXHDR_RECORDCNT;
-    uint64_t & recordEndPos = RAXHDR_ENDPOS;
-    if (recsPresent+amount > recordsCount){
-      BACKTRACE
-      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", recsPresent + amount, recsPresent, amount, recordsCount);
-      recsPresent = 0;
-    }else{
-      recsPresent += amount;
-    }
-    recordEndPos += amount;
+    RAXHDR_ENDPOS += amount;
   }
 
   FieldAccX RelAccX::getFieldAccX(const std::string & fName){

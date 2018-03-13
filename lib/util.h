@@ -70,6 +70,7 @@ namespace Util{
   #define RAX_64STRING 0x32
   #define RAX_128STRING 0x33
   #define RAX_256STRING 0x34
+  #define RAX_512STRING 0x35
   #define RAX_RAW 0x40
   #define RAX_256RAW 0x44
   #define RAX_512RAW 0x45
@@ -115,10 +116,8 @@ namespace Util{
       uint32_t getRCount() const;
       uint32_t getRSize() const;
       uint16_t getOffset() const;
-      uint32_t getStartPos() const;
       uint64_t getDeleted() const;
       uint64_t getEndPos() const;
-      size_t getPresent() const;
       uint32_t getFieldCount() const;
       bool isReady() const;
       bool isExit() const;
@@ -138,9 +137,8 @@ namespace Util{
       //Read-write functions:
       void addField(const std::string & name, uint8_t fType, uint32_t fLen=0);
       void setRCount(uint32_t count);
-      void setStartPos(uint32_t n);
       void setDeleted(uint64_t n);
-      void setPresent(uint32_t n);
+      void setEndPos(uint64_t n);
       void setReady();
       void setExit();
       void setReload();

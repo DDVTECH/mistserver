@@ -120,6 +120,8 @@ namespace Controller {
   extern std::map<sessIndex, statSession> sessions;
   extern std::map<unsigned long, sessIndex> connToSession;
   extern tthread::mutex statsMutex;
+
+  std::set<std::string> getActiveStreams(const std::string & prefix = "");
   void parseStatistics(char * data, size_t len, unsigned int id);
   void killStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);

@@ -42,7 +42,6 @@ std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; /
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
-std::map<std::string, uint8_t> Controller::activeStreams;
 unsigned int Controller::maxConnsPerIP = 0;
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128*1024*1024;//gigabit default limit
@@ -81,7 +80,10 @@ struct streamTotals {
   unsigned long long inputs;
   unsigned long long outputs;
   unsigned long long viewers;
-  unsigned int timeout;
+  unsigned long long currIns;
+  unsigned long long currOuts;
+  unsigned long long currViews;
+  uint8_t status;
 };
 static std::map<std::string, struct streamTotals> streamStats;
 static unsigned long long servUpBytes = 0;
@@ -322,6 +324,8 @@ void Controller::SharedMemStats(void * config){
   cacheLock->unlink();
   cacheLock->open(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   std::set<std::string> inactiveStreams;
+  Controller::initState();
+  bool shiftWrites = true;
   while(((Util::Config*)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
@@ -352,12 +356,23 @@ void Controller::SharedMemStats(void * config){
           mustWipe.pop_front();
         }
       }
-      if (activeStreams.size()){
-        for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
+      Util::RelAccX * strmStats = streamsAccessor();
+      if (!strmStats || !strmStats->isReady()){strmStats = 0;}
+      uint64_t strmPos = 0;
+      if (strmStats){
+        if (shiftWrites || (strmStats->getEndPos() - strmStats->getDeleted() != streamStats.size())){
+          shiftWrites = true;
+          strmPos = strmStats->getEndPos();
+        }else{
+          strmPos = strmStats->getDeleted();
+        }
+      }
+      if (streamStats.size()){
+        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
           uint8_t newState = Util::getStreamStatus(it->first);
-          uint8_t oldState = activeStreams[it->first];
+          uint8_t oldState = it->second.status;
           if (newState != oldState){
-            activeStreams[it->first] = newState;
+            it->second.status = newState;
             if (newState == STRMSTAT_READY){
               streamStarted(it->first);
             }else{
@@ -369,12 +384,28 @@ void Controller::SharedMemStats(void * config){
           if (newState == STRMSTAT_OFF){
             inactiveStreams.insert(it->first);
           }
+          if (strmStats){
+            if (shiftWrites){
+              strmStats->setString("stream", it->first, strmPos);
+            }
+            strmStats->setInt("status", it->second.status, strmPos);
+            strmStats->setInt("viewers", it->second.currViews, strmPos);
+            strmStats->setInt("inputs", it->second.currIns, strmPos);
+            strmStats->setInt("outputs", it->second.currOuts, strmPos);
+            ++strmPos;
+          }
         }
-        while (inactiveStreams.size()){
-          activeStreams.erase(*inactiveStreams.begin());
-          streamStats.erase(*inactiveStreams.begin());
-          inactiveStreams.erase(inactiveStreams.begin());
-        }
+      }
+      if (strmStats && shiftWrites){
+        shiftWrites = false;
+        uint64_t prevEnd = strmStats->getEndPos();
+        strmStats->setEndPos(strmPos);
+        strmStats->setDeleted(prevEnd);
+      }
+      while (inactiveStreams.size()){
+        streamStats.erase(*inactiveStreams.begin());
+        inactiveStreams.erase(inactiveStreams.begin());
+        shiftWrites = true;
       }
       /*LTS-START*/
       Controller::writeSessionCache();
@@ -396,10 +427,34 @@ void Controller::SharedMemStats(void * config){
     }
     /*LTS-END*/
   }
+  Controller::deinitState(Controller::restarting);
   delete shmSessions;
   shmSessions = 0;
   delete cacheLock;
   cacheLock = 0;
+}
+
+/// Gets a complete list of all streams currently in active state, with optional prefix matching
+std::set<std::string> Controller::getActiveStreams(const std::string & prefix){
+  std::set<std::string> ret;
+  Util::RelAccX * strmStats = streamsAccessor();
+  if (!strmStats || !strmStats->isReady()){return ret;}
+  uint64_t endPos = strmStats->getEndPos();
+  if (prefix.size()){
+    for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
+      if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
+      const char * S = strmStats->getPointer("stream", i);
+      if (!strncmp(S, prefix.data(), prefix.size())){
+        ret.insert(S);
+      }
+    }
+  }else{
+    for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
+      if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
+      ret.insert(strmStats->getPointer("stream", i));
+    }
+  }
+  return ret;
 }
 
 /// Forces a re-sync of the session
@@ -530,14 +585,17 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       if (data.connector() == "INPUT"){
         ++servInputs;
         streamStats[streamName].inputs++;
+        streamStats[streamName].currIns++;
         sessionType = SESS_INPUT;
       }else if (data.connector() == "OUTPUT"){
         ++servOutputs;
         streamStats[streamName].outputs++;
+        streamStats[streamName].currOuts++;
         sessionType = SESS_OUTPUT;
       }else{
         ++servViewers;
         streamStats[streamName].viewers++;
+        streamStats[streamName].currViews++;
         sessionType = SESS_VIEWER;
       }
       if (!streamName.size() || streamName[0] == 0){
@@ -612,18 +670,31 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
 void Controller::statSession::ping(const Controller::sessIndex & index, unsigned long long disconnectPoint){
   if (!tracked){return;}
   if (lastSec < disconnectPoint){
+    switch (sessionType){
+      case SESS_INPUT:
+        streamStats[index.streamName].currIns--;
+        break;
+      case SESS_OUTPUT:
+        streamStats[index.streamName].currOuts--;
+        break;
+      case SESS_VIEWER:
+        streamStats[index.streamName].currViews--;
+        break;
+    }
+    uint64_t duration = lastSec - firstActive;
+    if (duration < 1){duration = 1;}
+    std::stringstream tagStream;
+    if (tags.size()){
+      for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
+        tagStream << "[" << *it << "]";
+      }
+    }
+    Controller::logAccess(index.ID, index.streamName, index.connector, index.host, duration, getUp(), getDown(), tagStream.str());
     if (Controller::accesslog.size()){
-      uint64_t duration = lastSec - firstActive;
-      if (duration < 1){duration = 1;}
       if (Controller::accesslog == "LOG"){
         std::stringstream accessStr;
         accessStr << "Session <" << index.ID << "> " << index.streamName << " (" << index.connector << ") from " << index.host << " ended after " << duration << "s, avg " << getUp()/duration/1024 << "KB/s up " << getDown()/duration/1024 << "KB/s down.";
-        if (tags.size()){
-          accessStr << " Tags: ";
-          for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
-            accessStr << "[" << *it << "]";
-          }
-        }
+        if (tags.size()){accessStr << " Tags: " << tagStream.str();}
         Controller::Log("ACCS", accessStr.str());
       }else{
         static std::ofstream accLogFile;
@@ -645,11 +716,7 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
           timeinfo = localtime(&rawtime);
           strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
           accLogFile << buffer << ", " << index.ID << ", " << index.streamName << ", " << index.connector << ", " << index.host << ", " << duration << ", " << getUp()/duration/1024 << ", " << getDown()/duration/1024 << ", ";
-          if (tags.size()){
-            for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
-              accLogFile << "[" << *it << "]";
-            }
-          }
+          if (tags.size()){accLogFile << tagStream.str();}
           accLogFile << std::endl;
         }
       }
@@ -1019,11 +1086,6 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   }else{
     if (sessions[idx].getSessType() != SESS_OUTPUT && sessions[idx].getSessType() != SESS_UNSET){
       std::string strmName = tmpEx.streamName();
-      if (strmName.size()){
-        if (!activeStreams.count(strmName)){
-          activeStreams[strmName] = 0;
-        }
-      }
     }
   }
 }
@@ -1558,7 +1620,6 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
-      std::map<std::string, struct streamTotals> streams;
       std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int tOut = Util::epoch() - STATS_DELAY;
@@ -1570,20 +1631,17 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
             case SESS_UNSET:
             case SESS_VIEWER:
               if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                streams[it->first.streamName].viewers++;
                 outputs[it->first.connector]++;
                 totViewers++;
               }
               break;
             case SESS_INPUT:
               if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
-                streams[it->first.streamName].inputs++;
                 totInputs++;
               }
               break;
             case SESS_OUTPUT:
               if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                streams[it->first.streamName].outputs++;
                 totOutputs++;
               }
               break;
@@ -1621,19 +1679,16 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       response << "mist_bw_other{direction=\"down\"} " << servDownOtherBytes << "\n\n";
       response << "mist_bw_limit " << bwLimit << "\n\n";
 
-      response << "# HELP mist_viewers Number of sessions by type and stream active right now.\n";
+      response << "\n# HELP mist_viewers Number of sessions by type and stream active right now.\n";
       response << "# TYPE mist_viewers gauge\n";
-      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"viewers\"} " << it->second.viewers << "\n";
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"incoming\"} " << it->second.inputs << "\n";
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"} " << it->second.outputs << "\n";
-      }
-
-      response << "\n# HELP mist_viewcount Count of unique viewer sessions since stream start, per stream.\n";
+      response << "# HELP mist_viewcount Count of unique viewer sessions since stream start, per stream.\n";
       response << "# TYPE mist_viewcount counter\n";
       response << "# HELP mist_bw Count of bytes handled since stream start, by direction.\n";
       response << "# TYPE mist_bw counter\n";
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"viewers\"} " << it->second.currViews << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"incoming\"} " << it->second.currIns << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"} " << it->second.currOuts << "\n";
         response << "mist_viewcount{stream=\"" << it->first << "\"} " << it->second.viewers << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"} " << it->second.upBytes << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"} " << it->second.downBytes << "\n";
@@ -1652,7 +1707,6 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
-      std::map<std::string, struct streamTotals> streams;
       std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int tOut = Util::epoch() - STATS_DELAY;
@@ -1664,20 +1718,17 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
             case SESS_UNSET:
             case SESS_VIEWER:
               if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                streams[it->first.streamName].viewers++;
                 outputs[it->first.connector]++;
                 totViewers++;
               }
               break;
             case SESS_INPUT:
               if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
-                streams[it->first.streamName].inputs++;
                 totInputs++;
               }
               break;
             case SESS_OUTPUT:
               if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                streams[it->first.streamName].outputs++;
                 totOutputs++;
               }
               break;
@@ -1707,11 +1758,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         resp["streams"][it->first]["tot"].append((long long)it->second.outputs);
         resp["streams"][it->first]["bw"].append((long long)it->second.upBytes);
         resp["streams"][it->first]["bw"].append((long long)it->second.downBytes);
-      }
-      for (std::map<std::string, struct streamTotals>::iterator it = streams.begin(); it != streams.end(); ++it){
-        resp["streams"][it->first]["curr"].append((long long)it->second.viewers);
-        resp["streams"][it->first]["curr"].append((long long)it->second.inputs);
-        resp["streams"][it->first]["curr"].append((long long)it->second.outputs);
+        resp["streams"][it->first]["curr"].append((long long)it->second.currViews);
+        resp["streams"][it->first]["curr"].append((long long)it->second.currIns);
+        resp["streams"][it->first]["curr"].append((long long)it->second.currOuts);
       }
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
         resp["outputs"][it->first] = (long long)it->second;

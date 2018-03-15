@@ -105,6 +105,156 @@ bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket
   return false;
 }//Authorize
 
+class streamStat{
+  public:
+    streamStat(){
+      status = 0;
+      viewers = 0;
+      inputs = 0;
+      outputs = 0;
+    }
+    streamStat(const Util::RelAccX & rlx, uint64_t entry){
+      status = rlx.getInt("status", entry);
+      viewers = rlx.getInt("viewers", entry);
+      inputs = rlx.getInt("inputs", entry);
+      outputs = rlx.getInt("outputs", entry);
+    }
+    bool operator ==(const streamStat &b) const{
+      return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs);
+    }
+    bool operator !=(const streamStat &b) const{
+      return !(*this == b);
+    }
+    uint8_t status;
+    uint64_t viewers;
+    uint64_t inputs;
+    uint64_t outputs;
+};
+
+void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
+  std::string logs = H.GetVar("logs");
+  std::string accs = H.GetVar("accs");
+  bool doStreams = H.GetVar("streams").size();
+  HTTP::Websocket W(C, H);
+  if (!W){return;}
+
+  IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024*1024);
+  IPC::sharedPage shmAccs(SHM_STATE_ACCS, 1024*1024);
+  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 1024*1024);
+  Util::RelAccX rlxStreams(shmStreams.mapped);
+  Util::RelAccX rlxLog(shmLogs.mapped);
+  Util::RelAccX rlxAccs(shmAccs.mapped);
+  if (!rlxStreams.isReady()){doStreams = false;}
+  uint64_t logPos = 0;
+  bool doLog = false;
+  uint64_t accsPos = 0;
+  bool doAccs = false;
+  if (logs.size() && rlxLog.isReady()){
+    doLog = true;
+    logPos = rlxLog.getEndPos();
+    if (logs.substr(0, 6) == "since:"){
+      uint64_t startLogs = JSON::Value(logs.substr(6)).asInt();
+      logPos = rlxLog.getDeleted();
+      while (logPos < rlxLog.getEndPos() && rlxLog.getInt("time", logPos) < startLogs){++logPos;}
+    }else{
+      uint64_t numLogs = JSON::Value(logs).asInt();
+      if (logPos <= numLogs){
+        logPos = rlxLog.getDeleted();
+      }else{
+        logPos -= numLogs;
+      }
+    }
+  }
+  if (accs.size() && rlxAccs.isReady()){
+    doAccs = true;
+    accsPos = rlxAccs.getEndPos();
+    if (accs.substr(0, 6) == "since:"){
+      uint64_t startAccs = JSON::Value(accs.substr(6)).asInt();
+      accsPos = rlxAccs.getDeleted();
+      while (accsPos < rlxAccs.getEndPos() && rlxAccs.getInt("time", accsPos) < startAccs){++accsPos;}
+    }else{
+      uint64_t numAccs = JSON::Value(accs).asInt();
+      if (accsPos <= numAccs){
+        accsPos = rlxAccs.getDeleted();
+      }else{
+        accsPos -= numAccs;
+      }
+    }
+  }
+  std::map<std::string, streamStat> lastStrmStat;
+  std::set<std::string> strmRemove;
+  while (W){
+    bool sent = false;
+    while (doLog && rlxLog.getEndPos() > logPos){
+      sent = true;
+      JSON::Value tmp;
+      tmp[0u] = "log";
+      tmp[1u].append((long long)rlxLog.getInt("time", logPos));
+      tmp[1u].append(rlxLog.getPointer("kind", logPos));
+      tmp[1u].append(rlxLog.getPointer("msg", logPos));
+      W.sendFrame(tmp.toString());
+      logPos++;
+    }
+    while (doAccs && rlxAccs.getEndPos() > accsPos){
+      sent = true;
+      JSON::Value tmp;
+      tmp[0u] = "access";
+      tmp[1u].append((long long)rlxAccs.getInt("time", accsPos));
+      tmp[1u].append(rlxAccs.getPointer("session", accsPos));
+      tmp[1u].append(rlxAccs.getPointer("stream", accsPos));
+      tmp[1u].append(rlxAccs.getPointer("connector", accsPos));
+      tmp[1u].append(rlxAccs.getPointer("host", accsPos));
+      tmp[1u].append((long long)rlxAccs.getInt("duration", accsPos));
+      tmp[1u].append((long long)rlxAccs.getInt("up", accsPos));
+      tmp[1u].append((long long)rlxAccs.getInt("down", accsPos));
+      tmp[1u].append(rlxAccs.getPointer("tags", accsPos));
+      W.sendFrame(tmp.toString());
+      accsPos++;
+    }
+    if (doStreams){
+      for (std::map<std::string, streamStat>::iterator it = lastStrmStat.begin(); it != lastStrmStat.end(); ++it){
+        strmRemove.insert(it->first);
+      }
+      uint64_t startPos = rlxStreams.getDeleted();
+      uint64_t endPos = rlxStreams.getEndPos();
+      for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+        std::string strm = rlxStreams.getPointer("stream", cPos);
+        strmRemove.erase(strm);
+        streamStat tmpStat(rlxStreams, cPos);
+        if (lastStrmStat[strm] != tmpStat){
+          lastStrmStat[strm] = tmpStat;
+          sent = true;
+          JSON::Value tmp;
+          tmp[0u] = "stream";
+          tmp[1u].append(strm);
+          tmp[1u].append((long long)tmpStat.status);
+          tmp[1u].append((long long)tmpStat.viewers);
+          tmp[1u].append((long long)tmpStat.inputs);
+          tmp[1u].append((long long)tmpStat.outputs);
+          W.sendFrame(tmp.toString());
+        }
+      }
+      while (strmRemove.size()){
+        std::string strm = *strmRemove.begin();
+        sent = true;
+        JSON::Value tmp;
+        tmp[0u] = "stream";
+        tmp[1u].append(strm);
+        tmp[1u].append((long long)0);
+        tmp[1u].append((long long)0);
+        tmp[1u].append((long long)0);
+        tmp[1u].append((long long)0);
+        W.sendFrame(tmp.toString());
+        strmRemove.erase(strm);
+        lastStrmStat.erase(strm);
+      }
+    }
+    if (!sent){
+      Util::sleep(500);
+    }
+  }
+}
+
 /// Handles a single incoming API connection.
 /// Assumes the connection is unauthorized and will allow for 4 requests without authorization before disconnecting.
 int Controller::handleAPIConnection(Socket::Connection & conn){
@@ -144,6 +294,20 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             }
           }
         }
+      }
+      //Catch websocket requests
+      if (H.url == "/ws"){
+        if (!authorized){
+          H.Clean();
+          H.body = "Please login first or provide a valid token authentication.";
+          H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+          H.SendResponse("403", "Not authorized", conn);
+          H.Clean();
+          continue;
+        }
+        handleWebSocket(H, conn);
+        H.Clean();
+        continue;
       }
       //Catch prometheus requests
       if (Controller::prometheus.size()){
@@ -612,13 +776,12 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     if (*stream.rbegin() != '+'){
       startPush(stream, target);
     }else{
+      std::set<std::string> activeStreams = Controller::getActiveStreams(stream);
       if (activeStreams.size()){
-        for (std::map<std::string, uint8_t>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
-          if (jt->first.substr(0, stream.size()) == stream){
-            std::string streamname = jt->first;
-            std::string target_tmp = target;
-            startPush(streamname, target_tmp);
-          }
+        for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+          std::string streamname = *jt;
+          std::string target_tmp = target;
+          startPush(streamname, target_tmp);
         }
       }
     }

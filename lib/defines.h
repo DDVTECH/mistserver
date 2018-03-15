@@ -137,6 +137,9 @@ static inline void show_stackframe(){}
 #define SEM_CONF "/MstConfLock"
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SHM_CONF "MstConf"
+#define SHM_STATE_LOGS "MstStateLogs"
+#define SHM_STATE_ACCS "MstStateAccs"
+#define SHM_STATE_STREAMS "MstStateStreams"
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 #define SHM_SESSIONS "/MstSess"
 #define SHM_SESSIONS_ITEM 165 //4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync

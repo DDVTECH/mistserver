@@ -171,12 +171,13 @@ namespace Controller{
           }
           if (waittime || it->size() > 2){
             const std::string &pStr = (*it)[0u].asStringRef();
+            std::set<std::string> activeStreams = Controller::getActiveStreams(pStr);
             if (activeStreams.size()){
-              for (std::map<std::string, uint8_t>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
-                std::string streamname = jt->first;
+              for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+                std::string streamname = *jt;
                 std::string target = (*it)[1u];
                 if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
-                  if (!isPushActive(streamname, target) && Util::getStreamStatus(streamname) == STRMSTAT_READY){
+                  if (!isPushActive(streamname, target)){
                     if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
                       waitingPushes[streamname].erase(target);
                       if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
@@ -269,11 +270,12 @@ namespace Controller{
         startPush(streamname, target);
         return;
       }
+      const std::string &pStr = newPush[0u].asStringRef();
+      std::set<std::string> activeStreams = Controller::getActiveStreams(pStr);
       if (activeStreams.size()){
-        const std::string &pStr = newPush[0u].asStringRef();
         std::string target = newPush[1u].asStringRef();
-        for (std::map<std::string, uint8_t>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
-          std::string streamname = it->first;
+        for (std::set<std::string>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
+          std::string streamname = *it;
           if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
             std::string tmpName = streamname;
             std::string tmpTarget = target;

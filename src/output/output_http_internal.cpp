@@ -170,9 +170,40 @@ namespace Mist {
     }
     sources.insert(tmp);
   }
-  
+ 
+  /// Checks if a given user agent is allowed according to the given exception.
+  bool checkException(const JSON::Value & ex, const std::string & useragent){
+    //No user agent? Always allow everything.
+    if (!useragent.size()){return true;}
+    if (!ex.isArray() || !ex.size()){return true;}
+    bool ret = true;
+    jsonForEachConst(ex, e){
+      if (!e->isArray() || !e->size()){continue;}
+      bool setTo = ((*e)[0u].asStringRef() == "whitelist");
+      if (e->size() == 1){
+        ret = setTo;
+        continue;
+      }
+      if (!(*e)[1].isArray()){continue;}
+      jsonForEachConst((*e)[1u], i){
+        if (useragent.find(i->asStringRef()) != std::string::npos){
+          ret = setTo;
+        }
+      }
+    }
+    return ret;
+  }
 
-  void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, HTTP::URL url, JSON::Value & conncapa, JSON::Value & strmMeta){
+  void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, HTTP::URL url, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string & useragent){
+    if (strmMeta.isMember("live") && conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
+      jsonForEach(conncapa["exceptions"], ex){
+        if (ex.key() == "live"){
+          if (!checkException(*ex, useragent)){
+            return;
+          }
+        }
+      }
+    }
     const std::string & rel = conncapa["url_rel"].asStringRef();
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
@@ -188,6 +219,17 @@ namespace Mist {
                   if ((*trit)["codec"].asStringRef() == (*itc).asStringRef()){
                     matches++;
                     total_matches++;
+                    if (conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
+                      jsonForEach(conncapa["exceptions"], ex){
+                        if (ex.key() == "codec:"+(*trit)["codec"].asStringRef()){
+                          if (!checkException(*ex, useragent)){
+                            matches--;
+                            total_matches--;
+                          }
+                          break;
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -262,7 +304,7 @@ namespace Mist {
     H.SendResponse("200", "OK", myConn);
   }
   
-  JSON::Value OutHTTP::getStatusJSON(std::string & reqHost){
+  JSON::Value OutHTTP::getStatusJSON(std::string & reqHost, const std::string & useragent){
     JSON::Value json_resp;
     if (config->getString("nostreamtext") != ""){
       json_resp["on_error"] = config->getString("nostreamtext");
@@ -383,7 +425,7 @@ namespace Mist {
         //and a URL - then list the URL
         JSON::Value capa_json = capa.asJSON();
         if (capa.getMember("url_rel") || capa.getMember("methods")){
-          addSources(streamName, sources, outURL, capa_json, json_resp["meta"]);
+          addSources(streamName, sources, outURL, capa_json, json_resp["meta"], useragent);
         }
         //Make note if this connector can be depended upon by other connectors
         if (capa.getMember("provides")){
@@ -396,7 +438,7 @@ namespace Mist {
             //if it depends on this connector and has a URL, list it
             if (conns.count(capa_lst.getIndiceName(j)) && capa_lst.getIndice(j).getMember("deps").asString() == cProv && capa_lst.getIndice(j).getMember("methods")){
               JSON::Value subcapa_json = capa_lst.getIndice(j).asJSON();
-              addSources(streamName, sources, outURL, subcapa_json, json_resp["meta"]);
+              addSources(streamName, sources, outURL, subcapa_json, json_resp["meta"], useragent);
             }
           }
         }
@@ -536,6 +578,10 @@ namespace Mist {
     if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
       if (websocketHandler()){return;}
       std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
+      std::string useragent = H.GetVar("ua");
+      if (!useragent.size()){
+        useragent = H.GetHeader("User-Agent");
+      }
       std::string response;
       std::string rURL = H.url;
       H.Clean();
@@ -553,7 +599,7 @@ namespace Mist {
       }
       initialize();
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
-      JSON::Value json_resp = getStatusJSON(reqHost);
+      JSON::Value json_resp = getStatusJSON(reqHost, useragent);
       if (rURL.substr(0, 6) != "/json_"){
         response += "mistvideo['" + streamName + "'] = " + json_resp.toString() + ";\n";
       }else{
@@ -764,6 +810,10 @@ namespace Mist {
   bool OutHTTP::websocketHandler(){
     stayConnected = true;
     std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
+    std::string useragent = H.GetVar("ua");
+    if (!useragent.size()){
+      useragent = H.GetHeader("User-Agent");
+    }
     if (H.GetHeader("Upgrade") != "websocket"){return false;}
     HTTP::Websocket ws(myConn, H);
     if (!ws){return false;}
@@ -788,7 +838,7 @@ namespace Mist {
         }else{
           disconnect();
         }
-        JSON::Value resp = getStatusJSON(reqHost);
+        JSON::Value resp = getStatusJSON(reqHost, useragent);
         ws.sendFrame(resp.toString());
         prevState = newState;
       }else{

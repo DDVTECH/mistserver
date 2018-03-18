@@ -26,9 +26,8 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
-    ///\todo uncomment when we actually start implementing mp4 recording
-    //capa["canRecord"].append("mp4");
-    //capa["canRecord"].append("m3u");
+    //MP4 live is broken on Apple
+    capa["exceptions"]["live"] = JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]]]");
   }
 
   uint64_t OutProgressiveMP4::estimateFileSize(){

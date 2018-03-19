@@ -25,7 +25,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AC3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 10ll;
     //MP4 live is broken on Apple
     capa["exceptions"]["live"] = JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]]]");
   }

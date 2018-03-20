@@ -264,6 +264,9 @@ namespace Mist {
   
   JSON::Value OutHTTP::getStatusJSON(std::string & reqHost){
     JSON::Value json_resp;
+    if (config->getString("nostreamtext") != ""){
+      json_resp["on_error"] = config->getString("nostreamtext");
+    }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     if (streamStatus != STRMSTAT_READY){
       switch (streamStatus){
@@ -340,6 +343,7 @@ namespace Mist {
       it->removeMember("keys");
       it->removeMember("keysizes");
       it->removeMember("parts");
+      it->removeMember("ivecs");/*LTS*/
     }
     
     //create a set for storing source information
@@ -367,6 +371,15 @@ namespace Mist {
         if (outURL.protocol.find(':') != std::string::npos){
           outURL.protocol.erase(outURL.protocol.find(':'));
         }
+        /*LTS-START*/
+        if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").asString().size()){
+          HTTP::URL altURL(prots.getIndice(i).getMember("pubaddr").asString());
+          outURL.protocol = altURL.protocol;
+          if (altURL.host.size()){outURL.host = altURL.host;}
+          outURL.port = altURL.port;
+          outURL.path = altURL.path;
+        }
+        /*LTS-END*/
         //and a URL - then list the URL
         JSON::Value capa_json = capa.asJSON();
         if (capa.getMember("url_rel") || capa.getMember("methods")){

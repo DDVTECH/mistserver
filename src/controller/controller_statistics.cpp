@@ -72,7 +72,6 @@ void Controller::updateBandwidthConfig(){
   }
 }
 
-
 //For server-wide totals. Local to this file only.
 struct streamTotals {
   unsigned long long upBytes;

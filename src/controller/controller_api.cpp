@@ -12,6 +12,15 @@
 #include "controller_capabilities.h"
 #include "controller_statistics.h"
 
+/// Returns the challenge string for authentication, given the socket connection.
+std::string getChallenge(Socket::Connection & conn){
+  time_t Time = time(0);
+  tm * TimeInfo = localtime( &Time);
+  std::stringstream Date;
+  Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
+  return Secure::md5(Date.str().c_str() + conn.getHost());
+}
+
 ///\brief Checks an authorization request for a given user.
 ///\param Request The request to be parsed.
 ///\param Response The location to store the generated response.
@@ -57,12 +66,8 @@
 /// Please note that this is NOT secure. At all. Never use this mechanism over a public network!
 /// A status of `"ACC_MADE"` indicates the account was created successfully and can now be used to login as normal.
 bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket::Connection & conn){
-  time_t Time = time(0);
-  tm * TimeInfo = localtime( &Time);
-  std::stringstream Date;
+  std::string Challenge = getChallenge(conn);
   std::string retval;
-  Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
-  std::string Challenge = Secure::md5(Date.str().c_str() + conn.getHost());
   if (Request.isMember("authorize") && Request["authorize"]["username"].asString() != ""){
     std::string UserID = Request["authorize"]["username"];
     if (Storage["account"].isMember(UserID)){
@@ -102,6 +107,36 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
   //while connected and not past login attempt limit
   while (conn && logins < 4){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+      //Are we local and not forwarded? Instant-authorized.
+      if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
+        MEDIUM_MSG("Local API access automatically authorized");
+        authorized = true;
+      }
+      #ifdef NOAUTH
+      //If auth is disabled, always allow access.
+      authorized = true;
+      #endif
+      if (!authorized && H.hasHeader("Authorization")){
+        std::string auth = H.GetHeader("Authorization");
+        if (auth.substr(0, 5) == "json "){
+          INFO_MSG("Checking auth header");
+          JSON::Value req;
+          req["authorize"] = JSON::fromString(auth.substr(5));
+          if (Storage["account"]){
+            tthread::lock_guard<tthread::mutex> guard(configMutex);
+            authorized = authorize(req, req, conn);
+            if (!authorized){
+              H.Clean();
+              H.body = "Please login first or provide a valid token authentication.";
+              H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+              H.SetHeader("WWW-Authenticate", "json "+req["authorize"].toString());
+              H.SendResponse("403", "Not authorized", conn);
+              H.Clean();
+              continue;
+            }
+          }
+        }
+      }
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
       //invalid request? send the web interface, unless requested as "/api"
@@ -123,11 +158,6 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       }
       {//lock the config mutex here - do not unlock until done processing
         tthread::lock_guard<tthread::mutex> guard(configMutex);
-        //Are we local and not forwarded? Instant-authorized.
-        if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
-          MEDIUM_MSG("Local API access automatically authorized");
-          authorized = true;
-        }
         //if already authorized, do not re-check for authorization
         if (authorized && Storage["account"]){
           Response["authorize"]["status"] = "OK";

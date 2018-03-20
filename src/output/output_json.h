@@ -1,5 +1,5 @@
 #include "output_http.h"
-
+#include <mist/websocket.h>
 
 namespace Mist {
   class OutJSON : public HTTPOutput {
@@ -14,6 +14,7 @@ namespace Mist {
     protected:
       std::string jsonp;
       bool first;
+      HTTP::Websocket * ws;
   };
 }
 

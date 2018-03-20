@@ -178,6 +178,7 @@ set(libHeaders
   lib/riff.h
   lib/ebml.h
   lib/ebml_socketglue.h
+  lib/websocket.h
 )
 
 ########################################
@@ -231,6 +232,7 @@ add_library (mist
   lib/riff.cpp
   lib/ebml.cpp
   lib/ebml_socketglue.cpp
+  lib/websocket.cpp
 )
 if (NOT APPLE)
   set (LIBRT -lrt)

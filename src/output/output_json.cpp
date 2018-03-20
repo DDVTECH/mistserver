@@ -2,8 +2,16 @@
 #include <iomanip>
 
 namespace Mist {
-  OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
-  OutJSON::~OutJSON() {}
+  OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){
+    ws = 0;
+    realTime = 0;
+  }
+  OutJSON::~OutJSON() {
+    if (ws){
+      delete ws;
+      ws = 0;
+    }
+  }
   
   void OutJSON::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
@@ -16,9 +24,17 @@ namespace Mist {
     capa["methods"][0u]["type"] = "html5/text/javascript";
     capa["methods"][0u]["priority"] = 0ll;
     capa["methods"][0u]["url_rel"] = "/$.json";
+    capa["methods"][1u]["handler"] = "ws";
+    capa["methods"][1u]["type"] = "html5/text/javascript";
+    capa["methods"][1u]["priority"] = 0ll;
+    capa["methods"][1u]["url_rel"] = "/$.json";
   }
   
   void OutJSON::sendNext(){
+    if (ws){
+      ws->sendFrame(thisPacket.toJSON().toString());
+      return;
+    }
     if (!jsonp.size()){
       if(!first) {
         myConn.SendNow(", ", 2);
@@ -63,6 +79,19 @@ namespace Mist {
       selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
     }
     
+    if (H.GetHeader("Upgrade") == "websocket"){
+      ws = new HTTP::Websocket(myConn, H);
+      if (!(*ws)){
+        delete ws;
+        ws = 0;
+        return;
+      }
+      sentHeader = true;
+      parseData = true;
+      wantRequest = false;
+      return;
+    }
+
     H.Clean();
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){

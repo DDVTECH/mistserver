@@ -232,13 +232,18 @@ namespace Mist {
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
       if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
-      initialize();
-      selectDefaultTracks();
+      preHTTP();
       onHTTP();
       if (!H.bufferChunks){
         H.Clean();
       }
     }
+  }
+
+  /// Default implementation of preHTTP simply calls initialize and selectDefaultTracks.
+  void HTTPOutput::preHTTP(){
+    initialize();
+    selectDefaultTracks();
   }
   
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){

@@ -8,6 +8,7 @@
 #include "procs.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iostream>
+#include <iomanip>
 #include <stdio.h>
 #include <sys/stat.h> // stat
 #if defined(_WIN32)
@@ -23,7 +24,8 @@
 #define RAXHDR_DELETED *(uint64_t *)(p + 14)
 #define RAXHDR_PRESENT *(uint32_t *)(p + 22)
 #define RAXHDR_OFFSET *(uint16_t *)(p + 26)
-#define RAX_REQDFIELDS_LEN 28
+#define RAXHDR_ENDPOS *(uint64_t*)(p + 28)
+#define RAX_REQDFIELDS_LEN 36
 
 namespace Util{
   /// Helper function that cross-platform checks if a given directory exists.
@@ -155,6 +157,7 @@ namespace Util{
   /// 64-bits version of fseek
   uint64_t fseek(FILE *stream, uint64_t offset, int whence){
     /// \TODO Windows implementation (e.g. _fseeki64 ?)
+    clearerr(stream);
     return fseeko(stream, offset, whence);
   }
 
@@ -171,14 +174,14 @@ namespace Util{
     maxSize = 0;
   }
 
-  bool ResizeablePointer::assign(void * p, uint32_t l){
+  bool ResizeablePointer::assign(const void * p, uint32_t l){
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);
     currSize = l;
     return true;
   }
 
-  bool ResizeablePointer::append(void * p, uint32_t l){
+  bool ResizeablePointer::append(const void * p, uint32_t l){
     if (!allocate(l+currSize)){return false;}
     memcpy(((char*)ptr)+currSize, p, l);
     currSize += l;
@@ -189,7 +192,7 @@ namespace Util{
     if (l > maxSize){
       void *tmp = realloc(ptr, l);
       if (!tmp){
-        FAIL_MSG("Could not allocate %lu bytes of memory", l);
+        FAIL_MSG("Could not allocate %" PRIu32 " bytes of memory", l);
         return false;
       }
       ptr = tmp;
@@ -319,7 +322,7 @@ namespace Util{
         if (lineno && strlen(lineno)){
           dprintf(out, " (%s) ", lineno);
         }
-        dprintf(out, "\n", lineno);
+        dprintf(out, "\n");
       }else{
         //could not be parsed as log string - print the whole thing
         dprintf(out, "%s\n", buf);
@@ -329,8 +332,27 @@ namespace Util{
     close(in);
   }
 
+  FieldAccX::FieldAccX(RelAccX * _src, RelAccXFieldData _field, char * _data) : src(_src), field(_field), data(_data) {}
+
+  uint64_t FieldAccX::uint(size_t recordNo) const {
+    return src->getInt(field, recordNo);
+  }
+
+  std::string FieldAccX::string(size_t recordNo) const {
+    return std::string(src->getPointer(field, recordNo), field.size) ;
+  }
+
+  void FieldAccX::set(uint64_t val, size_t recordNo){
+    src->setInt(field, val, recordNo);
+  }
+
+  void FieldAccX::set(const std::string & val, size_t recordNo){
+    char * place = src->getPointer(field, recordNo);
+    memcpy(place, val.data(), std::min((size_t)field.size, val.size()));
+  }
+
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.
-  RelAccX::RelAccX(char *data, bool waitReady){
+  RelAccX::RelAccX(char * data, bool waitReady){
     if (!data){
       p = 0;
       return;
@@ -346,7 +368,7 @@ namespace Util{
         p = 0;
         return;
       }
-      uint32_t dataOffset = 0;
+      uint64_t dataOffset = 0;
       while (offset < getOffset()){
         const uint8_t sizeByte = p[offset];
         const uint8_t nameLen = sizeByte >> 3;
@@ -376,8 +398,7 @@ namespace Util{
         default: WARN_MSG("Unhandled field data size!"); break;
         }
         fields[fieldName] = RelAccXFieldData(fieldType, size, dataOffset);
-        DONTEVEN_MSG("Field %s: type %u, size %lu, offset %lu", fieldName.c_str(), fieldType, size,
-                     dataOffset);
+        DONTEVEN_MSG("Field %s: type %u, size %" PRIu32 ", offset %" PRIu64, fieldName.c_str(), fieldType, size, dataOffset);
         dataOffset += size;
         offset += nameLen + typeLen + 1;
       }
@@ -390,17 +411,14 @@ namespace Util{
   /// Gets the size in bytes of a single record in the structure.
   uint32_t RelAccX::getRSize() const{return RAXHDR_RECORDSIZE;}
 
-  /// Gets the position in the records where the entries start
-  uint32_t RelAccX::getStartPos() const{return RAXHDR_STARTPOS;}
-
   /// Gets the number of deleted records
   uint64_t RelAccX::getDeleted() const{return RAXHDR_DELETED;}
 
-  /// Gets the number of records present
-  /// Defaults to the record count if set to zero.
-  uint32_t RelAccX::getPresent() const{
-    return (RAXHDR_PRESENT ? RAXHDR_PRESENT : RAXHDR_RECORDCNT);
-  }
+  /// Gets the number of the last valid index
+  uint64_t RelAccX::getEndPos() const{return RAXHDR_ENDPOS;}
+
+  ///Gets the number of fields per recrd 
+  uint32_t RelAccX::getFieldCount() const{return fields.size();}
 
   /// Gets the offset from the structure start where records begin.
   uint16_t RelAccX::getOffset() const{return *(uint16_t *)(p + 26);}
@@ -419,7 +437,7 @@ namespace Util{
     // Check if the record has been deleted
     if (getDeleted() > recordNo){return false;}
     // Check if the record hasn't been created yet
-    if (recordNo - getDeleted() >= getPresent()){return false;}
+    if (recordNo >= getEndPos()){return false;}
     return true;
   }
 
@@ -455,7 +473,10 @@ namespace Util{
   /// Returns a null pointer if the field does not exist.
   char *RelAccX::getPointer(const std::string &name, uint64_t recordNo) const{
     if (!fields.count(name)){return 0;}
-    const RelAccXFieldData &fd = fields.at(name);
+    return getPointer(fields.at(name), recordNo);
+  }
+
+  char * RelAccX::getPointer(const RelAccXFieldData & fd, uint64_t recordNo) const{
     return RECORD_POINTER;
   }
 
@@ -463,9 +484,12 @@ namespace Util{
   /// Returns 0 if the field does not exist or is not an integer type.
   uint64_t RelAccX::getInt(const std::string &name, uint64_t recordNo) const{
     if (!fields.count(name)){return 0;}
-    const RelAccXFieldData &fd = fields.at(name);
-    char *ptr = RECORD_POINTER;
-    if ((fd.type & 0xF0) == RAX_UINT){// unsigned int
+    return getInt(fields.at(name), recordNo);
+  }
+
+  uint64_t RelAccX::getInt(const RelAccXFieldData & fd, uint64_t recordNo) const{
+    char * ptr = RECORD_POINTER;
+    if ((fd.type & 0xF0) == RAX_UINT){//unsigned int
       switch (fd.size){
       case 1: return *(uint8_t *)ptr;
       case 2: return *(uint16_t *)ptr;
@@ -488,28 +512,82 @@ namespace Util{
     return 0; // Not an integer type, or not implemented
   }
 
-  std::string RelAccX::toPrettyString() const{
+
+  std::string RelAccX::toPrettyString(size_t indent) const{
     std::stringstream r;
     uint64_t delled = getDeleted();
-    uint64_t max = delled + getRCount();
-    r << "RelAccX: " << getRCount() << " x " << getRSize() << "b @" << getOffset() << " (#"
-      << getDeleted() << " - #" << (getDeleted() + getPresent() - 1) << ")" << std::endl;
+    uint64_t max = getEndPos();
+    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @" << getOffset() << " (#" << getDeleted() << " - #" << getEndPos()-1 << ")" << std::endl;
     for (uint64_t i = delled; i < max; ++i){
-      r << "  #" << i << ":" << std::endl;
-      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
-           it != fields.end(); ++it){
-        r << "    " << it->first << ": ";
+      r << std::string(indent + 2, ' ') << "#" << i << ":" << std::endl;
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin(); it != fields.end(); ++it){
+        r << std::string(indent + 4, ' ') << it->first << ": ";
         switch (it->second.type & 0xF0){
-        case RAX_INT: r << (int64_t)getInt(it->first, i) << std::endl; break;
-        case RAX_UINT: r << getInt(it->first, i) << std::endl; break;
-        case RAX_STRING: r << getPointer(it->first, i) << std::endl; break;
-        default: r << "[UNIMPLEMENTED]" << std::endl; break;
+          case RAX_INT: r << (int64_t)getInt(it->first, i) << std::endl; break;
+          case RAX_UINT: r << getInt(it->first, i) << std::endl; break;
+          case RAX_STRING: r << getPointer(it->first, i) << std::endl; break;
+          case 0: {  //RAX_NESTED
+            RelAccX n(getPointer(it->first, i), false);
+            if (n.isReady()){
+              r << "Nested RelAccX:" << std::endl;
+              r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 6) : n.toCompactString(indent + 6));
+            }else{
+              r << "Nested RelAccX: not ready" << std::endl;
+            }
+            break;
+          }
+          case RAX_RAW: {
+            char * ptr = getPointer(it->first, i);
+            size_t sz = getSize(it->first, i);
+            size_t zeroCount = 0;
+            for (size_t j = 0; j < sz && j < 100 && zeroCount < 10; ++j){
+              r << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
+              if (ptr[j] == 0x00){
+                zeroCount++;
+              }else{
+                zeroCount = 0;
+              }
+            }
+            r << std::endl;
+            break;
+          }
+          default: r << "[UNIMPLEMENTED]" << std::endl; break;
         }
       }
     }
     return r.str();
   }
 
+  std::string RelAccX::toCompactString(size_t indent) const{
+    std::stringstream r;
+    uint64_t delled = getDeleted();
+    uint64_t max = getEndPos(); 
+    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @" << getOffset() << " (#" << getDeleted() << " - #" << getEndPos()-1 << ")" << std::endl;
+    for (uint64_t i = delled; i < max; ++i){
+      r << std::string(indent + 2, ' ') << "#" << i << ": ";
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin(); it != fields.end(); ++it){
+        r << it->first << ": ";
+        switch (it->second.type & 0xF0){
+          case RAX_INT: r << (int64_t)getInt(it->first, i) << ", "; break;
+          case RAX_UINT: r << getInt(it->first, i) << ", "; break;
+          case RAX_STRING: r << getPointer(it->first, i) << ", "; break;
+          case 0: {  //RAX_NESTED
+            RelAccX n(getPointer(it->first, i), false);
+            if (n.isReady()){
+              r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 2) : n.toCompactString(indent + 2));
+            }else{
+              r << "Nested RelAccX not ready" << std::endl;
+            }
+            break;
+          }
+          default: r << "[UNIMPLEMENTED], "; break;
+        }
+      }
+      r << std::endl;
+    }
+    return r.str();
+  }
+  
   /// Returns the default size in bytes of the data component of a field type number.
   /// Returns zero if not implemented, unknown or the type has no default.
   uint32_t RelAccX::getDefaultSize(uint8_t fType){
@@ -532,8 +610,7 @@ namespace Util{
       return;
     }
     if (!name.size() || name.size() > 31){
-      WARN_MSG("Attempting to add a field with illegal name: %s (%u chars)", name.c_str(),
-               name.size());
+      WARN_MSG("Attempting to add a field with illegal name: %s (%zu chars)", name.c_str(), name.size());
       return;
     }
     // calculate fLen if missing
@@ -582,15 +659,11 @@ namespace Util{
   /// Sets the record counter to the given value.
   void RelAccX::setRCount(uint32_t count){RAXHDR_RECORDCNT = count;}
 
-  /// Sets the position in the records where the entries start
-  void RelAccX::setStartPos(uint32_t n){RAXHDR_STARTPOS = n;}
-
   /// Sets the number of deleted records
   void RelAccX::setDeleted(uint64_t n){RAXHDR_DELETED = n;}
 
-  /// Sets the number of records present
-  /// Defaults to the record count if set to zero.
-  void RelAccX::setPresent(uint32_t n){RAXHDR_PRESENT = n;}
+  /// Sets the number of the last valid index
+  void RelAccX::setEndPos(uint64_t n){RAXHDR_ENDPOS = n;}
 
   /// Sets the ready flag.
   /// After calling this function, addField() may no longer be called.
@@ -636,9 +709,12 @@ namespace Util{
       WARN_MSG("Setting non-existent integer %s", name.c_str());
       return;
     }
-    const RelAccXFieldData &fd = fields.at(name);
-    char *ptr = RECORD_POINTER;
-    if ((fd.type & 0xF0) == RAX_UINT){// unsigned int
+    return setInt(fields.at(name), val, recordNo);
+  }
+  
+  void RelAccX::setInt(const RelAccXFieldData & fd, uint64_t val, uint64_t recordNo){
+    char * ptr = RECORD_POINTER;
+    if ((fd.type & 0xF0) == RAX_UINT){//unsigned int
       switch (fd.size){
       case 1: *(uint8_t *)ptr = val; return;
       case 2: *(uint16_t *)ptr = val; return;
@@ -658,38 +734,34 @@ namespace Util{
       default: WARN_MSG("Unimplemented integer size %u", fd.size); return;
       }
     }
-    WARN_MSG("Setting non-integer %s", name.c_str());
+    WARN_MSG("Setting non-integer field (%u) to integer value!", fd.type);
+  }
+
+  void RelAccX::setInts(const std::string & name, uint64_t * values, size_t len){
+    if (!fields.count(name)){
+      WARN_MSG("Setting non-existent integer %s", name.c_str());
+      return;
+    }
+    const RelAccXFieldData & fd = fields.at(name); 
+    for (uint64_t recordNo = 0; recordNo < len; recordNo++){
+      setInt(fd, values[recordNo], recordNo);
+    }
   }
 
   /// Updates the deleted record counter, the start position and the present record counter,
   /// shifting the ring buffer start position forward without moving the ring buffer end position.
-  /// If the records present counter would be pushed into the negative by this function, sets it to
-  /// zero, defaulting it to the record count for all relevant purposes.
   void RelAccX::deleteRecords(uint32_t amount){
-    uint32_t &startPos = RAXHDR_STARTPOS;
-    uint64_t &deletedRecs = RAXHDR_DELETED;
-    uint32_t &recsPresent = RAXHDR_PRESENT;
-    startPos += amount;    // update start position
-    deletedRecs += amount; // update deleted record counter
-    if (recsPresent >= amount){
-      recsPresent -= amount; // decrease records present
-    }else{
-      recsPresent = 0;
-    }
+    RAXHDR_DELETED += amount; // update deleted record counter
   }
 
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
-  /// If the records present counter would be pushed past the record counter by this function, sets
-  /// it to zero, defaulting it to the record count for all relevant purposes.
   void RelAccX::addRecords(uint32_t amount){
-    uint32_t &recsPresent = RAXHDR_PRESENT;
-    uint32_t &recordsCount = RAXHDR_RECORDCNT;
-    if (recsPresent + amount > recordsCount){
-      recsPresent = 0;
-    }else{
-      recsPresent += amount;
-    }
+    RAXHDR_ENDPOS += amount;
+  }
+
+  FieldAccX RelAccX::getFieldAccX(const std::string & fName){
+    return FieldAccX(this, fields.at(fName), p + getOffset());
   }
 }
 

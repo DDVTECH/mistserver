@@ -75,6 +75,7 @@ namespace Mist {
         return false;
       }
       void reconnect();
+      void disconnect();
       virtual void initialize();
       virtual void sendHeader();
       virtual void onFail();

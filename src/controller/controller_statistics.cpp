@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <list>
 #include <mist/config.h>
+#include <mist/stream.h>
 #include "controller_statistics.h"
 #include "controller_storage.h"
 
@@ -28,6 +29,20 @@
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
 tthread::mutex Controller::statsMutex;
+
+//For server-wide totals. Local to this file only.
+struct streamTotals {
+  unsigned long long upBytes;
+  unsigned long long downBytes;
+  unsigned long long inputs;
+  unsigned long long outputs;
+  unsigned long long viewers;
+  unsigned long long currIns;
+  unsigned long long currOuts;
+  unsigned long long currViews;
+  uint8_t status;
+};
+static std::map<std::string, struct streamTotals> streamStats;
 
 Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
   host = dhost;
@@ -92,6 +107,8 @@ void Controller::SharedMemStats(void * config){
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
   statPointer = &statServer;
   std::set<std::string> inactiveStreams;
+  Controller::initState();
+  bool shiftWrites = true;
   while(((Util::Config*)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
@@ -113,6 +130,50 @@ void Controller::SharedMemStats(void * config){
           mustWipe.pop_front();
         }
       }
+      Util::RelAccX * strmStats = streamsAccessor();
+      if (!strmStats || !strmStats->isReady()){strmStats = 0;}
+      uint64_t strmPos = 0;
+      if (strmStats){
+        if (shiftWrites || (strmStats->getEndPos() - strmStats->getDeleted() != streamStats.size())){
+          shiftWrites = true;
+          strmPos = strmStats->getEndPos();
+        }else{
+          strmPos = strmStats->getDeleted();
+        }
+      }
+      if (streamStats.size()){
+        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+          uint8_t newState = Util::getStreamStatus(it->first);
+          uint8_t oldState = it->second.status;
+          if (newState != oldState){
+            it->second.status = newState;
+          }
+          if (newState == STRMSTAT_OFF){
+            inactiveStreams.insert(it->first);
+          }
+          if (strmStats){
+            if (shiftWrites){
+              strmStats->setString("stream", it->first, strmPos);
+            }
+            strmStats->setInt("status", it->second.status, strmPos);
+            strmStats->setInt("viewers", it->second.currViews, strmPos);
+            strmStats->setInt("inputs", it->second.currIns, strmPos);
+            strmStats->setInt("outputs", it->second.currOuts, strmPos);
+            ++strmPos;
+          }
+        }
+      }
+      if (strmStats && shiftWrites){
+        shiftWrites = false;
+        uint64_t prevEnd = strmStats->getEndPos();
+        strmStats->setEndPos(strmPos);
+        strmStats->setDeleted(prevEnd);
+      }
+      while (inactiveStreams.size()){
+        streamStats.erase(*inactiveStreams.begin());
+        inactiveStreams.erase(inactiveStreams.begin());
+        shiftWrites = true;
+      }
     }
     Util::wait(1000);
   }
@@ -121,18 +182,89 @@ void Controller::SharedMemStats(void * config){
   if (Controller::restarting){
     statServer.abandon();
   }
+  Controller::deinitState(Controller::restarting);
+}
+
+/// Gets a complete list of all streams currently in active state, with optional prefix matching
+std::set<std::string> Controller::getActiveStreams(const std::string & prefix){
+  std::set<std::string> ret;
+  Util::RelAccX * strmStats = streamsAccessor();
+  if (!strmStats || !strmStats->isReady()){return ret;}
+  uint64_t endPos = strmStats->getEndPos();
+  if (prefix.size()){
+    for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
+      if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
+      const char * S = strmStats->getPointer("stream", i);
+      if (!strncmp(S, prefix.data(), prefix.size())){
+        ret.insert(S);
+      }
+    }
+  }else{
+    for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
+      if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
+      ret.insert(strmStats->getPointer("stream", i));
+    }
+  }
+  return ret;
 }
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
+  long long prevDown = getDown();
+  long long prevUp = getUp();
   curConns[index].update(data);
+  //store timestamp of first received data, if older
+  if (firstSec > data.now()){
+    firstSec = data.now();
+  }
   //store timestamp of last received data, if newer
   if (data.now() > lastSec){
     lastSec = data.now();
   }
-  //store timestamp of first received data, if older
-  if (firstSec > data.now()){
-    firstSec = data.now();
+  long long currDown = getDown();
+  long long currUp = getUp();
+  if (currUp - prevUp < 0 || currDown-prevDown < 0){
+    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
+  }
+  if (currDown + currUp > COUNTABLE_BYTES){
+    std::string streamName = data.streamName();
+    if (prevUp + prevDown < COUNTABLE_BYTES){
+      if (data.connector() == "INPUT"){
+        streamStats[streamName].inputs++;
+        streamStats[streamName].currIns++;
+        sessionType = SESS_INPUT;
+      }else if (data.connector() == "OUTPUT"){
+        streamStats[streamName].outputs++;
+        streamStats[streamName].currOuts++;
+        sessionType = SESS_OUTPUT;
+      }else{
+        streamStats[streamName].viewers++;
+        streamStats[streamName].currViews++;
+        sessionType = SESS_VIEWER;
+      }
+      if (!streamName.size() || streamName[0] == 0){
+        if (streamStats.count(streamName)){streamStats.erase(streamName);}
+      }else{
+        streamStats[streamName].upBytes += currUp;
+        streamStats[streamName].downBytes += currDown;
+      }
+    }else{
+      if (!streamName.size() || streamName[0] == 0){
+        if (streamStats.count(streamName)){streamStats.erase(streamName);}
+      }else{
+        streamStats[streamName].upBytes += currUp - prevUp;
+        streamStats[streamName].downBytes += currDown - prevDown;
+      }
+      if (sessionType == SESS_UNSET){
+        if (data.connector() == "INPUT"){
+          sessionType = SESS_INPUT;
+        }else if (data.connector() == "OUTPUT"){
+          sessionType = SESS_OUTPUT;
+        }else{
+          sessionType = SESS_VIEWER;
+        }
+      }
+    }
   }
 }
 
@@ -171,6 +303,25 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
   }
 }
 
+void Controller::statSession::ping(const Controller::sessIndex & index, unsigned long long disconnectPoint){
+  if (lastSec < disconnectPoint){
+    switch (sessionType){
+      case SESS_INPUT:
+        streamStats[index.streamName].currIns--;
+        break;
+      case SESS_OUTPUT:
+        streamStats[index.streamName].currOuts--;
+        break;
+      case SESS_VIEWER:
+        streamStats[index.streamName].currViews--;
+        break;
+    }
+    uint64_t duration = lastSec - firstSec;
+    if (duration < 1){duration = 1;}
+    Controller::logAccess("", index.streamName, index.connector, index.host, duration, getUp(), getDown(), "");
+  }
+}
+
 /// Archives the given connection.
 void Controller::statSession::finish(unsigned long index){
   oldConns.push_back(curConns[index]);
@@ -181,6 +332,7 @@ void Controller::statSession::finish(unsigned long index){
 Controller::statSession::statSession(){
   firstSec = 0xFFFFFFFFFFFFFFFFull;
   lastSec = 0;
+  sessionType = SESS_UNSET;
 }
 
 /// Moves the given connection to the given session
@@ -345,6 +497,32 @@ long long Controller::statSession::getUp(unsigned long long t){
     for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         retVal += it->second.getDataFor(t).up;
+      }
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative downloaded bytes for this session at timestamp t.
+long long Controller::statSession::getDown(){
+  long long retVal = 0;
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){
+        retVal += it->second.log.rbegin()->second.down;
+      }
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+long long Controller::statSession::getUp(){
+  long long retVal = 0;
+  if (curConns.size()){
+    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){
+        retVal += it->second.log.rbegin()->second.up;
       }
     }
   }

@@ -135,6 +135,9 @@ static inline void show_stackframe(){}
 #define SEM_INPUT "/MstInpt%s" //%s stream name
 #define SEM_CONF "/MstConfLock"
 #define SHM_CONF "MstConf"
+#define SHM_STATE_LOGS "MstStateLogs"
+#define SHM_STATE_ACCS "MstStateAccs"
+#define SHM_STATE_STREAMS "MstStateStreams"
 #define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
 
 #define SIMUL_TRACKS 20

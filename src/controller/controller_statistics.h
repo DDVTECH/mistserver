@@ -19,6 +19,13 @@ namespace Controller {
     long long up;
   };
 
+  enum sessType {
+    SESS_UNSET = 0,
+    SESS_INPUT,
+    SESS_OUTPUT,
+    SESS_VIEWER
+  };
+
   /// This is a comparison and storage class that keeps sessions apart from each other.
   /// Whenever two of these objects are not equal, it will create a new session.
   class sessIndex {
@@ -60,13 +67,15 @@ namespace Controller {
       unsigned long long firstSec;
       unsigned long long lastSec;
       std::deque<statStorage> oldConns;
-      std::map<unsigned long, statStorage> curConns;
+      sessType sessionType;
     public:
       statSession();
+      std::map<unsigned long, statStorage> curConns;
       void wipeOld(unsigned long long);
       void finish(unsigned long index);
       void switchOverTo(statSession & newSess, unsigned long index);
       void update(unsigned long index, IPC::statExchange & data);
+      void ping(const sessIndex & index, unsigned long long disconnectPoint);
       unsigned long long getStart();
       unsigned long long getEnd();
       bool hasDataFor(unsigned long long time);
@@ -74,6 +83,8 @@ namespace Controller {
       long long getConnTime(unsigned long long time);
       long long getLastSecond(unsigned long long time);
       long long getDown(unsigned long long time);
+      long long getUp();
+      long long getDown();
       long long getUp(unsigned long long time);
       long long getBpsDown(unsigned long long time);
       long long getBpsUp(unsigned long long time);
@@ -85,6 +96,8 @@ namespace Controller {
   extern std::map<sessIndex, statSession> sessions;
   extern std::map<unsigned long, sessIndex> connToSession;
   extern tthread::mutex statsMutex;
+
+  std::set<std::string> getActiveStreams(const std::string & prefix = "");
   void parseStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
   void fillTotals(JSON::Value & req, JSON::Value & rep);

@@ -224,44 +224,18 @@ namespace Mist {
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());
-      initialize();
-      if (H.GetVar("audio") != "" || H.GetVar("video") != ""){
-        selectedTracks.clear();
-        if (H.GetVar("audio") != ""){
-          selectedTracks.insert(JSON::Value(H.GetVar("audio")).asInt());
-        }
-        if (H.GetVar("video") != ""){
-          selectedTracks.insert(JSON::Value(H.GetVar("video")).asInt());
-        }
-        selectDefaultTracks();
-        std::set<unsigned long> toRemove;
-        if (H.GetVar("video") == "0"){
-          for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-            if (myMeta.tracks.at(*it).type=="video"){
-              toRemove.insert(*it);
-            }
-          }
-        }
-        if (H.GetVar("audio") == "0"){
-          for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-            if (myMeta.tracks.at(*it).type=="audio"){
-              toRemove.insert(*it);
-            }
-          }
-        }
-        //remove those from selectedtracks
-        for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
-          selectedTracks.erase(*it);
-        }
-      }else{
-        selectDefaultTracks();
-      }
-
+      preHTTP();
       onHTTP();
       if (!H.bufferChunks){
         H.Clean();
       }
     }
+  }
+
+  /// Default implementation of preHTTP simply calls initialize and selectDefaultTracks.
+  void HTTPOutput::preHTTP(){
+    initialize();
+    selectDefaultTracks();
   }
   
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){

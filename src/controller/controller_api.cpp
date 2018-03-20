@@ -145,6 +145,19 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
         }
       }
+      //Catch prometheus requests
+      if (Controller::prometheus.size()){
+        if (H.url == "/"+Controller::prometheus){
+          handlePrometheus(H, conn, PROMETHEUS_TEXT);
+          H.Clean();
+          continue;
+        }
+        if (H.url == "/"+Controller::prometheus+".json"){
+          handlePrometheus(H, conn, PROMETHEUS_JSON);
+          H.Clean();
+          continue;
+        }
+      }
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
       //invalid request? send the web interface, unless requested as "/api"

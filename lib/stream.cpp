@@ -138,8 +138,15 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //Note: this uses the _whole_ stream name, including + (if any).
   //This means "test+a" and "test+b" have separate locks and do not interact with each other.
   if (streamAlive(streamname)){
-    DEBUG_MSG(DLVL_MEDIUM, "Stream %s already active; continuing", streamname.c_str());
-    return true;
+    uint8_t streamStat = getStreamStatus(streamname);
+    while (streamStat == STRMSTAT_SHUTDOWN){
+      Util::sleep(250);
+      streamStat = getStreamStatus(streamname);
+    }
+    if (streamStat != STRMSTAT_OFF){
+      DEBUG_MSG(DLVL_MEDIUM, "Stream %s already active; continuing", streamname.c_str());
+      return true;
+    }
   }
 
   //Attempt to load up configuration and find this stream

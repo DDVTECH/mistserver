@@ -41,9 +41,39 @@ namespace Controller {
   ///\param name The name of the stream
   ///\param data The corresponding configuration values.
   void checkStream(std::string name, JSON::Value & data){
+    if (!data.isMember("name")){data["name"] = name;}
     std::string prevState = data["error"].asStringRef();
     data["online"] = (std::string)"Checking...";
     data.removeMember("error");
+    switch (Util::getStreamStatus(name)){
+      case STRMSTAT_OFF:
+        //Do nothing
+        break;
+      case STRMSTAT_INIT:
+        data["online"] = 2;
+        data["error"] = "Initializing...";
+        return;
+      case STRMSTAT_BOOT:
+        data["online"] = 2;
+        data["error"] = "Loading...";
+        return;
+      case STRMSTAT_WAIT:
+        data["online"] = 2;
+        data["error"] = "Waiting for data...";
+        return;
+      case STRMSTAT_READY:
+        data["online"] = 1;
+        return;
+      case STRMSTAT_SHUTDOWN:
+        data["online"] = 2;
+        data["error"] = "Shutting down...";
+        return;
+      default:
+        //Unknown state?
+        data["error"] = "Unrecognized stream state";
+        break;
+    }
+    data["online"] = 0;
     std::string URL;
     if (data.isMember("channel") && data["channel"].isMember("URL")){
       URL = data["channel"]["URL"].asString();
@@ -51,76 +81,56 @@ namespace Controller {
     if (data.isMember("source")){
       URL = data["source"].asString();
     }
-    if (URL == ""){
+    if (!URL.size()){
       data["error"] = "Stream offline: Missing source parameter!";
       if (data["error"].asStringRef() != prevState){
         Log("STRM", "Error for stream " + name + "! Source parameter missing.");
       }
       return;
     }
-    if (URL.substr(0, 1) != "/"){
-      //non-file stream
-      //Old style always on
-      if (data.isMember("udpport") && data["udpport"].asStringRef().size() && (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name]))){
-        const std::string & udpPort = data["udpport"].asStringRef();
-        const std::string & multicast = data["multicastinterface"].asStringRef();
-        URL = "tsudp://"+udpPort;
-        if (multicast.size()){
-          URL.append("/"+multicast);
-        }
-        //  False: start TS input
-        INFO_MSG("No TS input for stream %s, starting it: %s", name.c_str(), URL.c_str());
-        std::deque<std::string> command;
-        command.push_back(Util::getMyPath() + "MistInTS");
-        command.push_back("-s");
-        command.push_back(name);
-        command.push_back(URL);
-        int stdIn = 0;
-        int stdOut = 1;
-        int stdErr = 2;
-        pid_t program = Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
-        if (program){
-          inputProcesses[name] = program;
-        }
-        return;
+    //Old style always on
+    if (data.isMember("udpport") && data["udpport"].asStringRef().size() && (!inputProcesses.count(name) || !Util::Procs::isRunning(inputProcesses[name]))){
+      const std::string & udpPort = data["udpport"].asStringRef();
+      const std::string & multicast = data["multicastinterface"].asStringRef();
+      URL = "tsudp://"+udpPort;
+      if (multicast.size()){
+        URL.append("/"+multicast);
       }
-      //new style always on
-      if (data.isMember("always_on") && Util::getStreamStatus(name) == STRMSTAT_OFF){
-        INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
-        Util::startInput(name, URL);
-        return;
+      //  False: start TS input
+      INFO_MSG("No TS input for stream %s, starting it: %s", name.c_str(), URL.c_str());
+      std::deque<std::string> command;
+      command.push_back(Util::getMyPath() + "MistInTS");
+      command.push_back("-s");
+      command.push_back(name);
+      command.push_back(URL);
+      int stdIn = 0;
+      int stdOut = 1;
+      int stdErr = 2;
+      pid_t program = Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+      if (program){
+        inputProcesses[name] = program;
       }
-      //non-automatics simply return
-      return;
     }
-    if (URL.substr(0, 1) == "/"){
-      //vod-style stream
-      data.removeMember("error");
-      struct stat fileinfo;
+    //new style always on
+    if (data.isMember("always_on")){
+      INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
+      Util::startInput(name, URL);
+    }
+    //non-VoD stream
+    if (URL.substr(0, 1) != "/"){return;}
+    //VoD-style stream
+    struct stat fileinfo;
       if (stat(URL.c_str(), &fileinfo) != 0){
-        data["error"] = "Stream offline: Not found: " + URL;
-        if (data["error"].asStringRef() != prevState){
-          Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
-        }
-        data["online"] = 0;
-        return;
+      data["error"] = "Stream offline: Not found: " + URL;
+      if (data["error"].asStringRef() != prevState){
+        Log("BUFF", "Warning for VoD stream " + name + "! File not found: " + URL);
       }
-      if (!hasViewers(name)){
-        if ( !data.isMember("error")){
-          data["error"] = "Available";
-        }
-        data["online"] = 2;
-      }else{
-        data["online"] = 1;
-      }
-      checkServerLimits(); /*LTS*/
       return;
     }
-    //not recognized
-    data["error"] = "Invalid source format";
-    if (data["error"].asStringRef() != prevState){
-      Log("STRM", "Invalid source format for stream " + name + "!");
+    if ( !data.isMember("error")){
+      data["error"] = "Available";
     }
+    data["online"] = 2;
     return;
   }
 
@@ -131,25 +141,6 @@ namespace Controller {
     long long int currTime = Util::epoch();
     jsonForEach(data, jit) {
       checkStream(jit.key(), (*jit));
-      if (!jit->isMember("name")){
-        (*jit)["name"] = jit.key();
-      }
-      if (!hasViewers(jit.key())){
-        if (jit->isMember("source") && (*jit)["source"].asString().substr(0, 1) == "/" && jit->isMember("error")
-            && (*jit)["error"].asString().substr(0,15) != "Stream offline:"){
-          (*jit)["online"] = 2;
-        }else{
-          if (jit->isMember("error") && (*jit)["error"].asString() == "Available"){
-            jit->removeMember("error");
-          }
-          (*jit)["online"] = 0;
-        }
-        checkServerLimits(); /*LTS*/
-      }else{
-        // assume all is fine
-        jit->removeMember("error");
-        (*jit)["online"] = 1;
-      }
     }
 
     //check for changes in config or streams

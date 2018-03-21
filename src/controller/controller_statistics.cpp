@@ -33,6 +33,8 @@
 #define STAT_TOT_CLIENTS 1
 #define STAT_TOT_BPS_DOWN 2
 #define STAT_TOT_BPS_UP 4
+#define STAT_TOT_INPUTS 8
+#define STAT_TOT_OUTPUTS 16
 #define STAT_TOT_ALL 0xFF
 
 #define COUNTABLE_BYTES 128*1024
@@ -1333,60 +1335,29 @@ class totalsData {
   public:
     totalsData(){
       clients = 0;
+      inputs = 0;
+      outputs = 0;
       downbps = 0;
       upbps = 0;
     }
-    void add(unsigned int down, unsigned int up){
+    void add(unsigned int down, unsigned int up, Controller::sessType sT){
+      switch (sT){
+        case Controller::SESS_VIEWER: clients++; break;
+        case Controller::SESS_INPUT: inputs++; break;
+        case Controller::SESS_OUTPUT: outputs++; break;
+      }
       clients++;
       downbps += down;
       upbps += up;
     }
     long long clients;
+    long long inputs;
+    long long outputs;
     long long downbps;
     long long upbps;
 };
 
 /// This takes a "totals" request, and fills in the response data.
-/// 
-/// \api
-/// `"totals"` requests take the form of:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   //array of streamnames to accumulate. Empty means all.
-///   "streams": ["streama", "streamb", "streamc"],
-///   //array of protocols to accumulate. Empty means all.
-///   "protocols": ["HLS", "HSS"],
-///   //list of requested data fields. Empty means all.
-///   "fields": ["clients", "downbps", "upbps"],
-///   //unix timestamp of data start. Negative means X seconds ago. Empty means earliest available.
-///   "start": 1234567
-///   //unix timestamp of data end. Negative means X seconds ago. Empty means latest available (usually 'now').
-///   "end": 1234567
-/// }
-/// ~~~~~~~~~~~~~~~
-/// OR
-/// ~~~~~~~~~~~~~~~{.js}
-/// [
-///   {},//request object as above
-///   {}//repeat the structure as many times as wanted
-/// ]
-/// ~~~~~~~~~~~~~~~
-/// and are responded to as:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   //unix timestamp of start of data. Always present, always absolute.
-///   "start": 1234567,
-///   //unix timestamp of end of data. Always present, always absolute.
-///   "end": 1234567,
-///   //array of actually represented data fields.
-///   "fields": [...]
-///   // Time between datapoints. Here: 10 points with each 5 seconds afterwards, followed by 10 points with each 1 second afterwards.
-///   "interval": [[10, 5], [10, 1]],
-///   //the data for the times as mentioned in the "interval" field, in the order they appear in the "fields" field.
-///   "data": [[x, y, z], [x, y, z], [x, y, z]]
-/// }
-/// ~~~~~~~~~~~~~~~
-/// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   //first, figure out the timestamps wanted
@@ -1415,6 +1386,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   if (req.isMember("fields") && req["fields"].size()){
     jsonForEach(req["fields"], it) {
       if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
+      if ((*it).asStringRef() == "inputs"){fields |= STAT_TOT_INPUTS;}
+      if ((*it).asStringRef() == "outputs"){fields |= STAT_TOT_OUTPUTS;}
       if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
     }
@@ -1438,6 +1411,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   //output the selected fields
   rep["fields"].null();
   if (fields & STAT_TOT_CLIENTS){rep["fields"].append("clients");}
+  if (fields & STAT_TOT_INPUTS){rep["fields"].append("inputs");}
+  if (fields & STAT_TOT_OUTPUTS){rep["fields"].append("outputs");}
   if (fields & STAT_TOT_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
   //start data collection
@@ -1450,7 +1425,7 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
       if ((it->second.getEnd() >= (unsigned long long)reqStart || it->second.getStart() <= (unsigned long long)reqEnd) && (!streams.size() || streams.count(it->first.streamName)) && (!protos.size() || protos.count(it->first.connector))){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
-            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i));
+            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType());
           }
         }
       }
@@ -1475,6 +1450,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   for (std::map<long long unsigned int, totalsData>::iterator it = totalsCount.begin(); it != totalsCount.end(); it++){
     JSON::Value d;
     if (fields & STAT_TOT_CLIENTS){d.append(it->second.clients);}
+    if (fields & STAT_TOT_INPUTS){d.append(it->second.inputs);}
+    if (fields & STAT_TOT_OUTPUTS){d.append(it->second.outputs);}
     if (fields & STAT_TOT_BPS_DOWN){d.append(it->second.downbps);}
     if (fields & STAT_TOT_BPS_UP){d.append(it->second.upbps);}
     rep["data"].append(d);

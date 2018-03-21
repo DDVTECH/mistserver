@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <list>
 #include <mist/config.h>
+#include <mist/shared_memory.h>
+#include <mist/dtsc.h>
 #include <mist/stream.h>
 #include "controller_statistics.h"
 #include "controller_storage.h"
@@ -21,6 +23,8 @@
 #define STAT_TOT_CLIENTS 1
 #define STAT_TOT_BPS_DOWN 2
 #define STAT_TOT_BPS_UP 4
+#define STAT_TOT_INPUTS 8
+#define STAT_TOT_OUTPUTS 16
 #define STAT_TOT_ALL 0xFF
 
 #define COUNTABLE_BYTES 128*1024
@@ -268,6 +272,10 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   }
 }
 
+Controller::sessType Controller::statSession::getSessType(){
+  return sessionType;
+}
+
 /// Archives the given connection.
 void Controller::statSession::wipeOld(unsigned long long cutOff){
   if (firstSec > cutOff){
@@ -422,6 +430,11 @@ bool Controller::statSession::hasData(){
     }
   }
   return false;
+}
+
+/// Returns true if this session should count as a viewer on the given timestamp.
+bool Controller::statSession::isViewerOn(unsigned long long t){
+  return getUp(t) + getDown(t) > COUNTABLE_BYTES;
 }
 
 /// Returns the cumulative connected time for this session at timestamp t.
@@ -777,64 +790,137 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //all done! return is by reference, so no need to return anything here.
 }
 
+/// This takes a "active_streams" request, and fills in the response data.
+/// 
+/// \api
+/// `"active_streams"` and `"stats_streams"` requests may either be empty, in which case the response looks like this:
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   //Array of stream names
+///   "streamA",
+///   "streamB",
+///   "streamC"
+/// ]
+/// ~~~~~~~~~~~~~~~
+/// `"stats_streams"` will list all streams that any statistics data is available for, and only those. `"active_streams"` only lists streams that are currently active, and only those.
+/// If the request is an array, which may contain any of the following elements:
+/// ~~~~~~~~~~~~~~~{.js}
+/// [
+///   //Array of requested data types
+///   "clients", //Current viewer count
+///   "lastms" //Current position in the live buffer, if live
+/// ]
+/// ~~~~~~~~~~~~~~~
+/// In which case the response is changed into this format:
+/// ~~~~~~~~~~~~~~~{.js}
+/// {
+///   //Object of stream names, containing arrays in the same order as the request, with the same data
+///   "streamA":[
+///     0,
+///     60000
+///   ]
+///   "streamB":[
+///      //....
+///   ]
+///   //...
+/// }
+/// ~~~~~~~~~~~~~~~
+/// All streams that any statistics data is available for are listed, and only those streams.
+void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
+  //collect the data first
+  std::set<std::string> streams;
+  std::map<std::string, unsigned long> clients;
+  unsigned int tOut = Util::epoch() - STATS_DELAY;
+  unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
+  //check all sessions
+  {
+    tthread::lock_guard<tthread::mutex> guard(statsMutex);
+    if (sessions.size()){
+      for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+        if (it->second.getSessType() == SESS_INPUT){
+          if (!onlyNow || (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn))){
+            streams.insert(it->first.streamName);
+          }
+        }else{
+          if (!onlyNow || (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut))){
+            streams.insert(it->first.streamName);
+            if (it->second.getSessType() == SESS_VIEWER){
+              clients[it->first.streamName]++;
+            }
+          }
+        }
+      }
+    }
+  }
+  //Good, now output what we found...
+  rep.null();
+  for (std::set<std::string>::iterator it = streams.begin(); it != streams.end(); it++){
+    if (req.isArray()){
+      rep[*it].null();
+      jsonForEach(req, j){
+        if (j->asStringRef() == "clients"){
+          rep[*it].append((long long)clients[*it]);
+        }
+        if (j->asStringRef() == "lastms"){
+          char pageId[NAME_BUFFER_SIZE];
+          IPC::sharedPage streamIndex;
+          snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, it->c_str());
+          streamIndex.init(pageId, DEFAULT_STRM_PAGE_SIZE, false, false);
+          if (streamIndex.mapped){
+            static char liveSemName[NAME_BUFFER_SIZE];
+            snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, it->c_str());
+            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
+            metaLocker.wait();
+            DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
+            long long lms = 0;
+            DTSC::Scan trcks = strm.getMember("tracks");
+            unsigned int trcks_ctr = trcks.getSize();
+            for (unsigned int i = 0; i < trcks_ctr; ++i){
+              if (trcks.getIndice(i).getMember("lastms").asInt() > lms){
+                lms = trcks.getIndice(i).getMember("lastms").asInt();
+              }
+            }
+            rep[*it].append(lms);
+            metaLocker.post();
+          }else{
+            rep[*it].append(-1ll);
+          }
+        }
+      }
+    }else{
+      rep.append(*it);
+    }
+  }
+  //all done! return is by reference, so no need to return anything here.
+}
+
 class totalsData {
   public:
     totalsData(){
       clients = 0;
+      inputs = 0;
+      outputs = 0;
       downbps = 0;
       upbps = 0;
     }
-    void add(unsigned int down, unsigned int up){
+    void add(unsigned int down, unsigned int up, Controller::sessType sT){
+      switch (sT){
+        case Controller::SESS_VIEWER: clients++; break;
+        case Controller::SESS_INPUT: inputs++; break;
+        case Controller::SESS_OUTPUT: outputs++; break;
+      }
       clients++;
       downbps += down;
       upbps += up;
     }
     long long clients;
+    long long inputs;
+    long long outputs;
     long long downbps;
     long long upbps;
 };
 
 /// This takes a "totals" request, and fills in the response data.
-/// 
-/// \api
-/// `"totals"` requests take the form of:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   //array of streamnames to accumulate. Empty means all.
-///   "streams": ["streama", "streamb", "streamc"],
-///   //array of protocols to accumulate. Empty means all.
-///   "protocols": ["HLS", "HSS"],
-///   //list of requested data fields. Empty means all.
-///   "fields": ["clients", "downbps", "upbps"],
-///   //unix timestamp of data start. Negative means X seconds ago. Empty means earliest available.
-///   "start": 1234567
-///   //unix timestamp of data end. Negative means X seconds ago. Empty means latest available (usually 'now').
-///   "end": 1234567
-/// }
-/// ~~~~~~~~~~~~~~~
-/// OR
-/// ~~~~~~~~~~~~~~~{.js}
-/// [
-///   {},//request object as above
-///   {}//repeat the structure as many times as wanted
-/// ]
-/// ~~~~~~~~~~~~~~~
-/// and are responded to as:
-/// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   //unix timestamp of start of data. Always present, always absolute.
-///   "start": 1234567,
-///   //unix timestamp of end of data. Always present, always absolute.
-///   "end": 1234567,
-///   //array of actually represented data fields.
-///   "fields": [...]
-///   // Time between datapoints. Here: 10 points with each 5 seconds afterwards, followed by 10 points with each 1 second afterwards.
-///   "interval": [[10, 5], [10, 1]],
-///   //the data for the times as mentioned in the "interval" field, in the order they appear in the "fields" field.
-///   "data": [[x, y, z], [x, y, z], [x, y, z]]
-/// }
-/// ~~~~~~~~~~~~~~~
-/// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   //first, figure out the timestamps wanted
@@ -863,6 +949,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   if (req.isMember("fields") && req["fields"].size()){
     jsonForEach(req["fields"], it) {
       if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
+      if ((*it).asStringRef() == "inputs"){fields |= STAT_TOT_INPUTS;}
+      if ((*it).asStringRef() == "outputs"){fields |= STAT_TOT_OUTPUTS;}
       if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
     }
@@ -886,6 +974,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   //output the selected fields
   rep["fields"].null();
   if (fields & STAT_TOT_CLIENTS){rep["fields"].append("clients");}
+  if (fields & STAT_TOT_INPUTS){rep["fields"].append("inputs");}
+  if (fields & STAT_TOT_OUTPUTS){rep["fields"].append("outputs");}
   if (fields & STAT_TOT_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
   //start data collection
@@ -898,7 +988,7 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
       if ((it->second.getEnd() >= (unsigned long long)reqStart || it->second.getStart() <= (unsigned long long)reqEnd) && (!streams.size() || streams.count(it->first.streamName)) && (!protos.size() || protos.count(it->first.connector))){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
-            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i));
+            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType());
           }
         }
       }
@@ -923,6 +1013,8 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   for (std::map<long long unsigned int, totalsData>::iterator it = totalsCount.begin(); it != totalsCount.end(); it++){
     JSON::Value d;
     if (fields & STAT_TOT_CLIENTS){d.append(it->second.clients);}
+    if (fields & STAT_TOT_INPUTS){d.append(it->second.inputs);}
+    if (fields & STAT_TOT_OUTPUTS){d.append(it->second.outputs);}
     if (fields & STAT_TOT_BPS_DOWN){d.append(it->second.downbps);}
     if (fields & STAT_TOT_BPS_UP){d.append(it->second.upbps);}
     rep["data"].append(d);

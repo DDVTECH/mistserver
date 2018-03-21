@@ -71,6 +71,7 @@ namespace Controller {
     public:
       statSession();
       std::map<unsigned long, statStorage> curConns;
+      sessType getSessType();
       void wipeOld(unsigned long long);
       void finish(unsigned long index);
       void switchOverTo(statSession & newSess, unsigned long index);
@@ -78,6 +79,7 @@ namespace Controller {
       void ping(const sessIndex & index, unsigned long long disconnectPoint);
       unsigned long long getStart();
       unsigned long long getEnd();
+      bool isViewerOn(unsigned long long time);
       bool hasDataFor(unsigned long long time);
       bool hasData();
       long long getConnTime(unsigned long long time);
@@ -100,6 +102,7 @@ namespace Controller {
   std::set<std::string> getActiveStreams(const std::string & prefix = "");
   void parseStatistics(char * data, size_t len, unsigned int id);
   void fillClients(JSON::Value & req, JSON::Value & rep);
+  void fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow = false);
   void fillTotals(JSON::Value & req, JSON::Value & rep);
   void SharedMemStats(void * config);
   bool hasViewers(std::string streamName);

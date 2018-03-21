@@ -600,6 +600,12 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       Controller::fillTotals(Request["totals"], Response["totals"]);
     }
   }
+  if (Request.isMember("active_streams")){
+    Controller::fillActive(Request["active_streams"], Response["active_streams"], true);
+  }
+  if (Request.isMember("stats_streams")){
+    Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
+  }
           
   Controller::configChanged = true;
 }

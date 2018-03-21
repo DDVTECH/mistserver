@@ -97,6 +97,7 @@ static inline void show_stackframe(){}
 #ifndef STATS_DELAY
 #define STATS_DELAY 15
 #endif
+#define STATS_INPUT_DELAY 2
 
 #ifndef INPUT_TIMEOUT
 #define INPUT_TIMEOUT STATS_DELAY

@@ -177,6 +177,30 @@ namespace Mist{
                              streamName);
       }
 
+      //allow setting of max lead time through buffer variable.
+      //max lead time is set in MS, but the variable is in integer seconds for simplicity.
+      if (HTTP_R.GetVar("buffer") != ""){
+        maxSkipAhead = JSON::Value(HTTP_R.GetVar("buffer")).asInt() * 1000;
+      }
+      //allow setting of play back rate through buffer variable.
+      //play back rate is set in MS per second, but the variable is a simple multiplier.
+      if (HTTP_R.GetVar("rate") != ""){
+        double multiplier = atof(HTTP_R.GetVar("rate").c_str());
+        if (multiplier){
+          realTime = 1000 / multiplier;
+        }else{
+          realTime = 0;
+        }
+      }
+      if (HTTP_R.GetHeader("X-Mist-Rate") != ""){
+        double multiplier = atof(HTTP_R.GetHeader("X-Mist-Rate").c_str());
+        if (multiplier){
+          realTime = 1000 / multiplier;
+        }else{
+          realTime = 0;
+        }
+      }
+
       // set the date
       time_t timer;
       time(&timer);

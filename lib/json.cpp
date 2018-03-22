@@ -451,9 +451,27 @@ JSON::Value::Value(std::istream & fromstream) {
       case '8':
       case '9':
         c = fromstream.get();
-        myType = INTEGER;
-        intVal *= 10;
-        intVal += c - '0';
+        if (myType != INTEGER && myType != DOUBLE){
+          myType = INTEGER;
+        }
+        if (myType == INTEGER){
+          intVal *= 10;
+          intVal += c - '0';
+        }else{
+          dblDivider *= 10;
+          dblVal += ((double)((c - '0')) / dblDivider);
+        }
+        break;
+      case '.':
+        c = fromstream.get();
+        myType = DOUBLE;
+        if (negative){
+          dblVal = -intVal;
+          dblDivider = -1;
+        }else{
+          dblVal = intVal;
+          dblDivider = 1;
+        }
         break;
       case ',':
         if (!reading_object && !reading_array) {
@@ -528,6 +546,12 @@ JSON::Value::Value(long long int val) {
   intVal = val;
 }
 
+/// Sets this JSON::Value to the given double.
+JSON::Value::Value(double val) {
+  myType = DOUBLE;
+  dblVal = val;
+}
+
 /// Sets this JSON::Value to the given integer.
 JSON::Value::Value(bool val) {
   myType = BOOL;
@@ -545,6 +569,9 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const {
   }
   if (myType == INTEGER || myType == BOOL) {
     return intVal == rhs.intVal;
+  }
+  if (myType == DOUBLE) {
+    return dblVal == rhs.dblVal;
   }
   if (myType == STRING) {
     return strVal == rhs.strVal;
@@ -619,6 +646,8 @@ void JSON::Value::null() {
   shrink(0);
   strVal.clear();
   intVal = 0;
+  dblVal = 0;
+  dblDivider = 1;
   myType = EMPTY;
 }
 
@@ -631,6 +660,9 @@ JSON::Value & JSON::Value::assignFrom(const Value & rhs, const std::set<std::str
   }
   if (myType == BOOL || myType == INTEGER){
     intVal = rhs.intVal;
+  }
+  if (myType == DOUBLE){
+    dblVal = rhs.dblVal;
   }
   if (myType == OBJECT){
     jsonForEachConst(rhs, i){
@@ -660,6 +692,9 @@ JSON::Value & JSON::Value::operator=(const JSON::Value & rhs) {
   }
   if (myType == BOOL || myType == INTEGER){
     intVal = rhs.intVal;
+  }
+  if (myType == DOUBLE){
+    dblVal = rhs.dblVal;
   }
   if (myType == OBJECT){
     jsonForEachConst(rhs, i){
@@ -708,6 +743,14 @@ JSON::Value & JSON::Value::operator=(const int & rhs) {
   return ((*this) = (long long int)rhs);
 }
 
+/// Sets this JSON::Value to the given double.
+JSON::Value & JSON::Value::operator=(const double & rhs) {
+  null();
+  myType = DOUBLE;
+  dblVal = rhs;
+  return *this;
+}
+
 /// Sets this JSON::Value to the given integer.
 JSON::Value & JSON::Value::operator=(const unsigned int & rhs) {
   return ((*this) = (long long int)rhs);
@@ -718,8 +761,25 @@ JSON::Value::operator long long int() const {
   if (myType == INTEGER) {
     return intVal;
   }
+  if (myType == DOUBLE) {
+    return (long long int)dblVal;
+  }
   if (myType == STRING) {
     return atoll(strVal.c_str());
+  }
+  return 0;
+}
+
+/// Automatic conversion to double - returns 0 if not convertable.
+JSON::Value::operator double() const {
+  if (myType == INTEGER) {
+    return (double)intVal;
+  }
+  if (myType == DOUBLE) {
+    return dblVal;
+  }
+  if (myType == STRING) {
+    return atof(strVal.c_str());
   }
   return 0;
 }
@@ -747,6 +807,9 @@ JSON::Value::operator bool() const {
   if (myType == INTEGER) {
     return intVal != 0;
   }
+  if (myType == DOUBLE) {
+    return dblVal != 0;
+  }
   if (myType == BOOL) {
     return intVal != 0;
   }
@@ -769,6 +832,10 @@ const std::string JSON::Value::asString() const {
 /// Explicit conversion to long long int.
 const long long int JSON::Value::asInt() const {
   return (long long int) * this;
+}
+/// Explicit conversion to double.
+const double JSON::Value::asDouble() const {
+  return (double) * this;
 }
 /// Explicit conversion to bool.
 const bool JSON::Value::asBool() const {
@@ -1127,6 +1194,12 @@ std::string JSON::Value::toString() const {
         return st.str();
         break;
       }
+    case DOUBLE: {
+        std::stringstream st;
+        st << dblVal;
+        return st.str();
+        break;
+      }
     case BOOL: {
         if (intVal != 0){
           return "true";
@@ -1182,6 +1255,12 @@ std::string JSON::Value::toPrettyString(int indentation) const {
     case INTEGER: {
         std::stringstream st;
         st << intVal;
+        return st.str();
+        break;
+      }
+    case DOUBLE: {
+        std::stringstream st;
+        st << dblVal;
         return st.str();
         break;
       }
@@ -1317,6 +1396,11 @@ bool JSON::Value::isMember(const std::string & name) const {
 /// Returns true if this object is an integer.
 bool JSON::Value::isInt() const {
   return (myType == INTEGER);
+}
+
+/// Returns true if this object is a double.
+bool JSON::Value::isDouble() const {
+  return (myType == DOUBLE);
 }
 
 /// Returns true if this object is a string.

@@ -22,7 +22,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 10ll;
     capa["methods"][0u]["nolive"] = 1;
   }
   uint64_t OutProgressiveMP4::estimateFileSize() {

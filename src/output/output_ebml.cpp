@@ -40,6 +40,21 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
     capa["methods"][0u]["priority"] = 8ll;
+    //EBML will only work with VP8/VP9/Opus except on Chrome
+    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\"], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]]]");
+    capa["exceptions"]["codec:H264"] = blacklistNonChrome;
+    capa["exceptions"]["codec:HEVC"] = blacklistNonChrome;
+    capa["exceptions"]["codec:theora"] = blacklistNonChrome;
+    capa["exceptions"]["codec:MPEG2"] = blacklistNonChrome;
+    capa["exceptions"]["codec:AAC"] = blacklistNonChrome;
+    capa["exceptions"]["codec:vorbis"] = blacklistNonChrome;
+    capa["exceptions"]["codec:PCM"] = blacklistNonChrome;
+    capa["exceptions"]["codec:ALAW"] = blacklistNonChrome;
+    capa["exceptions"]["codec:ULAW"] = blacklistNonChrome;
+    capa["exceptions"]["codec:MP2"] = blacklistNonChrome;
+    capa["exceptions"]["codec:MP3"] = blacklistNonChrome;
+    capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
+    capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
   }
 
   /// Calculates the size of a Cluster (contents only) and returns it.

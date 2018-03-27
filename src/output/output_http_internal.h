@@ -15,7 +15,7 @@ namespace Mist {
       void onHTTP();
       void sendIcon();
       bool websocketHandler();
-      JSON::Value getStatusJSON(std::string & reqHost);
+      JSON::Value getStatusJSON(std::string & reqHost, const std::string & useragent = "");
       bool stayConnected;
       virtual bool onFinish(){
         return stayConnected;

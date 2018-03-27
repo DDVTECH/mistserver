@@ -19,7 +19,7 @@ namespace Mist {
     result << "#EXTM3U\r\n";
     int audioId = -1;
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC"){
+      if (it->second.codec == "AAC" || it->second.codec == "MP3"){
         audioId = it->first;
         break;
       }
@@ -125,6 +125,8 @@ namespace Mist {
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9ll;
+    //MP3 only works on Edge/Apple
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
   }
 
   void OutHLS::onHTTP() {
@@ -247,11 +249,7 @@ namespace Mist {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.Clean();
-      if (H.url.find(".m3u8") != std::string::npos){
-        H.SetHeader("Content-Type", "audio/x-mpegurl");
-      }else{
-        H.SetHeader("Content-Type", "audio/mpegurl");
-      }
+      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
       if (!myMeta.tracks.size()){

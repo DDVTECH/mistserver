@@ -55,13 +55,13 @@ namespace EBML{
   void UniInt::writeInt(char *p, const uint64_t val){
     switch (writeSize(val)){
     case 1: p[0] = val | 0x80; break;
-    case 2: Bit::htobs(p, val | 0x4000); break;
-    case 3: Bit::htob24(p, val | 0x200000); break;
-    case 4: Bit::htobl(p, val | 0x10000000); break;
-    case 5: Bit::htob40(p, val | 0x800000000); break;
-    case 6: Bit::htob48(p, val | 0x40000000000); break;
-    case 7: Bit::htob56(p, val | 0x2000000000000); break;
-    case 8: Bit::htobll(p, val | 0x100000000000000); break;
+    case 2: Bit::htobs(p, val | 0x4000ull); break;
+    case 3: Bit::htob24(p, val | 0x200000ull); break;
+    case 4: Bit::htobl(p, val | 0x10000000ull); break;
+    case 5: Bit::htob40(p, val | 0x800000000ull); break;
+    case 6: Bit::htob48(p, val | 0x40000000000ull); break;
+    case 7: Bit::htob56(p, val | 0x2000000000000ull); break;
+    case 8: Bit::htobll(p, val | 0x100000000000000ull); break;
     }
   }
 

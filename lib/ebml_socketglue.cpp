@@ -19,19 +19,19 @@ namespace EBML{
   }
 
   uint8_t sizeUInt(const uint64_t val){
-    if (val >= 0x100000000000000){
+    if (val >= 0x100000000000000ull){
       return 8;
-    }else if (val >= 0x1000000000000){
+    }else if (val >= 0x1000000000000ull){
       return 7;
-    }else if (val >= 0x10000000000){
+    }else if (val >= 0x10000000000ull){
       return 6;
-    }else if (val >= 0x100000000){
+    }else if (val >= 0x100000000ull){
       return 5;
-    }else if (val >= 0x1000000){
+    }else if (val >= 0x1000000ull){
       return 4;
-    }else if (val >= 0x10000){
+    }else if (val >= 0x10000ull){
       return 3;
-    }else if (val >= 0x100){
+    }else if (val >= 0x100ull){
       return 2;
     }else{
       return 1;

@@ -16,7 +16,7 @@ namespace EBML{
     if (p[0] & 0x04){return 6;}
     if (p[0] & 0x02){return 7;}
     if (p[0] & 0x01){return 8;}
-    return 0;
+    return 1;
   }
 
   /// Returns the size of an EBML-encoded integer for a given numerical value
@@ -149,8 +149,8 @@ namespace EBML{
     case EID_PIXELWIDTH: return "PixelWidth";
     case EID_PIXELHEIGHT: return "PixelHeight";
     case 0x1A: return "FlagInterlaced";
-    case 0x14B0: return "DisplayWidth";
-    case 0x14BA: return "DisplayHeight";
+    case EID_DISPLAYWIDTH: return "DisplayWidth";
+    case EID_DISPLAYHEIGHT: return "DisplayHeight";
     case 0x15B0: return "Colour";
     case 0x15B7: return "ChromaSitingHorz";
     case 0x15B8: return "ChromaSitingVert";
@@ -164,8 +164,8 @@ namespace EBML{
     case EID_CHANNELS: return "Channels";
     case EID_SAMPLINGFREQUENCY: return "SamplingFrequency";
     case EID_BITDEPTH: return "BitDepth";
-    case 0x16AA: return "CodecDelay";
-    case 0x16BB: return "SeekPreRoll";
+    case EID_CODECDELAY: return "CodecDelay";
+    case EID_SEEKPREROLL: return "SeekPreRoll";
     case EID_CODECPRIVATE: return "CodecPrivate";
     case EID_DEFAULTDURATION: return "DefaultDuration";
     case EID_EBMLVERSION: return "EBMLVersion";
@@ -185,7 +185,7 @@ namespace EBML{
     case 0x6C: return "Void";
     case 0x3F: return "CRC-32";
     case 0x33A4: return "SegmentUID";
-    case 0x254c367: return "Tags";
+    case EID_TAGS: return "Tags";
     case 0x3373: return "Tag";
     case 0x23C0: return "Targets";
     case 0x27C8: return "SimpleTag";
@@ -271,7 +271,7 @@ namespace EBML{
     case EID_CUEPOINT:
     case EID_CUETRACKPOSITIONS:
     case 0x15B0:
-    case 0x254c367:
+    case EID_TAGS:
     case 0x3373:
     case 0x23C0:
     case 0x43a770:
@@ -296,8 +296,8 @@ namespace EBML{
     case EID_FLAGLACING:
     case EID_TRACKTYPE:
     case EID_DEFAULTDURATION:
-    case 0x16AA:
-    case 0x16BB:
+    case EID_CODECDELAY:
+    case EID_SEEKPREROLL:
     case EID_CUETIME:
     case EID_CUETRACK:
     case EID_CUECLUSTERPOSITION:
@@ -305,8 +305,8 @@ namespace EBML{
     case EID_PIXELWIDTH:
     case EID_PIXELHEIGHT:
     case 0x1A:
-    case 0x14B0:
-    case 0x14BA:
+    case EID_DISPLAYWIDTH:
+    case EID_DISPLAYHEIGHT:
     case EID_CHANNELS:
     case EID_BITDEPTH:
     case 0x15B7:
@@ -652,26 +652,28 @@ namespace EBML{
     case 3: ret << " [Lacing: EMBL]"; break;
     case 2: ret << " [Lacing: Fixed]"; break;
     }
-    if (detail < 8){
-      ret << std::endl;
-      return ret.str();
+    ret << std::endl;
+    if (detail >= 4){
+      for (uint32_t frameNo = 0; frameNo < getFrameCount(); ++frameNo){
+        const char *payDat = getFrameData(frameNo);
+        const uint64_t payLen = getFrameSize(frameNo);
+        ret << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo+1) << " (" << payLen << "b):";
+        if (!payDat || !payLen || detail < 6){
+          ret << std::endl;
+          continue;
+        }
+        for (uint64_t i = 0; i < payLen; ++i){
+          if ((i % 32) == 0){ret << std::endl << std::string(indent + 6, ' ');}
+          ret << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)payDat[i];
+        }
+        ret << std::endl;
+      }
     }
-    ret << ":";
     if (detail >= 10){
       uint32_t extraStuff = (UniInt::readSize(getPayload()) + 3);
       const char *payDat = getPayload() + extraStuff;
       const uint64_t payLen = getPayloadLen() - extraStuff;
-      ret << std::endl << std::dec << std::string(indent + 4, ' ') << "Raw data:";
-      for (uint64_t i = 0; i < payLen; ++i){
-        if ((i % 32) == 0){ret << std::endl << std::string(indent + 6, ' ');}
-        ret << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)payDat[i];
-      }
-    }
-    for (uint32_t frameNo = 0; frameNo < getFrameCount(); ++frameNo){
-      const char *payDat = getFrameData(frameNo);
-      const uint64_t payLen = getFrameSize(frameNo);
-      ret << std::endl << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo+1) << " (" << payLen << "b):";
-      if (!payDat || !payLen){continue;}
+      ret << std::dec << std::string(indent + 4, ' ') << "Raw data:";
       for (uint64_t i = 0; i < payLen; ++i){
         if ((i % 32) == 0){ret << std::endl << std::string(indent + 6, ' ');}
         ret << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)payDat[i];

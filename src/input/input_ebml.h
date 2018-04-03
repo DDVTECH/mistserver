@@ -3,6 +3,11 @@
 
 namespace Mist{
 
+
+  extern uint16_t maxEBMLFrameOffset;
+  extern bool frameOffsetKnown;
+#define PKT_COUNT 64
+
   class packetData{
     public:
     uint64_t time, offset, track, dsize, bpos;
@@ -33,7 +38,7 @@ namespace Mist{
   };
   class trackPredictor{
     public:
-      packetData pkts[16];
+      packetData pkts[PKT_COUNT];
       uint16_t smallestFrame;
       uint64_t lastTime;
       uint64_t ctr;
@@ -48,31 +53,49 @@ namespace Mist{
         if (finished){
           return (ctr - rem > 0);
         }else{
-          return (ctr - rem > 8);
+          return (ctr - rem > 12);
         }
       }
       packetData & getPacketData(bool mustCalcOffsets){
-        packetData & p = pkts[rem % 16];
-        if (rem && mustCalcOffsets){
-          if (p.time > lastTime + smallestFrame){
-            while (p.time - (lastTime + smallestFrame) > smallestFrame * 8){
-              lastTime += smallestFrame;
-            }
-            p.offset = p.time - (lastTime + smallestFrame);
-            p.time = lastTime + smallestFrame;
+        frameOffsetKnown = true;
+        //grab the next packet to output
+        packetData & p = pkts[rem % PKT_COUNT];
+        //Substract the max frame offset, so we know all offsets are positive, no matter what.
+        //if it's not the first and we're calculating offsets, see if we need an offset
+        if (!mustCalcOffsets){
+          p.time += maxEBMLFrameOffset;
+          DONTEVEN_MSG("Outputting %llu + %llu (%llu -> %llu)", p.time, maxEBMLFrameOffset, rem, rem % PKT_COUNT);
+          return p;
+        }else{
+          if (rem && !p.key){
+            p.offset = p.time + maxEBMLFrameOffset - (lastTime + smallestFrame);
+            //If we calculate an offset less than a frame away,
+            //we assume it's just time stamp drift due to lack of precision.
+            p.time = (lastTime + smallestFrame);
+          }else{
+            p.offset = maxEBMLFrameOffset;
           }
         }
         lastTime = p.time;
         return p;
       }
-      void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize, uint64_t packBytePos, bool isKeyframe, void * dataPtr = 0){
-        if (ctr && ctr > rem){
-          if ((pkts[(ctr-1)%16].time < packTime - 2) && (!smallestFrame || packTime - pkts[(ctr-1)%16].time < smallestFrame)){
-            smallestFrame = packTime - pkts[(ctr-1)%16].time;
+      void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize, uint64_t packBytePos, bool isKeyframe, bool isVideo, void * dataPtr = 0){
+        if (isVideo && ctr && ctr >= rem){
+          int32_t currOffset = packTime - pkts[(ctr-1)%PKT_COUNT].time;
+          if (currOffset < 0){currOffset *= -1;}
+          if (!smallestFrame || currOffset < smallestFrame){
+            smallestFrame = currOffset;
+            HIGH_MSG("Smallest frame is now %u", smallestFrame);
+          }
+          if (!frameOffsetKnown && currOffset < 8*smallestFrame && currOffset*2 > maxEBMLFrameOffset && ctr < PKT_COUNT/2){
+            maxEBMLFrameOffset = currOffset*2;
+            INFO_MSG("Max frame offset is now %u", maxEBMLFrameOffset);
           }
         }
-        pkts[ctr % 16].set(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe, dataPtr);
+        DONTEVEN_MSG("Ingesting %llu (%llu -> %llu)", packTime, ctr, ctr % PKT_COUNT);
+        pkts[ctr % PKT_COUNT].set(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe, dataPtr);
         ++ctr;
+        if (ctr == PKT_COUNT-1){frameOffsetKnown = true;}
       }
       void remove(){
         ++rem;
@@ -83,7 +106,7 @@ namespace Mist{
   class InputEBML : public Input{
   public:
     InputEBML(Util::Config *cfg);
-
+    bool needsLock();
   protected:
     void fillPacket(packetData & C);
     bool checkArguments();
@@ -101,6 +124,12 @@ namespace Mist{
     std::map<uint64_t, trackPredictor> packBuf;
     std::set<uint64_t> swapEndianness;
     bool readExistingHeader();
+    void parseStreamHeader(){
+      readHeader();
+    }
+    bool openStreamSource(){return true;}
+    bool needHeader(){return needsLock();}
+    double timeScale;
   };
 }
 

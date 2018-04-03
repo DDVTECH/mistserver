@@ -8,6 +8,33 @@
 #include <mist/websocket.h>
 
 namespace Mist {
+  /// Helper function to find the protocol entry for a given port number
+  std::string getProtocolForPort(uint16_t portNo){
+    std::string ret;
+    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    configLock.wait();
+    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+    DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
+    unsigned int pro_cnt = prtcls.getSize();
+    for (unsigned int i = 0; i < pro_cnt; ++i){
+      DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(prtcls.getIndice(i).getMember("connector").asString());
+      uint16_t port = prtcls.getIndice(i).getMember("port").asInt();
+      //get the default port if none is set
+      if (!port){
+        port = capa.getMember("optional").getMember("port").getMember("default").asInt();
+      }
+      if (port == portNo){
+        ret = capa.getMember("protocol").asString();
+        break;
+      }
+    }
+    configLock.post();
+    if (ret.find(':') != std::string::npos){
+      ret.erase(ret.find(':'));
+    }
+    return ret;
+  }
+
   OutHTTP::OutHTTP(Socket::Connection & conn) : HTTPOutput(conn){
     stayConnected = false;
     if (myConn.getPureSocket() >= 0){
@@ -255,6 +282,9 @@ namespace Mist {
   void OutHTTP::HTMLResponse(){
     std::string method = H.method;
     HTTP::URL fullURL(H.GetHeader("Host"));
+    if (!fullURL.protocol.size()){
+      fullURL.protocol = getProtocolForPort(fullURL.getPort());
+    }
     std::string uAgent = H.GetHeader("User-Agent");
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
@@ -416,7 +446,6 @@ namespace Mist {
     configLock.close();
     return json_resp;
   }
-
 
   void OutHTTP::onHTTP(){
     std::string method = H.method;
@@ -585,6 +614,9 @@ namespace Mist {
     
     if (H.url == "/player.js"){
       HTTP::URL fullURL(H.GetHeader("Host"));
+      if (!fullURL.protocol.size()){
+        fullURL.protocol = getProtocolForPort(fullURL.getPort());
+      }
       std::string response;
       std::string rURL = H.url;
       H.Clean();

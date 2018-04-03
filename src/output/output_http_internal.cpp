@@ -45,6 +45,12 @@ namespace Mist {
       myConn = Socket::Connection(fileno(stdout),fileno(stdin) );
       myConn.setHost(host);
     }
+    if (config->getString("nostreamtext").size()){
+      setenv("MIST_HTTP_nostreamtext", config->getString("nostreamtext").c_str(), 1);
+    }
+    if (config->getString("pubaddr").size()){
+      setenv("MIST_HTTP_pubaddr", config->getString("pubaddr").c_str(), 1);
+    }
     if (config->getOption("wrappers",true).size() == 0 || config->getString("wrappers") == ""){
       JSON::Value & wrappers = config->getOption("wrappers",true);
       wrappers.shrink(0);

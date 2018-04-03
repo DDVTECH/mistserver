@@ -280,15 +280,18 @@ namespace Mist {
     IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
     DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
     unsigned int prots_ctr = prots.getSize();
-    
-    for (unsigned int i=0; i < prots_ctr; ++i){
-      if (prots.getIndice(i).getMember("connector").asString() == connector) {
-        id =  i;
-        break;    //pick the first protocol in the list that matches the connector 
+   
+    JSON::Value p;//properties of protocol
+    if (connector == "HTTP" || connector == "HTTP.exe"){
+      //restore from values in the environment, regardless of configged settings
+      if (getenv("MIST_HTTP_nostreamtext")){
+        p["nostreamtext"] = getenv("MIST_HTTP_nostreamtext");
       }
-    }
-    if (id == -1) {
-      connector = connector + ".exe";
+      if (getenv("MIST_HTTP_pubaddr")){
+        p["pubaddr"] = getenv("MIST_HTTP_pubaddr");
+      }
+    }else{
+      //find connector in config
       for (unsigned int i=0; i < prots_ctr; ++i){
         if (prots.getIndice(i).getMember("connector").asString() == connector) {
           id =  i;
@@ -296,12 +299,23 @@ namespace Mist {
         }
       }
       if (id == -1) {
-        connector = connector.substr(0, connector.size() - 4);
-        DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
-        configLock.post();
-        configLock.close();
-        return;
+        connector = connector + ".exe";
+        for (unsigned int i=0; i < prots_ctr; ++i){
+          if (prots.getIndice(i).getMember("connector").asString() == connector) {
+            id =  i;
+            break;    //pick the first protocol in the list that matches the connector 
+          }
+        }
+        if (id == -1) {
+          connector = connector.substr(0, connector.size() - 4);
+          DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
+          configLock.post();
+          configLock.close();
+          return;
+        }
       }
+      //read options from found connector
+      p = prots.getIndice(id).asJSON();
     }
     
     DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
@@ -311,7 +325,6 @@ namespace Mist {
     
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
-    JSON::Value p = prots.getIndice(id).asJSON();
     JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
     configLock.post();
     configLock.close();

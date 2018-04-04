@@ -244,7 +244,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
       FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
       return false;
     }
-    if (pid && filename.substr(0, 21) == "push://INTERNAL_ONLY:"){
+    if (pid && overrides.count("singular")){
       Util::Procs::setHandler();
       Util::Procs::remember(pid);
     }

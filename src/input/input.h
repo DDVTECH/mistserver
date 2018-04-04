@@ -25,12 +25,16 @@ namespace Mist {
       virtual ~Input() {};
 
       virtual bool needsLock(){return true;}
+
+      static Util::Config * config;
+
     protected:
       static void callbackWrapper(char * data, size_t len, unsigned int id);
       virtual bool checkArguments() = 0;
       virtual bool readHeader() = 0;
       virtual bool needHeader(){return !readExistingHeader();}
       virtual bool preRun(){return true;}
+      virtual bool isSingular(){return true;}
       virtual bool readExistingHeader();
       virtual bool atKeyFrame();
       virtual void getNext(bool smart = true) {}

@@ -7,7 +7,6 @@
 #include "io.h"
 
 namespace Mist {
-  Util::Config * InOutBase::config = NULL;
   ///Opens a shared memory page for the stream metadata.
   ///
   ///Assumes myMeta contains the metadata to write.

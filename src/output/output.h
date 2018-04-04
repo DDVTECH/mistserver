@@ -74,6 +74,7 @@ namespace Mist {
       virtual void sendHeader();
       virtual void onFail();
       virtual void requestHandler();
+      static Util::Config * config;
     private://these *should* not be messed with in child classes.
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);

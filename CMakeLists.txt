@@ -520,6 +520,11 @@ set(lspSOURCES
   ${SOURCE_DIR}/lsp/minified.js
 )
 
+
+if (NOT DEFINED NOGA )
+  list(APPEND lspSOURCES ${SOURCE_DIR}/lsp/analytics.js)
+endif()
+
 add_custom_command(OUTPUT ${BINARY_DIR}/generated/server.html 
   COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR="${SOURCE_DIR}" -DlspSOURCES="${lspSOURCES}" -P ${SOURCE_DIR}/CMakeServHtml.txt
   DEPENDS ${lspSOURCES} ${SOURCE_DIR}/CMakeServHtml.txt ${SOURCE_DIR}/lsp/main.css ${SOURCE_DIR}/lsp/header.html ${SOURCE_DIR}/lsp/footer.html

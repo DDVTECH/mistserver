@@ -5865,13 +5865,6 @@ var UI = {
         return false;
       }
     });
-    
-    if ((!navigator.doNotTrack) && (mist.user.loggedin)) {
-      ///GA tracking; only if connected
-      $main.append(
-        $("<img>").attr("src","https://www.google-analytics.com/collect?v=1&tid=UA-32426932-1&cid="+mist.data.config.iid+"&t=pageview&dp="+encodeURIComponent("/MI/"+tab)+"&dh=MI."+(mist.data.LTS ? "Pro" : "OS")).css({width:"1px",height:"1px","min-width":"1px",opacity:0.1,position:"absolute",left:"-1000px"})
-      );
-    }
   }
 };
 

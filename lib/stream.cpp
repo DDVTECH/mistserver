@@ -16,11 +16,47 @@
 #include "dtsc.h"
 #include "triggers.h"//LTS
 
-/* roxlu-begin */
-static std::string strftime_now(const std::string& format);
-static void replace(std::string& str, const std::string& from, const std::string& to);
-static void replace_variables(std::string& str);
-/* roxlu-end */
+/// Calls strftime using the current local time, returning empty string on any error.
+static std::string strftime_now(const std::string& format) {
+  time_t rawtime;
+  char buffer[80];
+  time(&rawtime);
+  struct tm* timeinfo = localtime(&rawtime);
+  if (!timeinfo || !strftime(buffer, 80, format.c_str(), timeinfo)){return "";}
+  return buffer;
+}
+
+///Replaces any occurrences of 'from' with 'to' in 'str'.
+static void replace(std::string& str, const std::string& from, const std::string& to) {
+  if (from.empty()){return;}
+  size_t start_pos = 0;
+  while((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    str.replace(start_pos, from.length(), to);
+    start_pos += to.length();
+  }
+}
+
+///Replaces all stream-related variables in the given 'str' with their values.
+void Util::streamVariables(std::string &str, const std::string & streamname, const std::string & source) {
+  replace(str, "$source", source);
+  replace(str, "$datetime", "$year.$month.$day.$hour.$minute.$second");
+  replace(str, "$day", strftime_now("%d"));
+  replace(str, "$month", strftime_now("%m"));
+  replace(str, "$year", strftime_now("%Y"));
+  replace(str, "$hour", strftime_now("%H"));
+  replace(str, "$minute", strftime_now("%M"));
+  replace(str, "$second", strftime_now("%S"));
+  replace(str, "$stream", streamname);
+  if (streamname.find('+') != std::string::npos){
+    std::string strbase = streamname.substr(0, streamname.find('+'));
+    std::string strext = streamname.substr(streamname.find('+')+1);
+    replace(str, "$basename", strbase);
+    replace(str, "$wildcard", strext);
+  }else{
+    replace(str, "$basename", streamname);
+    replace(str, "$wildcard", "");
+  }
+}
 
 std::string Util::getTmpFolder() {
   std::string dir;
@@ -203,6 +239,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     filename = stream_cfg.getMember("source").asString();
   }
   
+  streamVariables(filename, streamname);
+  
   //check in curConf for capabilities-inputs-<naam>-priority/source_match
   std::string player_bin;
   bool selected = false;
@@ -364,17 +402,7 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   }
 
   // The target can hold variables like current time etc
-  replace_variables(target);
-  replace(target, "$stream", streamname);
-  if (streamname.find('+') != std::string::npos){
-    std::string strbase = streamname.substr(0, streamname.find('+'));
-    std::string strext = streamname.substr(streamname.find('+')+1);
-    replace(target, "$basename", strbase);
-    replace(target, "$wildcard", strext);
-  }else{
-    replace(target, "$basename", streamname);
-    replace(target, "$wildcard", "");
-  }
+  streamVariables(target, streamname);
 
   //Attempt to load up configuration and find this stream
   IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
@@ -422,80 +450,6 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   int stdErr = 2;
   return Util::Procs::StartPiped(argv, 0, 0, &stdErr);
 
-}
-
-static void replace(std::string& str, const std::string& from, const std::string& to) {
-  if(from.empty()) {
-    return;
-  }
-  size_t start_pos = 0;
-  while((start_pos = str.find(from, start_pos)) != std::string::npos) {
-    str.replace(start_pos, from.length(), to);
-    start_pos += to.length();
-  }
-}
-
-static void replace_variables(std::string& str) {
-  
-  char buffer[80] = { 0 };
-  std::map<std::string, std::string> vars;
-  std::string day = strftime_now("%d");
-  std::string month = strftime_now("%m");
-  std::string year = strftime_now("%Y");
-  std::string hour = strftime_now("%H");
-  std::string minute = strftime_now("%M");
-  std::string seconds = strftime_now("%S");
-  std::string datetime = year +"." +month +"." +day +"." +hour +"." +minute +"." +seconds;
-
-  if (0 == day.size()) {
-    WARN_MSG("Failed to retrieve the current day with strftime_now().");
-  }
-  if (0 == month.size()) {
-    WARN_MSG("Failed to retrieve the current month with strftime_now().");
-  }
-  if (0 == year.size()) {
-    WARN_MSG("Failed to retrieve the current year with strftime_now().");
-  }
-  if (0 == hour.size()) {
-    WARN_MSG("Failed to retrieve the current hour with strftime_now().");
-  }
-  if (0 == minute.size()) {
-    WARN_MSG("Failed to retrieve the current minute with strftime_now().");
-  }
-  if (0 == seconds.size()) {
-    WARN_MSG("Failed to retrieve the current seconds with strftime_now().");
-  }
-  
-  vars.insert(std::pair<std::string, std::string>("$day", day));
-  vars.insert(std::pair<std::string, std::string>("$month", month));
-  vars.insert(std::pair<std::string, std::string>("$year", year));
-  vars.insert(std::pair<std::string, std::string>("$hour", hour));
-  vars.insert(std::pair<std::string, std::string>("$minute", minute));
-  vars.insert(std::pair<std::string, std::string>("$second", seconds));
-  vars.insert(std::pair<std::string, std::string>("$datetime", datetime));
-
-  std::map<std::string, std::string>::iterator it = vars.begin();
-  while (it != vars.end()) {
-    replace(str, it->first, it->second);
-    ++it;
-  }
-}
-
-static std::string strftime_now(const std::string& format) {
-  
-  time_t rawtime;
-  struct tm* timeinfo = NULL;
-  char buffer [80] = { 0 };
-
-  time(&rawtime);
-  timeinfo = localtime (&rawtime);
-
-  if (0 == strftime(buffer, 80, format.c_str(), timeinfo)) {
-    FAIL_MSG("Call to stftime() failed with format: %s, maybe our buffer is not big enough (80 bytes).", format.c_str());
-    return "";
-  }
-
-  return buffer;
 }
 
 uint8_t Util::getStreamStatus(const std::string & streamname){

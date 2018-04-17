@@ -7,6 +7,7 @@
 #include "json.h"
 
 namespace Util {
+  void streamVariables(std::string &str, const std::string & streamname, const std::string & source = "");
   std::string getTmpFolder();
   void sanitizeName(std::string & streamname);
   bool streamAlive(std::string & streamname);

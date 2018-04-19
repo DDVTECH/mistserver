@@ -168,6 +168,13 @@ public:
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
   }
+  /// Returns viewcount for the given stream
+  long long getViewers(const std::string &strm){
+    if (!hostMutex){hostMutex = new tthread::mutex();}
+    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!streams.count(strm)){return 0;}
+    return streams[strm].total;
+  }
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
   unsigned int rate(std::string &s, double lati = 0, double longi = 0){
@@ -369,6 +376,7 @@ int handleRequest(Socket::Connection &conn){
         }
         std::string host = H.GetVar("host");
         std::string viewers = H.GetVar("viewers");
+        std::string stream = H.GetVar("stream");
         std::string source = H.GetVar("source");
         std::string fback = H.GetVar("fallback");
         std::string lstserver = H.GetVar("lstserver");
@@ -468,6 +476,17 @@ int handleRequest(Socket::Connection &conn){
             HOST(i).details->fillStreams(ret);
           }
           H.SetBody(ret.toPrettyString());
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+          continue;
+        }
+        if (stream.size()){
+          long long count = 0;
+          for (HOSTLOOP){
+            HOSTCHECK;
+            count += HOST(i).details->getViewers(stream);
+          }
+          H.SetBody(JSON::Value(count).asString());
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;

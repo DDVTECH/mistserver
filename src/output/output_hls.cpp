@@ -23,6 +23,19 @@ namespace Mist {
     return r.str();
   }
 
+  std::string OutHLS::h265init(const std::string & initData){
+    std::stringstream r;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[6] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[7] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[8] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[9] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[10] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[11] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[12] << std::dec;
+    return r.str();
+  }
+
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex() {
@@ -58,16 +71,23 @@ namespace Mist {
         if (it->second.fpks){
           result << ",FRAME-RATE=" << (float)it->second.fpks / 1000; 
         }
-        if (it->second.codec == "H264"){
+        if (hasSubs){
+          result << ",SUBTITLES=\"sub1\"";
+        }
+        if (it->second.codec == "H264" || it->second.codec == "H256"){
           result << ",CODECS=\"";
           if (it->second.codec == "H264"){
             result << "avc1." << h264init(it->second.init);
+          }else{
+            result << "hev1." << h265init(it->second.init);
           }
           if (audioId != -1){
             if (myMeta.tracks[audioId].codec == "AAC"){
               result << ",mp4a.40.2";
             }else if (myMeta.tracks[audioId].codec == "MP3" ){
               result << ",mp4a.40.34";
+            }else if (myMeta.tracks[audioId].codec == "AC3" ){
+              result << ",ec-3";
             }
           }
           result << "\"";
@@ -93,6 +113,8 @@ namespace Mist {
         result << ",CODECS=\"mp4a.40.2\"";
       }else if (myMeta.tracks[audioId].codec == "MP3" ){
         result << ",CODECS=\"mp4a.40.34\"";
+      }else if (myMeta.tracks[audioId].codec == "AC3" ){
+        result << ",CODECS=\"ec-3\"";
       }
       result << "\r\n";
       result << audioId << "/index.m3u8\r\n";
@@ -196,7 +218,15 @@ namespace Mist {
       }
       char lineBuf[400];
 
-      snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+      if(myMeta.tracks[tid].codec == "subtitle"){
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.vtt?track=%d&from=%lld&to=%lld\r\n", (double)duration/1000,streamName.c_str(),tid, starttime, starttime + duration);
+      }else{
+        if (sessId.size()){
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
+        }else{
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+        }
+      }
       durs.push_back(duration);
       total_dur += duration;
       lines.push_back(lineBuf);

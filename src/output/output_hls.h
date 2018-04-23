@@ -13,6 +13,7 @@ namespace Mist {
       bool isReadyForPlay();
     protected:
       std::string h264init(const std::string & initData);
+      std::string h265init(const std::string & initData);
 
       bool hasSessionIDs(){return true;}
       std::string liveIndex();

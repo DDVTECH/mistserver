@@ -11,7 +11,9 @@ namespace Mist {
       void sendNext();
       void onHTTP();      
       bool isReadyForPlay();
-    protected:      
+    protected:
+      std::string h264init(const std::string & initData);
+
       bool hasSessionIDs(){return true;}
       std::string liveIndex();
       std::string liveIndex(int tid, std::string & sessId);

@@ -12,6 +12,16 @@ namespace Mist {
     return false;
   }
 
+  std::string OutHLS::h264init(const std::string & initData){
+    std::stringstream r;
+    MP4::AVCC avccBox;
+    avccBox.setPayload(initData);
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
+    return r.str();
+  }
+
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex(){
@@ -35,7 +45,26 @@ namespace Mist {
         if (audioId != -1){
           bWidth += myMeta.tracks[audioId].bps;
         }
-        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8) << "\r\n";
+        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8);
+        result << ",RESOLUTION=" << it->second.width << "x" << it->second.height;
+        if (it->second.fpks){
+          result << ",FRAME-RATE=" << (float)it->second.fpks / 1000; 
+        }
+        if (it->second.codec == "H264"){
+          result << ",CODECS=\"";
+          if (it->second.codec == "H264"){
+            result << "avc1." << h264init(it->second.init);
+          }
+          if (audioId != -1){
+            if (myMeta.tracks[audioId].codec == "AAC"){
+              result << ",mp4a.40.2";
+            }else if (myMeta.tracks[audioId].codec == "MP3" ){
+              result << ",mp4a.40.34";
+            }
+          }
+          result << "\"";
+        }
+        result <<"\r\n";
         result << it->first;
         if (audioId != -1){
           result << "_" << audioId;
@@ -43,8 +72,14 @@ namespace Mist {
         result << "/index.m3u8?sessId=" << getpid() << "\r\n";
       }
     }
-    if (!vidTracks && audioId){
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[audioId].bps * 8) << "\r\n";
+    if (!vidTracks && audioId) {
+      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[audioId].bps * 8);
+      if (myMeta.tracks[audioId].codec == "AAC"){
+        result << ",CODECS=\"mp4a.40.2\"";
+      }else if (myMeta.tracks[audioId].codec == "MP3" ){
+        result << ",CODECS=\"mp4a.40.34\"";
+      }
+      result << "\r\n";
       result << audioId << "/index.m3u8\r\n";
     }
     DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
@@ -68,11 +103,8 @@ namespace Mist {
         duration = myMeta.tracks[tid].lastms - starttime;
       }
       char lineBuf[400];
-      if (sessId.size()){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
-      }else{
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
-      }
+
+      snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
       durs.push_back(duration);
       total_dur += duration;
       lines.push_back(lineBuf);

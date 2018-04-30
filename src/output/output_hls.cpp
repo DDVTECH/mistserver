@@ -74,7 +74,7 @@ namespace Mist {
         if (hasSubs){
           result << ",SUBTITLES=\"sub1\"";
         }
-        if (it->second.codec == "H264" || it->second.codec == "H256"){
+        if (it->second.codec == "H264" || it->second.codec == "HEVC"){
           result << ",CODECS=\"";
           if (it->second.codec == "H264"){
             result << "avc1." << h264init(it->second.init);

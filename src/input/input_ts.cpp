@@ -273,6 +273,9 @@ namespace Mist {
       if (packet.getUnitStart()){
         while (tsStream.hasPacketOnEachTrack()) {
           tsStream.getEarliestPacket(headerPack);
+          if (!headerPack){
+            break;
+          }
           if (!myMeta.tracks.count(headerPack.getTrackId()) || !myMeta.tracks[headerPack.getTrackId()].codec.size()) {
             tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
           }
@@ -302,13 +305,13 @@ namespace Mist {
   void inputTS::getNext(bool smart) {
     INSANE_MSG("Getting next");
     thisPacket.null();
-    bool hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
+    bool hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacket());
     while (!hasPacket && !feof(inFile) && (inputProcess == 0 || Util::Procs::childRunning(inputProcess)) && config->is_active) {
       tsBuf.FromFile(inFile);
       if (selectedTracks.count(tsBuf.getPID())) {
         tsStream.parse(tsBuf, 0);//bPos == 0
         if (tsBuf.getUnitStart()){
-          hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacketOnEachTrack());
+          hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacket());
         }
       }
     }

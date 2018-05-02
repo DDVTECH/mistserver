@@ -142,15 +142,15 @@ namespace aac {
     if (syncWord != 0xfff){
       res << "  Sync word " << std::hex << syncWord << " != fff!" << std::endl;
     }
-    if (data[1] & 0x8 == 0x8){
+    if ((data[1] & 0x8) == 0x8){
       res << "  MPEG-2" << std::endl;
     }else{
       res << "  MPEG-4" << std::endl;
     }
-    if (data[1] & 0x6 != 0){
+    if ((data[1] & 0x6) != 0){
       res << "  Non-zero layer!" << std::endl;
     }
-    if (data[1] & 0x1 == 0x0){
+    if ((data[1] & 0x1) == 0x0){
       res << "  CRC present" << std::endl;
     }
     res << "  MPEG-4 audio object type: " << getAACProfile() << std::endl;
@@ -161,7 +161,7 @@ namespace aac {
     return res.str();
   }
   adts::operator bool() const{
-    return hasSync() && len && len >= getHeaderSize() && getFrequency();
+    return hasSync() && len && len >= getHeaderSize() && getFrequency() && getChannelCount() && getSampleCount();
   }
   bool adts::hasSync() const{
     return len && (((int)data[0] << 4) | ((data[1] >> 4) & 0x0F)) == 0xfff;

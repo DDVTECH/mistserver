@@ -906,7 +906,7 @@ namespace Mist{
           stats();
         }
         if (nProxy.curPage[tid].mapped[tmp.offset] == 0){
-          FAIL_MSG("Track %d no data (key %u@%llu) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
+          FAIL_MSG("Track %d no data (key %u@%u) - timeout", tid, getKeyForTime(tid, pos) + (getNextKey?1:0), tmp.offset);
         }else{
           return seek(tid, pos, getNextKey);
         }

@@ -178,8 +178,8 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
         counter = 0;
       }
       res << std::hex << std::setw(2) << std::setfill('0') << (int)(d[i] & 0xff) << " ";
-      counter++;
       if ((counter) % 32 == 31){res << std::endl;}
+      counter++;
     }
     res << std::endl;
   }

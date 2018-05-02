@@ -305,7 +305,7 @@ namespace TS{
     }
     std::deque<Packet> &inStream = pesStreams[tid];
     if (inStream.size() <= 1){
-      HIGH_MSG("No PES packets to parse");
+      FAIL_MSG("No PES packets to parse");
       return;
     }
     // Find number of packets before unit Start
@@ -325,7 +325,7 @@ namespace TS{
       }
     }
     if (!finished && curPack == inStream.end()){
-      INFO_MSG("No PES packets to parse (%lu)", seenUnitStart[tid]);
+      FAIL_MSG("No PES packets to parse (%lu)", seenUnitStart[tid]);
       return;
     }
     
@@ -518,14 +518,18 @@ namespace TS{
             adtsInfo[tid] = adtsPack;
           }
           out.push_back(DTSC::Packet());
-          out.back().genericFill(timeStamp + msRead, timeOffset, tid,
-                                             adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos,
-                                             0);
-          msRead += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
-          offsetInPes += adtsPack.getCompleteSize();
+          if (adtsPack.getPayloadSize()){
+            out.back().genericFill(timeStamp + msRead, timeOffset, tid,
+                                               adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos,
+                                               0);
+            offsetInPes += adtsPack.getCompleteSize();
+            msRead += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
+          }else{
+            offsetInPes++;
+          }
         }else{
           /// \todo What about the case that we have an invalid start, going over the PES boundary?
-          if (!adtsPack.hasSync()){
+          if (!adtsPack){
             offsetInPes++;
           }else{
             // remainder, keep it, use it next time
@@ -815,7 +819,7 @@ namespace TS{
 
     for (std::map<unsigned long, std::deque<DTSC::Packet> >::iterator it = outPackets.begin();
          it != outPackets.end(); it++){
-      if (it->second.front().getTime() < packTime){
+      if (it->second.size() && it->second.front().getTime() < packTime){
         packTrack = it->first;
         packTime = it->second.front().getTime();
       }

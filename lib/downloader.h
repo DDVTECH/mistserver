@@ -6,6 +6,7 @@ namespace HTTP{
   public:
     Downloader();
     std::string &data();
+    const std::string &const_data() const;
     void doRequest(const HTTP::URL &link, const std::string &method="", const std::string &body="");
     bool get(const std::string &link);
     bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
@@ -22,6 +23,7 @@ namespace HTTP{
     bool canRequest(const HTTP::URL &link);
     Parser &getHTTP();
     Socket::Connection &getSocket();
+    uint32_t retryCount, dataTimeout;
 
   private:
     std::map<std::string, std::string> extraHeaders; ///< Holds extra headers to sent with request

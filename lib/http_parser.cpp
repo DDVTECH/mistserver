@@ -182,6 +182,11 @@ std::string HTTP::URL::getUrl() const{
   return ret;
 }
 
+/// Returns the full file path, in case this is a local file URI
+std::string HTTP::URL::getFilePath() const{
+  return "/"+path;
+}
+
 /// Returns the URL in string format without auth and frag
 std::string HTTP::URL::getProxyUrl() const{
   std::string ret;

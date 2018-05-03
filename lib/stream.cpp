@@ -52,9 +52,15 @@ void Util::streamVariables(std::string &str, const std::string & streamname, con
     std::string strext = streamname.substr(streamname.find('+')+1);
     replace(str, "$basename", strbase);
     replace(str, "$wildcard", strext);
+    if (strext.size()){
+      replace(str, "$pluswildcard", "+"+strext);
+    }else{
+      replace(str, "$pluswildcard", "");
+    }
   }else{
     replace(str, "$basename", streamname);
     replace(str, "$wildcard", "");
+    replace(str, "$pluswildcard", "");
   }
 }
 

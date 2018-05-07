@@ -91,6 +91,7 @@ bool FLV::seekToTagType(FILE * f, uint8_t t){
         return false;
     }
   }
+  return false;
 }
 
 /// True if this media type requires init data.

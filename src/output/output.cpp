@@ -208,6 +208,7 @@ namespace Mist{
   /// If this happens, the extra calls to the function return instantly.
   void Output::doSync(bool force){
     static bool recursing = false;
+    if (!statsPage.getData()){return;}
     if (recursing){return;}
     recursing = true;
     IPC::statExchange tmpEx(statsPage.getData());

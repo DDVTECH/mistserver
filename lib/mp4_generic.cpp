@@ -3763,57 +3763,57 @@ namespace MP4 {
 
   void ELST::setSegmentDuration(uint32_t cnt, uint64_t newVal) {
     if (getVersion() == 1) {
-      setInt64(newVal, 28*cnt+8);
+      setInt64(newVal, 20*cnt+8);
     } else {
-      setInt32(newVal, 20*cnt+8);
+      setInt32(newVal, 12*cnt+8);
     }
   }
 
   uint64_t ELST::getSegmentDuration(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt64(28*cnt+8);
+      return getInt64(20*cnt+8);
     } else {
-      return getInt32(20*cnt+8);
+      return getInt32(12*cnt+8);
     }
   }
 
   void ELST::setMediaTime(uint32_t cnt, uint64_t newVal) {
     if (getVersion() == 1) {
-      setInt64(newVal, 28*cnt+16);
+      setInt64(newVal, 20*cnt+16);
     } else {
-      setInt32(newVal, 20*cnt+12);
+      setInt32(newVal, 12*cnt+12);
     }
   }
 
   uint64_t ELST::getMediaTime(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt64(28*cnt+16);
+      return getInt64(20*cnt+16);
     } else {
-      return getInt32(20*cnt+12);
+      return getInt32(12*cnt+12);
     }
   }
 
   void ELST::setMediaRateInteger(uint32_t cnt, uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 28*cnt+24);
+      setInt16(newVal, 20*cnt+24);
     } else {
-      setInt16(newVal, 20*cnt+16);
+      setInt16(newVal, 12*cnt+16);
     }
   }
 
   uint16_t ELST::getMediaRateInteger(uint32_t cnt) {
     if (getVersion() == 1) {
-      return getInt16(28*cnt+24);
+      return getInt16(20*cnt+24);
     } else {
-      return getInt16(20*cnt+16);
+      return getInt16(12*cnt+16);
     }
   }
 
   void ELST::setMediaRateFraction(uint32_t cnt, uint16_t newVal) {
     if (getVersion() == 1) {
-      setInt16(newVal, 28*cnt+26);
+      setInt16(newVal, 20*cnt+26);
     } else {
-      setInt16(newVal, 20*cnt+18);
+      setInt16(newVal, 12*cnt+18);
     }
   }
 

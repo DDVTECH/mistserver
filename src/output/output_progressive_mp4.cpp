@@ -45,6 +45,12 @@ namespace Mist{
     uint64_t res = 36 // FTYP Box
       + 8 //MOOV box
       + 108; //MVHD Box
+    uint64_t firstms = 0xFFFFFFFFFFFFFFFFull;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].firstms < firstms){
+        firstms = myMeta.tracks[*it].firstms;
+      }
+    }
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       DTSC::Track & thisTrack = myMeta.tracks[*it];
       uint64_t tmpRes = 0;
@@ -59,6 +65,9 @@ namespace Mist{
         + 8 //MINF Box
         + 36 //DINF Box
         + 8; // STBL Box
+      if (thisTrack.firstms != firstms){
+        tmpRes += 12;// EDTS entry extra
+      }
 
       //These boxes are empty when generating fragmented output
       tmpRes += 20 + (fragmented ? 0 : (partCount * 4));//STSZ
@@ -168,6 +177,7 @@ namespace Mist{
     //Construct with duration of -1, as this is the default for fragmented
     MP4::MVHD mvhdBox(-1);
     //Then override it only when we are not sending a fragmented file
+    uint64_t fms;
     if (!fragmented){
       //calculating longest duration
       uint64_t firstms = 0xFFFFFFFFFFFFFFull;
@@ -177,6 +187,7 @@ namespace Mist{
         firstms = std::min(firstms, (uint64_t)myMeta.tracks[*it].firstms);
       }
       mvhdBox.setDuration(lastms - firstms);
+      fms = firstms;
     }
     //Set the trackid for the first "empty" track within the file.
     mvhdBox.setTrackID(selectedTracks.size() + 1);
@@ -202,11 +213,27 @@ namespace Mist{
       MP4::ELST elstBox;
       elstBox.setVersion(0);
       elstBox.setFlags(0);
-      elstBox.setCount(1);
-      elstBox.setSegmentDuration(0, fragmented ? -1 : tDuration);
-      elstBox.setMediaTime(0, 0);
-      elstBox.setMediaRateInteger(0, 1);
-      elstBox.setMediaRateFraction(0, 0);
+      if (thisTrack.firstms != fms){
+        elstBox.setCount(2);
+
+        elstBox.setSegmentDuration(0, fragmented ? -1 : thisTrack.firstms - fms);
+        elstBox.setMediaTime(0, 0xFFFFFFFFull);
+        elstBox.setMediaRateInteger(0, 0);
+        elstBox.setMediaRateFraction(0, 0);
+
+        elstBox.setSegmentDuration(1, tDuration);
+        elstBox.setMediaTime(1, 0);
+        elstBox.setMediaRateInteger(1, 1);
+        elstBox.setMediaRateFraction(1, 0);
+      }else{
+        elstBox.setCount(1);
+
+        elstBox.setSegmentDuration(0, tDuration);
+        elstBox.setMediaTime(0, 0);
+        elstBox.setMediaRateInteger(0, 1);
+        elstBox.setMediaRateFraction(0, 0);
+      }
+
       edtsBox.setContent(elstBox, 0);
       trakBox.setContent(edtsBox, trakOffset++);
 

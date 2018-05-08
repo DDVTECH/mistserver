@@ -463,7 +463,7 @@ namespace Mist {
       myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
       H.Clean(); //clean for any possible next requests
       return;
-    }else if (H.url.find(".m3u") == std::string::npos) {
+    }else if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u") {
       std::string tmpStr = H.getUrl().substr(5 + streamName.size());
       long long unsigned int from;
       if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4) {

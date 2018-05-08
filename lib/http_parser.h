@@ -78,6 +78,7 @@ namespace HTTP{
     URL(const std::string &url = "");
     uint32_t getPort() const;
     uint32_t getDefaultPort() const;
+    std::string getExt() const;
     std::string getUrl() const;
     std::string getFilePath() const;
     std::string getBareUrl() const;

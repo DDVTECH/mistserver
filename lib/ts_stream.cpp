@@ -514,7 +514,7 @@ namespace TS{
         aac::adts adtsPack(pesPayload + offsetInPes, realPayloadSize - offsetInPes);
         if (adtsPack && adtsPack.getCompleteSize() + offsetInPes <= realPayloadSize){
           if (!adtsInfo.count(tid) || !adtsInfo[tid].sameHeader(adtsPack)){
-            MEDIUM_MSG("Setting new ADTS header: %s", adtsPack.toPrettyString().c_str());
+            DONTEVEN_MSG("Setting new ADTS header: %s", adtsPack.toPrettyString().c_str());
             adtsInfo[tid] = adtsPack;
           }
           out.push_back(DTSC::Packet());

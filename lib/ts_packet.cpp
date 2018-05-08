@@ -72,7 +72,9 @@ namespace TS {
     long long int bPos = data.tellg();
     if(!data.read (strBuf,188))
     {
-      HIGH_MSG("failed to read 188 bytes");
+      if (!data.eof()){
+        HIGH_MSG("failed to read 188 bytes: %s", strerror(errno));
+      }
       return false;
     }
     

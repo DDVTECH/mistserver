@@ -119,7 +119,7 @@ namespace Bit{
     return *reinterpret_cast<float*>(&tmp);
   }
 
-  inline float htobf(char * p, float val){
+  inline void htobf(char * p, float val){
     htobl(p, *reinterpret_cast<unsigned long*>(&val));
   }
 
@@ -128,7 +128,7 @@ namespace Bit{
     return *reinterpret_cast<double*>(&tmp);
   }
 
-  inline float htobd(char * p, double val){
+  inline void htobd(char * p, double val){
     htobll(p, *reinterpret_cast<unsigned long*>(&val));
   }
 

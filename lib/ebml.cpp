@@ -50,6 +50,7 @@ namespace EBML{
     case 7: return Bit::btoh56(p) & 0x1FFFFFFFFFFFFull;
     case 8: return Bit::btohll(p) & 0xFFFFFFFFFFFFFFull;
     }
+    return 0;
   }
 
   void UniInt::writeInt(char *p, const uint64_t val){
@@ -78,6 +79,7 @@ namespace EBML{
     case 7: return ((int64_t)readInt(p)) - 0xFFFFFFFFFFFFll;
     case 8: return ((int64_t)readInt(p)) - 0x7FFFFFFFFFFFFFll;
     }
+    return 0;
   }
 
   void UniInt::writeSInt(char *p, const int64_t sval){

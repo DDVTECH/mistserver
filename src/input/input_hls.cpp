@@ -32,7 +32,7 @@ namespace Mist{
     return self->callback(); 
   }
 
-  int cleanLine(std::string &s){
+  void cleanLine(std::string &s){
     if (s.length() > 0 && s.at(s.length() - 1) == '\r'){s.erase(s.size() - 1);}
   }
 
@@ -283,6 +283,8 @@ namespace Mist{
         return false;
       }
     }
+    //No extension. We assume it's fine.
+    return true;
   }
 
   /// function for adding segments to the playlist to be processed. used for VOD

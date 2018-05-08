@@ -79,6 +79,7 @@ namespace HTTP{
     uint32_t getPort() const;
     uint32_t getDefaultPort() const;
     std::string getUrl() const;
+    std::string getFilePath() const;
     std::string getBareUrl() const;
     std::string getProxyUrl() const;
     std::string host;     ///< Hostname or IP address of URL

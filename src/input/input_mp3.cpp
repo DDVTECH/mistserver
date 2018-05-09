@@ -17,6 +17,7 @@ namespace Mist {
     capa["name"] = "MP3";
     capa["desc"] = "This input allows you to stream MP3 Video on Demand files.";
     capa["source_match"] = "/*.mp3";
+    capa["source_file"] = "$source";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("MP3");
     timestamp = 0;

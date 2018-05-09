@@ -511,6 +511,81 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       }
     }
   }
+  if (Request.isMember("deletestreamsource")){
+    //if array, delete all elements
+    //if object, delete all entries
+    //if string, delete just the one
+    if (Request["deletestreamsource"].isString()){
+      switch (Controller::deleteStream(Request["deletestreamsource"].asStringRef(), Controller::Storage["streams"], true)){
+        case 0:
+          Response["deletestreamsource"] = "0: No action taken";
+          break;
+        case 1:
+          Response["deletestreamsource"] = "1: Source file deleted";
+          break;
+        case 2:
+          Response["deletestreamsource"] = "2: Source file and dtsh deleted";
+          break;
+        case -1:
+          Response["deletestreamsource"] = "-1: Stream deleted, source remains";
+          break;
+        case -2:
+          Response["deletestreamsource"] = "-2: Stream and source file deleted";
+          break;
+        case -3:
+          Response["deletestreamsource"] = "-3: Stream, source file and dtsh deleted";
+          break;
+      }
+    }
+    if (Request["deletestreamsource"].isArray()){
+      jsonForEach(Request["deletestreamsource"], it){
+        switch (Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"], true)){
+          case 0:
+            Response["deletestreamsource"][it.num()] = "0: No action taken";
+            break;
+          case 1:
+            Response["deletestreamsource"][it.num()] = "1: Source file deleted";
+            break;
+          case 2:
+            Response["deletestreamsource"][it.num()] = "2: Source file and dtsh deleted";
+            break;
+          case -1:
+            Response["deletestreamsource"][it.num()] = "-1: Stream deleted, source remains";
+            break;
+          case -2:
+            Response["deletestreamsource"][it.num()] = "-2: Stream and source file deleted";
+            break;
+          case -3:
+            Response["deletestreamsource"][it.num()] = "-3: Stream, source file and dtsh deleted";
+            break;
+        }
+      }
+    }
+    if (Request["deletestreamsource"].isObject()){
+      jsonForEach(Request["deletestreamsource"], it){
+        switch (Controller::deleteStream(it.key(), Controller::Storage["streams"], true)){
+          case 0:
+            Response["deletestreamsource"][it.key()] = "0: No action taken";
+            break;
+          case 1:
+            Response["deletestreamsource"][it.key()] = "1: Source file deleted";
+            break;
+          case 2:
+            Response["deletestreamsource"][it.key()] = "2: Source file and dtsh deleted";
+            break;
+          case -1:
+            Response["deletestreamsource"][it.key()] = "-1: Stream deleted, source remains";
+            break;
+          case -2:
+            Response["deletestreamsource"][it.key()] = "-2: Stream and source file deleted";
+            break;
+          case -3:
+            Response["deletestreamsource"][it.key()] = "-3: Stream, source file and dtsh deleted";
+            break;
+        }
+      }
+    }
+  }
   if (Request.isMember("addprotocol")){
     if (Request["addprotocol"].isArray()){
       jsonForEach(Request["addprotocol"], it){

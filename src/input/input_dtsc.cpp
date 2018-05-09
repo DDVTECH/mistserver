@@ -19,6 +19,7 @@ namespace Mist {
     capa["priority"] = 9ll;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
+    capa["source_file"] = "$source";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");

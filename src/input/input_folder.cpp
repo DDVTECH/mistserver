@@ -11,6 +11,7 @@ namespace Mist {
     capa["name"] = "Folder";
     capa["desc"] = "The folder input will make available all supported files in the given folder as streams under this stream name, in the format STREAMNAME+FILENAME. For example, if your stream is called 'files' and you have a file called 'movie.flv', you could access this file streamed as 'files+movie.flv'. This input does not support subdirectories. To support more complex libraries, look into the documentation for the STREAM_SOURCE trigger.";
     capa["source_match"] = "/*/";
+    capa["source_file"] = "$source/$wildcard";
     capa["priority"] = 9ll;
     capa["morphic"] = 1ll;
   }

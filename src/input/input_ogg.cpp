@@ -48,6 +48,7 @@ namespace Mist {
     capa["name"] = "OGG";
     capa["desc"] = "This input allows streaming of OGG files as Video on Demand.";
     capa["source_match"] = "/*.ogg";
+    capa["source_file"] = "$source";
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][1u].append("vorbis");
     capa["codecs"][0u][1u].append("opus");

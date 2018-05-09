@@ -12,6 +12,7 @@ namespace Mist{
     capa["source_match"].append("/*.mk3d");
     capa["source_match"].append("/*.mks");
     capa["source_match"].append("/*.webm");
+    capa["source_file"] = "$source";
     capa["priority"] = 9ll;
     capa["codecs"].append("H264");
     capa["codecs"].append("HEVC");

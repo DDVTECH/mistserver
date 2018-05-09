@@ -16,6 +16,7 @@ namespace Mist {
     capa["name"] = "AV";
     capa["desc"] = "This input uses libavformat to read any type of file. Unfortunately this input cannot be redistributed, but it is a great tool for testing the other file-based inputs against.";
     capa["source_match"] = "/*";
+    capa["source_file"] = "$source";
     capa["priority"] = 1ll;
     capa["codecs"][0u][0u].null();
     capa["codecs"][0u][1u].null();

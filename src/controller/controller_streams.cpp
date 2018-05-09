@@ -293,24 +293,75 @@ namespace Controller {
 
   }
 
-  /// \triggers 
-  /// The `"STREAM_REMOVE"` trigger is stream-specific, and is ran whenever a stream is removed from the server configuration. If cancelled, the stream is not removed. Its payload is:
-  /// ~~~~~~~~~~~~~~~
-  /// streamname
-  /// ~~~~~~~~~~~~~~~
-  void deleteStream(const std::string & name, JSON::Value & out) {
+  /// Deletes the stream (name) from the config (out), optionally also deleting the VoD source file if sourceFileToo is true.
+  int deleteStream(const std::string & name, JSON::Value & out, bool sourceFileToo) {
+    int ret = 0;
+    if (sourceFileToo){
+      std::string cleaned = name;
+      Util::sanitizeName(cleaned);
+      std::string strmSource;
+      if (Util::getStreamStatus(cleaned) != STRMSTAT_OFF){
+        DTSC::Meta mData = Util::getStreamMeta(cleaned);
+        if (mData.sourceURI.size()){
+          strmSource = mData.sourceURI;
+        }
+      }
+      if (!strmSource.size()){
+        std::string smp = cleaned.substr(0, cleaned.find_first_of("+ "));
+        if (out.isMember(smp) && out[smp].isMember("source")){
+          strmSource = out[smp]["source"].asStringRef();
+        }
+      }
+      bool noFile = false;
+      if (strmSource.size()){
+        std::string prevInput;
+        while (true){
+          std::string oldSrc = strmSource;
+          JSON::Value inputCapa = Util::getInputBySource(oldSrc, true);
+          if (inputCapa["name"].asStringRef() == prevInput){break;}
+          prevInput = inputCapa["name"].asStringRef();
+          strmSource = inputCapa["source_file"].asStringRef();
+          if (!strmSource.size()){
+            noFile = true;
+            break;
+          }
+          Util::streamVariables(strmSource, cleaned, oldSrc);
+        }
+      }
+      if (noFile){
+        WARN_MSG("Not deleting source for stream %s, since the stream does not have an unambiguous source file.", cleaned.c_str());
+      }else{
+        Util::streamVariables(strmSource, cleaned);
+        if (!strmSource.size()){
+          FAIL_MSG("Could not delete source for stream %s: unable to detect stream source URI using any method", cleaned.c_str());
+        }else{
+          if (unlink(strmSource.c_str())){
+            FAIL_MSG("Could not delete source %s for %s: %s (%d)", strmSource.c_str(), cleaned.c_str(), strerror(errno), errno);
+          }else{
+            ++ret;
+            Log("STRM", "Deleting source file for stream "+cleaned+": "+strmSource);
+            //Delete dtsh, ignore failures
+            if (!unlink((strmSource+".dtsh").c_str())){
+              ++ret;
+            }
+          }
+        }
+      }
+    }
     if (!out.isMember(name)){
-      return;
+      return ret;
     }
     /*LTS-START*/
     if(Triggers::shouldTrigger("STREAM_REMOVE")){
       if (!Triggers::doTrigger("STREAM_REMOVE", name, name)){
-        return;
+        return ret;
       }
     }
     /*LTS-END*/
-    Log("STRM", std::string("Deleted stream ") + name);
+    Log("STRM", "Deleted stream " + name);
     out.removeMember(name);
+    ++ret;
+    ret *= -1;
     if (inputProcesses.count(name)){
       pid_t procId = inputProcesses[name];
       if (Util::Procs::isRunning(procId)){
@@ -318,6 +369,7 @@ namespace Controller {
       }
       inputProcesses.erase(name);
     }
+    return ret;
   }
 
 } //Controller namespace

@@ -113,6 +113,7 @@ namespace Mist {
     capa["name"] = "TS";
     capa["desc"] = "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files or named pipes (stream://*.ts), streamed over HTTP (http://*.ts, http-ts://*), standard input (ts-exec:*), or multicast/unicast UDP sockets (tsudp://*).";
     capa["source_match"].append("/*.ts");
+    capa["source_file"] = "$source";
     capa["source_match"].append("stream://*.ts");
     capa["source_match"].append("tsudp://*");
     capa["source_match"].append("ts-exec:*");

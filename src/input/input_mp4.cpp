@@ -160,6 +160,7 @@ namespace Mist{
     capa["name"] = "MP4";
     capa["desc"] = "This input allows streaming of MP4 files as Video on Demand.";
     capa["source_match"] = "/*.mp4";
+    capa["source_file"] = "$source";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");

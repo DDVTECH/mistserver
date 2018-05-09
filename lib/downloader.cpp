@@ -8,18 +8,23 @@ namespace HTTP{
   Downloader::Downloader(){
     progressCallback = 0;
     connectedPort = 0;
+    dataTimeout = 5;
+    retryCount = 5;
     ssl = false;
     proxied = false;
     char *p = getenv("http_proxy");
     if (p){
       proxyUrl = HTTP::URL(p);
       proxied = true;
-      INFO_MSG("Proxying through %s", proxyUrl.getUrl().c_str());
+      MEDIUM_MSG("Proxying through %s", proxyUrl.getUrl().c_str());
     }
   }
 
   /// Returns a reference to the internal HTTP::Parser body element
   std::string &Downloader::data(){return H.body;}
+
+  /// Returns a const reference to the internal HTTP::Parser body element
+  const std::string &Downloader::const_data() const{return H.body;}
 
   /// Returns the status text of the HTTP Request.
   std::string &Downloader::getStatusText(){return H.method;}
@@ -64,7 +69,6 @@ namespace HTTP{
   void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
     if (!canRequest(link)){return;}
     bool needSSL = (link.protocol == "https");
-    INFO_MSG("Retrieving %s", link.getUrl().c_str());
     H.Clean();
     // Reconnect if needed
     if (!proxied || needSSL){
@@ -138,11 +142,12 @@ namespace HTTP{
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
   bool Downloader::get(const HTTP::URL &link, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
-    unsigned int loop = 6; // max 5 attempts
+    unsigned int loop = retryCount+1; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
+      MEDIUM_MSG("Retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
       doRequest(link);
       uint64_t reqTime = Util::bootSecs();
-      while (getSocket() && Util::bootSecs() < reqTime + 5){
+      while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
         // No data? Wait for a second or so.
         if (!getSocket().spool()){
           if (progressCallback != 0){
@@ -170,12 +175,14 @@ namespace HTTP{
           }
           return true; // Success!
         }
-        // reset the 5 second timeout
+        // reset the data timeout
         reqTime = Util::bootSecs();
       }
       if (getSocket()){
-        FAIL_MSG("Timeout while retrieving %s", link.getUrl().c_str());
-        return false;
+        FAIL_MSG("Timeout while retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
+        getSocket().close();
+      }else{
+        FAIL_MSG("Lost connection while retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
       }
       Util::sleep(500); // wait a bit before retrying
     }
@@ -185,13 +192,14 @@ namespace HTTP{
   
   bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
-    unsigned int loop = 6; // max 5 attempts
+    unsigned int loop = retryCount; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
+      MEDIUM_MSG("Posting to %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
       doRequest(link, "POST", payload);
       //Not synced? Ignore the response and immediately return false.
       if (!sync){return false;}
       uint64_t reqTime = Util::bootSecs();
-      while (getSocket() && Util::bootSecs() < reqTime + 5){
+      while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
         // No data? Wait for a second or so.
         if (!getSocket().spool()){
           if (progressCallback != 0){
@@ -219,7 +227,7 @@ namespace HTTP{
           }
           return true; // Success!
         }
-        // reset the 5 second timeout
+        // reset the data timeout
         reqTime = Util::bootSecs();
       }
       if (getSocket()){

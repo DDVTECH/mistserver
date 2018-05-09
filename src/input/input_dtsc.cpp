@@ -173,10 +173,6 @@ namespace Mist {
     std::string givenStream = config->getString("streamname");
     if (streamName == "") {
       streamName = givenStream;
-    }else{
-      if (givenStream.find("+") != std::string::npos){
-        streamName += givenStream.substr(givenStream.find("+"));
-      }
     }
     srcConn = Socket::Connection(host, port, true);
     if (!srcConn.connected()){

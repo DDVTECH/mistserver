@@ -156,6 +156,14 @@ uint32_t HTTP::URL::getDefaultPort() const{
   return 0;
 }
 
+/// Returns the file extension of the URL, or an empty string if none.
+std::string HTTP::URL::getExt() const{
+  if (path.rfind('.') == std::string::npos){
+    return "";
+  }
+  return path.substr(path.rfind('.')+1);
+}
+
 /// Returns the full URL in string format
 std::string HTTP::URL::getUrl() const{
   std::string ret;

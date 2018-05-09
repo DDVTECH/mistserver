@@ -222,6 +222,8 @@ namespace Mist {
       return 0;
     }
 
+    INFO_MSG("Booting input for stream %s", streamName.c_str());
+
     if (!checkArguments()) {
       FAIL_MSG("Setup failed - exiting");
       return 0;
@@ -274,7 +276,7 @@ namespace Mist {
       }
       //if the exit was clean, don't restart it
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        MEDIUM_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+        INFO_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
       char pageName[NAME_BUFFER_SIZE];
@@ -518,7 +520,9 @@ namespace Mist {
       WARN_MSG("Stream already online, cancelling");
       return;
     }
-    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true)) {//manually override stream url to start the buffer
+    std::map<std::string, std::string> overrides;
+    overrides["throughboot"] = "";
+    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
       pullLock.post();
       pullLock.close();
       pullLock.unlink();

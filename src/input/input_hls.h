@@ -9,11 +9,8 @@
 #include <string>
 #include <vector>
 //#include <stdint.h>
-#include <mist/http_parser.h>
 #include <mist/downloader.h>
-
-
-
+#include <mist/http_parser.h>
 
 #define BUFFERTIME 10
 
@@ -36,32 +33,26 @@ namespace Mist{
     bool isUrl() const;
     bool reload();
     void addEntry(const std::string &filename, float duration, uint64_t &totalBytes);
-    bool loadURL(const std::string &loadUrl);
+    bool loadSegment(const HTTP::URL &uri);
     bool isSupportedFile(const std::string filename);
 
-    std::string uri;  //link to the current playlistfile
-    std::string uri_root; 
-
+    std::string uri; // link to the current playlistfile
     HTTP::URL root;
 
-  HTTP::Downloader DL;
+    HTTP::Downloader segDL;
+    HTTP::Downloader plsDL;
 
-
-    std::string source;
     const char *packetPtr;
+    uint64_t reloadNext;
 
     int id;
-    bool initDone;
     bool playlistEnd;
     int noChangeCount;
-    int version;
-    uint64_t media_sequence;
-    int lastFileIndex;
+    uint64_t lastFileIndex;
 
     int waitTime;
     PlaylistType playlistType;
     std::deque<playListEntries> entries;
-    int entryCount;
     unsigned int lastTimestamp;
     unsigned int startTime;
   };
@@ -87,7 +78,6 @@ namespace Mist{
     PlaylistType playlistType;
     int version;
     int targetDuration;
-    int media_sequence;
     bool endPlaylist;
     int currentPlaylist;
 
@@ -97,13 +87,11 @@ namespace Mist{
     std::map<int, int> pidMapping;
     std::map<int, int> pidMappingR;
 
-    std::vector<int> reloadNext;
-
     int currentIndex;
     std::string currentFile;
     std::ifstream in;
 
-    TS::Stream tsStream; ///<Used for parsing the incoming ts stream
+    TS::Stream tsStream; ///< Used for parsing the incoming ts stream
 
     Socket::Connection conn;
     TS::Packet tsBuf;
@@ -125,7 +113,7 @@ namespace Mist{
 
     bool readIndex();
     bool initPlaylist(const std::string &uri);
-    bool readPlaylist(const std::string &uri);
+    bool readPlaylist(const HTTP::URL &uri);
     bool readNextFile();
 
     void parseStreamHeader();
@@ -135,7 +123,7 @@ namespace Mist{
     int getOriginalTrackId(int playlistId, int id);
     int getEntryId(int playlistId, uint64_t bytePos);
   };
-}
+}// namespace Mist
 
 typedef Mist::inputHLS mistIn;
 

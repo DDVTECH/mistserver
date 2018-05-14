@@ -63,15 +63,20 @@ void parseThread(void * ignored) {
 
   threadTimer[tid] = Util::bootSecs();
   while (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active && (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive())) {
+    {
+      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+      threadTimer[tid] = Util::bootSecs();
+    }
+    if (liveStream.isDataTrack(tid)){
+      myProxy.userClient.keepAlive();
+    }
     liveStream.parse(tid);
     if (!liveStream.hasPacket(tid)){
-      if (liveStream.isDataTrack(tid)){
-        myProxy.userClient.keepAlive();
-      }
       Util::sleep(100);
       continue;
     }
-    while (liveStream.hasPacket(tid) && (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active && (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive()))){
+    uint64_t startSecs = Util::bootSecs();
+    while (liveStream.hasPacket(tid) && ((Util::bootSecs() < startSecs + 2) && cfgPointer->is_active && (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive()))){
       liveStream.initializeMetadata(myMeta, tid);
       DTSC::Packet pack;
       liveStream.getPacket(tid, pack);
@@ -83,10 +88,6 @@ void parseThread(void * ignored) {
         myProxy.continueNegotiate(tid, myMeta, true);
         myProxy.bufferLivePacket(pack, myMeta);
       }
-    }
-    {
-      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
-      threadTimer[tid] = Util::bootSecs();
     }
   }
   std::string reason = "unknown reason";

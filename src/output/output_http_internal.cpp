@@ -574,6 +574,9 @@ namespace Mist {
       }
       std::string response;
       std::string rURL = H.url;
+      if(method != "OPTIONS" && method != "HEAD"){
+        initialize();
+      }
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
@@ -587,7 +590,6 @@ namespace Mist {
         H.Clean();
         return;
       }
-      initialize();
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo = {};}\n";
       JSON::Value json_resp = getStatusJSON(reqHost, useragent);
       if (rURL.substr(0, 6) != "/json_"){

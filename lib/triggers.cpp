@@ -39,7 +39,7 @@ namespace Triggers{
     if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
       HTTP::Downloader DL;
       DL.setHeader("X-Trigger", trigger);
-      DL.setHeader("Content-Type", "application/x-www-form-urlencoded");
+      DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && sync && DL.isOk()){
         return DL.data();

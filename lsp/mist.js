@@ -5212,6 +5212,7 @@ var UI = {
             ['CONN_CLOSE', 'CONN_CLOSE: right after a connection has been closed'],
             ['CONN_PLAY', 'CONN_PLAY: right before a stream playback of a connection'],
             ['USER_NEW', 'USER_NEW: a new user connects that hasn\'t been allowed or denied access before'],
+            ['USER_END', 'USER_END: a user session disconnects after receiving some media'],
             ['LIVE_BANDWIDTH','LIVE_BANDWIDTH: when the value specified as param is surpassed']
           ],
           LTSonly: true,

@@ -153,6 +153,12 @@ namespace Controller {
     trgs["USER_NEW"]["response"] = "always";
     trgs["USER_NEW"]["response_action"] = "If false, denies the session while it remains in the cache. If true, accepts the session while it remains in the cache.";
 
+    trgs["USER_END"]["when"] = "Every time a session ends (same time it is written to the access log)";
+    trgs["USER_END"]["stream_specific"] = true;
+    trgs["USER_END"]["payload"] = "session identifier (hexadecimal string)\nstream name (string)\nconnector (string)\nconnection address (string)\nduration in seconds (integer)\nuploaded bytes total (integer)\ndownloaded bytes total (integer)\ntags (string)";
+    trgs["USER_END"]["response"] = "ignored";
+    trgs["USER_END"]["response_action"] = "None.";
+
     trgs["LIVE_BANDWIDTH"]["when"] = "Every time a new live stream key frame is received";
     trgs["LIVE_BANDWIDTH"]["stream_specific"] = true;
     trgs["LIVE_BANDWIDTH"]["payload"] = "stream name (string)\ncurrent bytes per second (integer)";

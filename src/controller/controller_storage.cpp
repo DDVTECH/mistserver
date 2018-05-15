@@ -92,6 +92,12 @@ namespace Controller{
       rlxAccs->setString("tags", tags, newEndPos);
       rlxAccs->setEndPos(newEndPos + 1);
     }
+    if (Triggers::shouldTrigger("USER_END", strm)){
+      std::stringstream plgen;
+      plgen << sessId << "\n" << strm << "\n" << conn << "\n" << host << "\n" << duration << "\n" << up << "\n" << down << "\n" << tags;
+      std::string payload = plgen.str();
+      Triggers::doTrigger("USER_END", payload, strm);
+    }
   }
 
   ///\brief Write contents to Filename

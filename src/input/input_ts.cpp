@@ -208,8 +208,8 @@ namespace Mist {
       }
       args[argCnt] = 0;
 
-      int fin = -1, fout = -1, ferr = -1;
-      inputProcess = Util::Procs::StartPiped(args, &fin, &fout, &ferr);
+      int fin = -1, fout = -1;
+      inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
       tcpCon = Socket::Connection(-1, fout);
       return true;
     }

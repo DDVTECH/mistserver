@@ -334,6 +334,7 @@ namespace Controller{
           ++i;
         }
         tPage.setRCount(std::min(i, max));
+        tPage.setEndPos(std::min(i, max));
       }
     }
 

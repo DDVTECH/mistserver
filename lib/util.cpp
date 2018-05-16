@@ -460,9 +460,9 @@ namespace Util{
   /// For other types, returns the maximum size possible.
   /// Returns 0 if the field does not exist.
   uint32_t RelAccX::getSize(const std::string &name, uint64_t recordNo) const{
-    if (!fields.count(name) || !isRecordAvailable(recordNo)){return 0;}
     const RelAccXFieldData &fd = fields.at(name);
     if ((fd.type & 0xF0) == RAX_STRING){
+      if (!fields.count(name) || !isRecordAvailable(recordNo)){return 0;}
       return strnlen(RECORD_POINTER, fd.size);
     }else{
       return fd.size;

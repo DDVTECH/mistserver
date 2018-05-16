@@ -40,6 +40,12 @@ namespace Mist {
     uint64_t res = 36 // FTYP Box
       + 8 //MOOV box
       + 108; //MVHD Box
+    uint64_t firstms = 0xFFFFFFFFFFFFFFFFull;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (myMeta.tracks[*it].firstms < firstms){
+        firstms = myMeta.tracks[*it].firstms;
+      }
+    }
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       DTSC::Track & thisTrack = myMeta.tracks[*it];
       uint64_t tmpRes = 0;
@@ -54,6 +60,9 @@ namespace Mist {
         + 8 //MINF Box
         + 36 //DINF Box
         + 8; // STBL Box
+      if (thisTrack.firstms != firstms){
+        tmpRes += 12;// EDTS entry extra
+      }
 
       //These boxes are empty when generating fragmented output
       tmpRes += 20 + (partCount * 4);//STSZ
@@ -140,7 +149,7 @@ namespace Mist {
     //Then override it to set the correct duration
     uint64_t firstms = 0xFFFFFFFFFFFFFFull;
     uint64_t lastms = 0;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       lastms = std::max(lastms, (uint64_t)myMeta.tracks[*it].lastms);
       firstms = std::min(firstms, (uint64_t)myMeta.tracks[*it].firstms);
     }
@@ -171,6 +180,7 @@ namespace Mist {
       elstBox.setMediaTime(0, 0);
       elstBox.setMediaRateInteger(0, 1);
       elstBox.setMediaRateFraction(0, 0);
+
       edtsBox.setContent(elstBox, 0);
       trakBox.setContent(edtsBox, trakOffset++);
 

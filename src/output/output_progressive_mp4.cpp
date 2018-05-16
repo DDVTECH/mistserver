@@ -227,7 +227,6 @@ namespace Mist{
         elstBox.setMediaRateFraction(1, 0);
       }else{
         elstBox.setCount(1);
-
         elstBox.setSegmentDuration(0, tDuration);
         elstBox.setMediaTime(0, 0);
         elstBox.setMediaRateInteger(0, 1);

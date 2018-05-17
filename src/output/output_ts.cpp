@@ -12,17 +12,15 @@ namespace Mist {
     initialize();
     std::string tracks = config->getString("tracks");
     if (config->getString("target").size()){
-      std::string target = config->getString("target");
-      if (target.substr(0,8) != "tsudp://"){
-        FAIL_MSG("Target %s must begin with tsudp://, aborting", target.c_str());
+      HTTP::URL target(config->getString("target"));
+      if (target.protocol != "tsudp"){
+        FAIL_MSG("Target %s must begin with tsudp://, aborting", target.getUrl().c_str());
         parseData = false;
         myConn.close();
         return;
       }
-      //strip beginning off URL
-      target.erase(0, 8);
-      if (target.find(':') == std::string::npos){
-        FAIL_MSG("Target %s must contain a port, aborting", target.c_str());
+      if (!target.getPort()){
+        FAIL_MSG("Target %s must contain a port, aborting", target.getUrl().c_str());
         parseData = false;
         myConn.close();
         return;
@@ -32,9 +30,16 @@ namespace Mist {
       if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
       if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
       packetBuffer.reserve(188*udpSize);
-      int port = atoi(target.substr(target.find(":") + 1).c_str());
-      target.erase(target.find(":"));//strip all after the colon
-      pushSock.SetDestination(target, port);
+      if (target.path.size()){
+        if (!pushSock.bind(0, target.path)){
+          disconnect();
+          streamName = "";
+          selectedTracks.clear();
+          config->is_active = false;
+          return;
+        }
+      }
+      pushSock.SetDestination(target.host, target.getPort());
     }
     unsigned int currTrack = 0;
     //loop over tracks, add any found track IDs to selectedTracks

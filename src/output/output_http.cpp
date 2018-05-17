@@ -252,6 +252,8 @@ namespace Mist {
         if (p[it.key()].asStringRef().size() > 0){
           argarr[argnum++] = (char*)((*it)["option"].c_str());
           argarr[argnum++] = (char*)(p[it.key()].c_str());
+        }else{
+          argarr[argnum++] = (char*)((*it)["option"].c_str());
         }
       }
     }

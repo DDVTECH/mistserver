@@ -501,6 +501,11 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
     capa["methods"][0u]["priority"] = 8ll;
+
+    cfg->addOption("nonchunked", JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not send chunked, but buffer whole segments.\"}"));
+    capa["optional"]["nonchunked"]["name"] = "Send whole segments";
+    capa["optional"]["nonchunked"]["help"] = "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance significantly, but increases compatibility somewhat.";
+    capa["optional"]["nonchunked"]["option"] = "--nonchunked";
   }
   
   void OutDashMP4::onHTTP(){
@@ -548,7 +553,7 @@ namespace Mist{
       H.Clean();
       return;
     }
-    H.StartResponse(H, myConn);
+    H.StartResponse(H, myConn, config->getBool("nonchunked"));
 
     if (url.find("init.m4s") != std::string::npos){
       //init segment

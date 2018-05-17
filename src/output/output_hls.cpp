@@ -368,6 +368,11 @@ namespace Mist {
     capa["optional"]["listlimit"]["default"] = 0ll;
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
+    
+    cfg->addOption("nonchunked", JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not send chunked, but buffer whole segments.\"}"));
+    capa["optional"]["nonchunked"]["name"] = "Send whole segments";
+    capa["optional"]["nonchunked"]["help"] = "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance significantly, but increases compatibility somewhat.";
+    capa["optional"]["nonchunked"]["option"] = "--nonchunked";
     /*LTS-END*/
   }
 
@@ -514,7 +519,7 @@ namespace Mist {
         return;
       }
 
-      H.StartResponse(H, myConn, VLCworkaround);
+      H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
       //we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = Trk.timeToFragnum(from);
       contPAT = Trk.missedFrags + fragIndice; //PAT continuity counter

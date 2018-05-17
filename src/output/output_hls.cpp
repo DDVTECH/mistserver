@@ -97,7 +97,11 @@ namespace Mist {
         if (audioId != -1) {
           result << "_" << audioId;
         }
-        result << "/index.m3u8?sessId=" << getpid() << "\r\n";
+        if (hasSessionIDs()){
+          result << "/index.m3u8?sessId=" << getpid() << "\r\n";
+        }else{
+          result << "/index.m3u8\r\n";
+        }
       }else if(it->second.codec == "subtitle"){
 
         if(it->second.lang.empty()){
@@ -373,6 +377,11 @@ namespace Mist {
     capa["optional"]["nonchunked"]["name"] = "Send whole segments";
     capa["optional"]["nonchunked"]["help"] = "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
+
+    cfg->addOption("mergesessions", JSON::fromString("{\"short\":\"M\",\"long\":\"mergesessions\",\"help\":\"Merge together sessions from one user into a single session.\"}"));
+    capa["optional"]["mergesessions"]["name"] = "Merge sessions";
+    capa["optional"]["mergesessions"]["help"] = "If enabled, merges together all views from a single user into a single combined session. If disabled, each view (main playlist request) is a separate session.";
+    capa["optional"]["mergesessions"]["option"] = "--mergesessions";
     /*LTS-END*/
   }
 

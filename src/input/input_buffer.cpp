@@ -296,7 +296,9 @@ namespace Mist {
     if (currBPS != lastBPS){
       lastBPS = currBPS;
       if (Triggers::shouldTrigger("LIVE_BANDWIDTH", streamName, liveBW, &lastBPS)){
-        std::string payload = streamName + "\n" + JSON::Value((long long)lastBPS).asStringRef();
+        std::stringstream pl;
+        pl << streamName << "\n" << lastBPS;
+        std::string payload = pl.str();
         if (!Triggers::doTrigger("LIVE_BANDWIDTH", payload, streamName)){
           WARN_MSG("Shutting down buffer because bandwidth limit reached!");
           config->is_active = false;

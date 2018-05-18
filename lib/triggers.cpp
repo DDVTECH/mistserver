@@ -49,14 +49,13 @@ namespace Triggers{
     }else{// send payload to stdin of newly forked process
       int fdIn = -1;
       int fdOut = -1;
-      int fdErr = -1;
 
       char *argv[3];
       argv[0] = (char *)value.c_str();
       argv[1] = (char *)trigger.c_str();
       argv[2] = NULL;
-      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
-      if (fdIn == -1 || fdOut == -1 || fdErr == -1){// verify fdIn
+      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, 0); // start new process and return stdin file desc.
+      if (fdIn == -1 || fdOut == -1){// verify fdIn
         FAIL_MSG("StartPiped returned invalid fd");
         return defaultResponse;
       }
@@ -88,7 +87,6 @@ namespace Triggers{
         fclose(outFile);
         free(fileBuf);
         close(fdOut);
-        close(fdErr);
         if (counter >= 150){
           WARN_MSG("Using default trigger response: %s", defaultResponse.c_str());
           return defaultResponse;
@@ -96,7 +94,6 @@ namespace Triggers{
         return ret;
       }
       close(fdOut);
-      close(fdErr);
       return defaultResponse;
     }
   }

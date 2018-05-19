@@ -21,7 +21,8 @@ static std::string strftime_now(const std::string& format) {
   time_t rawtime;
   char buffer[80];
   time(&rawtime);
-  struct tm* timeinfo = localtime(&rawtime);
+  struct tm timebuf;
+  struct tm* timeinfo = localtime_r(&rawtime, &timebuf);
   if (!timeinfo || !strftime(buffer, 80, format.c_str(), timeinfo)){return "";}
   return buffer;
 }

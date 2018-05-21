@@ -712,9 +712,10 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
         if (accLogFile.good()){
           time_t rawtime;
           struct tm *timeinfo;
+          struct tm tmptime;
           char buffer[100];
           time(&rawtime);
-          timeinfo = localtime(&rawtime);
+          timeinfo = localtime_r(&rawtime, &tmptime);
           strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
           accLogFile << buffer << ", " << index.ID << ", " << index.streamName << ", " << index.connector << ", " << index.host << ", " << duration << ", " << getUp()/duration/1024 << ", " << getDown()/duration/1024 << ", ";
           if (tags.size()){accLogFile << tagStream.str();}

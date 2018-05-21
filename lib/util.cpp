@@ -310,9 +310,10 @@ namespace Util{
         }
         time_t rawtime;
         struct tm *timeinfo;
+        struct tm timetmp;
         char buffer[100];
         time(&rawtime);
-        timeinfo = localtime(&rawtime);
+        timeinfo = localtime_r(&rawtime, &timetmp);
         strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
         dprintf(out, "%s[%s] ", color_time, buffer);
         if (progname && progpid && strlen(progname) && strlen(progpid)){

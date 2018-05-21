@@ -15,7 +15,8 @@
 /// Returns the challenge string for authentication, given the socket connection.
 std::string getChallenge(Socket::Connection & conn){
   time_t Time = time(0);
-  tm * TimeInfo = localtime( &Time);
+  tm tmptime;
+  tm * TimeInfo = localtime_r( &Time, &tmptime);
   std::stringstream Date;
   Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
   return Secure::md5(Date.str().c_str() + conn.getHost());

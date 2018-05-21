@@ -180,9 +180,10 @@ int main_loop(int argc, char **argv){
       dup2(output, STDERR_FILENO);
       time_t rawtime;
       struct tm *timeinfo;
+      struct tm tmptime;
       char buffer[25];
       time(&rawtime);
-      timeinfo = localtime(&rawtime);
+      timeinfo = localtime_r(&rawtime, &tmptime);
       strftime(buffer, 25, "%c", timeinfo);
       std::cerr << std::endl
                 << std::endl

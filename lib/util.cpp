@@ -202,14 +202,6 @@ namespace Util{
   }
 
 
-  static int true_stderr = 2;
-  static int log_pipe = -1;
-  //Local-only helper function.
-  //Detects tty on stdin to decide whether or not colours should be used.
-  static void handleMsg(void *nul){
-    Util::logParser(log_pipe, true_stderr, isatty(true_stderr));
-  }
-
   /// Redirects stderr to log parser, writes log parser to the old stderr.
   /// Does nothing if the MIST_CONTROL environment variable is set.
   void redirectLogsIfNeeded(){
@@ -218,17 +210,37 @@ namespace Util{
     if (getenv("MIST_CONTROL")){return;}
     setenv("MIST_CONTROL", "1", 1);
     //Okay, we're stand-alone, lets do some parsing!
-    true_stderr = dup(STDERR_FILENO);
+    int true_stderr = dup(STDERR_FILENO);
     int pipeErr[2];
     if (pipe(pipeErr) >= 0){
-      dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
-      close(pipeErr[1]);               // close the unneeded pipe file descriptor
-      log_pipe = pipeErr[0];
       //Start reading log messages from the unnamed pipe
-      Util::Procs::socketList.insert(log_pipe); //Mark this FD as needing to be closed before forking
-      Util::Procs::socketList.insert(true_stderr); //Mark this FD as needing to be closed before forking
-      tthread::thread msghandler(handleMsg, (void *)0);
-      msghandler.detach();
+      pid_t pid = fork();
+      if (pid == 0) { //child
+        close(pipeErr[1]);               // close the unneeded pipe file descriptor
+        //Close all sockets in the socketList
+        for (std::set<int>::iterator it = Util::Procs::socketList.begin(); it != Util::Procs::socketList.end(); ++it){
+          close(*it);
+        }
+        close(2);
+        struct sigaction new_action;
+        new_action.sa_handler = SIG_IGN;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGINT, &new_action, NULL);
+        sigaction(SIGHUP, &new_action, NULL);
+        sigaction(SIGTERM, &new_action, NULL);
+        sigaction(SIGPIPE, &new_action, NULL);
+        Util::logParser(pipeErr[0], true_stderr, isatty(true_stderr));
+        exit(0);
+      }
+      if (pid == -1){
+        FAIL_MSG("Failed to fork child process for log handling!");
+      }else{
+        dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
+      }
+      close(pipeErr[1]);               // close the unneeded pipe file descriptor
+      close(pipeErr[0]);
+      close(true_stderr);
     }
   }
 

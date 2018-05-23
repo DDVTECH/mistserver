@@ -65,7 +65,7 @@ namespace Mist{
         + 8 //MINF Box
         + 36 //DINF Box
         + 8; // STBL Box
-      if (thisTrack.firstms != firstms){
+      if (myMeta.vod && thisTrack.firstms != firstms){
         tmpRes += 12;// EDTS entry extra
       }
 
@@ -213,10 +213,10 @@ namespace Mist{
       MP4::ELST elstBox;
       elstBox.setVersion(0);
       elstBox.setFlags(0);
-      if (thisTrack.firstms != fms){
+      if (myMeta.vod && thisTrack.firstms != fms){
         elstBox.setCount(2);
 
-        elstBox.setSegmentDuration(0, fragmented ? -1 : thisTrack.firstms - fms);
+        elstBox.setSegmentDuration(0, thisTrack.firstms - fms);
         elstBox.setMediaTime(0, 0xFFFFFFFFull);
         elstBox.setMediaRateInteger(0, 0);
         elstBox.setMediaRateFraction(0, 0);
@@ -227,7 +227,7 @@ namespace Mist{
         elstBox.setMediaRateFraction(1, 0);
       }else{
         elstBox.setCount(1);
-        elstBox.setSegmentDuration(0, tDuration);
+        elstBox.setSegmentDuration(0, fragmented ? -1 : tDuration);
         elstBox.setMediaTime(0, 0);
         elstBox.setMediaRateInteger(0, 1);
         elstBox.setMediaRateFraction(0, 0);

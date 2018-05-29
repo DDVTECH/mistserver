@@ -653,9 +653,9 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
       skipCount -= len;
       return len;
     }else{
-      unsigned int retCode = iwrite((((char*)buffer)+skipCount), len-skipCount);
+      unsigned int toSkip = skipCount;
       skipCount = 0;
-      return retCode;
+      return iwrite((((char*)buffer)+toSkip), len-toSkip) + toSkip;
     }
   }
   int r;

@@ -287,19 +287,19 @@ namespace Util{
         ++i;
         progname = buf+i;//progname starts here
       }
-      while (i < 30 && buf[i] != '|' && buf[i] != 0){++i;}
+      while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
       if (buf[i] == '|'){
         buf[i] = 0;//insert null byte
         ++i;
         progpid = buf+i;//progpid starts here
       }
-      while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
+      while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
       if (buf[i] == '|'){
         buf[i] = 0;//insert null byte
         ++i;
         lineno = buf+i;//lineno starts here
       }
-      while (i < 80 && buf[i] != '|' && buf[i] != 0){++i;}
+      while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
       if (buf[i] == '|'){
         buf[i] = 0;//insert null byte
         ++i;

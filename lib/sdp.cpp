@@ -369,7 +369,7 @@ namespace SDP{
           continue;
         }
         getline(words, item, ' ');
-        if (!getline(words, item, ' ') || item != "RTP/AVP"){
+        if (!getline(words, item, ' ') || item.substr(0, 7) != "RTP/AVP"){
           WARN_MSG("Media transport not supported: %s", item.c_str());
           myMeta->tracks.erase(trackNo);
           tracks.erase(trackNo);

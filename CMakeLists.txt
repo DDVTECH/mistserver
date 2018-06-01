@@ -143,9 +143,11 @@ set(libHeaders
   lib/encode.h
   lib/bitfields.h
   lib/bitstream.h
+  lib/certificate.h
   lib/checksum.h
   lib/config.h
   lib/defines.h
+  lib/dtls_srtp_handshake.h
   lib/dtsc.h
   lib/encryption.h
   lib/flv_tag.h
@@ -168,11 +170,15 @@ set(libHeaders
   lib/procs.h
   lib/rijndael.h
   lib/rtmpchunks.h
+  lib/rtp_fec.h
   lib/rtp.h
   lib/sdp.h
+  lib/sdp_media.h
   lib/shared_memory.h
   lib/socket.h
+  lib/srtp.h
   lib/stream.h
+  lib/stun.h
   lib/theora.h
   lib/timing.h
   lib/tinythread.h
@@ -201,7 +207,9 @@ add_library (mist
   lib/encode.cpp
   lib/bitfields.cpp
   lib/bitstream.cpp
+  lib/certificate.cpp
   lib/config.cpp
+  lib/dtls_srtp_handshake.cpp
   lib/dtsc.cpp
   lib/dtscmeta.cpp
   lib/encryption.cpp
@@ -224,11 +232,15 @@ add_library (mist
   lib/procs.cpp
   lib/rijndael.cpp
   lib/rtmpchunks.cpp
+  lib/rtp_fec.cpp
   lib/rtp.cpp
   lib/sdp.cpp
+  lib/sdp_media.cpp
   lib/shared_memory.cpp
   lib/socket.cpp
+  lib/srtp.cpp
   lib/stream.cpp
+  lib/stun.cpp
   lib/theora.cpp
   lib/timing.cpp
   lib/tinythread.cpp
@@ -253,7 +265,7 @@ target_link_libraries(mist
   ${LIBRT}
 )
 if (NOT DEFINED NOSSL )
-  target_link_libraries(mist mbedtls mbedx509 mbedcrypto)
+  target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
 endif()
 install(
   FILES ${libHeaders}
@@ -460,6 +472,7 @@ makeOutput(EBML ebml)
 makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
+makeOutput(WebRTC webrtc http)#LTS
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
 endif()

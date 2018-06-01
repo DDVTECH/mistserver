@@ -1,0 +1,34 @@
+From ba52913047a6821dac15f8320c8857cef589bb6f Mon Sep 17 00:00:00 2001
+From: roxlu <diederick@roxlu.com>
+Date: Mon, 2 Jul 2018 22:26:21 +0200
+Subject: [PATCH] Fixes to get DTLS SRTP to work with WebRTC
+
+---
+ library/ssl_tls.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/library/ssl_tls.c b/library/ssl_tls.c
+index fe27c6a8..25b86da8 100644
+--- a/library/ssl_tls.c
++++ b/library/ssl_tls.c
+@@ -6436,7 +6436,6 @@ mbedtls_ssl_srtp_profile mbedtls_ssl_get_dtls_srtp_protection_profile( const mbe
+ }
+ 
+ int mbedtls_ssl_get_dtls_srtp_key_material( const mbedtls_ssl_context *ssl, unsigned char *key, size_t *key_len ) {
+-    *key_len = 0;
+ 
+     /* check output buffer size */
+     if ( *key_len < ssl->dtls_srtp_info.dtls_srtp_keys_len) {
+@@ -7706,8 +7705,7 @@ void mbedtls_ssl_free( mbedtls_ssl_context *ssl )
+ #endif
+ 
+ #if defined (MBEDTLS_SSL_DTLS_SRTP)
+-    mbedtls_zeroize( ssl->dtls_srtp_info.dtls_srtp_keys, ssl->dtls_srtp_info.dtls_srtp_keys_len );
+- //   mbedtls_free( ssl->dtls_srtp_keys );
++    mbedtls_platform_zeroize( ssl->dtls_srtp_info.dtls_srtp_keys, ssl->dtls_srtp_info.dtls_srtp_keys_len );
+ #endif /* MBEDTLS_SSL_DTLS_SRTP */
+ 
+     MBEDTLS_SSL_DEBUG_MSG( 2, ( "<= free" ) );
+-- 
+2.17.1
+

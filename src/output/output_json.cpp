@@ -1,10 +1,13 @@
 #include "output_json.h"
+#include <mist/stream.h>
 #include <iomanip>
 
 namespace Mist {
   OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){
     ws = 0;
     realTime = 0;
+    keepReselecting = false;
+    dupcheck = false;
   }
   OutJSON::~OutJSON() {
     if (ws){
@@ -30,8 +33,15 @@ namespace Mist {
   }
   
   void OutJSON::sendNext(){
+    JSON::Value jPack = thisPacket.toJSON();
+    if (dupcheck){
+      if (jPack.compareExcept(lastVal, nodup)){
+        return;//skip duplicates
+      }
+      lastVal = jPack;
+    }
     if (ws){
-      ws->sendFrame(thisPacket.toJSON().toString());
+      ws->sendFrame(jPack.toString());
       return;
     }
     if (!jsonp.size()){
@@ -44,7 +54,7 @@ namespace Mist {
     }else{
       myConn.SendNow(jsonp + "(");
     }
-    myConn.SendNow(thisPacket.toJSON().toString());
+    myConn.SendNow(jPack.toString());
     if (jsonp.size()){
       myConn.SendNow(");\n", 3);
     }
@@ -60,7 +70,37 @@ namespace Mist {
     sentHeader = true;
   }
   
+  void OutJSON::onFail(){
+    //Only run failure handle if we're not being persistent
+    if (!keepReselecting){
+      HTTPOutput::onFail();
+    }else{
+      onFinish();
+    }
+  }
+
   bool OutJSON::onFinish(){
+    static bool recursive = false;
+    if (recursive){return true;}
+    recursive = true;
+    if (keepReselecting){
+      uint64_t maxTimer = 7200;
+      while (--maxTimer && nProxy.userClient.isAlive() && keepGoing()){
+        Util::wait(500);
+        stats();
+        if (Util::getStreamStatus(streamName) != STRMSTAT_READY){
+          disconnect();
+        }else{
+          updateMeta();
+          if (isReadyForPlay()){
+            recursive = false;
+            return true;
+          }
+        }
+      }
+      recursive = false;
+      return false;
+    }
     if (!jsonp.size() && !first){
       myConn.SendNow("]);\n\n", 5);
     }
@@ -71,6 +111,21 @@ namespace Mist {
   void OutJSON::onHTTP(){
     std::string method = H.method;
     jsonp = "";
+    if (H.GetVar("persist") != ""){keepReselecting = true;}
+    if (H.GetVar("dedupe") != ""){
+      dupcheck = true;
+      size_t index;
+      std::string dupes = H.GetVar("dedupe");
+      while (dupes != "") {
+        index = dupes.find(',');
+        nodup.insert(dupes.substr(0, index));
+        if (index != std::string::npos) {
+          dupes.erase(0, index + 1);
+        } else {
+          dupes = "";
+        }
+      }
+    }
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     

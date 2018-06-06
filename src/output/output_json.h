@@ -9,10 +9,15 @@ namespace Mist {
       static void init(Util::Config * cfg);
       void onHTTP();
       bool onFinish();
+      void onFail();
       void sendNext();
       void sendHeader();
     protected:
+      JSON::Value lastVal;
+      bool keepReselecting;
       std::string jsonp;
+      bool dupcheck;
+      std::set<std::string> nodup;
       bool first;
       HTTP::Websocket * ws;
   };

@@ -3,6 +3,7 @@
 #include <mist/mp4_generic.h>
 #include <mist/checksum.h>
 #include <mist/bitfields.h>
+#include <mist/encode.h>
 #include "output_progressive_mp4.h"
 
 #include <inttypes.h>
@@ -698,9 +699,19 @@ namespace Mist{
   }
 
   void OutProgressiveMP4::onHTTP(){
+    std::string dl;
+    if (H.GetVar("dl").size()){
+      dl = H.GetVar("dl");
+      if (dl.find('.') == std::string::npos){
+        dl = streamName + ".mp4";
+      }
+    }
     if(H.method == "OPTIONS" || H.method == "HEAD"){
       H.Clean();
       H.setCORSHeaders();
+      if (dl.size()){
+        H.SetHeader("Content-Disposition" ,"attachment; filename="+Encodings::URL::encode(dl)+";");
+      }
       H.SetHeader("Content-Type", "video/MP4");
       H.SetHeader("Accept-Ranges", "bytes, parsec");
       H.SendResponse("200", "OK", myConn);
@@ -779,6 +790,10 @@ namespace Mist{
     }
     H.Clean(); //make sure no parts of old requests are left in any buffers
     H.setCORSHeaders();
+    if (dl.size()){
+      H.SetHeader("Content-Disposition" ,"attachment; filename="+Encodings::URL::encode(dl)+";");
+      realTime = 0;//force max download speed when downloading
+    }
     H.SetHeader("Content-Type", "video/MP4"); //Send the correct content-type for MP4 files
     if (myMeta.vod){
       H.SetHeader("Accept-Ranges", "bytes, parsec");

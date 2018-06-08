@@ -78,6 +78,21 @@ namespace RTP{
     char *getData();
   };
 
+  class Sorter{
+    public:
+      Sorter();
+      void addPacket(const char *dat, unsigned int len);
+      void addPacket(const Packet & pack);
+      void setCallback(uint64_t track, void (*callback)(const uint64_t track, const Packet &p));
+      uint16_t rtpSeq;
+      int32_t lostTotal, lostCurrent;
+      uint32_t packTotal, packCurrent;
+    private:
+      uint64_t packTrack;
+      std::map<uint16_t, Packet> packBuffer;
+      void (*callback)(const uint64_t track, const Packet &p);
+  };
+
   class MPEGVideoHeader{
     public:
       MPEGVideoHeader(char * d);

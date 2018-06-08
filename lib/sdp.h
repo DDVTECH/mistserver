@@ -14,14 +14,11 @@ namespace SDP{
     Socket::UDPConnection data;
     Socket::UDPConnection rtcp;
     RTP::Packet pack;
+    RTP::Sorter sorter;
     long long rtcpSent;
     uint64_t firstTime;
     int channel; /// Channel number, used in TCP sending
     uint64_t packCount;
-    uint16_t rtpSeq;
-    int32_t lostTotal, lostCurrent;
-    uint32_t packTotal, packCurrent;
-    std::map<uint16_t, RTP::Packet> packBuffer;
     std::string transportString; /// Current transport string.
     std::string control;
     std::string fmtp; /// fmtp string, used by getParamString / getParamInt

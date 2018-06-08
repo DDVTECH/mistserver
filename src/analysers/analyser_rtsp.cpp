@@ -95,7 +95,7 @@ bool AnalyserRTSP::parsePacket(){
       DETAIL_MED("Received packet for unknown track number on channel %u", chan);
     }
     if (trackNo){
-      sdpState.tracks[trackNo].rtpSeq = pkt.getSequence();
+      sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
     }
 
     if (detail >= 10){

@@ -14,6 +14,7 @@ namespace Mist{
     InputRTSP(Util::Config *cfg);
     bool needsLock(){return false;}
     void incoming(const DTSC::Packet &pkt);
+    void incomingRTP(const uint64_t track, const RTP::Packet &p);
 
   protected:
     // Private Functions

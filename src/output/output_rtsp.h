@@ -17,6 +17,7 @@ namespace Mist{
     void requestHandler();
     bool onFinish();
     void incomingPacket(const DTSC::Packet &pkt);
+    void incomingRTP(const uint64_t track, const RTP::Packet &p);
 
   private:
     long long connectedAt;   ///< The timestamp the connection was made, as reference point for RTCP

@@ -286,21 +286,21 @@ namespace RTP{
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
       return;
     }
-    if (!(sTrk.lostCurrent + sTrk.packCurrent)){sTrk.packCurrent++;}
+    if (!(sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent)){sTrk.sorter.packCurrent++;}
     rtcpData[0] = 0x81;//version 2, no padding, one receiver report
     rtcpData[1] = 201;//receiver report
     Bit::htobs(rtcpData+2, 7);//7 4-byte words follow the header
     Bit::htobl(rtcpData+4, sTrk.mySSRC);//set receiver identifier
     Bit::htobl(rtcpData+8, sTrk.theirSSRC);//set source identifier
-    rtcpData[12] = (sTrk.lostCurrent * 255) / (sTrk.lostCurrent + sTrk.packCurrent); //fraction lost since prev RR
-    Bit::htob24(rtcpData+13, sTrk.lostTotal); //cumulative packets lost since start
-    Bit::htobl(rtcpData+16, sTrk.rtpSeq | (sTrk.packTotal & 0xFFFF0000ul)); //highest sequence received
+    rtcpData[12] = (sTrk.sorter.lostCurrent * 255) / (sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent); //fraction lost since prev RR
+    Bit::htob24(rtcpData+13, sTrk.sorter.lostTotal); //cumulative packets lost since start
+    Bit::htobl(rtcpData+16, sTrk.sorter.rtpSeq | (sTrk.sorter.packTotal & 0xFFFF0000ul)); //highest sequence received
     Bit::htobl(rtcpData+20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData+24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData+28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
     callBack(&(sTrk.rtcp), (char *)rtcpData, 32, 0);
-    sTrk.lostCurrent = 0;
-    sTrk.packCurrent = 0;
+    sTrk.sorter.lostCurrent = 0;
+    sTrk.sorter.packCurrent = 0;
     free(rtcpData);
   }
 
@@ -440,6 +440,80 @@ namespace RTP{
   void MPEGVideoHeader::setEnd(){
     data[2] |= 0x8;
   }
+
+  Sorter::Sorter(){
+    packTrack = 0;
+    rtpSeq = 0;
+    lostTotal = 0;
+    lostCurrent = 0;
+    packTotal = 0;
+    packCurrent = 0;
+  }
+
+  void Sorter::setCallback(uint64_t track, void (*cb)(const uint64_t track, const Packet &p)){
+    callback = cb;
+    packTrack = track;
+  }
+
+  /// Calls addPacket(pack) with a newly constructed RTP::Packet from the given arguments.
+  void Sorter::addPacket(const char *dat, unsigned int len){
+    addPacket(RTP::Packet(dat, len));
+  }
+
+  /// Takes in new RTP packets for a single track.
+  /// Automatically sorts them, waiting when packets come in slow or not at all.
+  /// Calls the callback with packets in sorted order, whenever it becomes possible to do so.
+  void Sorter::addPacket(const Packet & pack){
+    if (!rtpSeq){rtpSeq = pack.getSequence();}
+    // packet is very early - assume dropped after 30 packets
+    while ((int16_t)(rtpSeq - ((uint16_t)pack.getSequence())) < -30){
+      WARN_MSG("Giving up on packet %u", rtpSeq);
+      ++rtpSeq;
+      ++lostTotal;
+      ++lostCurrent;
+      ++packTotal;
+      ++packCurrent;
+      // send any buffered packets we may have
+      while (packBuffer.count(rtpSeq)){
+        callback(packTrack, pack);
+        ++rtpSeq;
+        ++packTotal;
+        ++packCurrent;
+      }
+    }
+    // send any buffered packets we may have
+    while (packBuffer.count(rtpSeq)){
+      callback(packTrack, pack);
+      ++rtpSeq;
+      ++packTotal;
+      ++packCurrent;
+    }
+    // packet is slightly early - buffer it
+    if ((int16_t)(rtpSeq - (uint16_t)pack.getSequence()) < 0){
+      INFO_MSG("Buffering early packet #%u->%u", rtpSeq, pack.getSequence());
+      packBuffer[pack.getSequence()] = pack;
+    }
+    // packet is late
+    if ((int16_t)(rtpSeq - (uint16_t)pack.getSequence()) > 0){
+      // negative difference?
+      --lostTotal;
+      --lostCurrent;
+      ++packTotal;
+      ++packCurrent;
+      WARN_MSG("Dropped a packet that arrived too late! (%d packets difference)",
+               (int16_t)(rtpSeq - (uint16_t)pack.getSequence()));
+      return;
+    }
+    // packet is in order
+    if (rtpSeq == pack.getSequence()){
+      callback(packTrack, pack);
+      ++rtpSeq;
+      ++packTotal;
+      ++packCurrent;
+    }
+  }
+
+
 
 }
 

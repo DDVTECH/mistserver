@@ -13,11 +13,6 @@ namespace SDP{
     channel = -1;
     firstTime = 0;
     packCount = 0;
-    rtpSeq = 0;
-    lostTotal = 0;
-    lostCurrent = 0;
-    packTotal = 0;
-    packCurrent = 0;
     fpsTime = 0;
     fpsMeta = 0;
     fps = 0;
@@ -882,7 +877,7 @@ namespace SDP{
           HIGH_MSG("Not start of a new FU - throwing away");
           return;
         }
-        if (fuaBuffer.size() && ((pl[2] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
+        if (fuaBuffer.size() && ((pl[2] & 0x80) || (tracks[track].sorter.rtpSeq != pkt.getSequence()))){
           WARN_MSG("H265 FU packet incompleted: %lu", fuaBuffer.size());
           Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
           fuaBuffer[4] |= 0x80;                        // set error bit
@@ -989,7 +984,7 @@ namespace SDP{
           HIGH_MSG("Not start of a new FU-A - throwing away");
           return;
         }
-        if (fuaBuffer.size() && ((pl[1] & 0x80) || (tracks[track].rtpSeq != pkt.getSequence()))){
+        if (fuaBuffer.size() && ((pl[1] & 0x80) || (tracks[track].sorter.rtpSeq != pkt.getSequence()))){
           WARN_MSG("Ending unfinished FU-A");
           INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaBuffer.size());
           uint8_t nalType = (fuaBuffer[4] & 0x1F);

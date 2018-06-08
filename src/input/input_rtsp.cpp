@@ -3,9 +3,8 @@
 Mist::InputRTSP *classPointer = 0;
 Socket::Connection *mainConn = 0;
 
-void incomingPacket(const DTSC::Packet &pkt){
-  classPointer->incoming(pkt);
-}
+void incomingPacket(const DTSC::Packet &pkt){classPointer->incoming(pkt);}
+void insertRTP(const uint64_t track, const RTP::Packet &p){classPointer->incomingRTP(track, p);}
 
 /// Function used to send RTP packets over UDP
 ///\param socket A UDP Connection pointer, sent as a void*, to keep portability.
@@ -18,6 +17,8 @@ void sendUDP(void *socket, char *data, unsigned int len, unsigned int channel){
 }
 
 namespace Mist{
+  void InputRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){sdpState.handleIncomingRTP(track, p);}
+
   InputRTSP::InputRTSP(Util::Config *cfg) : Input(cfg){
     TCPmode = true;
     sdpState.myMeta = &myMeta;
@@ -296,7 +297,7 @@ namespace Mist{
       if (!trackNo && (chan % 2) != 1){
         WARN_MSG("Received packet for unknown track number on channel %u", chan);
       }
-      if (trackNo){sdpState.tracks[trackNo].rtpSeq = pkt.getSequence();}
+      if (trackNo){sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();}
 
       sdpState.handleIncomingRTP(trackNo, pkt);
 
@@ -320,59 +321,7 @@ namespace Mist{
         //  continue;
         //}
         tcpCon.addDown(s.data_len);
-        RTP::Packet pack(s.data, s.data_len);
-        if (!it->second.rtpSeq){it->second.rtpSeq = pack.getSequence();}
-        // packet is very early - assume dropped after 30 packets
-        while ((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) < -30){
-          WARN_MSG("Giving up on packet %u", it->second.rtpSeq);
-          ++(it->second.rtpSeq);
-          ++(it->second.lostTotal);
-          ++(it->second.lostCurrent);
-          ++(it->second.packTotal);
-          ++(it->second.packCurrent);
-          // send any buffered packets we may have
-          while (it->second.packBuffer.count(it->second.rtpSeq)){
-            sdpState.handleIncomingRTP(it->first, pack);
-            ++(it->second.rtpSeq);
-            ++(it->second.packTotal);
-            ++(it->second.packCurrent);
-          }
-        }
-        // send any buffered packets we may have
-        while (it->second.packBuffer.count(it->second.rtpSeq)){
-          sdpState.handleIncomingRTP(it->first, pack);
-          ++(it->second.rtpSeq);
-          ++(it->second.packTotal);
-          ++(it->second.packCurrent);
-        }
-        // packet is slightly early - buffer it
-        if (((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) < 0)){
-          INFO_MSG("Buffering early packet #%u->%u", it->second.rtpSeq, pack.getSequence());
-          it->second.packBuffer[pack.getSequence()] = pack;
-        }
-        // packet is late
-        if ((int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())) > 0){
-          // negative difference?
-          --(it->second.lostTotal);
-          --(it->second.lostCurrent);
-          ++(it->second.packTotal);
-          ++(it->second.packCurrent);
-          WARN_MSG("Dropped a packet that arrived too late! (%d packets difference)",
-                   (int16_t)(((uint16_t)it->second.rtpSeq) - ((uint16_t)pack.getSequence())));
-          return false;
-        }
-        // packet is in order
-        if (it->second.rtpSeq == pack.getSequence()){
-          sdpState.handleIncomingRTP(it->first, pack);
-          ++(it->second.rtpSeq);
-          ++(it->second.packTotal);
-          ++(it->second.packCurrent);
-          if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
-        }
-      }
-      if (Util::epoch() / 5 != it->second.rtcpSent){
-        it->second.rtcpSent = Util::epoch() / 5;
-        it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
+        it->second.sorter.addPacket(s.data, s.data_len);
       }
     }
     return r;

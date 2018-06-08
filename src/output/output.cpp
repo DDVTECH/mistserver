@@ -420,12 +420,12 @@ namespace Mist{
     if (trackVal == JSON::Value(trackNo).asString()){
       //It's an integer number
       if (!myMeta.tracks.count(trackNo)){
-        WARN_MSG("Track %lld does not exist in stream, cannot select", trackNo);
+        INFO_MSG("Track %lld does not exist in stream, cannot select", trackNo);
         return;
       }
       const DTSC::Track & Trk = myMeta.tracks[trackNo];
       if (Trk.type != trackType && Trk.codec != trackType){
-        WARN_MSG("Track %lld is not %s (%s/%s), cannot select", trackNo, trackType.c_str(), Trk.type.c_str(), Trk.codec.c_str());
+        INFO_MSG("Track %lld is not %s (%s/%s), cannot select", trackNo, trackType.c_str(), Trk.type.c_str(), Trk.codec.c_str());
         return;
       }
       INFO_MSG("Selecting %s track %lld (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(), Trk.codec.c_str());
@@ -471,10 +471,20 @@ namespace Mist{
     selectedTracks.clear();
 
     /*LTS-START*/
+    bool noSelAudio = false, noSelVideo = false, noSelSub = false;
     //Then, select the tracks we've been asked to select.
-    if (targetParams.count("audio")){selectTrack("audio", targetParams["audio"]);}
-    if (targetParams.count("video")){selectTrack("video", targetParams["video"]);}
-    if (targetParams.count("subtitle")){selectTrack("subtitle", targetParams["subtitle"]);}
+    if (targetParams.count("audio") && targetParams["audio"].size()){
+      selectTrack("audio", targetParams["audio"]);
+      noSelAudio = true;
+    }
+    if (targetParams.count("video") && targetParams["video"].size()){
+      selectTrack("video", targetParams["video"]);
+      noSelVideo = true;
+    }
+    if (targetParams.count("subtitle") && targetParams["subtitle"].size()){
+      selectTrack("subtitle", targetParams["subtitle"]);
+      noSelSub = true;
+    }
     /*LTS-END*/
 
     //check which tracks don't actually exist
@@ -561,6 +571,11 @@ namespace Mist{
               if (myMeta.live){
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                    /*LTS-START*/
+                    if (noSelAudio && trit->second.type == "audio"){continue;}
+                    if (noSelVideo && trit->second.type == "video"){continue;}
+                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -569,6 +584,11 @@ namespace Mist{
               }else{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                    /*LTS-START*/
+                    if (noSelAudio && trit->second.type == "audio"){continue;}
+                    if (noSelVideo && trit->second.type == "video"){continue;}
+                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -580,38 +600,6 @@ namespace Mist{
         }
       }
     }
-   
-
-    /*LTS-START*/
-    //Finally, we strip anything unwanted that the above may have auto-selected.
-    toRemove.clear();
-    if (targetParams.count("subtitle") && targetParams["subtitle"] == "0"){
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        if (myMeta.tracks.at(*it).codec=="subtitle"){
-          toRemove.insert(*it);
-        }
-      }
-    }
-    if (targetParams.count("video") && targetParams["video"] == "0"){
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        if (myMeta.tracks.at(*it).type=="video"){
-          toRemove.insert(*it);
-        }
-      }
-    }
-    if (targetParams.count("audio") && targetParams["audio"] == "0"){
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        if (myMeta.tracks.at(*it).type=="audio"){
-          toRemove.insert(*it);
-        }
-      }
-    }
-    //remove those from selectedtracks
-    for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
-      selectedTracks.erase(*it);
-    }
-    /*LTS-END*/
-
 
     if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
       //print the selected tracks

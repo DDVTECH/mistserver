@@ -8,6 +8,13 @@
 #include "util.h"
 
 namespace SDP{
+
+  static State *snglState = 0;
+  static void snglStateInitCallback(const uint64_t track, const std::string &initData){
+    snglState->updateInit(track, initData);
+  }
+
+
   Track::Track(){
     rtcpSent = 0;
     channel = -1;
@@ -54,15 +61,23 @@ namespace SDP{
                    "a=fmtp:97 packetization-mode=1;profile-level-id="
                 << std::hex << std::setw(2) << std::setfill('0') << (int)trk.init.data()[1]
                 << std::dec << "E0" << std::hex << std::setw(2) << std::setfill('0')
-                << (int)trk.init.data()[3] << std::dec
-                << ";"
-                   "sprop-parameter-sets="
-                << Encodings::Base64::encode(std::string(avccbox.getSPS(), avccbox.getSPSLen()))
-                << ","
-                << Encodings::Base64::encode(std::string(avccbox.getPPS(), avccbox.getPPSLen()))
-                << "\r\n"
-                   "a=framerate:"
-                << ((double)trk.fpks) / 1000.0
+                << (int)trk.init.data()[3] << std::dec << ";"
+                << "sprop-parameter-sets=";
+      size_t count = avccbox.getSPSCount();
+      for (size_t i = 0; i < count; ++i){
+        mediaDesc << (i ? "," : "")
+                  << Encodings::Base64::encode(
+                         std::string(avccbox.getSPS(i), avccbox.getSPSLen(i)));
+      }
+      mediaDesc << ",";
+      count = avccbox.getPPSCount();
+      for (size_t i = 0; i < count; ++i){
+        mediaDesc << (i ? "," : "")
+                  << Encodings::Base64::encode(
+                         std::string(avccbox.getPPS(i), avccbox.getPPSLen(i)));
+      }
+      mediaDesc << "\r\n"
+                << "a=framerate:" << ((double)trk.fpks) / 1000.0
                 << "\r\n"
                    "a=control:track"
                 << trk.trackID << "\r\n";
@@ -205,9 +220,9 @@ namespace SDP{
       rtcp.SetDestination(dest, 1337);
       portA = portB = 0;
       int retries = 0;
-      while (portB != portA+1 && retries < 10){
+      while (portB != portA + 1 && retries < 10){
         portA = data.bind(0);
-        portB = rtcp.bind(portA+1);
+        portB = rtcp.bind(portA + 1);
       }
       std::stringstream tStr;
       tStr << "RTP/AVP/UDP;unicast;client_port=" << portA << "-" << portB;
@@ -335,6 +350,12 @@ namespace SDP{
     return rInfo.str();
   }
 
+  State::State(){
+    incomingPacketCallback = 0;
+    myMeta = 0;
+    snglState = this;
+  }
+
   void State::parseSDP(const std::string &sdp){
     DONTEVEN_MSG("Parsing %llu-byte SDP", sdp.size());
     std::stringstream ss(sdp);
@@ -430,9 +451,11 @@ namespace SDP{
             }
           }
         }
+        tConv[trackNo].setProperties(*thisTrack);
         HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         continue;
       }
+
       if (nope){continue;}// ignore lines if we have no valid track
       // RTP mapping
       if (to.substr(0, 8) == "a=rtpmap"){
@@ -487,6 +510,7 @@ namespace SDP{
         if (!thisTrack->codec.size()){
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{
+          tConv[trackNo].setProperties(*thisTrack);
           HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
         }
         continue;
@@ -576,6 +600,7 @@ namespace SDP{
     Trk.width = MI.width;
     Trk.height = MI.height;
     Trk.fpks = RTrk.fpsMeta * 1000;
+    tConv[trackNo].setProperties(Trk);
   }
 
   /// Calculates H264 track metadata from vps, sps and pps data stored in tracks[trackNo]
@@ -598,6 +623,7 @@ namespace SDP{
     Trk.height = hMeta.height;
     Trk.fpks = hMeta.fps * 1000;
     Trk.init = std::string(avccBox.payload(), avccBox.payloadSize());
+    tConv[trackNo].setProperties(Trk);
   }
 
   uint32_t State::getTrackNoForChannel(uint8_t chan){
@@ -666,376 +692,25 @@ namespace SDP{
     return 0;
   }
 
-  /// Handles a single H264 packet, checking if others are appended at the end in Annex B format.
-  /// If so, splits them up and calls h264Packet for each. If not, calls it only once for the whole
-  /// payload.
-  void State::h264MultiParse(uint64_t ts, const uint64_t track, char *buffer, const uint32_t len){
-    uint32_t lastStart = 0;
-    for (uint32_t i = 0; i < len - 4; ++i){
-      // search for start code
-      if (buffer[i] == 0 && buffer[i + 1] == 0 && buffer[i + 2] == 0 && buffer[i + 3] == 1){
-        // if found, handle a packet from the last start code up to this start code
-        Bit::htobl(buffer + lastStart, (i - lastStart - 1) - 4); // size-prepend
-        h264Packet(ts, track, buffer + lastStart, (i - lastStart - 1),
-                   h264::isKeyframe(buffer + lastStart + 4, i - lastStart - 5));
-        lastStart = i;
-      }
-    }
-    // Last packet (might be first, if no start codes found)
-    Bit::htobl(buffer + lastStart, (len - lastStart) - 4); // size-prepend
-    h264Packet(ts, track, buffer + lastStart, (len - lastStart),
-               h264::isKeyframe(buffer + lastStart + 4, len - lastStart - 4));
-  }
-
-  void State::h264Packet(uint64_t ts, const uint64_t track, const char *buffer, const uint32_t len,
-                         bool isKey){
-    MEDIUM_MSG("H264: %llu@%llu, %lub%s", track, ts, len, isKey ? " (key)" : "");
-    // Ignore zero-length packets (e.g. only contained init data and nothing else)
-    if (!len){return;}
-
-    // Header data? Compare to init, set if needed, and throw away
-    uint8_t nalType = (buffer[4] & 0x1F);
-    if (nalType == 9 && len < 20){return;}// ignore delimiter-only packets
-    switch (nalType){
-    case 6: //SEI
-      return;
-    case 7: // SPS
-      if (tracks[track].spsData.size() != len - 4 ||
-          memcmp(buffer + 4, tracks[track].spsData.data(), len - 4) != 0){
-        INFO_MSG("Updated SPS from RTP data");
-        tracks[track].spsData.assign(buffer + 4, len - 4);
-        updateH264Init(track);
-      }
-      return;
-    case 8: // PPS
-      if (tracks[track].ppsData.size() != len - 4 ||
-          memcmp(buffer + 4, tracks[track].ppsData.data(), len - 4) != 0){
-        INFO_MSG("Updated PPS from RTP data");
-        tracks[track].ppsData.assign(buffer + 4, len - 4);
-        updateH264Init(track);
-      }
-      return;
-    default: // others, continue parsing
-      break;
-    }
-
-    double fps = tracks[track].fpsMeta;
-    uint32_t offset = 0;
-    uint64_t newTs = ts;
-    if (fps > 1){
-      // Assume a steady frame rate, clip the timestamp based on frame number.
-      uint64_t frameNo = (ts / (1000.0 / fps)) + 0.5;
-      while (frameNo < tracks[track].packCount){tracks[track].packCount--;}
-      // More than 32 frames behind? We probably skipped something, somewhere...
-      if ((frameNo - tracks[track].packCount) > 32){tracks[track].packCount = frameNo;}
-      // After some experimentation, we found that the time offset is the difference between the
-      // frame number and the packet counter, times the frame rate in ms
-      offset = (frameNo - tracks[track].packCount) * (1000.0 / fps);
-      //... and the timestamp is the packet counter times the frame rate in ms.
-      newTs = tracks[track].packCount * (1000.0 / fps);
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts,
-                   isKey ? "key" : "i", frameNo, fps, tracks[track].packCount,
-                   (frameNo - tracks[track].packCount), offset);
-    }else{
-      // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i",
-                   tracks[track].packCount);
-    }
-    // Fill the new DTSC packet, buffer it.
-    DTSC::Packet nextPack;
-    nextPack.genericFill(newTs, offset, track, buffer, len, 0, isKey);
-    tracks[track].packCount++;
-    if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-  }
-
-  void State::h265Packet(uint64_t ts, const uint64_t track, const char *buffer, const uint32_t len,
-                         bool isKey){
-    MEDIUM_MSG("H265: %llu@%llu, %lub%s", track, ts, len, isKey ? " (key)" : "");
-    // Ignore zero-length packets (e.g. only contained init data and nothing else)
-    if (!len){return;}
-
-    // Header data? Compare to init, set if needed, and throw away
-    uint8_t nalType = (buffer[4] & 0x7E) >> 1;
-    switch (nalType){
-    case 32: // VPS
-    case 33: // SPS
-    case 34: // PPS
-      tracks[track].hevcInfo.addUnit(buffer);
-      updateH265Init(track);
-      return;
-    default: // others, continue parsing
-      break;
-    }
-
-    double fps = tracks[track].fpsMeta;
-    uint32_t offset = 0;
-    uint64_t newTs = ts;
-    if (fps > 1){
-      // Assume a steady frame rate, clip the timestamp based on frame number.
-      uint64_t frameNo = (ts / (1000.0 / fps)) + 0.5;
-      while (frameNo < tracks[track].packCount){tracks[track].packCount--;}
-      // More than 32 frames behind? We probably skipped something, somewhere...
-      if ((frameNo - tracks[track].packCount) > 32){tracks[track].packCount = frameNo;}
-      // After some experimentation, we found that the time offset is the difference between the
-      // frame number and the packet counter, times the frame rate in ms
-      offset = (frameNo - tracks[track].packCount) * (1000.0 / fps);
-      //... and the timestamp is the packet counter times the frame rate in ms.
-      newTs = tracks[track].packCount * (1000.0 / fps);
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts,
-                   isKey ? "key" : "i", frameNo, fps, tracks[track].packCount,
-                   (frameNo - tracks[track].packCount), offset);
-    }else{
-      // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i",
-                   tracks[track].packCount);
-    }
-    // Fill the new DTSC packet, buffer it.
-    DTSC::Packet nextPack;
-    nextPack.genericFill(newTs, offset, track, buffer, len, 0, isKey);
-    tracks[track].packCount++;
-    if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-  }
-
   /// Returns the multiplier to use to get milliseconds from the RTP payload type for the given
   /// track
   double getMultiplier(const DTSC::Track &Trk){
     if (Trk.type == "video" || Trk.codec == "MP2" || Trk.codec == "MP3"){return 90.0;}
     return ((double)Trk.rate / 1000.0);
   }
+  
+  void State::updateInit(const uint64_t trackNo, const std::string &initData){
+    if (myMeta->tracks.count(trackNo)){
+      myMeta->tracks[trackNo].init = initData;
+    }
+  }
 
   /// Handles RTP packets generically, for both TCP and UDP-based connections.
   /// In case of UDP, expects packets to be pre-sorted.
   void State::handleIncomingRTP(const uint64_t track, const RTP::Packet &pkt){
-    DTSC::Track &Trk = myMeta->tracks[track];
-    if (!tracks[track].firstTime){tracks[track].firstTime = pkt.getTimeStamp() + 1;}
-    uint64_t millis = (pkt.getTimeStamp() - tracks[track].firstTime + 1) / getMultiplier(Trk);
-    char *pl = pkt.getPayload();
-    uint32_t plSize = pkt.getPayloadSize();
-    INSANE_MSG("Received RTP packet for track %llu, time %llu -> %llu", track, pkt.getTimeStamp(),
-               millis);
-    if (Trk.codec == "ALAW" || Trk.codec == "opus" || Trk.codec == "PCM" || Trk.codec == "ULAW"){
-      DTSC::Packet nextPack;
-      nextPack.genericFill(millis, 0, track, pl, plSize, 0, false);
-      if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-      return;
-    }
-    if (Trk.codec == "AAC"){
-      // assume AAC packets are single AU units
-      /// \todo Support other input than single AU units
-      unsigned int headLen =
-          (Bit::btohs(pl) >> 3) + 2; // in bits, so /8, plus two for the prepended size
-      DTSC::Packet nextPack;
-      uint16_t samples = aac::AudSpecConf::samples(Trk.init);
-      uint32_t sampleOffset = 0;
-      uint32_t offset = 0;
-      uint32_t auSize = 0;
-      for (uint32_t i = 2; i < headLen; i += 2){
-        auSize = Bit::btohs(pl + i) >> 3; // only the upper 13 bits
-        nextPack.genericFill(
-            (pkt.getTimeStamp() + sampleOffset - tracks[track].firstTime + 1) / getMultiplier(Trk),
-            0, track, pl + headLen + offset, std::min(auSize, plSize - headLen - offset), 0, false);
-        offset += auSize;
-        sampleOffset += samples;
-        if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-      }
-      return;
-    }
-    if (Trk.codec == "MP2" || Trk.codec == "MP3"){
-      if (plSize < 5){
-        WARN_MSG("Empty packet ignored!");
-        return;
-      }
-      DTSC::Packet nextPack;
-      nextPack.genericFill(millis, 0, track, pl + 4, plSize - 4, 0, false);
-      if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-      return;
-    }
-    if (Trk.codec == "MPEG2"){
-      if (plSize < 5){
-        WARN_MSG("Empty packet ignored!");
-        return;
-      }
-      ///\TODO Merge packets with same timestamp together
-      HIGH_MSG("Received MPEG2 packet: %s", RTP::MPEGVideoHeader(pl).toString().c_str());
-      DTSC::Packet nextPack;
-      nextPack.genericFill(millis, 0, track, pl + 4, plSize - 4, 0, false);
-      if (incomingPacketCallback){incomingPacketCallback(nextPack);}
-      return;
-    }
-    if (Trk.codec == "HEVC"){
-      if (plSize < 2){
-        WARN_MSG("Empty packet ignored!");
-        return;
-      }
-      uint8_t nalType = (pl[0] & 0x7E) >> 1;
-      if (nalType == 48){
-        ERROR_MSG("AP not supported yet");
-      }else if (nalType == 49){
-        DONTEVEN_MSG("H265 Fragmentation Unit");
-        static Util::ResizeablePointer fuaBuffer;
-
-        // No length yet? Check for start bit. Ignore rest.
-        if (!fuaBuffer.size() && (pl[2] & 0x80) == 0){
-          HIGH_MSG("Not start of a new FU - throwing away");
-          return;
-        }
-        if (fuaBuffer.size() && ((pl[2] & 0x80) || (tracks[track].sorter.rtpSeq != pkt.getSequence()))){
-          WARN_MSG("H265 FU packet incompleted: %lu", fuaBuffer.size());
-          Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
-          fuaBuffer[4] |= 0x80;                        // set error bit
-          h265Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer,
-                     fuaBuffer.size(), h265::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-          fuaBuffer.size() = 0;
-          return;
-        }
-
-        unsigned long len = plSize - 3;      // ignore the three FU bytes in front
-        if (!fuaBuffer.size()){len += 6;}// six extra bytes for the first packet
-        if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
-        if (!fuaBuffer.size()){
-          memcpy(fuaBuffer + 6, pl + 3, plSize - 3);
-          // reconstruct first byte
-          fuaBuffer[4] = ((pl[2] & 0x3F) << 1) | (pl[0] & 0x81);
-          fuaBuffer[5] = pl[1];
-        }else{
-          memcpy(fuaBuffer + fuaBuffer.size(), pl + 3, plSize - 3);
-        }
-        fuaBuffer.size() += len;
-
-        if (pl[2] & 0x40){// last packet
-          VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %lu",
-                       h265::typeToStr((fuaBuffer[4] & 0x7E) >> 1),
-                       (uint8_t)((fuaBuffer[4] & 0x7E) >> 1), fuaBuffer.size());
-          Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
-          h265Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer,
-                     fuaBuffer.size(), h265::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-          fuaBuffer.size() = 0;
-        }
-        return;
-      }else if (nalType == 50){
-        ERROR_MSG("PACI/TSCI not supported yet");
-      }else{
-        DONTEVEN_MSG("%s NAL unit (%u)", h265::typeToStr(nalType), nalType);
-        static Util::ResizeablePointer packBuffer;
-        if (!packBuffer.allocate(plSize + 4)){return;}
-        Bit::htobl(packBuffer, plSize); // size-prepend
-        memcpy(packBuffer + 4, pl, plSize);
-        h265Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer,
-                   plSize + 4, h265::isKeyframe(packBuffer + 4, plSize));
-        return;
-      }
-      return;
-    }
-    if (Trk.codec == "H264"){
-      // Handles common H264 packets types, but not all.
-      // Generalizes and converts them all to a data format ready for DTSC, then calls h264Packet
-      // for that data.
-      // Prints a WARN-level message if packet type is unsupported.
-      /// \todo Support other H264 packets types?
-      if (!plSize){
-        WARN_MSG("Empty packet ignored!");
-        return;
-      }
-      if ((pl[0] & 0x1F) == 0){
-        WARN_MSG("H264 packet type null ignored");
-        return;
-      }
-      if ((pl[0] & 0x1F) < 24){
-        DONTEVEN_MSG("H264 single packet, type %u", (unsigned int)(pl[0] & 0x1F));
-        static Util::ResizeablePointer packBuffer;
-        if (!packBuffer.allocate(plSize + 4)){return;}
-        Bit::htobl(packBuffer, plSize); // size-prepend
-        memcpy(packBuffer + 4, pl, plSize);
-        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer,
-                   plSize + 4, h264::isKeyframe(packBuffer + 4, plSize));
-        return;
-      }
-      if ((pl[0] & 0x1F) == 24){
-        DONTEVEN_MSG("H264 STAP-A packet");
-        unsigned int len = 0;
-        unsigned int pos = 1;
-        while (pos + 1 < plSize){
-          unsigned int pLen = Bit::btohs(pl + pos);
-          INSANE_MSG("Packet of %ub and type %u", pLen, (unsigned int)(pl[pos + 2] & 0x1F));
-          pos += 2 + pLen;
-          len += 4 + pLen;
-        }
-        static Util::ResizeablePointer packBuffer;
-        if (!packBuffer.allocate(len)){return;}
-        pos = 1;
-        len = 0;
-        bool isKey = false;
-        while (pos + 1 < plSize){
-          unsigned int pLen = Bit::btohs(pl + pos);
-          isKey |= h264::isKeyframe(pl + pos + 2, pLen);
-          Bit::htobl(packBuffer + len, pLen); // size-prepend
-          memcpy(packBuffer + len + 4, pl + pos + 2, pLen);
-          len += 4 + pLen;
-          pos += 2 + pLen;
-        }
-        h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, packBuffer, len,
-                   isKey);
-        return;
-      }
-      if ((pl[0] & 0x1F) == 28){
-        DONTEVEN_MSG("H264 FU-A packet");
-        static Util::ResizeablePointer fuaBuffer;
-
-        // No length yet? Check for start bit. Ignore rest.
-        if (!fuaBuffer.size() && (pl[1] & 0x80) == 0){
-          HIGH_MSG("Not start of a new FU-A - throwing away");
-          return;
-        }
-        if (fuaBuffer.size() && ((pl[1] & 0x80) || (tracks[track].sorter.rtpSeq != pkt.getSequence()))){
-          WARN_MSG("Ending unfinished FU-A");
-          INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaBuffer.size());
-          uint8_t nalType = (fuaBuffer[4] & 0x1F);
-          if (nalType == 7 || nalType == 8){
-            // attempt to detect multiple H264 packets, even though specs disallow it
-            h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track,
-                           fuaBuffer, fuaBuffer.size());
-          }else{
-            Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
-            fuaBuffer[4] |= 0x80;                        // set error bit
-            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer,
-                       fuaBuffer.size(), h264::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-          }
-          fuaBuffer.size() = 0;
-          return;
-        }
-
-        unsigned long len = plSize - 2;      // ignore the two FU-A bytes in front
-        if (!fuaBuffer.size()){len += 5;}// five extra bytes for the first packet
-        if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
-        if (!fuaBuffer.size()){
-          memcpy(fuaBuffer + 4, pl + 1, plSize - 1);
-          // reconstruct first byte
-          fuaBuffer[4] = (fuaBuffer[4] & 0x1F) | (pl[0] & 0xE0);
-        }else{
-          memcpy(fuaBuffer + fuaBuffer.size(), pl + 2, plSize - 2);
-        }
-        fuaBuffer.size() += len;
-
-        if (pl[1] & 0x40){// last packet
-          INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F),
-                     fuaBuffer.size());
-          uint8_t nalType = (fuaBuffer[4] & 0x1F);
-          if (nalType == 7 || nalType == 8){
-            // attempt to detect multiple H264 packets, even though specs disallow it
-            h264MultiParse((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track,
-                           fuaBuffer, fuaBuffer.size());
-          }else{
-            Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
-            h264Packet((pkt.getTimeStamp() - tracks[track].firstTime + 1) / 90, track, fuaBuffer,
-                       fuaBuffer.size(), h264::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-          }
-          fuaBuffer.size() = 0;
-        }
-        return;
-      }
-      WARN_MSG("H264 packet type %u unsupported", (unsigned int)(pl[0] & 0x1F));
-      return;
-    }
+    tConv[track].setCallbacks(incomingPacketCallback, snglStateInitCallback);
+    tConv[track].addRTP(pkt);
   }
+
 }// namespace SDP
 

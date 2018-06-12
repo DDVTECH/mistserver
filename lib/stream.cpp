@@ -193,7 +193,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   //Note: this uses the _whole_ stream name, including + (if any).
   //This means "test+a" and "test+b" have separate locks and do not interact with each other.
   uint8_t streamStat = getStreamStatus(streamname);
-  while (streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY){
+  while (streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY && (!isProvider || streamStat != STRMSTAT_WAIT)){
     if (streamStat == STRMSTAT_BOOT && overrides.count("throughboot")){
       break;
     }

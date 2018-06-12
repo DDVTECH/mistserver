@@ -308,6 +308,8 @@ namespace Mist{
  
   bool Output::isReadyForPlay(){
     if (isPushing()){return true;}
+    if (!isInitialized){initialize();}
+    if (!myMeta.tracks.size()){updateMeta();}
     if (myMeta.tracks.size()){
       if (!selectedTracks.size()){
         selectDefaultTracks();
@@ -1663,8 +1665,6 @@ namespace Mist{
     std::string strmSource;
 
     // Initialize the stream source if needed, connect to it
-    initialize();
-
     waitForStreamPushReady();
     //pull the source setting from metadata
     strmSource = myMeta.sourceURI;
@@ -1727,19 +1727,43 @@ namespace Mist{
     MEDIUM_MSG("Current status for %s buffer is %u", streamName.c_str(), streamStatus);
     while (streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY && keepGoing()){
       INFO_MSG("Waiting for %s buffer to be ready... (%u)", streamName.c_str(), streamStatus);
-      if (nProxy.userClient.getData()){
-        nProxy.userClient.finish();
-        nProxy.userClient = IPC::sharedClient();
-      }
-      if (statsPage.getData()){
-        statsPage.keepAlive();
-      }
+      disconnect();
       Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
         INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
         reconnect();
         streamStatus = Util::getStreamStatus(streamName);
+      }
+    }
+    if (streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
+      if (!myMeta.sourceURI.size()){
+        char pageId[NAME_BUFFER_SIZE];
+        snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
+        nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
+        if (nProxy.metaPages[0].mapped){
+          IPC::semaphore * liveSem = 0;
+          static char liveSemName[NAME_BUFFER_SIZE];
+          snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
+          liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1, !myMeta.live);
+          if (*liveSem){
+            liveSem->wait();
+          }else{
+            delete liveSem;
+            liveSem = 0;
+          }
+          DTSC::Packet tmpMeta(nProxy.metaPages[0].mapped, nProxy.metaPages[0].len, true);
+          if (tmpMeta.getVersion()){
+            DTSC::Meta reMeta;
+            reMeta.reinit(tmpMeta);
+            myMeta.sourceURI = reMeta.sourceURI;
+          }
+          if (liveSem){
+            liveSem->post();
+            delete liveSem;
+            liveSem = 0;
+          }
+        }
       }
     }
   }

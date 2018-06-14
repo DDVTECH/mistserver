@@ -1753,8 +1753,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       //Loop over connectors
       const JSON::Value &caps = capabilities["connectors"];
       jsonForEachConst(Storage["config"]["protocols"], prtcl){
+        if (!(*prtcl).isMember("connector")){continue;}
         const std::string &cName = (*prtcl)["connector"].asStringRef();
-        if ((*prtcl)["online"].asInt() != 1){continue;}
+        if (!(*prtcl).isMember("online") || (*prtcl)["online"].asInt() != 1){continue;}
         if (!caps.isMember(cName)){continue;}
         const JSON::Value & capa = caps[cName];
         if (!capa.isMember("optional") || !capa["optional"].isMember("port")){continue;}

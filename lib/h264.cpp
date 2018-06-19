@@ -873,7 +873,7 @@ namespace h264 {
       //search for the next start marker
       for (size_t i = 1; i < len-2; ++i){
         if (data[i] == 0 && data[i+1] == 0 && data[i+2] == 1){
-          offset += i+2;
+          offset += i+3;
           while (i && !data[i]){--i;}
           pktLen = i;
           break;

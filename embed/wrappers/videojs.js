@@ -42,7 +42,7 @@ mistplayers.videojs = {
     
     return ('MediaSource' in window);
   },
-  player: function(){},
+  player: function(){this.onreadylist = [];}
 };
 var p = mistplayers.videojs.player;
 p.prototype = new MistPlayer();

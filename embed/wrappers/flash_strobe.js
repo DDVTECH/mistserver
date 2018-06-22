@@ -24,7 +24,7 @@ mistplayers.flash_strobe = {
     
     return Number(version) >= Number(mimesplit[mimesplit.length-1]);
   },
-  player: function(){}
+  player: function(){this.onreadylist = [];}
 };
 var p = mistplayers.flash_strobe.player;
 p.prototype = new MistPlayer();

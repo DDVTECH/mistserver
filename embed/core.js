@@ -81,7 +81,6 @@ MistPlayer.prototype.getElement = function(tag){
   this.element = ele;
   return ele;
 };
-MistPlayer.prototype.onreadylist = [];
 MistPlayer.prototype.onready = function(dothis){
   this.onreadylist.push(dothis);
 };

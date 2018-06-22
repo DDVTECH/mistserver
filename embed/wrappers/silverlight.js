@@ -21,7 +21,7 @@ mistplayers.silverlight = {
     
     return false;
   },
-  player: function(){}
+  player: function(){this.onreadylist = [];}
 };
 var p = mistplayers.silverlight.player;
 p.prototype = new MistPlayer();

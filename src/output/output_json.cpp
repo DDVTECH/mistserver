@@ -4,18 +4,13 @@
 
 namespace Mist {
   OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){
-    ws = 0;
     realTime = 0;
+    bootMsOffset = 0;
     keepReselecting = false;
     dupcheck = false;
+    noReceive = false;
   }
-  OutJSON::~OutJSON() {
-    if (ws){
-      delete ws;
-      ws = 0;
-    }
-  }
-  
+
   void OutJSON::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "JSON";
@@ -31,7 +26,7 @@ namespace Mist {
     capa["methods"][1u]["priority"] = 0ll;
     capa["methods"][1u]["url_rel"] = "/$.json";
   }
-  
+
   void OutJSON::sendNext(){
     JSON::Value jPack = thisPacket.toJSON();
     if (dupcheck){
@@ -40,8 +35,8 @@ namespace Mist {
       }
       lastVal = jPack;
     }
-    if (ws){
-      ws->sendFrame(jPack.toString());
+    if (webSock){
+      webSock->sendFrame(jPack.toString());
       return;
     }
     if (!jsonp.size()){
@@ -83,7 +78,7 @@ namespace Mist {
     static bool recursive = false;
     if (recursive){return true;}
     recursive = true;
-    if (keepReselecting){
+    if (keepReselecting && !isPushing()){
       uint64_t maxTimer = 7200;
       while (--maxTimer && nProxy.userClient.isAlive() && keepGoing()){
         Util::wait(500);
@@ -99,18 +94,23 @@ namespace Mist {
         }
       }
       recursive = false;
-      return false;
     }
     if (!jsonp.size() && !first){
-      myConn.SendNow("]);\n\n", 5);
+      myConn.SendNow("]\n", 2);
     }
     myConn.close();
     return false;
   }
 
-  void OutJSON::onHTTP(){
-    std::string method = H.method;
-    jsonp = "";
+  void OutJSON::onWebsocketConnect(){
+    sentHeader = true;
+    parseData = !noReceive;
+  }
+
+  void OutJSON::preWebsocketConnect(){
+    if (H.GetVar("password") != ""){pushPass = H.GetVar("password");}
+    if (H.GetVar("password").size() || H.GetVar("push").size()){noReceive = true;}
+  
     if (H.GetVar("persist") != ""){keepReselecting = true;}
     if (H.GetVar("dedupe") != ""){
       dupcheck = true;
@@ -126,22 +126,84 @@ namespace Mist {
         }
       }
     }
+  }
+
+  void OutJSON::onWebsocketFrame(){
+    if (!isPushing()){
+      if (!allowPush(pushPass)){
+        onFinish();
+        return;
+      }
+    }
+    if (!bootMsOffset){
+      if (myMeta.bootMsOffset){
+        bootMsOffset = myMeta.bootMsOffset;
+      }else{
+        bootMsOffset = Util::bootMS();
+      }
+    }
+    //We now know we're allowed to push. Read a JSON object.
+    JSON::Value inJSON = JSON::fromString(webSock->data, webSock->data.size());
+    if (!inJSON || !inJSON.isObject()){
+      //Ignore empty and/or non-parsable JSON packets
+      MEDIUM_MSG("Ignoring non-JSON object: %s", webSock->data);
+      return;
+    }
+    //Let's create a new track for pushing purposes, if needed
+    if (!pushTrack){
+      pushTrack = 1;
+      while (myMeta.tracks.count(pushTrack)){
+        ++pushTrack;
+      }
+    }
+    myMeta.tracks[pushTrack].type = "meta";
+    myMeta.tracks[pushTrack].codec = "JSON";
+    //We have a track set correctly. Let's attempt to buffer a frame.
+    inJSON["trackid"] = (long long)pushTrack;
+    inJSON["datatype"] = "meta";
+    lastSendTime = Util::bootMS();
+    if (!inJSON.isMember("unix")){
+      //Base timestamp on arrival time
+      inJSON["time"] = (long long)(lastSendTime - bootMsOffset);
+    }else{
+      //Base timestamp on unix time
+      inJSON["time"] = (long long)((lastSendTime - bootMsOffset) + (Util::epoch() - Util::bootSecs()) * 1000);
+    }
+    inJSON["bmo"] = (long long)bootMsOffset;
+    lastVal = inJSON;
+    std::string packedJson = inJSON.toNetPacked();
+    DTSC::Packet newPack(packedJson.data(), packedJson.size(), true);
+    bufferLivePacket(newPack);
+    if (!idleInterval){idleInterval = 100;}
+    if (isBlocking){setBlocking(false);}
+  }
+
+  /// Repeats last JSON packet every 5 seconds to keep stream alive.
+  void OutJSON::onIdle(){
+    if (nProxy.trackState[pushTrack] != FILL_ACC){
+      continueNegotiate(pushTrack);
+      if (nProxy.trackState[pushTrack] == FILL_ACC){
+        idleInterval = 5000;
+      }
+      return;
+    }
+    lastVal["time"] = (long long)(lastVal["time"].asInt() + (Util::bootMS() - lastSendTime));
+    lastSendTime = Util::bootMS();
+    lastVal.netPrepare();
+    std::string packedJson = lastVal.toNetPacked();
+    DTSC::Packet newPack(packedJson.data(), packedJson.size(), true);
+    myMeta.tracks[pushTrack].type = "meta";
+    myMeta.tracks[pushTrack].codec = "JSON";
+    bufferLivePacket(newPack);
+  }
+
+  void OutJSON::onHTTP(){
+    std::string method = H.method;
+    preWebsocketConnect();//Not actually a websocket, but we need to do the same checks
+    jsonp = "";
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     
-    if (H.GetHeader("Upgrade") == "websocket"){
-      ws = new HTTP::Websocket(myConn, H);
-      if (!(*ws)){
-        delete ws;
-        ws = 0;
-        return;
-      }
-      sentHeader = true;
-      parseData = true;
-      wantRequest = false;
-      return;
-    }
-
     H.Clean();
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){

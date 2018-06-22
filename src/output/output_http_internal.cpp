@@ -61,6 +61,7 @@ namespace Mist {
   }
   
   void OutHTTP::onFail(){
+    std::string method = H.method;
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
       sendIcon();
@@ -81,7 +82,14 @@ namespace Mist {
         H.Clean();
         H.SetBody("if (!mistvideo){var mistvideo = {};}\nmistvideo['" + streamName + "'] = "+json_resp.toString()+";\n");
       }
+      H.setCORSHeaders();
+      if(method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
       H.SendResponse("200", "Stream not found", myConn);
+      H.Clean();
       return;
     }
     INFO_MSG("Failing: %s", H.url.c_str());

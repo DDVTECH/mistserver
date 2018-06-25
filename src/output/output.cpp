@@ -1712,6 +1712,7 @@ namespace Mist{
         return false;
       }
     }
+    initialize();
     return true;
   }
 
@@ -1751,6 +1752,7 @@ namespace Mist{
             DTSC::Meta reMeta;
             reMeta.reinit(tmpMeta);
             myMeta.sourceURI = reMeta.sourceURI;
+            myMeta.bootMsOffset = reMeta.bootMsOffset;
           }
           if (liveSem){
             liveSem->post();
@@ -1758,6 +1760,7 @@ namespace Mist{
             liveSem = 0;
           }
         }
+        nProxy.metaPages.clear();
       }
     }
   }

@@ -13,6 +13,7 @@ namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn){
     lastOutTime = 0;
     rtmpOffset = 0;
+    bootMsOffset = 0;
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
       streamName = config->getString("streamname");
@@ -1088,6 +1089,16 @@ namespace Mist{
           F.toMeta(myMeta, *amf_storage, reTrack);
           if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
             uint64_t tagTime = next.timestamp;
+            if (!bootMsOffset){
+              if (myMeta.bootMsOffset){
+                bootMsOffset = myMeta.bootMsOffset;
+                rtmpOffset = (Util::bootMS() - tagTime) - bootMsOffset;
+              }else{
+                bootMsOffset = Util::bootMS() - tagTime;
+                rtmpOffset = 0;
+              }
+            }
+            tagTime += rtmpOffset;
             uint64_t & ltt = lastTagTime[reTrack];
             //Check for decreasing timestamps - this is a connection error.
             //We allow wrapping around the 32 bits maximum value if the most significant 8 bits are set.
@@ -1112,7 +1123,7 @@ namespace Mist{
                 ptr[i+1] = tmpchar;
               }
             }
-            thisPacket.genericFill(tagTime, F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+            thisPacket.genericFill(tagTime, F.offset(), reTrack, F.getData(), F.getDataLen(), 0, F.isKeyframe, F.isKeyframe?bootMsOffset:0);
             ltt = tagTime;
             if (!nProxy.userClient.getData()){
               char userPageName[NAME_BUFFER_SIZE];

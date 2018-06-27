@@ -1347,7 +1347,6 @@ class totalsData {
         case Controller::SESS_INPUT: inputs++; break;
         case Controller::SESS_OUTPUT: outputs++; break;
       }
-      clients++;
       downbps += down;
       upbps += up;
     }

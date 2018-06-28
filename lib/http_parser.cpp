@@ -356,7 +356,7 @@ void HTTP::Parser::auth(const std::string &user, const std::string &pass,
       return;
     }
     std::string urlPart;
-    if (url.find("://") != std::string::npos){
+    if (url.find("://") != std::string::npos && url.substr(0, 4) != "rtsp"){
       HTTP::URL tmpUrl(url);
       urlPart = "/" + tmpUrl.path;
     }else{

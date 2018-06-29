@@ -364,9 +364,9 @@ namespace Mist {
       //finish container with 0x0000EE
       memcpy(myPage.mapped+ivecOffset+19, "\000\000\356", 3);
     }
-    //Copy the remaing values in reverse order:
+    //Copy the remaining values in reverse order:
     //8 byte timestamp
-    memcpy(myPage.mapped + curOffset + 12, pack.getData() + 12, 8);
+    Bit::htobll(myPage.mapped + curOffset + 12, pack.getTime());
     //The mapped track id
     ((int *)(myPage.mapped + curOffset + 8))[0] = htonl(mapTid);
     int size = Bit::btohl(pack.getData() + 4);

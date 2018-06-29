@@ -129,7 +129,7 @@ namespace DTSC {
       void appendNal(const char * appendData, uint32_t appendLen);
       void upgradeNal(const char * appendData, uint32_t appendLen);
       void setKeyFrame(bool kf);
-      long long unsigned int getTime() const;
+      virtual long long unsigned int getTime() const;
       long int getTrackId() const;
       char * getData() const;
       int getDataLen() const;
@@ -148,6 +148,23 @@ namespace DTSC {
       unsigned int dataLen;
 
       uint64_t prevNalSize;
+  };
+
+  /// A child class of DTSC::Packet, which allows overriding the packet time efficiently.
+  class RetimedPacket : public Packet {
+    public:
+      RetimedPacket(uint64_t reTime){
+        timeOverride = reTime;
+      }
+      RetimedPacket(uint64_t reTime, const Packet & rhs) : Packet(rhs){
+        timeOverride = reTime;
+      }
+      RetimedPacket(uint64_t reTime, const char * data_, unsigned int len, bool noCopy = false) : Packet(data_, len, noCopy){
+        timeOverride = reTime;
+      }
+      virtual long long unsigned int getTime() const{return timeOverride;}
+    protected:
+      uint64_t timeOverride;
   };
 
   /// A simple structure used for ordering byte seek positions.

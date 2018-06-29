@@ -57,10 +57,8 @@ namespace Mist {
         lastMeta = Util::epoch();
         updateMeta();
         if (myMeta.tracks.size() > 1){
-          size_t prevTrackCount = selectedTracks.size();
-          selectDefaultTracks();
-          if (selectedTracks.size() > prevTrackCount){
-            INFO_MSG("Picked up new track - selecting it and resetting state.");
+          if (selectDefaultTracks()){
+            INFO_MSG("Track selection changed - resending headers and continuing");
             for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
               if (myMeta.tracks[*it].type == "video" && tag.DTSCVideoInit(myMeta.tracks[*it])){
                 myConn.SendNow(tag.data, tag.len);
@@ -69,7 +67,6 @@ namespace Mist {
                 myConn.SendNow(tag.data, tag.len);
               }
             }
-            initialSeek();
             return;
           }
         }

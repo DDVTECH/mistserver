@@ -56,7 +56,7 @@ namespace Mist {
       void setBlocking(bool blocking);
       void updateMeta();
       void selectTrack(const std::string &trackType, const std::string &trackVal); /*LTS*/
-      void selectDefaultTracks();
+      bool selectDefaultTracks();
       bool connectToFile(std::string file);
       static bool listenMode(){return true;}
       uint32_t currTrackCount() const;

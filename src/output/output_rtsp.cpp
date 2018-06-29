@@ -18,11 +18,31 @@ namespace Mist{
   void insertPacket(const DTSC::Packet &pkt){classPointer->incomingPacket(pkt);}
 
   /// Takes incoming packets and buffers them.
-  void OutRTSP::incomingPacket(const DTSC::Packet &pkt){bufferLivePacket(pkt);}
+  void OutRTSP::incomingPacket(const DTSC::Packet &pkt){
+    if (!bootMsOffset){
+      if (myMeta.bootMsOffset){
+        bootMsOffset = myMeta.bootMsOffset;
+        packetOffset = (Util::bootMS() - pkt.getTime()) - bootMsOffset;
+      }else{
+        bootMsOffset = Util::bootMS() - pkt.getTime();
+        packetOffset = 0;
+      }
+    }
+    /// \TODO Make this less inefficient. Seriously. Maybe use DTSC::RetimedPacket by extending with bmo functionality...?
+    static DTSC::Packet newPkt;
+    char * pktData;
+    unsigned int pktDataLen;
+    pkt.getString("data", pktData, pktDataLen);
+    newPkt.genericFill(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData, pktDataLen, 0, pkt.getFlag("keyframe"), bootMsOffset);
+    bufferLivePacket(newPkt);
+    //bufferLivePacket(DTSC::RetimedPacket(pkt.getTime() + packetOffset, pkt));
+  }
 
   OutRTSP::OutRTSP(Socket::Connection &myConn) : Output(myConn){
     connectedAt = Util::epoch() + 2208988800ll;
     pausepoint = 0;
+    bootMsOffset = 0;
+    packetOffset = 0;
     setBlocking(false);
     maxSkipAhead = 0;
     expectTCP = false;

@@ -26,6 +26,8 @@ namespace Mist{
     HTTP::Parser HTTP_R, HTTP_S;
     std::string source;
     uint64_t lastTimeSync;
+    int64_t bootMsOffset;
+    int64_t packetOffset;
     bool expectTCP;
     bool checkPort;
     bool handleTCP();

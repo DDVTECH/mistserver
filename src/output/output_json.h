@@ -18,6 +18,8 @@ namespace Mist {
       bool doesWebsockets(){return true;}
     protected:
       JSON::Value lastVal;
+      std::string lastOutData;
+      uint64_t lastOutTime;
       uint64_t lastSendTime;
       bool keepReselecting;
       std::string jsonp;

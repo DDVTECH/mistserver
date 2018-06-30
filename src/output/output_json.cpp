@@ -34,7 +34,17 @@ namespace Mist {
         return;//After a seek, the current packet is invalid. Do nothing and return here.
       }
     }
-    JSON::Value jPack = thisPacket.toJSON();
+    JSON::Value jPack;
+    if (myMeta.tracks[thisPacket.getTrackId()].codec == "JSON"){
+      char * dPtr;
+      unsigned int dLen;
+      thisPacket.getString("data", dPtr, dLen);
+      jPack["data"] = JSON::fromString(dPtr, dLen);
+      jPack["time"] = (long long)thisPacket.getTime();
+      jPack["track"] = (long long)thisPacket.getTrackId();
+    }else{
+      jPack = thisPacket.toJSON();
+    }
     if (dupcheck){
       if (jPack.compareExcept(lastVal, nodup)){
         return;//skip duplicates
@@ -165,20 +175,17 @@ namespace Mist {
     myMeta.tracks[pushTrack].type = "meta";
     myMeta.tracks[pushTrack].codec = "JSON";
     //We have a track set correctly. Let's attempt to buffer a frame.
-    inJSON["trackid"] = (long long)pushTrack;
-    inJSON["datatype"] = "meta";
     lastSendTime = Util::bootMS();
     if (!inJSON.isMember("unix")){
       //Base timestamp on arrival time
-      inJSON["time"] = (long long)(lastSendTime - bootMsOffset);
+      lastOutTime = (lastSendTime - bootMsOffset);
     }else{
       //Base timestamp on unix time
-      inJSON["time"] = (long long)((lastSendTime - bootMsOffset) + (Util::epoch() - Util::bootSecs()) * 1000);
+      lastOutTime = (lastSendTime - bootMsOffset) + (inJSON["unix"].asInt() - Util::epoch()) * 1000;
     }
-    inJSON["bmo"] = (long long)bootMsOffset;
-    lastVal = inJSON;
-    std::string packedJson = inJSON.toNetPacked();
-    DTSC::Packet newPack(packedJson.data(), packedJson.size(), true);
+    lastOutData = inJSON.toString();
+    static DTSC::Packet newPack;
+    newPack.genericFill(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true, bootMsOffset);
     bufferLivePacket(newPack);
     if (!idleInterval){idleInterval = 100;}
     if (isBlocking){setBlocking(false);}
@@ -193,13 +200,10 @@ namespace Mist {
       }
       return;
     }
-    lastVal["time"] = (long long)(lastVal["time"].asInt() + (Util::bootMS() - lastSendTime));
+    lastOutTime += (Util::bootMS() - lastSendTime);
     lastSendTime = Util::bootMS();
-    lastVal.netPrepare();
-    std::string packedJson = lastVal.toNetPacked();
-    DTSC::Packet newPack(packedJson.data(), packedJson.size(), true);
-    myMeta.tracks[pushTrack].type = "meta";
-    myMeta.tracks[pushTrack].codec = "JSON";
+    static DTSC::Packet newPack;
+    newPack.genericFill(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true, bootMsOffset);
     bufferLivePacket(newPack);
   }
 

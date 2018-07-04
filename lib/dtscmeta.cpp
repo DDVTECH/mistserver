@@ -209,7 +209,7 @@ namespace DTSC {
   /// Re-initializes this Packet to contain a generic DTSC packet with the given data fields.
   /// When given a NULL pointer, the data is reserved and memset to 0
   /// If given a NULL pointer and a zero size, an empty packet is created.
-  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe){
+  void Packet::genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe, int64_t bootMsOffset){
     null();
     master = true;
     //time and trackID are part of the 20-byte header.
@@ -217,12 +217,13 @@ namespace DTSC {
     //offset, if non-zero, adds 9 bytes (integer type) and 8 bytes (2+namelen)
     //bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)
     //keyframe, if true, adds 9 bytes (integer type) and 10 bytes (2+namelen)
+    //bootmsoffset, if != 0, adds 9 bytes (integer type) and 5 bytes (2+namelen)
     //data adds packDataSize+5 bytes (string type) and 6 bytes (2+namelen)
     if (packData && packDataSize < 1){
       FAIL_MSG("Attempted to fill a packet with %lli bytes!", packDataSize);
       return;
     }
-    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + packDataSize+11;
+    unsigned int sendLen = 24 + (packOffset?17:0) + (packBytePos?15:0) + (isKeyframe?19:0) + (bootMsOffset?14:0) + packDataSize+11;
     resize(sendLen);
     //set internal variables
     version = DTSC_V2;
@@ -258,6 +259,14 @@ namespace DTSC {
     if (isKeyframe){
       memcpy(data+offset, "\000\010keyframe\001\000\000\000\000\000\000\000\001", 19);
       offset += 19;
+    }
+    if (bootMsOffset){
+      memcpy(data+offset, "\000\003bmo\001", 6);
+      tmpLong = htonl((int)(bootMsOffset >> 32));
+      memcpy(data+offset+6, (char *)&tmpLong, 4);
+      tmpLong = htonl((int)(bootMsOffset & 0xFFFFFFFF));
+      memcpy(data+offset+10, (char *)&tmpLong, 4);
+      offset += 14;
     }
     memcpy(data+offset, "\000\004data\002", 7);
     tmpLong = htonl(packDataSize);
@@ -1411,6 +1420,7 @@ namespace DTSC {
     moreheader = 0;
     merged = false;
     bufferWindow = 0;
+    bootMsOffset = 0;
   }
 
   Meta::Meta(const DTSC::Packet & source) {
@@ -1425,6 +1435,7 @@ namespace DTSC {
     merged = source.getFlag("merged");
     bufferWindow = source.getInt("buffer_window");
     moreheader = source.getInt("moreheader");
+    bootMsOffset = source.getInt("bootoffset");
     source.getString("source", sourceURI);
     Scan tmpTracks = source.getScan().getMember("tracks");
     unsigned int num = 0;
@@ -1447,6 +1458,7 @@ namespace DTSC {
     live = meta.isMember("live") && meta["live"];
     sourceURI = meta.isMember("source") ? meta["source"].asStringRef() : "";
     version = meta.isMember("version") ? meta["version"].asInt() : 0;
+    bootMsOffset = meta.isMember("bootoffset") ? meta["bootoffset"].asInt() : 0;
     merged = meta.isMember("merged") && meta["merged"];
     bufferWindow = 0;
     if (meta.isMember("buffer_window")) {
@@ -1476,6 +1488,9 @@ namespace DTSC {
     unsigned int dataLen;
     pack.getString("data", data, dataLen);
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):0, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
+    if (!bootMsOffset && pack.hasMember("bmo")){
+      bootMsOffset = pack.getInt("bmo");
+    }
   }
 
   ///\brief Updates a meta object given a DTSC::Packet with byte position override.
@@ -1874,6 +1889,7 @@ namespace DTSC {
       }
     }
     if (version){dataLen += 18;}
+    if (bootMsOffset){dataLen += 21;}
     if (sourceURI.size()){dataLen += 13+sourceURI.size();}
     return dataLen + 8; //add 8 bytes header
   }
@@ -1903,6 +1919,10 @@ namespace DTSC {
     if (version) {
       writePointer(p, "\000\007version\001", 10);
       writePointer(p, convertLongLong(version), 8);
+    }
+    if (bootMsOffset) {
+      writePointer(p, "\000\012bootoffset\001", 13);
+      writePointer(p, convertLongLong(bootMsOffset), 8);
     }
     if (sourceURI.size()) {
       writePointer(p, "\000\006source\002", 9);
@@ -1945,6 +1965,10 @@ namespace DTSC {
     if (version) {
       conn.SendNow("\000\007version\001", 10);
       conn.SendNow(convertLongLong(version), 8);
+    }
+    if (bootMsOffset) {
+      conn.SendNow("\000\012bootoffset\001", 10);
+      conn.SendNow(convertLongLong(bootMsOffset), 8);
     }
     if (sourceURI.size()) {
       conn.SendNow("\000\006source\002", 9);
@@ -2044,6 +2068,9 @@ namespace DTSC {
     if (version) {
       result["version"] = (long long)version;
     }
+    if (bootMsOffset){
+      result["bootoffset"] = (long long)bootMsOffset;
+    }
     if (sourceURI.size()){
       result["source"] = sourceURI;
     }
@@ -2083,6 +2110,9 @@ namespace DTSC {
     if (sourceURI.size()){
       str << std::string(indent, ' ') << "Source: " << sourceURI << std::endl;
     }
+    if (bootMsOffset){
+      str << std::string(indent, ' ') << "Boot MS offset: " << bootMsOffset << std::endl;
+    }
     str << std::string(indent, ' ') << "More Header: " << moreheader << std::endl;
   }
 
@@ -2091,6 +2121,7 @@ namespace DTSC {
     for (std::map<unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
       it->second.reset();
     }
+    bootMsOffset = 0;
   }
 
 

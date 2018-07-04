@@ -15,8 +15,10 @@ namespace Mist {
       void sendHeader();
       bool onFinish();
     protected:
-      uint64_t rtmpOffset;
       void parseVars(std::string data);
+      int64_t rtmpOffset;
+      uint64_t lastOutTime;
+      int64_t bootMsOffset;
       std::string app_name;
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);

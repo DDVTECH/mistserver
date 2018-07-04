@@ -118,7 +118,7 @@ namespace DTSC {
       packType getVersion() const;
       void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
-      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe);
+      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe, int64_t bootMsOffset = 0);
       void getString(const char * identifier, char *& result, unsigned int & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, uint64_t & result) const;
@@ -348,6 +348,7 @@ namespace DTSC {
       uint16_t version;
       long long int moreheader;
       long long int bufferWindow;
+      int64_t bootMsOffset;///< Millis to add to packet timestamps to get millis since system boot.
       std::string sourceURI;
   };
 

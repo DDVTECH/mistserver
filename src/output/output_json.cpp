@@ -28,6 +28,12 @@ namespace Mist {
   }
 
   void OutJSON::sendNext(){
+    if (keepReselecting){
+      //If we can select more tracks, do it and continue.
+      if (selectDefaultTracks()){
+        return;//After a seek, the current packet is invalid. Do nothing and return here.
+      }
+    }
     JSON::Value jPack = thisPacket.toJSON();
     if (dupcheck){
       if (jPack.compareExcept(lastVal, nodup)){

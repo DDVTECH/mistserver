@@ -255,15 +255,30 @@ namespace Mist{
     }
   }
 
-  void Output::selectDefaultTracks(){
+  /// Automatically selects the tracks that are possible and/or wanted.
+  /// Returns true if the track selection changed in any way.
+  bool Output::selectDefaultTracks(){
     if (!isInitialized){
       initialize();
-      if (!isInitialized){return;}
+      if (!isInitialized){return false;}
     }
+
+    //First, back up and wipe the existing selections, if any.
+    std::set<unsigned long> oldSel = selectedTracks;
+    selectedTracks.clear();
+
+    bool autoSeek = buffer.size();
+    uint64_t seekTarget = currentTime();
+
     //check which tracks don't actually exist
     std::set<unsigned long> toRemove;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (!myMeta.tracks.count(*it)){
+        toRemove.insert(*it);
+        continue;
+      }
+      //autoSeeking and target not in bounds? Drop it too.
+      if (autoSeek && myMeta.tracks[*it].lastms < seekTarget - 6000){
         toRemove.insert(*it);
       }
     }
@@ -344,6 +359,7 @@ namespace Mist{
               if (myMeta.live){
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                    if (autoSeek && trit->second.lastms < seekTarget - 6000){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -352,6 +368,7 @@ namespace Mist{
               }else{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                    if (autoSeek && trit->second.lastms < seekTarget - 6000){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -381,6 +398,12 @@ namespace Mist{
     if (!selectedTracks.size() && myMeta.tracks.size() && capa["codecs"][bestSoFar].size()){
       WARN_MSG("No tracks selected (%u total) for stream %s!", myMeta.tracks.size(), streamName.c_str());
     }
+    bool madeChange = (oldSel != selectedTracks);
+    if (autoSeek && madeChange){
+      INFO_MSG("Automatically seeking to position %llu to resume playback", seekTarget);
+      seek(seekTarget);
+    }
+    return madeChange;
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.
@@ -825,7 +848,7 @@ namespace Mist{
     if (buffer.size() != selectedTracks.size()){
       std::set<uint32_t> dropTracks;
       if (buffer.size() < selectedTracks.size()){
-        //prepare to drop any selectedTrack without buffe entry
+        //prepare to drop any selectedTrack without buffer entry
         for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
           bool found = false;
           for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){

@@ -160,12 +160,9 @@ namespace Mist {
         lastMeta = Util::epoch();
         updateMeta();
         if (myMeta.tracks.size() > 1){
-          size_t prevTrackCount = selectedTracks.size();
-          selectDefaultTracks();
-          if (selectedTracks.size() > prevTrackCount){
-            INFO_MSG("Picked up new track - selecting it and resetting state.");
+          if (selectDefaultTracks()){
+            INFO_MSG("Track selection changed - resending headers and continuing");
             sentHeader = false;
-            initialSeek();
             return;
           }
         }

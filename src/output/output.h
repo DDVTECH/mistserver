@@ -51,7 +51,7 @@ namespace Mist {
       uint64_t endTime();
       void setBlocking(bool blocking);
       void updateMeta();
-      void selectDefaultTracks();
+      bool selectDefaultTracks();
       bool connectToFile(std::string file);
       static bool listenMode(){return true;}
       uint32_t currTrackCount() const;

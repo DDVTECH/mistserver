@@ -303,9 +303,9 @@ namespace Mist {
     //First memcpy only the payload to the destination
     //Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is complete
     memcpy(myPage.mapped + curOffset + 20, pack.getData() + 20, pack.getDataLen() - 20);
-    //Copy the remaing values in reverse order:
+    //Copy the remaining values in reverse order:
     //8 byte timestamp
-    memcpy(myPage.mapped + curOffset + 12, pack.getData() + 12, 8);
+    Bit::htobll(myPage.mapped + curOffset + 12, pack.getTime());
     //The mapped track id
     ((int *)(myPage.mapped + curOffset + 8))[0] = htonl(mapTid);
     int size = Bit::btohl(pack.getData() + 4);

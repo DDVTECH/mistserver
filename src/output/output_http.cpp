@@ -6,6 +6,9 @@
 
 namespace Mist {
   HTTPOutput::HTTPOutput(Socket::Connection & conn) : Output(conn) {
+    webSock = 0;
+    idleInterval = 0;
+    idleLast = 0;
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
@@ -13,6 +16,13 @@ namespace Mist {
       streamName = config->getString("streamname");
     }
     config->activate();
+  }
+
+  HTTPOutput::~HTTPOutput() {
+    if (webSock){
+      delete webSock;
+      webSock = 0;
+    }
   }
   
   void HTTPOutput::init(Util::Config * cfg){
@@ -153,6 +163,21 @@ namespace Mist {
   }
   
   void HTTPOutput::requestHandler(){
+    if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
+      onIdle();
+      idleLast = Util::bootMS();
+    }
+    if (webSock){
+      if (webSock->readFrame()){
+        onWebsocketFrame();
+        idleLast = Util::bootMS();
+      }else{
+        if (!isBlocking && !parseData){
+          Util::sleep(100);
+        }
+      }
+      return;
+    }
     if (myConn.Received().size() && myConn.spool()){
       DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
       onRequest();
@@ -197,12 +222,14 @@ namespace Mist {
             onRequest();
           }
           if (!myConn.Received().size()){
-            Util::sleep(500);
+            if (!isBlocking && !parseData){
+              Util::sleep(100);
+            }
           }
         }
       }else{
         if (!isBlocking && !parseData){
-          Util::sleep(500);
+          Util::sleep(100);
         }
       }
     }
@@ -224,8 +251,23 @@ namespace Mist {
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());
+      //Handle upgrade to websocket if the output supports it
+      if (doesWebsockets() && H.GetHeader("Upgrade") == "websocket"){
+        INFO_MSG("Switching to Websocket mode");
+        preWebsocketConnect();
+        webSock = new HTTP::Websocket(myConn, H);
+        if (!(*webSock)){
+          delete webSock;
+          webSock = 0;
+          return;
+        }
+        onWebsocketConnect();
+        H.Clean();
+        return;
+      }
       preHTTP();
       onHTTP();
+      idleLast = Util::bootMS();
       if (!H.bufferChunks){
         H.Clean();
       }

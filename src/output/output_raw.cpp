@@ -46,7 +46,7 @@ namespace Mist {
     capa["optional"]["seek"]["help"] = "The time in milliseconds to seek to, 0 by default.";
     capa["optional"]["seek"]["type"] = "int";
     capa["optional"]["seek"]["option"] = "--seek";
-    capa["codecs"][0u][0u].append("*");
+    capa["codecs"][0u][0u].append("+*");
     cfg->addOption("streamname",
                    JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
     cfg->addOption("tracks",

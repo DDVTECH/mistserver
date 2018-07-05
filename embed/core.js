@@ -915,7 +915,7 @@ function mistPlay(streamName,options) {
     button.appendChild(t);
     err.appendChild(button);
     button.onclick = function(){
-      options.target.removeChild(err);
+      if (err.parentElement) { err.parentElement.removeChild(err); }
       delete options.startCombo;
       if (err.timeOut) {
         clearTimeout(err.timeOut);

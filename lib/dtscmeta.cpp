@@ -1967,7 +1967,7 @@ namespace DTSC {
       conn.SendNow(convertLongLong(version), 8);
     }
     if (bootMsOffset) {
-      conn.SendNow("\000\012bootoffset\001", 10);
+      conn.SendNow("\000\012bootoffset\001", 13);
       conn.SendNow(convertLongLong(bootMsOffset), 8);
     }
     if (sourceURI.size()) {

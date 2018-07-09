@@ -37,6 +37,10 @@ namespace Socket{
   bool isBinAddress(const std::string &binAddr, std::string matchTo);
   bool matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix);
   std::string getBinForms(std::string addr);
+  /// Returns true if given human-readable address (address, not hostname) is a local address.
+  bool isLocal(const std::string & host);
+  /// Returns true if given human-readable hostname is a local address.
+  bool isLocalhost(const std::string & host);
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{

@@ -49,6 +49,48 @@ static std::string getIPv6BinAddr(const struct sockaddr_in6 & remoteaddr){
   return std::string(tmpBuffer, 16);
 }
 
+bool Socket::isLocalhost(const std::string & remotehost){
+  std::string tmpInput = remotehost;
+  std::string bf = Socket::getBinForms(tmpInput);
+  std::string tmpAddr;
+  while (bf.size() >= 16){
+    Socket::hostBytesToStr(bf.data(), 16, tmpAddr);
+    if (isLocal(tmpAddr)){return true;}
+    bf.erase(0, 17);
+  }
+  return false;
+}
+
+bool Socket::isLocal(const std::string & remotehost){
+  struct ifaddrs * ifAddrStruct=NULL;
+  struct ifaddrs * ifa=NULL;
+  void * tmpAddrPtr=NULL;
+  char addressBuffer[INET6_ADDRSTRLEN];
+
+  getifaddrs(&ifAddrStruct);
+
+  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next){
+    if (!ifa->ifa_addr){
+      continue;
+    }
+    if (ifa->ifa_addr->sa_family == AF_INET){// check it is IP4
+      tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+      inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == addressBuffer){return true;}
+      INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
+    }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
+      tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+      inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
+      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
+      if (remotehost == addressBuffer){return true;}
+    }
+  }
+  if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+  return false;
+}
+
 /// Helper function that matches two binary-format IPv6 addresses with prefix bits of prefix.
 bool Socket::matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix){
   if (!prefix){prefix = 128;}
@@ -804,33 +846,7 @@ bool Socket::Connection::isAddress(const std::string &addr){
 }
 
 bool Socket::Connection::isLocal(){
-  struct ifaddrs * ifAddrStruct=NULL;
-  struct ifaddrs * ifa=NULL;
-  void * tmpAddrPtr=NULL;
-  char addressBuffer[INET6_ADDRSTRLEN];
-
-  getifaddrs(&ifAddrStruct);
-
-  for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next){
-    if (!ifa->ifa_addr){
-      continue;
-    }
-    if (ifa->ifa_addr->sa_family == AF_INET){// check it is IP4
-      tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
-      inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
-      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == addressBuffer){return true;}
-      INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
-    }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
-      tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
-      inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
-      INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == addressBuffer){return true;}
-    }
-  }
-  if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
-  return false;
+  return Socket::isLocal(remotehost);
 }
 
 #ifdef SSL

@@ -269,6 +269,7 @@ namespace Mist {
           webSock = 0;
           return;
         }
+        crc = getpid();
         onWebsocketConnect();
         H.Clean();
         return;

@@ -93,6 +93,7 @@ private:
 
 public:
   std::string host;
+  char binHost[16];
   unsigned long long availBandwidth;
   JSON::Value geoDetails;
   double servLati, servLongi;
@@ -498,6 +499,10 @@ int handleRequest(Socket::Connection &conn){
           unsigned int bestScore = 0;
           for (HOSTLOOP){
             HOSTCHECK;
+            if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost ,16), conn.getBinHost(), 0)){
+              INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
+              continue;
+            }
             unsigned int score = HOST(i).details->source(source);
             if (score > bestScore){
               bestHost = "dtsc://" + HOST(i).details->host;
@@ -661,6 +666,7 @@ void handleServer(void *hostEntryPointer){
       }else{
         if (down){
           WARN_MSG("Connection established with %s", url.host.c_str());
+          memcpy(entry->details->binHost, DL.getSocket().getBinHost().data(), 16);
           entry->state = STATE_ONLINE;
           down = false;
         }

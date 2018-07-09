@@ -60,6 +60,12 @@ namespace Mist {
       while ((Util::epoch() - startTime < 10) && (balConn || balConn.Received().size())){
         if (balConn.spool() || balConn.Received().size()){
           if (http.Read(balConn.Received().get())){
+            HTTP::URL newUrl(http.body);
+            if (Socket::isLocalhost(newUrl.host)){
+              WARN_MSG("Load balancer returned a local address - ignoring");
+              startTime = 0;
+              break;//break out of while loop, ignore return value - it's local.
+            }
             source = http.body;
             startTime = 0;//note success
             break;//break out of while loop

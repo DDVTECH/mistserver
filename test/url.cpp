@@ -13,7 +13,7 @@ int main(int argc, char ** argv){
     }
     std::cout << argv[i] << " -> " << u.getUrl() << std::endl;
     std::cout << "Protocol: " << u.protocol << std::endl;
-    std::cout << "Host: " << u.host << std::endl;
+    std::cout << "Host: " << u.host << " (Local: " << (Socket::isLocalhost(u.host)?"Yes":"No") << ")" << std::endl;
     std::cout << "Port: " << u.getPort() << std::endl;
     std::cout << "Path: " << u.path << std::endl;
     std::cout << "Query: " << u.args << std::endl;

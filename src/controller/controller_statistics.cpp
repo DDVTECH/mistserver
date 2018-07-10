@@ -1479,12 +1479,16 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
 }
 
 void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, int mode){
+  std::string jsonp;
   switch (mode){
     case PROMETHEUS_TEXT:
       H.SetHeader("Content-Type", "text/plain; version=0.0.4");
       break;
     case PROMETHEUS_JSON:
       H.SetHeader("Content-Type", "text/json");
+      H.setCORSHeaders();
+      if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
+      if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
       break;
   }
   H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
@@ -1805,7 +1809,13 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       }
     }
 
+    if (jsonp.size()){
+      H.Chunkify(jsonp + "(", conn);
+    }
     H.Chunkify(resp.toString(), conn);
+    if (jsonp.size()){
+      H.Chunkify(");\n", conn);
+    }
   }
 
   H.Chunkify("", conn);

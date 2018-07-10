@@ -317,7 +317,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           H.Clean();
           continue;
         }
-        if (H.url == "/"+Controller::prometheus+".json"){
+        if (H.url.substr(0, Controller::prometheus.size()+6) == "/"+Controller::prometheus+".json"){
           handlePrometheus(H, conn, PROMETHEUS_JSON);
           H.Clean();
           continue;

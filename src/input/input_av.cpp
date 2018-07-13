@@ -121,6 +121,12 @@ namespace Mist {
         case AV_CODEC_ID_OPUS:
           myMeta.tracks[i].codec = "opus";
           break;
+        case AV_CODEC_ID_VP8:
+          myMeta.tracks[i].codec = "VP8";
+          break;
+        case AV_CODEC_ID_VP9:
+          myMeta.tracks[i].codec = "VP9";
+          break;
         case AV_CODEC_ID_AAC:
           myMeta.tracks[i].codec = "AAC";
           break;

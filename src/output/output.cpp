@@ -1365,10 +1365,12 @@ namespace Mist{
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
-        if (getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset) < nxt.time){
+        uint64_t newTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+        VERYHIGH_MSG("New page %llu for track %llu, first timestamp is %llu ms", nxtKeyNum[nxt.tid], nxt.tid, newTime);
+        if (newTime < nxt.time){
           dropTrack(nxt.tid, "time going backwards");
         }else{
-          nxt.time = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+          nxt.time = newTime;
           //swap out the next object in the buffer with a new one
           buffer.erase(buffer.begin());
           buffer.insert(nxt);

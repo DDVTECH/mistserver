@@ -3,6 +3,11 @@
 
 namespace Opus{
 
+
+  uint16_t getPreSkip(const char * initData){
+    return initData[10] + initData[11]* 256;
+  }
+
   unsigned int Opus_getDuration(const char *part){
     const char config = part[0] >> 3;
     const char code = part[0] & 3;

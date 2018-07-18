@@ -367,6 +367,7 @@ namespace DTSC {
       long long int bufferWindow;
       int64_t bootMsOffset;///< Millis to add to packet timestamps to get millis since system boot.
       std::string sourceURI;
+      JSON::Value inputLocalVars;
   };
 
   /// An iterator helper for easily iterating over the parts in a Fragment.

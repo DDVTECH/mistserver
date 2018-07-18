@@ -1437,6 +1437,9 @@ namespace DTSC {
     moreheader = source.getInt("moreheader");
     bootMsOffset = source.getInt("bootoffset");
     source.getString("source", sourceURI);
+    if (source.getScan().hasMember("inputlocalvars")){
+      inputLocalVars = source.getScan().getMember("inputlocalvars").asJSON();
+    }
     Scan tmpTracks = source.getScan().getMember("tracks");
     unsigned int num = 0;
     Scan tmpTrack;
@@ -2075,6 +2078,9 @@ namespace DTSC {
       result["source"] = sourceURI;
     }
     result["moreheader"] = moreheader;
+    if (inputLocalVars){
+      result["inputlocalvars"] = inputLocalVars;
+    }
     return result;
   }
 

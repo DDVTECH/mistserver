@@ -294,7 +294,7 @@ namespace Mist {
     size_t curOffset = pageData.curOffset;
     //Do nothing when there is not enough free space on the page to add the packet.
     if (pageData.dataSize - curOffset < pack.getDataLen()) {
-      FAIL_MSG("Trying to buffer a packet on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %d bytes long, so won't fit at offset %lu on a page of %llu bytes!", curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pageData.dataSize);
+      FAIL_MSG("Trying to buffer a packet (%llums) on page %lu for track %lu~>%lu, but we have a size mismatch. The packet is %d bytes long, so won't fit at offset %lu on a page of %llu bytes!", pack.getTime(), curPageNum[tid], tid, mapTid, pack.getDataLen(), curOffset, pageData.dataSize);
       return;
     }
 

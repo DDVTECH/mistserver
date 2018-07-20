@@ -400,6 +400,7 @@ namespace Mist {
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       it->second.firstms = 0;
       it->second.lastms = 0;
+      selectedTracks.insert(it->first);
     }
 
     std::string reason = streamMainLoop();
@@ -650,6 +651,7 @@ namespace Mist {
     getNext();
     //in case earlier seeking was inprecise, seek to the exact point
     while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()){
+      DONTEVEN_MSG("Skipping packet: %d@%llu, %llub", track, thisPacket.getTime(), thisPacket.getDataLen());
       getNext();
     }
     uint64_t lastBuffered = 0;
@@ -657,6 +659,7 @@ namespace Mist {
     uint64_t byteCounter = 0;
     while (thisPacket && thisPacket.getTime() < stopTime) {
       if (thisPacket.getTime() >= lastBuffered){
+        DONTEVEN_MSG("Buffering packet: %d@%llu, %llub", track, thisPacket.getTime(), thisPacket.getDataLen());
         bufferNext(thisPacket);
         ++packCounter;
         byteCounter += thisPacket.getDataLen();
@@ -666,7 +669,7 @@ namespace Mist {
     }
     bufferFinalize(track);
     bufferTimer = Util::bootMS() - bufferTimer;
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes, %llu-%llums) for track %d (%s) in %llums", keyNum, packCounter, byteCounter, myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
+    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes, %llu-%llums -> %llums) for track %d (%s) in %llums", keyNum, packCounter, byteCounter, myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime, lastBuffered, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
     pageCounter[track][keyNum] = 15;
     return true;
   }

@@ -4,9 +4,14 @@
 #include <mist/bitfields.h>
 
 namespace Mist{
+
+  uint16_t maxEBMLFrameOffset = 0;
+  bool frameOffsetKnown = false;
+
   InputEBML::InputEBML(Util::Config *cfg) : Input(cfg){
+    timeScale = 1.0;
     capa["name"] = "EBML";
-    capa["desc"] = "Allows loading MKV, MKA, MK3D, MKS and WebM files for Video on Demand.";
+    capa["desc"] = "Allows loading MKV, MKA, MK3D, MKS and WebM files for Video on Demand, or accepts live streams in those formats over standard input.";
     capa["source_match"].append("/*.mkv");
     capa["source_match"].append("/*.mka");
     capa["source_match"].append("/*.mk3d");
@@ -17,6 +22,7 @@ namespace Mist{
     capa["codecs"].append("HEVC");
     capa["codecs"].append("VP8");
     capa["codecs"].append("VP9");
+    capa["codecs"].append("AV1");
     capa["codecs"].append("opus");
     capa["codecs"].append("vorbis");
     capa["codecs"].append("theora");
@@ -29,16 +35,40 @@ namespace Mist{
     capa["codecs"].append("MP3");
     capa["codecs"].append("AC3");
     capa["codecs"].append("FLOAT");
+    capa["codecs"].append("JSON");
+    capa["codecs"].append("subtitle");
     lastClusterBPos = 0;
     lastClusterTime = 0;
     bufferedPacks = 0;
   }
 
-  bool InputEBML::checkArguments(){
-    if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
-      return false;
+  std::string ASStoSRT(const char * ptr, uint32_t len){
+    uint16_t commas = 0;
+    uint16_t brackets = 0;
+    std::string tmpStr;
+    tmpStr.reserve(len);
+    for (uint32_t i = 0; i < len; ++i){
+      //Skip everything until the 8th comma
+      if (commas < 8){
+        if (ptr[i] == ','){commas++;}
+        continue;
+      }
+      if (ptr[i] == '{'){brackets++; continue;}
+      if (ptr[i] == '}'){brackets--; continue;}
+      if (!brackets){
+        if (ptr[i] == '\\' && i < len-1 && (ptr[i+1] == 'N' || ptr[i+1] == 'n')){
+          tmpStr += '\n';
+          ++i;
+          continue;
+        }
+        tmpStr += ptr[i];
+      }
     }
+    return tmpStr;
+  }
+
+
+  bool InputEBML::checkArguments(){
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
         std::cerr << "Output to stdout not yet supported" << std::endl;
@@ -53,10 +83,23 @@ namespace Mist{
     return true;
   }
 
+  bool InputEBML::needsLock() {
+    //Standard input requires no lock, everything else does.
+    if (config->getString("input") != "-"){
+      return true;
+    }else{
+      return false;
+    }
+  }
+
   bool InputEBML::preRun(){
-    // open File
-    inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
+    if (config->getString("input") == "-"){
+      inFile = stdin;
+    }else{
+      // open File
+      inFile = fopen(config->getString("input").c_str(), "r");
+      if (!inFile){return false;}
+    }
     return true;
   }
 
@@ -67,7 +110,10 @@ namespace Mist{
     while (ptr.size() < needed){
       if (!ptr.allocate(needed)){return false;}
       if (!fread(ptr + ptr.size(), needed - ptr.size(), 1, inFile)){
-        FAIL_MSG("Could not read more data!");
+        //We assume if there is no current data buffered, that we are at EOF and don't print a warning
+        if (ptr.size()){
+          FAIL_MSG("Could not read more data! (have %lu, need %lu)", ptr.size(), needed);
+        }
         return false;
       }
       ptr.size() = needed;
@@ -81,8 +127,18 @@ namespace Mist{
       }
     }
     EBML::Element E(ptr);
-    if (E.getID() == EBML::EID_CLUSTER){lastClusterBPos = Util::ftell(inFile);}
-    if (E.getID() == EBML::EID_TIMECODE){lastClusterTime = E.getValUInt();}
+    if (E.getID() == EBML::EID_CLUSTER){
+      if (inFile == stdin){
+        lastClusterBPos = 0;
+      }else{
+        lastClusterBPos = Util::ftell(inFile);
+      }
+      DONTEVEN_MSG("Found a cluster at position %llu", lastClusterBPos);
+    }
+    if (E.getID() == EBML::EID_TIMECODE){
+      lastClusterTime = E.getValUInt();
+      DONTEVEN_MSG("Cluster time %llu ms", lastClusterTime);
+    }
     return true;
   }
 
@@ -94,6 +150,13 @@ namespace Mist{
         it->second.codec = "PCM";
         swapEndianness.insert(it->first);
       }
+    }
+    if (myMeta.inputLocalVars.isMember("timescale")){
+        timeScale = ((double)myMeta.inputLocalVars["timescale"].asInt()) / 1000000.0;
+    }
+    if (myMeta.inputLocalVars.isMember("maxframeoffset")){
+      maxEBMLFrameOffset = myMeta.inputLocalVars["maxframeoffset"].asInt();
+      frameOffsetKnown = true;
     }
     return true;
   }
@@ -129,6 +192,10 @@ namespace Mist{
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){init = tmpElem.getValString();}
+        }
+        if (codec == "V_AV1"){
+          trueCodec = "AV1";
+          trueType = "video";
         }
         if (codec == "V_VP9"){
           trueCodec = "VP9";
@@ -190,6 +257,20 @@ namespace Mist{
           trueCodec = "FLOAT";
           trueType = "audio";
         }
+        if (codec == "M_JSON"){
+          trueCodec = "JSON";
+          trueType = "meta";
+        }
+        if (codec == "S_TEXT/UTF8"){
+          trueCodec = "subtitle";
+          trueType = "meta";
+        }
+        if (codec == "S_TEXT/ASS" || codec == "S_TEXT/SSA"){
+          trueCodec = "subtitle";
+          trueType = "meta";
+          tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
+          if (tmpElem){init = tmpElem.getValString();}
+        }
         if (codec == "A_MS/ACM"){
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){
@@ -247,6 +328,13 @@ namespace Mist{
         }
         INFO_MSG("Detected track: %s", Trk.getIdentifier().c_str());
       }
+      if (E.getID() == EBML::EID_TIMECODESCALE){
+        uint64_t timeScaleVal = E.getValUInt();
+        myMeta.inputLocalVars["timescale"] = (long long)timeScaleVal;
+        timeScale = ((double)timeScaleVal) / 1000000.0;
+      }
+      //Live streams stop parsing the header as soon as the first Cluster is encountered
+      if (E.getID() == EBML::EID_CLUSTER && !needsLock()){return true;}
       if (E.getType() == EBML::ELEM_BLOCK){
         EBML::Block B(ptr);
         uint64_t tNum = B.getTrackNum();
@@ -254,21 +342,32 @@ namespace Mist{
         trackPredictor &TP = packBuf[tNum];
         DTSC::Track &Trk = myMeta.tracks[tNum];
         bool isVideo = (Trk.type == "video");
+        bool isAudio = (Trk.type == "audio");
+        bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
         for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
           if (frameNo){
             if (Trk.codec == "AAC"){
-              newTime += 1000000 / Trk.rate;//assume ~1000 samples per frame
+              newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
+            } else if (Trk.codec == "MP3"){
+              newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
             }else{
+              newTime += 1/timeScale;
               ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
             }
           }
           uint32_t frameSize = B.getFrameSize(frameNo);
+          if (isASS){
+            char * ptr = (char *)B.getFrameData(frameNo);
+            std::string assStr = ASStoSRT(ptr, frameSize);
+            frameSize = assStr.size();
+          }
           if (frameSize){
-            TP.add(newTime, 0, tNum, frameSize, lastClusterBPos,
-                 B.isKeyframe() && isVideo);
+            TP.add(newTime*timeScale, 0, tNum, frameSize, lastClusterBPos,
+                 B.isKeyframe() && !isAudio, isVideo);
           }
         }
-        while (TP.hasPackets()){
+        while (TP.hasPackets() && (isVideo || frameOffsetKnown)){
+          frameOffsetKnown = true;
           packetData &C = TP.getPacketData(isVideo);
           myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
           TP.remove();
@@ -287,6 +386,8 @@ namespace Mist{
         }
       }
     }
+
+    myMeta.inputLocalVars["maxframeoffset"] = (long long)maxEBMLFrameOffset;
 
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %llu ms", bench / 1000);
@@ -385,19 +486,31 @@ namespace Mist{
     trackPredictor &TP = packBuf[tNum];
     DTSC::Track & Trk = myMeta.tracks[tNum];
     bool isVideo = (Trk.type == "video");
+    bool isAudio = (Trk.type == "audio");
+    bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
         if (Trk.codec == "AAC"){
-          newTime += 1000000 / Trk.rate;//assume ~1000 samples per frame
+          newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
+        } else if (Trk.codec == "MP3"){
+          newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
         }
       }
       uint32_t frameSize = B.getFrameSize(frameNo);
       if (frameSize){
-        TP.add(newTime, 0, tNum, frameSize, lastClusterBPos,
-          B.isKeyframe() && isVideo, (void *)B.getFrameData(frameNo));
-        ++bufferedPacks;
+        char * ptr = (char *)B.getFrameData(frameNo);
+        if (isASS){
+          std::string assStr = ASStoSRT(ptr, frameSize);
+          frameSize = assStr.size();
+          memcpy(ptr, assStr.data(), frameSize);
+        }
+        if (frameSize){
+          TP.add(newTime*timeScale, 0, tNum, frameSize, lastClusterBPos,
+          B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
+          ++bufferedPacks;
+        }
       }
     }
     if (TP.hasPackets()){
@@ -415,10 +528,29 @@ namespace Mist{
   void InputEBML::seek(int seekTime){
     packBuf.clear();
     bufferedPacks = 0;
-    DTSC::Track Trk = myMeta.tracks[getMainSelectedTrack()];
+    uint64_t mainTrack = getMainSelectedTrack();
+    DTSC::Track Trk = myMeta.tracks[mainTrack];
+    bool isVideo = (Trk.type == "video");
     uint64_t seekPos = Trk.keys[0].getBpos();
+    // Replay the parts of the previous keyframe, so the timestaps match up
+    uint64_t partCount = 0;
     for (unsigned int i = 0; i < Trk.keys.size(); i++){
-      if (Trk.keys[i].getTime() > seekTime){break;}
+      if (Trk.keys[i].getTime() > seekTime){
+        if (i > 1){
+          partCount -= Trk.keys[i-1].getParts() + Trk.keys[i-2].getParts();
+          uint64_t partEnd = partCount + Trk.keys[i-2].getParts();
+          uint64_t partTime = Trk.keys[i-2].getTime();
+          for (uint64_t prt = partCount; prt < partEnd; ++prt){
+            INSANE_MSG("Replay part %llu, timestamp: %llu+%llu", prt, partTime, Trk.parts[prt].getOffset());
+            packBuf[mainTrack].add(partTime, Trk.parts[prt].getOffset(), mainTrack, 0, 0, false, isVideo, (void *)0);
+            packBuf[mainTrack].remove();
+            partTime += Trk.parts[prt].getDuration();
+          }
+        }
+        break;
+      }
+      partCount += Trk.keys[i].getParts();
+      DONTEVEN_MSG("Seeking to %lu, found %llu...", seekTime, Trk.keys[i].getTime());
       seekPos = Trk.keys[i].getBpos();
     }
     Util::fseek(inFile, seekPos, SEEK_SET);

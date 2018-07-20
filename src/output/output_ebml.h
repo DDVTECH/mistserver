@@ -25,7 +25,7 @@ namespace Mist{
     uint32_t cuesSize;//size of Cues (excl. header)
     uint32_t seekheadSize;//size of SeekHead (incl. header)
     uint32_t seekSize;//size of contents of SeekHead (excl. header)
-    std::map<uint64_t, uint64_t> clusterSizes;//sizes of Clusters (incl. header)
+    std::map<uint64_t, uint64_t> clusterSizes;//sizes of Clusters by start time (incl. header)
     void byteSeek(uint64_t startPos);
   };
 }

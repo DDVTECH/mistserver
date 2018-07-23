@@ -27,7 +27,9 @@ mistplayers.html5 = {
     } catch(e){}
     return support;
   },
-  player: function(){},
+  player: function(){
+    this.onreadylist = [];
+  },
   mistControls: true
 };
 var p = mistplayers.html5.player;

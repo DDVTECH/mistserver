@@ -11,7 +11,7 @@ mistplayers.img = {
     if ((options.forceType) || (options.forceSource) || (options.forcePlayer)) { return true; }
     return false;
   },
-  player: function(){}
+  player: function(){this.onreadylist = [];}
 };
 var p = mistplayers.img.player;
 p.prototype = new MistPlayer();

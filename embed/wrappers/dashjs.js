@@ -10,7 +10,7 @@ mistplayers.dashjs = {
     if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) { return false; }
     return (('MediaSource' in window) && (location.protocol != 'file:'));
   },
-  player: function(){}
+  player: function(){this.onreadylist = [];}
 };
 var p = mistplayers.dashjs.player;
 p.prototype = new MistPlayer();

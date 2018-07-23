@@ -161,7 +161,19 @@ MistPlayer.prototype.setTracks = function(usetracks){
     this.element.load();
   }
   
-  this.element.currentTime = time;
+
+  if (this.element.currentTime != time) {
+    try {
+      this.element.currentTime = time;
+    }
+    catch (e) {
+      var f = function(){
+        this.currentTime = time;
+        this.removeEventListener("loadeddata",f);
+      };
+      this.element.addEventListener("loadeddata",f);
+    }
+  }
   
   if ('trackselects' in this) {
     for (var i in usetracks) {
@@ -915,7 +927,7 @@ function mistPlay(streamName,options) {
     button.appendChild(t);
     err.appendChild(button);
     button.onclick = function(){
-      options.target.removeChild(err);
+      if (err.parentElement) { err.parentElement.removeChild(err); }
       delete options.startCombo;
       if (err.timeOut) {
         clearTimeout(err.timeOut);
@@ -1429,7 +1441,7 @@ function mistPlay(streamName,options) {
       }
       catch (e) {
         //show the next player/reload buttons if there is an error in the player build code
-        player.askNextCombo('Error while building player: '+e.stack);
+        player.askNextCombo('Error while building player'+("stack" in e ? ": "+e.stack : ""));
         throw e;
         player.report({
           type: 'init',

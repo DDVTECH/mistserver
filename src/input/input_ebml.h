@@ -128,7 +128,7 @@ namespace Mist{
       readHeader();
     }
     bool openStreamSource(){return true;}
-    bool needHeader(){return needsLock();}
+    bool needHeader(){return needsLock() && !readExistingHeader();}
     double timeScale;
   };
 }

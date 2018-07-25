@@ -54,6 +54,9 @@ namespace Mist {
     if (found != std::string::npos){
       if (url.size() < m.size()){return false;}
       if (m.substr(0, found) == url.substr(0, found) && m.substr(found+1) == url.substr(url.size() - (m.size() - found) + 1)){
+        if (url.substr(found, url.size() - m.size() + 1).find('/') != std::string::npos){
+          return false;
+        }
         streamname = url.substr(found, url.size() - m.size() + 1);
         return true;
       }
@@ -67,6 +70,9 @@ namespace Mist {
       if (url.size() < m.size()){return false;}
       size_t found_suf = url.find(m.substr(found+1), found);
       if (m.substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
+        if (url.substr(found, found_suf - found).find('/') != std::string::npos){
+          return false;
+        }
         streamname = url.substr(found, found_suf - found);
         return true;
       }

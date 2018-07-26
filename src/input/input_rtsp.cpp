@@ -314,6 +314,7 @@ namespace Mist{
     for (std::map<uint32_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
+      it->second.sorter.setCallback(it->first, insertRTP);
       while (s.Receive()){
         r = true;
         // if (s.getDestPort() != it->second.sPortA){
@@ -321,7 +322,15 @@ namespace Mist{
         //  continue;
         //}
         tcpCon.addDown(s.data_len);
-        it->second.sorter.addPacket(s.data, s.data_len);
+        RTP::Packet pack(s.data, s.data_len);
+        if (!it->second.theirSSRC){
+          it->second.theirSSRC = pack.getSSRC();
+        }
+        it->second.sorter.addPacket(pack);
+      }
+      if (Util::epoch() / 5 != it->second.rtcpSent){
+        it->second.rtcpSent = Util::epoch() / 5;
+        it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
       }
     }
     return r;

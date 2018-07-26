@@ -479,7 +479,7 @@ namespace SDP{
           thisTrack->codec = "PCM";
           thisTrack->size = 20;
         }
-        if (trCodec == "L24"){
+        if (trCodec == "L24"|| trCodec == "PCM"){
           thisTrack->codec = "PCM";
           thisTrack->size = 24;
         }

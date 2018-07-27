@@ -98,7 +98,7 @@ namespace Controller{
     
     HTTP::Downloader dl;
     HTTP::URL url("http://releases.mistserver.org/license.php");
-    url.args = "release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&lid="+currentLicense["lic_id"].asString() + extra;
+    url.args = "release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&hrn="+Encodings::URL::encode(Storage["config"]["serverid"])+"&lid="+currentLicense["lic_id"].asString() + extra;
 
     long long currID = currentLicense["lic_id"].asInt();
     if (currID){

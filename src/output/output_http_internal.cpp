@@ -431,6 +431,7 @@ namespace Mist {
       it->removeMember("parts");
       it->removeMember("ivecs");/*LTS*/
     }
+    json_resp["meta"].removeMember("source");
     
     //create a set for storing source information
     std::set<JSON::Value, sourceCompare> sources;

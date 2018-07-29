@@ -395,6 +395,7 @@ namespace Mist {
       it->removeMember("keysizes");
       it->removeMember("parts");
     }
+    json_resp["meta"].removeMember("source");
     
     //create a set for storing source information
     std::set<JSON::Value, sourceCompare> sources;

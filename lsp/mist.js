@@ -1884,12 +1884,18 @@ var UI = {
   showTab: function(tab,other) {
     var $main = UI.elements.main;
     
-    if ((mist.user.loggedin) && (!('ui_settings' in mist.data))) {
-      $main.html('Loading..');
-      mist.send(function(){
-        UI.showTab(tab,other);
-      },{ui_settings: true});
-      return;
+    if (mist.user.loggedin) {
+      if (!('ui_settings' in mist.data)) {
+        $main.html('Loading..');
+        mist.send(function(){
+          UI.showTab(tab,other);
+        },{ui_settings: true});
+        return;
+      }
+      
+      if (mist.data.config.serverid) {
+        document.title = mist.data.config.serverid+" - MistServer MI";
+      }
     }
     
     var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').closest('.button');
@@ -1925,6 +1931,7 @@ var UI = {
           UI.navto('Overview');
           return;
         }
+        document.title = "MistServer MI";
         UI.elements.menu.addClass('hide');
         UI.elements.connection.status.text('Disconnected').removeClass('green').addClass('red');
         $main.append(UI.buildUI([

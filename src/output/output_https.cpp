@@ -78,7 +78,9 @@ namespace Mist{
     // do the SSL handshake
     while ((ret = mbedtls_ssl_handshake(&ssl)) != 0){
       if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
-        MEDIUM_MSG("Could not handshake, SSL error: %d", ret);
+        char error_buf[200];
+        mbedtls_strerror(ret, error_buf, 200);
+        MEDIUM_MSG("Could not handshake, SSL error: %s (%d)", error_buf, ret);
         C.close();
         return;
       }else{

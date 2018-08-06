@@ -536,8 +536,6 @@ namespace h264 {
 
   bool more_rbsp_data(Utils::bitstream & bs){
     if (bs.size() < 8){
-      //todo IMPLEMENT
-      WARN_MSG("bs.size() < 8, not sure if return value is correct");
       return false;
     }
     return true;
@@ -631,8 +629,6 @@ namespace h264 {
       }
     }
     secondChromaQpIndexOffset = bs.getExpGolomb();
-
-    INFO_MSG("PPS Bits left: %llu", bs.size());
   }
 
   void ppsUnit::setPPSNumber(size_t newNumber){

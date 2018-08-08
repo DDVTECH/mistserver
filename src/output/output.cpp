@@ -592,7 +592,8 @@ namespace Mist{
   }
 
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
-  void Output::seek(unsigned long long pos){
+  /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
+  void Output::seek(unsigned long long pos, bool toKey){
     sought = true;
     if (!isInitialized){
       initialize();
@@ -601,6 +602,25 @@ namespace Mist{
     thisPacket.null();
     if (myMeta.live){
       updateMeta();
+    }
+    if (toKey){
+      long unsigned int mainTrack = getMainSelectedTrack();
+      //abort toKey if there are no keys in the main track
+      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){
+        WARN_MSG("Sync-seeking impossible (main track invalid); performing regular seek instead");
+        seek(pos);
+        return;
+      }
+      DTSC::Track & Trk = myMeta.tracks[mainTrack];
+      if (Trk.type == "video"){
+        unsigned long long seekPos = 0;
+        for (std::deque<DTSC::Key>::iterator it = Trk.keys.begin(); it != Trk.keys.end(); ++it){
+          unsigned long long currPos = it->getTime();
+          if (currPos > pos){break;}//stop if we're past the point we wanted
+          seekPos = currPos;
+        }
+        pos = seekPos;
+      }
     }
     MEDIUM_MSG("Seeking to %llums", pos);
     std::set<long unsigned int> seekTracks = selectedTracks;

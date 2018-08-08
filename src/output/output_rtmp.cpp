@@ -711,7 +711,7 @@ namespace Mist {
       amfReply.getContentP(3)->addContent(AMF::Object("details", "DDV"));
       amfReply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfReply, playMessageType, playStreamId);
-      seek((long long int)amfData.getContentP(3)->NumValue());
+      seek((long long int)amfData.getContentP(3)->NumValue(), true);
 
       //send a status reply
       AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

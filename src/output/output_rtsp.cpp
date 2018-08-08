@@ -317,7 +317,7 @@ namespace Mist{
           if (!range.empty()){
             range = range.substr(0, range.find('-'));
             uint64_t targetPos = 1000 * atof(range.c_str());
-            if (targetPos || myMeta.vod){seek(targetPos);}
+            if (targetPos || myMeta.vod){seek(targetPos, true);}
           }
         }
         std::stringstream rangeStr;

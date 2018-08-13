@@ -500,7 +500,10 @@ namespace Mist{
 
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
-    capa["methods"][0u]["priority"] = 8ll;
+
+    //MP3 does not work in browsers
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");
+   capa["methods"][0u]["priority"] = 8ll;
 
     cfg->addOption("nonchunked", JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not send chunked, but buffer whole segments.\"}"));
     capa["optional"]["nonchunked"]["name"] = "Send whole segments";

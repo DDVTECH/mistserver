@@ -118,17 +118,21 @@ namespace HTTP{
         switch (frameType){
           case 0x0://Continuation, should not happen
             WARN_MSG("Received unknown websocket frame - ignoring");
+            return false;
             break;
           case 0x8://Connection close
             HIGH_MSG("Websocket close received");
             C.close();
+            return false;
             break;
           case 0x9://Ping
             HIGH_MSG("Websocket ping received");
             sendFrame(data, data.size(), 0xA);//send pong
+            return false;
             break;
           case 0xA://Pong
             HIGH_MSG("Websocket pong received");
+            return false;
             break;
         }
         return true;

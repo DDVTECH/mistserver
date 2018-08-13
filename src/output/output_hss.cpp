@@ -61,11 +61,8 @@ namespace Mist {
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
-    capa["methods"][0u]["type"] = "html5/application/vnd.ms-ss";
-    capa["methods"][0u]["priority"] = 9ll;
-    capa["methods"][1u]["handler"] = "http";
-    capa["methods"][1u]["type"] = "silverlight";
-    capa["methods"][1u]["priority"] = 1ll;
+    capa["methods"][0u]["type"] = "silverlight";
+    capa["methods"][0u]["priority"] = 1ll;
   }
 
   void OutHSS::sendNext() {

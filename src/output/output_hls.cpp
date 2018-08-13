@@ -365,6 +365,7 @@ namespace Mist {
     capa["methods"][0u]["priority"] = 9ll;
     //MP3 only works on Edge/Apple
     capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
+    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\"]]]");
     /*LTS-START*/
     cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
     capa["optional"]["listlimit"]["name"] = "Live playlist limit";

@@ -348,6 +348,8 @@ namespace IPC {
     close();
   }
 
+#ifdef SHM_ENABLED
+
   /// Returns true if the open file still exists.
   /// \TODO Not implemented under Windows.
   bool sharedPage::exists(){
@@ -364,7 +366,6 @@ namespace IPC {
 #endif
   }
 
-#ifdef SHM_ENABLED
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
     if (mapped && len) {
@@ -559,6 +560,13 @@ namespace IPC {
       }
       handle = 0;
     }
+  }
+
+  /// Returns true if the open file still exists.
+  bool sharedFile::exists(){
+    struct stat sb;
+    if (fstat(handle, &sb)){return false;}
+    return (sb.st_nlink > 0);
   }
 
   ///\brief Initialize a page, de-initialize before if needed

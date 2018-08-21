@@ -109,9 +109,9 @@ namespace IPC {
       bool operator < (const sharedFile & rhs) const {
         return name < rhs.name;
       }
-      bool exists(){return true;}
       void close();
       void unmap();
+      bool exists();
       ///\brief The fd handle of the opened shared file
       int handle;
       ///\brief The name of the opened shared file

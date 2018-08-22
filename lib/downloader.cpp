@@ -102,10 +102,10 @@ namespace HTTP{
     }
     if (proxied && !ssl){
       H.url = link.getProxyUrl();
-      if (proxyUrl.port.size()){
-        H.SetHeader("Host", proxyUrl.host + ":" + proxyUrl.port);
+      if (link.port.size()){
+        H.SetHeader("Host", link.host + ":" + link.port);
       }else{
-        H.SetHeader("Host", proxyUrl.host);
+        H.SetHeader("Host", link.host);
       }
     }else{
       H.url = "/" + Encodings::URL::encode(link.path, "/:=@[]");

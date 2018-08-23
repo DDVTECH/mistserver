@@ -451,7 +451,7 @@ namespace Mist {
       INSANE_MSG("Connected: %d users, %d total", userPage.connectedUsers, userPage.amount);
       //if not shutting down, wait 1 second before looping
       if (config->is_active){
-        Util::wait(1000);
+        Util::wait(INPUT_USER_INTERVAL);
       }
     }
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}

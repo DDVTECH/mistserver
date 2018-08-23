@@ -6,8 +6,6 @@
 #include <iomanip>
 #include <fstream>
 
-#define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
-
 namespace DTSC {
   /// Default constructor for packets - sets a null pointer and invalid packet.
   Packet::Packet() {

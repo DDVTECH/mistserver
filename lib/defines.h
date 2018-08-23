@@ -93,6 +93,7 @@ static inline void show_stackframe(){}
 #define SHM_DATASIZE 20
 #endif
 
+#define AUDIO_KEY_INTERVAL 5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
 
 #ifndef STATS_DELAY
 #define STATS_DELAY 15
@@ -119,6 +120,9 @@ static inline void show_stackframe(){}
 /// The minimum duration for switching to next page. The flip will never happen before this.
 /// Does not affect live streams.
 #define FLIP_MIN_DURATION 20000
+
+/// Interval where the input refreshes the user data for stats etc.
+#define INPUT_USER_INTERVAL 1000
 
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name

@@ -518,7 +518,7 @@ namespace Mist {
         isKeyframe = true;
       } else {
         unsigned long lastKey = pagesByTrack[tid].rbegin()->second.lastKeyTime;
-        if (packet.getTime() - lastKey > 5000) {
+        if (packet.getTime() - lastKey > AUDIO_KEY_INTERVAL) {
           isKeyframe = true;
         }
       }

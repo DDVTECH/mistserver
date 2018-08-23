@@ -185,10 +185,10 @@ std::string HTTP::URL::getUrl() const{
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
   }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
   if (args.size()){ret += "?" + args;}
-  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "=");}
+  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&");}
   return ret;
 }
 
@@ -215,7 +215,7 @@ std::string HTTP::URL::getProxyUrl() const{
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
   }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
   if (args.size()){ret += "?" + args;}
   return ret;
@@ -242,7 +242,7 @@ std::string HTTP::URL::getBareUrl() const{
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "=#?&");}
   }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "=");}
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
   return ret;
 }

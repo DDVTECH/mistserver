@@ -135,11 +135,7 @@ HTTP::URL::URL(const std::string &url){
     port = host;
     host = "";
   }
-  EXTREME_MSG("URL host: %s", host.c_str());
-  EXTREME_MSG("URL protocol: %s", protocol.c_str());
-  EXTREME_MSG("URL port: %s", port.c_str());
-  EXTREME_MSG("URL path: %s", path.c_str());
-  EXTREME_MSG("URL args: %s", args.c_str());
+  EXTREME_MSG("URL: %s", getUrl().c_str());
 }
 
 /// Returns the port in numeric format
@@ -184,9 +180,9 @@ std::string HTTP::URL::getUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path, "=");}
+  if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   if (args.size()){ret += "?" + args;}
-  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "=");}
+  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&");}
   return ret;
 }
 
@@ -210,7 +206,7 @@ std::string HTTP::URL::getProxyUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path);}
+  if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   if (args.size()){ret += "?" + args;}
   return ret;
 }
@@ -233,7 +229,7 @@ std::string HTTP::URL::getBareUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (path.size()){ret += Encodings::URL::encode(path);}
+  if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   return ret;
 }
 

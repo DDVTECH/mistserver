@@ -446,10 +446,6 @@ namespace Mist {
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       app_name = app_name.substr(app_name.find('/', 7) + 1);
       RTMPStream::chunk_snd_max = 65536; //64KiB
-      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
-      myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
-      myConn.SendNow(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
-      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //send a _result reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "_result")); //result success
@@ -467,6 +463,11 @@ namespace Mist {
       //amfReply.getContentP(3)->addContent(AMF::Object("data", AMF::AMF0_ECMA_ARRAY));
       //amfReply.getContentP(3)->getContentP(4)->addContent(AMF::Object("version", "3,5,4,1004"));
       sendCommand(amfReply, messageType, streamId);
+      //Send other stream-related packets
+      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
+      myConn.SendNow(RTMPStream::SendCTL(5, RTMPStream::snd_window_size)); //send window acknowledgement size (msg 5)
+      myConn.SendNow(RTMPStream::SendCTL(6, RTMPStream::rec_window_size)); //send rec window acknowledgement size (msg 6)
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //send onBWDone packet - no clue what it is, but real server sends it...
       //amfReply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
       //amfReply.addContent(AMF::Object("", "onBWDone"));//result

@@ -591,18 +591,10 @@ namespace Mist {
           return;
         }
       }
-      //send a _result reply
-      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-      amfReply.addContent(AMF::Object("", "_result")); //result success
-      amfReply.addContent(amfData.getContent(1)); //same transaction ID
-      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
-      amfReply.addContent(AMF::Object("", 1, AMF::AMF0_BOOL)); //publish success?
-      sendCommand(amfReply, messageType, streamId);
-      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       //send a status reply
-      amfReply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+      AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "onStatus")); //status reply
-      amfReply.addContent(AMF::Object("", 0, AMF::AMF0_NUMBER)); //same transaction ID
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
       amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
       amfReply.addContent(AMF::Object("")); //info
       amfReply.getContentP(3)->addContent(AMF::Object("level", "status"));
@@ -610,6 +602,16 @@ namespace Mist {
       amfReply.getContentP(3)->addContent(AMF::Object("description", "Stream is now published!"));
       amfReply.getContentP(3)->addContent(AMF::Object("clientid", (double)1337));
       sendCommand(amfReply, messageType, streamId);
+      /*
+      //send a _result reply
+      amfReply = AMF::Object("container", AMF::AMF0_DDV_CONTAINER);
+      amfReply.addContent(AMF::Object("", "_result")); //result success
+      amfReply.addContent(amfData.getContent(1)); //same transaction ID
+      amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+      amfReply.addContent(AMF::Object("", 1, AMF::AMF0_BOOL)); //publish success?
+      sendCommand(amfReply, messageType, streamId);
+      */
+      myConn.SendNow(RTMPStream::SendUSR(0, 1)); //send UCM StreamBegin (0), stream 1
       return;
     }//getStreamLength
     if (amfData.getContentP(0)->StrValue() == "checkBandwidth"){

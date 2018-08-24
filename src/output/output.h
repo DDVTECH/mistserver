@@ -46,7 +46,7 @@ namespace Mist {
       //non-virtual generic functions
       virtual int run();
       virtual void stats(bool force = false);
-      void seek(unsigned long long pos);
+      void seek(unsigned long long pos, bool toKey = false);
       bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
       void stop();
       uint64_t currentTime();

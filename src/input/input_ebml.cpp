@@ -131,7 +131,12 @@ namespace Mist{
       if (inFile == stdin){
         lastClusterBPos = 0;
       }else{
-        lastClusterBPos = Util::ftell(inFile);
+        int64_t bp = Util::ftell(inFile);
+        if(bp == -1 && errno == ESPIPE){
+          lastClusterBPos = 0;
+        }else{
+          lastClusterBPos = bp;
+        }
       }
       DONTEVEN_MSG("Found a cluster at position %llu", lastClusterBPos);
     }

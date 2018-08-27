@@ -473,6 +473,20 @@ makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 makeOutput(WebRTC webrtc http)#LTS
+
+add_executable(MistProcFFMPEG
+  src/process/process_ffmpeg.cpp
+  src/output/output_ebml.cpp
+  src/input/input_ebml.cpp
+  src/input/input.cpp
+  src/output/output_http.cpp
+  src/output/output.cpp
+  src/io.cpp
+  )
+target_link_libraries(MistProcFFMPEG
+  mist 
+  )
+
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
 endif()

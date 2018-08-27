@@ -200,6 +200,14 @@ namespace Controller {
           capabilities["connectors"].removeMember(entryName);
         }
       }
+      if ((*it).substr(0, 8) == "MistProc"){
+        arg_one = Util::getMyPath() + (*it);
+        conn_args[0] = arg_one.c_str();
+        capabilities["processes"][(*it).substr(8)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["processes"][(*it).substr(8)].size() < 1){
+          capabilities["processes"].removeMember((*it).substr(7));
+        }
+      }
       if ((*it).substr(0, 6) == "MistIn" && (*it) != "MistInfo"){
         arg_one = Util::getMyPath() + (*it);
         conn_args[0] = arg_one.c_str();

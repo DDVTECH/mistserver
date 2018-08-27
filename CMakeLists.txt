@@ -475,6 +475,7 @@ makeOutput(WAV wav)#LTS
 makeOutput(WebRTC webrtc http)#LTS
 
 add_executable(MistProcFFMPEG
+  ${BINARY_DIR}/mist/.headers
   src/process/process_ffmpeg.cpp
   src/output/output_ebml.cpp
   src/input/input_ebml.cpp
@@ -482,10 +483,20 @@ add_executable(MistProcFFMPEG
   src/output/output_http.cpp
   src/output/output.cpp
   src/io.cpp
-  )
-target_link_libraries(MistProcFFMPEG
-  mist 
-  )
+)
+target_link_libraries(MistProcFFMPEG mist)
+
+add_executable(MistProcMKVExec
+  ${BINARY_DIR}/mist/.headers
+  src/process/process_exec.cpp
+  src/output/output_ebml.cpp
+  src/input/input_ebml.cpp
+  src/input/input.cpp
+  src/output/output_http.cpp
+  src/output/output.cpp
+  src/io.cpp
+)
+target_link_libraries(MistProcMKVExec mist)
 
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
@@ -745,7 +756,7 @@ target_link_libraries(urltest mist)
 add_test(URLTest COMMAND urltest)
 add_executable(logtest test/log.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(logtest mist)
-add_test(LOGTest COMMAND urltest)
+add_test(LOGTest COMMAND logtest)
 add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(downloadertest mist)
 add_test(DownloaderTest COMMAND downloadertest)

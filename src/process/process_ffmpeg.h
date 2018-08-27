@@ -35,6 +35,8 @@ namespace Mist{
       bool buildVideoCommand();
       bool buildAudioCommand();
       void prepareCommand();
+      std::set<std::string> supportedVideoCodecs;
+      std::set<std::string> supportedAudioCodecs;
   };
 
   class EncodeInputEBML : public InputEBML {

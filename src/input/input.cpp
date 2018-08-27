@@ -595,6 +595,10 @@ namespace Mist {
     std::map<std::string, std::string> overrides;
     overrides["throughboot"] = "";
     if(isSingular()){
+      if (Util::streamAlive(streamName)){
+        WARN_MSG("Stream already online, cancelling");
+        return;
+      }
       overrides["singular"] = "";
     }
     if (config->getBool("realtime") || (capa.isMember("hardcoded") && capa["hardcoded"].isMember("resume") && capa["hardcoded"]["resume"])){

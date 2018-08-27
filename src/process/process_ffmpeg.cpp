@@ -24,11 +24,6 @@ uint64_t packetTimeDiff;
 uint64_t sendPacketTime;
 bool getFirst = false;
 bool sendFirst = false;
-bool dump_ffmpeg = false;
-
-std::string supported_video_codec[] ={"H264","H265", "VP9"};
-std::string supported_audio_codec[] ={"AAC","OPUS", "MP3"};
-std::string supported_process[]     ={"ffmpeg"};
 
 uint32_t res_x = 0;
 uint32_t res_y = 0; 
@@ -53,9 +48,9 @@ void sourceThread(void *){
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
   if(Enc.isAudio){
-    conf.getOption("target",true).append("-?audio=" + opt["input_track"].asString() + "&video=0");
+    conf.getOption("target",true).append("-?audio=" + opt["source_track"].asString() + "&video=0");
   }else if(Enc.isVideo){
-    conf.getOption("target",true).append("-?video=" + opt["input_track"].asString() + "&audio=0");
+    conf.getOption("target",true).append("-?video=" + opt["source_track"].asString() + "&audio=0");
   }else{
     FAIL_MSG("Cannot set target option parameters");
     return;
@@ -80,21 +75,15 @@ int main(int argc, char * argv[]){
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "-";
-    opt["arg_num"] = 1ll;
-    opt["help"] = "where the configuration is read from, or - from stdin";
+    opt["arg_num"] = 1;
+    opt["help"] = "JSON configuration, or - (default) to read from stdin";
     config.addOption("configuration", opt); 
-
-    JSON::Value ffmpeg_dump;
-    ffmpeg_dump["short"] = "f";
-    ffmpeg_dump["value"].append(0ll);
-    ffmpeg_dump["help"] = "Show ffmpeg output";
-    config.addOption("ffmpeg_output", ffmpeg_dump); 
 
     JSON::Value option;
     option["long"] = "json";
     option["short"] = "j";
     option["help"] = "Output connector info in JSON format, then exit.";
-    option["value"].append(0ll);
+    option["value"].append(0);
     config.addOption("json", option);
 
   }
@@ -153,7 +142,7 @@ int main(int argc, char * argv[]){
     capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults to source stream.";
     capa["optional"]["sink"]["placeholder"] = "source stream";
     capa["optional"]["sink"]["type"] = "str";
-    capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard";
+    capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
     capa["optional"]["sink"]["n"] = 3;
     
     capa["optional"]["resolution"]["name"] = "resolution";
@@ -261,36 +250,17 @@ int main(int argc, char * argv[]){
   }
 
   Util::redirectLogsIfNeeded();
-  dump_ffmpeg = config.getBool("ffmpeg_output");
 
-  std::string json;
-  std::string line;
-
-  //read configuration file in json format
+  //read configuration
   if(config.getString("configuration") != "-"){
-    std::ifstream ifile(config.getString("configuration"));
-    INFO_MSG("reading from file: %s", config.getString("configuration").c_str());
-    if((bool)ifile){
-      //file exists, read config file
-      while(ifile){
-        std::getline(ifile, line);
-        json.append(line);
-      }
-      ifile.close();
-    }else{
-      FAIL_MSG("Incorrect config file");
-      return 0;
-    }
+    opt = JSON::fromString(config.getString("configuration"));
   }else{
-    //read from stdin
-    INFO_MSG("read from stdin");
-    while (std::getline(std::cin, line))
-    {
-      json.append(line);
-    }
+    std::string json, line;
+    INFO_MSG("Reading configuration from standard input");
+    while (std::getline(std::cin, line)){json.append(line);}
+    opt = JSON::fromString(json.c_str());
   }
 
-  opt = JSON::fromString(json.c_str());
   Enc.SetConfig(opt);
 
   //check config for generic options
@@ -367,7 +337,8 @@ namespace Mist{
 
   void EncodeInputEBML::setInFile(int stdin_val){
     inFile = fdopen(stdin_val, "r");
-    streamName = opt["sink"].asString().c_str();
+    streamName = opt["sink"].asString();
+    if (!streamName.size()){streamName = opt["source"].asString();}
     nProxy.streamName = streamName;
   }
 
@@ -385,6 +356,7 @@ namespace Mist{
   }
 
   void EncodeOutputEBML::sendHeader(){
+    realTime = 0;
     res_x = myMeta.tracks[getMainSelectedTrack()].width;
     res_y = myMeta.tracks[getMainSelectedTrack()].height;
     Enc.setResolution(res_x, res_y); 
@@ -415,15 +387,26 @@ namespace Mist{
   }
 
   OutENC::OutENC(){
-    ffcmd[10240] = 0;
+    ffcmd[10239] = 0;
     isAudio = false;
     isVideo = false;
     crf = -1;
-    sample_rate = 44100;
+    sample_rate = 0;
+    supportedVideoCodecs.insert("H264");
+    supportedVideoCodecs.insert("H265");
+    supportedVideoCodecs.insert("VP9");
+    supportedAudioCodecs.insert("AAC");
+    supportedAudioCodecs.insert("opus");
+    supportedAudioCodecs.insert("MP3");
+
   }
 
   bool OutENC::buildAudioCommand(){
-    snprintf(ffcmd,10240, "%s-i - -acodec %s -ar %s %s -strict -2 -ac 2 %s -f matroska - ", opt["process"].c_str(), codec.c_str(), std::to_string(sample_rate), getBitrateSetting().c_str(), flags.c_str());
+    std::string samplerate;
+    if (sample_rate){
+      samplerate = "-ar " + JSON::Value(sample_rate).asString();
+    }
+    snprintf(ffcmd,10240, "ffmpeg -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s -f matroska -live 1 -cluster_time_limit 100 - ", codec.c_str(), samplerate.c_str(), getBitrateSetting().c_str(), flags.c_str());
 
     return true;
   }
@@ -454,18 +437,14 @@ namespace Mist{
 
       for(JSON::Iter it(opt["sources"]); it; ++it){
 
-        if((*it).isMember("src") && (*it)["src"].isString()){
+        if((*it).isMember("src") && (*it)["src"].isString()&& (*it)["src"].asString().size() > 3){
           std::string src = (*it)["src"].asString();
-/*
           std::string ext = src.substr( src.length() - 3);
-          std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
           if(ext == "gif"){ //for animated gif files, prepend extra parameter
             sprintf(in, " -ignore_loop 0 -i %s", src.c_str());
           }else{
             sprintf(in, " -i %s", src.c_str());
           }
-*/
-          sprintf(in, " -i %s", src.c_str());
 
           MEDIUM_MSG("Loading Input: %s", src.c_str());
         }else{
@@ -482,19 +461,13 @@ namespace Mist{
         int32_t i_y = 0;
         std::string i_anchor = "topleft";
 
-        if((*it).isMember("width") && (*it)["width"].isInt()){
-          i_width = (*it)["width"].asInt();
-        }
-        if((*it).isMember("height") && (*it)["height"].isInt()){
+        if ((*it).isMember("width") && (*it)["width"].asInt()){i_width = (*it)["width"].asInt();}
+        if ((*it).isMember("height") && (*it)["height"].asInt()){
           i_height = (*it)["height"].asInt();
         }
 
-        if((*it).isMember("x") && (*it)["x"].isInt()){
-          i_x = (*it)["x"].asInt();
-        }
-        if((*it).isMember("y") && (*it)["y"].isInt()){
-          i_y = (*it)["y"].asInt();
-        }
+        if ((*it).isMember("x")){i_x = (*it)["x"].asInt();}
+        if ((*it).isMember("y")){i_y = (*it)["y"].asInt();}
 
         if((*it).isMember("anchor") && (*it)["anchor"].isString()){
           i_anchor = (*it)["anchor"].asString();
@@ -563,14 +536,7 @@ namespace Mist{
       options.append(" -preset " + preset);
     }
 
-    snprintf(ffcmd,10240, "ffmpeg -loglevel quiet -s %dx%d -f rawvideo -pix_fmt rgb24 -r 25 -i /dev/zero %s %s -c:v %s %s %s -an -f matroska - ", res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), getBitrateSetting().c_str(), flags.c_str());
-   
-  if(dump_ffmpeg){
-    snprintf(ffcmd,10240, "%s -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ",opt["process"].c_str(), res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(), getBitrateSetting().c_str(), flags.c_str());
-  }else{
-
-    snprintf(ffcmd,10240, "%s -loglevel quiet -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ", opt["process"].c_str(), res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(), getBitrateSetting().c_str(), flags.c_str());
-  }
+    snprintf(ffcmd,10240, "ffmpeg -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ", res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(), getBitrateSetting().c_str(), flags.c_str());
 
     return true;
   }
@@ -615,7 +581,7 @@ namespace Mist{
     if(isVideo){
       if(crf > -1){
         //use crf value instead of bitrate
-        setting = "-crf " + std::to_string(crf); 
+        setting = "-crf " + JSON::Value(crf).asString(); 
       }else{
         //use bitrate value set above
       }
@@ -699,7 +665,7 @@ namespace Mist{
   }
 
 
-  ///check source, sink, input_track, codec, bitrate, flags  and process options.
+  ///check source, sink, source_track, codec, bitrate, flags  and process options.
   bool OutENC::CheckConfig(){
     // Check generic configuration variables
     if (!opt.isMember("source") || !opt["source"] || !opt["source"].isString()){
@@ -708,30 +674,14 @@ namespace Mist{
     }
 
     if (!opt.isMember("sink") || !opt["sink"] || !opt["sink"].isString()){
-      FAIL_MSG("invalid sink in config!");
-      return false;
+      INFO_MSG("No sink explicitly set, using source as sink");
     }
 
-    if (!opt.isMember("input_track") || !opt["input_track"] || !opt["input_track"].isString()){
-      FAIL_MSG("invalid input_track in config!");
+    if (supportedVideoCodecs.count(opt["codec"].asString())){isVideo = true;}
+    if (supportedAudioCodecs.count(opt["codec"].asString())){isAudio = true;}
+    if (!isVideo && !isAudio){
+      FAIL_MSG("Codec: '%s' not supported!",opt["codec"].c_str());
       return false;
-    }
-
-    /** check json parameters  **/
-    if(std::find(std::begin(supported_process), std::end(supported_process), opt["process"].c_str()) == std::end(supported_process)){
-      FAIL_MSG("Process: '%s' not supported!",opt["name"].c_str());
-      return false;
-    }
-
-    if(std::find(std::begin(supported_video_codec), std::end(supported_video_codec), opt["codec"].c_str()) == std::end(supported_video_codec)){
-      if(std::find(std::begin(supported_audio_codec), std::end(supported_audio_codec), opt["codec"].c_str()) == std::end(supported_audio_codec)){
-        FAIL_MSG("Codec: '%s' not supported!",opt["codec"].c_str());
-        return false;
-      }else{
-        isAudio = true;
-      }
-    }else{
-      isVideo = true;
     }
 
     setCodec(opt["codec"]);

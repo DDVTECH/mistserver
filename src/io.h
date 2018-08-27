@@ -85,7 +85,6 @@ namespace Mist {
 
 
       bool standAlone;
-      static Util::Config * config;
 
       negotiationProxy nProxy;
 

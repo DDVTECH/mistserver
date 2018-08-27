@@ -1,3 +1,4 @@
+#pragma once
 #include "output_http.h"
 
 namespace Mist{
@@ -7,7 +8,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
     void onHTTP();
     void sendNext();
-    void sendHeader();
+    virtual void sendHeader();
     uint32_t clusterSize(uint64_t start, uint64_t end);
 
   private:

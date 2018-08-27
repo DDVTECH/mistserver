@@ -25,6 +25,7 @@
 
 namespace Mist{
   JSON::Value Output::capa = JSON::Value();
+  Util::Config * Output::config = NULL;
 
   int getDTSCLen(char * mapped, long long int offset){
     return Bit::btohl(mapped + offset + 4);

@@ -80,6 +80,7 @@ namespace Mist {
       virtual void sendHeader();
       virtual void onFail();
       virtual void requestHandler();
+      static Util::Config * config;
     private://these *should* not be messed with in child classes.
       /*LTS-START*/
       void Log(std::string type, std::string message);

@@ -1,3 +1,4 @@
+#pragma once
 #include "input.h"
 #include <mist/util.h>
 

@@ -14,6 +14,7 @@
 
 namespace Mist {
   Input * Input::singleton = NULL;
+  Util::Config * Input::config = NULL;
 
   void Input::userCallback(char * data, size_t len, unsigned int id) {
     for (int i = 0; i < SIMUL_TRACKS; i++) {
@@ -502,45 +503,53 @@ namespace Mist {
   /// - call getNext() in a loop, buffering packets
   void Input::stream(){
     IPC::semaphore pullLock;
-    pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!pullLock){
-      FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
-      return;
-    }
-    if (!pullLock.tryWait()){
-      WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
-      pullLock.close();
-      return;
+    if(isSingular()){
+      pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!pullLock){
+        FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
+        return;
+      }
+      
+      if (!pullLock.tryWait()){
+        WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
+        pullLock.close();
+        return;
+      }
+
+      if (Util::streamAlive(streamName)){
+        pullLock.post();
+        pullLock.close();
+        pullLock.unlink();
+        WARN_MSG("Stream already online, cancelling");
+        return;
+      }
     }
 
-    if (Util::streamAlive(streamName)){
-      pullLock.post();
-      pullLock.close();
-      pullLock.unlink();
-      WARN_MSG("Stream already online, cancelling");
-      return;
-    }
     std::map<std::string, std::string> overrides;
     overrides["throughboot"] = "";
+    if(isSingular()){
+      overrides["singular"] = "";
+    }
+
     if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
-      pullLock.post();
-      pullLock.close();
-      pullLock.unlink();
+      if(isSingular()){
+        pullLock.post();
+        pullLock.close();
+        pullLock.unlink();
+      }
       WARN_MSG("Could not start buffer, cancelling");
       return;
     }
 
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    nProxy.userClient.countAsViewer = false;
-
+   
     INFO_MSG("Input for stream %s started", streamName.c_str());
 
     if (!openStreamSource()){
       FAIL_MSG("Unable to connect to source");
-      pullLock.post();
-      pullLock.close();
+      if(isSingular()){
+        pullLock.post();
+        pullLock.close();
+      }
       return;
     }
     parseStreamHeader();
@@ -548,12 +557,18 @@ namespace Mist {
     if (myMeta.tracks.size() == 0){
       nProxy.userClient.finish();
       finish();
-      pullLock.post();
-      pullLock.close();
-      pullLock.unlink();
+      if(isSingular()){
+        pullLock.post();
+        pullLock.close();
+        pullLock.unlink();
+      }
       INFO_MSG("No tracks found, cancelling");
       return;
     }
+
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     nProxy.userClient.countAsViewer = false;
 
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
@@ -568,9 +583,11 @@ namespace Mist {
 
     nProxy.userClient.finish();
     finish();
-    pullLock.post();
-    pullLock.close();
-    pullLock.unlink();
+    if(isSingular()){
+      pullLock.post();
+      pullLock.close();
+      pullLock.unlink();
+    }
     INFO_MSG("Stream input %s closing clean; reason: %s", streamName.c_str(), reason.c_str());
     return;
   }

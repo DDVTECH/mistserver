@@ -46,6 +46,9 @@ namespace Mist {
       inputBuffer * singleton;
       //This is used for an ugly fix to prevent metadata from disappearing in some cases.
       std::map<unsigned long, std::string> initData;
+      uint64_t findTrack(const std::string &trackVal);
+      void checkProcesses(const JSON::Value & procs); //LTS
+      std::map<std::string, pid_t> runningProcs;//LTS
   };
 }
 

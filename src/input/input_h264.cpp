@@ -104,9 +104,9 @@ namespace Mist{
           avccBox.setProfile(spsInfo[1]);
           avccBox.setCompatibleProfiles(spsInfo[2]);
           avccBox.setLevel(spsInfo[3]);
-          avccBox.setSPSNumber(1);
+          avccBox.setSPSCount(1);
           avccBox.setSPS(spsInfo);
-          avccBox.setPPSNumber(1);
+          avccBox.setPPSCount(1);
           avccBox.setPPS(ppsInfo);
           myMeta.tracks[1].init = std::string(avccBox.payload(), avccBox.payloadSize());
         }

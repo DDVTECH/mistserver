@@ -559,89 +559,128 @@ namespace MP4 {
     return getInt8(3);
   }
 
-  void AVCC::setSPSNumber(uint32_t newSPSNumber) {
-    setInt8(newSPSNumber, 5);
+  void AVCC::setSPSCount(uint32_t _count){
+    setInt8(_count | 0xE0, 5);
   }
 
-  uint32_t AVCC::getSPSNumber() {
-    return getInt8(5);
+  uint32_t AVCC::getSPSCount() {
+    return getInt8(5) & 0x1F;
   }
 
-  void AVCC::setSPS(std::string newSPS) {
-    setInt16(newSPS.size(), 6);
+  void AVCC::setSPS(std::string newSPS, size_t index) {
+    if (index >= getSPSCount()){
+      WARN_MSG("Cannot set entry at position %zu/%u: Out of bounds", index, getSPSCount());
+    }
+    size_t offset = 6;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
+    }
+    setInt16(newSPS.size(), offset);
     for (unsigned int i = 0; i < newSPS.size(); i++) {
-      setInt8(newSPS[i], 8 + i);
+      setInt8(newSPS[i], offset + 2 + i);
     } //not null-terminated
   }
 
-  uint32_t AVCC::getSPSLen() {
-    uint16_t len = getInt16(6);
-    if (len > payloadSize() - 8){
-      WARN_MSG("SPS length of %u is more than AVCC box size %lu", len, payloadSize());
+  uint32_t AVCC::getSPSLen(size_t index) {
+    if (index >= getSPSCount()){
       return 0;
     }
-    return len;
+    size_t offset = 6;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
+    }
+    return getInt16(offset);
   }
 
-  char * AVCC::getSPS() {
-    return payload() + 8;
+  char * AVCC::getSPS(size_t index) {
+    if (index >= getSPSCount()){
+      return 0;
+    }
+    size_t offset = 6;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
+    }
+    return payload() + offset + 2;
   }
 
-  std::string AVCC::hexSPS(){
+  std::string AVCC::hexSPS(size_t index){
+    if (index >= getPPSCount()){
+      return "INVALID INDEX";
+    }
     std::stringstream res;
-    char * data = getSPS();
-    uint32_t len = getSPSLen();
+    char * data = getSPS(index);
+    uint32_t len = getSPSLen(index);
     for (int i = 0; i < len; i++){
       res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
     }
     return res.str();
   }
 
-  std::string AVCC::hexPPS(){
+  std::string AVCC::hexPPS(size_t index){
+    if (index >= getPPSCount()){
+      return "INVALID INDEX";
+    }
     std::stringstream res;
-    char * data = getPPS();
-    uint32_t len = getPPSLen();
+    char * data = getPPS(index);
+    uint32_t len = getPPSLen(index);
     for (int i = 0; i < len; i++){
       res << std::hex << std::setw(2) << std::setfill('0') << (int)data[i];
     }
     return res.str();
   }
 
-  void AVCC::setPPSNumber(uint32_t newPPSNumber) {
-    int offset = 8 + getSPSLen();
-    setInt8(newPPSNumber, offset);
+  size_t AVCC::PPSCountOffset() {
+    size_t offset = 6;
+    size_t spsCount = getSPSCount();
+    for (size_t i = 0; i < spsCount; i++){
+      offset += getInt16(offset) + 2;
+    }
+    return offset;
   }
 
-  uint32_t AVCC::getPPSNumber() {
-    int offset = 8 + getSPSLen();
-    return getInt8(offset);
+  void AVCC::setPPSCount(uint32_t _count) {
+    setInt8(_count, PPSCountOffset());
   }
 
-  void AVCC::setPPS(std::string newPPS) {
-    int offset = 8 + getSPSLen() + 1;
+  uint32_t AVCC::getPPSCount() {
+    return getInt8(PPSCountOffset());
+  }
+
+  void AVCC::setPPS(std::string newPPS, size_t index) {
+    if (index >= getPPSCount()){
+      WARN_MSG("Cannot set entry at position %zu/%u: Out of bounds", index, getPPSCount());
+    }
+    int offset = PPSCountOffset() + 1;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
+    }
     setInt16(newPPS.size(), offset);
     for (unsigned int i = 0; i < newPPS.size(); i++) {
       setInt8(newPPS[i], offset + 2 + i);
     } //not null-terminated
   }
 
-  uint32_t AVCC::getPPSLen() {
-    int offset = 8 + getSPSLen() + 1;
-    if (offset > payloadSize() - 2){
+  uint32_t AVCC::getPPSLen(size_t index) {
+    if (index >= getPPSCount()){
       WARN_MSG("Invalid PPS length offset! Aborting PPS read.");
       return 0;
     }
-    uint16_t len = getInt16(offset);
-    if (len > payloadSize() - offset - 2){
-      WARN_MSG("PPS length of %u is more than AVCC box size %lu", len, payloadSize());
-      return 0;
+    int offset = PPSCountOffset() + 1;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
     }
-    return len;
+    return getInt16(offset);
   }
 
-  char * AVCC::getPPS() {
-    int offset = 8 + getSPSLen() + 3;
-    return payload() + offset;
+  char * AVCC::getPPS(size_t index) {
+    if (index >= getPPSCount()){
+      return 0;
+    }
+    int offset = PPSCountOffset() + 1;
+    for (size_t i = 0; i < index; i++){
+      offset += getInt16(offset) + 2;
+    }
+    return payload() + offset + 2;
   }
 
   std::string AVCC::toPrettyString(uint32_t indent) {
@@ -651,19 +690,31 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "Profile: " << getProfile() << std::endl;
     r << std::string(indent + 1, ' ') << "Compatible Profiles: " << getCompatibleProfiles() << std::endl;
     r << std::string(indent + 1, ' ') << "Level: " << getLevel() << std::endl;
-    r << std::string(indent + 1, ' ') << "SPS Number: " << getSPSNumber() << std::endl;
-    r << std::string(indent + 2, ' ') << getSPSLen() << " of SPS data: " << hexSPS() << std::endl;
-    r << std::string(indent + 1, ' ') << "PPS Number: " << getPPSNumber() << std::endl;
-    r << std::string(indent + 2, ' ') << getPPSLen() << " of PPS data: " << hexPPS() << std::endl;
+    size_t spsCount = getSPSCount();
+    r << std::string(indent + 1, ' ') << "SPS Count: " << spsCount << std::endl;
+    for (size_t i = 0; i < spsCount; i++){
+      r << std::string(indent + 2, ' ') << getSPSLen(i) << " bytes of SPS data: " << hexSPS(i) << std::endl;
+    }
+    size_t ppsCount = getPPSCount();
+    r << std::string(indent + 1, ' ') << "PPS Count: " << ppsCount << std::endl;
+    for (size_t i = 0; i < ppsCount; i++){
+      r << std::string(indent + 2, ' ') << getPPSLen(i) << " bytes of PPS data: " << hexPPS(i) << std::endl;
+    }
     return r.str();
   }
 
   std::string AVCC::asAnnexB() {
     std::stringstream r;
-    r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
-    r.write(getSPS(), getSPSLen());
-    r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
-    r.write(getPPS(), getPPSLen());
+    size_t count = getSPSCount();
+    for (size_t i = 0; i < count; ++i){
+      r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
+      r.write(getSPS(i), getSPSLen(i));
+    }
+    count = getPPSCount();
+    for (size_t i = 0; i < count; ++i){
+      r << (char)0x00 << (char)0x00 << (char)0x00 << (char)0x01;
+      r.write(getPPS(i), getPPSLen(i));
+    }
     return r.str();
   }
 

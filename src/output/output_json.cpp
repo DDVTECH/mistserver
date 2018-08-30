@@ -94,24 +94,30 @@ namespace Mist {
     static bool recursive = false;
     if (recursive){return true;}
     recursive = true;
-    if (keepReselecting && !isPushing()){
+    if (keepReselecting && !isPushing() && !myMeta.vod){
       uint64_t maxTimer = 7200;
-      while (--maxTimer && nProxy.userClient.isAlive() && keepGoing()){
+      while (--maxTimer && keepGoing()){
+        if (!isBlocking){myConn.spool();}
         Util::wait(500);
         stats();
         if (Util::getStreamStatus(streamName) != STRMSTAT_READY){
-          disconnect();
+          if (isInitialized){
+            INFO_MSG("Disconnecting from offline stream");
+            disconnect();
+            stop();
+          }
         }else{
-          updateMeta();
           if (isReadyForPlay()){
+            INFO_MSG("Resuming playback!");
             recursive = false;
+            parseData = true;
             return true;
           }
         }
       }
       recursive = false;
     }
-    if (!jsonp.size() && !first){
+    if (!webSock && !jsonp.size() && !first){
       myConn.SendNow("]\n", 2);
     }
     myConn.close();

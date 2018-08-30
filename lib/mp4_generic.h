@@ -107,18 +107,21 @@ namespace MP4 {
       uint32_t getCompatibleProfiles();
       void setLevel(uint32_t newLevel);
       uint32_t getLevel();
-      void setSPSNumber(uint32_t newSPSNumber);
-      uint32_t getSPSNumber();
-      void setSPS(std::string newSPS);
-      uint32_t getSPSLen();
-      char * getSPS();
-      std::string hexSPS();
-      void setPPSNumber(uint32_t newPPSNumber);
-      uint32_t getPPSNumber();
-      void setPPS(std::string newPPS);
-      uint32_t getPPSLen();
-      char * getPPS();
-      std::string hexPPS();
+
+      void setSPSCount(uint32_t _count);
+      uint32_t getSPSCount();
+      void setSPS(std::string newSPS, size_t index = 0);
+      uint32_t getSPSLen(size_t index = 0);
+      char * getSPS(size_t index = 0);
+      std::string hexSPS(size_t index = 0);
+
+      size_t PPSCountOffset();
+      void setPPSCount(uint32_t _count);
+      uint32_t getPPSCount();
+      void setPPS(std::string newPPS, size_t index = 0);
+      uint32_t getPPSLen(size_t index = 0);
+      char * getPPS(size_t index = 0);
+      std::string hexPPS(size_t index = 0);
       std::string asAnnexB();
       void setPayload(std::string newPayload);
       std::string toPrettyString(uint32_t indent = 0);

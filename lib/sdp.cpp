@@ -589,9 +589,9 @@ namespace SDP{
     avccBox.setProfile(RTrk.spsData[1]);
     avccBox.setCompatibleProfiles(RTrk.spsData[2]);
     avccBox.setLevel(RTrk.spsData[3]);
-    avccBox.setSPSNumber(1);
+    avccBox.setSPSCount(1);
     avccBox.setSPS(RTrk.spsData);
-    avccBox.setPPSNumber(1);
+    avccBox.setPPSCount(1);
     avccBox.setPPS(RTrk.ppsData);
     RTrk.fpsMeta = hMeta.fps;
     Trk.width = hMeta.width;

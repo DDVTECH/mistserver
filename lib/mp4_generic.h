@@ -126,6 +126,7 @@ namespace MP4 {
       void setPPS(std::string newPPS, size_t index = 0);
       uint32_t getPPSLen(size_t index = 0);
       char * getPPS(size_t index = 0);
+      void multiplyPPS(size_t newAmount);
       std::string hexPPS(size_t index = 0);
       std::string asAnnexB();
       void setPayload(std::string newPayload);

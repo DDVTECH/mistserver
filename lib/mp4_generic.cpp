@@ -1,5 +1,6 @@
 #include "mp4_generic.h"
 #include "defines.h"
+#include "h264.h"
 #include "h265.h"
 
 namespace MP4 {
@@ -681,6 +682,28 @@ namespace MP4 {
       offset += getInt16(offset) + 2;
     }
     return payload() + offset + 2;
+  }
+
+  void AVCC::multiplyPPS(size_t newAmount){
+    if (getPPSCount() != 1){
+      WARN_MSG("We do not have a single PPS, ignoring multiplication");
+      return;
+    }
+    h264::ppsUnit PPS(getPPS(), getPPSLen());
+    std::deque<std::string> allPPS;
+    for (size_t i = 0; i < newAmount; i++){
+      PPS.setPPSNumber(i);
+      allPPS.push_back(PPS.generate());
+    }
+    setPPSCount(allPPS.size());
+    size_t offset = 8 + getSPSLen() + 1;
+    for (std::deque<std::string>::iterator it = allPPS.begin(); it != allPPS.end(); it++){
+      setInt16(it->size(), offset);
+      for (unsigned int i = 0; i < it->size(); i++) {
+        setInt8(it->at(i), offset + 2 + i);
+      } //not null-terminated
+      offset += it->size() + 2;
+    }
   }
 
   std::string AVCC::toPrettyString(uint32_t indent) {

@@ -227,8 +227,13 @@ namespace Utils {
     return 2 * res - 1;
   }
 
-  void bitWriter::appendExpGolomb(uint64_t value){
-    append(value + 1, UExpGolombEncodedSize(value));
+  void bitWriter::appendExpGolomb(int64_t value){
+    if (value < 0){
+      value = value * -2;
+    }else if (value > 0){
+      value = (value * 2) - 1;
+    }
+    appendUExpGolomb(value);
   }
 
   void bitWriter::appendUExpGolomb(uint64_t value){

@@ -54,7 +54,7 @@ namespace Utils {
       ~bitWriter();
       size_t size();
       void append(uint64_t value, size_t bitLength);
-      void appendExpGolomb(uint64_t value);
+      void appendExpGolomb(int64_t value);
       void appendUExpGolomb(uint64_t value);
       static size_t UExpGolombEncodedSize(uint64_t value);
       std::string str() { return std::string(dataBuffer, (dataSize / 8) + (dataSize % 8 ? 1 : 0)); }

@@ -633,11 +633,7 @@ namespace h264 {
 
   void ppsUnit::setPPSNumber(size_t newNumber){
     //for now, can only convert from 0 to 16
-    if (seqParameterSetId != 0 || picParameterSetId != 0){
-      return;
-    }
-    picParameterSetId = 16;
-    payload.insert(1, 1, 0x08);
+    picParameterSetId = newNumber;
   }
 
   void ppsUnit::setSPSNumber(size_t newNumber){
@@ -697,6 +693,7 @@ namespace h264 {
 
   std::string ppsUnit::generate() {
     Utils::bitWriter bw;
+    bw.append(0x08, 8);
     bw.appendUExpGolomb(picParameterSetId);
     bw.appendUExpGolomb(seqParameterSetId);
     bw.append(entropyCodingModeFlag ? 1 : 0, 1);
@@ -726,6 +723,7 @@ namespace h264 {
       }
       bw.appendExpGolomb(secondChromaQpIndexOffset);
     }
+    bw.append(1,1);
 
     std::string tmp = bw.str();
     std::string res;
@@ -871,7 +869,7 @@ namespace h264 {
         if (data[i] == 0 && data[i+1] == 0 && data[i+2] == 1){
           offset += i+3;
           while (i && !data[i]){--i;}
-          pktLen = i;
+          pktLen = i + 1;
           break;
         }
       }

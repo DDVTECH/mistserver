@@ -861,9 +861,9 @@ namespace TS{
         avccBox.setProfile(spsInfo[it->first][1]);
         avccBox.setCompatibleProfiles(spsInfo[it->first][2]);
         avccBox.setLevel(spsInfo[it->first][3]);
-        avccBox.setSPSNumber(1);
+        avccBox.setSPSCount(1);
         avccBox.setSPS(spsInfo[it->first]);
-        avccBox.setPPSNumber(1);
+        avccBox.setPPSCount(1);
         avccBox.setPPS(ppsInfo[it->first]);
         meta.tracks[mId].init = std::string(avccBox.payload(), avccBox.payloadSize());
       }break;

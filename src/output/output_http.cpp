@@ -260,6 +260,7 @@ namespace Mist {
       //Handle upgrade to websocket if the output supports it
       if (doesWebsockets() && H.GetHeader("Upgrade") == "websocket"){
         INFO_MSG("Switching to Websocket mode");
+        setBlocking(false);
         preWebsocketConnect();
         webSock = new HTTP::Websocket(myConn, H);
         if (!(*webSock)){

@@ -43,9 +43,11 @@ namespace Mist {
   }
   
   void HTTPOutput::onFail(){
-    H.Clean(); //make sure no parts of old requests are left in any buffers
-    H.SetBody("Stream not found. Sorry, we tried.");
-    H.SendResponse("404", "Stream not found", myConn);
+    if (!webSock){
+      H.Clean(); //make sure no parts of old requests are left in any buffers
+      H.SetBody("Stream not found. Sorry, we tried.");
+      H.SendResponse("404", "Stream not found", myConn);
+    }
     Output::onFail();
   }
   

@@ -697,6 +697,8 @@ namespace SDP{
     uint8_t nalType = (buffer[4] & 0x1F);
     if (nalType == 9 && len < 20){return;}// ignore delimiter-only packets
     switch (nalType){
+    case 6: //SEI
+      return;
     case 7: // SPS
       if (tracks[track].spsData.size() != len - 4 ||
           memcmp(buffer + 4, tracks[track].spsData.data(), len - 4) != 0){

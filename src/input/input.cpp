@@ -393,6 +393,12 @@ namespace Mist {
       }
       return;
     }
+
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    nProxy.userClient.countAsViewer = false;
+
     parseStreamHeader();
     
     if (myMeta.tracks.size() == 0){
@@ -406,11 +412,6 @@ namespace Mist {
       INFO_MSG("No tracks found, cancelling");
       return;
     }
-
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    nProxy.userClient.countAsViewer = false;
 
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       it->second.firstms = 0;

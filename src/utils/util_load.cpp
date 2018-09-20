@@ -630,7 +630,7 @@ void handleServer(void *hostEntryPointer){
 
   HTTP::Downloader DL;
   
-  if (DL.get(HTTP::URL("http://freegeoip.net/json/"+url.host)) && DL.isOk()){
+  if (DL.get(HTTP::URL("http://api.ipstack.com/"+url.host+"?access_key=05eb21db3983dec4cd6d22131ec0a40d&format=1")) && DL.isOk()){
     JSON::Value &gDet = entry->details->geoDetails;
     INFO_MSG("Location: %s", DL.data().c_str());
     gDet = JSON::fromString(DL.data());

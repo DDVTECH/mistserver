@@ -315,13 +315,13 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
   if (lastSec < disconnectPoint){
     switch (sessionType){
       case SESS_INPUT:
-        streamStats[index.streamName].currIns--;
+        if (streamStats[index.streamName].currIns){streamStats[index.streamName].currIns--;}
         break;
       case SESS_OUTPUT:
-        streamStats[index.streamName].currOuts--;
+        if (streamStats[index.streamName].currOuts){streamStats[index.streamName].currOuts--;}
         break;
       case SESS_VIEWER:
-        streamStats[index.streamName].currViews--;
+        if (streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
         break;
     }
     uint64_t duration = lastSec - firstSec;

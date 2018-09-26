@@ -44,7 +44,13 @@ namespace Mist {
       void onHTTP();
       void sendNext();
       void sendHeader();
+      bool doesWebsockets(){return true;}
+      void onIdle();
+      bool onFinish();
+      virtual void onWebsocketFrame();
+      virtual void onWebsocketConnect();
     protected:
+      Util::ResizeablePointer webBuf;
       uint64_t fileSize;
       uint64_t byteStart;
       uint64_t byteEnd;

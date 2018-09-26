@@ -153,8 +153,9 @@ namespace Mist{
 
   ///\todo This function does not indicate errors anywhere... maybe fix this...
   std::string OutProgressiveMP4::DTSCMeta2MP4Header(uint64_t & size, int fragmented){
-    if (myMeta.live){
+    if (myMeta.live || webSock){
       needsLookAhead = 420;
+      if (webSock){needsLookAhead = 100;}
     }
     //Make sure we have a proper being value for the size...
     size = 0;
@@ -716,10 +717,19 @@ namespace Mist{
       }
     }
     realBaseOffset += (moofBox.boxedSize() + mdatSize);
-    myConn.SendNow(moofBox.asBox(), moofBox.boxedSize());
     char mdatHeader[8] ={0x00,0x00,0x00,0x00,'m','d','a','t'};
     Bit::htobl(mdatHeader, mdatSize);
-    myConn.SendNow(mdatHeader, 8);
+    if (webSock){
+      if (webBuf.size()){
+        webSock->sendFrame(webBuf, webBuf.size(), 2);
+        webBuf.size() = 0;
+      }
+      webBuf.append(moofBox.asBox(), moofBox.boxedSize());
+      webBuf.append(mdatHeader, 8);
+    }else{
+      myConn.SendNow(moofBox.asBox(), moofBox.boxedSize());
+      myConn.SendNow(mdatHeader, 8);
+    }
   }
 
   void OutProgressiveMP4::onHTTP(){
@@ -772,7 +782,7 @@ namespace Mist{
     sending3GP = (H.url.find(".3gp") != std::string::npos);
 
     fileSize = 0;
-    uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live);
+    uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live || webSock);
 
     seekPoint = 0;
     fragSeqNum = 0;
@@ -781,7 +791,7 @@ namespace Mist{
     char rangeType = ' ';
     currPos = 0;
     sortSet.clear();
-    if (!myMeta.live){
+    if (!myMeta.live && !webSock){
       for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++){
         DTSC::Track & thisTrack = myMeta.tracks[*subIt];
         keyPart temp;
@@ -837,12 +847,6 @@ namespace Mist{
       //HTTP_S.StartResponse(HTTP_R, conn);
     }
     leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
-    if (byteStart < headerSize){
-      std::string headerData = DTSCMeta2MP4Header(fileSize, myMeta.live);
-      myConn.SendNow(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart); //send MP4 header
-      leftOver -= std::min(headerSize, byteEnd) - byteStart;
-    }
-    currPos += headerSize;//we're now guaranteed to be past the header point, no matter what
   }
 
 ///Builds up a datastructure that allows for access in the fragment send header function
@@ -931,7 +935,7 @@ namespace Mist{
     thisPacket.getString("data", dataPointer, len);
     std::string subtitle;
 
-    if (myMeta.live){
+    if (myMeta.live || webSock){
       //if header needed
       if (!sortSet.size()){
         if (fragSeqNum > 10 && !targetParams.count("start")){
@@ -963,10 +967,14 @@ namespace Mist{
     }
 
        //The remainder of this function handles non-live situations
-    if (myMeta.live){
+    if (myMeta.live || webSock){
       //generate content in mdat, meaning: send right parts
       DONTEVEN_MSG("Sending %ld:%lld,  size: %u", thisPacket.getTrackId(), thisPacket.getTime(), len);
-      myConn.SendNow(dataPointer, len);
+      if (webSock){
+        webBuf.append(dataPointer, len);
+      }else{
+        myConn.SendNow(dataPointer, len);
+      }
       //delete from sortset
       sortSet.erase(sortSet.begin());
       return;
@@ -1020,7 +1028,20 @@ namespace Mist{
   }
 
   void OutProgressiveMP4::sendHeader(){
-    if (myMeta.live){
+    //Send the header data
+    uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live || webSock);
+    if (byteStart < headerSize){
+      std::string headerData = DTSCMeta2MP4Header(fileSize, myMeta.live || webSock);
+      if (webSock){
+        webSock->sendFrame(headerData.data(), headerSize, 2); //send MP4 header
+      }else{
+        myConn.SendNow(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart); //send MP4 header
+      }
+      leftOver -= std::min(headerSize, byteEnd) - byteStart;
+    }
+    currPos += headerSize;//we're now guaranteed to be past the header point, no matter what
+
+    if (myMeta.live || webSock){
       vidTrack = getMainSelectedTrack();
       bool reSeek = false;
       DTSC::Track & Trk = myMeta.tracks[vidTrack];
@@ -1041,6 +1062,144 @@ namespace Mist{
     }
     sentHeader = true;
   }
+
+  void OutProgressiveMP4::onWebsocketConnect(){
+    parseData = true;
+    wantRequest = true;
+    sentHeader = false;
+    fragSeqNum = 0;
+    sortSet.clear();
+    byteStart = 0;
+    idleInterval = 1000;
+    setBlocking(false);
+    onIdle();
+  }
+
+  void OutProgressiveMP4::onWebsocketFrame() {
+    if (webSock->frameType != 1) {
+      HIGH_MSG("Ignoring non-text websocket frame");
+      return;
+    }
+
+    JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
+    JSON::Value commandResult;
+
+    //Check if there's a command type
+    if (!command.isMember("type")) {
+      JSON::Value commandResult;
+      commandResult["type"] = "on_error";
+      commandResult["command"] = "error";
+      commandResult["message"] = "Received a command but no type property was given.";
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
+    if (command["type"] == "tracks"){
+      if (command.isMember("audio")){
+        if (!command["audio"].isNull()){
+          targetParams["audio"] = command["audio"].asString();
+        }else{
+          targetParams.erase("audio");
+        }
+      }
+      if (command.isMember("video")){
+        if (!command["video"].isNull()){
+          targetParams["video"] = command["video"].asString();
+        }else{
+          targetParams.erase("video");
+        }
+      }
+      selectDefaultTracks();
+      sortSet.clear();
+      sentHeader = false;
+      onIdle();
+      return;
+    }
+
+    if (command["type"] == "seek") {
+      if (!command.isMember("seek_time")) {
+        JSON::Value commandResult;
+        commandResult["type"] = "on_error";
+        commandResult["command"] = "on_seek";
+        commandResult["message"] = "Received a seek request but no `seek_time` property.";
+        webSock->sendFrame(commandResult.toString());
+        return;
+      }
+      uint64_t seek_time = command["seek_time"].asInt();
+      if (!parseData){
+        parseData = true;
+        selectDefaultTracks();
+      }
+      seek(seek_time, true);
+      sortSet.clear();
+      sentHeader = false;
+      JSON::Value commandResult;
+      commandResult["type"] = "on_seek";
+      commandResult["result"] = true;
+      webSock->sendFrame(commandResult.toString());
+      onIdle();
+      return;
+    }
+
+    if (command["type"] == "pause") {
+      parseData = !parseData;
+      JSON::Value commandResult;
+      commandResult["type"] = "on_time";
+      commandResult["paused"] = !parseData;
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        commandResult["tracks"].append(*it);
+      }
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
+    if (command["type"] == "stop") {
+      INFO_MSG("Received stop() command.");
+      myConn.close();
+      return;
+    }
+
+    //Unhandled
+    {
+      JSON::Value commandResult;
+      commandResult["type"] = "on_error";
+      commandResult["command"] = command["type"].asString();
+      commandResult["message"] = "Unhandled command type: "+command["type"].asString();
+      webSock->sendFrame(commandResult.toString());
+    }
+  }
+
+  void OutProgressiveMP4::onIdle(){
+    if (parseData && webSock){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_time";
+      if (!sentHeader){commandResult["next_is_init"] = true;}
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        commandResult["tracks"].append(*it);
+      }
+      webSock->sendFrame(commandResult.toString());
+    }
+  }
+
+  bool OutProgressiveMP4::onFinish(){
+    if (parseData && webSock){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_stop";
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      webSock->sendFrame(commandResult.toString());
+      parseData = false;
+    }
+    return true;
+  }
+
 
 }
 

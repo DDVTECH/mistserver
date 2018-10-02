@@ -1196,7 +1196,8 @@ std::string JSON::Value::toString() const {
       }
     case DOUBLE: {
         std::stringstream st;
-        st << dblVal;
+        st.precision(10);
+        st << std::fixed << dblVal;
         return st.str();
         break;
       }
@@ -1260,8 +1261,17 @@ std::string JSON::Value::toPrettyString(int indentation) const {
       }
     case DOUBLE: {
         std::stringstream st;
-        st << dblVal;
+        st.precision(10);
+        st << std::fixed << dblVal;
         return st.str();
+        break;
+      }
+    case BOOL: {
+        if (intVal != 0){
+          return "true";
+        }else{
+          return "false";
+        }
         break;
       }
     case STRING: {

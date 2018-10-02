@@ -705,4 +705,7 @@ add_test(LOGTest COMMAND urltest)
 add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(downloadertest mist)
 add_test(DownloaderTest COMMAND downloadertest)
+add_executable(jsontest test/json.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(jsontest mist)
+add_test(JSONTest COMMAND jsontest)
 

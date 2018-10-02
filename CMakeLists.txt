@@ -364,6 +364,7 @@ makeOutput(HLS hls             http ts)
 makeOutput(EBML ebml)
 
 add_executable(MistOutHTTP 
+  ${BINARY_DIR}/mist/.headers
   src/output/mist_out.cpp
   src/output/output.cpp
   src/output/output_http.cpp 

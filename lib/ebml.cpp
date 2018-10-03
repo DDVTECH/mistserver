@@ -509,7 +509,12 @@ namespace EBML{
     return val;
   }
 
-  std::string Element::getValString() const{return std::string(getPayload(), getPayloadLen());}
+  std::string Element::getValString() const{
+    uint64_t strLen = getPayloadLen();
+    const char * strPtr = getPayload();
+    while (strLen && strPtr[strLen-1] == 0){--strLen;}
+    return std::string(strPtr, strLen);
+  }
 
   uint64_t Block::getTrackNum() const{return UniInt::readInt(getPayload());}
 

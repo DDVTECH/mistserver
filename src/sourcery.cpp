@@ -16,6 +16,7 @@ int main(int argc, char* argv[]){
   uint32_t i = 0; //Current line byte counter
   uint32_t total = 0; //Finished lines so far byte counter
   std::ifstream inFile(argv[1]);
+  bool sawQ = false;
   while (inFile.good()){
     unsigned char thisChar = inFile.get();
     if (!inFile.good()){break;}
@@ -26,6 +27,11 @@ int main(int argc, char* argv[]){
       case '\t': tmp << "\\t";  break;
       case '\\': tmp << "\\\\"; break;
       case '\"': tmp << "\\\""; break;
+      case '?':
+        if (sawQ){tmp << "\"\"";}
+        tmp << "?";
+        sawQ = true;
+      break;
       default:
         if (thisChar < 32 || thisChar > 126){
           //Convert to octal.
@@ -33,6 +39,7 @@ int main(int argc, char* argv[]){
         }else{
           tmp << thisChar;
         }
+        sawQ = false;
     }
     ++i;
     // We print 80 bytes per line, regardless of special characters

@@ -691,7 +691,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTra
       amfdata.getContentP(1)->addContent(AMF::Object("width", M.tracks[*it].width, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(AMF::Object("height", M.tracks[*it].height, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(AMF::Object("videoframerate", (double)M.tracks[*it].fpks / 1000.0, AMF::AMF0_NUMBER));
-      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)M.tracks[*it].bps * 128.0, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("videodatarate", (double)M.tracks[*it].bps / 128.0, AMF::AMF0_NUMBER));
       ++i;
     }
     if (M.tracks[*it].type == "audio") {
@@ -712,7 +712,7 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta & M, std::set<long unsigned int> & selTra
       amfdata.getContentP(1)->addContent(AMF::Object("audiochannels", M.tracks[*it].channels, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", M.tracks[*it].rate, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", M.tracks[*it].size, AMF::AMF0_NUMBER));
-      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", (double)M.tracks[*it].bps * 128.0, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiodatarate", (double)M.tracks[*it].bps / 128.0, AMF::AMF0_NUMBER));
       ++i;
     }
   }

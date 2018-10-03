@@ -145,10 +145,10 @@ std::string & RTMPStream::Chunk::Pack() {
   }
   //support for 0x00ffffff timestamps
   if (ntime) {
-    output += (unsigned char)(ntime & 0xff);
-    output += (unsigned char)((ntime >> 8) & 0xff);
-    output += (unsigned char)((ntime >> 16) & 0xff);
     output += (unsigned char)((ntime >> 24) & 0xff);
+    output += (unsigned char)((ntime >> 16) & 0xff);
+    output += (unsigned char)((ntime >> 8) & 0xff);
+    output += (unsigned char)(ntime & 0xff);
   }
   len_left = 0;
   while (len_left < len) {
@@ -172,10 +172,10 @@ std::string & RTMPStream::Chunk::Pack() {
         }
       }
       if (ntime) {
-        output += (unsigned char)(ntime & 0xff);
-        output += (unsigned char)((ntime >> 8) & 0xff);
-        output += (unsigned char)((ntime >> 16) & 0xff);
         output += (unsigned char)((ntime >> 24) & 0xff);
+        output += (unsigned char)((ntime >> 16) & 0xff);
+        output += (unsigned char)((ntime >> 8) & 0xff);
+        output += (unsigned char)(ntime & 0xff);
       }
     }
   }
@@ -460,10 +460,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
       return false;
     } //can't read timestamp
     indata = buffer.copy(i + 4);
-    timestamp = indata[i++ ];
-    timestamp += indata[i++ ] * 256;
-    timestamp += indata[i++ ] * 256 * 256;
     timestamp += indata[i++ ] * 256 * 256 * 256;
+    timestamp += indata[i++ ] * 256 * 256;
+    timestamp += indata[i++ ] * 256;
+    timestamp = indata[i++ ];
     ts_delta = timestamp;
     DEBUG_MSG(DLVL_DONTEVEN, "Extended timestamp: %u", timestamp);
   }

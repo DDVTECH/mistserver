@@ -404,10 +404,10 @@ namespace Mist{
       rtmpheader[1] = 0xff;
       rtmpheader[2] = 0xff;
       rtmpheader[3] = 0xff;
-      rtmpheader[header_len++] = timestamp & 0xff;
-      rtmpheader[header_len++] = (timestamp >> 8) & 0xff;
-      rtmpheader[header_len++] = (timestamp >> 16) & 0xff;
       rtmpheader[header_len++] = (timestamp >> 24) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 16) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 8) & 0xff;
+      rtmpheader[header_len++] = timestamp & 0xff;
     }else{
       //regular timestamp
       rtmpheader[1] = (timestamp >> 16) & 0xff;
@@ -422,10 +422,10 @@ namespace Mist{
     //set the header's first byte to the "continue" type chunk, for later use
     rtmpheader[0] = 0xC4;
     if (timestamp >= 0x00ffffff){
-      rtmpheader[1] = timestamp & 0xff;
-      rtmpheader[2] = (timestamp >> 8) & 0xff;
-      rtmpheader[3] = (timestamp >> 16) & 0xff;
-      rtmpheader[4] = (timestamp >> 24) & 0xff;
+      rtmpheader[1] = (timestamp >> 24) & 0xff;
+      rtmpheader[2] = (timestamp >> 16) & 0xff;
+      rtmpheader[3] = (timestamp >> 8) & 0xff;
+      rtmpheader[4] = timestamp & 0xff;
     }
 
     //sent actual data - never send more than chunk_snd_max at a time

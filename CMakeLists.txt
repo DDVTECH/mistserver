@@ -98,6 +98,12 @@ endif()
 if (DEFINED KILLONEXIT )
   add_definitions(-DKILLONEXIT=true)
 endif()
+if (DEFINED UDP_API_HOST )
+  add_definitions(-DUDP_API_HOST=${UDP_API_HOST})
+endif()
+if (DEFINED UDP_API_PORT )
+  add_definitions(-DUDP_API_PORT=${UDP_API_PORT})
+endif()
 
 ########################################
 # Build Variables - Thread Names       #

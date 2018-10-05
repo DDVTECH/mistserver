@@ -157,3 +157,12 @@ static inline void show_stackframe(){}
 
 #define SIMUL_TRACKS 20
 
+
+#ifndef UDP_API_HOST
+#define UDP_API_HOST "localhost"
+#endif
+
+#ifndef UDP_API_PORT
+#define UDP_API_PORT 4242
+#endif
+

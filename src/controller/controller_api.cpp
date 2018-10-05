@@ -383,7 +383,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
 
 void Controller::handleUDPAPI(void * np){
   Socket::UDPConnection uSock(true);
-  if (!uSock.bind(4242, "localhost")){
+  if (!uSock.bind(UDP_API_PORT, UDP_API_HOST)){
     FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
     return;
   }

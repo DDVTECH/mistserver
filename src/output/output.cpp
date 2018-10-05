@@ -1602,7 +1602,7 @@ namespace Mist{
       if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
         std::string APIcall = "{\"tag_sessid\":{\"" + tmpEx.getSessId() + "\":" + JSON::string_escape("UA:"+UA) + "}}";
         Socket::UDPConnection uSock;
-        uSock.SetDestination("localhost", 4242);
+        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
         uSock.SendNow(APIcall);
         newUA = false;
       }

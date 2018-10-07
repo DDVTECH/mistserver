@@ -1095,10 +1095,16 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   memset(&addr, 0, sizeof(addr));
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port); // set port
+  //set interface, 0.0.0.0 (default) is all
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr.sin6_addr = in6addr_any;
   }else{
-    inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr); // set interface, 0.0.0.0 (default) is all
+    if (inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr) != 1){
+      errors = strerror(errno);
+      HIGH_MSG("Could not convert '%s' to a valid IPv6 address", hostname.c_str());
+      close();
+      return false;
+    }
   }
   int ret = bind(sock, (sockaddr *)&addr, sizeof(addr)); // do the actual bind
   if (ret == 0){
@@ -1143,10 +1149,16 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   memset(&addr4, 0, sizeof(addr4));
   addr4.sin_family = AF_INET;
   addr4.sin_port = htons(port); // set port
+  //set interface, 0.0.0.0 (default) is all
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr4.sin_addr.s_addr = INADDR_ANY;
   }else{
-    inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr); // set interface, 0.0.0.0 (default) is all
+    if (inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr) != 1){
+      errors = strerror(errno);
+      HIGH_MSG("Could not convert '%s' to a valid IPv4 address", hostname.c_str());
+      close();
+      return false;
+    }
   }
   int ret = bind(sock, (sockaddr *)&addr4, sizeof(addr4)); // do the actual bind
   if (ret == 0){

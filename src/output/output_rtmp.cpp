@@ -194,6 +194,12 @@ namespace Mist{
     capa["methods"][0u]["type"] = "flash/10";
     capa["methods"][0u]["priority"] = 7ll;
     capa["methods"][0u]["player_url"] = "/flashplayer.swf";
+    capa["optional"]["acceptable"]["name"] = "Acceptable connection types";
+    capa["optional"]["acceptable"]["help"] = "Whether to allow only incoming pushes (2), only outgoing pulls (1), or both (0, default)";
+    capa["optional"]["acceptable"]["option"] = "--acceptable";
+    capa["optional"]["acceptable"]["short"] = "T";
+    capa["optional"]["acceptable"]["default"] = (long long)0;
+    capa["optional"]["acceptable"]["type"] = "uint";
     capa["optional"]["maxkbps"]["name"] = "Max. kbps";
     capa["optional"]["maxkbps"]["help"] = "Maximum bitrate to allow in the ingest direction, in kilobits per second.";
     capa["optional"]["maxkbps"]["option"] = "--maxkbps";
@@ -671,6 +677,19 @@ namespace Mist{
       return;
     }//getStreamLength
     if ((amfData.getContentP(0)->StrValue() == "publish")){
+      if (config->getInteger("acceptable") == 1){//Only allow outgoing ( = 1)? Abort!
+        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+        amfReply.addContent(AMF::Object("", "_error")); //result success
+        amfReply.addContent(amfData.getContent(1)); //same transaction ID
+        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+        amfReply.addContent(AMF::Object("")); //info
+        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Rejected"));
+        amfReply.getContentP(3)->addContent(AMF::Object("description", "Publish rejected: this interface does not allow publishing"));
+        sendCommand(amfReply, messageType, streamId);
+        FAIL_MSG("Push from %s rejected - connector configured to only allow outgoing streams", getConnectedHost().c_str());
+        onFinish();
+        return;
+      }
       if (amfData.getContentP(3)){
         streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
         reqUrl += "/"+streamName;//LTS
@@ -777,6 +796,21 @@ namespace Mist{
         }
       }
       Util::sanitizeName(streamName);
+
+      if (config->getInteger("acceptable") == 2){//Only allow incoming ( = 2)? Abort!
+        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+        amfReply.addContent(AMF::Object("", "_error")); //result success
+        amfReply.addContent(amfData.getContent(1)); //same transaction ID
+        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); //null - command info
+        amfReply.addContent(AMF::Object("")); //info
+        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Rejected"));
+        amfReply.getContentP(3)->addContent(AMF::Object("description", "Play rejected: this interface does not allow playback"));
+        sendCommand(amfReply, messageType, streamId);
+        FAIL_MSG("Play of %s by %s rejected - connector configured to only allow incoming streams", streamName.c_str(), getConnectedHost().c_str());
+        onFinish();
+        return;
+      }
+
       initialize();
       
       //send a status reply

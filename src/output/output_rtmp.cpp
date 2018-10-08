@@ -949,6 +949,36 @@ namespace Mist{
       return;
     }//seek
     if (amfData.getContentP(0)->StrValue() == "_error"){
+      if (!amfData.getContentP(3)){
+        WARN_MSG("Received generic error response (no useful content)");
+        return;
+      }
+      if (amfData.getContentP(3)->GetType() == AMF::AMF0_OBJECT){
+        std::string code, description;
+        if (amfData.getContentP(3)->getContentP("code") && amfData.getContentP(3)->getContentP("code")->StrValue().size()){
+          code = amfData.getContentP(3)->getContentP("code")->StrValue();
+        }
+        if (amfData.getContentP(3)->getContentP("description") && amfData.getContentP(3)->getContentP("description")->StrValue().size()){
+          description = amfData.getContentP(3)->getContentP("description")->StrValue();
+        }
+        if (amfData.getContentP(3)->getContentP("details") && amfData.getContentP(3)->getContentP("details")->StrValue().size()){
+          if (description.size()){
+            description += "," + amfData.getContentP(3)->getContentP("details")->StrValue();
+          }else{
+            description = amfData.getContentP(3)->getContentP("details")->StrValue();
+          }
+        }
+        if (code.size() || description.size()){
+          WARN_MSG("Received error response: %s; %s", amfData.getContentP(3)->getContentP("code")->StrValue().c_str(), amfData.getContentP(3)->getContentP("description")->StrValue().c_str());
+        }else{
+          WARN_MSG("Received generic error response (no useful content)");
+        }
+        return;
+      }
+      if(amfData.getContentP(3)->GetType() == AMF::AMF0_STRING){
+        WARN_MSG("Received error response: %s", amfData.getContentP(3)->StrValue().c_str());
+        return;
+      }
       WARN_MSG("Received error response: %s", amfData.Print().c_str());
       return;
     }

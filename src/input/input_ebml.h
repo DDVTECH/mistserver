@@ -40,15 +40,13 @@ namespace Mist{
   class trackPredictor{
     public:
       packetData pkts[PKT_COUNT];
+      uint64_t frameOffset;
       uint16_t smallestFrame;
       uint64_t lastTime;
       uint64_t ctr;
       uint64_t rem;
       trackPredictor(){
-        smallestFrame = 0;
-        lastTime = 0;
-        ctr = 0;
-        rem = 0;
+        flush();
       }
       bool hasPackets(bool finished = false){
         if (finished){
@@ -56,6 +54,14 @@ namespace Mist{
         }else{
           return (ctr - rem > 12);
         }
+      }
+      /// Clears all internal values, for reuse as-new.
+      void flush(){
+        frameOffset = 0;
+        smallestFrame = 0;
+        lastTime = 0;
+        ctr = 0;
+        rem = 0;
       }
       packetData & getPacketData(bool mustCalcOffsets){
         frameOffsetKnown = true;
@@ -74,13 +80,20 @@ namespace Mist{
             //we assume it's just time stamp drift due to lack of precision.
             p.time = (lastTime + smallestFrame);
           }else{
-            p.offset = maxEBMLFrameOffset;
+            p.time -= frameOffset?frameOffset + smallestFrame:0;
+            p.offset = maxEBMLFrameOffset + frameOffset + smallestFrame;
           }
         }
         lastTime = p.time;
+        DONTEVEN_MSG("Outputting%s %llu + %llu, offset %llu (%llu -> %llu), display at %llu", (p.key?" (KEY)":""), p.time, frameOffset, p.offset, rem, rem % PKT_COUNT, p.time+p.offset);
         return p;
       }
       void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize, uint64_t packBytePos, bool isKeyframe, bool isVideo, void * dataPtr = 0){
+        //If no packets have been removed yet and there is more than one packet, calculate frameOffset
+        if (!rem && ctr && packTime < pkts[0].time){
+          frameOffset = pkts[0].time - packTime;
+          INSANE_MSG("Setting frameOffset to %llu", frameOffset);
+        }
         if (isVideo && ctr && ctr >= rem){
           int32_t currOffset = packTime - pkts[(ctr-1)%PKT_COUNT].time;
           if (currOffset < 0){currOffset *= -1;}
@@ -131,6 +144,7 @@ namespace Mist{
     bool openStreamSource(){return true;}
     bool needHeader(){return needsLock() && !readExistingHeader();}
     double timeScale;
+    bool wantBlocks;
   };
 }
 

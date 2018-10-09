@@ -199,7 +199,13 @@ namespace Mist{
     capa["optional"]["acceptable"]["option"] = "--acceptable";
     capa["optional"]["acceptable"]["short"] = "T";
     capa["optional"]["acceptable"]["default"] = (long long)0;
-    capa["optional"]["acceptable"]["type"] = "uint";
+    capa["optional"]["acceptable"]["type"] = "select";
+    capa["optional"]["acceptable"]["select"][0u][0u] = 0ll;
+    capa["optional"]["acceptable"]["select"][0u][1u] = "Allow both incoming and outgoing connections";
+    capa["optional"]["acceptable"]["select"][1u][0u] = 1ll;
+    capa["optional"]["acceptable"]["select"][1u][1u] = "Allow only outgoing connections";
+    capa["optional"]["acceptable"]["select"][2u][0u] = 2ll;
+    capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
     capa["optional"]["maxkbps"]["name"] = "Max. kbps";
     capa["optional"]["maxkbps"]["help"] = "Maximum bitrate to allow in the ingest direction, in kilobits per second.";
     capa["optional"]["maxkbps"]["option"] = "--maxkbps";

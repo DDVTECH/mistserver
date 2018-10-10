@@ -35,6 +35,7 @@ namespace Mist{
     capa["codecs"].append("MP3");
     capa["codecs"].append("AC3");
     capa["codecs"].append("FLOAT");
+    capa["codecs"].append("DTS");
     capa["codecs"].append("JSON");
     capa["codecs"].append("subtitle");
     lastClusterBPos = 0;
@@ -235,6 +236,10 @@ namespace Mist{
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
+        if (codec == "A_DTS"){
+          trueCodec = "DTS";
+          trueType = "audio";
+        }
         if (codec == "A_PCM/INT/BIG"){
           trueCodec = "PCM";
           trueType = "audio";
@@ -365,6 +370,12 @@ namespace Mist{
               newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
             } else if (Trk.codec == "MP3"){
               newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
+            } else if (Trk.codec == "DTS"){
+              //Assume 512 samples per frame (DVD default)
+              //actual amount can be calculated from data, but data
+              //is not available during header generation...
+              //See: http://www.stnsoft.com/DVD/dtshdr.html
+              newTime += (512000 / Trk.rate)/timeScale;
             }else{
               newTime += 1/timeScale;
               ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
@@ -531,6 +542,12 @@ namespace Mist{
           newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
         } else if (Trk.codec == "MP3"){
           newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
+        } else if (Trk.codec == "DTS"){
+          //Assume 512 samples per frame (DVD default)
+          //actual amount can be calculated from data, but data
+          //is not available during header generation...
+          //See: http://www.stnsoft.com/DVD/dtshdr.html
+          newTime += (512000 / Trk.rate)/timeScale;
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
         }

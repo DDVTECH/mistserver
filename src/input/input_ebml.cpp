@@ -36,11 +36,13 @@ namespace Mist{
     capa["codecs"].append("MP3");
     capa["codecs"].append("AC3");
     capa["codecs"].append("FLOAT");
+    capa["codecs"].append("DTS");
     capa["codecs"].append("JSON");
     capa["codecs"].append("subtitle");
     lastClusterBPos = 0;
     lastClusterTime = 0;
     bufferedPacks = 0;
+    wantBlocks = true;
   }
 
   std::string ASStoSRT(const char * ptr, uint32_t len){
@@ -191,13 +193,13 @@ namespace Mist{
           trueCodec = "H264";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_MPEGH/ISO/HEVC"){
           trueCodec = "HEVC";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_AV1"){
           trueCodec = "AV1";
@@ -215,25 +217,29 @@ namespace Mist{
           trueCodec = "opus";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_VORBIS"){
           trueCodec = "vorbis";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_THEORA"){
           trueCodec = "theora";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_AAC"){
           trueCodec = "AAC";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
+        }
+        if (codec == "A_DTS"){
+          trueCodec = "DTS";
+          trueType = "audio";
         }
         if (codec == "A_PCM/INT/BIG"){
           trueCodec = "PCM";
@@ -275,12 +281,12 @@ namespace Mist{
           trueCodec = "subtitle";
           trueType = "meta";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_MS/ACM"){
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){
-            std::string WAVEFORMATEX = tmpElem.getValString();
+            std::string WAVEFORMATEX = tmpElem.getValStringUntrimmed();
             unsigned int formatTag = Bit::btohs_le(WAVEFORMATEX.data());
             switch (formatTag){
               case 3:
@@ -350,12 +356,27 @@ namespace Mist{
         bool isVideo = (Trk.type == "video");
         bool isAudio = (Trk.type == "audio");
         bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
+        //If this is a new video keyframe, flush the corresponding trackPredictor
+        if (isVideo && B.isKeyframe()){
+          while (TP.hasPackets(true)){
+            packetData &C = TP.getPacketData(true);
+            myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
+            TP.remove();
+          }
+          TP.flush();
+        }
         for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
           if (frameNo){
             if (Trk.codec == "AAC"){
               newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
             } else if (Trk.codec == "MP3"){
               newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
+            } else if (Trk.codec == "DTS"){
+              //Assume 512 samples per frame (DVD default)
+              //actual amount can be calculated from data, but data
+              //is not available during header generation...
+              //See: http://www.stnsoft.com/DVD/dtshdr.html
+              newTime += (512000 / Trk.rate)/timeScale;
             }else{
               newTime += 1/timeScale;
               ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
@@ -464,28 +485,32 @@ namespace Mist{
       }
     }
     EBML::Block B;
-    do{
-      if (!readElement()){
-        // Make sure we empty our buffer first
-        if (bufferedPacks && packBuf.size()){
-          for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin();
-               it != packBuf.end(); ++it){
-            trackPredictor &TP = it->second;
-            if (TP.hasPackets(true)){
-              packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
-              fillPacket(C);
-              TP.remove();
-              --bufferedPacks;
-              return;
+    if (wantBlocks){
+      do{
+        if (!readElement()){
+          // Make sure we empty our buffer first
+          if (bufferedPacks && packBuf.size()){
+            for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin();
+                 it != packBuf.end(); ++it){
+              trackPredictor &TP = it->second;
+              if (TP.hasPackets(true)){
+                packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
+                fillPacket(C);
+                TP.remove();
+                --bufferedPacks;
+                return;
+              }
             }
           }
+          // No more buffer? Set to empty
+          thisPacket.null();
+          return;
         }
-        // No more buffer? Set to empty
-        thisPacket.null();
-        return;
-      }
+        B = EBML::Block(ptr);
+      }while (!B || B.getType() != EBML::ELEM_BLOCK || !selectedTracks.count(B.getTrackNum()));
+    }else{
       B = EBML::Block(ptr);
-    }while (!B || B.getType() != EBML::ELEM_BLOCK || !selectedTracks.count(B.getTrackNum()));
+    }
 
     uint64_t tNum = B.getTrackNum();
     uint64_t newTime = lastClusterTime + B.getTimecode();
@@ -494,12 +519,36 @@ namespace Mist{
     bool isVideo = (Trk.type == "video");
     bool isAudio = (Trk.type == "audio");
     bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
+
+    //If this is a new video keyframe, flush the corresponding trackPredictor
+    if (isVideo && B.isKeyframe() && bufferedPacks){
+      if (TP.hasPackets(true)){
+        wantBlocks = false;
+        packetData &C = TP.getPacketData(true);
+        fillPacket(C);
+        TP.remove();
+        --bufferedPacks;
+        return;
+      }
+    }
+    if (isVideo && B.isKeyframe()){
+      TP.flush();
+    }
+    wantBlocks = true;
+
+
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
         if (Trk.codec == "AAC"){
           newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
         } else if (Trk.codec == "MP3"){
           newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
+        } else if (Trk.codec == "DTS"){
+          //Assume 512 samples per frame (DVD default)
+          //actual amount can be calculated from data, but data
+          //is not available during header generation...
+          //See: http://www.stnsoft.com/DVD/dtshdr.html
+          newTime += (512000 / Trk.rate)/timeScale;
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
         }
@@ -532,6 +581,7 @@ namespace Mist{
   }
 
   void InputEBML::seek(int seekTime){
+    wantBlocks = true;
     packBuf.clear();
     bufferedPacks = 0;
     uint64_t mainTrack = getMainSelectedTrack();
@@ -542,17 +592,6 @@ namespace Mist{
     uint64_t partCount = 0;
     for (unsigned int i = 0; i < Trk.keys.size(); i++){
       if (Trk.keys[i].getTime() > seekTime){
-        if (i > 1){
-          partCount -= Trk.keys[i-1].getParts() + Trk.keys[i-2].getParts();
-          uint64_t partEnd = partCount + Trk.keys[i-2].getParts();
-          uint64_t partTime = Trk.keys[i-2].getTime();
-          for (uint64_t prt = partCount; prt < partEnd; ++prt){
-            INSANE_MSG("Replay part %llu, timestamp: %llu+%llu", prt, partTime, Trk.parts[prt].getOffset());
-            packBuf[mainTrack].add(partTime, Trk.parts[prt].getOffset(), mainTrack, 0, 0, false, isVideo, (void *)0);
-            packBuf[mainTrack].remove();
-            partTime += Trk.parts[prt].getDuration();
-          }
-        }
         break;
       }
       partCount += Trk.keys[i].getParts();

@@ -70,6 +70,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("FLOAT");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("DTS");
     capa["codecs"][0u][2u].append("+JSON");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
@@ -89,6 +90,7 @@ namespace Mist{
     capa["exceptions"]["codec:MP3"] = blacklistNonChrome;
     capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
+    capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
 
@@ -176,6 +178,7 @@ namespace Mist{
     if (Trk.codec == "ALAW"){return "A_MS/ACM";}
     if (Trk.codec == "ULAW"){return "A_MS/ACM";}
     if (Trk.codec == "FLOAT"){return "A_PCM/FLOAT/IEEE";}
+    if (Trk.codec == "DTS"){return "A_DTS";}
     if (Trk.codec == "JSON"){return "M_JSON";}
     return "E_UNKNOWN";
   }

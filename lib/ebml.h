@@ -97,6 +97,7 @@ namespace EBML{
     int64_t getValInt() const;
     double getValFloat() const;
     std::string getValString() const;
+    std::string getValStringUntrimmed() const;
     const Element findChild(uint32_t id) const;
 
   private:

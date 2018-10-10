@@ -516,6 +516,12 @@ namespace EBML{
     return std::string(strPtr, strLen);
   }
 
+  std::string Element::getValStringUntrimmed() const{
+    uint64_t strLen = getPayloadLen();
+    const char * strPtr = getPayload();
+    return std::string(strPtr, strLen);
+  }
+
   uint64_t Block::getTrackNum() const{return UniInt::readInt(getPayload());}
 
   int16_t Block::getTimecode() const{

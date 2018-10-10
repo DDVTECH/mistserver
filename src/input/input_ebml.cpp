@@ -191,13 +191,13 @@ namespace Mist{
           trueCodec = "H264";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_MPEGH/ISO/HEVC"){
           trueCodec = "HEVC";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_AV1"){
           trueCodec = "AV1";
@@ -215,25 +215,25 @@ namespace Mist{
           trueCodec = "opus";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_VORBIS"){
           trueCodec = "vorbis";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "V_THEORA"){
           trueCodec = "theora";
           trueType = "video";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_AAC"){
           trueCodec = "AAC";
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_PCM/INT/BIG"){
           trueCodec = "PCM";
@@ -275,12 +275,12 @@ namespace Mist{
           trueCodec = "subtitle";
           trueType = "meta";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
-          if (tmpElem){init = tmpElem.getValString();}
+          if (tmpElem){init = tmpElem.getValStringUntrimmed();}
         }
         if (codec == "A_MS/ACM"){
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){
-            std::string WAVEFORMATEX = tmpElem.getValString();
+            std::string WAVEFORMATEX = tmpElem.getValStringUntrimmed();
             unsigned int formatTag = Bit::btohs_le(WAVEFORMATEX.data());
             switch (formatTag){
               case 3:

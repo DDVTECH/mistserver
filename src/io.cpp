@@ -316,6 +316,9 @@ namespace Mist {
 
     if (myMeta.live){
       myMeta.update(pack);
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+        it->second.clearParts();
+      }
     }
 
     //End of brain melt

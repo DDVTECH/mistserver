@@ -282,6 +282,7 @@ namespace DTSC {
       Track();      
       Track(JSON::Value & trackRef);
       Track(Scan & trackRef);
+      void clearParts();
             
       inline operator bool() const {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));

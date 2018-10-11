@@ -20,6 +20,7 @@ namespace Mist {
       uint64_t time;
       uint64_t byteOffset;//Stores relative bpos for fragmented MP4
       uint64_t index;
+      uint32_t size;
   };
   
   class OutProgressiveMP4 : public HTTPOutput {

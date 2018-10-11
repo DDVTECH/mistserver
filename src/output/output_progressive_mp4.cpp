@@ -82,7 +82,10 @@ namespace Mist {
         tmpRes += 16//SMHD Box
           + 16//STSD
           + 36//MP4A
-          + 37 + thisTrack.init.size();//ESDS
+          + 35;
+        if (thisTrack.init.size()){
+          tmpRes += 2 + thisTrack.init.size();//ESDS
+        }
       }
       
       //Unfortunately, for our STTS and CTTS boxes, we need to loop through all parts of the track
@@ -117,6 +120,7 @@ namespace Mist {
     }
     res += 8; //mdat beginning
     fileSize += res;
+    MEDIUM_MSG("H size %llu, file: %llu", res, fileSize);
     return res;
   }
 
@@ -148,6 +152,7 @@ namespace Mist {
     //Construct with duration of -1
     MP4::MVHD mvhdBox(-1);
     //Then override it to set the correct duration
+    uint64_t fms;
     uint64_t firstms = 0xFFFFFFFFFFFFFFull;
     uint64_t lastms = 0;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -155,6 +160,7 @@ namespace Mist {
       firstms = std::min(firstms, (uint64_t)myMeta.tracks[*it].firstms);
     }
     mvhdBox.setDuration(lastms - firstms);
+    fms = firstms;
     //Set the trackid for the first "empty" track within the file.
     mvhdBox.setTrackID(selectedTracks.size() + 1);
     moovBox.setContent(mvhdBox, moovOffset++);
@@ -176,11 +182,25 @@ namespace Mist {
       MP4::ELST elstBox;
       elstBox.setVersion(0);
       elstBox.setFlags(0);
-      elstBox.setCount(1);
-      elstBox.setSegmentDuration(0, tDuration);
-      elstBox.setMediaTime(0, 0);
-      elstBox.setMediaRateInteger(0, 1);
-      elstBox.setMediaRateFraction(0, 0);
+      if (myMeta.vod && thisTrack.firstms != fms){
+        elstBox.setCount(2);
+
+        elstBox.setSegmentDuration(0, thisTrack.firstms - fms);
+        elstBox.setMediaTime(0, 0xFFFFFFFFull);
+        elstBox.setMediaRateInteger(0, 0);
+        elstBox.setMediaRateFraction(0, 0);
+
+        elstBox.setSegmentDuration(1, tDuration);
+        elstBox.setMediaTime(1, 0);
+        elstBox.setMediaRateInteger(1, 1);
+        elstBox.setMediaRateFraction(1, 0);
+      }else{
+        elstBox.setCount(1);
+        elstBox.setSegmentDuration(0, tDuration);
+        elstBox.setMediaTime(0, 0);
+        elstBox.setMediaRateInteger(0, 1);
+        elstBox.setMediaRateFraction(0, 0);
+      }
 
       edtsBox.setContent(elstBox, 0);
       trakBox.setContent(edtsBox, trakOffset++);
@@ -198,6 +218,9 @@ namespace Mist {
       MP4::MINF minfBox;
       size_t minfOffset = 0;
       
+      MP4::STBL stblBox;
+      unsigned int stblOffset = 0;
+
       //Add a track-type specific box to the MINF box
       if (thisTrack.type == "video") {
         MP4::VMHD vmhdBox;
@@ -213,10 +236,6 @@ namespace Mist {
       MP4::DREF drefBox;
       dinfBox.setContent(drefBox, 0);
       minfBox.setContent(dinfBox, minfOffset++);
-
-     
-      MP4::STBL stblBox;
-      size_t stblOffset = 0;
 
       //Add STSD box
       MP4::STSD stsdBox(0);
@@ -346,10 +365,12 @@ namespace Mist {
     //Current values are actual byte offset without header-sized offset
     std::set <keyPart> sortSet;//filling sortset for interleaving parts
     for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
+      DTSC::Track & thisTrack = myMeta.tracks[*subIt];
       keyPart temp;
       temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
+      temp.time = thisTrack.firstms;//timeplace of frame
       temp.index = 0;
+      temp.size = thisTrack.parts[0].getDuration();
       HIGH_MSG("Header sortSet: tid %lu time %lu", temp.trackID, temp.time);
       sortSet.insert(temp);
     }
@@ -372,6 +393,7 @@ namespace Mist {
       if (temp.index + 1< thisTrack.parts.size()) {//Only create new element, when there are new elements to be added 
         temp.time += thisTrack.parts[temp.index].getDuration();
         ++temp.index;
+        temp.size = thisTrack.parts[temp.index].getSize();
         sortSet.insert(temp);
       }
     }
@@ -384,8 +406,9 @@ namespace Mist {
     if (mdatSize < 0xFFFFFFFF){
       Bit::htobl(mdatHeader, mdatSize);
     }
-    header << std::string(mdatHeader, 8);
+    header.write(mdatHeader, 8);
     size += header.str().size();
+    MEDIUM_MSG("Header %llu, file: %llu", header.str().size(), size);
     return header.str();
   }
   
@@ -425,6 +448,7 @@ namespace Mist {
       if (temp.index + 1 < myMeta.tracks[temp.trackID].parts.size()){ //only insert when there are parts left
         temp.time += thisTrack.parts[temp.index].getDuration();
         ++temp.index;
+        temp.size = thisTrack.parts[temp.index].getSize();
         sortSet.insert(temp);
       }
       //Remove just-parsed element
@@ -470,10 +494,12 @@ namespace Mist {
     currPos = 0;
     sortSet.clear();
     for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin(); subIt != selectedTracks.end(); subIt++) {
+      DTSC::Track & thisTrack = myMeta.tracks[*subIt];
       keyPart temp;
       temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms;//timeplace of frame
+      temp.time = thisTrack.firstms;//timeplace of frame
       temp.index = 0;
+      temp.size = thisTrack.parts[temp.index].getSize();
       sortSet.insert(temp);
     }
     if (H.GetHeader("Range") != ""){
@@ -517,12 +543,6 @@ namespace Mist {
       //HTTP_S.StartResponse(HTTP_R, conn);
     }
     leftOver = byteEnd - byteStart + 1;//add one byte, because range "0-0" = 1 byte of data
-    if (byteStart < headerSize) {
-      std::string headerData = DTSCMeta2MP4Header(fileSize);
-      myConn.SendNow(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart); //send MP4 header
-      leftOver -= std::min(headerSize, byteEnd) - byteStart;
-    }
-    currPos += headerSize;//we're now guaranteed to be past the header point, no matter what
   }
   
   void OutProgressiveMP4::sendNext() {
@@ -534,8 +554,7 @@ namespace Mist {
     thisPacket.getString("data", dataPointer, len);
 
     keyPart thisPart = *sortSet.begin();
-    uint64_t thisSize = myMeta.tracks[thisPart.trackID].parts[thisPart.index].getSize();
-    if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisSize){
+    if ((unsigned long)thisPacket.getTrackId() != thisPart.trackID || thisPacket.getTime() != thisPart.time || len != thisPart.size){
       if (thisPacket.getTime() > sortSet.begin()->time || thisPacket.getTrackId() > sortSet.begin()->trackID) {
         if (perfect) {
           WARN_MSG("Warning: input is inconsistent. Expected %lu:%lu but got %ld:%llu - cancelling playback", thisPart.trackID, thisPart.time, thisPacket.getTrackId(), thisPacket.getTime());
@@ -543,7 +562,7 @@ namespace Mist {
           myConn.close();
         }
       } else {
-        WARN_MSG("Did not receive expected %lu:%lu (%lub) but got %ld:%llu (%ub) - throwing it away", thisPart.trackID, thisPart.time, thisSize, thisPacket.getTrackId(), thisPacket.getTime(), len);
+        WARN_MSG("Did not receive expected %lu:%lu (%lub) but got %ld:%llu (%ub) - throwing it away", thisPart.trackID, thisPart.time, thisPart.size, thisPacket.getTrackId(), thisPacket.getTime(), len);
       }
       return;
     }
@@ -571,6 +590,7 @@ namespace Mist {
       if (temp.index + 1 < thisTrack.parts.size()) { //only insert when there are parts left
         temp.time += thisTrack.parts[temp.index].getDuration();
         ++temp.index;
+        temp.size = thisTrack.parts[temp.index].getSize();
         sortSet.insert(temp);
       }
 
@@ -584,6 +604,14 @@ namespace Mist {
   }
 
   void OutProgressiveMP4::sendHeader(){
+    //Send the header data
+    uint64_t headerSize = mp4HeaderSize(fileSize);
+    if (byteStart < headerSize){
+      std::string headerData = DTSCMeta2MP4Header(fileSize);
+      myConn.SendNow(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart); //send MP4 header
+      leftOver -= std::min(headerSize, byteEnd) - byteStart;
+    }
+    currPos += headerSize;//we're now guaranteed to be past the header point, no matter what
     seek(seekPoint);
     sentHeader = true;
   }

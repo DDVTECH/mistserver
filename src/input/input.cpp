@@ -263,6 +263,7 @@ namespace Mist {
   
   ///Checks in the server configuration if this stream is set to always on or not.
   /// Returns true if it is, or if the stream could not be found in the configuration.
+  /// If the compiled default debug level is < INFO, instead returns false if the stream is not found.
   bool Input::isAlwaysOn(){
     bool ret = true;
     std::string strName = streamName.substr(0, (streamName.find_first_of("+ ")));
@@ -274,6 +275,10 @@ namespace Mist {
       if (!streamCfg.getMember("always_on") || !streamCfg.getMember("always_on").asBool()){
         ret = false;
       }
+    }else{
+#if DEBUG < DLVL_DEVEL
+      ret = false;
+#endif
     }
     configLock.post();
     return ret;
@@ -331,6 +336,10 @@ namespace Mist {
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
     bool ret = (config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT || (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment()/500)));
+    if (!ret && config->is_active && isAlwaysOn()){
+      ret = true;
+      activityCounter = Util::bootSecs();
+    }
     return ret;
   }
 
@@ -473,12 +482,6 @@ namespace Mist {
           if (!it2->second){
             bufferRemove(it->first, it2->first);
             pageCounter[it->first].erase(it2->first);
-            for (int i = 0; i < 8192; i += 8){
-              unsigned int thisKeyNum = ntohl(((((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) >> 32) & 0xFFFFFFFF);
-              if (thisKeyNum == it2->first){
-                (((long long int *)(nProxy.metaPages[it->first].mapped + i))[0]) = 0;
-              }
-            }
             change = true;
             break;
           }

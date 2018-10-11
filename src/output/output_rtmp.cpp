@@ -10,6 +10,9 @@
 
 namespace Mist {
   OutRTMP::OutRTMP(Socket::Connection & conn) : Output(conn) {
+    lastOutTime = 0;
+    rtmpOffset = 0;
+    bootMsOffset = 0;
     setBlocking(true);
     while (!conn.Received().available(1537) && conn.connected() && config->is_active) {
       conn.spool();
@@ -66,60 +69,6 @@ namespace Mist {
     }
     return false;
   }
-
-  void OutRTMP::parseVars(std::string data){
-    std::string varname;
-    std::string varval;
-    bool trackSwitch = false;
-    // position where a part start (e.g. after &)
-    size_t pos = 0;
-    while (pos < data.length()){
-      size_t nextpos = data.find('&', pos);
-      if (nextpos == std::string::npos){
-        nextpos = data.length();
-      }
-      size_t eq_pos = data.find('=', pos);
-      if (eq_pos < nextpos){
-        // there is a key and value
-        varname = data.substr(pos, eq_pos - pos);
-        varval = data.substr(eq_pos + 1, nextpos - eq_pos - 1);
-      }else{
-        // no value, only a key
-        varname = data.substr(pos, nextpos - pos);
-        varval.clear();
-      }
-
-      if (varname == "track" || varname == "audio" || varname == "video"){
-        long long int selTrack = JSON::Value(varval).asInt();
-        if (myMeta){
-          if (myMeta.tracks.count(selTrack)){
-            std::string & delThis = myMeta.tracks[selTrack].type;
-            for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-              if (myMeta.tracks[*it].type == delThis){
-                selectedTracks.erase(it);
-                trackSwitch = true;
-                break;
-              }
-            }
-            selectedTracks.insert(selTrack);
-          }
-        }else{
-          selectedTracks.insert(selTrack);
-        }
-      }
-
-      if (nextpos == std::string::npos){
-        // in case the string is gigantic
-        break;
-      }
-      // erase &
-      pos = nextpos + 1;
-    }
-    if (trackSwitch && thisPacket){
-      seek(thisPacket.getTime());
-    }
-  }
-
 
   void OutRTMP::init(Util::Config * cfg){
     Output::init(cfg);
@@ -275,9 +224,9 @@ namespace Mist {
     
     unsigned int timestamp = thisPacket.getTime() - rtmpOffset;
     //make sure we don't go negative
-    if (rtmpOffset > thisPacket.getTime()){
+    if (rtmpOffset > (int64_t)thisPacket.getTime()){
       timestamp = 0;
-      rtmpOffset = thisPacket.getTime();
+      rtmpOffset = (int64_t)thisPacket.getTime();
     }
     
     bool allow_short = RTMPStream::lastsend.count(4);
@@ -638,7 +587,8 @@ namespace Mist {
       if (streamName.find('?') != std::string::npos){
         std::string tmpVars = streamName.substr(streamName.find('?') + 1);
         streamName = streamName.substr(0, streamName.find('?'));
-        parseVars(tmpVars);
+        std::map<std::string, std::string> targetParams;
+        HTTP::parseVars(tmpVars, targetParams);
       }
       
       size_t colonPos = streamName.find(':');

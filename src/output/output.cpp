@@ -74,6 +74,12 @@ namespace Mist{
       DEBUG_MSG(DLVL_WARN, "Warning: MistOut created with closed socket!");
     }
     sentHeader = false;
+    
+    //If we have a streamname option, set internal streamname to that option
+    if (!streamName.size() && config->hasOption("streamname")){
+      streamName = config->getString("streamname");
+    }
+
   }
 
   void Output::listener(Util::Config & conf, int (*callback)(Socket::Connection & S)){
@@ -161,7 +167,9 @@ namespace Mist{
   }
  
   bool Output::isReadyForPlay(){
-    if (isPushing()){return true;}
+    static bool recursing = false;
+    if (isPushing() || recursing){return true;}
+    recursing = true;
     if (!isInitialized){initialize();}
     if (!myMeta.tracks.size()){updateMeta();}
     if (myMeta.tracks.size()){
@@ -170,6 +178,7 @@ namespace Mist{
       }
       unsigned int mainTrack = getMainSelectedTrack();
       if (mainTrack && myMeta.tracks.count(mainTrack) && (myMeta.tracks[mainTrack].keys.size() >= 2 || myMeta.tracks[mainTrack].lastms - myMeta.tracks[mainTrack].firstms > 5000)){
+        recursing = false;
         return true;
       }else{
         HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(), getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());
@@ -177,6 +186,7 @@ namespace Mist{
     }else{
       HIGH_MSG("NOT READY YET (%lu tracks)", myMeta.tracks.size());
     }
+    recursing = false;
     return false;
   }
 
@@ -572,11 +582,31 @@ namespace Mist{
     return start;
   }
 
-  ///Return the end time of the selected tracks, or 0 if unknown or live.
+  ///Return the end time of the selected tracks, or 0 if unknown.
   ///Returns the end time of latest track if nothing is selected.
   ///Returns zero if no tracks exist.
   uint64_t Output::endTime(){
-    if (myMeta.live){return 0;}
+    if (!myMeta.tracks.size()){return 0;}
+    uint64_t end = 0;
+    if (selectedTracks.size()){
+      for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        if (myMeta.tracks.count(*it)){
+          if (end < myMeta.tracks[*it].lastms){end = myMeta.tracks[*it].lastms;}
+        }
+      }
+    }else{
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        if (end < it->second.lastms){end = it->second.lastms;}
+      }
+    }
+    return end;
+  }
+
+  ///Return the most live time stamp of the selected tracks, or 0 if unknown or non-live.
+  ///Returns the time stamp of the newest track if nothing is selected.
+  ///Returns zero if no tracks exist.
+  uint64_t Output::liveTime(){
+    if (!myMeta.live){return 0;}
     if (!myMeta.tracks.size()){return 0;}
     uint64_t end = 0;
     if (selectedTracks.size()){
@@ -944,6 +974,10 @@ namespace Mist{
         dropTrack(nxt.tid, "timeless empty packet");
         return false;
       }
+      //for VoD, check if we've reached the end of the track, if so, drop it
+      if (myMeta.vod && nxt.time > myMeta.tracks[nxt.tid].lastms){
+        dropTrack(nxt.tid, "Reached end of track");
+      }
       //if this is a live stream, we might have just reached the live point.
       //check where the next key is
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, nxt.time);
@@ -954,8 +988,8 @@ namespace Mist{
         if (++emptyCount < 100){
           Util::wait(250);
           //we're waiting for new data to show up
-          if (emptyCount % 8 == 0){
-            reconnect();//reconnect every 2 seconds
+          if (emptyCount % 64 == 0){
+            reconnect();//reconnect every 16 seconds
           }else{
             //updating meta is only useful with live streams
             if (myMeta.live && emptyCount % 4 == 0){
@@ -1097,7 +1131,7 @@ namespace Mist{
     if (now == lastStats && !force){return;}
     lastStats = now;
 
-    EXTREME_MSG("Writing stats: %s, %s, %lu", getConnectedHost().c_str(), streamName.c_str(), crc & 0xFFFFFFFFu);
+    HIGH_MSG("Writing stats: %s, %s, %lu, %llu, %llu", getConnectedHost().c_str(), streamName.c_str(), crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     if (statsPage.getData()){
       IPC::statExchange tmpEx(statsPage.getData());
       tmpEx.now(now);
@@ -1198,6 +1232,7 @@ namespace Mist{
       return false;
     }
     close(outFile);
+    sought = false;
     return true;
   }
 
@@ -1248,6 +1283,7 @@ namespace Mist{
       Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
+        INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
         reconnect();
         streamStatus = Util::getStreamStatus(streamName);
       }

@@ -1351,6 +1351,10 @@ namespace DTSC {
     fragments.rbegin()->setSize(fragments.rbegin()->getSize() + packDataSize);
   }
 
+  void Track::clearParts(){
+    while (fragments.size() > 1){removeFirstKey();}
+  }
+
   /// Removes the first buffered key, including any fragments it was part of
   void Track::removeFirstKey(){
     HIGH_MSG("Erasing key %d:%lu", trackID, keys[0].getNumber());

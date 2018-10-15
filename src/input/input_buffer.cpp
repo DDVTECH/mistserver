@@ -510,7 +510,7 @@ namespace Mist {
             nProxy.curPage.erase(tid);
             bufferLocations[tid].erase(bufferLocations[tid].begin());
           }
-          if (pushLocation.count(it->first)) {
+          if (pushLocation.count(it->first)){
             // \todo Debugger says this is null sometimes. It shouldn't be. Figure out why!
             // For now, this if will prevent crashes in these cases.
             if (pushLocation[it->first]){

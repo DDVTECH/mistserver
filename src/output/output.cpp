@@ -308,7 +308,9 @@ namespace Mist{
   }
  
   bool Output::isReadyForPlay(){
-    if (isPushing()){return true;}
+    static bool recursing = false;
+    if (isPushing() || recursing){return true;}
+    recursing = true;
     if (!isInitialized){initialize();}
     if (!myMeta.tracks.size()){updateMeta();}
     if (myMeta.tracks.size()){
@@ -317,6 +319,7 @@ namespace Mist{
       }
       unsigned int mainTrack = getMainSelectedTrack();
       if (mainTrack && myMeta.tracks.count(mainTrack) && (myMeta.tracks[mainTrack].keys.size() >= 2 || myMeta.tracks[mainTrack].lastms - myMeta.tracks[mainTrack].firstms > 5000)){
+        recursing = false;
         return true;
       }else{
         HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(), getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());
@@ -324,6 +327,7 @@ namespace Mist{
     }else{
       HIGH_MSG("NOT READY YET (%lu tracks)", myMeta.tracks.size());
     }
+    recursing = false;
     return false;
   }
 
@@ -806,11 +810,10 @@ namespace Mist{
     return start;
   }
 
-  ///Return the end time of the selected tracks, or 0 if unknown or live.
+  ///Return the end time of the selected tracks, or 0 if unknown.
   ///Returns the end time of latest track if nothing is selected.
   ///Returns zero if no tracks exist.
   uint64_t Output::endTime(){
-    if (myMeta.live){return 0;}
     if (!myMeta.tracks.size()){return 0;}
     uint64_t end = 0;
     if (selectedTracks.size()){

@@ -12,9 +12,6 @@ namespace Mist {
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
-    if (config->getString("streamname").size()){
-      streamName = config->getString("streamname");
-    }
     config->activate();
   }
 
@@ -245,6 +242,9 @@ namespace Mist {
   
   void HTTPOutput::onRequest(){
     while (H.Read(myConn)){
+      if (H.hasHeader("User-Agent")){
+        UA = H.GetHeader("User-Agent");
+      }
       if (hasSessionIDs()){
         if (H.GetVar("sessId").size()){
           std::string ua = H.GetVar("sessId");
@@ -254,8 +254,8 @@ namespace Mist {
           crc = checksum::crc32(0, ua.data(), ua.size());
         }
       }else{
-        std::string ua = H.GetHeader("User-Agent") + H.GetHeader("X-Playback-Session-Id");
-        crc = checksum::crc32(0, ua.data(), ua.size());
+        std::string mixed_ua = UA + H.GetHeader("X-Playback-Session-Id");
+        crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
       }
 
       INFO_MSG("Received request %s", H.getUrl().c_str());
@@ -327,6 +327,7 @@ namespace Mist {
     DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
     unsigned int prots_ctr = prots.getSize();
     
+    JSON::Value p;//properties of protocol
     for (unsigned int i=0; i < prots_ctr; ++i){
       if (prots.getIndice(i).getMember("connector").asString() == connector) {
         id =  i;
@@ -349,20 +350,21 @@ namespace Mist {
         return;
       }
     }
+    //read options from found connector
+    p = prots.getIndice(id).asJSON();
     
     DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
     //build arguments for starting output process
     
-    std::string temphost=getConnectedHost();
-    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
     
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
-    JSON::Value p = prots.getIndice(id).asJSON();
     JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
     configLock.post();
     configLock.close();
+    std::string temphost=getConnectedHost();
+    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     argarr[argnum++] = (char*)"--ip";
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"--stream";

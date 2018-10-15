@@ -82,13 +82,15 @@ namespace Mist {
       int pageNumForKey(long unsigned int trackId, long long int keyNum);
       int pageNumMax(long unsigned int trackId);
       unsigned int lastStats;///<Time of last sending of stats.
-      long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       std::map<unsigned long, unsigned long> nxtKeyNum;///< Contains the number of the next key, for page seeking purposes.
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
       bool pushing;
+      std::string UA; ///< User Agent string, if known.
+      uint16_t uaDelay;///<Seconds to wait before setting the UA.
       uint64_t lastRecv;
+      long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();
       virtual std::string getStatsName();

@@ -104,7 +104,11 @@ namespace Mist {
       }
       char lineBuf[400];
 
-      snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+      if (sessId.size()){
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n", (double)duration/1000, starttime, starttime + duration, sessId.c_str());
+      }else{
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration/1000, starttime, starttime + duration);
+      }
       durs.push_back(duration);
       total_dur += duration;
       lines.push_back(lineBuf);

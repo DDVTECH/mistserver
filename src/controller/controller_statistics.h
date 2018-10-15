@@ -49,11 +49,7 @@ namespace Controller {
   
   
   class statStorage {
-    private:
-      long long removeUp;
-      long long removeDown;
     public:
-      statStorage();
       void update(IPC::statExchange & data);
       bool hasDataFor(unsigned long long);
       statLog & getDataFor(unsigned long long);
@@ -64,10 +60,14 @@ namespace Controller {
   /// Allows for moving of connections to another session.
   class statSession {
     private:
+      uint64_t firstActive;
       unsigned long long firstSec;
       unsigned long long lastSec;
+      unsigned long long wipedUp;
+      unsigned long long wipedDown;
       std::deque<statStorage> oldConns;
       sessType sessionType;
+      bool tracked;
     public:
       statSession();
       std::map<unsigned long, statStorage> curConns;
@@ -80,6 +80,7 @@ namespace Controller {
       unsigned long long getStart();
       unsigned long long getEnd();
       bool isViewerOn(unsigned long long time);
+      bool isViewer();
       bool hasDataFor(unsigned long long time);
       bool hasData();
       long long getConnTime(unsigned long long time);

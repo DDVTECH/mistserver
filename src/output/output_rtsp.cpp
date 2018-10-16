@@ -189,7 +189,7 @@ namespace Mist{
         source = source.substr(0, loc);
       }
       size_t found = HTTP_R.url.find('/', 7);
-      if (!streamName.size()){
+      if (found != std::string::npos && !streamName.size()){
         streamName = HTTP_R.url.substr(found + 1, HTTP_R.url.substr(found + 1).find('/'));
         Util::sanitizeName(streamName);
       }

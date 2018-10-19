@@ -784,14 +784,21 @@ namespace Mist {
     if (nProxy.isBuffered(track, keyNum)) {
       //get corresponding page number
       int pageNumber = 0;
+      int pageSize = 0;
       for (std::map<unsigned long, DTSCPageData>::iterator it = nProxy.pagesByTrack[track].begin(); it != nProxy.pagesByTrack[track].end(); it++) {
         if (it->first <= keyNum) {
           pageNumber = it->first;
+          pageSize = it->second.keyNum;
         } else {
           break;
         }
       }
       pageCounter[track][pageNumber] = 15;
+      //If we're less than 10% off from the next page, make sure the next is also buffered.
+      if (keyNum+pageSize/10 > pageNumber+pageSize){
+        MEDIUM_MSG("Pre-buffering next page! (%u+%u/10 > %u+%u)", keyNum, pageSize, pageNumber, pageSize);
+        return bufferFrame(track, pageNumber+pageSize+1);
+      }
       VERYHIGH_MSG("Track %u, key %u is already buffered in page %d. Cancelling bufferFrame", track, keyNum, pageNumber);
       return true;
     }

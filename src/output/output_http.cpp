@@ -267,6 +267,28 @@ namespace Mist {
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
       if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
+      if (H.GetVar("start") != ""){targetParams["start"] = H.GetVar("start");}
+      if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
+      if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
+      if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
+      //allow setting of play back rate through buffer variable.
+      //play back rate is set in MS per second, but the variable is a simple multiplier.
+      if (H.GetVar("rate") != ""){
+        long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
+        if (multiplier){
+          realTime = 1000 / multiplier;
+        }else{
+          realTime = 0;
+        }
+      }
+      if (H.GetHeader("X-Mist-Rate") != ""){
+        long long int multiplier = JSON::Value(H.GetHeader("X-Mist-Rate")).asInt();
+        if (multiplier){
+          realTime = 1000 / multiplier;
+        }else{
+          realTime = 0;
+        }
+      }
       //Handle upgrade to websocket if the output supports it
       if (doesWebsockets() && H.GetHeader("Upgrade") == "websocket"){
         INFO_MSG("Switching to Websocket mode");

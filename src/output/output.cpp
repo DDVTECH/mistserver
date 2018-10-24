@@ -105,6 +105,14 @@ namespace Mist{
         INFO_MSG("Not modifying target (%s), no options present", tgt.c_str());
       }
     }
+    if (targetParams.count("rate")){
+      long long int multiplier = JSON::Value(targetParams["rate"]).asInt();
+      if (multiplier){
+        realTime = 1000 / multiplier;
+      }else{
+        realTime = 0;
+      }
+    }
     /*LTS-END*/
   }
 
@@ -994,7 +1002,7 @@ namespace Mist{
     } 
     /*LTS-START*/
     if (isRecordingToFile){
-      if (myMeta.live && targetParams.count("recstartunix") || targetParams.count("recstopunix")){
+      if (myMeta.live && (targetParams.count("recstartunix") || targetParams.count("recstopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
         if (targetParams.count("recstartunix")){
           long long startUnix = atoll(targetParams["recstartunix"].c_str());
@@ -1052,6 +1060,69 @@ namespace Mist{
           startRec = startTime();
         }
         INFO_MSG("Recording will start at %lld", startRec);
+        seekPos = startRec;
+      }
+    }else{
+      if (myMeta.live && (targetParams.count("startunix") || targetParams.count("stopunix"))){
+        uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
+        if (targetParams.count("startunix")){
+          long long startUnix = atoll(targetParams["startunix"].c_str());
+          if (startUnix < 0){startUnix += Util::epoch();}
+          if (startUnix < unixStreamBegin){
+            WARN_MSG("Start time is earlier than stream begin - starting earliest possible");
+            targetParams["start"] = "-1";
+          }else{
+            targetParams["start"] = JSON::Value((long long)((startUnix - unixStreamBegin)*1000)).asString();
+          }
+        }
+        if (targetParams.count("stopunix")){
+          long long stopUnix = atoll(targetParams["stopunix"].c_str());
+          if (stopUnix < 0){stopUnix += Util::epoch();}
+          if (stopUnix < unixStreamBegin){
+            FAIL_MSG("Stop time is earlier than stream begin - aborting");
+            onFail();
+            return;
+          }else{
+            targetParams["stop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
+          }
+        }
+      }
+      if (targetParams.count("stop")){
+        long long endRec = atoll(targetParams["stop"].c_str());
+        if (endRec < 0 || endRec < startTime()){
+          FAIL_MSG("Entire range is in the past");
+          onFail();
+          return;
+        }
+        INFO_MSG("Playback will stop at %lld", endRec);
+      }
+      if (targetParams.count("start") && atoll(targetParams["start"].c_str()) != 0){
+        unsigned long int mainTrack = getMainSelectedTrack();
+        long long startRec = atoll(targetParams["start"].c_str());
+        if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
+          if (myMeta.vod){
+            FAIL_MSG("Playback start past end of non-live source");
+            onFail();
+            return;
+          }
+          INFO_MSG("Waiting for stream to reach playback starting point");
+          long unsigned int streamAvail = myMeta.tracks[mainTrack].lastms;
+          long unsigned int lastUpdated = Util::getMS();
+          while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
+            Util::sleep(500);
+            updateMeta();
+            if (myMeta.tracks[mainTrack].lastms > streamAvail){
+              stats();
+              streamAvail = myMeta.tracks[mainTrack].lastms;
+              lastUpdated = Util::getMS();
+            }
+          }
+        }
+        if (startRec < 0 || startRec < startTime()){
+          WARN_MSG("Playback begin at %llu ms not available, starting at %llu ms instead", startRec, startTime());
+          startRec = startTime();
+        }
+        INFO_MSG("Playback will start at %lld", startRec);
         seekPos = startRec;
       }
     }
@@ -1241,6 +1312,11 @@ namespace Mist{
             
             if (isRecordingToFile && targetParams.count("recstop") && atoll(targetParams["recstop"].c_str()) < lastPacketTime){
               INFO_MSG("End of planned recording reached, shutting down");
+              if (!onFinish()){
+                break;
+              }
+            }else if (targetParams.count("stop") && atoll(targetParams["stop"].c_str()) < lastPacketTime){
+              INFO_MSG("End of planned playback reached, shutting down");
               if (!onFinish()){
                 break;
               }

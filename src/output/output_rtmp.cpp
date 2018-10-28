@@ -692,7 +692,7 @@ namespace Mist{
         amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Publish.Rejected"));
         amfReply.getContentP(3)->addContent(AMF::Object("description", "Publish rejected: this interface does not allow publishing"));
         sendCommand(amfReply, messageType, streamId);
-        FAIL_MSG("Push from %s rejected - connector configured to only allow outgoing streams", getConnectedHost().c_str());
+        INFO_MSG("Push from %s rejected - connector configured to only allow outgoing streams", getConnectedHost().c_str());
         onFinish();
         return;
       }
@@ -812,7 +812,7 @@ namespace Mist{
         amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Rejected"));
         amfReply.getContentP(3)->addContent(AMF::Object("description", "Play rejected: this interface does not allow playback"));
         sendCommand(amfReply, messageType, streamId);
-        FAIL_MSG("Play of %s by %s rejected - connector configured to only allow incoming streams", streamName.c_str(), getConnectedHost().c_str());
+        INFO_MSG("Play of %s by %s rejected - connector configured to only allow incoming streams", streamName.c_str(), getConnectedHost().c_str());
         onFinish();
         return;
       }

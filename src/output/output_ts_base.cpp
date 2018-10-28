@@ -1,4 +1,5 @@
 #include "output_ts_base.h"
+#include <mist/bitfields.h>
 
 namespace Mist {
   TSOutput::TSOutput(Socket::Connection & conn) : TS_BASECLASS(conn){
@@ -47,7 +48,7 @@ namespace Mist {
         }
       }
       
-      int tmp = packData.fillFree(data, dataLen);
+      size_t tmp = packData.fillFree(data, dataLen);
       data += tmp;
       dataLen -= tmp;
     } while(dataLen);
@@ -66,8 +67,9 @@ namespace Mist {
     firstPack = true;
 
     char * dataPointer = 0;
-    unsigned int dataLen = 0;
-    thisPacket.getString("data", dataPointer, dataLen); //data
+    unsigned int tmpDataLen = 0;
+    thisPacket.getString("data", dataPointer, tmpDataLen); //data
+    uint64_t dataLen = tmpDataLen;
     //apple compatibility timestamp correction
     if (appleCompat){
       packTime -= ts_from;
@@ -105,7 +107,7 @@ namespace Mist {
         unsigned int watKunnenWeIn1Ding = 65490-13;
         unsigned int splitCount = (dataLen+extraSize) / watKunnenWeIn1Ding;
         unsigned int currPack = 0;
-        unsigned int ThisNaluSize = 0;
+        uint64_t ThisNaluSize = 0;
         unsigned int i = 0;
         unsigned int nalLead = 0;
         uint64_t offset = thisPacket.getInt("offset") * 90;
@@ -147,9 +149,9 @@ namespace Mist {
               nalLead = 0;
             }
             if (!ThisNaluSize){
-              ThisNaluSize = (dataPointer[i] << 24) + (dataPointer[i+1] << 16) + (dataPointer[i+2] << 8) + dataPointer[i+3];
-              if (ThisNaluSize + i + 4 > (unsigned int)dataLen){
-                DEBUG_MSG(DLVL_WARN, "Too big NALU detected (%u > %d) - skipping!", ThisNaluSize + i + 4, dataLen);
+              ThisNaluSize = Bit::btohl(dataPointer + i);
+              if (ThisNaluSize + i + 4 > dataLen){
+                WARN_MSG("Too big NALU detected (%" PRIu64 " > %" PRIu64 ") - skipping!", ThisNaluSize + i + 4, dataLen);
                 break;
               }
               if (alreadySent + 4 > watKunnenWeIn1Ding){

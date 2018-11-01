@@ -132,8 +132,8 @@ namespace TS{
     int tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
     std::deque<Packet> & PS = pesStreams[tid];
-    if ((pidToCodec.count(tid) || tid == 0 || newPack.isPMT()) &&
-        (unitStart || PS.size())){
+    if ((unitStart || PS.size()) &&
+        (tid == 0 || newPack.isPMT() || pidToCodec.count(tid))){
       PS.push_back(newPack);
       if (unitStart){
         pesPositions[tid].push_back(bytePos);
@@ -667,13 +667,16 @@ namespace TS{
         return;
       }
 
-      while (nextPtr < pesEnd){
+      uint32_t nalno = 0;
+      //We only check the first 8 packets, because keys should always be near the front of a PES.
+      while (nextPtr < pesEnd && nalno < 8){
         if (!nextPtr){nextPtr = pesEnd;}
         //Calculate size of NAL unit, removing null bytes from the end
         nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
 
         // Check if this is a keyframe
         parseNal(tid, pesPayload, nextPtr, isKeyFrame);
+        ++nalno;
 
         if (((nextPtr - pesPayload) + 3) >= realPayloadSize){break;}//end of the loop
         realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size

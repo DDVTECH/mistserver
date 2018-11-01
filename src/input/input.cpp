@@ -231,41 +231,77 @@ namespace Mist {
     }
 
     IPC::semaphore playerLock;
-    if (needsLock() && streamName.size()){
-      char semName[NAME_BUFFER_SIZE];
-      snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
-      playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!playerLock.tryWait()){
-        DEBUG_MSG(DLVL_DEVEL, "A player for stream %s is already running", streamName.c_str());
-        return 1;
+    IPC::semaphore pullLock;
+
+    //If we're not converting, we might need a lock.
+    if (streamName.size()){
+      if (needsLock()){
+        //needsLock() == true means this input is the sole responsible input for a stream
+        //That means it's MistInBuffer for live, or the actual input binary for VoD
+        //For these cases, we lock the SEM_INPUT semaphore.
+        char semName[NAME_BUFFER_SIZE];
+        snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
+        playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+        if (!playerLock.tryWait()){
+          INFO_MSG("A player for stream %s is already running", streamName.c_str());
+          playerLock.close();
+          return 1;
+        }
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, true, false);
+        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
+        streamStatus.master = false;
+        streamStatus.close();
+      }else{
+        //needsLock() == false means this binary will itself start the sole responsible input
+        //So, we definitely do NOT lock SEM_INPUT, since the child process will do that later.
+        //However, most of these processes are singular, meaning they expect to be the only source of data.
+        //To prevent multiple singular processes starting, we use the MstPull semaphore if this input
+        //is indeed a singular input type.
+        if (isSingular()){
+          pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
+          if (!pullLock){
+            FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
+            return 1;
+          }
+          if (!pullLock.tryWait()){
+            WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
+            pullLock.close();
+            return 1;
+          }
+        }
       }
-      char pageName[NAME_BUFFER_SIZE];
-      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-      streamStatus.init(pageName, 1, true, false);
-      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
-      streamStatus.master = false;
-      streamStatus.close();
     }
+
     config->activate();
     uint64_t reTimer = 0;
     while (config->is_active){
       pid_t pid = fork();
       if (pid == 0){
-        //Re-init streamStatus, previously closed
-        char pageName[NAME_BUFFER_SIZE];
-        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
-        streamStatus.master = false;
-        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
-        if (needsLock()){playerLock.close();}
+        if (playerLock){
+          //Re-init streamStatus, previously closed
+          char pageName[NAME_BUFFER_SIZE];
+          snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+          streamStatus.init(pageName, 1, true, false);
+          streamStatus.master = false;
+          if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
+        }
+        //Abandon all semaphores, ye who enter here.
+        playerLock.abandon();
+        pullLock.abandon();
         if (!preRun()){return 0;}
         return run();
       }
       if (pid == -1){
         FAIL_MSG("Unable to spawn input process");
-        if (needsLock()){playerLock.post();}
+        //We failed. Release the kra... semaphores!
+        //post() contains an is-open check already, no need to double-check.
+        playerLock.unlink();
+        pullLock.unlink();
         return 2;
       }
+      HIGH_MSG("Waiting for child for stream %s", streamName.c_str());
       //wait for the process to exit
       int status;
       while (waitpid(pid, &status, 0) != pid && errno == EINTR){
@@ -275,35 +311,38 @@ namespace Mist {
         }
         continue;
       }
+      HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       //if the exit was clean, don't restart it
       if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
         INFO_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
-      char pageName[NAME_BUFFER_SIZE];
-      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-      streamStatus.init(pageName, 1, true, false);
-      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
+      if (playerLock){
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, true, false);
+        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
+      }
 #if DEBUG >= DLVL_DEVEL
-      WARN_MSG("Aborting autoclean; this is a development build.");
-      INFO_MSG("Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
+      WARN_MSG("Input for stream %s uncleanly shut down! Aborting restart; this is a development build.", streamName.c_str());
       break;
 #else
+      WARN_MSG("Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       onCrash();
-      INFO_MSG("Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
       Util::wait(reTimer);
       reTimer += 1000;
 #endif
     }
-    if (needsLock()){
-      playerLock.post();
+    
+    if (playerLock){
       playerLock.unlink();
-      playerLock.close();
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+      streamStatus.init(pageName, 1, true, false);
+      streamStatus.close();
     }
-    char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-    streamStatus.init(pageName, 1, true, false);
-    streamStatus.close();
+    pullLock.unlink();
+
     HIGH_MSG("Angel process for %s exiting", streamName.c_str());
     return 0;
   }
@@ -329,27 +368,19 @@ namespace Mist {
     }
 
     if (!streamName.size()) {
+      //If we don't have a stream name, that means we're in stand-alone conversion mode.
       MEDIUM_MSG("Starting convert");
       convert();
     } else if (!needsLock()) {
+      //We have a name and aren't the sole process. That means we're streaming live data to a buffer.
       MEDIUM_MSG("Starting stream");
       stream();
     }else{
+      //We are the sole process and have a name. That means this is a Buffer or VoD input.
       MEDIUM_MSG("Starting serve");
       serve();
     }
     return 0;
-  }
-
-  /// Default crash handler, cleans up Pull semaphore on crashes
-  void Input::onCrash(){
-    if (streamName.size() && !needsLock()) {
-      //we have a Pull semaphore to clean up, do it
-      IPC::semaphore pullLock;
-      pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      pullLock.close();
-      pullLock.unlink();
-    }
   }
 
   void Input::convert() {
@@ -433,7 +464,7 @@ namespace Mist {
     /*LTS-END*/
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_READY;}
 
-    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s started", streamName.c_str());
+    INFO_MSG("Input for stream %s started", streamName.c_str());
     activityCounter = Util::bootSecs();
     //main serve loop
     while (keepRunning()) {
@@ -458,7 +489,7 @@ namespace Mist {
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
     config->is_active = false;
     finish();
-    DEBUG_MSG(DLVL_DEVEL, "Input for stream %s closing clean", streamName.c_str());
+    INFO_MSG("Input for stream %s closing clean", streamName.c_str());
     userPage.finishEach();
     //end player functionality
   }
@@ -502,27 +533,10 @@ namespace Mist {
   /// - if there are tracks, register as a non-viewer on the user page of the buffer
   /// - call getNext() in a loop, buffering packets
   void Input::stream(){
-    IPC::semaphore pullLock;
-    if(isSingular()){
-      pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (!pullLock){
-        FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
-        return;
-      }
-      
-      if (!pullLock.tryWait()){
-        WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
-        pullLock.close();
-        return;
-      }
-
-      if (Util::streamAlive(streamName)){
-        pullLock.post();
-        pullLock.close();
-        pullLock.unlink();
-        WARN_MSG("Stream already online, cancelling");
-        return;
-      }
+   
+    if (Util::streamAlive(streamName)){
+      WARN_MSG("Stream already online, cancelling");
+      return;
     }
 
     std::map<std::string, std::string> overrides;
@@ -532,11 +546,6 @@ namespace Mist {
     }
 
     if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
-      if(isSingular()){
-        pullLock.post();
-        pullLock.close();
-        pullLock.unlink();
-      }
       WARN_MSG("Could not start buffer, cancelling");
       return;
     }
@@ -546,10 +555,6 @@ namespace Mist {
 
     if (!openStreamSource()){
       FAIL_MSG("Unable to connect to source");
-      if(isSingular()){
-        pullLock.post();
-        pullLock.close();
-      }
       return;
     }
 
@@ -563,11 +568,6 @@ namespace Mist {
     if (myMeta.tracks.size() == 0){
       nProxy.userClient.finish();
       finish();
-      if(isSingular()){
-        pullLock.post();
-        pullLock.close();
-        pullLock.unlink();
-      }
       INFO_MSG("No tracks found, cancelling");
       return;
     }
@@ -584,11 +584,6 @@ namespace Mist {
 
     nProxy.userClient.finish();
     finish();
-    if(isSingular()){
-      pullLock.post();
-      pullLock.close();
-      pullLock.unlink();
-    }
     INFO_MSG("Stream input %s closing clean; reason: %s", streamName.c_str(), reason.c_str());
     return;
   }

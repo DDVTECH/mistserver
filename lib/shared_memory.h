@@ -76,6 +76,7 @@ namespace IPC {
       bool tryWait();
       bool tryWaitOneSecond();
       void close();
+      void abandon();
       void unlink();
     private:
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -85,6 +86,7 @@ namespace IPC {
 #else
       sem_t * mySem;
 #endif
+      bool isLocked;
       std::string myName;
   };
 

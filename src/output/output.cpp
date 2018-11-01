@@ -1061,7 +1061,7 @@ namespace Mist{
     }
 
     //when live, every keyframe, check correctness of the keyframe number
-    if (myMeta.live && thisPacket.getFlag("keyframe")){
+    if (thisPacket.getFlag("keyframe")){
       //cancel if not alive
       if (!nProxy.userClient.isAlive()){
         return false;
@@ -1070,7 +1070,7 @@ namespace Mist{
       //Failure here will cause tracks to drop due to inconsistent internal state.
       nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
       int counter = 0;
-      while(counter < 40 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
+      while(myMeta.live && counter < 40 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
         if (counter++){
           //Only sleep 250ms if this is not the first updatemeta try
           Util::wait(250);

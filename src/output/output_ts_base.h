@@ -25,8 +25,6 @@ namespace Mist {
       int contSDT;
       unsigned int packCounter; ///\todo update constructors?
       TS::Packet packData;
-      bool haveAvcc;
-      MP4::AVCC avccbox;
       bool appleCompat;
       uint64_t sendRepeatingHeaders; ///< Amount of ms between PAT/PMT. Zero means do not repeat.
       uint64_t lastHeaderTime; ///< Timestamp last PAT/PMT were sent.

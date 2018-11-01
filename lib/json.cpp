@@ -991,6 +991,20 @@ std::string JSON::Value::toPacked() const {
     r += (char)0x0;
     r += (char)0xEE;
   }
+  // Note: Will output integers for doubles.
+  // This is intentional, as DTSC packets cannot contain doubles.
+  if (isDouble()){
+    r += 0x01;
+    uint64_t numval = intVal;
+    r += *(((char *)&numval) + 7);
+    r += *(((char *)&numval) + 6);
+    r += *(((char *)&numval) + 5);
+    r += *(((char *)&numval) + 4);
+    r += *(((char *)&numval) + 3);
+    r += *(((char *)&numval) + 2);
+    r += *(((char *)&numval) + 1);
+    r += *(((char *)&numval));
+  }
   return r;
 }
 //toPacked

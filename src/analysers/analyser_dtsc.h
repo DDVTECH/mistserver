@@ -8,6 +8,7 @@ public:
   static void init(Util::Config &conf);
 
 private:
+  bool headLess;
   DTSC::Packet P;
   Socket::Connection conn;
   uint64_t totalBytes;

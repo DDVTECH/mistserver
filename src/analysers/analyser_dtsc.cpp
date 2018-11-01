@@ -4,14 +4,30 @@
 
 void AnalyserDTSC::init(Util::Config &conf){
   Analyser::init(conf);
+  JSON::Value opt;
+  opt["long"] = "headless";
+  opt["short"] = "H";
+  opt["help"] = "Parse entire file or streams as a single headless DTSC packet";
+  conf.addOption("headless", opt);
+  opt.null();
 }
 
 AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
   conn = Socket::Connection(0, fileno(stdin));
   totalBytes = 0;
+  headLess = conf.getBool("headless");
 }
 
 bool AnalyserDTSC::parsePacket(){
+  if (headLess){
+    while (conn){
+      if (!conn.spool()){Util::sleep(50);}
+    }
+    std::string dataBuf = conn.Received().remove(conn.Received().bytes(0xFFFFFFFFul));
+    DTSC::Scan S((char*)dataBuf.data(), dataBuf.size());
+    std::cout << S.toPrettyString() << std::endl;
+    return false;
+  }
   P.reInit(conn);
   if (conn && !P){
     FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes)

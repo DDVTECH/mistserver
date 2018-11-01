@@ -20,7 +20,7 @@ namespace Mist {
     public:
       Input(Util::Config * cfg);
       virtual int run();
-      virtual void onCrash();
+      virtual void onCrash(){}
       virtual int boot(int argc, char * argv[]);
       virtual ~Input() {};
 

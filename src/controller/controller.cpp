@@ -83,7 +83,8 @@ void statusMonitor(void *np){
         WARN_MSG("Configuration semaphore was stuck. Force-unlocking it and re-writing config.");
         changed = true;
       }
-      configLock.post();
+      configLock.unlink();
+      configLock.open(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (changed || Controller::configChanged){
         Controller::writeConfig();
         Controller::configChanged = false;

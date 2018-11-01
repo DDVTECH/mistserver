@@ -93,6 +93,7 @@ namespace IPC {
 #else
     mySem = SEM_FAILED;
 #endif
+    isLocked = false;
   }
 
   ///\brief Constructs a named semaphore
@@ -106,6 +107,7 @@ namespace IPC {
 #else
     mySem = SEM_FAILED;
 #endif
+    isLocked = false;
     open(name, oflag, mode, value, noWait);
   }
 
@@ -178,9 +180,9 @@ namespace IPC {
       }
 #endif
     }
-    if (!(*this)) {
+    if (*this) {
+      myName = (char *)name;
     }
-    myName = (char *)name;
   }
 
   ///\brief Returns the current value of the semaphore
@@ -197,12 +199,20 @@ namespace IPC {
 
   ///\brief Posts to the semaphore, increases its value by one
   void semaphore::post() {
+    if (!*this || !isLocked){
+      FAIL_MSG("Attempted to unlock a non-locked semaphore: '%s'!", myName.c_str());
+#if DEBUG >= DLVL_DEVEL
+      BACKTRACE;
+#endif
+      return;
+    }
     if (*this) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       ReleaseMutex(mySem);
 #else
       sem_post(mySem);
 #endif
+      isLocked = false;
     }
   }
 
@@ -217,6 +227,7 @@ namespace IPC {
         tmp = sem_wait(mySem);
       } while (tmp == -1 && errno == EINTR);
 #endif
+      isLocked = true;
     }
   }
 
@@ -235,7 +246,7 @@ namespace IPC {
       result = sem_trywait(mySem);
     } while (result == -1 && errno == EINTR);
 #endif
-    return (result == 0);
+    return isLocked = (result == 0);
   }
 
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false otherwise
@@ -254,6 +265,7 @@ namespace IPC {
     long long unsigned int timeout = now + 1e6;
     while (now < timeout) {
       if (0 == sem_trywait(mySem)) {
+        isLocked = true;
         return true;
       }
       usleep(100e3);
@@ -266,11 +278,27 @@ namespace IPC {
     wt.tv_nsec = 0;
     result = sem_timedwait(mySem, &wt);
 #endif
-    return (result == 0);
+    return isLocked = (result == 0);
   }
 
   ///\brief Closes the currently opened semaphore
   void semaphore::close() {
+    if (*this) {
+      if (isLocked){post();}
+#if defined(__CYGWIN__) || defined(_WIN32)
+      CloseHandle(mySem);
+      mySem = 0;
+#else
+      sem_close(mySem);
+      mySem = SEM_FAILED;
+#endif
+    }
+    myName.clear();
+  }
+
+  /// Closes the semaphore, without unlocking it first.
+  /// Intended to be called from forked child processes, to drop the reference to the semaphore.
+  void semaphore::abandon() {
     if (*this) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       CloseHandle(mySem);
@@ -280,19 +308,28 @@ namespace IPC {
       mySem = SEM_FAILED;
 #endif
     }
-  }
-
-  ///\brief Unlinks the previously opened semaphore
-  void semaphore::unlink() {
-    close();
-#if !defined(__CYGWIN__) && !defined(_WIN32)
-    if (myName.size()) {
-      sem_unlink(myName.c_str());
-    }
-#endif
     myName.clear();
   }
 
+  /// Unlinks the previously opened semaphore, closing it (if open) in the process.
+  void semaphore::unlink() {
+#if defined(__CYGWIN__) || defined(_WIN32)
+    if (isLocked){post();}
+#endif
+#if !defined(__CYGWIN__) && !defined(_WIN32)
+    if (myName.size()){sem_unlink(myName.c_str());}
+#endif
+    if (*this) {
+#if defined(__CYGWIN__) || defined(_WIN32)
+      CloseHandle(mySem);
+      mySem = 0;
+#else
+      sem_close(mySem);
+      mySem = SEM_FAILED;
+#endif
+    }
+    myName.clear();
+  }
 
 #if defined(__CYGWIN__) || defined(_WIN32)
   SECURITY_ATTRIBUTES semaphore::getSecurityAttributes() {
@@ -368,7 +405,7 @@ namespace IPC {
 
   ///\brief Unmaps a shared page if allowed
   void sharedPage::unmap() {
-    if (mapped && len) {
+    if (mapped) {
 #if defined(__CYGWIN__) || defined(_WIN32)
       //under Cygwin, the mapped location is shifted by 4 to contain the page size.
       UnmapViewOfFile(mapped - 4);
@@ -795,26 +832,19 @@ namespace IPC {
     baseName = "/" + name;
     payLen = len;
     hasCounter = withCounter;
-    mySemaphore.open(baseName.c_str(), O_CREAT | O_EXCL | O_RDWR, ACCESSPERMS, 1);
-    if (!mySemaphore) {
-      mySemaphore.open(baseName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    }
+    mySemaphore.open(baseName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
     if (!mySemaphore) {
       DEBUG_MSG(DLVL_FAIL, "Creating semaphore failed: %s", strerror(errno));
       return;
+    }else{
+      semGuard tmpGuard(&mySemaphore);
+      amount = 0;
+      newPage();
     }
-    if (!mySemaphore.tryWaitOneSecond()){
-      WARN_MSG("Force unlocking sharedServer semaphore to prevent deadlock");
-    }
-    mySemaphore.post();
-    semGuard tmpGuard(&mySemaphore);
-    amount = 0;
-    newPage();
   }
 
   ///\brief The deconstructor
   sharedServer::~sharedServer() {
-    mySemaphore.close();
     mySemaphore.unlink();
   }
 
@@ -1251,7 +1281,7 @@ namespace IPC {
     if (!hasCounter) {
       return (myPage.mapped != 0);
     }
-    if (myPage.mapped){
+    if (myPage.mapped && offsetOnPage >= 0){
       return (myPage.mapped[offsetOnPage] & 0x7F) < 60;
     }
     return false;

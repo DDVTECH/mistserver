@@ -401,7 +401,7 @@ void Util::Config::activate() {
   struct sigaction cur_action;
   new_action.sa_sigaction = signal_handler;
   sigemptyset(&new_action.sa_mask);
-  new_action.sa_flags = 0;
+  new_action.sa_flags = SA_SIGINFO;
   sigaction(SIGINT, &new_action, NULL);
   sigaction(SIGHUP, &new_action, NULL);
   sigaction(SIGTERM, &new_action, NULL);
@@ -423,6 +423,10 @@ void Util::Config::signal_handler(int signum, siginfo_t * sigInfo, void * ignore
     case SIGHUP:
     case SIGTERM:
       if (serv_sock_pointer){serv_sock_pointer->close();}
+#if DEBUG >= DLVL_DEVEL
+      static int ctr = 0;
+      if (!is_active && ++ctr > 4){BACKTRACE;}
+#endif
       is_active = false;
     default:
       switch (sigInfo->si_code){

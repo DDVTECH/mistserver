@@ -463,7 +463,7 @@ namespace Mist {
       }
       //Track is set to "New track request", assign new track id and create shared memory page
       //This indicates that the 'current key' part of the element is set to contain the original track id from the pushing process
-      if (value & 0x80000000) {
+      if (config->is_active && (value & 0x80000000)) {
         if (value & 0x40000000) {
           unsigned long finalMap = value & ~0xC0000000;
           //Register the new track as an active track.
@@ -480,9 +480,15 @@ namespace Mist {
 
             char tempMetaName[NAME_BUFFER_SIZE];
             snprintf(tempMetaName, NAME_BUFFER_SIZE, SHM_TRACK_META, config->getString("streamname").c_str(), finalMap);
-            tMeta.init(tempMetaName, 8388608, false);
+            tMeta.init(tempMetaName, 8388608, false, false);
+            if (!tMeta){continue;}//abort for now if page doesn't exist yet
 
-            //The page exist, now we try to read in the metadata of the track
+            char firstPage[NAME_BUFFER_SIZE];
+            snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), finalMap);
+            nProxy.metaPages[finalMap].init(firstPage, SHM_TRACK_INDEX_SIZE, false, false);
+            if (!nProxy.metaPages[finalMap]){continue;}//abort for now if page doesn't exist yet
+
+            //The pages exist, now we try to read in the metadata of the track
 
             //Store the size of the dtsc packet to read.
             unsigned int len = ntohl(((int *)tMeta.mapped)[1]);
@@ -504,11 +510,6 @@ namespace Mist {
 
             userConn.setTrackId(index, finalMap);
             userConn.setKeynum(index, 0x0000);
-
-
-            char firstPage[NAME_BUFFER_SIZE];
-            snprintf(firstPage, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, config->getString("streamname").c_str(), finalMap);
-            nProxy.metaPages[finalMap].init(firstPage, SHM_TRACK_INDEX_SIZE, false);
 
             //Update the metadata for this track
             updateTrackMeta(finalMap);
@@ -536,7 +537,7 @@ namespace Mist {
       }
 
       //The track id is set to the value of a track that we are currently negotiating about
-      if (negotiatingTracks.count(value)) {
+      if (config->is_active && negotiatingTracks.count(value)) {
         //If the metadata page for this track is not yet registered, initialize it
         if (!nProxy.metaPages.count(value) || !nProxy.metaPages[value].mapped) {
           char tempMetaName[NAME_BUFFER_SIZE];
@@ -740,7 +741,10 @@ namespace Mist {
     strName = strName.substr(0, (strName.find_first_of("+ ")));
     IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
     IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
+    if (!configLock.tryWaitOneSecond()){
+      INFO_MSG("Aborting stream config refresh: locking took longer than expected");
+      return false;
+    }
     DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
     long long tmpNum;
 
@@ -783,8 +787,6 @@ namespace Mist {
       resumeMode = tmpNum;
     }
 
-    configLock.post();
-    configLock.close();
     return true;
   }
 

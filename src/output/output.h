@@ -76,6 +76,7 @@ namespace Mist {
       virtual void onFail();
       virtual void requestHandler();
       static Util::Config * config;
+      void playbackSleep(uint64_t millis);
     private://these *should* not be messed with in child classes.
       std::map<unsigned long, unsigned int> currKeyOpen;
       void loadPageForKey(long unsigned int trackId, long long int keyNum);
@@ -90,6 +91,7 @@ namespace Mist {
       std::string UA; ///< User Agent string, if known.
       uint16_t uaDelay;///<Seconds to wait before setting the UA.
       uint64_t lastRecv;
+      uint64_t extraKeepAway;
       long long unsigned int firstTime;///< Time of first packet after last seek. Used for real-time sending.
       virtual std::string getConnectedHost();
       virtual std::string getConnectedBinHost();

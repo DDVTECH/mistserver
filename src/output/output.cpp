@@ -75,6 +75,7 @@ namespace Mist{
     isInitialized = false;
     isBlocking = false;
     needsLookAhead = 0;
+    extraKeepAway = 0;
     lastStats = 0;
     maxSkipAhead = 7500;
     uaDelay = 10;
@@ -758,7 +759,7 @@ namespace Mist{
         nxtKeyNum[trackId] = 0;
       }
       stats(true);
-      Util::wait(100);
+      playbackSleep(100);
       pageNum = pageNumForKey(trackId, keyNum);
     }
     
@@ -988,7 +989,7 @@ namespace Mist{
             continue;
           }//ignore missing tracks
           DTSC::Track & thisTrack = myMeta.tracks[*ti];
-          if (thisTrack.lastms < seekPos+needsLookAhead+thisTrack.minKeepAway){good = false; break;}
+          if (thisTrack.lastms < seekPos+needsLookAhead+extraKeepAway+thisTrack.minKeepAway){good = false; break;}
           if (mainTrack == *ti){continue;}//skip self
           if (thisTrack.lastms == thisTrack.firstms){
             HIGH_MSG("Skipping track %lu, last equals first", *ti);
@@ -1143,7 +1144,6 @@ namespace Mist{
     if (!myMeta.tracks.count(mainTrack)){return false;}
     DTSC::Track & mainTrk = myMeta.tracks[mainTrack];
     if (!mainTrk.keys.size()){return false;}
-    uint32_t minKeepAway = mainTrk.minKeepAway;
 
     for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin(); it != myMeta.tracks[mainTrack].keys.rend(); ++it){
       seekPos = it->getTime();
@@ -1157,7 +1157,7 @@ namespace Mist{
           continue;
         }//ignore missing tracks
         DTSC::Track & thisTrack = myMeta.tracks[*ti];
-        if (thisTrack.lastms < seekPos+needsLookAhead+thisTrack.minKeepAway){good = false; break;}
+        if (thisTrack.lastms < seekPos+needsLookAhead+extraKeepAway+thisTrack.minKeepAway){good = false; break;}
         if (mainTrack == *ti){continue;}//skip self
         if (thisTrack.lastms == thisTrack.firstms){
           HIGH_MSG("Skipping track %lu, last equals first", *ti);
@@ -1167,7 +1167,7 @@ namespace Mist{
       }
       //if yes, seek here
       if (good){
-        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA, > %lums)", seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway, seekCount*250);
+        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA, %lu eKA, > %lums)", seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway, extraKeepAway, seekCount*250);
         if (seekCount < 20){++seekCount;}
         seek(seekPos);
         return true;
@@ -1193,6 +1193,16 @@ namespace Mist{
         }
       }
     }
+  }
+
+  /// Waits for the given amount of millis, increasing the realtime playback
+  /// related times as needed to keep smooth playback intact.
+  void Output::playbackSleep(uint64_t millis){
+    if (realTime){
+      firstTime += millis;
+      extraKeepAway += millis;
+    }
+    Util::wait(millis);
   }
  
   /// \triggers 
@@ -1287,7 +1297,8 @@ namespace Mist{
               uint32_t sleepTime = std::min((uint32_t)250, needsLookAhead);
               //wait at most double the look ahead time, plus ten seconds
               uint32_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000/sleepTime);
-              uint64_t needsTime = thisPacket.getTime() + needsLookAhead; 
+              uint64_t needsTime = thisPacket.getTime() + needsLookAhead;
+              bool firstTime = true;
               while(--timeoutTries && keepGoing()){
                 bool lookReady = true;
                 for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -1300,7 +1311,11 @@ namespace Mist{
                   }
                 }
                 if (lookReady){break;}
-                Util::wait(sleepTime);
+                if (firstTime){
+                  firstTime = false;
+                }else{
+                  playbackSleep(sleepTime);
+                }
                 stats();
                 updateMeta();
               }
@@ -1501,7 +1516,7 @@ namespace Mist{
       //VoD might be slow, so we check VoD case also, just in case
       if (currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
         if (++emptyCount < 100){
-          Util::wait(250);
+          playbackSleep(250);
           //we're waiting for new data to show up
           if (emptyCount % 64 == 0){
             reconnect();//reconnect every 16 seconds
@@ -1588,7 +1603,7 @@ namespace Mist{
       while(myMeta.live && counter < 40 && myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
         if (counter++){
           //Only sleep 250ms if this is not the first updatemeta try
-          Util::wait(250);
+          playbackSleep(250);
         }
         updateMeta();
         nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());

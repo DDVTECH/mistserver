@@ -1580,9 +1580,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
 #if !defined(__CYGWIN__) && !defined(_WIN32)
   {
     struct statvfs shmd;
-    IPC::sharedPage tmpConf(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false);
-    if (tmpConf.mapped && tmpConf.handle){
-      fstatvfs(tmpConf.handle, &shmd);
+    IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
+    if (tmpCapa.mapped && tmpCapa.handle){
+      fstatvfs(tmpCapa.handle, &shmd);
       shm_free = (shmd.f_bfree*shmd.f_frsize)/1024;
       shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
     }

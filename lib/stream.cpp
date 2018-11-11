@@ -129,20 +129,17 @@ JSON::Value Util::getStreamConfig(const std::string & streamname){
     FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(), streamname.size());
     return result;
   }
-  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false);
-  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-  configLock.wait();
-  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
   std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
-  //check if smp (everything before + or space) exists
-  DTSC::Scan stream_cfg = config.getMember("streams").getMember(smp);
+
+  char tmpBuf[NAME_BUFFER_SIZE];
+  snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, smp.c_str());
+  Util::DTSCShmReader rStrmConf(tmpBuf);
+  DTSC::Scan stream_cfg = rStrmConf.getScan();
   if (!stream_cfg){
-    DEBUG_MSG(DLVL_MEDIUM, "Stream %s not configured", streamname.c_str());
-  }else{
-    result = stream_cfg.asJSON();
+    WARN_MSG("Could not get stream '%s' config!", smp.c_str());
+    return result;
   }
-  configLock.post();//unlock the config semaphore
-  return result;
+  return stream_cfg.asJSON();
 }
 
 DTSC::Meta Util::getStreamMeta(const std::string & streamname){
@@ -207,25 +204,20 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     return true;
   }
 
-  /*LTS-START*/
+  /*
+   * OLD CODE FOR HARDLIMITS.
+   * Maybe re-enable?
+   * Still sorta-works, but undocumented...
   {
-    //Attempt to load up configuration and find this stream
-    IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    //Lock the config to prevent race conditions and corruption issues while reading
-    configLock.wait();
-    DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
-    //Abort if no config available
-    if (config){
-      if (config.getMember("hardlimit_active")) {
-        configLock.post();//unlock the config semaphore
-        return false;
-      }
+    IPC::ConfigWrapper confLock(15);
+    if (confLock){
+      IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
+      DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
+      //Abort if we loaded a config and there is a hardlimit active in it.
+      if (config && config.getMember("hardlimit_active")){return false;}
     }
-    //unlock the config semaphore
-    configLock.post();
   }
-  /*LTS-END*/
+  */
   
   //Find stream base name
   std::string smp = streamname.substr(0, streamname.find_first_of("+ "));
@@ -368,22 +360,17 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   JSON::Value ret;
 
   //Attempt to load up configuration and find this stream
-  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-  //Lock the config to prevent race conditions and corruption issues while reading
-  configLock.wait();
-  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
-  //Abort if no config available
-  if (!config){
-    FAIL_MSG("Configuration not available, aborting! Is MistController running?");
-    configLock.post();//unlock the config semaphore
+  Util::DTSCShmReader rCapa(SHM_CAPA);
+  DTSC::Scan inputs = rCapa.getMember("inputs");
+  //Abort if not available
+  if (!inputs){
+    FAIL_MSG("Capabilities not available, aborting! Is MistController running?");
     return false;
   }
 
-  //check in curConf for capabilities-inputs-<naam>-priority/source_match
+  //check in curConf for <naam>-priority/source_match
   bool selected = false;
   long long int curPrio = -1;
-  DTSC::Scan inputs = config.getMember("capabilities").getMember("inputs");
   DTSC::Scan input;
   unsigned int input_size = inputs.getSize();
   bool noProviderNoPick = false;
@@ -437,7 +424,6 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   }else{
     ret = input.asJSON();
   }
-  configLock.post();//unlock the config semaphore
   return ret;
 }
 
@@ -462,34 +448,34 @@ pid_t Util::startPush(const std::string & streamname, std::string & target) {
   streamVariables(target, streamname);
 
   //Attempt to load up configuration and find this stream
-  IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-  //Lock the config to prevent race conditions and corruption issues while reading
-  configLock.wait();
-
-  DTSC::Scan config = DTSC::Scan(mistConfOut.mapped, mistConfOut.len);
-  DTSC::Scan outputs = config.getMember("capabilities").getMember("connectors");
   std::string output_bin = "";
-  std::string checkTarget = target.substr(0, target.rfind('?'));
-  unsigned int outputs_size = outputs.getSize();
-  for (unsigned int i = 0; i<outputs_size && !output_bin.size(); ++i){
-    DTSC::Scan output = outputs.getIndice(i);
-    if (output.getMember("push_urls")){
-      unsigned int push_count = output.getMember("push_urls").getSize();
-      for (unsigned int j = 0; j < push_count; ++j){
-        std::string tar_match = output.getMember("push_urls").getIndice(j).asString();
-        std::string front = tar_match.substr(0,tar_match.find('*'));
-        std::string back = tar_match.substr(tar_match.find('*')+1);
-        MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(), output.getMember("name").asString().c_str(), checkTarget.c_str());
-        
-        if (checkTarget.substr(0,front.size()) == front && checkTarget.substr(checkTarget.size()-back.size()) == back){
-          output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
-          break;
+  {
+    Util::DTSCShmReader rCapa(SHM_CAPA);
+    DTSC::Scan outputs = rCapa.getMember("connectors");
+    if (!outputs){
+      FAIL_MSG("Capabilities not available, aborting! Is MistController running?");
+      return 0;
+    }
+    std::string checkTarget = target.substr(0, target.rfind('?'));
+    unsigned int outputs_size = outputs.getSize();
+    for (unsigned int i = 0; i<outputs_size && !output_bin.size(); ++i){
+      DTSC::Scan output = outputs.getIndice(i);
+      if (output.getMember("push_urls")){
+        unsigned int push_count = output.getMember("push_urls").getSize();
+        for (unsigned int j = 0; j < push_count; ++j){
+          std::string tar_match = output.getMember("push_urls").getIndice(j).asString();
+          std::string front = tar_match.substr(0,tar_match.find('*'));
+          std::string back = tar_match.substr(tar_match.find('*')+1);
+          MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(), output.getMember("name").asString().c_str(), checkTarget.c_str());
+          
+          if (checkTarget.substr(0,front.size()) == front && checkTarget.substr(checkTarget.size()-back.size()) == back){
+            output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+            break;
+          }
         }
       }
     }
   }
-  configLock.post();
   
   if (output_bin == ""){
     FAIL_MSG("No output found for target %s, aborting push.", target.c_str());
@@ -515,5 +501,20 @@ uint8_t Util::getStreamStatus(const std::string & streamname){
   IPC::sharedPage streamStatus(pageName, 1, false, false);
   if (!streamStatus){return STRMSTAT_OFF;}
   return streamStatus.mapped[0];
+}
+
+Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){
+  rPage.init(pageName, 0);
+  if (rPage){
+    rAcc = Util::RelAccX(rPage.mapped);
+  }
+}
+
+DTSC::Scan Util::DTSCShmReader::getMember(const std::string &indice){
+  return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data")).getMember(indice.c_str());
+}
+
+DTSC::Scan Util::DTSCShmReader::getScan(){
+  return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data"));
 }
 

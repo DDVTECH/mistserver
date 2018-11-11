@@ -125,10 +125,8 @@ namespace Mist {
     }
     
     //loop over the connectors
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-    DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
+    Util::DTSCShmReader rCapa(SHM_CAPA);
+    DTSC::Scan capa = rCapa.getMember("connectors");
     unsigned int capa_ctr = capa.getSize();
     for (unsigned int i = 0; i < capa_ctr; ++i){
       DTSC::Scan c = capa.getIndice(i);
@@ -161,14 +159,10 @@ namespace Mist {
             Util::sanitizeName(streamname);
             H.SetVar("stream", streamname);
           }
-          configLock.post();
-          configLock.close();
           return capa.getIndiceName(i);
         }
       }
     }
-    configLock.post();
-    configLock.close();
     return "";
   }
   
@@ -353,32 +347,25 @@ namespace Mist {
     char * argarr[20];
     for (int i=0; i<20; i++){argarr[i] = 0;}
     int id = -1;
-    
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-    DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
-    unsigned int prots_ctr = prots.getSize();
-   
+    JSON::Value pipedCapa;
     JSON::Value p;//properties of protocol
-    if (connector == "HTTP" || connector == "HTTP.exe"){
-      //restore from values in the environment, regardless of configged settings
-      if (getenv("MIST_HTTP_nostreamtext")){
-        p["nostreamtext"] = getenv("MIST_HTTP_nostreamtext");
-      }
-      if (getenv("MIST_HTTP_pubaddr")){
-        p["pubaddr"] = getenv("MIST_HTTP_pubaddr");
-      }
-    }else{
-      //find connector in config
-      for (unsigned int i=0; i < prots_ctr; ++i){
-        if (prots.getIndice(i).getMember("connector").asString() == connector) {
-          id =  i;
-          break;    //pick the first protocol in the list that matches the connector 
+    
+
+    {
+      Util::DTSCShmReader rProto(SHM_PROTO);
+      DTSC::Scan prots = rProto.getScan();
+      unsigned int prots_ctr = prots.getSize();
+     
+      if (connector == "HTTP" || connector == "HTTP.exe"){
+        //restore from values in the environment, regardless of configged settings
+        if (getenv("MIST_HTTP_nostreamtext")){
+          p["nostreamtext"] = getenv("MIST_HTTP_nostreamtext");
         }
-      }
-      if (id == -1) {
-        connector = connector + ".exe";
+        if (getenv("MIST_HTTP_pubaddr")){
+          p["pubaddr"] = getenv("MIST_HTTP_pubaddr");
+        }
+      }else{
+        //find connector in config
         for (unsigned int i=0; i < prots_ctr; ++i){
           if (prots.getIndice(i).getMember("connector").asString() == connector) {
             id =  i;
@@ -386,27 +373,33 @@ namespace Mist {
           }
         }
         if (id == -1) {
-          connector = connector.substr(0, connector.size() - 4);
-          DEBUG_MSG(DLVL_ERROR, "No connector found for: %s", connector.c_str());
-          configLock.post();
-          configLock.close();
-          return;
+          connector = connector + ".exe";
+          for (unsigned int i=0; i < prots_ctr; ++i){
+            if (prots.getIndice(i).getMember("connector").asString() == connector) {
+              id =  i;
+              break;    //pick the first protocol in the list that matches the connector 
+            }
+          }
+          if (id == -1) {
+            connector = connector.substr(0, connector.size() - 4);
+            ERROR_MSG("No connector found for: %s", connector.c_str());
+            return;
+          }
         }
+        //read options from found connector
+        p = prots.getIndice(id).asJSON();
       }
-      //read options from found connector
-      p = prots.getIndice(id).asJSON();
+      
+      HIGH_MSG("Connector found: %s", connector.c_str());
+      Util::DTSCShmReader rCapa(SHM_CAPA);
+      DTSC::Scan capa = rCapa.getMember("connectors");
+      pipedCapa = capa.getMember(connector).asJSON();
     }
-    
-    DEBUG_MSG(DLVL_HIGH, "Connector found: %s", connector.c_str());
+
     //build arguments for starting output process
-    
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
-    
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
-    JSON::Value pipedCapa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(connector).asJSON();
-    configLock.post();
-    configLock.close();
     std::string temphost=getConnectedHost();
     std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
     argarr[argnum++] = (char*)"--ip";
@@ -465,20 +458,19 @@ namespace Mist {
       trustedProxies.insert("::1");
       trustedProxies.insert("127.0.0.1");
 
-      IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Open server config
-      IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      configLock.wait();
-      std::string trustedList = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("trustedproxy").asString();
-      configLock.post();
-      configLock.close();
-      size_t pos = 0;
-      size_t endPos;
-      while (pos != std::string::npos){
-        endPos = trustedList.find(" ", pos);
-        trustedProxies.insert(trustedList.substr(pos, endPos - pos));
-        pos = endPos;
-        if (pos != std::string::npos){
-          pos++;
+      IPC::sharedPage rPage(SHM_PROXY, 0, false, false);
+      if (rPage){
+        Util::RelAccX rAcc(rPage.mapped);
+        std::string trustedList(rAcc.getPointer("proxy_data"), rAcc.getSize("proxy_data"));
+        size_t pos = 0;
+        size_t endPos;
+        while (pos != std::string::npos){
+          endPos = trustedList.find(" ", pos);
+          trustedProxies.insert(trustedList.substr(pos, endPos - pos));
+          pos = endPos;
+          if (pos != std::string::npos){
+            pos++;
+          }
         }
       }
     }

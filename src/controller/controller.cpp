@@ -69,43 +69,28 @@ void createAccount(std::string account){
 }
 
 /// Status monitoring thread.
-/// Will check outputs, inputs and converters every five seconds
+/// Will check outputs, inputs and converters every three seconds
 void statusMonitor(void *np){
-  IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
   Controller::loadActiveConnectors();
   while (Controller::conf.is_active){
     // this scope prevents the configMutex from being locked constantly
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      bool changed = false;
       // checks online protocols, reports changes to status
-      changed |= Controller::CheckProtocols(Controller::Storage["config"]["protocols"],
-                                            Controller::capabilities);
+      if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"],
+                                            Controller::capabilities)){
+        Controller::writeProtocols();
+      }
       // checks stream statuses, reports changes to status
-      changed |= Controller::CheckAllStreams(Controller::Storage["streams"]);
-
-      // check if the config semaphore is stuck, by trying to lock it for 5 attempts of 1 second...
-      if (!configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond() &&
-          !configLock.tryWaitOneSecond() && !configLock.tryWaitOneSecond()){
-        // that failed. We now unlock it, no matter what - and print a warning that it was stuck.
-        WARN_MSG("Configuration semaphore was stuck. Force-unlocking it and re-writing config.");
-        changed = true;
-      }
-      configLock.unlink();
-      configLock.open(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      if (changed || Controller::configChanged){
-        Controller::writeConfig();
-        Controller::configChanged = false;
-      }
+      Controller::CheckAllStreams(Controller::Storage["streams"]);
     }
-    Util::sleep(5000); // wait at least 5 seconds
+    Util::sleep(3000); // wait at least 3 seconds
   }
   if (Controller::restarting){
     Controller::prepareActiveConnectorsForReload();
   }else{
     Controller::prepareActiveConnectorsForShutdown();
   }
-  configLock.unlink();
 }
 
 static unsigned long mix(unsigned long a, unsigned long b, unsigned long c){
@@ -316,13 +301,10 @@ int main_loop(int argc, char **argv){
   Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
-  {
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.unlink();
-  }
   Controller::writeConfig();
   Controller::checkAvailProtocols();
   Controller::checkAvailTriggers();
+  Controller::writeCapabilities();
   Controller::updateBandwidthConfig();
   createAccount(Controller::conf.getString("account"));
   Controller::conf.activate(); // activate early, so threads aren't killed.

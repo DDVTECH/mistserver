@@ -946,13 +946,11 @@ namespace Mist {
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!configLock.tryWaitOneSecond()){
-      INFO_MSG("Aborting stream config refresh: locking took longer than expected");
-      return false;
-    }
-    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+
+    char tmpBuf[NAME_BUFFER_SIZE];
+    snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, strName.c_str());
+    Util::DTSCShmReader rStrmConf(tmpBuf);
+    DTSC::Scan streamCfg = rStrmConf.getScan();
     long long tmpNum;
 
     //if stream is configured and setting is present, use it, always

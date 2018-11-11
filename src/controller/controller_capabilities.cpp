@@ -27,12 +27,6 @@ namespace Controller {
     trgs["SYSTEM_STOP"]["response"] = "always";
     trgs["SYSTEM_STOP"]["response_action"] = "If false, aborts shutdown.";
 
-    trgs["SYSTEM_CONFIG"]["when"] = "Every time MistServer's global configuration changes";
-    trgs["SYSTEM_CONFIG"]["stream_specific"] = false;
-    trgs["SYSTEM_CONFIG"]["payload"] = "newly active configuration (JSON)";
-    trgs["SYSTEM_CONFIG"]["response"] = "ignored";
-    trgs["SYSTEM_CONFIG"]["response_action"] = "None.";
-
     trgs["OUTPUT_START"]["when"] = "Before a connector starts listening for connections";
     trgs["OUTPUT_START"]["stream_specific"] = false;
     trgs["OUTPUT_START"]["payload"] = "connector configuration (JSON)";

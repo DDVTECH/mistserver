@@ -208,6 +208,7 @@ namespace Controller {
         out[jit.key()]["name"] = jit.key();
         Log("STRM", std::string("New stream ") + jit.key());
       }
+      Controller::writeStream(jit.key(), out[jit.key()]);
     }
   }
 
@@ -360,6 +361,7 @@ namespace Controller {
     /*LTS-END*/
     Log("STRM", "Deleted stream " + name);
     out.removeMember(name);
+    Controller::writeStream(name, JSON::Value());//Null JSON value = delete
     ++ret;
     ret *= -1;
     if (inputProcesses.count(name)){

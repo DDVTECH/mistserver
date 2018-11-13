@@ -607,37 +607,51 @@ bool JSON::Value::operator!=(const JSON::Value & rhs) const {
 }
 
 bool JSON::Value::compareExcept(const Value & rhs, const std::set<std::string> & skip) const {
-  if (myType != OBJECT) {
-    return ((*this) == rhs);
-  }
-  jsonForEachConst(*this, it){
-    if (skip.count(it.key())){continue;}
-    if (!rhs.isMember(it.key()) || !(*it).compareExcept(rhs[it.key()], skip)) {
-      return false;
+  if (myType == OBJECT) {
+    jsonForEachConst(*this, it){
+      if (skip.count(it.key())){continue;}
+      if (!rhs.isMember(it.key()) || !(*it).compareExcept(rhs[it.key()], skip)) {
+        return false;
+      }
     }
+    jsonForEachConst(rhs, it){
+      if (skip.count(it.key())){continue;}
+      if (!(*this).isMember(it.key())){return false;}
+    }
+    return true;
   }
-  jsonForEachConst(rhs, it){
-    if (skip.count(it.key())){continue;}
-    if (!(*this).isMember(it.key())){return false;}
+  if (myType == ARRAY) {
+    if (size() != rhs.size()){return false;}
+    jsonForEachConst(*this, it){
+      if (!(*it).compareExcept(rhs[it.num()], skip)){return false;}
+    }
+    return true;
   }
-  return true;
+  return ((*this) == rhs);
 }
 
 bool JSON::Value::compareOnly(const Value & rhs, const std::set<std::string> & check) const {
-  if (myType != OBJECT) {
-    return ((*this) == rhs);
-  }
-  jsonForEachConst(*this, it){
-    if (!check.count(it.key())){continue;}
-    if (!rhs.isMember(it.key()) || !(*it).compareOnly(rhs[it.key()], check)) {
-      return false;
+  if (myType == OBJECT) {
+    jsonForEachConst(*this, it){
+      if (!check.count(it.key())){continue;}
+      if (!rhs.isMember(it.key()) || !(*it).compareOnly(rhs[it.key()], check)) {
+        return false;
+      }
     }
+    jsonForEachConst(rhs, it){
+      if (!check.count(it.key())){continue;}
+      if (!(*this).isMember(it.key())){return false;}
+    }
+    return true;
   }
-  jsonForEachConst(rhs, it){
-    if (!check.count(it.key())){continue;}
-    if (!(*this).isMember(it.key())){return false;}
+  if (myType == ARRAY) {
+    if (size() != rhs.size()){return false;}
+    jsonForEachConst(*this, it){
+      if (!(*it).compareOnly(rhs[it.num()], check)){return false;}
+    }
+    return true;
   }
-  return true;
+  return ((*this) == rhs);
 }
 
 /// Completely clears the contents of this value,

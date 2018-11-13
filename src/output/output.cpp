@@ -208,8 +208,7 @@ namespace Mist{
     if(Triggers::shouldTrigger("CONN_PLAY", streamName)){
       std::string payload = streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
       if (!Triggers::doTrigger("CONN_PLAY", payload, streamName)){
-        INFO_MSG("Shutting down due to CONN_PLAY trigger rejection");
-        onFail();
+        onFail("Not allowed to play (CONN_PLAY)");
       }
     }
     doSync(true);
@@ -288,8 +287,7 @@ namespace Mist{
         if (tmpEx.getSync() == 1){
           std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
           if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
-            MEDIUM_MSG("Closing connection because denied by USER_NEW trigger");
-            onFail();
+            onFail("Not allowed to play (USER_NEW)");
             tmpEx.setSync(100);//100 = denied
           }else{
             tmpEx.setSync(10);//10 = accepted
@@ -297,12 +295,10 @@ namespace Mist{
         }
         //100 = denied
         if (tmpEx.getSync() == 100){
-          onFail();
-          MEDIUM_MSG("Closing connection because denied by USER_NEW sync byte");
+          onFail("Not allowed to play (USER_NEW cache)");
         }
         if (tmpEx.getSync() == 0 || tmpEx.getSync() == 2){
-          onFail();
-          FAIL_MSG("Closing connection because sync byte timeout!");
+          onFail("Not allowed to play (USER_NEW timeout)", true);
         }
         //anything else = accepted
       }else{
@@ -1017,8 +1013,7 @@ namespace Mist{
         if (targetParams.count("recstopunix")){
           long long stopUnix = atoll(targetParams["recstopunix"].c_str());
           if (stopUnix < unixStreamBegin){
-            FAIL_MSG("Recording stop time is earlier than stream begin - aborting");
-            onFail();
+            onFail("Recording stop time is earlier than stream begin - aborting", true);
             return;
           }else{
             targetParams["recstop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
@@ -1028,8 +1023,7 @@ namespace Mist{
       if (targetParams.count("recstop")){
         long long endRec = atoll(targetParams["recstop"].c_str());
         if (endRec < 0 || endRec < startTime()){
-          FAIL_MSG("Entire recording range is in the past");
-          onFail();
+          onFail("Entire recording range is in the past", true);
           return;
         }
         INFO_MSG("Recording will stop at %lld", endRec);
@@ -1039,8 +1033,7 @@ namespace Mist{
         long long startRec = atoll(targetParams["recstart"].c_str());
         if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
           if (myMeta.vod){
-            FAIL_MSG("Recording start past end of non-live source");
-            onFail();
+            onFail("Recording start past end of non-live source", true);
             return;
           }
           INFO_MSG("Waiting for stream to reach recording starting point");
@@ -1080,8 +1073,7 @@ namespace Mist{
           long long stopUnix = atoll(targetParams["stopunix"].c_str());
           if (stopUnix < 0){stopUnix += Util::epoch();}
           if (stopUnix < unixStreamBegin){
-            FAIL_MSG("Stop time is earlier than stream begin - aborting");
-            onFail();
+            onFail("Stop time is earlier than stream begin - aborting", true);
             return;
           }else{
             targetParams["stop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
@@ -1091,8 +1083,7 @@ namespace Mist{
       if (targetParams.count("stop")){
         long long endRec = atoll(targetParams["stop"].c_str());
         if (endRec < 0 || endRec < startTime()){
-          FAIL_MSG("Entire range is in the past");
-          onFail();
+          onFail("Entire range is in the past", true);
           return;
         }
         INFO_MSG("Playback will stop at %lld", endRec);
@@ -1102,8 +1093,7 @@ namespace Mist{
         long long startRec = atoll(targetParams["start"].c_str());
         if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
           if (myMeta.vod){
-            FAIL_MSG("Playback start past end of non-live source");
-            onFail();
+            onFail("Playback start past end of non-live source", true);
             return;
           }
           INFO_MSG("Waiting for stream to reach playback starting point");
@@ -1665,12 +1655,7 @@ namespace Mist{
     if (statsPage.getData()){
       /*LTS-START*/
       if (!statsPage.isAlive()){
-        INFO_MSG("Shutting down on controller request");
-        if (!onFinish()){
-          myConn.close();
-        }else{
-          disconnect();
-        }
+        onFail("Shutting down on controller request");
         return;
       }
       /*LTS-END*/

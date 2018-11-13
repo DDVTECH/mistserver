@@ -46,13 +46,6 @@ namespace Mist {
     data.sendTo(myConn);
   }
 
-  void OutDTSC::sendError(const std::string &msg){
-    JSON::Value err;
-    err["cmd"] = "error";
-    err["msg"] = msg;
-    sendCmd(err);
-  }
-
   void OutDTSC::sendOk(const std::string &msg){
     JSON::Value err;
     err["cmd"] = "ok";
@@ -147,6 +140,14 @@ namespace Mist {
     }
   }
 
+  void OutDTSC::onFail(const std::string & msg, bool critical){
+    JSON::Value err;
+    err["cmd"] = "error";
+    err["msg"] = msg;
+    sendCmd(err);
+    Output::onFail(msg, critical);
+  }
+
   void OutDTSC::onRequest(){
     while (myConn.Received().available(8)){
       if (myConn.Received().copy(4) == "DTCM"){
@@ -168,8 +169,7 @@ namespace Mist {
       }else if (myConn.Received().copy(4) == "DTSC"){
         //Header packet
         if (!isPushing()){
-          sendError("DTSC_HEAD ignored: you are not cleared for pushing data!");
-          onFail();
+          onFail("DTSC_HEAD ignored: you are not cleared for pushing data!", true);
           return;
         }
         std::string toRec = myConn.Received().copy(8);
@@ -183,8 +183,7 @@ namespace Mist {
         sendOk(rep.str());
       }else if (myConn.Received().copy(4) == "DTP2"){
         if (!isPushing()){
-          sendError("DTSC_V2 ignored: you are not cleared for pushing data!");
-          onFail();
+          onFail("DTSC_V2 ignored: you are not cleared for pushing data!", true);
           return;
         }
         // Data packet
@@ -194,15 +193,13 @@ namespace Mist {
         std::string dataPacket = myConn.Received().remove(8+rSize);
         DTSC::Packet inPack(dataPacket.data(), dataPacket.size(), true);
         if (!myMeta.tracks.count(inPack.getTrackId())){
-          sendError("DTSC_V2 received for a track that was not announced in the DTSC_HEAD!");
-          onFail();
+          onFail("DTSC_V2 received for a track that was not announced in the DTSC_HEAD!", true);
           return;
         }
         bufferLivePacket(inPack);
       }else{
         //Invalid
-        sendError("Invalid packet header received. Aborting.");
-        onFail();
+        onFail("Invalid packet header received. Aborting.", true);
         return;
       }
     }
@@ -221,8 +218,7 @@ namespace Mist {
     std::string passString = dScan.getMember("password").asString();
     Util::sanitizeName(streamName);
     if (!allowPush(passString)){
-      sendError("Push not allowed - stream and/or password incorrect");
-      onFail();
+      onFail("Push not allowed - stream and/or password incorrect", true);
       return;
     }
     sendOk("You're cleared for pushing! DTSC_HEAD please?");

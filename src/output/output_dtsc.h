@@ -11,9 +11,9 @@ namespace Mist {
       void sendNext();
       void sendHeader();
       void initialSeek();
+      void onFail(const std::string & msg, bool critical = false);
       void stats(bool force = false);
       void sendCmd(const JSON::Value &data);
-      void sendError(const std::string &msg);
       void sendOk(const std::string &msg);
     private:
       unsigned int lastActive;///<Time of last sending of data.

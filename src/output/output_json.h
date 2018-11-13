@@ -12,7 +12,7 @@ namespace Mist {
       virtual void onWebsocketConnect();
       virtual void preWebsocketConnect();
       bool onFinish();
-      void onFail();
+      void onFail(const std::string & msg, bool critical = false);
       void sendNext();
       void sendHeader();
       bool doesWebsockets(){return true;}

@@ -418,7 +418,7 @@ namespace Mist {
     }
     
     if (H.url.find("hls") == std::string::npos){
-      onFail();
+      onFail("HLS handler active, but this is not a HLS URL. Eh... What...?");
       return;
     }
 
@@ -434,11 +434,7 @@ namespace Mist {
     }
 
     initialize();
-
-    if (!keepGoing()){
-      onFail();
-      return;
-    }
+    if (!keepGoing()){return;}
 
     if (H.url.substr(5 + streamName.size(), 5) == "/push"){
       std::string relPushUrl = H.url.substr(10 + streamName.size());

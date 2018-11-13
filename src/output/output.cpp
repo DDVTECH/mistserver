@@ -173,8 +173,12 @@ namespace Mist{
   /// Called when stream initialization has failed.
   /// The standard implementation will set isInitialized to false and close the client connection,
   /// thus causing the process to exit cleanly.
-  void Output::onFail(){
-    MEDIUM_MSG("onFail");
+  void Output::onFail(const std::string & msg, bool critical){
+    if (critical){
+      FAIL_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
+    }else{
+      MEDIUM_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
+    }
     isInitialized = false;
     wantRequest = true;
     parseData= false;
@@ -196,7 +200,7 @@ namespace Mist{
     reconnect();
     //if the connection failed, fail
     if (streamName.size() < 1){
-      onFail();
+      onFail("Could not connect to stream", true);
       return;
     }
     sought = false;
@@ -365,14 +369,12 @@ namespace Mist{
     if (config->hasOption("noinput") && config->getBool("noinput")){
       Util::sanitizeName(streamName);
       if (!Util::streamAlive(streamName)){
-        FAIL_MSG("Stream %s not already active - aborting initialization", streamName.c_str());
-        onFail();
+        onFail("Stream not active already, aborting");
         return;
       }
     }else{
       if (!Util::startInput(streamName, "", true, isPushing())){
-        FAIL_MSG("Opening stream %s failed - aborting initialization", streamName.c_str());
-        onFail();
+        onFail("Stream open failed", true);
         return;
       }
     }
@@ -385,16 +387,14 @@ namespace Mist{
       nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
     }
     if (!nProxy.userClient.isAlive()){
-      FAIL_MSG("Could not register as client for %s", streamName.c_str());
-      onFail();
+      onFail("Could not register as client", true);
       return;
     }
     char pageId[NAME_BUFFER_SIZE];
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
     nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
     if (!nProxy.metaPages[0].mapped){
-      FAIL_MSG("Could not connect to data for %s", streamName.c_str());
-      onFail();
+      onFail("Could not connect to stream data", true);
       return;
     }
     isInitialized = true;
@@ -1710,12 +1710,7 @@ namespace Mist{
       snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
       nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
       if (!nProxy.userClient.getData()){
-        WARN_MSG("Player connection failure - aborting output");
-        if (!onFinish()){
-          myConn.close();
-        }else{
-          disconnect();
-        }
+        onFail("Player connection failure - aborting output", true);
         return;
       }
     }
@@ -1723,21 +1718,11 @@ namespace Mist{
       if (isPushing() && !pushIsOngoing){
         waitForStreamPushReady();
         if (!nProxy.userClient.isAlive()){
-          WARN_MSG("Failed to wait for buffer, aborting incoming push");
-          if (!onFinish()){
-            myConn.close();
-          }else{
-            disconnect();
-          }
+          onFail("Failed to wait for buffer, aborting incoming push", true);
           return;
         }
       }else{
-        INFO_MSG("Received disconnect request from input");
-        if (!onFinish()){
-          myConn.close();
-        }else{
-          disconnect();
-        }
+        onFail("Received disconnect request from input");
         return;
       }
     }

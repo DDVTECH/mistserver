@@ -78,7 +78,7 @@ namespace Mist {
       void disconnect();
       virtual void initialize();
       virtual void sendHeader();
-      virtual void onFail();
+      virtual void onFail(const std::string & msg, bool critical = false);
       virtual void requestHandler();
       static Util::Config * config;
       void playbackSleep(uint64_t millis);

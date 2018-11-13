@@ -8,7 +8,7 @@ namespace Mist {
       ~OutHTTP();
       static void init(Util::Config * cfg);
       static bool listenMode();
-      virtual void onFail();
+      virtual void onFail(const std::string & msg, bool critical = false);
       ///preHTTP is disabled in the internal HTTP output, since most don't need the stream alive to work
       virtual void preHTTP(){};
       void HTMLResponse();

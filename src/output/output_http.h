@@ -12,7 +12,7 @@ namespace Mist {
       virtual ~HTTPOutput();
       static void init(Util::Config * cfg);
       void onRequest();
-      virtual void onFail();
+      virtual void onFail(const std::string & msg, bool critical = false);
       virtual void onHTTP(){};
       virtual void onIdle(){};
       virtual void onWebsocketFrame(){};

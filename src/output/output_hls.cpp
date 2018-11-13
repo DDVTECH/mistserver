@@ -197,7 +197,7 @@ namespace Mist {
     }
     
     if (H.url.find("hls") == std::string::npos){
-      onFail();
+      onFail("HLS handler active, but this is not a HLS URL. Eh... What...?");
       return;
     }
     
@@ -213,11 +213,7 @@ namespace Mist {
     }
 
     initialize();
-
-    if (!keepGoing()){
-      onFail();
-      return;
-    }
+    if (!keepGoing()){return;}
 
     if (H.url.find(".m3u") == std::string::npos){
       std::string tmpStr = H.getUrl().substr(5 + streamName.size());

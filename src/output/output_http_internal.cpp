@@ -60,7 +60,7 @@ namespace Mist {
     return !(config->getString("ip").size());
   }
   
-  void OutHTTP::onFail(){
+  void OutHTTP::onFail(const std::string & msg, bool critical){
     std::string method = H.method;
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
@@ -75,6 +75,7 @@ namespace Mist {
       if (websocketHandler()){return;}
       JSON::Value json_resp;
       json_resp["error"] = "Could not retrieve stream. Sorry.";
+      json_resp["error_guru"] = msg;
       if (H.url.size() >= 5 && H.url.substr(0, 5) == "/json"){
         H.Clean();
         H.SetBody(json_resp.toString());
@@ -92,9 +93,7 @@ namespace Mist {
       H.Clean();
       return;
     }
-    INFO_MSG("Failing: %s", H.url.c_str());
-    HTTPOutput::onFail();
-    Output::onFail();
+    HTTPOutput::onFail(msg, critical);
   }
 
   void OutHTTP::init(Util::Config * cfg){

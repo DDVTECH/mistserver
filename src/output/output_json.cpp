@@ -81,10 +81,10 @@ namespace Mist {
     sentHeader = true;
   }
   
-  void OutJSON::onFail(){
+  void OutJSON::onFail(const std::string & msg, bool critical){
     //Only run failure handle if we're not being persistent
     if (!keepReselecting){
-      HTTPOutput::onFail();
+      HTTPOutput::onFail(msg, critical);
     }else{
       onFinish();
     }

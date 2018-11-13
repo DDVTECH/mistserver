@@ -39,13 +39,14 @@ namespace Mist {
     config = cfg;
   }
   
-  void HTTPOutput::onFail(){
+  void HTTPOutput::onFail(const std::string & msg, bool critical){
+    INFO_MSG("Failing '%s': %s: %s", streamName.c_str(), H.url.c_str(), msg.c_str());
     if (!webSock){
       H.Clean(); //make sure no parts of old requests are left in any buffers
-      H.SetBody("Stream not found. Sorry, we tried.");
-      H.SendResponse("404", "Stream not found", myConn);
+      H.SetBody("Could not retrieve stream: "+msg);
+      H.SendResponse("404", "Error opening stream", myConn);
     }
-    Output::onFail();
+    Output::onFail(msg, critical);
   }
   
   bool isMatch(const std::string & url, const std::string & m, std::string & streamname){

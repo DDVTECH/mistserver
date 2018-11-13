@@ -724,6 +724,12 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
       }
     }
     tracked = false;
+    firstActive = 0;
+    firstSec = 0xFFFFFFFFFFFFFFFFull;
+    lastSec = 0;
+    wipedUp = 0;
+    wipedDown = 0;
+    oldConns.clear();
   }
 }
 

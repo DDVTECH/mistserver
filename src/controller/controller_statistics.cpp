@@ -341,6 +341,12 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
     if (duration < 1){duration = 1;}
     Controller::logAccess("", index.streamName, index.connector, index.host, duration, getUp(), getDown(), "");
     tracked = false;
+    firstActive = 0;
+    firstSec = 0xFFFFFFFFFFFFFFFFull;
+    lastSec = 0;
+    wipedUp = 0;
+    wipedDown = 0;
+    oldConns.clear();
   }
 }
 

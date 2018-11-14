@@ -43,6 +43,8 @@ namespace Mist {
     INFO_MSG("Failing '%s': %s: %s", streamName.c_str(), H.url.c_str(), msg.c_str());
     if (!webSock){
       H.Clean(); //make sure no parts of old requests are left in any buffers
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
       H.SetBody("Could not retrieve stream: "+msg);
       H.SendResponse("404", "Error opening stream", myConn);
     }

@@ -43,7 +43,7 @@ namespace Mist {
   
   void HTTPOutput::onFail(const std::string & msg, bool critical){
     INFO_MSG("Failing '%s': %s: %s", streamName.c_str(), H.url.c_str(), msg.c_str());
-    if (!webSock){
+    if (!webSock && !isRecording()){
       H.Clean(); //make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();

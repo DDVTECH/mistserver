@@ -113,12 +113,24 @@ void Controller::SharedMemStats(void * config){
   std::set<std::string> inactiveStreams;
   Controller::initState();
   bool shiftWrites = true;
+  bool firstRun = true;
   while(((Util::Config*)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       tthread::lock_guard<tthread::mutex> guard2(statsMutex);
       //parse current users
       statServer.parseEach(parseStatistics);
+      if (firstRun){
+        firstRun = false;
+        servUpOtherBytes = 0;
+        servDownOtherBytes = 0;
+        servUpBytes = 0;
+        servDownBytes = 0;
+        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+          it->second.upBytes = 0;
+          it->second.downBytes = 0;
+        }
+      }
       //wipe old statistics
       if (sessions.size()){
         std::list<sessIndex> mustWipe;
@@ -238,9 +250,9 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
   if (currUp - prevUp < 0 || currDown-prevDown < 0){
     INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
   }
-  if (currDown + currUp > COUNTABLE_BYTES){
+  if (currDown + currUp >= COUNTABLE_BYTES){
     std::string streamName = data.streamName();
-    if (prevUp + prevDown < COUNTABLE_BYTES){
+    if (sessionType == SESS_UNSET){
       if (data.connector() == "INPUT"){
         streamStats[streamName].inputs++;
         streamStats[streamName].currIns++;
@@ -254,6 +266,10 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
         streamStats[streamName].currViews++;
         sessionType = SESS_VIEWER;
       }
+    }
+    //If previous < COUNTABLE_BYTES, we haven't counted any data so far.
+    //We need to count all the data in that case, otherwise we only count the difference.
+    if (prevUp + prevDown < COUNTABLE_BYTES){
       if (!streamName.size() || streamName[0] == 0){
         if (streamStats.count(streamName)){streamStats.erase(streamName);}
       }else{
@@ -266,15 +282,6 @@ void Controller::statSession::update(unsigned long index, IPC::statExchange & da
       }else{
         streamStats[streamName].upBytes += currUp - prevUp;
         streamStats[streamName].downBytes += currDown - prevDown;
-      }
-      if (sessionType == SESS_UNSET){
-        if (data.connector() == "INPUT"){
-          sessionType = SESS_INPUT;
-        }else if (data.connector() == "OUTPUT"){
-          sessionType = SESS_OUTPUT;
-        }else{
-          sessionType = SESS_VIEWER;
-        }
       }
     }
   }
@@ -347,6 +354,7 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
     wipedUp = 0;
     wipedDown = 0;
     oldConns.clear();
+    sessionType = SESS_UNSET;
   }
 }
 

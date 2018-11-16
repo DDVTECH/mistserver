@@ -139,7 +139,6 @@ namespace Mist{
     isInitialized = false;
     wantRequest = true;
     parseData= false;
-    streamName.clear();
     myConn.close();
   }
 

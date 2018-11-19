@@ -396,6 +396,8 @@ FLV::Tag::~Tag() {
 /// This operator checks for self-assignment.
 FLV::Tag & FLV::Tag::operator=(const FLV::Tag & O) {
   if (this != &O) { //no self-assignment
+    done = true;
+    sofar = 0;
     len = O.len;
     if (len > 0) {
       if (checkBufferSize()) {

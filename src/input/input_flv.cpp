@@ -96,10 +96,12 @@ namespace Mist {
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %llu ms: @%lld, %s, %s", bench/1000, lastBytePos, myMeta.vod?"VoD":"NOVoD", myMeta.live?"Live":"NOLive");
     if (FLV::Parse_Error){
+      tmpTag = FLV::Tag();
       FLV::Parse_Error = false;
       ERROR_MSG("Stopping at FLV parse error @%lld: %s", lastBytePos, FLV::Error_Str.c_str());
     }
     myMeta.toFile(config->getString("input") + ".dtsh");
+    Util::fseek(inFile, 13, SEEK_SET);
     return true;
   }
   
@@ -126,6 +128,7 @@ namespace Mist {
     }
     if (FLV::Parse_Error){
       FLV::Parse_Error = false;
+      tmpTag = FLV::Tag();
       FAIL_MSG("FLV error @ %lld: %s", lastBytePos, FLV::Error_Str.c_str());
       thisPacket.null();
       return;

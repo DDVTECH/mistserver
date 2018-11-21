@@ -250,10 +250,12 @@ namespace Util{
   void logParser(int in, int out, bool colored, void callback(std::string, std::string, bool)){
     char buf[1024];
     FILE *output = fdopen(in, "r");
-    char *color_time, *color_msg, *color_end, *CONF_msg, *FAIL_msg, *ERROR_msg, *WARN_msg, *INFO_msg;
+    char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg, *WARN_msg, *INFO_msg;
     if (colored){
       color_end = (char*)"\033[0m";
       if (getenv("MIST_COLOR_END")){color_end = getenv("MIST_COLOR_END");}
+      color_strm = (char*)"\033[0m";
+      if (getenv("MIST_COLOR_STREAM")){color_strm = getenv("MIST_COLOR_STREAM");}
       color_time = (char*)"\033[2m";
       if (getenv("MIST_COLOR_TIME")){color_time = getenv("MIST_COLOR_TIME");}
       CONF_msg = (char*)"\033[0;1;37m";
@@ -268,6 +270,7 @@ namespace Util{
       if (getenv("MIST_COLOR_INFO")){INFO_msg = getenv("MIST_COLOR_INFO");}
     }else{
       color_end = (char*)"";
+      color_strm = (char*)"";
       color_time = (char*)"";
       CONF_msg = (char*)"";
       FAIL_msg = (char*)"";
@@ -281,6 +284,7 @@ namespace Util{
       char * progname = 0;
       char * progpid = 0;
       char * lineno = 0;
+      char * strmNm = 0;
       char * message = 0;
       while (i < 9 && buf[i] != '|' && buf[i] != 0){++i;}
       if (buf[i] == '|'){
@@ -304,7 +308,18 @@ namespace Util{
       if (buf[i] == '|'){
         buf[i] = 0;//insert null byte
         ++i;
+        strmNm = buf+i;//stream name starts here
+      }
+      while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] == '|'){
+        buf[i] = 0;//insert null byte
+        ++i;
         message = buf+i;//message starts here
+      }
+      if (!message){
+        message = strmNm;
+        strmNm = 0;
+        if (message){i = message-buf;}
       }
       //find end of line, insert null byte
       unsigned int j = i;
@@ -330,7 +345,15 @@ namespace Util{
         strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
         dprintf(out, "%s[%s] ", color_time, buffer);
         if (progname && progpid && strlen(progname) && strlen(progpid)){
-          dprintf(out, "%s (%s) ", progname, progpid);
+          if (strmNm && strlen(strmNm)){
+            dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
+          }else{
+            dprintf(out, "%s (%s) ", progname, progpid);
+          }
+        }else{
+          if (strmNm && strlen(strmNm)){
+            dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);
+          }
         }
         dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
         if (lineno && strlen(lineno)){

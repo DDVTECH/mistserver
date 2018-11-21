@@ -24,6 +24,7 @@ namespace Util {
       //variables
       static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
       static unsigned int printDebugLevel;
+      static std::string streamName; ///< Used by debug messages to identify the stream name
       //functions
       Config();
       Config(std::string cmd);

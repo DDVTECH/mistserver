@@ -79,6 +79,7 @@ namespace Mist{
     //If we have a streamname option, set internal streamname to that option
     if (!streamName.size() && config->hasOption("streamname")){
       streamName = config->getString("streamname");
+      Util::Config::streamName = streamName;
     }
 
   }

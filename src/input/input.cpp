@@ -95,6 +95,7 @@ namespace Mist {
   int Input::boot(int argc, char * argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
     streamName = nProxy.streamName = config->getString("streamname");
+    Util::Config::streamName = streamName;
    
     if (config->getBool("json")) {
       std::cout << capa.toString() << std::endl;

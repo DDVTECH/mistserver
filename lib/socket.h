@@ -66,10 +66,13 @@ namespace Socket{
   // Buffer
 
   /// This class is for easy communicating through sockets, either TCP or Unix.
+  /// Internally, sSend and sRecv hold the file descriptor to read/write from/to.
+  /// If they are not identical and sRecv is closed but sSend still open, reading from sSend will be attempted.
   class Connection{
   protected:
-    int sock;               ///< Internally saved socket number.
-    int pipes[2];           ///< Internally saved file descriptors for pipe socket simulation.
+    bool isTrueSocket;
+    int sSend;               ///< Write end of socket.
+    int sRecv;               ///< Read end of socket.
     std::string remotehost; ///< Stores remote host address.
     struct sockaddr_in6 remoteaddr;///< Stores remote host address.
     uint64_t up;

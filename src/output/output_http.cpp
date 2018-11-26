@@ -14,6 +14,10 @@ namespace Mist {
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
+    firstRun = true;
+    if (config->getString("prequest").size()){
+      myConn.Received().prepend(config->getString("prequest"));
+    }
     config->activate();
   }
 
@@ -35,14 +39,19 @@ namespace Mist {
     capa["forward"]["ip"]["help"] = "IP of forwarded connection.";
     capa["forward"]["ip"]["type"] = "str";
     capa["forward"]["ip"]["option"] = "--ip";
+    capa["forward"]["ip"]["name"] = "Previous request";
+    capa["forward"]["ip"]["help"] = "Data to pretend arrived on the socket before parsing the socket.";
+    capa["forward"]["ip"]["type"] = "str";
+    capa["forward"]["ip"]["option"] = "--prequest";
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream that this connector will transmit.\"}"));
     cfg->addOption("ip", JSON::fromString("{\"arg\":\"string\",\"short\":\"I\",\"long\":\"ip\",\"help\":\"IP address of connection on stdio.\"}"));
+    cfg->addOption("prequest", JSON::fromString("{\"arg\":\"string\",\"short\":\"R\",\"long\":\"prequest\",\"help\":\"Data to pretend arrived on the socket before parsing the socket.\"}"));
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
   }
   
   void HTTPOutput::onFail(const std::string & msg, bool critical){
-    INFO_MSG("Failing '%s': %s: %s", streamName.c_str(), H.url.c_str(), msg.c_str());
+    INFO_MSG("Failing '%s': %s", H.url.c_str(), msg.c_str());
     if (!webSock && !isRecording()){
       H.Clean(); //make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
@@ -167,83 +176,52 @@ namespace Mist {
   }
   
   void HTTPOutput::requestHandler(){
+    //Handle onIdle function caller, if needed
     if (idleInterval && (Util::bootMS() > idleLast + idleInterval)){
       onIdle();
       idleLast = Util::bootMS();
     }
+    //Handle websockets
     if (webSock){
       if (webSock->readFrame()){
         onWebsocketFrame();
         idleLast = Util::bootMS();
-      }else{
-        if (!isBlocking && !parseData){
-          Util::sleep(100);
-        }
+        return;
       }
+      if (!isBlocking && !parseData){Util::sleep(100);}
       return;
     }
-    if (myConn.Received().size() && myConn.spool()){
-      DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
-      onRequest();
-    }else{
-      if (!myConn.Received().size()){
-        if (myConn.peek() && H.Read(myConn)){
-          std::string handler = getHandler();
-          /*LTS-START*/
-          reqUrl = H.url + H.allVars();
-          /*LTS-END*/
-          DEBUG_MSG(DLVL_MEDIUM, "Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
-          if (!handler.size()){
-            H.Clean();
-            H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-            H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
-            H.SendResponse("415", "Unsupported Media Type", myConn);
-            myConn.close();
-            return;
-          }
-          if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
-            DEBUG_MSG(DLVL_MEDIUM, "Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
-            streamName = H.GetVar("stream");
-            nProxy.userClient.finish();
-            statsPage.finish();
-            reConnector(handler);
-            H.Clean();
-            if (myConn.connected()){
-              FAIL_MSG("Request failed - no connector started");
-              myConn.close();
-            }
-            return;
-          }else{
-            H.Clean();
-            myConn.Received().clear();
-            myConn.spool();
-            DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
-            onRequest();
-          }
-        }else{
-          H.Clean();
-          if (myConn.Received().size()){
-            myConn.Received().clear();
-            myConn.spool();
-            DEBUG_MSG(DLVL_DONTEVEN, "onRequest");
-            onRequest();
-          }
-          if (!myConn.Received().size()){
-            if (!isBlocking && !parseData){
-              Util::sleep(100);
-            }
-          }
-        }
-      }else{
-        if (!isBlocking && !parseData){
-          Util::sleep(100);
-        }
-      }
+    //If we can't read anything more and we're non-blocking, sleep some.
+    if (!firstRun && !myConn.spool()){
+      if (!isBlocking && !parseData){Util::sleep(100);}
+      return;
     }
-  }
- 
-  void HTTPOutput::onRequest(){
+    firstRun = false;
+
     while (H.Read(myConn)){
+      std::string handler = getHandler();
+      INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
+      if (!handler.size()){
+        H.Clean();
+        H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+        H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
+        H.SendResponse("415", "Unsupported Media Type", myConn);
+        myConn.close();
+        return;
+      }
+      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
+        MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
+        streamName = H.GetVar("stream");
+        nProxy.userClient.finish();
+        statsPage.finish();
+        reConnector(handler);
+        onFail("Server error - could not start connector", true);
+        return;
+      }
+
+      /*LTS-START*/
+      reqUrl = H.url + H.allVars();
+      /*LTS-END*/
       if (H.hasHeader("User-Agent")){
         UA = H.GetHeader("User-Agent");
       }
@@ -260,7 +238,6 @@ namespace Mist {
         crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
       }
 
-      INFO_MSG("Received request %s", H.getUrl().c_str());
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
       if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
@@ -339,13 +316,11 @@ namespace Mist {
   }
   
   ///\brief Handles requests by starting a corresponding output process.
-  ///\param H The request to be handled
-  ///\param conn The connection to the client that issued the request.
   ///\param connector The type of connector to be invoked.
   void HTTPOutput::reConnector(std::string & connector){
     //taken from CheckProtocols (controller_connectors.cpp)
-    char * argarr[20];
-    for (int i=0; i<20; i++){argarr[i] = 0;}
+    char * argarr[32];
+    for (int i=0; i<32; i++){argarr[i] = 0;}
     int id = -1;
     JSON::Value pipedCapa;
     JSON::Value p;//properties of protocol
@@ -398,6 +373,8 @@ namespace Mist {
 
     //build arguments for starting output process
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
+    std::string tmpPrequest;
+    if (H.url.size()){tmpPrequest = H.BuildRequest();}
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
     std::string temphost=getConnectedHost();
@@ -406,6 +383,8 @@ namespace Mist {
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"--stream";
     argarr[argnum++] = (char*)(streamName.c_str());
+    argarr[argnum++] = (char*)"--prequest";
+    argarr[argnum++] = (char*)(tmpPrequest.c_str());
     //set the debug level if non-default
     if (Util::Config::printDebugLevel != DEBUG){
       argarr[argnum++] = (char*)"--debug";

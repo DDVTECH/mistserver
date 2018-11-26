@@ -11,7 +11,6 @@ namespace Mist {
       HTTPOutput(Socket::Connection & conn);
       virtual ~HTTPOutput();
       static void init(Util::Config * cfg);
-      void onRequest();
       virtual void onFail(const std::string & msg, bool critical = false);
       virtual void onHTTP(){};
       virtual void onIdle(){};
@@ -26,6 +25,7 @@ namespace Mist {
       std::string getHandler();
       bool parseRange(uint64_t & byteStart, uint64_t & byteEnd);
   protected:
+      bool firstRun;
       HTTP::Parser H;
       HTTP::Websocket * webSock;
       uint32_t idleInterval;

@@ -164,9 +164,9 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
     }
   }
   if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){
-    res << " [Size " << (((int)d[4]) << 8 | d[5]) << " => " << (d.size() - 6) << "]";
+    res << " [Size " << (((int)d[4]) << 8 | d[5]) + 6 << " => " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
   }else{
-    res << " [Size " << (d.size() - 6) << "]";
+    res << " [Size " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
   }
   res << std::endl;
 

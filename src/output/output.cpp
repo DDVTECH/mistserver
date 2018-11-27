@@ -289,7 +289,7 @@ namespace Mist{
         continue;
       }
       //autoSeeking and target not in bounds? Drop it too.
-      if (autoSeek && myMeta.tracks[*it].lastms < std::max(seekTarget, 6000lu) - 6000){
+      if (autoSeek && myMeta.tracks[*it].lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){
         toRemove.insert(*it);
       }
     }
@@ -370,7 +370,7 @@ namespace Mist{
               if (myMeta.live){
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                    if (autoSeek && trit->second.lastms < std::max(seekTarget, 6000lu) - 6000){continue;}
+                    if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -379,7 +379,7 @@ namespace Mist{
               }else{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                    if (autoSeek && trit->second.lastms < std::max(seekTarget, 6000lu) - 6000){continue;}
+                    if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}

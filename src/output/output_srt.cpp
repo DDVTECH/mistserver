@@ -27,7 +27,7 @@ namespace Mist {
   
   void OutProgressiveSRT::sendNext(){
     char * dataPointer = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
 //    INFO_MSG("getting sub: %s", dataPointer);
     //ignore empty subs

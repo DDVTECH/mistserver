@@ -1,7 +1,7 @@
 #include "downloader.h"
 #include "defines.h"
-#include "timing.h"
 #include "encode.h"
+#include "timing.h"
 
 namespace HTTP{
 
@@ -66,7 +66,8 @@ namespace HTTP{
   }
 
   /// Sends a request for the given URL, does no waiting.
-  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
+  void Downloader::doRequest(const HTTP::URL &link, const std::string &method,
+                             const std::string &body){
     if (!canRequest(link)){return;}
     bool needSSL = (link.protocol == "https");
     H.Clean();
@@ -116,9 +117,7 @@ namespace HTTP{
         H.SetHeader("Host", link.host);
       }
     }
-    if (method.size()){
-      H.method = method;
-    }
+    if (method.size()){H.method = method;}
     H.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
     H.SetHeader("X-Version", PACKAGE_VERSION);
     H.SetHeader("Accept", "*/*");
@@ -142,9 +141,10 @@ namespace HTTP{
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
   bool Downloader::get(const HTTP::URL &link, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
-    unsigned int loop = retryCount+1; // max 5 attempts
+    size_t loop = retryCount + 1; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
-      MEDIUM_MSG("Retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
+      MEDIUM_MSG("Retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1,
+                 retryCount);
       doRequest(link);
       uint64_t reqTime = Util::bootSecs();
       while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
@@ -179,24 +179,28 @@ namespace HTTP{
         reqTime = Util::bootSecs();
       }
       if (getSocket()){
-        FAIL_MSG("Timeout while retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
+        FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
+                 retryCount - loop + 1, retryCount);
         getSocket().close();
       }else{
-        FAIL_MSG("Lost connection while retrieving %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
+        FAIL_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
+                 retryCount - loop + 1, retryCount);
       }
       Util::sleep(500); // wait a bit before retrying
     }
     FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
     return false;
   }
-  
-  bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync, uint8_t maxRecursiveDepth){
+
+  bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync,
+                        uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
-    unsigned int loop = retryCount; // max 5 attempts
+    size_t loop = retryCount; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
-      MEDIUM_MSG("Posting to %s (%lu/%lu)", link.getUrl().c_str(), retryCount-loop+1, retryCount);
+      MEDIUM_MSG("Posting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1,
+                 retryCount);
       doRequest(link, "POST", payload);
-      //Not synced? Ignore the response and immediately return false.
+      // Not synced? Ignore the response and immediately return false.
       if (!sync){return false;}
       uint64_t reqTime = Util::bootSecs();
       while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
@@ -261,9 +265,7 @@ namespace HTTP{
       setHeader("Cookie", cookie.substr(0, cookie.find(';')));
     }
     uint32_t sCode = getStatusCode();
-    if (sCode == 401 || sCode == 407 || (sCode >= 300 && sCode < 400)){
-      return true;
-    }
+    if (sCode == 401 || sCode == 407 || (sCode >= 300 && sCode < 400)){return true;}
     return false;
   }
 
@@ -285,9 +287,7 @@ namespace HTTP{
     }
     if (getStatusCode() == 407){
       // retry with authentication
-      if (H.hasHeader("Proxy-Authenticate")){
-        proxyAuthStr = H.GetHeader("Proxy-Authenticate");
-      }
+      if (H.hasHeader("Proxy-Authenticate")){proxyAuthStr = H.GetHeader("Proxy-Authenticate");}
       if (!proxyAuthStr.size()){
         FAIL_MSG("Proxy authentication required but no Proxy-Authenticate header present");
         return false;

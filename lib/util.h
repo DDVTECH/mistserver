@@ -26,7 +26,7 @@ namespace Util{
     public:
       ResizeablePointer();
       ~ResizeablePointer();
-      inline uint32_t& size(){return currSize;}
+      inline size_t& size(){return currSize;}
       bool assign(const void * p, uint32_t l);
       bool append(const void * p, uint32_t l);
       bool allocate(uint32_t l);
@@ -34,8 +34,8 @@ namespace Util{
       inline operator void*(){return ptr;}
     private:
       void * ptr;
-      uint32_t currSize;
-      uint32_t maxSize;
+      size_t currSize;
+      size_t maxSize;
 
   };
 
@@ -117,8 +117,10 @@ namespace Util{
       uint32_t getRCount() const;
       uint32_t getRSize() const;
       uint16_t getOffset() const;
+      uint32_t getStartPos() const;
       uint64_t getDeleted() const;
       uint64_t getEndPos() const;
+      size_t getPresent() const;
       uint32_t getFieldCount() const;
       bool isReady() const;
       bool isExit() const;
@@ -138,12 +140,15 @@ namespace Util{
       //Read-write functions:
       void addField(const std::string & name, uint8_t fType, uint32_t fLen=0);
       void setRCount(uint32_t count);
+      void setStartPos(uint32_t n);
       void setDeleted(uint64_t n);
       void setEndPos(uint64_t n);
+      void setPresent(uint32_t n);
       void setReady();
       void setExit();
       void setReload();
       void setString(const std::string & name, const std::string & val, uint64_t recordNo=0);
+      void setString(const RelAccXFieldData & fd, const std::string & val, uint64_t recordNo=0);
       void setInt(const std::string & name, uint64_t val, uint64_t recordNo=0);
       void setInt(const RelAccXFieldData & fd, uint64_t val, uint64_t recordNo=0);
       void setInts(const std::string & name, uint64_t * values, size_t len);
@@ -155,6 +160,7 @@ namespace Util{
       void flowFrom(const RelAccX & src);
 
       FieldAccX getFieldAccX(const std::string & fName);
+      RelAccXFieldData getFieldData(const std::string & fName) const;
     protected:
       static uint32_t getDefaultSize(uint8_t fType);
       std::map<std::string, RelAccXFieldData> fields;
@@ -164,7 +170,7 @@ namespace Util{
 
   class FieldAccX {
     public:
-      FieldAccX(RelAccX * _src = NULL, RelAccXFieldData _field = RelAccXFieldData(), char * _data = NULL);
+      FieldAccX(RelAccX * _src = NULL, RelAccXFieldData _field = RelAccXFieldData());
       uint64_t uint(size_t recordNo) const;
       std::string string(size_t recordNo) const;
       void set(uint64_t val, size_t recordNo = 0);
@@ -172,6 +178,5 @@ namespace Util{
     private:
       RelAccX * src;
       RelAccXFieldData field;
-      char * data;
   };
 }

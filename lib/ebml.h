@@ -102,7 +102,7 @@ namespace EBML{
 
   private:
     const char *data;
-    bool minimalMode; ///<If set, ELEM_MASTER elements will not access payload data when
+    bool minimalMode; ///< If set, ELEM_MASTER elements will not access payload data when
                       /// pretty-printing.
   };
 
@@ -120,5 +120,5 @@ namespace EBML{
     const char *getFrameData(uint8_t no) const;
     virtual std::string toPrettyString(const uint8_t indent = 0, const uint8_t detail = 3) const;
   };
-}
+}// namespace EBML
 

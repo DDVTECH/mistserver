@@ -130,7 +130,7 @@ void Util::Procs::exit_handler() {
   //send sigkill to all remaining
   if (!listcopy.empty()) {
     for (it = listcopy.begin(); it != listcopy.end(); it++) {
-      DEBUG_MSG(DLVL_DEVEL, "SIGKILL %d", *it);
+      INFO_MSG("SIGKILL %d", *it);
       kill(*it, SIGKILL);
     }
   }
@@ -272,14 +272,13 @@ pid_t Util::Procs::StartPiped(std::deque<std::string> & argDeq, int * fdin, int 
 pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout, int * fderr) {
   pid_t pid;
   int pipein[2], pipeout[2], pipeerr[2];
-  //DEBUG_MSG(DLVL_DEVEL, "setHandler");
   setHandler();
   if (fdin && *fdin == -1 && pipe(pipein) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+    ERROR_MSG("stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     return 0;
   }
   if (fdout && *fdout == -1 && pipe(pipeout) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+    ERROR_MSG("stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     if (*fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);
@@ -287,7 +286,7 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
     return 0;
   }
   if (fderr && *fderr == -1 && pipe(pipeerr) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+    ERROR_MSG("stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
     if (*fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);
@@ -302,7 +301,7 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
   if (!fdin || !fdout || !fderr) {
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1) {
-      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
+      ERROR_MSG("Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
       if (*fdin == -1) {
         close(pipein[0]);
         close(pipein[1]);
@@ -365,10 +364,10 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
     }
     //Because execvp requires a char* const* and we have a const char* const*
     execvp(argv[0], (char* const*)argv);
-    DEBUG_MSG(DLVL_ERROR, "execvp failed for process %s, reason: %s", argv[0], strerror(errno));
+    ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
     exit(42);
   } else if (pid == -1) {
-    DEBUG_MSG(DLVL_ERROR, "fork failed for process %s, reason: %s", argv[0], strerror(errno));
+    ERROR_MSG("fork failed for process %s, reason: %s", argv[0], strerror(errno));
     if (fdin && *fdin == -1) {
       close(pipein[0]);
       close(pipein[1]);
@@ -390,7 +389,7 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
       tthread::lock_guard<tthread::mutex> guard(plistMutex);
       plist.insert(pid);
     }
-    DEBUG_MSG(DLVL_HIGH, "Piped process %s started, PID %d", argv[0], pid);
+    HIGH_MSG("Piped process %s started, PID %d", argv[0], pid);
     if (devnull != -1) {
       close(devnull);
     }

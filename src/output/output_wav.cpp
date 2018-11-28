@@ -33,7 +33,7 @@ namespace Mist{
 
   void OutWAV::sendNext(){
     char *dataPointer = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
 
     //PCM must be converted to little-endian if > 8 bits per sample

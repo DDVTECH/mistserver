@@ -29,7 +29,7 @@ namespace Controller{
     pid_t ret = Util::startPush(stream, target);
     if (ret){
       JSON::Value push;
-      push.append((long long)ret);
+      push.append(ret);
       push.append(stream);
       push.append(originalTarget);
       push.append(target);
@@ -114,10 +114,10 @@ namespace Controller{
   static void readPushList(char * pwo){
     activePushes.clear();
     pid_t p = Bit::btohl(pwo);
-    HIGH_MSG("Recovering pushes: %lu", (uint32_t)p);
+    HIGH_MSG("Recovering pushes: %" PRIu32, (uint32_t)p);
     while (p > 1){
       JSON::Value push;
-      push.append((long long)p);
+      push.append(p);
       pwo += 4;
       for (uint8_t i = 0; i < 3; ++i){
         uint16_t l = Bit::btohs(pwo);
@@ -244,13 +244,13 @@ namespace Controller{
         startTime = true;
       }
       if (request.isMember("completetime") && request["completetime"].isInt()){
-        if (!startTime){newPush.append(0ll);}
+        if (!startTime){newPush.append(0u);}
         newPush.append(request["completetime"]);
       }
     }
     long long epo = Util::epoch();
     if (newPush.size() > 3 && newPush[3u].asInt() <= epo){
-      WARN_MSG("Automatic push not added: removal time is in the past! (%lld <= %lld)", newPush[3u].asInt(), Util::epoch());
+      WARN_MSG("Automatic push not added: removal time is in the past! (%" PRId64 " <= %" PRIu64 ")", newPush[3u].asInt(), Util::epoch());
       return;
     }
     bool edited = false;

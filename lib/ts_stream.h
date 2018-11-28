@@ -15,20 +15,19 @@ namespace TS{
   class ADTSRemainder{
   private:
     char *data;
-    uint32_t max;
-    uint32_t now;
-    uint32_t len;
+      uint64_t max;
+      uint64_t now;
+      uint64_t len;
     uint64_t bpos;
 
   public:
-    void setRemainder(const aac::adts &p, const void *source, const uint32_t avail,
-                      const uint64_t bPos);
+      void setRemainder(const aac::adts & p, const void * source, uint32_t avail, uint64_t bPos);
 
     ADTSRemainder();
     ~ADTSRemainder();
-    uint32_t getLength();
+      uint64_t getLength();
     uint64_t getBpos();
-    uint32_t getTodo();
+      uint64_t getTodo();
     char *getData();
 
     void append(const char *p, uint32_t pLen);
@@ -40,62 +39,63 @@ namespace TS{
   public:
     Stream(bool _threaded = false);
     ~Stream();
-    void add(char *newPack, unsigned long long bytePos = 0);
-    void add(Packet &newPack, unsigned long long bytePos = 0);
-    void parse(Packet &newPack, unsigned long long bytePos);
-    void parse(char *newPack, unsigned long long bytePos);
-    void parse(unsigned long tid);
-    void parseNal(uint32_t tid, const char *pesPayload, const char *packetPtr, bool &isKeyFrame);
+      void add(char * newPack, uint64_t bytePos = 0);
+      void add(Packet & newPack, uint64_t bytePos = 0);
+      void parse(Packet & newPack, uint64_t bytePos);
+      void parse(char * newPack, uint64_t bytePos);
+      void parse(size_t tid);
+      void parseNal(size_t tid, const char * pesPayload, const char * packetPtr, bool & isKeyFrame);
     bool hasPacketOnEachTrack() const;
-    bool hasPacket(unsigned long tid) const;
+      bool hasPacket(size_t tid) const;
     bool hasPacket() const;
-    void getPacket(unsigned long tid, DTSC::Packet &pack);
+    void getPacket(size_t tid, DTSC::Packet &pack);
+    uint32_t getEarliestPID();
     void getEarliestPacket(DTSC::Packet &pack);
-    void initializeMetadata(DTSC::Meta &meta, unsigned long tid = 0, unsigned long mappingId = 0);
+    void initializeMetadata(DTSC::Meta &meta, size_t tid = 0, size_t mappingId = 0);
     void partialClear();
     void clear();
     void finish();
-    void eraseTrack(unsigned long tid);
-    bool isDataTrack(unsigned long tid);
-    void parseBitstream(uint32_t tid, const char *pesPayload, uint32_t realPayloadSize,
+      void eraseTrack(size_t tid);
+      bool isDataTrack(size_t tid) const;
+      void parseBitstream(size_t tid, const char * pesPayload, uint64_t realPayloadSize,
                         uint64_t timeStamp, int64_t timeOffset, uint64_t bPos, bool alignment);
-    std::set<unsigned long> getActiveTracks();
+      std::set<size_t> getActiveTracks();
 
-    void setLastms(unsigned long tid, uint64_t timestamp);
+      void setLastms(size_t tid, uint64_t timestamp);
   private:
-    unsigned long long lastPAT;
+      uint64_t lastPAT;
     ProgramAssociationTable associationTable;
-    std::map<unsigned long, ADTSRemainder> remainders;
+      std::map<size_t, ADTSRemainder> remainders;
 
-    std::map<unsigned long, unsigned long long> lastPMT;
-    std::map<unsigned long, ProgramMappingTable> mappingTable;
+      std::map<size_t, uint64_t> lastPMT;
+      std::map<size_t, ProgramMappingTable> mappingTable;
 
-    std::map<unsigned long, std::deque<Packet> > pesStreams;
-    std::map<unsigned long, std::deque<unsigned long long> > pesPositions;
-    std::map<unsigned long, std::deque<DTSC::Packet> > outPackets;
-    std::map<unsigned long, DTSC::Packet> buildPacket;
-    std::map<unsigned long, unsigned long> pidToCodec;
-    std::map<unsigned long, aac::adts> adtsInfo;
-    std::map<unsigned long, std::string> spsInfo;
-    std::map<unsigned long, std::string> ppsInfo;
-    std::map<unsigned long, h265::initData> hevcInfo;
-    std::map<unsigned long, std::string> metaInit;
-    std::map<unsigned long, std::string> descriptors;
-    std::map<unsigned long, uint32_t> seenUnitStart;
-    std::map<unsigned long, std::string> mpeg2SeqHdr;
-    std::map<unsigned long, std::string> mpeg2SeqExt;
-    std::map<unsigned long, std::string> mp2Hdr;
+      std::map<size_t, std::deque<Packet> > pesStreams;
+      std::map<size_t, std::deque<uint64_t> > pesPositions;
+      std::map<size_t, std::deque<DTSC::Packet> > outPackets;
+      std::map<size_t, DTSC::Packet> buildPacket;
+      std::map<size_t, uint32_t> pidToCodec;
+      std::map<size_t, aac::adts > adtsInfo;
+      std::map<size_t, std::string > spsInfo;
+      std::map<size_t, std::string > ppsInfo;
+      std::map<size_t, h265::initData > hevcInfo;
+      std::map<size_t, std::string> metaInit;
+      std::map<size_t, std::string> descriptors;
+      std::map<size_t, uint32_t> seenUnitStart;
+      std::map<size_t, std::string> mpeg2SeqHdr;
+      std::map<size_t, std::string> mpeg2SeqExt;
+      std::map<size_t, std::string> mp2Hdr;
 
-    std::map<unsigned long, size_t> rolloverCount;
-    std::map<unsigned long, unsigned long long> lastms;
+      std::map<size_t, size_t> rolloverCount;
+      std::map<size_t, unsigned long long> lastms;
 
     mutable tthread::recursive_mutex tMutex;
 
     bool threaded;
 
-    std::set<unsigned long> pmtTracks;
+      std::set<size_t> pmtTracks;
 
-    void parsePES(unsigned long tid, bool finished = false);
+      void parsePES(size_t tid, bool finished = false);
   };
 }
 

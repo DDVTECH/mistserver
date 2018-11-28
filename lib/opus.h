@@ -1,4 +1,5 @@
 #include <string>
+#include <stdint.h> 
 
 namespace Opus{
   uint16_t getPreSkip(const char * initData);

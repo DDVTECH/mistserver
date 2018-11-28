@@ -53,7 +53,7 @@ bool AnalyserDTSC::parsePacket(){
     }
     if (detail >= 8){
       char * payDat;
-      unsigned int payLen;
+      size_t payLen;
       P.getString("data", payDat, payLen);
       for (uint64_t i = 0; i < payLen; ++i){
         if ((i % 32) == 0){std::cout << std::endl;}

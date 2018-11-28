@@ -50,7 +50,7 @@ namespace Mist{
   void OutH264::sendNext(){
     if (keysOnly && !thisPacket.getFlag("keyframe")){return;}
     char *dataPointer = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
 
     unsigned int i = 0;

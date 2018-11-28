@@ -138,7 +138,6 @@ namespace Controller {
   ///\param data The stream configuration for the server.
   ///\returns True if the server status changed
   bool CheckAllStreams(JSON::Value & data){
-    long long int currTime = Util::epoch();
     jsonForEach(data, jit) {
       checkStream(jit.key(), (*jit));
     }

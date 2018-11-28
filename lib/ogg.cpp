@@ -113,7 +113,7 @@ namespace OGG {
       return false;
     }
     if (newData.substr(0, 4) != "OggS"){
-      DEBUG_MSG(DLVL_FAIL, "Invalid Ogg page encountered (magic number wrong: %s) - cannot continue", newData.c_str());
+      FAIL_MSG("Invalid Ogg page encountered (magic number wrong: %s) - cannot continue", newData.c_str());
       return false;
     }
     memcpy(data, newData.c_str(), 27);//copying the header, always 27 bytes
@@ -154,7 +154,7 @@ namespace OGG {
       return false;
     }
     if (std::string(data, 4) != "OggS"){
-      DEBUG_MSG(DLVL_FAIL, "Invalid Ogg page encountered (magic number wrong: %s) - cannot continue bytePos %d", data, oriPos);
+      FAIL_MSG("Invalid Ogg page encountered (magic number wrong: %s) - cannot continue bytePos %d", data, oriPos);
       return false;
     }
     if (!fread(data + 27, getPageSegments(), 1, inFile)){
@@ -167,10 +167,10 @@ namespace OGG {
       if (*it){
         char * thisSeg = (char *)malloc(*it * sizeof(char));
         if (!thisSeg){
-          DEBUG_MSG(DLVL_WARN, "malloc failed");
+          WARN_MSG("malloc failed");
         }
         if (!fread(thisSeg, *it, 1, inFile)){
-          DEBUG_MSG(DLVL_WARN, "Unable to read a segment @ pos %d segment size: %d getPageSegments: %d", oriPos, *it, getPageSegments());
+          WARN_MSG("Unable to read a segment @ pos %d segment size: %d getPageSegments: %d", oriPos, *it, getPageSegments());
           fseek(inFile, oriPos, SEEK_SET);
           return false;
         }
@@ -536,7 +536,7 @@ namespace OGG {
   ///\todo Rewrite this
   void Page::sendTo(Socket::Connection & destination, int calcGranule){ //combines all data and sends it to socket
     if (!oggSegments.size()){
-      DEBUG_MSG(DLVL_HIGH, "!segments.size()");
+      HIGH_MSG("!segments.size()");
       return;
     }
     if (codec == OGG::VORBIS){
@@ -599,7 +599,7 @@ namespace OGG {
     checksum = crc32(checksum, &tableSize, 1); //calculating the checksum over the segment Table Size
     checksum = crc32(checksum, table, tableSize);//calculating the checksum over the segment Table
 
-    DEBUG_MSG(DLVL_DONTEVEN, "numSegments: %d", numSegments);
+    DONTEVEN_MSG("numSegments: %d", numSegments);
 
     for (unsigned int i = 0; i < numSegments; i++){
       //INFO_MSG("checksum, i: %d", i);

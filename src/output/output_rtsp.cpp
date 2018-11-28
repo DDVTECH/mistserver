@@ -32,7 +32,7 @@ namespace Mist{
     /// \TODO Make this less inefficient. Seriously. Maybe use DTSC::RetimedPacket by extending with bmo functionality...?
     static DTSC::Packet newPkt;
     char * pktData;
-    unsigned int pktDataLen;
+    size_t pktDataLen;
     pkt.getString("data", pktData, pktDataLen);
     newPkt.genericFill(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData, pktDataLen, 0, pkt.getFlag("keyframe"), bootMsOffset);
     bufferLivePacket(newPkt);
@@ -122,7 +122,7 @@ namespace Mist{
 
   void OutRTSP::sendNext(){
     char *dataPointer = 0;
-    unsigned int dataLen = 0;
+    size_t dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen);
     uint32_t tid = thisPacket.getTrackId();
     uint64_t timestamp = thisPacket.getTime();

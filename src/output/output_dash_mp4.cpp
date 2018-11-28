@@ -217,7 +217,7 @@ namespace Mist{
         trunBox.setSampleInformation(trunEntry, j);
         ++j;
       }
-      trunBox.setDataOffset(88 + (12 * j) + 8);
+      trunBox.setDataOffset(92 + (12 * j) + 8);
     }
     if (Trk.type == "audio"){
       trunBox.setFlags(MP4::trundataOffset | MP4::trunsampleSize | MP4::trunsampleDuration);
@@ -230,7 +230,7 @@ namespace Mist{
         trunBox.setSampleInformation(trunEntry, j);
         ++j;
       }
-      trunBox.setDataOffset(88 + (8 * j) + 8);
+      trunBox.setDataOffset(92 + (8 * j) + 8);
     }
     trafBox.setContent(trunBox, 2);
     moofBox.setContent(trafBox, 1);
@@ -316,7 +316,7 @@ namespace Mist{
       return;
     }
     char *  data;
-    unsigned int dataLen;
+    size_t dataLen;
     thisPacket.getString("data", data, dataLen);
     H.Chunkify(data, dataLen, myConn);
   }

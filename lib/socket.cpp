@@ -6,13 +6,13 @@
 #include "defines.h"
 #include "timing.h"
 #include <cstdlib>
+#include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <ifaddrs.h>
 
 #define BUFFER_BLOCKSIZE 4096 // set buffer blocksize to 4KiB
 
@@ -23,33 +23,30 @@
 #endif
 
 /// Local-scope only helper function that prints address families
-static const char* addrFam(int f){
-  switch(f){
-    case AF_UNSPEC: return "Unspecified";
-    case AF_INET: return "IPv4";
-    case AF_INET6: return "IPv6";
-    case PF_UNIX: return "Unix";
-    default: return "???";
+static const char *addrFam(int f){
+  switch (f){
+  case AF_UNSPEC: return "Unspecified";
+  case AF_INET: return "IPv4";
+  case AF_INET6: return "IPv6";
+  case PF_UNIX: return "Unix";
+  default: return "???";
   }
 }
 
-static std::string getIPv6BinAddr(const struct sockaddr_in6 & remoteaddr){
+static std::string getIPv6BinAddr(const struct sockaddr_in6 &remoteaddr){
   char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
   switch (remoteaddr.sin6_family){
-    case AF_INET:
-      memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in*>(&remoteaddr)->sin_addr.s_addr), 4);
-      break;
-    case AF_INET6:
-      memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16);
-      break;
-    default:
-      return "";
-      break;
+  case AF_INET:
+    memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in *>(&remoteaddr)->sin_addr.s_addr),
+           4);
+    break;
+  case AF_INET6: memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16); break;
+  default: return ""; break;
   }
   return std::string(tmpBuffer, 16);
 }
 
-bool Socket::isLocalhost(const std::string & remotehost){
+bool Socket::isLocalhost(const std::string &remotehost){
   std::string tmpInput = remotehost;
   std::string bf = Socket::getBinForms(tmpInput);
   std::string tmpAddr;
@@ -61,33 +58,31 @@ bool Socket::isLocalhost(const std::string & remotehost){
   return false;
 }
 
-bool Socket::isLocal(const std::string & remotehost){
-  struct ifaddrs * ifAddrStruct=NULL;
-  struct ifaddrs * ifa=NULL;
-  void * tmpAddrPtr=NULL;
+bool Socket::isLocal(const std::string &remotehost){
+  struct ifaddrs *ifAddrStruct = NULL;
+  struct ifaddrs *ifa = NULL;
+  void *tmpAddrPtr = NULL;
   char addressBuffer[INET6_ADDRSTRLEN];
 
   getifaddrs(&ifAddrStruct);
 
   for (ifa = ifAddrStruct; ifa != NULL; ifa = ifa->ifa_next){
-    if (!ifa->ifa_addr){
-      continue;
-    }
+    if (!ifa->ifa_addr){continue;}
     if (ifa->ifa_addr->sa_family == AF_INET){// check it is IP4
-      tmpAddrPtr=&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
+      tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
       inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
       INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == std::string("::ffff:") + addressBuffer){return true;}
     }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
-      tmpAddrPtr=&((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
+      tmpAddrPtr = &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
       inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
       if (remotehost == addressBuffer){return true;}
     }
   }
-  if (ifAddrStruct!=NULL) freeifaddrs(ifAddrStruct);
+  if (ifAddrStruct != NULL) freeifaddrs(ifAddrStruct);
   return false;
 }
 
@@ -111,13 +106,13 @@ bool Socket::matchIPv6Addr(const std::string &A, const std::string &B, uint8_t p
 /// Attempts to match the given address with optional subnet to the given binary-form IPv6 address.
 /// Returns true if match could be made, false otherwise.
 bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
-  //Check if we need to do prefix matching
+  // Check if we need to do prefix matching
   uint8_t prefixLen = 0;
   if (addr.find('/') != std::string::npos){
     prefixLen = atoi(addr.c_str() + addr.find('/') + 1);
     addr.erase(addr.find('/'), std::string::npos);
   }
-  //Loops over all IPs for the given address and matches them in IPv6 form.
+  // Loops over all IPs for the given address and matches them in IPv6 form.
   struct addrinfo *result, *rp, hints;
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
@@ -145,13 +140,13 @@ bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
 /// Converts the given address with optional subnet to binary IPv6 form.
 /// Returns 16 bytes of address, followed by 1 byte of subnet bits, zero or more times.
 std::string Socket::getBinForms(std::string addr){
-  //Check if we need to do prefix matching
+  // Check if we need to do prefix matching
   uint8_t prefixLen = 128;
   if (addr.find('/') != std::string::npos){
     prefixLen = atoi(addr.c_str() + addr.find('/') + 1);
     addr.erase(addr.find('/'), std::string::npos);
   }
-  //Loops over all IPs for the given address and converts to IPv6 binary form.
+  // Loops over all IPs for the given address and converts to IPv6 binary form.
   struct addrinfo *result, *rp, hints;
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
@@ -167,7 +162,7 @@ std::string Socket::getBinForms(std::string addr){
   for (rp = result; rp != NULL; rp = rp->ai_next){
     ret += getIPv6BinAddr(*((sockaddr_in6 *)rp->ai_addr));
     if (rp->ai_family == AF_INET){
-      ret += (char)(prefixLen<=32 ? prefixLen + 96 : prefixLen);
+      ret += (char)(prefixLen <= 32 ? prefixLen + 96 : prefixLen);
     }else{
       ret += (char)prefixLen;
     }
@@ -176,8 +171,8 @@ std::string Socket::getBinForms(std::string addr){
   return ret;
 }
 
-/// Checks bytes (length len) containing a binary-encoded IPv4 or IPv6 IP address, and writes it in human-readable notation to target.
-/// Writes "unknown" if it cannot decode to a sensible value.
+/// Checks bytes (length len) containing a binary-encoded IPv4 or IPv6 IP address, and writes it in
+/// human-readable notation to target. Writes "unknown" if it cannot decode to a sensible value.
 void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
   switch (len){
   case 4:
@@ -192,7 +187,7 @@ void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
       target = tmpstr;
     }else{
       char tmpstr[40];
-      snprintf(tmpstr, 40, "%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x", bytes[0], bytes[1],
+      snprintf(tmpstr, 40, "%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x", bytes[0], bytes[1],
                bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13],
                bytes[14], bytes[15]);
       target = tmpstr;
@@ -235,7 +230,8 @@ unsigned int Socket::Buffer::bytesToSplit(){
   unsigned int i = 0;
   for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
     i += (*it).size();
-    if ((*it).size() >= splitter.size() && (*it).substr((*it).size()-splitter.size()) == splitter){
+    if ((*it).size() >= splitter.size() &&
+        (*it).substr((*it).size() - splitter.size()) == splitter){
       return i;
     }
   }
@@ -243,12 +239,13 @@ unsigned int Socket::Buffer::bytesToSplit(){
 }
 
 /// Appends this string to the internal std::deque of std::string objects.
-/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is encountered.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is
+/// encountered.
 void Socket::Buffer::append(const std::string &newdata){
   append(newdata.data(), newdata.size());
 }
 
-///Helper function that does a short-circuiting string compare
+/// Helper function that does a short-circuiting string compare
 inline bool string_compare(const char *a, const char *b, const size_t len){
   for (size_t i = 0; i < len; ++i){
     if (a[i] != b[i]){return false;}
@@ -257,7 +254,8 @@ inline bool string_compare(const char *a, const char *b, const size_t len){
 }
 
 /// Appends this data block to the internal std::deque of std::string objects.
-/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is encountered.
+/// It is automatically split every BUFFER_BLOCKSIZE bytes and when the splitter string is
+/// encountered.
 void Socket::Buffer::append(const char *newdata, const unsigned int newdatasize){
   uint32_t i = 0;
   while (i < newdatasize){
@@ -269,10 +267,12 @@ void Socket::Buffer::append(const char *newdata, const unsigned int newdatasize)
         j = newdatasize - i;
       }
     }else{
-      while (j+i < newdatasize && j < BUFFER_BLOCKSIZE){
+      while (j + i < newdatasize && j < BUFFER_BLOCKSIZE){
         j++;
         if (j >= splitter.size()){
-          if (string_compare(newdata+i+j-splitter.size(), splitter.data(), splitter.size())){break;}
+          if (string_compare(newdata + i + j - splitter.size(), splitter.data(), splitter.size())){
+            break;
+          }
         }
       }
     }
@@ -286,7 +286,7 @@ void Socket::Buffer::append(const char *newdata, const unsigned int newdatasize)
     }
   }
   if (data.size() > 5000){
-    DEBUG_MSG(DLVL_WARN, "Warning: After %d new bytes, buffer has %d parts containing over %u bytes!", newdatasize, (int)data.size(),
+    WARN_MSG("Warning: After %d new bytes, buffer has %d parts containing over %u bytes!", newdatasize, (int)data.size(),
               bytes(9000));
   }
 }
@@ -372,8 +372,8 @@ void Socket::Buffer::clear(){
   data.clear();
 }
 
-/// Create a new base socket. This is a basic constructor for converting any valid socket to a Socket::Connection.
-/// \param sockNo Integer representing the socket to convert.
+/// Create a new base socket. This is a basic constructor for converting any valid socket to a
+/// Socket::Connection. \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
   sSend = sockNo;
   sRecv = -1;
@@ -509,7 +509,8 @@ int Socket::Connection::getPureSocket(){
 }
 
 /// Returns a string describing the last error that occured.
-/// Only reports errors if an error actually occured - returns the host address or empty string otherwise.
+/// Only reports errors if an error actually occured - returns the host address or empty string
+/// otherwise.
 std::string Socket::Connection::getError(){
   return remotehost;
 }
@@ -572,7 +573,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   hints.ai_flags = AI_ADDRCONFIG;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s:%i! Error: %s", host.c_str(), port, gai_strerror(s));
+    FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, gai_strerror(s));
     close();
     return;
   }
@@ -588,7 +589,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
   freeaddrinfo(result);
 
   if (rp == 0){
-    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s! Error: %s", host.c_str(), remotehost.c_str());
+    FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), remotehost.c_str());
     close();
   }else{
     if (nonblock){
@@ -629,7 +630,8 @@ uint64_t Socket::Connection::dataDown(){
 /// Returns a std::string of stats, ended by a newline.
 /// Requires the current connector name as an argument.
 std::string Socket::Connection::getStats(std::string C){
-  return "S " + getHost() + " " + C + " " + uint2string(Util::epoch() - conntime) + " " + uint2string(up) + " " + uint2string(down) + "\n";
+  return "S " + getHost() + " " + C + " " + uint2string(Util::epoch() - conntime) + " " +
+         uint2string(up) + " " + uint2string(down) + "\n";
 }
 
 /// Updates the downbuffer internal variable.
@@ -660,7 +662,9 @@ void Socket::Connection::SendNow(const char *data, size_t len){
   bool bing = isBlocking();
   if (!bing){setBlocking(true);}
   unsigned int i = iwrite(data, std::min((long unsigned int)len, SOCKETSIZE));
-  while (i < len && connected()){i += iwrite(data + i, std::min((long unsigned int)(len - i), SOCKETSIZE));}
+  while (i < len && connected()){
+    i += iwrite(data + i, std::min((long unsigned int)(len - i), SOCKETSIZE));
+  }
   if (!bing){setBlocking(false);}
 }
 
@@ -678,7 +682,7 @@ void Socket::Connection::SendNow(const std::string &data){
 }
 
 void Socket::Connection::skipBytes(uint32_t byteCount){
-  INFO_MSG("Skipping first %lu bytes going to socket", byteCount);
+  INFO_MSG("Skipping first %" PRIu32 " bytes going to socket", byteCount);
   skipCount = byteCount;
 }
 
@@ -690,15 +694,15 @@ void Socket::Connection::skipBytes(uint32_t byteCount){
 unsigned int Socket::Connection::iwrite(const void *buffer, int len){
   if (!connected() || len < 1){return 0;}
   if (skipCount){
-    //We have bytes to skip writing.
-    //Pretend we write them, but don't really.
+    // We have bytes to skip writing.
+    // Pretend we write them, but don't really.
     if (len <= skipCount){
       skipCount -= len;
       return len;
     }else{
       unsigned int toSkip = skipCount;
       skipCount = 0;
-      return iwrite((((char*)buffer)+toSkip), len-toSkip) + toSkip;
+      return iwrite((((char *)buffer) + toSkip), len - toSkip) + toSkip;
     }
   }
   int r;
@@ -802,7 +806,7 @@ std::string Socket::Connection::getBinHost(){
 /// Overwrites the detected host, thus possibily making it incorrect.
 void Socket::Connection::setHost(std::string host){
   remotehost = host;
-  struct addrinfo *result, *rp, hints;
+  struct addrinfo *result, hints;
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
@@ -813,9 +817,7 @@ void Socket::Connection::setHost(std::string host){
   hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), 0, &hints, &result);
   if (s != 0){return;}
-  if (result){
-    remoteaddr = *((sockaddr_in6 *)result->ai_addr);
-  }
+  if (result){remoteaddr = *((sockaddr_in6 *)result->ai_addr);}
   freeaddrinfo(result);
 }
 
@@ -840,7 +842,7 @@ Socket::Connection::operator bool() const{
 /// Returns true if the given address can be matched with the remote host.
 /// Can no longer return true after any socket error have occurred.
 bool Socket::Connection::isAddress(const std::string &addr){
-  //Retrieve current socket binary address
+  // Retrieve current socket binary address
   std::string myBinAddr = getBinHost();
   return isBinAddress(myBinAddr, addr);
 }
@@ -865,7 +867,8 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
   fflush((FILE *)ctx);
 }
 
-Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblock) : Socket::Connection(){
+Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblock)
+    : Socket::Connection(){
   mbedtls_debug_set_threshold(0);
   isConnected = true;
   server_fd = new mbedtls_net_context;
@@ -879,14 +882,15 @@ Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblo
   mbedtls_ctr_drbg_init(ctr_drbg);
   mbedtls_entropy_init(entropy);
   DONTEVEN_MSG("SSL init");
-  if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char*)"meow", 4) != 0){
+  if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char *)"meow",
+                            4) != 0){
     FAIL_MSG("SSL socket init failed");
     close();
     return;
   }
   DONTEVEN_MSG("SSL connect");
   int ret = 0;
-  if ((ret = mbedtls_net_connect(server_fd, hostname.c_str(), JSON::Value((long long)port).asString().c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
+  if ((ret = mbedtls_net_connect(server_fd, hostname.c_str(), JSON::Value(port).asString().c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
     FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
     close();
     return;
@@ -899,13 +903,13 @@ Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblo
   }
   mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
   mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, ctr_drbg);
-  mbedtls_ssl_conf_dbg(conf, my_debug, stderr );
+  mbedtls_ssl_conf_dbg(conf, my_debug, stderr);
   if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
-      char estr[200];
-      mbedtls_strerror(ret, estr, 200);
-      FAIL_MSG("SSL setup error %d: %s", ret, estr);
-      close();
-      return;
+    char estr[200];
+    mbedtls_strerror(ret, estr, 200);
+    FAIL_MSG("SSL setup error %d: %s", ret, estr);
+    close();
+    return;
   }
   if ((ret = mbedtls_ssl_set_hostname(ssl, hostname.c_str())) != 0){
     FAIL_MSG(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
@@ -923,9 +927,7 @@ Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblo
     }
   }
   Blocking = true;
-  if (nonblock){
-    setBlocking(false);
-  }
+  if (nonblock){setBlocking(false);}
 }
 
 void Socket::SSLConnection::close(){
@@ -969,7 +971,7 @@ int Socket::SSLConnection::iread(void *buffer, int len, int flags){
   if (!connected() || len < 1){return 0;}
   int r;
   /// \TODO Flags ignored... Bad.
-  r = mbedtls_ssl_read(ssl, (unsigned char*)buffer, len);
+  r = mbedtls_ssl_read(ssl, (unsigned char *)buffer, len);
   if (r < 0){
     char estr[200];
     mbedtls_strerror(r, estr, 200);
@@ -1006,7 +1008,7 @@ unsigned int Socket::SSLConnection::iwrite(const void *buffer, int len){
   DONTEVEN_MSG("SSL iwrite");
   if (!connected() || len < 1){return 0;}
   int r;
-  r = mbedtls_ssl_write(ssl, (const unsigned char*)buffer, len);
+  r = mbedtls_ssl_write(ssl, (const unsigned char *)buffer, len);
   if (r < 0){
     char estr[200];
     mbedtls_strerror(r, estr, 200);
@@ -1050,7 +1052,8 @@ void Socket::SSLConnection::setBlocking(bool blocking){
 
 #endif
 
-/// Create a new base Server. The socket is never connected, and a placeholder for later connections.
+/// Create a new base Server. The socket is never connected, and a placeholder for later
+/// connections.
 Socket::Server::Server(){
   sock = -1;
 }// Socket::Server base Constructor
@@ -1060,10 +1063,11 @@ Socket::Server::Server(){
 /// Any further connections coming in will be dropped.
 /// \param port The TCP port to listen on
 /// \param hostname (optional) The interface to bind to. The default is 0.0.0.0 (all interfaces).
-/// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
+/// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false
+/// (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock){
   if (!IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)){
-    DEBUG_MSG(DLVL_FAIL, "Could not create socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
+    FAIL_MSG("Could not create socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     sock = -1;
   }
 }// Socket::Server TCP Constructor
@@ -1077,7 +1081,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET6, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Could not create IPv6 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
+    ERROR_MSG("Could not create IPv6 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     return false;
   }
   int on = 1;
@@ -1095,7 +1099,7 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   memset(&addr, 0, sizeof(addr));
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port); // set port
-  //set interface, 0.0.0.0 (default) is all
+  // set interface, 0.0.0.0 (default) is all
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr.sin6_addr = in6addr_any;
   }else{
@@ -1110,17 +1114,17 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); // start listening, backlog of 100 allowed
     if (ret == 0){
-      DEBUG_MSG(DLVL_DEVEL, "IPv6 socket success @ %s:%i", hostname.c_str(), port);
+      DEVEL_MSG("IPv6 socket success @ %s:%i", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "IPv6 listen failed! Error: %s", errors.c_str());
+      ERROR_MSG("IPv6 listen failed! Error: %s", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "IPv6 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
+    ERROR_MSG("IPv6 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -1135,7 +1139,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Could not create IPv4 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
+    ERROR_MSG("Could not create IPv4 socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     return false;
   }
   int on = 1;
@@ -1149,7 +1153,7 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   memset(&addr4, 0, sizeof(addr4));
   addr4.sin_family = AF_INET;
   addr4.sin_port = htons(port); // set port
-  //set interface, 0.0.0.0 (default) is all
+  // set interface, 0.0.0.0 (default) is all
   if (hostname == "0.0.0.0" || hostname.length() == 0){
     addr4.sin_addr.s_addr = INADDR_ANY;
   }else{
@@ -1164,17 +1168,17 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
   if (ret == 0){
     ret = listen(sock, 100); // start listening, backlog of 100 allowed
     if (ret == 0){
-      DEBUG_MSG(DLVL_DEVEL, "IPv4 socket success @ %s:%i", hostname.c_str(), port);
+      DEVEL_MSG("IPv4 socket success @ %s:%i", hostname.c_str(), port);
       return true;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "IPv4 listen failed! Error: %s", errors.c_str());
+      ERROR_MSG("IPv4 listen failed! Error: %s", errors.c_str());
       close();
       return false;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "IPv4 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
+    ERROR_MSG("IPv4 Binding %s:%i failed (%s)", hostname.c_str(), port, errors.c_str());
     close();
     return false;
   }
@@ -1183,16 +1187,16 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock){
 /// Create a new Unix Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.
 /// Any further connections coming in will be dropped.
-/// The address used will first be unlinked - so it succeeds if the Unix socket already existed. Watch out for this behaviour - it will delete
-/// any file located at address!
-/// \param address The location of the Unix socket to bind to.
-/// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
+/// The address used will first be unlinked - so it succeeds if the Unix socket already existed.
+/// Watch out for this behaviour - it will delete any file located at address! \param address The
+/// location of the Unix socket to bind to. \param nonblock (optional) Whether accept() calls will
+/// be nonblocking. Default is false (blocking).
 Socket::Server::Server(std::string address, bool nonblock){
   unlink(address.c_str());
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock < 0){
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Could not create unix socket %s! Error: %s", address.c_str(), errors.c_str());
+    ERROR_MSG("Could not create unix socket %s! Error: %s", address.c_str(), errors.c_str());
     return;
   }
   if (nonblock){
@@ -1210,22 +1214,23 @@ Socket::Server::Server(std::string address, bool nonblock){
       return;
     }else{
       errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "Unix listen failed! Error: %s", errors.c_str());
+      ERROR_MSG("Unix listen failed! Error: %s", errors.c_str());
       close();
       return;
     }
   }else{
     errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Unix Binding %s failed (%s)", address.c_str(), errors.c_str());
+    ERROR_MSG("Unix Binding %s failed (%s)", address.c_str(), errors.c_str());
     close();
     return;
   }
 }// Socket::Server Unix Constructor
 
-/// Accept any waiting connections. If the Socket::Server is blocking, this function will block until there is an incoming connection.
-/// If the Socket::Server is nonblocking, it might return a Socket::Connection that is not connected, so check for this.
-/// \param nonblock (optional) Whether the newly connected socket should be nonblocking. Default is false (blocking).
-/// \returns A Socket::Connection, which may or may not be connected, depending on settings and circumstances.
+/// Accept any waiting connections. If the Socket::Server is blocking, this function will block
+/// until there is an incoming connection. If the Socket::Server is nonblocking, it might return a
+/// Socket::Connection that is not connected, so check for this. \param nonblock (optional) Whether
+/// the newly connected socket should be nonblocking. Default is false (blocking). \returns A
+/// Socket::Connection, which may or may not be connected, depending on settings and circumstances.
 Socket::Connection Socket::Server::accept(bool nonblock){
   if (sock < 0){return Socket::Connection(-1);}
   struct sockaddr_in6 tmpaddr;
@@ -1254,14 +1259,15 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   tmp.remoteaddr = tmpaddr;
   if (tmpaddr.sin6_family == AF_INET6){
     tmp.remotehost = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-    DEBUG_MSG(DLVL_HIGH, "IPv6 addr [%s]", tmp.remotehost.c_str());
+    HIGH_MSG("IPv6 addr [%s]", tmp.remotehost.c_str());
   }
   if (tmpaddr.sin6_family == AF_INET){
-    tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-    DEBUG_MSG(DLVL_HIGH, "IPv4 addr [%s]", tmp.remotehost.c_str());
+    tmp.remotehost =
+        inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+    HIGH_MSG("IPv4 addr [%s]", tmp.remotehost.c_str());
   }
   if (tmpaddr.sin6_family == AF_UNIX){
-    DEBUG_MSG(DLVL_HIGH, "Unix connection");
+    HIGH_MSG("Unix connection");
     tmp.remotehost = "UNIX_SOCKET";
   }
   return tmp;
@@ -1294,7 +1300,7 @@ void Socket::Server::close(){
 void Socket::Server::drop(){
   if (connected()){
     if (sock != -1){
-      DEBUG_MSG(DLVL_HIGH, "ServerSocket %d closed", sock);
+      HIGH_MSG("ServerSocket %d closed", sock);
       errno = EINTR;
       while (::close(sock) != 0 && errno == EINTR){}
       sock = -1;
@@ -1327,7 +1333,7 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
-  if (sock == -1){DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));}
+  if (sock == -1){FAIL_MSG("Could not create UDP socket: %s", strerror(errno));}
   up = 0;
   down = 0;
   destAddr = 0;
@@ -1347,7 +1353,7 @@ Socket::UDPConnection::UDPConnection(const UDPConnection &o){
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
-  if (sock == -1){DEBUG_MSG(DLVL_FAIL, "Could not create UDP socket: %s", strerror(errno));}
+  if (sock == -1){FAIL_MSG("Could not create UDP socket: %s", strerror(errno));}
   up = 0;
   down = 0;
   if (o.destAddr && o.destAddr_size){
@@ -1392,11 +1398,9 @@ Socket::UDPConnection::~UDPConnection(){
 /// Stores the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
-  //UDP sockets can switch between IPv4 and IPv6 on demand.
-  //We change IPv4-mapped IPv6 addresses into IPv4 addresses for Windows-sillyness reasons.
-  if (destIp.substr(0, 7) == "::ffff:"){
-    destIp = destIp.substr(7);
-  }
+  // UDP sockets can switch between IPv4 and IPv6 on demand.
+  // We change IPv4-mapped IPv6 addresses into IPv4 addresses for Windows-sillyness reasons.
+  if (destIp.substr(0, 7) == "::ffff:"){destIp = destIp.substr(7);}
   struct addrinfo *result, *rp, hints;
   std::stringstream ss;
   ss << port;
@@ -1411,7 +1415,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   hints.ai_next = NULL;
   int s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    DEBUG_MSG(DLVL_FAIL, "Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strerror(s));
+    FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strerror(s));
     return;
   }
 
@@ -1426,7 +1430,8 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
     if (!destAddr){return;}
     memcpy(destAddr, rp->ai_addr, rp->ai_addrlen);
     if (family != rp->ai_family){
-      INFO_MSG("Socket is wrong type (%s), re-opening as %s", addrFam(family), addrFam(rp->ai_family));
+      INFO_MSG("Socket is wrong type (%s), re-opening as %s", addrFam(family),
+               addrFam(rp->ai_family));
       close();
       family = rp->ai_family;
       sock = socket(family, SOCK_DGRAM, 0);
@@ -1439,7 +1444,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   freeaddrinfo(result);
   free(destAddr);
   destAddr = 0;
-  DEBUG_MSG(DLVL_FAIL, "Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
+  FAIL_MSG("Could not set destination for UDP socket: %s:%d", destIp.c_str(), port);
 }// Socket::UDPConnection SetDestination
 
 /// Gets the properties of the receiving end of this UDP socket.
@@ -1453,14 +1458,16 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
   char addr_str[INET6_ADDRSTRLEN + 1];
   addr_str[INET6_ADDRSTRLEN] = 0; // set last byte to zero, to prevent walking out of the array
   if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6){
-    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)destAddr)->sin6_addr), addr_str,
+                  INET6_ADDRSTRLEN) != 0){
       destIp = addr_str;
       port = ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);
       return;
     }
   }
   if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET){
-    if (inet_ntop(AF_INET, &(((struct sockaddr_in *)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+    if (inet_ntop(AF_INET, &(((struct sockaddr_in *)destAddr)->sin_addr), addr_str,
+                  INET6_ADDRSTRLEN) != 0){
       destIp = addr_str;
       port = ntohs(((struct sockaddr_in *)destAddr)->sin_port);
       return;
@@ -1468,15 +1475,19 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
   }
   destIp = "";
   port = 0;
-  DEBUG_MSG(DLVL_FAIL, "Could not get destination for UDP socket");
+  FAIL_MSG("Could not get destination for UDP socket");
 }// Socket::UDPConnection GetDestination
 
 /// Returns the port number of the receiving end of this socket.
 /// Returns 0 on error.
 uint32_t Socket::UDPConnection::getDestPort() const{
   if (!destAddr || !destAddr_size){return 0;}
-  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6){return ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);}
-  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET){return ntohs(((struct sockaddr_in *)destAddr)->sin_port);}
+  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6){
+    return ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);
+  }
+  if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET){
+    return ntohs(((struct sockaddr_in *)destAddr)->sin_port);
+  }
   return 0;
 }
 
@@ -1509,7 +1520,7 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
   if (r > 0){
     up += r;
   }else{
-    DEBUG_MSG(DLVL_FAIL, "Could not send UDP data through %d: %s", sock, strerror(errno));
+    FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
   }
 }
 
@@ -1517,12 +1528,12 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
 /// If that fails, returns zero.
 /// \arg port Port to bind to, required.
 /// \arg iface Interface address to listen for packets on (may be multicast address)
-/// \arg multicastInterfaces Comma-separated list of interfaces to listen on for multicast packets. Optional, left out means automatically chosen
-/// by kernel.
-/// \return Actually bound port number, or zero on error.
-uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::string &multicastInterfaces){
+/// \arg multicastInterfaces Comma-separated list of interfaces to listen on for multicast packets.
+/// Optional, left out means automatically chosen by kernel. \return Actually bound port number, or
+/// zero on error.
+uint16_t Socket::UDPConnection::bind(int port, std::string iface,
+                                     const std::string &multicastInterfaces){
   close(); // we open a new socket for each attempt
-  int result = 0;
   int addr_ret;
   bool multicast = false;
   struct addrinfo hints, *addr_result, *rp;
@@ -1533,7 +1544,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   }else{
     hints.ai_family = AF_UNSPEC;
   }
-  
+
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = IPPROTO_UDP;
 
@@ -1559,13 +1570,13 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
     if (sock == -1){continue;}
     char human_addr[INET6_ADDRSTRLEN];
     char human_port[16];
-    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, human_port, 16, NI_NUMERICHOST | NI_NUMERICSERV);
+    getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, human_port, 16,
+                NI_NUMERICHOST | NI_NUMERICSERV);
     MEDIUM_MSG("Attempting bind to %s:%s (%s)", human_addr, human_port, addrFam(rp->ai_family));
     family = rp->ai_family;
     hints.ai_family = family;
     if (family == AF_INET6){
       sockaddr_in6 *addr6 = (sockaddr_in6 *)(rp->ai_addr);
-      result = ntohs(addr6->sin6_port);
       if (memcmp((char *)&(addr6->sin6_addr), "\000\000\000\000\000\000\000\000\000\000\377\377", 12) == 0){
         // IPv6-mapped IPv4 address - 13th byte ([12]) holds the first IPv4 byte
         multicast = (((char *)&(addr6->sin6_addr))[12] & 0xF0) == 0xE0;
@@ -1575,7 +1586,6 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       }
     }else{
       sockaddr_in *addr4 = (sockaddr_in *)(rp->ai_addr);
-      result = ntohs(addr4->sin_port);
       // multicast has a "1110" bit prefix
       multicast = (((char *)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
     }
@@ -1586,14 +1596,14 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       }
     }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){
-      //get port number
+      // get port number
       struct sockaddr_storage fin_addr;
       socklen_t alen = sizeof(fin_addr);
-      if (getsockname(sock, (struct sockaddr*)&fin_addr, &alen) == 0){
+      if (getsockname(sock, (struct sockaddr *)&fin_addr, &alen) == 0){
         if (family == AF_INET6){
-          portNo = ntohs(((struct sockaddr_in6*)&fin_addr)->sin6_port);
+          portNo = ntohs(((struct sockaddr_in6 *)&fin_addr)->sin6_port);
         }else{
-          portNo = ntohs(((struct sockaddr_in*)&fin_addr)->sin_port);
+          portNo = ntohs(((struct sockaddr_in *)&fin_addr)->sin_port);
         }
       }
       INFO_MSG("UDP bind success on %s:%u (%s)", human_addr, portNo, addrFam(rp->ai_family));
@@ -1626,11 +1636,11 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 
     if (!multicastInterfaces.length()){
       if (family == AF_INET6){
-        memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6 *)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
+        memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6 *)resmulti->ai_addr)->sin6_addr,
+               sizeof(mreq6.ipv6mr_multiaddr));
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&mreq6, sizeof(mreq6)) != 0){
           FAIL_MSG("Unable to register for IPv6 multicast on all interfaces: %s", strerror(errno));
           close();
-          result = -1;
         }
       }else{
         mreq4.imr_multiaddr = ((sockaddr_in *)resmulti->ai_addr)->sin_addr;
@@ -1638,15 +1648,16 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
         if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4)) != 0){
           FAIL_MSG("Unable to register for IPv4 multicast on all interfaces: %s", strerror(errno));
           close();
-          result = -1;
         }
       }
     }else{
       size_t nxtPos = std::string::npos;
       bool atLeastOne = false;
-      for (size_t loc = 0; loc != std::string::npos; loc = (nxtPos == std::string::npos ? nxtPos : nxtPos + 1)){
+      for (size_t loc = 0; loc != std::string::npos;
+           loc = (nxtPos == std::string::npos ? nxtPos : nxtPos + 1)){
         nxtPos = multicastInterfaces.find(',', loc);
-        std::string curIface = multicastInterfaces.substr(loc, (nxtPos == std::string::npos ? nxtPos : nxtPos - loc));
+        std::string curIface =
+            multicastInterfaces.substr(loc, (nxtPos == std::string::npos ? nxtPos : nxtPos - loc));
         // do a bit of filtering for IPv6, removing the []-braces, if any
         if (curIface[0] == '['){
           if (curIface[curIface.size() - 1] == ']'){
@@ -1658,34 +1669,38 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
         if (family == AF_INET6){
           INFO_MSG("Registering for IPv6 multicast on interface %s", curIface.c_str());
           if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
-            WARN_MSG("Unable to resolve IPv6 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+            WARN_MSG("Unable to resolve IPv6 interface address %s: %s", curIface.c_str(),
+                     gai_strerror(addr_ret));
             continue;
           }
-          memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6 *)resmulti->ai_addr)->sin6_addr, sizeof(mreq6.ipv6mr_multiaddr));
+          memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6 *)resmulti->ai_addr)->sin6_addr,
+                 sizeof(mreq6.ipv6mr_multiaddr));
           mreq6.ipv6mr_interface = ((sockaddr_in6 *)reslocal->ai_addr)->sin6_scope_id;
           if (setsockopt(sock, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&mreq6, sizeof(mreq6)) != 0){
-            FAIL_MSG("Unable to register for IPv6 multicast on interface %s (%u): %s", curIface.c_str(),
-                     ((sockaddr_in6 *)reslocal->ai_addr)->sin6_scope_id, strerror(errno));
+            FAIL_MSG("Unable to register for IPv6 multicast on interface %s (%u): %s",
+                     curIface.c_str(), ((sockaddr_in6 *)reslocal->ai_addr)->sin6_scope_id,
+                     strerror(errno));
           }else{
             atLeastOne = true;
           }
         }else{
           INFO_MSG("Registering for IPv4 multicast on interface %s", curIface.c_str());
           if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
-            WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+            WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(),
+                     gai_strerror(addr_ret));
             continue;
           }
           mreq4.imr_multiaddr = ((sockaddr_in *)resmulti->ai_addr)->sin_addr;
           mreq4.imr_interface = ((sockaddr_in *)reslocal->ai_addr)->sin_addr;
           if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&mreq4, sizeof(mreq4)) != 0){
-            FAIL_MSG("Unable to register for IPv4 multicast on interface %s: %s", curIface.c_str(), strerror(errno));
+            FAIL_MSG("Unable to register for IPv4 multicast on interface %s: %s", curIface.c_str(),
+                     strerror(errno));
           }else{
             atLeastOne = true;
           }
         }
         if (!atLeastOne){
           close();
-          result = -1;
         }
         freeaddrinfo(reslocal); // free resolved interface addr
       }// loop over all interfaces
@@ -1728,10 +1743,9 @@ bool Socket::UDPConnection::Receive(){
     down += r;
     data_len = r;
     return true;
-  }else{
-    data_len = 0;
-    return false;
   }
+  data_len = 0;
+  return false;
 }
 
 int Socket::UDPConnection::getSock(){

@@ -11,8 +11,7 @@
 
 namespace TS{
 
-  void ADTSRemainder::setRemainder(const aac::adts &p, const void *source, const uint32_t avail,
-                                   const uint64_t bPos){
+  void ADTSRemainder::setRemainder(const aac::adts &p, const void *source, uint32_t avail, uint64_t bPos){
     if (!p.getCompleteSize()){return;}
 
     if (max < p.getCompleteSize()){
@@ -62,11 +61,11 @@ namespace TS{
     }
   }
 
-  uint32_t ADTSRemainder::getLength(){return len;}
+  uint64_t ADTSRemainder::getLength(){return len;}
 
   uint64_t ADTSRemainder::getBpos(){return bpos;}
 
-  uint32_t ADTSRemainder::getTodo(){return len - now;}
+  uint64_t ADTSRemainder::getTodo(){return len - now;}
   char *ADTSRemainder::getData(){return data;}
 
   Stream::Stream(bool _threaded){
@@ -76,7 +75,7 @@ namespace TS{
   Stream::~Stream(){
   }
 
-  void Stream::parse(char *newPack, unsigned long long bytePos){
+  void Stream::parse(char * newPack, uint64_t bytePos) {
     Packet newPacket;
     newPacket.FromPointer(newPack);
     parse(newPacket, bytePos);
@@ -115,21 +114,21 @@ namespace TS{
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pesStreams.size()){return;}
 
-    for (std::map<unsigned long, std::deque<Packet> >::const_iterator i = pesStreams.begin();
+    for (std::map<size_t, std::deque<Packet> >::const_iterator i = pesStreams.begin();
          i != pesStreams.end(); i++){
       parsePES(i->first, true);
     }
   }
 
-  void Stream::add(char *newPack, unsigned long long bytePos){
+  void Stream::add(char * newPack, uint64_t bytePos) {
     Packet newPacket;
     newPacket.FromPointer(newPack);
     add(newPacket, bytePos);
   }
 
-  void Stream::add(Packet &newPack, unsigned long long bytePos){
+  void Stream::add(Packet & newPack, uint64_t bytePos) {
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    int tid = newPack.getPID();
+    uint32_t tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
     std::deque<Packet> & PS = pesStreams[tid];
     if ((unitStart || PS.size()) &&
@@ -142,7 +141,7 @@ namespace TS{
     }
   }
 
-  bool Stream::isDataTrack(unsigned long tid){
+  bool Stream::isDataTrack(size_t tid) const {
     if (tid == 0){return false;}
     {
       tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
@@ -150,7 +149,7 @@ namespace TS{
     }
   }
 
-  void Stream::parse(unsigned long tid){
+  void Stream::parse(size_t tid){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){
       return;
@@ -165,8 +164,8 @@ namespace TS{
       associationTable.parsePIDs();
       lastPAT = Util::bootSecs();
 
-      int pmtCount = associationTable.getProgramCount();
-      for (int i = 0; i < pmtCount; i++){pmtTracks.insert(associationTable.getProgramPID(i));}
+      size_t pmtCount = associationTable.getProgramCount();
+      for (size_t i = 0; i < pmtCount; i++){pmtTracks.insert(associationTable.getProgramPID(i));}
 
       pesStreams.erase(0);
       return;
@@ -183,8 +182,8 @@ namespace TS{
       lastPMT[tid] = Util::bootSecs();
       ProgramMappingEntry entry = mappingTable[tid].getEntry(0);
       while (entry){
-        unsigned long pid = entry.getElementaryPid();
-        unsigned long sType = entry.getStreamType();
+        uint32_t pid = entry.getElementaryPid();
+        uint32_t sType = entry.getStreamType();
         switch (sType){
         case H264:
         case AAC:
@@ -198,8 +197,7 @@ namespace TS{
             metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
           }
           break;
-        default:
-          break;
+          default: break;
         }
         entry.advance();
       }
@@ -213,7 +211,7 @@ namespace TS{
     }
   }
 
-  void Stream::parse(Packet &newPack, unsigned long long bytePos){
+  void Stream::parse(Packet & newPack, uint64_t bytePos) {
     add(newPack, bytePos);
     if (newPack.getUnitStart()){
       parse(newPack.getPID());
@@ -227,10 +225,9 @@ namespace TS{
       // pidToCodec.size(), outPackets.size());
       return false;
     }
-
-    unsigned int missing = 0;
+    size_t missing = 0;
     uint64_t firstTime = 0xffffffffffffffffull, lastTime = 0;
-    for (std::map<unsigned long, unsigned long>::const_iterator it = pidToCodec.begin();
+    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
          it != pidToCodec.end(); it++){
       if (!hasPacket(it->first)){
         missing++;
@@ -247,7 +244,7 @@ namespace TS{
     return (!missing || (missing != pidToCodec.size() && lastTime - firstTime > 2000));
   }
 
-  bool Stream::hasPacket(unsigned long tid) const{
+  bool Stream::hasPacket(size_t tid) const {
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     std::map<unsigned long, std::deque<Packet> >::const_iterator pesIt = pesStreams.find(tid);
     if (pesIt == pesStreams.end()){
@@ -269,7 +266,7 @@ namespace TS{
     }
 
     if (outPackets.size()){
-      for (std::map<unsigned long, std::deque<DTSC::Packet> >::const_iterator i =
+      for (std::map<size_t, std::deque<DTSC::Packet> >::const_iterator i =
                outPackets.begin();
            i != outPackets.end(); i++){
         if (i->second.size()){
@@ -288,18 +285,18 @@ namespace TS{
     return false;
   }
 
-  unsigned long long decodePTS(const char *data){
-    unsigned long long time;
+  uint64_t decodePTS(const char * data){
+    uint64_t time;
     time = ((data[0] >> 1) & 0x07);
     time <<= 15;
-    time |= ((int)data[1] << 7) | ((data[2] >> 1) & 0x7F);
+    time |= ((uint32_t)data[1] << 7) | ((data[2] >> 1) & 0x7F);
     time <<= 15;
-    time |= ((int)data[3] << 7) | ((data[4] >> 1) & 0x7F);
+    time |= ((uint32_t)data[3] << 7) | ((data[4] >> 1) & 0x7F);
     time /= 90;
     return time;
   }
 
-  void Stream::parsePES(unsigned long tid, bool finished){
+  void Stream::parsePES(size_t tid, bool finished){
     if (!pidToCodec.count(tid)){
       return; // skip unknown codecs
     }
@@ -309,8 +306,7 @@ namespace TS{
       return;
     }
     // Find number of packets before unit Start
-    int packNum = 1;
-
+    size_t packNum = 1;
     std::deque<Packet>::iterator curPack = inStream.begin();
 
     if (seenUnitStart[tid] == 2 && inStream.begin()->getUnitStart() && inStream.rbegin()->getUnitStart()){
@@ -325,23 +321,23 @@ namespace TS{
       }
     }
     if (!finished && curPack == inStream.end()){
-      FAIL_MSG("No PES packets to parse (%lu)", seenUnitStart[tid]);
+      FAIL_MSG("No PES packets to parse (%" PRIu32 ")", seenUnitStart[tid]);
       return;
     }
     
     // We now know we're deleting 1 UnitStart, so we can pop the pesPositions and lower the seenUnitStart counter.
     --(seenUnitStart[tid]);
-    std::deque<unsigned long long> &inPositions = pesPositions[tid];
+    std::deque<size_t> &inPositions = pesPositions[tid];
     uint64_t bPos = inPositions.front();
     inPositions.pop_front();
 
     // Create a buffer for the current PES, and remove it from the pesStreams buffer.
-    int paySize = 0;
+    uint32_t paySize = 0;
 
     // Loop over the packets we need, and calculate the total payload size
     curPack = inStream.begin();
     int lastCtr = curPack->getContinuityCounter() - 1;
-    for (int i = 0; i < packNum; i++){
+    for (size_t i = 0; i < packNum; i++){
       if (curPack->getContinuityCounter() == lastCtr){
         curPack++;
         continue;
@@ -350,7 +346,7 @@ namespace TS{
       paySize += curPack->getPayloadLength();
       curPack++;
     }
-    VERYHIGH_MSG("Parsing PES for track %lu, length %i", tid, paySize);
+    VERYHIGH_MSG("Parsing PES for track %zu, length %" PRIu32, tid, paySize);
     // allocate a buffer, do it all again, but this time also copy the data bytes over to char*
     // payload
     char *payload = (char *)malloc(paySize);
@@ -368,7 +364,7 @@ namespace TS{
         continue;
       }
       if (curPack->getContinuityCounter() - lastCtr != 1 && curPack->getContinuityCounter()){
-        INFO_MSG("Parsing PES on track %d, missed %d packets", tid,
+        INFO_MSG("Parsing PES on track %zu, missed %d packets", tid,
                  curPack->getContinuityCounter() - lastCtr - 1);
       }
       lastCtr = curPack->getContinuityCounter();
@@ -381,21 +377,21 @@ namespace TS{
     // headers)
 
     // Parse the PES header
-    int offset = 0;
+    uint32_t offset = 0;
 
     while (offset < paySize){
       const char *pesHeader = payload + offset;
 
       // Check for large enough buffer
       if ((paySize - offset) < 9 || (paySize - offset) < 9 + pesHeader[8]){
-        INFO_MSG("Not enough data on track %lu (%d / %d), discarding remainder of data", tid,
+        INFO_MSG("Not enough data on track %zu (%d / %d), discarding remainder of data", tid,
                  paySize - offset, 9 + pesHeader[8]);
         break;
       }
 
       // Check for valid PES lead-in
       if (pesHeader[0] != 0 || pesHeader[1] != 0x00 || pesHeader[2] != 0x01){
-        INFO_MSG("Invalid PES Lead in on track %lu, discarding it", tid);
+        INFO_MSG("Invalid PES Lead in on track %zu, discarding it", tid);
         break;
       }
 
@@ -403,7 +399,7 @@ namespace TS{
       // Note: if the payload size is 0, then we assume the pes packet will cover the entire TS
       // Unit.
       // Note: this is technically only allowed for video pes streams.
-      unsigned long long realPayloadSize = (((int)pesHeader[4] << 8) | pesHeader[5]);
+      uint64_t realPayloadSize = Bit::btohs(pesHeader + 4);
       if (!realPayloadSize){
         realPayloadSize = paySize; // PES header size already included here
       }else{
@@ -417,9 +413,8 @@ namespace TS{
       // Read the metadata for this PES Packet
       ///\todo Determine keyframe-ness
       uint64_t timeStamp = 0;
-
       int64_t timeOffset = 0;
-      unsigned int pesOffset = 9;       // mandatory headers
+      uint64_t pesOffset = 9;       // mandatory headers
       if ((pesHeader[7] >> 6) & 0x02){// Check for PTS presence
         timeStamp = decodePTS(pesHeader + pesOffset);
         pesOffset += 5;
@@ -457,7 +452,7 @@ namespace TS{
       }
 
       if (paySize - offset - pesOffset < realPayloadSize){
-        WARN_MSG("Packet loss detected (%lu != %lu), glitches will occur", (uint32_t)(paySize-offset-pesOffset), (uint32_t)realPayloadSize);
+        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), glitches will occur", paySize-offset-pesOffset, realPayloadSize);
         realPayloadSize = paySize - offset - pesOffset;
       }
 
@@ -472,26 +467,24 @@ namespace TS{
     free(payload);
   }
 
-  void Stream::setLastms(unsigned long tid, uint64_t timestamp){
+  void Stream::setLastms(size_t tid, uint64_t timestamp){
     lastms[tid] = timestamp;
     rolloverCount[tid] = timestamp / TS_PTS_ROLLOVER;
   }
 
-  void Stream::parseBitstream(uint32_t tid, const char *pesPayload, uint32_t realPayloadSize,
+  void Stream::parseBitstream(size_t tid, const char *pesPayload, uint64_t realPayloadSize,
                               uint64_t timeStamp, int64_t timeOffset, uint64_t bPos, bool alignment){
-//INFO_MSG("timestamp: %llu offset: %lld", timeStamp, timeOffset);
 
     // Create a new (empty) DTSC Packet at the end of the buffer
     unsigned long thisCodec = pidToCodec[tid];
     std::deque<DTSC::Packet> & out = outPackets[tid];
     if (thisCodec == AAC){
       // Parse all the ADTS packets
-      unsigned long offsetInPes = 0;
+      uint64_t offsetInPes = 0;
       uint64_t msRead = 0;
 
       if (remainders.count(tid) && remainders[tid].getLength()){
-        offsetInPes =
-            std::min((unsigned long)(remainders[tid].getTodo()), (unsigned long)realPayloadSize);
+        offsetInPes = std::min(remainders[tid].getTodo(), realPayloadSize);
         remainders[tid].append(pesPayload, offsetInPes);
 
         if (remainders[tid].isComplete()){
@@ -563,7 +556,7 @@ namespace TS{
         nextPtr = pesEnd;
         nalSize = realPayloadSize;
         if(!alignment && timeStamp && buildPacket.count(tid) && timeStamp != buildPacket[tid].getTime()){
-          FAIL_MSG("No startcode in packet @ %llu ms, and time is not equal to %llu ms so can't merge", timeStamp, buildPacket[tid].getTime());
+          FAIL_MSG("No startcode in packet @ %" PRIu64 " ms, and time is not equal to %" PRIu64 " ms so can't merge", timeStamp, buildPacket[tid].getTime());
           return;
         }
         if (alignment){
@@ -573,11 +566,11 @@ namespace TS{
             // Add the finished DTSC packet to our output buffer
             out.push_back(buildPacket[tid]);
 
-            uint32_t size;
+            size_t size;
             char * tmp ;
             buildPacket[tid].getString("data", tmp, size);
 
-            INFO_MSG("buildpacket: size: %d, timestamp: %llu", size, buildPacket[tid].getTime())
+            INFO_MSG("buildpacket: size: %zu, timestamp: %" PRIu64, size, buildPacket[tid].getTime())
 
             // Create a new empty packet with the key frame bit set to true
             buildPacket[tid].null();
@@ -630,7 +623,7 @@ namespace TS{
             // Add the finished DTSC packet to our output buffer
             out.push_back(buildPacket[tid]);
 
-            uint32_t size;
+            size_t size;
             char * tmp ;
             buildPacket[tid].getString("data", tmp, size);
 
@@ -657,7 +650,6 @@ namespace TS{
       size_t origSize = realPayloadSize;
       const char *nextPtr;
       const char *pesEnd = pesPayload+realPayloadSize;
-      uint32_t nalSize = 0;
 
       bool isKeyFrame = false;
 
@@ -672,7 +664,7 @@ namespace TS{
       while (nextPtr < pesEnd && nalno < 8){
         if (!nextPtr){nextPtr = pesEnd;}
         //Calculate size of NAL unit, removing null bytes from the end
-        nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
+        nalu::nalEndPosition(pesPayload, nextPtr - pesPayload);
 
         // Check if this is a keyframe
         parseNal(tid, pesPayload, nextPtr, isKeyFrame);
@@ -688,11 +680,11 @@ namespace TS{
     }
   }
 
-  void Stream::getPacket(unsigned long tid, DTSC::Packet &pack){
+  void Stream::getPacket(size_t tid, DTSC::Packet & pack) {
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
     if (!hasPacket(tid)){
-      ERROR_MSG("Trying to obtain a packet on track %lu, but no full packet is available", tid);
+      ERROR_MSG("Trying to obtain a packet on track %zu, but no full packet is available", tid);
       return;
     }
 
@@ -715,8 +707,7 @@ namespace TS{
 
   }
 
-  void Stream::parseNal(uint32_t tid, const char *pesPayload, const char *nextPtr,
-                        bool &isKeyFrame){
+  void Stream::parseNal(size_t tid, const char *pesPayload, const char *nextPtr, bool &isKeyFrame){
     bool firstSlice = true;
     char typeNal;
 
@@ -813,14 +804,31 @@ namespace TS{
     }
   }
 
+  uint32_t Stream::getEarliestPID(){
+    tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
+
+    uint64_t packTime = 0xFFFFFFFFull;
+    uint32_t packTrack = 0;
+
+    for (std::map<size_t, std::deque<DTSC::Packet> >::iterator it = outPackets.begin();
+         it != outPackets.end(); it++){
+      if (it->second.front().getTime() < packTime){
+        packTrack = it->first;
+        packTime = it->second.front().getTime();
+      }
+    }
+
+    return packTrack;
+  }
+
   void Stream::getEarliestPacket(DTSC::Packet &pack){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
 
-    unsigned long packTime = 0xFFFFFFFFull;
-    unsigned long packTrack = 0;
+    uint64_t packTime = 0xFFFFFFFFull;
+    uint64_t packTrack = 0;
 
-    for (std::map<unsigned long, std::deque<DTSC::Packet> >::iterator it = outPackets.begin();
+    for (std::map<size_t, std::deque<DTSC::Packet> >::iterator it = outPackets.begin();
          it != outPackets.end(); it++){
       if (it->second.size() && it->second.front().getTime() < packTime){
         packTrack = it->first;
@@ -831,16 +839,14 @@ namespace TS{
     if (packTrack){getPacket(packTrack, pack);}
   }
 
-  void Stream::initializeMetadata(DTSC::Meta &meta, unsigned long tid, unsigned long mappingId){
+  void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
 
-    unsigned long mId = mappingId;
-
-    for (std::map<unsigned long, unsigned long>::const_iterator it = pidToCodec.begin();
+    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
          it != pidToCodec.end(); it++){
       if (tid && it->first != tid){continue;}
 
-      if (mId == 0){mId = it->first;}
+      size_t mId = it->first;
 
       if (meta.tracks.count(mId) && meta.tracks[mId].codec.size()){continue;}
 
@@ -946,9 +952,9 @@ namespace TS{
       }break;
       }
 
-      int pmtCount = associationTable.getProgramCount();
-      for (int i = 0; i < pmtCount; i++){
-        int pid = associationTable.getProgramPID(i);
+      size_t pmtCount = associationTable.getProgramCount();
+      for (size_t i = 0; i < pmtCount; i++){
+        uint32_t pid = associationTable.getProgramPID(i);
         ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
         while (entry){
           if (entry.getElementaryPid() == tid){
@@ -965,15 +971,15 @@ namespace TS{
 
   std::set<unsigned long> Stream::getActiveTracks(){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    std::set<unsigned long> result;
+    std::set<size_t> result;
     // Track 0 is always active
     result.insert(0);
     // IF PAT updated in the last 5 seconds, check for contents
     if (Util::bootSecs() - lastPAT < 5){
-      int pmtCount = associationTable.getProgramCount();
+      size_t pmtCount = associationTable.getProgramCount();
       // For each PMT
-      for (int i = 0; i < pmtCount; i++){
-        int pid = associationTable.getProgramPID(i);
+      for (size_t i = 0; i < pmtCount; i++){
+        size_t pid = associationTable.getProgramPID(i);
         // Add PMT track
         result.insert(pid);
         // IF PMT updated in last 5 seconds, check for contents
@@ -1000,7 +1006,7 @@ namespace TS{
     return result;
   }
 
-  void Stream::eraseTrack(unsigned long tid){
+  void Stream::eraseTrack(size_t tid){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pesStreams.erase(tid);
     pesPositions.erase(tid);

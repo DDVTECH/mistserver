@@ -2,6 +2,7 @@
 #include <string.h>
 #include <fstream>
 #include <set>
+#include <mist/defines.h>
 #include <mist/config.h>
 #include <mist/procs.h>
 #include "controller_capabilities.h"
@@ -381,23 +382,23 @@ namespace Controller {
           }
           continue;
         }
-        long long int i;
-        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){
+        uint64_t i;
+        if (sscanf(line, "MemTotal : %" PRIu64 " kB", &i) == 1){
           capa["mem"]["total"] = i / 1024;
         }
-        if (sscanf(line, "MemFree : %lli kB", &i) == 1){
+        if (sscanf(line, "MemFree : %" PRIu64 " kB", &i) == 1){
           capa["mem"]["free"] = i / 1024;
         }
-        if (sscanf(line, "SwapTotal : %lli kB", &i) == 1){
+        if (sscanf(line, "SwapTotal : %" PRIu64 " kB", &i) == 1){
           capa["mem"]["swaptotal"] = i / 1024;
         }
-        if (sscanf(line, "SwapFree : %lli kB", &i) == 1){
+        if (sscanf(line, "SwapFree : %" PRIu64 " kB", &i) == 1){
           capa["mem"]["swapfree"] = i / 1024;
         }
-        if (sscanf(line, "Buffers : %lli kB", &i) == 1){
+        if (sscanf(line, "Buffers : %" PRIu64 " kB", &i) == 1){
           bufcache += i / 1024;
         }
-        if (sscanf(line, "Cached : %lli kB", &i) == 1){
+        if (sscanf(line, "Cached : %" PRIu64 " kB", &i) == 1){
           bufcache += i / 1024;
         }
       }
@@ -413,23 +414,23 @@ namespace Controller {
       //parse lines here
       float onemin, fivemin, fifteenmin;
       if (sscanf(line, "%f %f %f", &onemin, &fivemin, &fifteenmin) == 3){
-        capa["load"]["one"] = (long long int)(onemin * 100);
-        capa["load"]["five"] = (long long int)(fivemin * 100);
-        capa["load"]["fifteen"] = (long long int)(fifteenmin * 100);
+        capa["load"]["one"] = uint64_t(onemin * 100);
+        capa["load"]["five"] = uint64_t(fivemin * 100);
+        capa["load"]["fifteen"] = uint64_t(fifteenmin * 100);
       }
     }
     std::ifstream cpustat("/proc/stat");
     if (cpustat){
       char line[300];
       while (cpustat.getline(line, 300)){
-        static unsigned long long cl_total = 0, cl_idle = 0;
-        unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
-        if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
+        static uint64_t cl_total = 0, cl_idle = 0;
+        uint64_t c_user, c_nice, c_syst, c_idle, c_total;
+        if (sscanf(line, "cpu %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &c_user, &c_nice, &c_syst, &c_idle) == 4){
           c_total = c_user + c_nice + c_syst + c_idle;
           if (c_total - cl_total > 0){
-            capa["cpu_use"] = (long long int)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+            capa["cpu_use"] = (1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
           }else{
-            capa["cpu_use"] = 0ll;
+            capa["cpu_use"] = 0u;
           }
           cl_total = c_total;
           cl_idle = c_idle;

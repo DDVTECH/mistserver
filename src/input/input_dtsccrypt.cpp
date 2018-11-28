@@ -118,7 +118,7 @@ namespace Mist {
     //Do encryption/decryption here
     int tid = thisPacket.getTrackId();
     char * ivec;
-    unsigned int ivecLen;
+    size_t ivecLen;
     thisPacket.getString("ivec", ivec, ivecLen);
     char iVec[16];
     if (ivecLen){

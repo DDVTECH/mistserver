@@ -369,14 +369,18 @@ namespace Util{
     close(in);
   }
 
-  FieldAccX::FieldAccX(RelAccX * _src, RelAccXFieldData _field, char * _data) : src(_src), field(_field), data(_data) {}
+  FieldAccX::FieldAccX(RelAccX * _src, RelAccXFieldData _field) : src(_src), field(_field) {}
 
   uint64_t FieldAccX::uint(size_t recordNo) const {
     return src->getInt(field, recordNo);
   }
 
   std::string FieldAccX::string(size_t recordNo) const {
-    return std::string(src->getPointer(field, recordNo), field.size) ;
+    std::string res(src->getPointer(field, recordNo));
+    if (res.size() > field.size){
+      res.resize(field.size);
+    }
+    return res;
   }
 
   void FieldAccX::set(uint64_t val, size_t recordNo){
@@ -448,8 +452,14 @@ namespace Util{
   /// Gets the size in bytes of a single record in the structure.
   uint32_t RelAccX::getRSize() const{return RAXHDR_RECORDSIZE;}
 
+  /// Gets the position in the records where the entries start
+  uint32_t RelAccX::getStartPos() const{return RAXHDR_STARTPOS;}
+
   /// Gets the number of deleted records
   uint64_t RelAccX::getDeleted() const{return RAXHDR_DELETED;}
+
+  ///Gets the number of records present
+  size_t RelAccX::getPresent() const{return RAXHDR_PRESENT;}
 
   /// Gets the number of the last valid index
   uint64_t RelAccX::getEndPos() const{return RAXHDR_ENDPOS;}
@@ -497,20 +507,22 @@ namespace Util{
   /// For other types, returns the maximum size possible.
   /// Returns 0 if the field does not exist.
   uint32_t RelAccX::getSize(const std::string &name, uint64_t recordNo) const{
-    const RelAccXFieldData &fd = fields.at(name);
+    if (!isRecordAvailable(recordNo)){ return 0;}
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){return 0;}
+    const RelAccXFieldData &fd = it->second;
     if ((fd.type & 0xF0) == RAX_STRING){
-      if (!fields.count(name) || !isRecordAvailable(recordNo)){return 0;}
       return strnlen(RECORD_POINTER, fd.size);
-    }else{
-      return fd.size;
     }
+    return fd.size;
   }
 
   /// Returns a pointer to the given field in the given record number.
   /// Returns a null pointer if the field does not exist.
   char *RelAccX::getPointer(const std::string &name, uint64_t recordNo) const{
-    if (!fields.count(name)){return 0;}
-    return getPointer(fields.at(name), recordNo);
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){return 0;}
+    return getPointer(it->second, recordNo);
   }
 
   char * RelAccX::getPointer(const RelAccXFieldData & fd, uint64_t recordNo) const{
@@ -520,8 +532,9 @@ namespace Util{
   /// Returns the value of the given integer-type field in the given record, as an uint64_t type.
   /// Returns 0 if the field does not exist or is not an integer type.
   uint64_t RelAccX::getInt(const std::string &name, uint64_t recordNo) const{
-    if (!fields.count(name)){return 0;}
-    return getInt(fields.at(name), recordNo);
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){return 0;}
+    return getInt(it->second, recordNo);
   }
 
   uint64_t RelAccX::getInt(const RelAccXFieldData & fd, uint64_t recordNo) const{
@@ -703,8 +716,15 @@ namespace Util{
   /// Sets the record counter to the given value.
   void RelAccX::setRCount(uint32_t count){RAXHDR_RECORDCNT = count;}
 
+  /// Sets the position in the records where the entries start
+  void RelAccX::setStartPos(uint32_t n){RAXHDR_STARTPOS = n;}
+
   /// Sets the number of deleted records
   void RelAccX::setDeleted(uint64_t n){RAXHDR_DELETED = n;}
+
+  /// Sets the number of records present
+  /// Defaults to the record count if set to zero.
+  void RelAccX::setPresent(uint32_t n){RAXHDR_PRESENT = n;}
 
   /// Sets the number of the last valid index
   void RelAccX::setEndPos(uint64_t n){RAXHDR_ENDPOS = n;}
@@ -732,13 +752,17 @@ namespace Util{
   /// Fails if ready is not set.
   /// Ensures the last byte is always a zero.
   void RelAccX::setString(const std::string &name, const std::string &val, uint64_t recordNo){
-    if (!fields.count(name)){
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){
       WARN_MSG("Setting non-existent string %s", name.c_str());
       return;
     }
-    const RelAccXFieldData &fd = fields.at(name);
+    setString(it->second, val, recordNo);
+  }
+
+  void RelAccX::setString(const RelAccXFieldData & fd, const std::string &val, uint64_t recordNo){
     if ((fd.type & 0xF0) != RAX_STRING){
-      WARN_MSG("Setting non-string %s", name.c_str());
+      WARN_MSG("Setting non-string");
       return;
     }
     char *ptr = RECORD_POINTER;
@@ -749,11 +773,12 @@ namespace Util{
   /// Writes the given int to the given field in the given record.
   /// Fails if ready is not set or the field is not an integer type.
   void RelAccX::setInt(const std::string &name, uint64_t val, uint64_t recordNo){
-    if (!fields.count(name)){
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){
       WARN_MSG("Setting non-existent integer %s", name.c_str());
       return;
     }
-    return setInt(fields.at(name), val, recordNo);
+    setInt(it->second, val, recordNo);
   }
   
   void RelAccX::setInt(const RelAccXFieldData & fd, uint64_t val, uint64_t recordNo){
@@ -781,12 +806,15 @@ namespace Util{
     WARN_MSG("Setting non-integer field (%u) to integer value!", fd.type);
   }
 
+  ///Writes the given int to the given field in the given record.
+  ///Fails if ready is not set or the field is not an integer type.
   void RelAccX::setInts(const std::string & name, uint64_t * values, size_t len){
-    if (!fields.count(name)){
+    std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
+    if (it == fields.end()){
       WARN_MSG("Setting non-existent integer %s", name.c_str());
       return;
     }
-    const RelAccXFieldData & fd = fields.at(name); 
+    const RelAccXFieldData & fd = it->second;
     for (uint64_t recordNo = 0; recordNo < len; recordNo++){
       setInt(fd, values[recordNo], recordNo);
     }
@@ -795,17 +823,124 @@ namespace Util{
   /// Updates the deleted record counter, the start position and the present record counter,
   /// shifting the ring buffer start position forward without moving the ring buffer end position.
   void RelAccX::deleteRecords(uint32_t amount){
-    RAXHDR_DELETED += amount; // update deleted record counter
+    uint32_t &startPos = RAXHDR_STARTPOS;
+    uint64_t &deletedRecs = RAXHDR_DELETED;
+    uint32_t &recsPresent = RAXHDR_PRESENT;
+    startPos += amount;    // update start position
+    deletedRecs += amount; // update deleted record counter
+    if (recsPresent >= amount){
+      recsPresent -= amount; // decrease records present
+    }else{
+      WARN_MSG("Depleting recordCount!");
+      recsPresent = 0;
+    }
   }
 
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
   void RelAccX::addRecords(uint32_t amount){
-    RAXHDR_ENDPOS += amount;
+    uint32_t & recsPresent = RAXHDR_PRESENT;
+    uint32_t & recordsCount = RAXHDR_RECORDCNT;
+    uint64_t & recordEndPos = RAXHDR_ENDPOS;
+    if (recsPresent+amount > recordsCount){
+      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", recsPresent + amount, recsPresent, amount, recordsCount);
+      recsPresent = 0;
+    }else{
+      recsPresent += amount;
+    }
+    recordEndPos += amount;
+  }
+
+  void RelAccX::minimalFrom(const RelAccX & src){
+    copyFieldsFrom(src, true);
+
+    uint64_t rCount = src.getPresent();
+    setRCount(rCount);
+    setReady();
+    addRecords(rCount);
+
+    flowFrom(src);
+  }
+
+  void RelAccX::copyFieldsFrom(const RelAccX & src, bool minimal){
+    fields.clear();
+    if (!minimal){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
+        addField(it->first, it->second.type, it->second.size);
+      }
+      return;
+    }
+    for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
+      switch(it->second.type & 0xF0){
+        case 0x00: //nested RelAccX 
+          {
+            uint64_t maxSize = 0;
+            for (int i = 0; i < src.getPresent(); i++){
+              Util::RelAccX child(src.getPointer(it->first, i), false);
+              char * tmpBuf = (char*)malloc(src.getOffset() + (src.getRCount() * src.getRSize()));
+              Util::RelAccX minChild(tmpBuf, false);
+              minChild.minimalFrom(child);
+              uint64_t thisSize = minChild.getOffset() + (minChild.getRSize() * minChild.getPresent());
+              maxSize = std::max(thisSize, maxSize);
+              free(tmpBuf);
+            }
+            addField(it->first, it->second.type, maxSize);
+          }
+          break;
+        default:
+          addField(it->first, it->second.type, it->second.size);
+          break;
+      }
+    }
+  }
+
+  void RelAccX::flowFrom(const RelAccX & src){
+    uint64_t rCount = src.getPresent();
+    if (getRCount() == 0){
+      setRCount(rCount);
+    }
+    if (rCount > getRCount()){
+      FAIL_MSG("Abandoning reflow, target does not have enough records available (%" PRIu64 " records, %d available)", rCount, getRCount());
+      return;
+    }
+    addRecords(rCount - getPresent());
+    for (int i = 0; i < rCount; i++){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
+        if (!fields.count(it->first)){
+          INFO_MSG("Field %s in source but not in target", it->first.c_str());
+          continue;
+        }
+        switch(it->second.type & 0xF0){
+          case RAX_RAW:
+            memcpy(getPointer(it->first, i), src.getPointer(it->first, i), std::min(it->second.size, fields.at(it->first).size));
+            break;
+          case RAX_INT:
+          case RAX_UINT:
+            setInt(it->first, src.getInt(it->first, i), i);
+            break;
+          case RAX_STRING: 
+            setString(it->first, src.getPointer(it->first, i), i);
+            break;
+          case 0x00: //nested RelAccX 
+            {
+              Util::RelAccX srcChild(src.getPointer(it->first, i), false);
+              Util::RelAccX child(getPointer(it->first, i), false);
+              child.flowFrom(srcChild);
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    }
   }
 
   FieldAccX RelAccX::getFieldAccX(const std::string & fName){
-    return FieldAccX(this, fields.at(fName), p + getOffset());
+    return FieldAccX(this, fields.at(fName));
+  }
+
+  RelAccXFieldData RelAccX::getFieldData(const std::string & fName) const {
+    return fields.at(fName);
   }
 }
 

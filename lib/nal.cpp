@@ -14,7 +14,7 @@ namespace nalu{
   std::deque<int> parseNalSizes(DTSC::Packet &pack){
     std::deque<int> result;
     char *data;
-    unsigned int dataLen;
+    size_t dataLen;
     pack.getString("data", data, dataLen);
     int offset = 0;
     while (offset < dataLen){
@@ -30,9 +30,9 @@ namespace nalu{
     result.resize(data.size());
     result[0] = data[0];
     result[1] = data[1];
-    unsigned int dataPtr = 2;
-    unsigned int dataLen = data.size();
-    unsigned int resPtr = 2;
+    size_t dataPtr = 2;
+    size_t dataLen = data.size();
+    size_t resPtr = 2;
     while (dataPtr + 2 < dataLen){
       if (!data[dataPtr] && !data[dataPtr + 1] &&
           data[dataPtr + 2] == 3){// We have found an emulation prevention

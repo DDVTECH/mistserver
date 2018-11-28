@@ -60,19 +60,19 @@ namespace DTSC {
   /// Valid packets have a length of at least 8, known header type, and length equal to the length set in the header.
   Packet::operator bool() const {
     if (!data) {
-      DEBUG_MSG(DLVL_DONTEVEN, "No data");
+      DONTEVEN_MSG("No data");
       return false;
     }
     if (dataLen < 8) {
-      DEBUG_MSG(DLVL_VERYHIGH, "Datalen < 8");
+      VERYHIGH_MSG("Datalen < 8");
       return false;
     }
     if (version == DTSC_INVALID) {
-      DEBUG_MSG(DLVL_VERYHIGH, "No valid version");
+      VERYHIGH_MSG("No valid version");
       return false;
     }
     if (ntohl(((int *)data)[1]) + 8 > dataLen) {
-      DEBUG_MSG(DLVL_VERYHIGH, "Length mismatch");
+      VERYHIGH_MSG("Length mismatch");
       return false;
     }
     return true;
@@ -100,14 +100,14 @@ namespace DTSC {
   /// Internally used resize function for when operating in copy mode and the internal buffer is too small.
   /// It will only resize up, never down.
   ///\param len The length th scale the buffer up to if necessary
-  void Packet::resize(unsigned int len) {
+  void Packet::resize(size_t len) {
     if (master && len > bufferLen) {
       char * tmp = (char *)realloc(data, len);
       if (tmp) {
         data = tmp;
         bufferLen = len;
       } else {
-        DEBUG_MSG(DLVL_FAIL, "Out of memory on parsing a packet");
+        FAIL_MSG("Out of memory on parsing a packet");
       }
     }
   }
@@ -156,7 +156,7 @@ namespace DTSC {
     if (data_[0] != 'D' || data_[1] != 'T') {
       unsigned int twlen = len;
       if (twlen > 20){twlen = 20;}
-      DEBUG_MSG(DLVL_HIGH, "ReInit received a pointer that didn't start with 'DT' but with %s (%u) - data corruption?", JSON::Value(std::string(data_, twlen)).toString().c_str(), len);
+      HIGH_MSG("ReInit received a pointer that didn't start with 'DT' but with %s (%u) - data corruption?", JSON::Value(std::string(data_, twlen)).toString().c_str(), len);
       null();
       return;
     }
@@ -179,28 +179,24 @@ namespace DTSC {
     //check header type and store packet length
     dataLen = len;
     version = DTSC_INVALID;
-    if (len > 3) {
-      if (!memcmp(data, Magic_Packet2, 4)) {
-        version = DTSC_V2;
-      } else {
-        if (!memcmp(data, Magic_Packet, 4)) {
-          version = DTSC_V1;
-        } else {
-          if (!memcmp(data, Magic_Header, 4)) {
-            version = DTSC_HEAD;
-          } else {
-            if (!memcmp(data, Magic_Command, 4)) {
-              version = DTCM;
-            } else {
-              DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with invalid header");
-              return;
-            }
-          }
-        }
-      }
-    } else {
-      DEBUG_MSG(DLVL_FAIL, "ReInit received a packet with size < 4");
+    if (len < 4) {
+      FAIL_MSG("ReInit received a packet with size < 4");
       return;
+    }
+    if (!memcmp(data, Magic_Packet2, 4)) {
+      version = DTSC_V2;
+    }
+    if (!memcmp(data, Magic_Packet, 4)) {
+      version = DTSC_V1;
+    }
+    if (!memcmp(data, Magic_Header, 4)) {
+      version = DTSC_HEAD;
+    }
+    if (!memcmp(data, Magic_Command, 4)) {
+      version = DTCM;
+    }
+    if (version == DTSC_INVALID){
+      FAIL_MSG("ReInit received a packet with invalid header");
     }
   }
   
@@ -298,12 +294,21 @@ namespace DTSC {
     }
   }
 
+  void Packet::appendData(const char * appendData, uint32_t appendLen){
+    resize(dataLen + appendLen);
+    memcpy(data + dataLen-3, appendData, appendLen);
+    memcpy(data + dataLen-3 + appendLen, "\000\000\356", 3);  //end container
+    dataLen += appendLen;
+    Bit::htobl(data+4, Bit::btohl(data +4)+appendLen);
+    uint32_t offset = getDataStringLenOffset();
+    Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen);
+  }
+
   void Packet::appendNal(const char * appendData, uint32_t appendLen){
     if(appendLen ==0){
       return;
     }
 
-//    INFO_MSG("totallen: %d, appendLen: %d",totalLen,appendLen);
     resize(dataLen + appendLen +4);
     Bit::htobl(data+dataLen -3, appendLen);
     memcpy(data + dataLen-3+4, appendData, appendLen);
@@ -336,13 +341,13 @@ namespace DTSC {
     Bit::htobl(data+offset, Bit::btohl(data+offset)+appendLen);
   }
 
-  uint32_t Packet::getDataStringLen(){
+  size_t Packet::getDataStringLen(){
     return Bit::btohl(data+getDataStringLenOffset());
   }
 
   ///Method can only be used when using internal functions to build the data.
-  uint32_t Packet::getDataStringLenOffset(){
-    uint32_t offset = 23;
+  size_t Packet::getDataStringLenOffset(){
+    size_t offset = 23;
     while (data[offset] != 'd'){
       switch (data[offset]){
         case 'o': offset += 17; break;
@@ -408,7 +413,7 @@ namespace DTSC {
   ///\param identifier The name of the parameter
   ///\param result A location on which the string will be returned
   ///\param len An integer in which the length of the string will be returned
-  void Packet::getString(const char * identifier, char *& result, unsigned int & len) const {
+  void Packet::getString(const char * identifier, char *& result, size_t & len) const {
     getScan().getMember(identifier).getString(result, len);
   }
 
@@ -441,7 +446,7 @@ namespace DTSC {
   void Packet::getFlag(const char * identifier, bool & result) const {
     uint64_t result_;
     getInt(identifier, result_);
-    result = (bool)result_;
+    result = result_;
   }
 
   ///\brief Retrieves a single parameter as a boolean
@@ -462,7 +467,7 @@ namespace DTSC {
 
   ///\brief Returns the timestamp of the packet.
   ///\return The timestamp of this packet.
-  long long unsigned int Packet::getTime() const {
+  uint64_t Packet::getTime() const {
     if (version != DTSC_V2) {
       if (!data) {
         return 0;
@@ -472,9 +477,17 @@ namespace DTSC {
     return Bit::btohll(data + 12);
   }
 
+  void Packet::setTime(uint64_t _time) {
+    if (!master){
+      INFO_MSG("Can't set the time for this packet, as it is not master.");
+      return;
+    }
+    Bit::htobll(data + 12, _time);
+  }
+
   ///\brief Returns the track id of the packet.
   ///\return The track id of this packet.
-  long int Packet::getTrackId() const {
+  size_t Packet::getTrackId() const {
     if (version != DTSC_V2) {
       return getInt("trackid");
     }
@@ -489,13 +502,13 @@ namespace DTSC {
 
   ///\brief Returns the size of this packet.
   ///\return The size of this packet.
-  int Packet::getDataLen() const {
+  uint64_t Packet::getDataLen() const {
     return dataLen;
   }
 
   ///\brief Returns the size of the payload of this packet.
   ///\return The size of the payload of this packet.
-  int Packet::getPayloadLen() const {
+  size_t Packet::getPayloadLen() const {
     if (version == DTSC_V2) {
       return dataLen - 20;
     } else {
@@ -516,12 +529,12 @@ namespace DTSC {
   ///\return A JSON::Value representation of this packet.
   JSON::Value Packet::toJSON() const {
     JSON::Value result;
-    unsigned int i = 8;
+    uint32_t i = 8;
     if (getVersion() == DTSC_V1) {
-      JSON::fromDTMI((const unsigned char *)data, dataLen, i, result);
+      JSON::fromDTMI(data, dataLen, i, result);
     }
     if (getVersion() == DTSC_V2) {
-      JSON::fromDTMI2((const unsigned char *)data, dataLen, i, result);
+      JSON::fromDTMI2(data, dataLen, i, result);
     }
     return result;
   }
@@ -529,7 +542,7 @@ namespace DTSC {
   std::string Packet::toSummary() const {
     std::stringstream out;
     char * res = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     getString("data", res, len);
     out << getTrackId() << "@" << getTime() << ": " << len << " bytes";
     if (hasMember("keyframe")){
@@ -558,13 +571,13 @@ namespace DTSC {
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(std::string indice) {
+  Scan Scan::getMember(const std::string & indice) const {
     return getMember(indice.data(), indice.size());
   }
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(const char * indice, const unsigned int ind_len) {
+  Scan Scan::getMember(const char * indice, const size_t ind_len) const {
     if (getType() != DTSC_OBJ && getType() != DTSC_CON) {
       return Scan();
     }
@@ -574,15 +587,14 @@ namespace DTSC {
       if (i + 2 >= p + len) {
         return Scan();//out of packet!
       }
-      unsigned int strlen = Bit::btohs(i);
+      uint16_t strlen = Bit::btohs(i);
       i += 2;
       if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
         return Scan(i + strlen, len - (i - p));
-      } else {
-        i = skipDTSC(i + strlen, p + len);
-        if (!i) {
-          return Scan();
-        }
+      }
+      i = skipDTSC(i + strlen, p + len);
+      if (!i) {
+        return Scan();
       }
     }
     return Scan();
@@ -590,63 +602,60 @@ namespace DTSC {
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  bool Scan::hasMember(std::string indice){
+  bool Scan::hasMember(const std::string & indice) const{
     return getMember(indice.data(), indice.size());
   }
 
   /// Returns whether an object representing the named indice of this object exists.
   /// Returns false if this indice doesn't exist or this isn't an object type.
-  bool Scan::hasMember(const char * indice, const unsigned int ind_len) {
+  bool Scan::hasMember(const char * indice, const size_t ind_len) const {
     return getMember(indice, ind_len);
   }
 
   /// Returns an object representing the named indice of this object.
   /// Returns an invalid object if this indice doesn't exist or this isn't an object type.
-  Scan Scan::getMember(const char * indice) {
+  Scan Scan::getMember(const char * indice) const {
     return getMember(indice, strlen(indice));
   }
 
   /// Returns the amount of indices if an array, the amount of members if an object, or zero otherwise.
-  unsigned int Scan::getSize() {
+  size_t Scan::getSize() const {
+    uint32_t arr_indice = 0;
     if (getType() == DTSC_ARR) {
       char * i = p + 1;
-      unsigned int arr_indice = 0;
       //array, scan contents
       while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
         //search through contents...
         arr_indice++;
         i = skipDTSC(i, p + len);
         if (!i) {
-          return arr_indice;
+          break;
         }
       }
-      return arr_indice;
     }
     if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
       char * i = p + 1;
-      unsigned int arr_indice = 0;
       //object, scan contents
       while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
         if (i + 2 >= p + len) {
           return Scan();//out of packet!
         }
-        unsigned int strlen = Bit::btohs(i);
+        uint16_t strlen = Bit::btohs(i);
         i += 2;
         arr_indice++;
         i = skipDTSC(i + strlen, p + len);
         if (!i) {
-          return arr_indice;
+          break;
         }
       }
-      return arr_indice;
     }
-    return 0;
+    return arr_indice;
   }
 
   /// Returns an object representing the num-th indice of this array.
   /// If not an array but an object, it returns the num-th member, instead.
   /// Returns an invalid object if this indice doesn't exist or this isn't an array or object type.
-  Scan Scan::getIndice(unsigned int num) {
+  Scan Scan::getIndice(size_t num) const {
     if (getType() == DTSC_ARR) {
       char * i = p + 1;
       unsigned int arr_indice = 0;
@@ -690,7 +699,7 @@ namespace DTSC {
 
   /// Returns the name of the num-th member of this object.
   /// Returns an empty string on error or when not an object.
-  std::string Scan::getIndiceName(unsigned int num) {
+  std::string Scan::getIndiceName(size_t num) const {
     if (getType() == DTSC_OBJ || getType() == DTSC_CON) {
       char * i = p + 1;
       unsigned int arr_indice = 0;
@@ -716,7 +725,7 @@ namespace DTSC {
   }
   
   /// Returns the first byte of this DTSC value, or 0 on error.
-  char Scan::getType() {
+  char Scan::getType() const {
     if (!p) {
       return 0;
     }
@@ -728,7 +737,7 @@ namespace DTSC {
   /// Strings are checked for non-zero length.
   /// Objects and arrays are checked for content.
   /// Returns false on error or in other cases.
-  bool Scan::asBool() {
+  bool Scan::asBool() const {
     switch (getType()) {
       case DTSC_STR:
         return (p[1] | p[2] | p[3] | p[4]);
@@ -746,13 +755,13 @@ namespace DTSC {
   /// Returns the long long value of this DTSC number value.
   /// Will convert string values to numbers, taking octal and hexadecimal types into account.
   /// Illegal or invalid values return 0.
-  long long Scan::asInt() {
+  int64_t Scan::asInt() const {
     switch (getType()) {
       case DTSC_INT:
         return Bit::btohll(p+1);
       case DTSC_STR:
         char * str;
-        unsigned int strlen;
+        size_t strlen;
         getString(str, strlen);
         if (!strlen) {
           return 0;
@@ -767,7 +776,7 @@ namespace DTSC {
   /// Uses getString internally, if a string.
   /// Converts integer values to strings.
   /// Returns an empty string on error.
-  std::string Scan::asString() {
+  std::string Scan::asString() const {
     switch (getType()) {
       case DTSC_INT:{
         std::stringstream st;
@@ -777,7 +786,7 @@ namespace DTSC {
       break;
       case DTSC_STR:{
         char * str;
-        unsigned int strlen;
+        size_t strlen;
         getString(str, strlen);
         return std::string(str, strlen);
       }
@@ -789,25 +798,22 @@ namespace DTSC {
   /// Sets result to a pointer to the string, and strlen to the length of it.
   /// Sets both to zero if this isn't a DTSC string value.
   /// Attempts absolutely no conversion.
-  void Scan::getString(char *& result, unsigned int & strlen) {
-    switch (getType()) {
-      case DTSC_STR:
+  void Scan::getString(char *& result, size_t & strlen) const {
+    if (getType() == DTSC_STR){
         result = p + 5;
         strlen = Bit::btohl(p+1);
         return;
-      default:
-        result = 0;
-        strlen = 0;
-        return;
     }
+    result = 0;
+    strlen = 0;
   }
 
   /// Returns the DTSC scan object as a JSON value
   /// Returns an empty object on error.
-  JSON::Value Scan::asJSON(){
+  JSON::Value Scan::asJSON() const {
     JSON::Value result;
     unsigned int i = 0;
-    JSON::fromDTMI((const unsigned char*)p, len, i, result);
+    JSON::fromDTMI(p, len, i, result);
     return result;
   }
 
@@ -826,7 +832,7 @@ namespace DTSC {
   static std::string string_escape(const std::string val) {
     std::stringstream out;
     out << "\"";
-    for (unsigned int i = 0; i < val.size(); ++i) {
+    for (size_t i = 0; i < val.size(); ++i) {
       switch (val.data()[i]) {
         case '"':
           out << "\\\"";
@@ -864,10 +870,10 @@ namespace DTSC {
     return out.str();
   }
 
-  std::string Scan::toPrettyString(unsigned int indent) {
+  std::string Scan::toPrettyString(size_t indent) const {
     switch (getType()) {
       case DTSC_STR: {
-          unsigned int strlen = Bit::btohl(p+1);
+          uint32_t strlen = Bit::btohl(p+1);
           if (strlen > 250) {
             std::stringstream ret;
             ret << "\"" << strlen << " bytes of data\"";
@@ -891,25 +897,25 @@ namespace DTSC {
           while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
             if (i + 2 >= p + len) {
               indent -= 2;
-              ret << std::string((size_t)indent, ' ') << "} //walked out of object here";
+              ret << std::string(indent, ' ') << "} //walked out of object here";
               return ret.str();
             }
             if (!first){
               ret << "," << std::endl;
             }
             first = false;
-            unsigned int strlen = Bit::btohs(i);
+            uint16_t strlen = Bit::btohs(i);
             i += 2;
-            ret << std::string((size_t)indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent);
+            ret << std::string(indent, ' ') << "\"" << std::string(i, strlen) << "\": " << Scan(i + strlen, len - (i - p)).toPrettyString(indent);
             i = skipDTSC(i + strlen, p + len);
             if (!i) {
               indent -= 2;
-              ret << std::string((size_t)indent, ' ') << "} //could not locate next object";
+              ret << std::string(indent, ' ') << "} //could not locate next object";
               return ret.str();
             }
           }
           indent -= 2;
-          ret << std::endl << std::string((size_t)indent, ' ') << "}";
+          ret << std::endl << std::string(indent, ' ') << "}";
           return ret.str();
         }
       case DTSC_ARR: {
@@ -926,11 +932,11 @@ namespace DTSC {
                 ret << "," << std::endl;
               }
               first = false;
-              ret << std::string((size_t)indent, ' ') << tmpScan.toPrettyString(indent);
+              ret << std::string(indent, ' ') << tmpScan.toPrettyString(indent);
             }
           } while (tmpScan.getType());
           indent -= 2;
-          ret << std::endl << std::string((size_t)indent, ' ') << "]";
+          ret << std::endl << std::string(indent, ' ') << "]";
           return ret.str();
         }
       default:
@@ -1205,26 +1211,26 @@ namespace DTSC {
   Track::Track(Scan & trackRef) {
     if (trackRef.getMember("fragments").getType() == DTSC_STR) {
       char * tmp = 0;
-      unsigned int tmplen = 0;
+      size_t tmplen = 0;
       trackRef.getMember("fragments").getString(tmp, tmplen);
       fragments = std::deque<Fragment>((Fragment *)tmp, ((Fragment *)tmp) + (tmplen / PACKED_FRAGMENT_SIZE));
     }
     if (trackRef.getMember("keys").getType() == DTSC_STR) {
       char * tmp = 0;
-      unsigned int tmplen = 0;
+      size_t tmplen = 0;
       trackRef.getMember("keys").getString(tmp, tmplen);
       keys = std::deque<Key>((Key *)tmp, ((Key *)tmp) + (tmplen / PACKED_KEY_SIZE));
     }
     if (trackRef.getMember("parts").getType() == DTSC_STR) {
       char * tmp = 0;
-      unsigned int tmplen = 0;
+      size_t tmplen = 0;
       trackRef.getMember("parts").getString(tmp, tmplen);
       parts = std::deque<Part>((Part *)tmp, ((Part *)tmp) + (tmplen / 9));
     }
     /*LTS-START*/
     if (trackRef.getMember("ivecs").getType() == DTSC_STR) {
       char * tmp = 0;
-      unsigned int tmplen = 0;
+      size_t tmplen = 0;
       trackRef.getMember("ivecs").getString(tmp, tmplen);
       ivecs = std::deque<Ivec>((Ivec *)tmp, ((Ivec *)tmp) + (tmplen / 8));
     }
@@ -1253,7 +1259,7 @@ namespace DTSC {
     }
     if (trackRef.getMember("keysizes").getType() == DTSC_STR) {
       char * tmp = 0;
-      unsigned int tmplen = 0;
+      size_t tmplen = 0;
       trackRef.getMember("keysizes").getString(tmp, tmplen);
       for (unsigned int i = 0; i < tmplen; i += 4){
         keySizes.push_back((((long unsigned)tmp[i]) << 24) | (((long unsigned)tmp[i+1]) << 16) | (((long unsigned int)tmp[i+2]) << 8) | tmp[i+3]);
@@ -1547,10 +1553,10 @@ namespace DTSC {
   ///\brief Updates a meta object given a DTSC::Packet
   void Meta::update(const DTSC::Packet & pack, unsigned long segment_size) {
     char * data;
-    unsigned int dataLen;
+    size_t dataLen;
     pack.getString("data", data, dataLen);
     char * ivec;
-    unsigned int ivecLen;
+    size_t ivecLen;
     pack.getString("ivec", ivec, ivecLen);
     /*LTS
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, pack.hasMember("bpos")?pack.getInt("bpos"):0, pack.hasMember("keyframe"), pack.getDataLen(), segment_size);
@@ -1564,13 +1570,13 @@ namespace DTSC {
   ///\brief Updates a meta object given a DTSC::Packet with byte position override.
   void Meta::updatePosOverride(DTSC::Packet & pack, uint64_t bpos) {
     char * data;
-    unsigned int dataLen;
+    size_t dataLen;
     pack.getString("data", data, dataLen);
     /*LTS
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen());
     LTS*/
     char * ivec;
-    unsigned int ivecLen;
+    size_t ivecLen;
     pack.getString("ivec", ivec, ivecLen);
     update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen(), 5000, ivecLen?ivec:0);
   }

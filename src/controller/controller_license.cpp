@@ -35,7 +35,7 @@ namespace Controller{
         updateLicense("&boot=1");
         checkLicense();
       }else{
-        lastCheck = std::min(Util::epoch(), currentLicense["valid_from"].asInt());
+        lastCheck = std::min(Util::epoch(), (uint64_t)currentLicense["valid_from"].asInt());
       }
     }else{
       updateLicense("&boot=1");
@@ -46,7 +46,7 @@ namespace Controller{
   bool isLicensed(){
     uint64_t now = Util::epoch() + timeOffset;
 #if DEBUG >= DLVL_DEVEL
-    INFO_MSG("Verifying license against %llu: %s", now, currentLicense.toString().c_str());
+    INFO_MSG("Verifying license against %" PRIu64 ": %s", now, currentLicense.toString().c_str());
 #endif
     //Print messages for user, if any
     if (currentLicense.isMember("user_msg") && currentLicense["user_msg"].asStringRef().size()){
@@ -104,7 +104,7 @@ namespace Controller{
     if (currID){
       char aesKey[16];
       if (strlen(SUPER_SECRET) >= 32){
-        parseKey(SUPER_SECRET SUPER_SECRET + 7,aesKey,16);
+        parseKey((SUPER_SECRET SUPER_SECRET)+7,aesKey,16);
       }else{
         parseKey("4E56721C67306E1F473156F755FF5570",aesKey,16);
       }
@@ -128,7 +128,7 @@ namespace Controller{
   void readLicense(uint64_t licID, const std::string & input, bool fromServer){
     char aesKey[16];
     if (strlen(SUPER_SECRET) >= 32){
-      parseKey(SUPER_SECRET SUPER_SECRET + 7,aesKey,16);
+      parseKey((SUPER_SECRET SUPER_SECRET)+ 7,aesKey,16);
     }else{
       parseKey("4E56721C67306E1F473156F755FF5570",aesKey,16);
     }
@@ -158,10 +158,10 @@ namespace Controller{
       uint64_t localTime = Util::epoch();
       uint64_t remoteTime = newLicense["time"].asInt();
       if (localTime > remoteTime + 60){
-        WARN_MSG("Your computer clock is %u seconds ahead! Please ensure your computer clock is set correctly.", localTime - remoteTime);
+        WARN_MSG("Your computer clock is %" PRIu64 " seconds ahead! Please ensure your computer clock is set correctly.", localTime - remoteTime);
       }
       if (localTime < remoteTime - 60){
-        WARN_MSG("Your computer clock is %u seconds late! Please ensure your computer clock is set correctly.", remoteTime - localTime);
+        WARN_MSG("Your computer clock is %" PRIu64 " seconds late! Please ensure your computer clock is set correctly.", remoteTime - localTime);
       }
       timeOffset = remoteTime - localTime;
 
@@ -177,7 +177,7 @@ namespace Controller{
     if (currentLicense["store"].asBool()){
       if (Storage["license"].asStringRef() != input){
         Storage["license"] = input;
-        Storage["license_id"] = (long long)licID;
+        Storage["license_id"] = licID;
         INFO_MSG("Stored license for offline use");
       }
     }

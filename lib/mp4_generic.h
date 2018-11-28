@@ -2,7 +2,7 @@
 #include "mp4.h"
 
 namespace h265 {
-  class metaInfo;
+  struct metaInfo;
 }
 
 namespace MP4 {
@@ -79,6 +79,7 @@ namespace MP4 {
     tfhdSampleSize = 0x000010,
     tfhdSampleFlag = 0x000020,
     tfhdNoDuration = 0x010000,
+    tfhdBaseIsMoof = 0x020000,
   };
   class TFHD: public Box {
     public:
@@ -97,6 +98,7 @@ namespace MP4 {
       uint32_t getDefaultSampleSize();
       void setDefaultSampleFlags(uint32_t newFlags);
       uint32_t getDefaultSampleFlags();
+      bool getDefaultBaseIsMoof();
       std::string toPrettyString(uint32_t indent = 0);
   };
 
@@ -116,6 +118,7 @@ namespace MP4 {
       void setSPSCount(uint32_t _count);
       uint32_t getSPSCount();
       void setSPS(std::string newSPS, size_t index = 0);
+      void setSPS(const char * data, size_t len, size_t index = 0);
       uint32_t getSPSLen(size_t index = 0);
       char * getSPS(size_t index = 0);
       std::string hexSPS(size_t index = 0);
@@ -124,12 +127,17 @@ namespace MP4 {
       void setPPSCount(uint32_t _count);
       uint32_t getPPSCount();
       void setPPS(std::string newPPS, size_t index = 0);
+      void setPPS(const char * data, size_t len, size_t index = 0);
       uint32_t getPPSLen(size_t index = 0);
       char * getPPS(size_t index = 0);
       void multiplyPPS(size_t newAmount);
       std::string hexPPS(size_t index = 0);
       std::string asAnnexB();
       void setPayload(std::string newPayload);
+      void setPayload(const char * data, size_t len);
+
+      bool sanitize();
+
       std::string toPrettyString(uint32_t indent = 0);
   };
 
@@ -651,7 +659,7 @@ namespace MP4 {
 
   class PASP: public Box { //PixelAspectRatioBox
     public:
-      PASP();
+      PASP(uint32_t hSpacing = 1, uint32_t vSpacing = 1);
       void setHSpacing(uint32_t newVal);
       uint32_t getHSpacing();
       void setVSpacing(uint32_t newVal);
@@ -684,6 +692,11 @@ namespace MP4 {
       void setCLAP(Box & clap);
       Box & getPASP();
       void setPASP(Box & pasp);
+
+      size_t getBoxEntryCount();
+      Box & getBoxEntry(size_t index);
+      void setBoxEntry(size_t index, Box & box);
+
       std::string toPrettyVisualString(uint32_t index = 0, std::string = "");
   };
 

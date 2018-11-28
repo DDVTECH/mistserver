@@ -13,6 +13,7 @@ namespace Mpeg{
     // samplerate is encoded in bits 0x0C of header[2];
     res.sampleRate = sampleRates[mpegVersion][((hdr[2] >> 2) & 0x03)] * 1000;
     res.channels = 2 - (hdr[3] >> 7);
+    res.layer = 4 - (hdr[1] >> 1) & 0x03;
     return res;
   }
 
@@ -44,7 +45,7 @@ namespace Mpeg{
       return true;
     }
     if (hdr[3] == 0x00){// Picture header
-      mpInfo.tempSeq = (((uint16_t)hdr[4]) << 2) || (hdr[5] >> 6);
+      mpInfo.tempSeq = ((uint16_t)hdr[4] << 2) | (hdr[5] >> 6);
       mpInfo.frameType = (hdr[5] & 0x38) >> 3;
       return true;
     }
@@ -55,8 +56,8 @@ namespace Mpeg{
   void parseMPEG2Headers(const char *hdr, uint32_t len, MPEG2Info &mpInfo){
     mpInfo.clear();
     const char *offset = hdr;
-    char *maxData = (char*)hdr + len - 5;
-    if (maxData - hdr > 250){maxData = (char*)hdr + 250;}
+    char *maxData = (char *)hdr + len - 5;
+    if (maxData - hdr > 250){maxData = (char *)hdr + 250;}
     while (offset < maxData){
       if (offset[2] > 1){
         // We have no zero in the third byte, so we need to skip at least 3 bytes forward

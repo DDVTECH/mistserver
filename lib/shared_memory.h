@@ -103,11 +103,11 @@ namespace IPC {
   ///\brief A class for managing shared files.
   class sharedFile {
     public:
-      sharedFile(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
+      sharedFile(const std::string & name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
       sharedFile(const sharedFile & rhs);
       ~sharedFile();
       operator bool() const;
-      void init(std::string name_, unsigned int len_, bool master_ =  false, bool autoBackoff = true);
+      void init(const std::string & name_, uint64_t len_, bool master_ =  false, bool autoBackoff = true);
       void operator =(sharedFile & rhs);
       bool operator < (const sharedFile & rhs) const {
         return name < rhs.name;
@@ -120,7 +120,7 @@ namespace IPC {
       ///\brief The name of the opened shared file
       std::string name;
       ///\brief The size in bytes of the opened shared file
-      long long int len;
+      uint64_t len;
       ///\brief Whether this class should unlink the shared file upon deletion or not
       bool master;
       ///\brief A pointer to the payload of the file file
@@ -136,11 +136,11 @@ namespace IPC {
   ///\brief A class for managing shared memory pages.
   class sharedPage {
   public:
-    sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
+    sharedPage(const std::string & name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
     sharedPage(const sharedPage & rhs);
     ~sharedPage();
     operator bool() const;
-    void init(std::string name_, unsigned int len_, bool master_ =  false, bool autoBackoff = true);
+    void init(const std::string & name_, uint64_t len_, bool master_ =  false, bool autoBackoff = true);
     void operator =(sharedPage & rhs);
     bool operator < (const sharedPage & rhs) const {
       return name < rhs.name;
@@ -169,7 +169,7 @@ namespace IPC {
   ///Uses shared files at its backbone, defined for portability
   class sharedPage: public sharedFile {
     public:
-      sharedPage(std::string name_ = "", unsigned int len_ = 0, bool master_ = false, bool autoBackoff = true);
+      sharedPage(const std::string & name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
       sharedPage(const sharedPage & rhs);
       ~sharedPage();
   };

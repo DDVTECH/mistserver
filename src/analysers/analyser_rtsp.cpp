@@ -12,7 +12,7 @@ void AnalyserRTSP::init(Util::Config &conf){
 
 void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
   char *dataPtr;
-  uint32_t dataSize;
+  size_t dataSize;
   pkt.getString("data", dataPtr, dataSize);
   DETAIL_MED("Received %ub %sfor track %lu (%s) @ %llums", dataSize, pkt.getFlag("keyframe")?"keyframe ":"", pkt.getTrackId(),
              myMeta.tracks[pkt.getTrackId()].getIdentifier().c_str(), pkt.getTime());

@@ -474,6 +474,10 @@ namespace MP4 {
     return getInt32(offset);
   }
 
+  bool TFHD::getDefaultBaseIsMoof() {
+    return getFlags() & tfhdBaseIsMoof;
+  }
+
   std::string TFHD::toPrettyString(uint32_t indent) {
     std::stringstream r;
     r << std::string(indent, ' ') << "[tfhd] Track Fragment Header (" << boxedSize() << ")" << std::endl;
@@ -499,6 +503,9 @@ namespace MP4 {
     if (flags & tfhdNoDuration) {
       r << " NoDuration";
     }
+    if (flags & tfhdBaseIsMoof) {
+      r << " BaseIsMoof";
+    }
     r << std::endl;
 
     r << std::string(indent + 1, ' ') << "TrackID " << getTrackID() << std::endl;
@@ -513,7 +520,7 @@ namespace MP4 {
       r << std::string(indent + 1, ' ') << "Default Sample Duration " << getDefaultSampleDuration() << std::endl;
     }
     if (flags & tfhdSampleSize) {
-      r << std::string(indent + 1, ' ') << "Default Same Size " << getDefaultSampleSize() << std::endl;
+      r << std::string(indent + 1, ' ') << "Default Sample Size " << getDefaultSampleSize() << std::endl;
     }
     if (flags & tfhdSampleFlag) {
       r << std::string(indent + 1, ' ') << "Default Sample Flags " << prettySampleFlags(getDefaultSampleFlags()) << std::endl;
@@ -569,6 +576,10 @@ namespace MP4 {
   }
 
   void AVCC::setSPS(std::string newSPS, size_t index) {
+    setSPS(newSPS.data(), newSPS.size(), index);
+  }
+
+  void AVCC::setSPS(const char * data, size_t len, size_t index) {
     if (index >= getSPSCount()){
       WARN_MSG("Cannot set entry at position %zu/%u: Out of bounds", index, getSPSCount());
     }
@@ -576,9 +587,9 @@ namespace MP4 {
     for (size_t i = 0; i < index; i++){
       offset += getInt16(offset) + 2;
     }
-    setInt16(newSPS.size(), offset);
-    for (unsigned int i = 0; i < newSPS.size(); i++) {
-      setInt8(newSPS[i], offset + 2 + i);
+    setInt16(len, offset);
+    for (unsigned int i = 0; i < len; i++) {
+      setInt8(data[i], offset + 2 + i);
     } //not null-terminated
   }
 
@@ -648,6 +659,9 @@ namespace MP4 {
   }
 
   void AVCC::setPPS(std::string newPPS, size_t index) {
+    setPPS(newPPS.data(), newPPS.size(), index);
+  }
+  void AVCC::setPPS(const char * data, size_t len, size_t index) {
     if (index >= getPPSCount()){
       WARN_MSG("Cannot set entry at position %zu/%u: Out of bounds", index, getPPSCount());
     }
@@ -655,9 +669,9 @@ namespace MP4 {
     for (size_t i = 0; i < index; i++){
       offset += getInt16(offset) + 2;
     }
-    setInt16(newPPS.size(), offset);
-    for (unsigned int i = 0; i < newPPS.size(); i++) {
-      setInt8(newPPS[i], offset + 2 + i);
+    setInt16(len, offset);
+    for (unsigned int i = 0; i < len; i++) {
+      setInt8(data[i], offset + 2 + i);
     } //not null-terminated
   }
 
@@ -742,11 +756,90 @@ namespace MP4 {
   }
 
   void AVCC::setPayload(std::string newPayload) {
-    if (!reserve(0, payloadSize(), newPayload.size())) {
+    setPayload(newPayload.data(), newPayload.size());
+  }
+  void AVCC::setPayload(const char * data, size_t len){
+    if (!reserve(0, payloadSize(), len)){
       ERROR_MSG("Cannot allocate enough memory for payload");
       return;
     }
-    memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
+    memcpy((char *)payload(), (char *)data, len);
+  }
+
+  bool AVCC::sanitize(){
+    bool needSanitization = false;
+    size_t count = getSPSCount();
+    for (size_t i = 0; i < count; i++){
+      char * sps = getSPS(i);
+      if (memcmp("\000\000\000\001", sps, 4) == 0 || memcmp("\000\000\001", sps, 3)){
+        needSanitization = true;
+        break;
+      }
+    }
+    if (!needSanitization){
+      count = getPPSCount();
+      for (size_t i = 0; i < count; i++){
+        char * pps = getPPS(i);
+        if (memcmp("\000\000\000\001", pps, 4) == 0 || memcmp("\000\000\001", pps, 3)){
+          needSanitization = true;
+          break;
+        }
+      }
+    }
+    if (!needSanitization){return false;}
+    AVCC sanitized;
+    sanitized.setVersion(getVersion());
+    sanitized.setProfile(getProfile());
+    sanitized.setCompatibleProfiles(getCompatibleProfiles());
+    sanitized.setLevel(getLevel());
+
+    count = getSPSCount();
+    sanitized.setSPSCount(count);
+    for (size_t i = 0; i < count; i++){
+      char * sps = getSPS(i);
+      size_t len = getSPSLen(i);
+      bool modded = true;
+      while (modded){
+        modded = false;
+        if (memcmp("\000\000\001", sps, 3) == 0){
+          modded = true;
+          len -= 3;
+          sps += 3;
+        }
+        if (memcmp("\000\000\000\001", sps, 4) == 0){
+          modded = true;
+          len -= 4;
+          sps += 4;
+        }
+      }
+      sanitized.setSPS(sps, len, i);
+    }
+    count = getPPSCount();
+    sanitized.setPPSCount(count);
+    for (size_t i = 0; i < count; i++){
+      char * pps = getPPS(i);
+      size_t len = getPPSLen(i);
+      bool modded = true;
+      while (modded){
+        modded = false;
+        if (memcmp("\000\000\001", pps, 3) == 0){
+          modded = true;
+          len -= 3;
+          pps += 3;
+        }
+        if (memcmp("\000\000\000\001", pps, 4) == 0){
+          modded = true;
+          len -= 4;
+          pps += 4;
+        }
+      }
+      sanitized.setPPS(pps, len, i);
+    }
+    clear();
+    memcpy(data + 4, "avcC", 4);
+    setInt8(0xFF, 4); //reserved + 4-bytes NAL length
+    setPayload(sanitized.payload(), sanitized.payloadSize());
+    return true;
   }
 
   HVCC::HVCC() {
@@ -2692,13 +2785,17 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[stts] Sample Table Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    r << std::string(indent + 2, ' ') << "[";
     for (unsigned int i = 0; i < getEntryCount(); i++) {
       static STTSEntry temp;
       temp = getSTTSEntry(i);
-      r << std::string(indent + 1, ' ') << "Entry[" << i << "]: " << temp.sampleCount << " sample(s) of " << temp.sampleDelta << "ms each" << std::endl;
+      r << "(" << temp.sampleCount << " x " << temp.sampleDelta << "ms)";
+      if (i < getEntryCount() - 1){
+        r << ", ";
     }
+    }
+    r << "]" << std::endl;
     return r.str();
-
   }
 
   CTTS::CTTS() {
@@ -2742,13 +2839,16 @@ namespace MP4 {
     r << std::string(indent, ' ') << "[ctts] Composition Time To Sample Box (" << boxedSize() << ")" << std::endl;
     r << fullBox::toPrettyString(indent);
     r << std::string(indent + 1, ' ') << "EntryCount: " << getEntryCount() << std::endl;
+    r << std::string(indent + 2, ' ') << "[";
     for (unsigned int i = 0; i < getEntryCount(); i++) {
       static CTTSEntry temp;
       temp = getCTTSEntry(i);
-      r << std::string(indent + 1, ' ') << "Entry[" << i << "]:" << std::endl;
-      r << std::string(indent + 2, ' ') << "SampleCount: " << temp.sampleCount << std::endl;
-      r << std::string(indent + 2, ' ') << "SampleOffset: " << temp.sampleOffset << std::endl;
+      r << "(" << temp.sampleCount << " x " << temp.sampleOffset << ")";
+      if (i < getEntryCount() - 1){
+        r << ", ";
+      }
     }
+    r << "]" << std::endl;
     return r.str();
 
   }
@@ -3081,10 +3181,10 @@ namespace MP4 {
     return r.str();
   }
 
-  PASP::PASP() {
+  PASP::PASP(uint32_t hSpacing, uint32_t vSpacing) {
     memcpy(data + 4, "pasp", 4);
-    setHSpacing(1);
-    setVSpacing(1);
+    setHSpacing(hSpacing);
+    setVSpacing(vSpacing);
   }
 
   void PASP::setHSpacing(uint32_t newVal) {
@@ -3134,6 +3234,8 @@ namespace MP4 {
       setCLAP(hvccBox);
     }
     /*LTS-END*/
+    MP4::PASP paspBox;
+    setPASP(paspBox);
   }
 
   void VisualSampleEntry::initialize(){
@@ -3238,12 +3340,61 @@ namespace MP4 {
     }
     if (payloadSize() < 78 + getBoxLen(78) + 8) {
       return ret;
-    } else {
-      return getBox(78 + getBoxLen(78));
     }
-
+    return getBox(78 + getBoxLen(78));
   }
 
+  size_t VisualSampleEntry::getBoxEntryCount() {
+    if (payloadSize() < 84) { //if the EntryBox is not big enough to hold any box
+      return 0;
+    }
+    size_t count = 0;
+    size_t offset = 78;
+    while (offset < payloadSize()){
+      offset +=getBoxLen(offset);
+      count++;
+    }
+    return count;
+  }
+
+  Box & VisualSampleEntry::getBoxEntry(size_t index){
+    static Box ret = Box((char *)"\000\000\000\010erro", false);
+    if (index >= getBoxEntryCount()){
+      return ret;
+    }
+    size_t count = 0;
+    size_t offset = 78;
+    while (offset < payloadSize()){
+      if (count == index){
+        return getBox(offset);
+      }
+      offset +=getBoxLen(offset);
+      count++;
+    }
+    return ret;
+  }
+
+  void VisualSampleEntry::setBoxEntry(size_t index, Box & box){
+    if (index > getBoxEntryCount()){
+      index = getBoxEntryCount();
+      WARN_MSG("This function can not leave empty spaces, appending at index %zu nstead!", index);
+    }
+    size_t count = 0;
+    size_t offset = 78;
+    while (offset < payloadSize()){
+      if (count == index){
+        setBox(box, offset);
+        return;
+      }
+      offset +=getBoxLen(offset);
+      count++;
+    }
+    if (count == index){
+      setBox(box, offset);
+    }else{
+      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %zu", index, count, offset, payloadSize());
+    }
+  }
 
 
 
@@ -3258,11 +3409,19 @@ namespace MP4 {
     r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
     r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
     r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Box Count: " << getBoxEntryCount() << std::endl;
     if (!getCLAP().isType("erro")) {
       r << getCLAP().toPrettyString(indent + 1);
     }
     if (!getPASP().isType("erro")) {
       r << getPASP().toPrettyString(indent + 1);
+    }
+    if (getBoxEntryCount() > 2){
+      for (size_t index = 2; index < getBoxEntryCount(); ++index){
+        MP4::Box tmpBox = getBoxEntry(index);
+        r << tmpBox.toPrettyString(indent + 1);
+      }
     }
     return r.str();
   }

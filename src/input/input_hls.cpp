@@ -414,7 +414,7 @@ namespace Mist{
     int packetId = 0;
 
     char *data;
-    unsigned int dataLen;
+    size_t dataLen;
 
     for (std::vector<Playlist>::iterator pListIt = playlists.begin(); pListIt != playlists.end();
          pListIt++){

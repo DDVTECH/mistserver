@@ -87,7 +87,7 @@ namespace Controller{
   void insertUpdateInfo(JSON::Value &ret){
     tthread::lock_guard<tthread::mutex> guard(updaterMutex);
     ret = updates;
-    if (updatePerc){ret["progress"] = (long long)updatePerc;}
+    if (updatePerc){ret["progress"] = (uint16_t)updatePerc;}
   }
 
   /// Downloads the latest details on updates

@@ -15,6 +15,7 @@ namespace Mpeg{
   struct MP2Info{
     uint64_t sampleRate;
     uint8_t channels;
+    uint8_t layer;
   };
 
   MP2Info parseMP2Header(const std::string &hdr);
@@ -40,5 +41,5 @@ namespace Mpeg{
   bool parseMPEG2Header(const char *hdr, MPEG2Info &mpInfo);
   void parseMPEG2Headers(const char *hdr, uint32_t len, MPEG2Info &mpInfo);
   MPEG2Info parseMPEG2Headers(const char *hdr, uint32_t len);
-}
+}// namespace Mpeg
 

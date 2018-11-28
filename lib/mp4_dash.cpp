@@ -69,14 +69,14 @@ namespace MP4 {
     uint32_t tmp = (newRef.referenceType ? 0x80000000 : 0) | newRef.referencedSize;
     setInt32(tmp, offset);
     setInt32(newRef.subSegmentDuration, offset + 4);
-    tmp = (newRef.sapStart ? 0x80000000 : 0) | ((newRef.sapType & 0x7) << 24) | newRef.sapDeltaTime;
+    tmp = (newRef.sapStart ? 0x80000000 : 0) | ((uint32_t)(newRef.sapType & 0x70) << 24) | newRef.sapDeltaTime;
     setInt32(tmp, offset + 8);
   }
 
   sidxReference SIDX::getReference(size_t index) {
     sidxReference result;
     if (index >= getReferenceCount()) {
-      DEBUG_MSG(DLVL_DEVEL, "Warning, attempt to obtain reference out of bounds");
+      DEVEL_MSG("Warning, attempt to obtain reference out of bounds");
       return result;
     }
     uint32_t offset = 24 + (index * 12) + (getVersion() == 0 ? 0 : 8);
@@ -115,8 +115,9 @@ namespace MP4 {
 
   TFDT::TFDT() {
     memcpy(data + 4, "tfdt", 4);
-    setVersion(0);
+    setVersion(1);
     setFlags(0);
+    setBaseMediaDecodeTime(0);
   }
 
   void TFDT::setBaseMediaDecodeTime(uint64_t newBaseMediaDecodeTime) {

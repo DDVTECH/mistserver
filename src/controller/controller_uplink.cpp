@@ -34,7 +34,7 @@ void Controller::uplinkConnection(void * np) {
     return;
   }
 
-  unsigned long long lastSend = Util::epoch() - 5;
+  uint64_t lastSend = Util::epoch() - 5;
   Socket::Connection uplink;
   while (Controller::conf.is_active) {
     if (!uplink) {
@@ -98,7 +98,7 @@ void Controller::uplinkConnection(void * np) {
         }
         JSON::Value totalsRequest;
         Controller::fillClients(totalsRequest, data["clients"]);
-        totalsRequest["start"] = (long long)lastSend;
+        totalsRequest["start"] = lastSend;
         Controller::fillTotals(totalsRequest, data["totals"]);
         data["streams"] = Controller::Storage["streams"];
         jsonForEach(data["streams"], it){

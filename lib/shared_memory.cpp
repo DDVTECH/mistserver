@@ -40,53 +40,6 @@ namespace IPC {
   }
 #endif
 
-  /// Stores a long value of val in network order to the pointer p.
-  static void htobl(char * p, long val) {
-    p[0] = (val >> 24) & 0xFF;
-    p[1] = (val >> 16) & 0xFF;
-    p[2] = (val >> 8) & 0xFF;
-    p[3] = val & 0xFF;
-  }
-
-  /// Stores a short value of val in network order to the pointer p.
-  static void htobs(char * p, short val) {
-    p[0] = (val >> 8) & 0xFF;
-    p[1] = val & 0xFF;
-  }
-
-
-  /// Stores a long long value of val in network order to the pointer p.
-  static void htobll(char * p, long long val) {
-    p[0] = (val >> 56) & 0xFF;
-    p[1] = (val >> 48) & 0xFF;
-    p[2] = (val >> 40) & 0xFF;
-    p[3] = (val >> 32) & 0xFF;
-    p[4] = (val >> 24) & 0xFF;
-    p[5] = (val >> 16) & 0xFF;
-    p[6] = (val >> 8) & 0xFF;
-    p[7] = val & 0xFF;
-  }
-
-  /// Reads a long value of p in host order to val.
-  static void btohl(char * p, long & val) {
-    val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
-  }
-
-  /// Reads a short value of p in host order to val.
-  static void btohs(char * p, unsigned short & val) {
-    val = ((short)p[0] << 8) | p[1];
-  }
-
-  /// Reads a long value of p in host order to val.
-  static void btohl(char * p, unsigned int & val) {
-    val = ((long)p[0] << 24) | ((long)p[1] << 16) | ((long)p[2] << 8) | p[3];
-  }
-
-  /// Reads a long long value of p in host order to val.
-  static void btohll(char * p, long long & val) {
-    val = ((long long)p[0] << 56) | ((long long)p[1] << 48) | ((long long)p[2] << 40) | ((long long)p[3] << 32) | ((long long)p[4] << 24) | ((long long)p[5] << 16) | ((long long)p[6] << 8) | p[7];
-  }
-
   ///\brief Empty semaphore constructor, clears all values
   semaphore::semaphore() {
 #if defined(__CYGWIN__) || defined(_WIN32)
@@ -262,8 +215,8 @@ namespace IPC {
     }
 #elif defined(__APPLE__)
     /// \todo (roxlu) test tryWaitOneSecond, shared_memory.cpp
-    long long unsigned int now = Util::getMicros();
-    long long unsigned int timeout = now + 1e6;
+    uint64_t now = Util::getMicros();
+    uint64_t timeout = now + 1e6;
     while (now < timeout) {
       if (0 == sem_trywait(mySem)) {
         isLocked = true;
@@ -363,7 +316,7 @@ namespace IPC {
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  sharedPage::sharedPage(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
+  sharedPage::sharedPage(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) {
     handle = 0;
     len = 0;
     master = false;
@@ -453,7 +406,7 @@ namespace IPC {
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedPage::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
+  void sharedPage::init(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) {
     close();
     name = name_;
     len = len_;
@@ -486,9 +439,9 @@ namespace IPC {
       }
       //Under cygwin, the extra 4 bytes contain the real size of the page.
       if (master) {
-        ((unsigned int *)mapped)[0] = len_;
+        Bit::htobl(mapped, len);
       } else {
-        len = ((unsigned int *)mapped)[0];
+        len = Bit::btohl(mapped);
       }
       //Now shift by those 4 bytes.
       mapped += 4;
@@ -496,7 +449,7 @@ namespace IPC {
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
       if (handle == -1) {
         if (master) {
-          DEBUG_MSG(DLVL_HIGH, "Overwriting old page for %s", name.c_str());
+          ERROR_MSG("Overwriting old page for %s", name.c_str());
           handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
         } else {
           int i = 0;
@@ -515,7 +468,7 @@ namespace IPC {
       }
       if (master) {
         if (ftruncate(handle, len) < 0) {
-          FAIL_MSG("truncate to %lld for page %s failed: %s", len, name.c_str(), strerror(errno));
+          FAIL_MSG("truncate to %" PRIu64 " for page %s failed: %s", len, name.c_str(), strerror(errno));
           return;
         }
       } else {
@@ -547,7 +500,7 @@ namespace IPC {
   ///\param len_ The size to make the file
   ///\param master_ Whether to create or merely open the file
   ///\param autoBackoff When only opening the file, wait for it to appear or fail
-  sharedFile::sharedFile(std::string name_, unsigned int len_, bool master_, bool autoBackoff) : handle(0), name(name_), len(len_), master(master_), mapped(NULL) {
+  sharedFile::sharedFile(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) : handle(0), name(name_), len(len_), master(master_), mapped(NULL) {
     handle = 0;
     name = name_;
     len = len_;
@@ -612,7 +565,7 @@ namespace IPC {
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedFile::init(std::string name_, unsigned int len_, bool master_, bool autoBackoff) {
+  void sharedFile::init(const std::string & name_, uint64_t len_, bool master_, bool autoBackoff) {
     close();
     name = name_;
     len = len_;
@@ -623,7 +576,7 @@ namespace IPC {
       handle = open(std::string(Util::getTmpFolder() + name).c_str(), (master ? O_CREAT | O_TRUNC | O_EXCL : 0) | O_RDWR, (mode_t)0600);
       if (handle == -1) {
         if (master) {
-          DEBUG_MSG(DLVL_HIGH, "Overwriting old file for %s", name.c_str());
+          HIGH_MSG("Overwriting old file for %s", name.c_str());
           handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_CREAT | O_TRUNC | O_RDWR, (mode_t)0600);
         } else {
           int i = 0;
@@ -670,19 +623,18 @@ namespace IPC {
 
   ///\brief Sets timestamp of the current stats
   void statExchange::now(long long int time) {
-    htobll(data, time);
+    Bit::htobll(data, time);
   }
 
   ///\brief Gets timestamp of the current stats
   long long int statExchange::now() {
     long long int result;
-    btohll(data, result);
-    return result;
+    return Bit::btohll(data);
   }
 
   ///\brief Sets time currently connected
   void statExchange::time(long time) {
-    htobl(data + 8, time);
+    Bit::htobl(data + 8, time);
   }
 
   /// Calculates session ID from CRC, stream name, connector and host.
@@ -692,45 +644,37 @@ namespace IPC {
 
   ///\brief Gets time currently connected
   long statExchange::time() {
-    long result;
-    btohl(data + 8, result);
-    return result;
+    return Bit::btohl(data + 8);
   }
 
   ///\brief Sets the last viewing second of this user
   void statExchange::lastSecond(long time) {
-    htobl(data + 12, time);
+    Bit::htobl(data + 12, time);
   }
 
   ///\brief Gets the last viewing second of this user
   long statExchange::lastSecond() {
-    long result;
-    btohl(data + 12, result);
-    return result;
+    return Bit::btohl(data + 12);
   }
 
   ///\brief Sets the amount of bytes received
   void statExchange::down(long long int bytes) {
-    htobll(data + 16, bytes);
+    Bit::htobll(data + 16, bytes);
   }
 
   ///\brief Gets the amount of bytes received
   long long int statExchange::down() {
-    long long int result;
-    btohll(data + 16, result);
-    return result;
+    return Bit::btohll(data + 16);
   }
 
   ///\brief Sets the amount of bytes sent
   void statExchange::up(long long int bytes) {
-    htobll(data + 24, bytes);
+    Bit::htobll(data + 24, bytes);
   }
 
   ///\brief Gets the amount of bytes sent
   long long int statExchange::up() {
-    long long int result;
-    btohll(data + 24, result);
-    return result;
+    return Bit::btohll(data + 24);
   }
 
   ///\brief Sets the host of this connection
@@ -772,14 +716,12 @@ namespace IPC {
 
   ///\brief Sets checksum field
   void statExchange::crc(unsigned int sum) {
-    htobl(data + 168, sum);
+    Bit::htobl(data + 168, sum);
   }
 
   ///\brief Gets checksum field
   unsigned int statExchange::crc() {
-    unsigned int result;
-    btohl(data + 168, result);
-    return result;
+    return Bit::btohl(data + 168);
   }
 
   ///\brief Sets checksum field

@@ -19,7 +19,7 @@ namespace Controller{
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
-  unsigned long long logCounter = 0;
+  uint64_t logCounter = 0;
   bool configChanged = false;
   bool restarting = false;
   bool isTerminal = false;
@@ -54,7 +54,7 @@ namespace Controller{
       tthread::lock_guard<tthread::mutex> guard(logMutex);
       JSON::Value m;
       uint64_t logTime = Util::epoch();
-      m.append((long long)logTime);
+      m.append(logTime);
       m.append(kind);
       m.append(message);
       Storage["log"].append(m);

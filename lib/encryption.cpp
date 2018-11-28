@@ -115,7 +115,7 @@ namespace Encryption {
 
   void encryptPlayReady(DTSC::Packet & thisPack, std::string & codec, const char * iVec, const char * key) {
     char * data;
-    unsigned int dataLen;
+    size_t dataLen;
     thisPack.getString("data", data, dataLen);
 
     if (codec == "H264") {

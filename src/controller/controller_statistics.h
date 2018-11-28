@@ -26,10 +26,10 @@ namespace Controller {
   void updateBandwidthConfig();
   
   struct statLog {
-    long time;
-    long lastSecond;
-    long long down;
-    long long up;
+    uint64_t time;
+    uint64_t lastSecond;
+    uint64_t down;
+    uint64_t up;
   };
 
   enum sessType {
@@ -75,10 +75,10 @@ namespace Controller {
   class statSession {
     private:
       uint64_t firstActive;
-      unsigned long long firstSec;
-      unsigned long long lastSec;
-      unsigned long long wipedUp;
-      unsigned long long wipedDown;
+      uint64_t firstSec;
+      uint64_t lastSec;
+      uint64_t wipedUp;
+      uint64_t wipedDown;
       std::deque<statStorage> oldConns;
       sessType sessionType;
       bool tracked;
@@ -88,30 +88,30 @@ namespace Controller {
       uint32_t invalidate();
       uint32_t kill();
       char sync;
-      std::map<unsigned long, statStorage> curConns;
+      std::map<uint64_t, statStorage> curConns;
       std::set<std::string> tags;
       sessType getSessType();
-      void wipeOld(unsigned long long);
-      void finish(unsigned long index);
-      void switchOverTo(statSession & newSess, unsigned long index);
-      void update(unsigned long index, IPC::statExchange & data);
-      void ping(const sessIndex & index, unsigned long long disconnectPoint);
-      unsigned long long getStart();
-      unsigned long long getEnd();
-      bool isViewerOn(unsigned long long time);
+      void wipeOld(uint64_t);
+      void finish(uint64_t index);
+      void switchOverTo(statSession & newSess, uint64_t index);
+      void update(uint64_t index, IPC::statExchange & data);
+      void ping(const sessIndex & index, uint64_t disconnectPoint);
+      uint64_t getStart();
+      uint64_t getEnd();
+      bool isViewerOn(uint64_t time);
       bool isViewer();
-      bool hasDataFor(unsigned long long time);
+      bool hasDataFor(uint64_t time);
       bool hasData();
-      long long getConnTime(unsigned long long time);
-      long long getLastSecond(unsigned long long time);
-      long long getDown(unsigned long long time);
-      long long getUp();
-      long long getDown();
-      long long getUp(unsigned long long time);
-      long long getBpsDown(unsigned long long time);
-      long long getBpsUp(unsigned long long time);
-      long long getBpsDown(unsigned long long start, unsigned long long end);
-      long long getBpsUp(unsigned long long start, unsigned long long end);
+      uint64_t getConnTime(uint64_t time);
+      uint64_t getLastSecond(uint64_t time);
+      uint64_t getDown(uint64_t time);
+      uint64_t getUp();
+      uint64_t getDown();
+      uint64_t getUp(uint64_t time);
+      uint64_t getBpsDown(uint64_t time);
+      uint64_t getBpsUp(uint64_t time);
+      uint64_t getBpsDown(uint64_t start, uint64_t end);
+      uint64_t getBpsUp(uint64_t start, uint64_t end);
   };
 
   

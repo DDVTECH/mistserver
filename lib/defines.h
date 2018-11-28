@@ -34,15 +34,15 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #include <errno.h>
 
 #if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d|%s:%d|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);}
 #else
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d||" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);}
 #endif
 #else
 #if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s||%d|%s:%d|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s||%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);}
 #else
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s||%d||" msg "\n", DBG_LVL_LIST[lvl], getpid(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s||%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);}
 #endif
 #endif
 

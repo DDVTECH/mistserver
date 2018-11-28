@@ -72,7 +72,7 @@ namespace Controller{
         rlxLogs->setEndPos(logCounter);
       }
     }else{
-      std::cerr << kind << "|MistController|" << getpid() << "||" << message << "\n";
+      std::cerr << kind << "|MistController|" << getpid() << "|||" << message << "\n";
     }
   }
 

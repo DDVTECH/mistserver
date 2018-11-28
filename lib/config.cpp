@@ -37,6 +37,7 @@
 bool Util::Config::is_active = false;
 static Socket::Server * serv_sock_pointer = 0;
 unsigned int Util::Config::printDebugLevel = DEBUG;//
+std::string Util::Config::streamName;
 
 Util::Config::Config() {
   //global options here

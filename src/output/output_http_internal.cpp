@@ -36,12 +36,13 @@ namespace Mist {
 
   OutHTTP::OutHTTP(Socket::Connection & conn) : HTTPOutput(conn){
     stayConnected = false;
-    if (myConn.getPureSocket() >= 0){
+    //If this connection is a socket and not already connected to stdio, connect it to stdio.
+    if (myConn.getPureSocket() != -1 && myConn.getSocket() != STDIN_FILENO && myConn.getSocket() != STDOUT_FILENO){
       std::string host = getConnectedHost();
       dup2(myConn.getSocket(), STDIN_FILENO);
       dup2(myConn.getSocket(), STDOUT_FILENO);
       myConn.drop();
-      myConn = Socket::Connection(fileno(stdout),fileno(stdin) );
+      myConn = Socket::Connection(STDOUT_FILENO, STDIN_FILENO);
       myConn.setHost(host);
     }
     if (config->getOption("wrappers",true).size() == 0 || config->getString("wrappers") == ""){

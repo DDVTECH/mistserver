@@ -32,5 +32,8 @@ namespace Controller {
   void initState();
   void deinitState(bool leaveBehind);
   void writeConfig();
+  void writeStream(const std::string & sName, const JSON::Value & sConf);
+  void writeCapabilities();
+  void writeProtocols();
 
 }

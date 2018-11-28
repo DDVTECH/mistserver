@@ -211,43 +211,93 @@ namespace Controller {
     }
   }
 
-  /// Writes the current config to shared memory to be used in other processes
-  void writeConfig(){
-    static JSON::Value writeConf;
-    bool changed = false;
+
+  void writeCapabilities(){
+    std::string temp = capabilities.toPacked();
+    static IPC::sharedPage mistCapaOut(SHM_CAPA, temp.size()+100, true, false);
+    if (!mistCapaOut.mapped){
+      FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your system?");
+      return;
+    }
+    Util::RelAccX A(mistCapaOut.mapped, false);
+    A.addField("dtsc_data", RAX_DTSC, temp.size());
+    // write config
+    memcpy(A.getPointer("dtsc_data"), temp.data(), temp.size());
+    A.setRCount(1);
+    A.setEndPos(1);
+    A.setReady();
+  }
+
+  void writeProtocols(){
+    static JSON::Value proto_written;
     std::set<std::string> skip;
     skip.insert("online");
     skip.insert("error");
-    if (!writeConf["config"].compareExcept(Storage["config"], skip)){
-      writeConf["config"].assignFrom(Storage["config"], skip);
-      VERYHIGH_MSG("Saving new config because of edit in server config structure");
-      changed = true;
-    }
-    if (!writeConf["streams"].compareExcept(Storage["streams"], skip)){
-      writeConf["streams"].assignFrom(Storage["streams"], skip);
-      VERYHIGH_MSG("Saving new config because of edit in streams");
-      changed = true;
-    }
-    if (writeConf["capabilities"] != capabilities){
-      writeConf["capabilities"] = capabilities;
-      VERYHIGH_MSG("Saving new config because of edit in capabilities");
-      changed = true;
-    }
-    if (!changed){return;}//cancel further processing if no changes
-
-    static IPC::sharedPage mistConfOut(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, true);
-    if (!mistConfOut.mapped){
-      FAIL_MSG("Could not open config shared memory storage for writing! Is shared memory enabled on your system?");
+    if (Storage["config"]["protocols"].compareExcept(proto_written, skip)){return;}
+    proto_written.assignFrom(Storage["config"]["protocols"], skip);
+    std::string temp = proto_written.toPacked();
+    static IPC::sharedPage mistProtoOut(SHM_PROTO, temp.size()+100, true, false);
+    mistProtoOut.close();
+    mistProtoOut.init(SHM_PROTO, temp.size()+100, true, false);
+    if (!mistProtoOut.mapped){
+      FAIL_MSG("Could not open protocol config for writing! Is shared memory enabled on your system?");
       return;
     }
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    //lock semaphore
-    configLock.wait();
-    //write config
-    std::string temp = writeConf.toPacked();
-    memcpy(mistConfOut.mapped, temp.data(), std::min(temp.size(), (size_t)mistConfOut.len));
-    //unlock semaphore
-    configLock.post();
+    // write config
+    {
+      Util::RelAccX A(mistProtoOut.mapped, false);
+      A.addField("dtsc_data", RAX_DTSC, temp.size());
+      // write config
+      memcpy(A.getPointer("dtsc_data"), temp.data(), temp.size());
+      A.setRCount(1);
+      A.setEndPos(1);
+      A.setReady();
+    }
+  }
+
+  void writeStream(const std::string & sName, const JSON::Value & sConf){
+    static std::map<std::string, JSON::Value> writtenStrms;
+    static std::map<std::string, IPC::sharedPage> pages;
+    static std::set<std::string> skip;
+    if (!skip.size()){
+      skip.insert("online");
+      skip.insert("error");
+      skip.insert("name");
+    }
+    if (sConf.isNull()){
+      writtenStrms.erase(sName);
+      pages.erase(sName);
+      return;
+    }
+    if (!writtenStrms.count(sName) || !writtenStrms[sName].compareExcept(sConf, skip)){
+      writtenStrms[sName].assignFrom(sConf, skip);
+      IPC::sharedPage & P = pages[sName];
+      std::string temp = writtenStrms[sName].toPacked();
+      P.close();
+      char tmpBuf[NAME_BUFFER_SIZE];
+      snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, sName.c_str());
+      P.init(tmpBuf, temp.size()+100, true, false);
+      if (!P){
+        writtenStrms.erase(sName);
+        pages.erase(sName);
+        return;
+      }
+      Util::RelAccX A(P.mapped, false);
+      A.addField("dtsc_data", RAX_DTSC, temp.size());
+      // write config
+      memcpy(A.getPointer("dtsc_data"), temp.data(), temp.size());
+      A.setRCount(1);
+      A.setEndPos(1);
+      A.setReady();
+    }
+  }
+
+  /// Writes the current config to shared memory to be used in other processes
+  void writeConfig(){
+    writeProtocols();
+    jsonForEach(Storage["streams"], it){
+      writeStream(it.key(), *it);
+    }
   }
   
 }

@@ -122,10 +122,6 @@ void Controller::SharedMemStats(void * config){
       statServer.parseEach(parseStatistics);
       if (firstRun){
         firstRun = false;
-        servUpOtherBytes = 0;
-        servDownOtherBytes = 0;
-        servUpBytes = 0;
-        servDownBytes = 0;
         for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
           it->second.upBytes = 0;
           it->second.downBytes = 0;

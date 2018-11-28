@@ -298,10 +298,11 @@ namespace Mist {
   bool Input::isAlwaysOn(){
     bool ret = true;
     std::string strName = streamName.substr(0, (streamName.find_first_of("+ ")));
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE, false, false); ///< Contains server configuration and capabilities
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    DTSC::Scan streamCfg = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("streams").getMember(strName);
+
+    char tmpBuf[NAME_BUFFER_SIZE];
+    snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, strName.c_str());
+    Util::DTSCShmReader rStrmConf(tmpBuf);
+    DTSC::Scan streamCfg = rStrmConf.getScan();
     if (streamCfg){
       if (!streamCfg.getMember("always_on") || !streamCfg.getMember("always_on").asBool()){
         ret = false;
@@ -311,7 +312,6 @@ namespace Mist {
       ret = false;
 #endif
     }
-    configLock.post();
     return ret;
   }
 

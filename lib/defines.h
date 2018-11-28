@@ -126,6 +126,7 @@ static inline void show_stackframe(){}
 
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
+#define SHM_STREAM_CONF "MstSCnf%s" //%s stream name
 #define STRMSTAT_OFF 0
 #define STRMSTAT_INIT 1
 #define STRMSTAT_BOOT 2
@@ -139,11 +140,10 @@ static inline void show_stackframe(){}
 #define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
 #define SHM_STATISTICS "MstSTAT"
 #define SHM_USERS "MstUSER%s" //%s stream name
-#define SHM_TRIGGER "MstTRIG%s" //%s trigger name
 #define SEM_LIVE "/MstLIVE%s" //%s stream name
 #define SEM_INPUT "/MstInpt%s" //%s stream name
-#define SEM_CONF "/MstConfLock"
-#define SHM_CONF "MstConf"
+#define SHM_CAPA "MstCapa"
+#define SHM_PROTO "MstProt"
 #define SHM_STATE_LOGS "MstStateLogs"
 #define SHM_STATE_ACCS "MstStateAccs"
 #define SHM_STATE_STREAMS "MstStateStreams"

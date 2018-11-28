@@ -11,13 +11,13 @@ namespace Mist {
   /// Helper function to find the protocol entry for a given port number
   std::string getProtocolForPort(uint16_t portNo){
     std::string ret;
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-    DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
+    Util::DTSCShmReader rCapa(SHM_CAPA);
+    DTSC::Scan conns = rCapa.getMember("connectors");
+    Util::DTSCShmReader rProto(SHM_PROTO);
+    DTSC::Scan prtcls = rProto.getScan();
     unsigned int pro_cnt = prtcls.getSize();
     for (unsigned int i = 0; i < pro_cnt; ++i){
-      DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(prtcls.getIndice(i).getMember("connector").asString());
+      DTSC::Scan capa = conns.getMember(prtcls.getIndice(i).getMember("connector").asString());
       uint16_t port = prtcls.getIndice(i).getMember("port").asInt();
       //get the default port if none is set
       if (!port){
@@ -28,7 +28,6 @@ namespace Mist {
         break;
       }
     }
-    configLock.post();
     if (ret.find(':') != std::string::npos){
       ret.erase(ret.find(':'));
     }
@@ -348,16 +347,6 @@ namespace Mist {
     if (!myConn){
       return json_resp;
     }
-    IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    configLock.wait();
-    IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-    DTSC::Scan prots = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
-    if (!prots){
-      json_resp["error"] = "The specified stream is not available on this server.";
-      configLock.post();
-      configLock.close();
-      return json_resp;
-    }
 
     bool hasVideo = false;
     for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
@@ -395,7 +384,17 @@ namespace Mist {
       it->removeMember("parts");
     }
     json_resp["meta"].removeMember("source");
-    
+
+    //Get sources/protocols information
+    Util::DTSCShmReader rCapa(SHM_CAPA);
+    DTSC::Scan connectors = rCapa.getMember("connectors");
+    Util::DTSCShmReader rProto(SHM_PROTO);
+    DTSC::Scan prots = rProto.getScan();
+    if (!prots || !connectors){
+      json_resp["error"] = "Server configuration unavailable at this time.";
+      return json_resp;
+    }
+ 
     //create a set for storing source information
     std::set<JSON::Value, sourceCompare> sources;
     
@@ -408,7 +407,7 @@ namespace Mist {
     //loop over the connectors.
     for (unsigned int i = 0; i < prots_ctr; ++i){
       std::string cName = prots.getIndice(i).getMember("connector").asString();
-      DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember(cName);
+      DTSC::Scan capa = connectors.getMember(cName);
       //if the connector has a port,
       if (capa.getMember("optional").getMember("port")){
         HTTP::URL outURL(reqHost);
@@ -431,12 +430,11 @@ namespace Mist {
           std::string cProv = capa.getMember("provides").asString();
           //if this connector can be depended upon by other connectors, loop over the rest
           //check each enabled protocol separately to see if it depends on this connector
-          DTSC::Scan capa_lst = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors");
-          unsigned int capa_lst_ctr = capa_lst.getSize();
+          unsigned int capa_lst_ctr = connectors.getSize();
           for (unsigned int j = 0; j < capa_lst_ctr; ++j){
             //if it depends on this connector and has a URL, list it
-            if (conns.count(capa_lst.getIndiceName(j)) && capa_lst.getIndice(j).getMember("deps").asString() == cProv && capa_lst.getIndice(j).getMember("methods")){
-              JSON::Value subcapa_json = capa_lst.getIndice(j).asJSON();
+            if (conns.count(connectors.getIndiceName(j)) && connectors.getIndice(j).getMember("deps").asString() == cProv && connectors.getIndice(j).getMember("methods")){
+              JSON::Value subcapa_json = connectors.getIndice(j).asJSON();
               addSources(streamName, sources, outURL, subcapa_json, json_resp["meta"], useragent);
             }
           }
@@ -450,8 +448,6 @@ namespace Mist {
         json_resp["source"].append(*it);
       }
     }
-    configLock.post();
-    configLock.close();
     return json_resp;
   }
 
@@ -522,41 +518,38 @@ namespace Mist {
     // send smil MBR index
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".smil"){
       std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
-      
       std::string port, url_rel;
-      
-      IPC::semaphore configLock(SEM_CONF, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-      configLock.wait();
-      IPC::sharedPage serverCfg(SHM_CONF, DEFAULT_CONF_PAGE_SIZE);
-      DTSC::Scan prtcls = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("config").getMember("protocols");
-      DTSC::Scan capa = DTSC::Scan(serverCfg.mapped, serverCfg.len).getMember("capabilities").getMember("connectors").getMember("RTMP");
-      unsigned int pro_cnt = prtcls.getSize();
-      for (unsigned int i = 0; i < pro_cnt; ++i){
-        if (prtcls.getIndice(i).getMember("connector").asString() != "RTMP"){
-          continue;
-        }
-        port = prtcls.getIndice(i).getMember("port").asString();
-        //get the default port if none is set
-        if (!port.size()){
-          port = capa.getMember("optional").getMember("port").getMember("default").asString();
-        }
-        //extract url
-        url_rel = capa.getMember("url_rel").asString();
-        if (url_rel.find('$')){
-          url_rel.resize(url_rel.find('$'));
-        }
-      }
-      
       std::string trackSources;//this string contains all track sources for MBR smil
-      initialize();
-      if (!myConn){return;}
-      for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-        if (trit->second.type == "video"){
-          trackSources += "      <video src='"+ streamName + "?track=" + JSON::Value((long long)trit->first).asString() + "' height='" + JSON::Value((long long)trit->second.height).asString() + "' system-bitrate='" + JSON::Value((long long)trit->second.bps).asString() + "' width='" + JSON::Value((long long)trit->second.width).asString() + "' />\n";
+      {
+        Util::DTSCShmReader rProto(SHM_PROTO);
+        DTSC::Scan prtcls = rProto.getScan();
+        Util::DTSCShmReader rCapa(SHM_CAPA);
+        DTSC::Scan capa = rCapa.getMember("connectors").getMember("RTMP");
+        unsigned int pro_cnt = prtcls.getSize();
+        for (unsigned int i = 0; i < pro_cnt; ++i){
+          if (prtcls.getIndice(i).getMember("connector").asString() != "RTMP"){
+            continue;
+          }
+          port = prtcls.getIndice(i).getMember("port").asString();
+          //get the default port if none is set
+          if (!port.size()){
+            port = capa.getMember("optional").getMember("port").getMember("default").asString();
+          }
+          //extract url
+          url_rel = capa.getMember("url_rel").asString();
+          if (url_rel.find('$')){
+            url_rel.resize(url_rel.find('$'));
+          }
+        }
+        
+        initialize();
+        if (!myConn){return;}
+        for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+          if (trit->second.type == "video"){
+            trackSources += "      <video src='"+ streamName + "?track=" + JSON::Value((long long)trit->first).asString() + "' height='" + JSON::Value((long long)trit->second.height).asString() + "' system-bitrate='" + JSON::Value((long long)trit->second.bps).asString() + "' width='" + JSON::Value((long long)trit->second.width).asString() + "' />\n";
+          }
         }
       }
-      configLock.post();
-      configLock.close();
       
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");

@@ -6,6 +6,7 @@
 #include "defines.h"
 #include "timing.h"
 #include "procs.h"
+#include "dtsc.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iostream>
 #include <iomanip>
@@ -562,6 +563,13 @@ namespace Util{
               }
             }
             r << std::endl;
+            break;
+          }
+          case RAX_DTSC:{
+            char * ptr = getPointer(it->first, i);
+            size_t sz = getSize(it->first, i);
+            r << std::endl;
+            r << DTSC::Scan(ptr, sz).toPrettyString(indent+6) << std::endl;
             break;
           }
           default: r << "[UNIMPLEMENTED]" << std::endl; break;

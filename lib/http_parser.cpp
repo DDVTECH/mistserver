@@ -396,10 +396,14 @@ void HTTP::Parser::setCORSHeaders(){
 /// To be precise, method, url, protocol, headers and body are used.
 /// \return A string containing a valid HTTP 1.0 or 1.1 request, ready for sending.
 std::string &HTTP::Parser::BuildRequest(){
-  /// \todo Include GET/POST variable parsing?
+  /// \todo Include POST variable handling for vars?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  builder = method + " " + url + " " + protocol + "\r\n";
+  if (method == "GET" && vars.size() && url.find('?') == std::string::npos){
+    builder = method + " " + url + allVars() + " " + protocol + "\r\n";
+  }else{
+    builder = method + " " + url + " " + protocol + "\r\n";
+  }
   for (it = headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
       builder += (*it).first + ": " + (*it).second + "\r\n";

@@ -13,7 +13,7 @@ void AnalyserDTSC::init(Util::Config &conf){
 }
 
 AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
-  conn = Socket::Connection(0, fileno(stdin));
+  conn = Socket::Connection(1, 0);
   totalBytes = 0;
   headLess = conf.getBool("headless");
 }

@@ -504,7 +504,7 @@ uint8_t Util::getStreamStatus(const std::string & streamname){
 }
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){
-  rPage.init(pageName, 0);
+  rPage.init(pageName, 0, false, false);
   if (rPage){rAcc = Util::RelAccX(rPage.mapped);}
 }
 

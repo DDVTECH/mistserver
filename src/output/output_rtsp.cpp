@@ -439,7 +439,7 @@ namespace Mist{
         }
         it->second.sorter.addPacket(pack);
       }
-      if (Util::epoch() / 5 != it->second.rtcpSent){
+      if (selectedTracks.count(it->first) && Util::epoch() / 5 != it->second.rtcpSent){
         it->second.rtcpSent = Util::epoch() / 5;
         it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
       }

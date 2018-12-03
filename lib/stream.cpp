@@ -355,16 +355,17 @@ uint8_t Util::getStreamStatus(const std::string & streamname){
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){
   rPage.init(pageName, 0);
-  if (rPage){
-    rAcc = Util::RelAccX(rPage.mapped);
-  }
+  if (rPage){rAcc = Util::RelAccX(rPage.mapped);}
 }
 
 DTSC::Scan Util::DTSCShmReader::getMember(const std::string &indice){
-  return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data")).getMember(indice.c_str());
+  if (!rPage){return DTSC::Scan();}
+  return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data"))
+      .getMember(indice.c_str());
 }
 
 DTSC::Scan Util::DTSCShmReader::getScan(){
+  if (!rPage){return DTSC::Scan();}
   return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data"));
 }
 

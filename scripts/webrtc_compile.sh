@@ -43,8 +43,6 @@ export PATH="${PATH}:${d}/installed/include"
 cmake -DCMAKE_CXX_FLAGS="-I${d}/installed/include/ -L${d}/installed/lib/" \
       -DCMAKE_PREFIX_PATH=${d}/installed/include \
       -DCMAKE_MODULE_PATH=${d}/installed/ \
-      -DPERPETUAL=1 \
-      -DDEBUG=3 \
       -GNinja \
       .
 

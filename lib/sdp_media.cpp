@@ -1097,13 +1097,13 @@ namespace SDP{
       for (size_t j = 0; j < formats.size(); ++j){
         if (codec == "H264"){
           if (formats[j]->getPacketizationModeForH264() != 1){
-            FAIL_MSG(
+            MEDIUM_MSG(
                 "Skipping this H264 format because it uses a packetization mode we don't support.");
             format = NULL;
             continue;
           }
           if (formats[j]->getProfileLevelIdForH264() != "42e01f") {
-            FAIL_MSG("Skipping this H264 format because it uses an unsupported profile-level-id.");
+            MEDIUM_MSG("Skipping this H264 format because it uses an unsupported profile-level-id.");
             format = NULL;
             continue;
           }

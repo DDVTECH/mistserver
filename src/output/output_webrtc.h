@@ -68,6 +68,8 @@
 #include <mist/dtls_srtp_handshake.h>
 #include <mist/srtp.h>        
 
+#define NACK_BUFFER_SIZE 1024
+
 #if defined(WEBRTC_PCAP)
 #  include <mist/pcap.h>
 #endif
@@ -75,6 +77,26 @@
 namespace Mist {
   
   /* ------------------------------------------------ */
+
+  class nackBuffer{
+    public:
+      bool isBuffered(uint16_t seq){
+        if (!bufs[seq%NACK_BUFFER_SIZE].size()){return false;}
+        RTP::Packet tmpPkt(bufs[seq%NACK_BUFFER_SIZE], bufs[seq%NACK_BUFFER_SIZE].size());
+        return (tmpPkt.getSequence() == seq);
+      }
+      const char * getData(uint16_t seq){
+        return bufs[seq % NACK_BUFFER_SIZE];
+      }
+      size_t getSize(uint16_t seq){
+        return bufs[seq % NACK_BUFFER_SIZE].size();
+      }
+      void assign(uint16_t seq, const char * p, size_t s){
+        bufs[seq % NACK_BUFFER_SIZE].assign(p, s);
+      }
+    private:
+      Util::ResizeablePointer bufs[NACK_BUFFER_SIZE];
+  };
 
   class WebRTCTrack {
   public:
@@ -84,7 +106,7 @@ namespace Mist {
     RTP::toDTSC rtpToDTSC;               ///< Converts RTP packets into DTSC packets. 
     RTP::FECSorter sorter;                  ///< Takes care of sorting the received RTP packet and keeps track of some statistics. Will call a callback whenever a packet can be used. (e.g. not lost, in correct order).
     RTP::Packet rtpPacketizer;           ///< Used when we're sending RTP data back to the other peer. 
-    uint64_t payloadType;                ///< The payload type that was extracted from the `m=` media line in the SDP. 
+    uint64_t payloadType;                ///< The payload type that was extracted from the `m=` media line in the SDP.  
     std::string localIcePwd; 
     std::string localIceUFrag;
     uint32_t SSRC;                       ///< The SSRC of the RTP packets.
@@ -105,6 +127,9 @@ namespace Mist {
     virtual void sendHeader();
     virtual void sendNext();
     virtual void onWebsocketFrame();
+    virtual void preWebsocketConnect();
+    void onIdle();
+    bool onFinish();
     bool doesWebsockets(){return true;}
     void handleWebRTCInputOutputFromThread();
     int onDTLSHandshakeWantsToWrite(const uint8_t* data, int* nbytes);
@@ -115,19 +140,15 @@ namespace Mist {
     void onRTPPacketizerHasRTCPPacket(char* data, uint32_t nbytes);
 
   private:
+    std::string externalAddr;
+    void ackNACK(uint32_t SSRC, uint16_t seq);
     bool handleWebRTCInputOutput(); ///< Reads data from the UDP socket. Returns true when we read some data, othewise false. 
     void handleReceivedSTUNPacket();
     void handleReceivedDTLSPacket();
     void handleReceivedRTPOrRTCPPacket();
-    void handleSignalingCommand(HTTP::Websocket& webSock, const JSON::Value &command);
-    bool handleSignalingCommandRemoteOffer(HTTP::Websocket &webSock, const JSON::Value &command);
-    bool handleSignalingCommandRemoteOfferForInput(HTTP::Websocket &webSocket, SDP::Session &sdpSession, const std::string &sdpOffer);
-    bool handleSignalingCommandRemoteOfferForOutput(HTTP::Websocket &webSocket, SDP::Session &sdpSession, const std::string &sdpOffer);
-    bool handleSignalingCommandVideoBitrate(HTTP::Websocket& webSock, const JSON::Value &command);
-    bool handleSignalingCommandSeek(HTTP::Websocket& webSock, const JSON::Value &command);
-    bool handleSignalingCommandKeyFrameInterval(HTTP::Websocket &webSock, const JSON::Value &command); ///< Handles the command that can be used to set the keyframe interval for the current connection. We will sent RTCP PLI messages every X-millis; the other agent -should- generate keyframes when it receives PLI messages (Picture Loss Indication). 
-    void sendSignalingError(HTTP::Websocket& webSock, const std::string& commandType, const std::string& errorMessage);
-    bool validateSignalingCommand(HTTP::Websocket& webSock, const JSON::Value &command, JSON::Value &errorResult);
+    bool handleSignalingCommandRemoteOfferForInput(SDP::Session &sdpSession);
+    bool handleSignalingCommandRemoteOfferForOutput(SDP::Session &sdpSession);
+    void sendSignalingError(const std::string& commandType, const std::string& errorMessage);
     
     bool createWebRTCTrackFromAnswer(const SDP::Media& mediaAnswer, const SDP::MediaFormat& formatAnswer, WebRTCTrack& result);
     void sendRTCPFeedbackREMB(const WebRTCTrack &rtcTrack);
@@ -156,8 +177,10 @@ namespace Mist {
     uint64_t rtcpTimeoutInMillis;                 ///< When current time in millis exceeds this timeout we have to send a new RTCP packet.
     uint64_t rtcpKeyFrameTimeoutInMillis;
     uint64_t rtcpKeyFrameDelayInMillis;
-    char* rtpOutBuffer;                           ///< Buffer into which we copy (unprotected) RTP data that we need to deliver to the other peer. This gets protected.
+    Util::ResizeablePointer rtpOutBuffer;                           ///< Buffer into which we copy (unprotected) RTP data that we need to deliver to the other peer. This gets protected.
     uint32_t videoBitrate;                        ///< The bitrate to use for incoming video streams. Can be configured via the signaling channel. Defaults to 6mbit.
+
+    uint32_t audTrack, vidTrack;
 
     bool didReceiveKeyFrame; /* TODO burst delay */
     
@@ -167,6 +190,7 @@ namespace Mist {
 #endif
 
     std::map<uint8_t, uint64_t> payloadTypeToWebRTCTrack; ///< Maps e.g. RED to the corresponding track. Used when input supports RED/ULPFEC; can also be used to map RTX in the future.
+    std::map<uint32_t, nackBuffer> outBuffers;
   };
 }
 

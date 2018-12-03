@@ -1,5 +1,6 @@
 #include <ifaddrs.h>    // ifaddr, listing ip addresses.
 #include <netdb.h>      // ifaddr, listing ip addresses.
+#include <mist/procs.h>
 #include <mist/timing.h>
 #include "output_webrtc.h"
 
@@ -17,7 +18,6 @@ namespace Mist{
   static void onRTPSorterHasPacketCallback(const uint64_t track, const RTP::Packet &p); // when we receive RTP packets we store them in a sorter. Whenever there is a valid, sorted RTP packet that can be used this function is called. 
   static void onRTPPacketizerHasDataCallback(void* socket, char* data, unsigned int len, unsigned int channel);
   static void onRTPPacketizerHasRTCPDataCallback(void* socket, const char* data, uint32_t nbytes);
-  static std::vector<std::string> getLocalIP4Addresses(); 
 
   /* ------------------------------------------------ */
 
@@ -36,35 +36,27 @@ namespace Mist{
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
 
+    vidTrack = 0;
+    audTrack = 0;
     webRTCInputOutputThread = NULL;
     udpPort = 0;
     SSRC = generateSSRC();
     rtcpTimeoutInMillis = 0;
     rtcpKeyFrameDelayInMillis = 2000;
     rtcpKeyFrameTimeoutInMillis = 0;
-    rtpOutBuffer = NULL;
     videoBitrate = 6 * 1000 * 1000;
     RTP::MAX_SEND = 1200 - 28;
     didReceiveKeyFrame = false;
     
     if (cert.init("NL", "webrtc", "webrtc") != 0) {
-      FAIL_MSG("Failed to create the certificate.");
-      exit(EXIT_FAILURE);
-      // \todo how do we handle this further? disconnect?
+      onFail("Failed to create the certificate.", true);
+      return;
     }
     if (dtlsHandshake.init(&cert.cert, &cert.key, onDTLSHandshakeWantsToWriteCallback) != 0) {
-      FAIL_MSG("Failed to initialize the dtls-srtp handshake helper.");
-      exit(EXIT_FAILURE);
-      // \todo how do we handle this? 
+      onFail("Failed to initialize the dtls-srtp handshake helper.", true);
+      return;
     }
 
-    rtpOutBuffer = (char*)malloc(2048);
-    if (!rtpOutBuffer) {
-      // \todo Jaron how do you handle these cases?
-      FAIL_MSG("Failed to allocate our RTP output buffer.");
-      exit(EXIT_FAILURE);
-    }
-    
     sdpAnswer.setFingerprint(cert.getFingerprintSha256());
     classPointer = this;
     
@@ -77,11 +69,6 @@ namespace Mist{
       webRTCInputOutputThread->join();
       delete webRTCInputOutputThread;
       webRTCInputOutputThread = NULL;
-    }
-
-    if (rtpOutBuffer) {
-      free(rtpOutBuffer);
-      rtpOutBuffer = NULL;
     }
 
     if (srtpReader.shutdown() != 0) {
@@ -111,9 +98,11 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("VP8");
     capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "webrtc";
     capa["methods"][0u]["type"] = "webrtc";
-    capa["methods"][0u]["priority"] = 2ll;
+    capa["methods"][0u]["priority"] = 2;
 
     capa["optional"]["preferredvideocodec"]["name"]    = "Preferred video codecs";
     capa["optional"]["preferredvideocodec"]["help"]    = "Comma separated list of video codecs you want to support in preferred order. e.g. H264,VP8";
@@ -123,203 +112,253 @@ namespace Mist{
     capa["optional"]["preferredvideocodec"]["short"]   = "V";
 
     capa["optional"]["preferredaudiocodec"]["name"]    = "Preferred audio codecs";
-    capa["optional"]["preferredaudiocodec"]["help"]    = "Comma separated list of audio codecs you want to support in preferred order. e.g. OPUS";
-    capa["optional"]["preferredaudiocodec"]["default"] = "OPUS";
+    capa["optional"]["preferredaudiocodec"]["help"]    = "Comma separated list of audio codecs you want to support in preferred order. e.g. opus,ALAW,ULAW";
+    capa["optional"]["preferredaudiocodec"]["default"] = "opus,ALAW,ULAW";
     capa["optional"]["preferredaudiocodec"]["type"]    = "string";
     capa["optional"]["preferredaudiocodec"]["option"]  = "--webrtc-audio-codecs";
     capa["optional"]["preferredaudiocodec"]["short"]   = "A";
 
+    capa["optional"]["bindhost"]["name"] = "UDP bind address";
+    capa["optional"]["bindhost"]["help"] = "Interface address or hostname to bind SRTP UDP socket to. Defaults to originating interface address.";
+    capa["optional"]["bindhost"]["default"] = "";
+    capa["optional"]["bindhost"]["type"] = "string";
+    capa["optional"]["bindhost"]["option"] = "--bindhost";
+    capa["optional"]["bindhost"]["short"] = "B";
+
     config->addOptionsFromCapabilities(capa);
+  }
+
+  void OutWebRTC::preWebsocketConnect(){
+    HTTP::URL tmpUrl("http://"+H.GetHeader("Host"));
+    externalAddr = tmpUrl.host;
   }
 
   // This function is executed when we receive a signaling data.
   // The signaling data contains commands that are used to start
   // an input or output stream. 
   void OutWebRTC::onWebsocketFrame() {
-
-    if (!webSock) {
-      FAIL_MSG("We assume `webSock` is valid at this point.");
+    if (webSock->frameType != 1) {
+      HIGH_MSG("Ignoring non-text websocket frame");
       return;
     }
 
-    if (webSock->frameType == 0x8) {
-      HIGH_MSG("Not handling websocket data; close frame.");
-      return;
-    }
-
-    JSON::Value msg = JSON::fromString(webSock->data, webSock->data.size());
-    handleSignalingCommand(*webSock, msg);
-  }
-  
-  // This function is our first handler for commands that we
-  // receive via the WebRTC signaling channel (our websocket
-  // connection). We validate the command and check what
-  // command-specific function we need to call.
-  void OutWebRTC::handleSignalingCommand(HTTP::Websocket& ws, const JSON::Value &command) {
-
+    JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
     JSON::Value commandResult;
-    if (false == validateSignalingCommand(ws, command, commandResult)) {
+
+    //Check if there's a command type
+    if (!command.isMember("type")) {
+      sendSignalingError("error", "Received a command but no type property was given.");
       return;
     }
 
     if (command["type"] == "offer_sdp") {
-      if (!handleSignalingCommandRemoteOffer(ws, command)) {
-        sendSignalingError(ws, "on_answer_sdp", "Failed to handle the offer SDP.");
+      if (!command.isMember("offer_sdp")) {
+        sendSignalingError("on_offer_sdp", "An `offer_sdp` command needs the offer SDP in the `offer_sdp` field.");
+        return;
       }
-    }
-    else if (command["type"] == "video_bitrate") {
-      if (!handleSignalingCommandVideoBitrate(ws, command)) {
-        sendSignalingError(ws, "on_video_bitrate", "Failed to handle the video bitrate change request.");
+      if (command["offer_sdp"].asString() == "") {
+        sendSignalingError("on_offer_sdp", "The given `offer_sdp` field is empty.");
+        return;
       }
-    }
-    else if (command["type"] == "seek") {
-      if (!handleSignalingCommandSeek(ws, command)) {
-        sendSignalingError(ws, "on_seek", "Failed to handle the seek request.");
+
+      // get video and supported video formats from offer. 
+      SDP::Session sdpParser;
+      const std::string & offerStr = command["offer_sdp"].asStringRef();
+      if (!sdpParser.parseSDP(offerStr) || !sdpAnswer.parseOffer(offerStr)){
+        sendSignalingError("offer_sdp", "Failed to parse the offered SDP");
+        return;
       }
+
+      bool ret = false;
+      if (sdpParser.hasReceiveOnlyMedia()) {
+        ret = handleSignalingCommandRemoteOfferForOutput(sdpParser);
+      }else{
+        ret = handleSignalingCommandRemoteOfferForInput(sdpParser);
+      }
+      // create result message.
+      JSON::Value commandResult;
+      commandResult["type"] = "on_answer_sdp";
+      commandResult["result"] = ret;
+      if (ret){
+        commandResult["answer_sdp"] = sdpAnswer.toString();
+      }
+      webSock->sendFrame(commandResult.toString());
+      return;
     }
-    else if (command["type"] == "stop") {
+
+    if (command["type"] == "video_bitrate") {
+      if (!command.isMember("video_bitrate")) {
+        sendSignalingError("on_video_bitrate", "No video_bitrate attribute found.");
+        return;
+      }
+      videoBitrate = command["video_bitrate"].asInt();
+      if (videoBitrate == 0) {
+        FAIL_MSG("We received an invalid video_bitrate; resetting to default.");
+        videoBitrate = 6 * 1000 * 1000;
+        sendSignalingError("on_video_bitrate", "Failed to handle the video bitrate change request.");
+        return;
+      }
+      JSON::Value commandResult;
+      commandResult["type"] = "on_video_bitrate";
+      commandResult["result"] = true;
+      commandResult["video_bitrate"] = videoBitrate;
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
+    if (command["type"] == "tracks"){
+      if (command.isMember("audio")){
+        if (!command["audio"].isNull()){
+          targetParams["audio"] = command["audio"].asString();
+          if (audTrack && command["audio"].asInt()){
+            uint64_t tId = command["audio"].asInt();
+            if (myMeta.tracks.count(tId) && myMeta.tracks[tId].codec != myMeta.tracks[audTrack].codec){
+              targetParams["audio"] = "none";
+              sendSignalingError("tracks", "Cannot select track because it is encoded as "+myMeta.tracks[tId].codec+" but the already negotiated track is "+myMeta.tracks[audTrack].codec+". Please re-negotiate to play this track.");
+            }
+          }
+        }else{
+          targetParams.erase("audio");
+        }
+      }
+      if (command.isMember("video")){
+        if (!command["video"].isNull()){
+          targetParams["video"] = command["video"].asString();
+          if (vidTrack && command["video"].asInt()){
+            uint64_t tId = command["video"].asInt();
+            if (myMeta.tracks.count(tId) && myMeta.tracks[tId].codec != myMeta.tracks[vidTrack].codec){
+              targetParams["video"] = "none";
+              sendSignalingError("tracks", "Cannot select track because it is encoded as "+myMeta.tracks[tId].codec+" but the already negotiated track is "+myMeta.tracks[vidTrack].codec+". Please re-negotiate to play this track.");
+            }
+          }
+        }else{
+          targetParams.erase("video");
+        }
+      }
+      selectDefaultTracks();
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        DTSC::Track& dtscTrack = myMeta.tracks[*it];
+        WebRTCTrack * trackPointer = 0;
+        if (dtscTrack.type == "video" && webrtcTracks.count(vidTrack)){trackPointer = &webrtcTracks[vidTrack];}
+        if (dtscTrack.type == "audio" && webrtcTracks.count(audTrack)){trackPointer = &webrtcTracks[audTrack];}
+        if (webrtcTracks.count(*it)){trackPointer = &webrtcTracks[*it];}
+        if (!trackPointer){continue;}
+        WebRTCTrack& rtcTrack = *trackPointer;
+        sendSPSPPS(dtscTrack, rtcTrack);
+      }
+      onIdle();
+      return;
+    }
+
+    if (command["type"] == "seek") {
+      if (!command.isMember("seek_time")) {
+        sendSignalingError("on_seek", "Received a seek request but no `seek_time` property.");
+        return;
+      }
+      uint64_t seek_time = command["seek_time"].asInt();
+      if (!parseData){
+        parseData = true;
+        selectDefaultTracks();
+      }
+      seek(seek_time, true);
+      JSON::Value commandResult;
+      commandResult["type"] = "on_seek";
+      commandResult["result"] = true;
+      webSock->sendFrame(commandResult.toString());
+      onIdle();
+      return;
+    }
+
+    if (command["type"] == "pause") {
+      parseData = !parseData;
+      JSON::Value commandResult;
+      commandResult["type"] = "on_time";
+      commandResult["paused"] = !parseData;
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        commandResult["tracks"].append(*it);
+      }
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
+    if (command["type"] == "stop") {
       INFO_MSG("Received stop() command.");
       myConn.close();
       return;
     }
-    else if (command["type"] == "keyframe_interval") {
-      if (!handleSignalingCommandKeyFrameInterval(ws, command)) {
-        sendSignalingError(ws, "on_keyframe_interval", "Failed to set the keyframe interval.");
-      }
-    }
-    else {
-      FAIL_MSG("Unhandled signal command %s.", command["type"].asString().c_str());
-    }
-  }
 
-  /// This function will check if the received command contains
-  /// the required fields. All commands need the `type`
-  /// field. When the `type` requires a `data` element we check
-  /// that too. When this function returns `true` you can assume
-  /// that it can be processed. In case of an error we return
-  /// false and send an error back to the other peer.
-  bool OutWebRTC::validateSignalingCommand(HTTP::Websocket& ws, const JSON::Value &command, JSON::Value& errorResult) {
-
-    if (!command.isMember("type")) {
-      sendSignalingError(ws, "error", "Received an command but not type property was given.");
-      return false;
-    }
-
-    /* seek command */
-    if (command["type"] == "seek") {
-      if (!command.isMember("seek_time")) {
-        sendSignalingError(ws, "on_seek", "Received a seek request but no `seek_time` property.");
-        return false;
-      }
-    }
-
-    /* offer command */
-    if (command["type"] == "offer_sdp") {
-      if (!command.isMember("offer_sdp")) {
-        sendSignalingError(ws, "on_offer_sdp", "A `offer_sdp` command needs the offer SDP in the `offer_sdp` field.");
-        return false;
-      }
-      if (command["offer_sdp"].asString() == "") {
-        sendSignalingError(ws, "on_offer_sdp", "The given `offer_sdp` field is empty.");
-        return false;
-      }
-    }
-
-    /* video bitrate */
-    if (command["type"] == "video_bitrate") {
-      if (!command.isMember("video_bitrate")) {
-        sendSignalingError(ws, "on_video_bitrate", "No video_bitrate attribute found.");
-        return false;
-      }
-    }
-
-    /* keyframe interval */
     if (command["type"] == "keyframe_interval") {
       if (!command.isMember("keyframe_interval_millis")) {
-        sendSignalingError(ws, "on_keyframe_interval", "No keyframe_interval_millis attribute found.");
-        return false;
+        sendSignalingError("on_keyframe_interval", "No keyframe_interval_millis attribute found.");
+        return;
       }
+    
+      rtcpKeyFrameDelayInMillis = command["keyframe_interval_millis"].asInt();
+      if (rtcpKeyFrameDelayInMillis < 500) {
+        WARN_MSG("Requested a keyframe delay < 500ms; 500ms is the minimum you can set.");
+        rtcpKeyFrameDelayInMillis = 500;
+      }
+      
+      rtcpKeyFrameTimeoutInMillis = Util::getMS() + rtcpKeyFrameDelayInMillis;
+      JSON::Value commandResult;
+      commandResult["type"] = "on_keyframe_interval";
+      commandResult["result"] = rtcpKeyFrameDelayInMillis;
+      webSock->sendFrame(commandResult.toString());
+      return;
     }
-
-    /* when we arrive here everything is fine and validated. */
-    return true;
+    
+    //Unhandled
+    sendSignalingError(command["type"].asString(), "Unhandled command type: "+command["type"].asString());
   }
 
-  void OutWebRTC::sendSignalingError(HTTP::Websocket& ws,
-                                     const std::string& commandType,
-                                     const std::string& errorMessage)
-  {
+  void OutWebRTC::sendSignalingError(const std::string& commandType, const std::string& errorMessage){
     JSON::Value commandResult;
-    commandResult["type"] = commandType;
-    commandResult["result"] = false;
+    commandResult["type"] = "on_error";
+    commandResult["command"] = commandType;
     commandResult["message"] = errorMessage;
-    ws.sendFrame(commandResult.toString());
+    webSock->sendFrame(commandResult.toString());
   }
   
-  bool OutWebRTC::handleSignalingCommandRemoteOffer(HTTP::Websocket &ws, const JSON::Value &command) {
-
-    // get video and supported video formats from offer. 
-    SDP::Session sdpParser;
-    std::string sdpOffer = command["offer_sdp"].asString();
-    if (!sdpParser.parseSDP(sdpOffer)) {
-      FAIL_MSG("Failed to parse the remote offer sdp.");
-      return false;
-    }
-
-    // when the SDP offer contains a `a=recvonly` we expect that
-    // the other peer wants to receive media from us.
-    if (sdpParser.hasReceiveOnlyMedia()) {
-      return handleSignalingCommandRemoteOfferForOutput(ws, sdpParser, sdpOffer);
-    }
-    else {
-      return handleSignalingCommandRemoteOfferForInput(ws, sdpParser, sdpOffer);
-    }
-
-    return false;
-  }
-
   // This function is called for a peer that wants to receive
   // data from us. First we update our capabilities by checking
   // what codecs the peer and we support. After updating the
   // codecs we `initialize()` and use `selectDefaultTracks()` to
   // pick the right tracks based on our supported (and updated)
   // capabilities.
-  bool OutWebRTC::handleSignalingCommandRemoteOfferForOutput(HTTP::Websocket &ws, SDP::Session &sdpSession, const std::string& sdpOffer) {
+  bool OutWebRTC::handleSignalingCommandRemoteOfferForOutput(SDP::Session &sdpSession) {
 
     updateCapabilitiesWithSDPOffer(sdpSession);
     initialize();
     selectDefaultTracks();
 
-    // \todo I'm not sure if this is the nicest location to bind the socket but it's necessary when we create our answer SDP
     if (0 == udpPort) {
       bindUDPSocketOnLocalCandidateAddress(0);
     }
     
     // get codecs from selected stream which are used to create our SDP answer.
-    int32_t dtscVideoTrackID = -1;
-    int32_t dtscAudioTrackID = -1;
     std::string videoCodec;
     std::string audioCodec;
-    std::map<uint32_t, DTSC::Track>::iterator it = myMeta.tracks.begin();
-    while (it != myMeta.tracks.end()) {
-      DTSC::Track& Trk = it->second;
+    capa["codecs"][0u][0u].null();
+    capa["codecs"][0u][1u].null();
+    std::set<unsigned long>::iterator it = selectedTracks.begin();
+    while (it != selectedTracks.end()) {
+      DTSC::Track& Trk = myMeta.tracks[*it];
       if (Trk.type == "video") {
         videoCodec = Trk.codec;
-        dtscVideoTrackID = Trk.trackID;
+        vidTrack = Trk.trackID;
+        capa["codecs"][0u][0u].append(videoCodec);
       }
       else if (Trk.type == "audio") {
         audioCodec = Trk.codec;
-        dtscAudioTrackID = Trk.trackID;
+        audTrack = Trk.trackID;
+        capa["codecs"][0u][1u].append(audioCodec);
       }
       ++it;
     }
     
-    // parse offer SDP and setup the answer SDP using the selected codecs.
-    if (!sdpAnswer.parseOffer(sdpOffer)) {
-      FAIL_MSG("Failed to parse the received offer SDP");
-      FAIL_MSG("%s", sdpOffer.c_str());
-      return false;
-    }
     sdpAnswer.setDirection("sendonly");
 
     // setup video WebRTC Track.
@@ -332,14 +371,15 @@ namespace Mist{
         }
         videoTrack.rtpPacketizer = RTP::Packet(videoTrack.payloadType, rand(), 0, videoTrack.SSRC, 0);
         videoTrack.timestampMultiplier = 90;
-        webrtcTracks[dtscVideoTrackID] = videoTrack;
+        webrtcTracks[vidTrack] = videoTrack;
+        //Enabled NACKs
+        sdpAnswer.videoLossPrevention = SDP_LOSS_PREVENTION_NACK;
+        videoTrack.sorter.tmpVideoLossPrevention = sdpAnswer.videoLossPrevention;
       }
     }
 
     // setup audio WebRTC Track
     if (!audioCodec.empty()) {
-
-      // @todo maybe, create a isAudioSupported() function (?)
       if (sdpAnswer.enableAudio(audioCodec)) {
         WebRTCTrack audioTrack;
         if (!createWebRTCTrackFromAnswer(sdpAnswer.answerAudioMedia, sdpAnswer.answerAudioFormat, audioTrack)) {
@@ -348,78 +388,45 @@ namespace Mist{
         }
         audioTrack.rtpPacketizer = RTP::Packet(audioTrack.payloadType, rand(), 0, audioTrack.SSRC, 0);
         audioTrack.timestampMultiplier = 48;
-        webrtcTracks[dtscAudioTrackID] = audioTrack;
+        webrtcTracks[audTrack] = audioTrack;
       }
     }
 
     // this is necessary so that we can get the remote IP when creating STUN replies.
     udp.SetDestination("0.0.0.0", 4444);
     
-    // create result message.
-    JSON::Value commandResult;
-    commandResult["type"] = "on_answer_sdp";
-    commandResult["result"] = true;
-    commandResult["answer_sdp"] = sdpAnswer.toString();
-    ws.sendFrame(commandResult.toString());
-
     // we set parseData to `true` to start the data flow. Is also
     // used to break out of our loop in `onHTTP()`.
     parseData = true;
+    idleInterval = 1000;
 
     return true;
   }
 
-  // When the receive a command with a `type` attribute set to
-  // `video_bitrate` we will extract the bitrate and use it for
-  // our REMB messages that are sent as soon as an connection has
-  // been established. REMB messages are used from server to
-  // client to define the preferred bitrate. 
-  bool OutWebRTC::handleSignalingCommandVideoBitrate(HTTP::Websocket &ws, const JSON::Value &command) {
-
-    videoBitrate = command["video_bitrate"].asInt();
-    if (videoBitrate == 0) {
-      FAIL_MSG("We received an invalid video_bitrate; resetting to default.");
-      videoBitrate = 6 * 1000 * 1000;
-      return false;
+  void OutWebRTC::onIdle(){
+    if (parseData){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_time";
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+        commandResult["tracks"].append(*it);
+      }
+      webSock->sendFrame(commandResult.toString());
     }
-
-    JSON::Value commandResult;
-    commandResult["type"] = "on_video_bitrate";
-    commandResult["result"] = true;
-    commandResult["video_bitrate"] = videoBitrate;
-    ws.sendFrame(commandResult.toString());
-
-    return true;
   }
 
-  bool OutWebRTC::handleSignalingCommandSeek(HTTP::Websocket& ws, const JSON::Value &command) {
-
-    uint64_t seek_time = command["seek_time"].asInt();
-    seek(seek_time);
-
-    JSON::Value commandResult;
-    commandResult["type"] = "on_seek";
-    commandResult["result"] = true;
-    ws.sendFrame(commandResult.toString());
-
-    return true;
-  }
-
-  bool OutWebRTC::handleSignalingCommandKeyFrameInterval(HTTP::Websocket &ws, const JSON::Value &command) {
-    
-    rtcpKeyFrameDelayInMillis = command["keyframe_interval_millis"].asInt();
-    if (rtcpKeyFrameDelayInMillis < 500) {
-      WARN_MSG("Requested a keyframe delay < 500ms; 500ms is the minimum you can set.");
-      rtcpKeyFrameDelayInMillis = 500;
+  bool OutWebRTC::onFinish(){
+    if (parseData){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_stop";
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      webSock->sendFrame(commandResult.toString());
+      parseData = false;
     }
-    
-    rtcpKeyFrameTimeoutInMillis = Util::getMS() + rtcpKeyFrameDelayInMillis;
-
-    JSON::Value commandResult;
-    commandResult["type"] = "on_keyframe_interval";
-    commandResult["result"] = true;
-    ws.sendFrame(commandResult.toString());
-
     return true;
   }
 
@@ -492,7 +499,7 @@ namespace Mist{
       }
     }
 
-    const char* audioCodecPreference[] = { "opus", NULL } ;
+    const char* audioCodecPreference[] = { "opus", "ALAW", "ULAW", NULL } ;
     const char** audioCodec = audioCodecPreference;
     SDP::Media* audioMediaOffer = sdpSession.getMediaForType("audio");
     if (audioMediaOffer) {
@@ -506,7 +513,7 @@ namespace Mist{
   }
 
   // This function is called to handle an offer from a peer that wants to push data towards us.
-  bool OutWebRTC::handleSignalingCommandRemoteOfferForInput(HTTP::Websocket &webSock, SDP::Session &sdpSession, const std::string& sdpOffer) {
+  bool OutWebRTC::handleSignalingCommandRemoteOfferForInput(SDP::Session &sdpSession) {
 
     if (webRTCInputOutputThread != NULL) {
       FAIL_MSG("It seems that we're already have a webrtc i/o thread running.");
@@ -515,12 +522,6 @@ namespace Mist{
 
     if (0 == udpPort) {
       bindUDPSocketOnLocalCandidateAddress(0);
-    }
-
-    if (!sdpAnswer.parseOffer(sdpOffer)) {
-      FAIL_MSG("Failed to parse the received offer SDP");
-      FAIL_MSG("%s", sdpOffer.c_str());
-      return false;
     }
 
     std::string prefVideoCodec = "VP8,H264";
@@ -532,12 +533,12 @@ namespace Mist{
       }
     }
 
-    std::string prefAudioCodec = "OPUS";
+    std::string prefAudioCodec = "opus,ALAW,ULAW";
     if (config && config->hasOption("preferredaudiocodec")) {
       prefAudioCodec = config->getString("preferredaudiocodec");
       if (prefAudioCodec.empty()) {
         WARN_MSG("No preferred audio codec value set; resetting to default.");
-        prefAudioCodec = "OPUS";
+        prefAudioCodec = "opus,ALAW,ULAW";
       }
     }
 
@@ -610,43 +611,19 @@ namespace Mist{
     rtcpTimeoutInMillis = Util::getMS() + 2000;
     rtcpKeyFrameTimeoutInMillis = Util::getMS() + 2000;
     
-    // create result command for websock client.
-    JSON::Value commandResult;
-    commandResult["type"] = "on_answer_sdp";
-    commandResult["result"] = true;
-    commandResult["answer_sdp"] = sdpAnswer.toString();
-    webSock.sendFrame(commandResult.toString());
-
     return true;
   }
 
-  // Get the IP address on which we should bind our UDP socket that is
-  // used to receive the STUN, DTLS, SRTP, etc.. 
-  std::string OutWebRTC::getLocalCandidateAddress() {
-    
-    std::vector<std::string> localIP4Addresses = getLocalIP4Addresses();
-    if (localIP4Addresses.size() == 0) {
-      FAIL_MSG("No IP4 addresses found.");
-      return "";
-    }
-
-    return localIP4Addresses[0];
-  }
-
-  bool OutWebRTC::bindUDPSocketOnLocalCandidateAddress(uint16_t port) {
+  bool OutWebRTC::bindUDPSocketOnLocalCandidateAddress(uint16_t port){
 
     if (udpPort != 0) {
       FAIL_MSG("Already bound the UDP socket.");
       return false;
     }
-    
-    std::string local_ip = getLocalCandidateAddress();
-    if (local_ip.empty()) {
-      FAIL_MSG("Failed to get the local candidate address. W/o ICE will probably fail or will have issues during startup. See https://gist.github.com/roxlu/6c5ab696840256dac71b6247bab59ce9");
-    }
-    
-    udpPort = udp.bind(port, local_ip);
-    sdpAnswer.setCandidate(local_ip, udpPort);
+
+    udpPort = udp.bind(port, (config && config->hasOption("bindhost") && config->getString("bindhost").size()) ? config->getString("bindhost") : myConn.getBoundAddress());
+    Util::Procs::socketList.insert(udp.getSock());
+    sdpAnswer.setCandidate(externalAddr, udpPort);
 
     return true;
   }
@@ -660,7 +637,7 @@ namespace Mist{
     udp.SetDestination("0.0.0.0", 4444);
     while (keepGoing()) {
       if (!handleWebRTCInputOutput()) {
-        Util::sleep(100);
+        Util::sleep(20);
       }
     }
   }
@@ -672,29 +649,25 @@ namespace Mist{
   // this is called from the main thread.
   bool OutWebRTC::handleWebRTCInputOutput() {
 
-    if (!udp.Receive()) {
-      DONTEVEN_MSG("Waiting for data...");
-      return false;
-    }
+    bool hadPack = false;
+    while (udp.Receive()){
+      hadPack = true;
 
-    myConn.addDown(udp.data_len);
+      myConn.addDown(udp.data_len);
       
-    uint8_t fb = (uint8_t)udp.data[0];
+      uint8_t fb = (uint8_t)udp.data[0];
     
-    if (fb > 127 && fb < 192) {
-      handleReceivedRTPOrRTCPPacket();
+      if (fb > 127 && fb < 192) {
+        handleReceivedRTPOrRTCPPacket();
+      }else if (fb > 19 && fb < 64){
+        handleReceivedDTLSPacket();
+      }else if (fb < 2){
+        handleReceivedSTUNPacket();
+      }else{
+        FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
+      }
     }
-    else if (fb > 19 && fb < 64) {
-      handleReceivedDTLSPacket();
-    }
-    else if (fb < 2) {
-      handleReceivedSTUNPacket();
-    }
-    else {
-      FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
-    }
-
-    return true;
+    return hadPack;
   }
   
   void OutWebRTC::handleReceivedSTUNPacket() {
@@ -790,21 +763,31 @@ namespace Mist{
     }
   }
 
+  void OutWebRTC::ackNACK(uint32_t pSSRC, uint16_t seq){
+    if (!outBuffers.count(pSSRC)){
+      WARN_MSG("Could not answer NACK for %lu: we don't know this track", pSSRC);
+      return;
+    }
+    nackBuffer & nb = outBuffers[pSSRC];
+    if (!nb.isBuffered(seq)){
+      WARN_MSG("Could not answer NACK for %lu #%u: packet not buffered", pSSRC, seq);
+      return;
+    }
+    udp.SendNow(nb.getData(seq), nb.getSize(seq));
+    myConn.addUp(nb.getSize(seq));
+    INFO_MSG("Answered NACK for %lu #%u", pSSRC, seq);
+  }
+
   void OutWebRTC::handleReceivedRTPOrRTCPPacket() {
 
     uint8_t pt = udp.data[1] & 0x7F;
     
     if ((pt < 64) || (pt >= 96)) {
 
-      int len = (int)udp.data_len;
-      if (srtpReader.unprotectRtp((uint8_t*)udp.data, &len) != 0) {
-        FAIL_MSG("Failed to unprotect a RTP packet.");
-        return;
-      }
-
-      RTP::Packet rtp_pkt((const char*)udp.data, (unsigned int)len);
+      RTP::Packet rtp_pkt((const char*)udp.data, (unsigned int)udp.data_len);
       uint8_t payloadType = rtp_pkt.getPayloadType();
       uint64_t rtcTrackID = payloadType;
+      uint16_t currSeqNum = rtp_pkt.getSequence();
       
       // Do we need to map the payload type to a WebRTC Track? (e.g. RED)
       if (payloadTypeToWebRTCTrack.count(payloadType) != 0) {
@@ -812,46 +795,91 @@ namespace Mist{
       }
 
       if (webrtcTracks.count(rtcTrackID) == 0) {
-        FAIL_MSG("Received an RTP packet for a track that we didn't prepare for. PayloadType is %llu", rtp_pkt.getPayloadType());
-        // \todo @jaron should we close the socket here?
+        FAIL_MSG("Received an RTP packet for a track that we didn't prepare for. PayloadType is %llu", payloadType);
         return;
       }
+
+      //Find the WebRTCTrack corresponding to the packet we received
+      WebRTCTrack& rtcTrack = webrtcTracks[rtcTrackID];
+
+      //Do not parse packets we don't care about
+      if (!rtcTrack.sorter.wantSeq(currSeqNum)){return;}
+
+      //Decrypt the SRTP to RTP
+      int len = (int)udp.data_len;
+      if (srtpReader.unprotectRtp((uint8_t*)udp.data, &len) != 0) {
+        FAIL_MSG("Failed to unprotect a RTP packet.");
+        return;
+      }
+
 
       // Here follows a very rudimentary algo for requesting lost
       // packets; I guess after some experimentation a better
       // algorithm should be used; this is used to trigger NACKs.
-      WebRTCTrack& rtcTrack = webrtcTracks[rtcTrackID];
       uint16_t expectedSeqNum = rtcTrack.prevReceivedSequenceNumber + 1;
-      uint16_t currSeqNum = rtp_pkt.getSequence();
       if (rtcTrack.prevReceivedSequenceNumber != 0
           && (rtcTrack.prevReceivedSequenceNumber + 1) != currSeqNum)
         {
           while (rtcTrack.prevReceivedSequenceNumber < currSeqNum) {
-            FAIL_MSG("=> nack seqnum: %u", rtcTrack.prevReceivedSequenceNumber);
             sendRTCPFeedbackNACK(rtcTrack, rtcTrack.prevReceivedSequenceNumber);
             rtcTrack.prevReceivedSequenceNumber++;
           }
         }
       
-      rtcTrack.prevReceivedSequenceNumber = rtp_pkt.getSequence();
+      rtcTrack.prevReceivedSequenceNumber = currSeqNum;
       
       if (payloadType == rtcTrack.REDPayloadType) {
         rtcTrack.sorter.addREDPacket(udp.data, len, rtcTrack.payloadType, rtcTrack.REDPayloadType, rtcTrack.ULPFECPayloadType);
       }
       else {
-        rtcTrack.sorter.addPacket(rtp_pkt);
+        rtcTrack.sorter.addPacket(RTP::Packet(udp.data, len));
       }
     }
     else if ((pt >= 64) && (pt < 96)) {
 
-#if 0
-      // \todo it seems that we don't need handle RTCP messages.
-      int len = udp.data_len;
-      if (srtpReader.unprotectRtcp((uint8_t*)udp.data, &len) != 0) {
-        FAIL_MSG("Failed to unprotect RTCP.");
-        return;
+      if (pt == 77 || pt == 78 || pt == 65){
+        int len = udp.data_len;
+        if (srtpReader.unprotectRtcp((uint8_t*)udp.data, &len) != 0) {
+          FAIL_MSG("Failed to unprotect RTCP.");
+          return;
+        }
+        uint8_t fmt = udp.data[0] & 0x1F;
+        if (pt == 77 || pt == 65){
+          if (fmt == 1){
+            uint32_t pSSRC = Bit::btohl(udp.data+8);
+            uint16_t seq = Bit::btohs(udp.data+12);
+            uint16_t bitmask = Bit::btohs(udp.data+14);
+            ackNACK(pSSRC, seq);
+            if (bitmask & 1){ackNACK(pSSRC, seq+1);}
+            if (bitmask & 2){ackNACK(pSSRC, seq+2);}
+            if (bitmask & 4){ackNACK(pSSRC, seq+3);}
+            if (bitmask & 8){ackNACK(pSSRC, seq+4);}
+            if (bitmask & 16){ackNACK(pSSRC, seq+5);}
+            if (bitmask & 32){ackNACK(pSSRC, seq+6);}
+            if (bitmask & 64){ackNACK(pSSRC, seq+7);}
+            if (bitmask & 128){ackNACK(pSSRC, seq+8);}
+            if (bitmask & 256){ackNACK(pSSRC, seq+9);}
+            if (bitmask & 512){ackNACK(pSSRC, seq+10);}
+            if (bitmask & 1024){ackNACK(pSSRC, seq+11);}
+            if (bitmask & 2048){ackNACK(pSSRC, seq+12);}
+            if (bitmask & 4096){ackNACK(pSSRC, seq+13);}
+            if (bitmask & 8192){ackNACK(pSSRC, seq+14);}
+            if (bitmask & 16384){ackNACK(pSSRC, seq+15);}
+            if (bitmask & 32768){ackNACK(pSSRC, seq+16);}
+          }else{
+            INFO_MSG("Received unimplemented RTP feedback message (%d)", fmt);
+          }
+        }
+        if (pt == 78){
+          if (fmt == 1){
+            DONTEVEN_MSG("Received picture loss indication");
+          }else{
+            INFO_MSG("Received unimplemented payload-specific feedback message (%d)", fmt);
+          }
+        }
+
       }
-#endif
+
       
     }
     else {
@@ -862,7 +890,6 @@ namespace Mist{
   /* ------------------------------------------------ */
 
   int OutWebRTC::onDTLSHandshakeWantsToWrite(const uint8_t* data, int* nbytes) {
-    // \todo udp.SendNow() does not return an error code so we assume everything is sent nicely.
     udp.SendNow((const char*)data, (size_t)*nbytes);
     myConn.addUp(*nbytes);
     return 0;
@@ -893,7 +920,7 @@ namespace Mist{
         WebRTCTrack& rtcTrack = webrtcTracks[trackID];
         sendRTCPFeedbackREMB(rtcTrack);
         sendRTCPFeedbackRR(rtcTrack);
-        rtcpTimeoutInMillis = now + 1000;  /* @todo was 5000, lowered for FEC */
+        rtcpTimeoutInMillis = now + 1000;  /* was 5000, lowered for FEC */
       }
       
       if (now >= rtcpKeyFrameTimeoutInMillis) {
@@ -941,32 +968,27 @@ namespace Mist{
     webrtcTracks[trackID].rtpToDTSC.addRTP(pkt);
   }
 
-  // \todo when rtpOutputBuffer is allocated on the stack (I
-  // created a member with 2048 as its size and when I called
-  // `memcpy()` to copy the `data` it ran into a
-  // segfault. valgrind pointed me to EBML (I was testing VP8);
-  // it feels like somewhere the stack gets overwritten. Shortly
-  // discussed this with Jaron and he told me this could be
-  // indeed the case. For now I'm allocating the buffer on the
-  // heap. This function will be called when we're sending data
+  // This function will be called when we're sending data
   // to the browser (other peer). 
   void OutWebRTC::onRTPPacketizerHasRTPPacket(char* data, uint32_t nbytes) {
 
-    memcpy(rtpOutBuffer, data, nbytes);
+    rtpOutBuffer.allocate(nbytes+256);
+    rtpOutBuffer.assign(data, nbytes);
 
     int protectedSize = nbytes;
-    if (srtpWriter.protectRtp((uint8_t*)rtpOutBuffer, &protectedSize) != 0) {
+    if (srtpWriter.protectRtp((uint8_t*)(void*)rtpOutBuffer, &protectedSize) != 0) {
       ERROR_MSG("Failed to protect the RTCP message.");
       return;
     }
     
-    udp.SendNow((const char*)rtpOutBuffer, (size_t)protectedSize);
-    myConn.addUp(protectedSize);
+    udp.SendNow(rtpOutBuffer, (size_t)protectedSize);
+   
+    RTP::Packet tmpPkt(rtpOutBuffer, protectedSize);
+    uint32_t pSSRC = tmpPkt.getSSRC();
+    uint16_t seq = tmpPkt.getSequence();
+    outBuffers[pSSRC].assign(seq, rtpOutBuffer, protectedSize);
 
-    /* << TODO: remove if this doesn't work; testing output pacing >> */
-    if (didReceiveKeyFrame) {
-      //Util::sleep(4);
-    }
+    myConn.addUp(protectedSize);
   }
 
   void OutWebRTC::onRTPPacketizerHasRTCPPacket(char* data, uint32_t nbytes) {
@@ -975,30 +997,21 @@ namespace Mist{
       FAIL_MSG("The received RTCP packet is too big to handle.");
       return;
     }
-    if (!rtpOutBuffer) {
-      FAIL_MSG("rtpOutBuffer not yet allocated.");
-      return;
-    }
     if (!data) {
       FAIL_MSG("Invalid RTCP packet given.");
       return;
     }
     
-    FAIL_MSG("# Copy data into rtpOutBuffer (%u bytes)", nbytes);
-    
-    memcpy((void*)rtpOutBuffer, data, nbytes);
+    rtpOutBuffer.allocate(nbytes+256);
+    rtpOutBuffer.assign(data, nbytes);
     int rtcpPacketSize = nbytes;
-    FAIL_MSG("# Protect rtcp");
-    if (srtpWriter.protectRtcp((uint8_t*)rtpOutBuffer, &rtcpPacketSize) != 0) {
+    if (srtpWriter.protectRtcp((uint8_t*)(void*)rtpOutBuffer, &rtcpPacketSize) != 0) {
       ERROR_MSG("Failed to protect the RTCP message.");
       return;
     }
 
-    WARN_MSG("# has RTCP packet, %d bytes.", rtcpPacketSize);
-
-    udp.SendNow((const char*)rtpOutBuffer, rtcpPacketSize);
-
-    /* @todo add myConn.addUp(). */
+    udp.SendNow(rtpOutBuffer, rtcpPacketSize);
+    myConn.addUp(rtcpPacketSize);
   }  
 
   // This function was implemented (it's virtual) to handle
@@ -1031,108 +1044,41 @@ namespace Mist{
 
     // make sure the webrtcTracks were setup correctly for output.
     uint32_t tid = thisPacket.getTrackId();
-    if (webrtcTracks.count(tid) == 0) {
-      FAIL_MSG("No WebRTCTrack found for track id %llu.", tid);
+    DTSC::Track& dtscTrack = myMeta.tracks[tid];
+
+    WebRTCTrack * trackPointer = 0;
+
+    // If we see this is audio or video, use the webrtc track we negotiated
+    if (dtscTrack.type == "video" && webrtcTracks.count(vidTrack)){trackPointer = &webrtcTracks[vidTrack];}
+    if (dtscTrack.type == "audio" && webrtcTracks.count(audTrack)){trackPointer = &webrtcTracks[audTrack];}
+
+    // If we negotiated this track, always use it directly.
+    if (webrtcTracks.count(tid)) {
+      trackPointer = &webrtcTracks[tid];
+    }
+
+    // Abort if no negotiation happened
+    if (!trackPointer){
+      WARN_MSG("Don't know how to send data for track %" PRIu32,tid);
       return;
     }
 
-    WebRTCTrack& rtcTrack = webrtcTracks[tid];
+    WebRTCTrack& rtcTrack = *trackPointer;
+
     if (rtcTrack.timestampMultiplier == 0) {
       FAIL_MSG("The WebRTCTrack::timestampMultiplier is 0; invalid.");
       return;
     }
 
     uint64_t timestamp = thisPacket.getTime();
-    uint64_t offset = thisPacket.getInt("offset");
-    rtcTrack.rtpPacketizer.setTimestamp((timestamp + offset) * rtcTrack.timestampMultiplier);
+    rtcTrack.rtpPacketizer.setTimestamp(timestamp * rtcTrack.timestampMultiplier);
 
-    DTSC::Track& dtscTrack = myMeta.tracks[tid];
 
-    /* ----------------------- BEGIN NEEDS CLEANUP -------------------------------------- */
-    
     bool isKeyFrame = thisPacket.getFlag("keyframe");
     didReceiveKeyFrame = isKeyFrame;
     if (isKeyFrame && dtscTrack.codec == "H264") {
-      uint8_t nalType = dataPointer[5] & 0x1F;
-      if (nalType == 5) {
-        sendSPSPPS(dtscTrack, rtcTrack);
-      }
+      sendSPSPPS(dtscTrack, rtcTrack);
     }
-    
-#if 0
-    /*
-      @todo
-      - wel versturen als isKeyframe true is en op byte positie 5, nal type 5
-      4 bytes size, 1 byte nal type.
-      - jaron heeft een keyframe check functie 
-     */
-    bool isKeyFrame = thisPacket.getFlag("keyframe");
-    
-    if (!dtscTrack.init.empty()) {
-      static bool didSentInit = false;
-      if (!didSentInit || isKeyFrame) {
-
-        MP4::AVCC avcc;
-        avcc.setPayload(dtscTrack.init);
-        std::vector<char> buf;
-        for (uint32_t i = 0; i < avcc.getSPSCount(); ++i) {
-          uint32_t len = avcc.getSPSLen(i);
-          buf.clear();
-          buf.assign(4, 0);
-          *(uint32_t*)&buf[0] = htonl(len);
-          std::copy(avcc.getSPS(i), avcc.getSPS(i) + avcc.getSPSLen(i), std::back_inserter(buf));
-          rtcTrack.rtpPacketizer.sendData(&udp,
-                                          onRTPPacketizerHasDataCallback,
-                                          &buf[0],
-                                          buf.size(),
-                                          rtcTrack.payloadType,
-                                          dtscTrack.codec);
-        }
-
-        for (uint32_t i = 0; i < avcc.getPPSCount(); ++i) {
-          uint32_t len = avcc.getPPSLen(i);
-          buf.clear();
-          buf.assign(4, 0);
-          *(uint32_t*)&buf[0] = htonl(len);
-          std::copy(avcc.getPPS(i), avcc.getPPS(i) + avcc.getPPSLen(i), std::back_inserter(buf));
-          rtcTrack.rtpPacketizer.sendData(&udp,
-                                          onRTPPacketizerHasDataCallback,
-                                          &buf[0],
-                                          buf.size(),
-                                          rtcTrack.payloadType,
-                                          dtscTrack.codec);
-
-        }
-        
-        didSentInit = true;
-      }
-    }
-#endif    
-    /* test: repeat sending of SPS. */
-#if 0    
-    static uint64_t repeater = Util::getMS() + 2000;
-    if (Util::getMS() >= repeater) {
-      FAIL_MSG("=> send next, sending SPS again.");
-      repeater = Util::getMS() + 2000;
-      MP4::AVCC avcc;
-      avcc.setPayload(dtscTrack.init);
-      std::vector<char> buf;
-      for (uint32_t i = 0; i < avcc.getSPSCount(); ++i) {
-        uint32_t len = avcc.getSPSLen(i);
-        buf.clear();
-        buf.assign(4, 0);
-        *(uint32_t*)&buf[0] = htonl(len);
-        std::copy(avcc.getSPS(i), avcc.getSPS(i) + avcc.getSPSLen(i), std::back_inserter(buf));
-        rtcTrack.rtpPacketizer.sendData(&udp,
-                                        onRTPPacketizerHasDataCallback,
-                                        &buf[0],
-                                        buf.size(),
-                                        rtcTrack.payloadType,
-                                        dtscTrack.codec);
-      }
-    }
-#endif
-    /* ----------------------- END NEEDS CLEANUP -------------------------------------- */
     
     rtcTrack.rtpPacketizer.sendData(&udp,
                                     onRTPPacketizerHasDataCallback,
@@ -1293,6 +1239,7 @@ namespace Mist{
   // sequence numbers are lost it makes sense to implement this
   // too.
   void OutWebRTC::sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack, uint16_t lostSequenceNumber) {
+    HIGH_MSG("Requesting missing sequence number %u", lostSequenceNumber);
     
     std::vector<uint8_t> buffer;
     buffer.push_back(0x80 | 0x01);                      // V=2 (0x80) | FMT=1 (0x01)
@@ -1456,10 +1403,8 @@ namespace Mist{
     }
     classPointer->onRTPPacketizerHasRTCPPacket((char*)data, len);
   }
-  
-  /* ------------------------------------------------ */
 
-  static uint32_t generateSSRC() {
+  static uint32_t generateSSRC(){
 
     uint32_t ssrc = 0;
     
@@ -1472,53 +1417,4 @@ namespace Mist{
     return ssrc;
   }
 
-  // This function is used to return a vector of the IP4
-  // addresses of the interfaces on this machine. This is used
-  // when we create the candidate address that is shared in our
-  // SDP answer. The other WebRTC-peer will use this address to
-  // deliver data.
-  static std::vector<std::string> getLocalIP4Addresses() {
-
-    std::vector<std::string> result;
-    ifaddrs* ifaddr = NULL;
-    ifaddrs* ifa = NULL;
-    sockaddr_in* addr = NULL;
-    char host[128] = { 0 };
-    int s = 0;
-    int i = 0;
-
-    if (getifaddrs(&ifaddr) == -1) {
-      FAIL_MSG("Failed to get the local interface addresses.");
-      return result;
-    }
-
-    for (ifa = ifaddr, i = 0; ifa != NULL; ifa = ifa->ifa_next, i++) {
-      if (ifa->ifa_addr == NULL) {
-        continue;
-      }
-      if (ifa->ifa_addr->sa_family != AF_INET) {
-        continue;
-      }
-      addr = (sockaddr_in*)ifa->ifa_addr;
-      if (addr->sin_addr.s_addr == htonl(INADDR_LOOPBACK)) {
-        continue;
-      }
-      s = getnameinfo(ifa->ifa_addr, sizeof(sockaddr_in), host, sizeof(host), NULL, 0, NI_NUMERICHOST);
-      if (0 != s) {
-        FAIL_MSG("FAiled to get name info for an interface.");
-        continue;
-      }
-      result.push_back(host);
-    }
-
-    if (ifaddr != NULL) {
-      freeifaddrs(ifaddr);
-      ifaddr = NULL;
-    }
-
-    return result;
-  }
-
-  /* ------------------------------------------------ */
-
-} // mist namespace
+}// namespace Mist

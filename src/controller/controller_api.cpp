@@ -182,7 +182,7 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
       sent = true;
       JSON::Value tmp;
       tmp[0u] = "log";
-      tmp[1u].append((long long)rlxLog.getInt("time", logPos));
+      tmp[1u].append(rlxLog.getInt("time", logPos));
       tmp[1u].append(rlxLog.getPointer("kind", logPos));
       tmp[1u].append(rlxLog.getPointer("msg", logPos));
       W.sendFrame(tmp.toString());
@@ -192,14 +192,14 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
       sent = true;
       JSON::Value tmp;
       tmp[0u] = "access";
-      tmp[1u].append((long long)rlxAccs.getInt("time", accsPos));
+      tmp[1u].append(rlxAccs.getInt("time", accsPos));
       tmp[1u].append(rlxAccs.getPointer("session", accsPos));
       tmp[1u].append(rlxAccs.getPointer("stream", accsPos));
       tmp[1u].append(rlxAccs.getPointer("connector", accsPos));
       tmp[1u].append(rlxAccs.getPointer("host", accsPos));
-      tmp[1u].append((long long)rlxAccs.getInt("duration", accsPos));
-      tmp[1u].append((long long)rlxAccs.getInt("up", accsPos));
-      tmp[1u].append((long long)rlxAccs.getInt("down", accsPos));
+      tmp[1u].append(rlxAccs.getInt("duration", accsPos));
+      tmp[1u].append(rlxAccs.getInt("up", accsPos));
+      tmp[1u].append(rlxAccs.getInt("down", accsPos));
       tmp[1u].append(rlxAccs.getPointer("tags", accsPos));
       W.sendFrame(tmp.toString());
       accsPos++;
@@ -220,10 +220,10 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
           JSON::Value tmp;
           tmp[0u] = "stream";
           tmp[1u].append(strm);
-          tmp[1u].append((long long)tmpStat.status);
-          tmp[1u].append((long long)tmpStat.viewers);
-          tmp[1u].append((long long)tmpStat.inputs);
-          tmp[1u].append((long long)tmpStat.outputs);
+          tmp[1u].append(tmpStat.status);
+          tmp[1u].append(tmpStat.viewers);
+          tmp[1u].append(tmpStat.inputs);
+          tmp[1u].append(tmpStat.outputs);
           W.sendFrame(tmp.toString());
         }
       }
@@ -233,10 +233,10 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
         JSON::Value tmp;
         tmp[0u] = "stream";
         tmp[1u].append(strm);
-        tmp[1u].append((long long)0);
-        tmp[1u].append((long long)0);
-        tmp[1u].append((long long)0);
-        tmp[1u].append((long long)0);
+        tmp[1u].append(0u);
+        tmp[1u].append(0u);
+        tmp[1u].append(0u);
+        tmp[1u].append(0u);
         W.sendFrame(tmp.toString());
         strmRemove.erase(strm);
         lastStrmStat.erase(strm);
@@ -534,7 +534,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   }
   if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
     if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
-      Response["streams"]["incomplete list"] = 1ll;
+      Response["streams"]["incomplete list"] = 1u;
       if (Request.isMember("addstream")){
         jsonForEach(Request["addstream"], jit){
           if (Controller::Storage["streams"].isMember(jit.key())){

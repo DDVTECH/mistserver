@@ -31,40 +31,47 @@ namespace MP4 {
       }
       void copyFrom(const Box & rs);
 
-      std::string getType();
+      std::string getType() const;
       bool isType(const char * boxType) const;
       bool read(FILE * newData);
       bool read(std::string & newData);
 
-      uint64_t boxedSize();
-      uint64_t payloadSize();
+      uint64_t boxedSize() const;
+      uint64_t payloadSize() const;
       char * asBox();
       char * payload();
       void clear();
-      std::string toPrettyString(uint32_t indent = 0);
+      std::string toPrettyString(uint32_t indent = 0) const;
     protected:
       //integer functions
       void setInt8(char newData, size_t index);
       char getInt8(size_t index);
+      char getInt8(size_t index) const;
       void setInt16(short newData, size_t index);
       short getInt16(size_t index);
+      short getInt16(size_t index) const;
       void setInt24(uint32_t newData, size_t index);
       uint32_t getInt24(size_t index);
+      uint32_t getInt24(size_t index) const;
       void setInt32(uint32_t newData, size_t index);
       uint32_t getInt32(size_t index);
+      uint32_t getInt32(size_t index) const;
       void setInt64(uint64_t newData, size_t index);
       uint64_t getInt64(size_t index);
+      uint64_t getInt64(size_t index) const;
       //string functions
       void setString(std::string newData, size_t index);
       void setString(char * newData, size_t size, size_t index);
       char * getString(size_t index);
-      size_t getStringLen(size_t index);
+      size_t getStringLen(size_t index) const;
       //box functions
       Box & getBox(size_t index);
-      size_t getBoxLen(size_t index);
+      size_t getBoxLen(size_t index) const;
       void setBox(Box & newEntry, size_t index);
       //data functions
       bool reserve(size_t position, size_t current, size_t wanted);
+      bool reserve(size_t position, size_t current, size_t wanted) const {return false;}
+      
       //internal variables
       char * data; ///< Holds the data of this box
       unsigned int data_size; ///< Currently reserved size
@@ -77,10 +84,10 @@ namespace MP4 {
     public:
       fullBox();
       void setVersion(char newVersion);
-      char getVersion();
+      char getVersion() const;
       void setFlags(uint32_t newFlags);
-      uint32_t getFlags();
-      std::string toPrettyString(uint32_t indent = 0);
+      uint32_t getFlags() const;
+      std::string toPrettyString(uint32_t indent = 0) const ;
   };
 
   class containerBox: public Box {

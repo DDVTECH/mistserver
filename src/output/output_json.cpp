@@ -37,7 +37,7 @@ namespace Mist {
     JSON::Value jPack;
     if (myMeta.tracks[thisPacket.getTrackId()].codec == "JSON"){
       char * dPtr;
-      unsigned int dLen;
+      size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
       jPack["data"] = JSON::fromString(dPtr, dLen);
       jPack["time"] = (long long)thisPacket.getTime();

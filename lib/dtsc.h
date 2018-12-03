@@ -80,22 +80,22 @@ namespace DTSC {
       Scan();
       Scan(char * pointer, size_t len);
       operator bool() const;
-      std::string toPrettyString(unsigned int indent = 0);
-      bool hasMember(std::string indice);
-      bool hasMember(const char * indice, const unsigned int ind_len);
-      Scan getMember(std::string indice);
-      Scan getMember(const char * indice);
-      Scan getMember(const char * indice, const unsigned int ind_len);
-      Scan getIndice(unsigned int num);
-      std::string getIndiceName(unsigned int num);
-      unsigned int getSize();
+      std::string toPrettyString(size_t indent = 0) const;
+      bool hasMember(const std::string & indice) const;
+      bool hasMember(const char * indice, size_t ind_len) const;
+      Scan getMember(const std::string & indice) const;
+      Scan getMember(const char * indice) const;
+      Scan getMember(const char * indice, size_t ind_len) const;
+      Scan getIndice(size_t num) const;
+      std::string getIndiceName(size_t num) const;
+      size_t getSize() const;
 
-      char getType();
-      bool asBool();
-      long long asInt();
-      std::string asString();
-      void getString(char *& result, unsigned int & len);
-      JSON::Value asJSON();
+      char getType() const;
+      bool asBool() const;
+      int64_t asInt() const;
+      std::string asString() const;
+      void getString(char *& result, size_t & len) const;
+      JSON::Value asJSON() const;
     private:
       char * p;
       size_t len;
@@ -111,7 +111,7 @@ namespace DTSC {
       Packet();
       Packet(const Packet & rhs);
       Packet(const char * data_, unsigned int len, bool noCopy = false);
-      ~Packet();
+      virtual ~Packet();
       void null();
       void operator = (const Packet & rhs);
       operator bool() const;
@@ -119,7 +119,8 @@ namespace DTSC {
       void reInit(Socket::Connection & src);
       void reInit(const char * data_, unsigned int len, bool noCopy = false);
       void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe, int64_t bootMsOffset = 0);
-      void getString(const char * identifier, char *& result, unsigned int & len) const;
+      void appendData(const char * appendData, uint32_t appendLen);
+      void getString(const char * identifier, char *& result, size_t & len) const;
       void getString(const char * identifier, std::string & result) const;
       void getInt(const char * identifier, uint64_t & result) const;
       uint64_t getInt(const char * identifier) const;
@@ -129,23 +130,24 @@ namespace DTSC {
       void appendNal(const char * appendData, uint32_t appendLen);
       void upgradeNal(const char * appendData, uint32_t appendLen);
       void setKeyFrame(bool kf);
-      virtual long long unsigned int getTime() const;
-      long int getTrackId() const;
+      virtual uint64_t getTime() const;
+      void setTime(uint64_t _time);
+      size_t getTrackId() const;
       char * getData() const;
-      int getDataLen() const;
-      int getPayloadLen() const;
-      uint32_t getDataStringLen();
-      uint32_t getDataStringLenOffset();
+      size_t getDataLen() const;
+      size_t getPayloadLen() const;
+      size_t getDataStringLen();
+      size_t getDataStringLenOffset();
       JSON::Value toJSON() const;
       std::string toSummary() const;
       Scan getScan() const;
     protected:
       bool master;
       packType version;
-      void resize(unsigned int size);
+      void resize(size_t size);
       char * data;
-      unsigned int bufferLen;
-      unsigned int dataLen;
+      size_t bufferLen;
+      size_t dataLen;
 
       uint64_t prevNalSize;
   };
@@ -162,7 +164,7 @@ namespace DTSC {
       RetimedPacket(uint64_t reTime, const char * data_, unsigned int len, bool noCopy = false) : Packet(data_, len, noCopy){
         timeOverride = reTime;
       }
-      virtual long long unsigned int getTime() const{return timeOverride;}
+      virtual uint64_t getTime() const{return timeOverride;}
     protected:
       uint64_t timeOverride;
   };

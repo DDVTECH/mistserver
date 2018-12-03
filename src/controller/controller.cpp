@@ -321,7 +321,7 @@ int main_loop(int argc, char **argv){
 
   // Check if we have a usable server, if not, print messages with helpful hints
   {
-    std::string web_port = JSON::Value((long long)Controller::conf.getInteger("port")).asString();
+    std::string web_port = JSON::Value(Controller::conf.getInteger("port")).asString();
     // check for username
     if (!Controller::Storage.isMember("account") || Controller::Storage["account"].size() < 1){
       Controller::Log("CONF",
@@ -406,7 +406,6 @@ int main(int argc, char **argv){
   Util::Procs::setHandler(); // set child handler
   {
     struct sigaction new_action;
-    struct sigaction cur_action;
     new_action.sa_sigaction = handleUSR1;
     sigemptyset(&new_action.sa_mask);
     new_action.sa_flags = 0;
@@ -423,7 +422,6 @@ int main(int argc, char **argv){
       Util::Procs::reaper_thread = 0;
       {
         struct sigaction new_action;
-        struct sigaction cur_action;
         new_action.sa_sigaction = handleUSR1;
         sigemptyset(&new_action.sa_mask);
         new_action.sa_flags = 0;
@@ -460,7 +458,7 @@ int main(int argc, char **argv){
       execvp(myFile.c_str(), argv);
       FAIL_MSG("Error restarting: %s", strerror(errno));
     }
-    INFO_MSG("Controller uncleanly shut down! Restarting in %llu...", reTimer);
+    INFO_MSG("Controller uncleanly shut down! Restarting in %" PRIu64 "...", reTimer);
     Util::wait(reTimer);
     reTimer += 1000;
   }

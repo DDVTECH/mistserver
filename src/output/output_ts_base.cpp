@@ -67,7 +67,7 @@ namespace Mist {
     firstPack = true;
 
     char * dataPointer = 0;
-    unsigned int tmpDataLen = 0;
+    size_t tmpDataLen = 0;
     thisPacket.getString("data", dataPointer, tmpDataLen); //data
     uint64_t dataLen = tmpDataLen;
     //apple compatibility timestamp correction

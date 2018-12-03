@@ -8,6 +8,7 @@
 #include "json.h"
 
 #include "defines.h"
+#include "bitfields.h"
 
 /// Contains all MP4 format related code.
 namespace MP4 {
@@ -78,7 +79,7 @@ namespace MP4 {
     payloadOffset = rs.payloadOffset;
   }
   /// Returns the values at byte positions 4 through 7.
-  std::string Box::getType() {
+  std::string Box::getType() const {
     return std::string(data + 4, 4);
   }
 
@@ -188,7 +189,7 @@ namespace MP4 {
   }
 
   /// Returns the total boxed size of this box, including the header.
-  uint64_t Box::boxedSize() {
+  uint64_t Box::boxedSize() const {
     if (payloadOffset == 16) {
       return ((uint64_t)ntohl(((int *)data)[2]) << 32) | ntohl(((int *)data)[3]);
     }
@@ -197,7 +198,7 @@ namespace MP4 {
 
   /// Retruns the size of the payload of thix box, excluding the header.
   /// This value is defined as boxedSize() - 8.
-  uint64_t Box::payloadSize() {
+  uint64_t Box::payloadSize() const {
     return boxedSize() - payloadOffset;
   }
 
@@ -230,7 +231,7 @@ namespace MP4 {
 
   /// Attempts to typecast this Box to a more specific type and call the toPrettyString() function of that type.
   /// If this failed, it will print out a message saying pretty-printing is not implemented for boxtype.
-  std::string Box::toPrettyString(uint32_t indent) {
+  std::string Box::toPrettyString(uint32_t indent)  const {
     switch (ntohl(*((int *)(data + 4)))) { //type is at this address
       case 0x6D666864:
         return ((MFHD *)this)->toPrettyString(indent);
@@ -366,10 +367,10 @@ namespace MP4 {
         return ((AAC *)this)->toPrettyString(indent);
         break;
       case 0x61766331:
+      case 0x656E6376://encv
         return ((AVC1 *)this)->toPrettyString(indent);
         break;
       case 0x68323634://h264
-      case 0x656E6376://encv
         return ((H264 *)this)->toPrettyString(indent);
         break;
       case 0x65647473:
@@ -397,6 +398,7 @@ namespace MP4 {
         return ((PASP*)this)->toPrettyString(indent);
         break;
       default:
+        INFO_MSG("no code found: 0x%.8x",Bit::btohl(data + 4));
         break;
     }
     std::stringstream retval;
@@ -432,6 +434,16 @@ namespace MP4 {
     return data[index];
   }
 
+  /// Gets the 8 bits integer at the given index.
+  /// Returns zero if out of bounds.
+  char Box::getInt8(size_t index) const {
+    index += payloadOffset;
+    if (index >= boxedSize()) {
+      return 0;
+    }
+    return data[index];
+  }
+
   /// Sets the 16 bits integer at the given index.
   /// Attempts to resize the data pointer if the index is out of range.
   /// Fails silently if resizing failed.
@@ -442,8 +454,7 @@ namespace MP4 {
         return;
       }
     }
-    newData = htons(newData);
-    memcpy(data + index, (char *) &newData, 2);
+    Bit::htobs(data + index, newData);
   }
 
   /// Gets the 16 bits integer at the given index.
@@ -457,9 +468,18 @@ namespace MP4 {
       }
       setInt16(0, index - payloadOffset);
     }
-    short result;
-    memcpy((char *) &result, data + index, 2);
-    return ntohs(result);
+    return Bit::btohs(data + index);
+  }
+
+  /// Gets the 16 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
+  short Box::getInt16(size_t index) const {
+    index += payloadOffset;
+    if (index + 1 >= boxedSize()) {
+      return 0;
+    }
+    return Bit::btohs(data + index);
   }
 
   /// Sets the 24 bits integer at the given index.
@@ -472,9 +492,7 @@ namespace MP4 {
         return;
       }
     }
-    data[index] = (newData & 0x00FF0000) >> 16;
-    data[index + 1] = (newData & 0x0000FF00) >> 8;
-    data[index + 2] = (newData & 0x000000FF);
+    Bit::htob24(data + index, newData);
   }
 
   /// Gets the 24 bits integer at the given index.
@@ -488,12 +506,18 @@ namespace MP4 {
       }
       setInt24(0, index - payloadOffset);
     }
-    uint32_t result = data[index];
-    result <<= 8;
-    result += data[index + 1];
-    result <<= 8;
-    result += data[index + 2];
-    return result;
+    return Bit::btoh24(data + index);
+  }
+
+  /// Gets the 24 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
+  uint32_t Box::getInt24(size_t index) const {
+    index += payloadOffset;
+    if (index + 2 >= boxedSize()) {
+      return 0;
+    }
+    return Bit::btoh24(data + index);
   }
 
   /// Sets the 32 bits integer at the given index.
@@ -506,7 +530,7 @@ namespace MP4 {
         return;
       }
     }
-    ((int *)(data + index))[0] = htonl(newData);
+    Bit::htobl(data + index, newData);
   }
 
   /// Gets the 32 bits integer at the given index.
@@ -520,7 +544,18 @@ namespace MP4 {
       }
       setInt32(0, index - payloadOffset);
     }
-    return ntohl(((int *)(data + index))[0]);
+    return Bit::btohl(data + index);
+  }
+
+  /// Gets the 32 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
+  uint32_t Box::getInt32(size_t index) const {
+    index += payloadOffset;
+    if (index + 3 >= boxedSize()) {
+      return 0;
+    }
+    return Bit::btohl(data + index);
   }
 
   /// Sets the 64 bits integer at the given index.
@@ -533,8 +568,7 @@ namespace MP4 {
         return;
       }
     }
-    ((int *)(data + index))[0] = htonl((int)(newData >> 32));
-    ((int *)(data + index))[1] = htonl((int)(newData & 0xFFFFFFFF));
+    Bit::htobll(data + index, newData);
   }
 
   /// Gets the 64 bits integer at the given index.
@@ -548,10 +582,18 @@ namespace MP4 {
       }
       setInt64(0, index - payloadOffset);
     }
-    uint64_t result = ntohl(((int *)(data + index))[0]);
-    result <<= 32;
-    result += ntohl(((int *)(data + index))[1]);
-    return result;
+    return Bit::btohll(data + index);
+  }
+
+  /// Gets the 64 bits integer at the given index.
+  /// Attempts to resize the data pointer if the index is out of range.
+  /// Returns zero if resizing failed.
+  uint64_t Box::getInt64(size_t index) const {
+    index += payloadOffset;
+    if (index + 7 >= boxedSize()) {
+      return 0;
+    }
+    return Bit::btohll(data + index);
   }
 
   /// Sets the NULL-terminated string at the given index.
@@ -596,7 +638,7 @@ namespace MP4 {
 
   /// Returns the length of the NULL-terminated string at the given index.
   /// Returns 0 if out of range.
-  size_t Box::getStringLen(size_t index) {
+  size_t Box::getStringLen(size_t index) const {
     index += payloadOffset;
     if (index >= boxedSize()) {
       return 0;
@@ -625,8 +667,8 @@ namespace MP4 {
   /// Returns the size of the box at the given position.
   /// Returns undefined values if there is no box at the given position.
   /// Returns 0 if out of range.
-  size_t Box::getBoxLen(size_t index) {
-    if ((index + payloadOffset + 8) > boxedSize()) {
+  size_t Box::getBoxLen(size_t index) const {
+    if ((index + payloadOffset + 8) >= boxedSize()) {
       return 0;
     }
     return calcBoxSize(data + index + payloadOffset);
@@ -689,7 +731,7 @@ namespace MP4 {
     setInt8(newVersion, 0);
   }
 
-  char fullBox::getVersion() {
+  char fullBox::getVersion() const {
     return getInt8(0);
   }
 
@@ -697,11 +739,11 @@ namespace MP4 {
     setInt24(newFlags, 1);
   }
 
-  uint32_t fullBox::getFlags() {
+  uint32_t fullBox::getFlags() const {
     return getInt24(1);
   }
 
-  std::string fullBox::toPrettyString(uint32_t indent) {
+  std::string fullBox::toPrettyString(uint32_t indent) const {
     std::stringstream r;
     r << std::string(indent + 1, ' ') << "Version: " << (int)getVersion() << std::endl;
     r << std::string(indent + 1, ' ') << "Flags: " << getFlags() << std::endl;

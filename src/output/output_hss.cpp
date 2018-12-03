@@ -68,7 +68,7 @@ namespace Mist {
       return;
     }
     char * dataPointer = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
     H.Chunkify(dataPointer, len, myConn);
   }

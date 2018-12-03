@@ -18,7 +18,9 @@
 #define PRETTY_ARG_TIME(t) (int)(t)/86400, ((int)(t)%86400)/3600, ((int)(t)%3600)/60, (int)(t)%60
 #if DEBUG > -1
 
+#define __STDC_FORMAT_MACROS 1
 #include <stdio.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include "config.h"

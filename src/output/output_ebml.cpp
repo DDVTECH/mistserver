@@ -361,30 +361,6 @@ namespace Mist{
     uint64_t byteEnd = totalSize-1;
     uint64_t byteStart = 0;
     
-    /*LTS-START*/
-    // allow setting of max lead time through buffer variable.
-    // max lead time is set in MS, but the variable is in integer seconds for simplicity.
-    if (H.GetVar("buffer") != ""){maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;}
-    //allow setting of play back rate through buffer variable.
-    //play back rate is set in MS per second, but the variable is a simple multiplier.
-    if (H.GetVar("rate") != ""){
-      long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-    if (H.GetHeader("X-Mist-Rate") != ""){
-      long long int multiplier = JSON::Value(H.GetHeader("X-Mist-Rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-    /*LTS-END*/
-
     char rangeType = ' ';
     if (!myMeta.live){
       if (H.GetHeader("Range") != ""){

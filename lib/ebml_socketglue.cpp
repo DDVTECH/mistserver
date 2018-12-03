@@ -33,9 +33,8 @@ namespace EBML{
       return 3;
     }else if (val >= 0x100ull){
       return 2;
-    }else{
-      return 1;
     }
+    return 1;
   }
 
   uint32_t sizeElemUInt(uint32_t ID, const uint64_t val){
@@ -66,21 +65,20 @@ namespace EBML{
     char tmp[8];
     uint8_t wSize = sizeUInt(val);
     switch (wSize){
-      case 8: Bit::htobll(tmp, val); break;
-      case 7: Bit::htob56(tmp, val); break;
-      case 6: Bit::htob48(tmp, val); break;
-      case 5: Bit::htob40(tmp, val); break;
-      case 4: Bit::htobl(tmp, val); break;
-      case 3: Bit::htob24(tmp, val); break;
-      case 2: Bit::htobs(tmp, val); break;
-      case 1: tmp[0] = val; break;
+    case 8: Bit::htobll(tmp, val); break;
+    case 7: Bit::htob56(tmp, val); break;
+    case 6: Bit::htob48(tmp, val); break;
+    case 5: Bit::htob40(tmp, val); break;
+    case 4: Bit::htobl(tmp, val); break;
+    case 3: Bit::htob24(tmp, val); break;
+    case 2: Bit::htobs(tmp, val); break;
+    case 1: tmp[0] = val; break;
     }
     sendElemHead(C, ID, wSize);
     C.SendNow(tmp, wSize);
   }
 
   void sendElemID(Socket::Connection &C, uint32_t ID, const uint64_t val){
-    char tmp[8];
     uint8_t wSize = UniInt::writeSize(val);
     sendElemHead(C, ID, wSize);
     sendUniInt(C, val);
@@ -90,8 +88,8 @@ namespace EBML{
     char tmp[8];
     uint8_t wSize = (val == (float)val) ? 4 : 8;
     switch (wSize){
-      case 4: Bit::htobf(tmp, val); break;
-      case 8: Bit::htobd(tmp, val); break;
+    case 4: Bit::htobf(tmp, val); break;
+    case 8: Bit::htobd(tmp, val); break;
     }
     sendElemHead(C, ID, wSize);
     C.SendNow(tmp, wSize);
@@ -119,11 +117,11 @@ namespace EBML{
   }
 
   void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration){
-    sendElemHead(C, EID_INFO, 13 + 2 * appName.size() + (duration>0?sizeElemDbl(EID_DURATION, duration):0));
+    sendElemHead(C, EID_INFO,
+                 13 + 2 * appName.size() +
+                     (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
     sendElemUInt(C, EID_TIMECODESCALE, 1000000);
-    if (duration > 0){
-      sendElemDbl(C, EID_DURATION, duration);
-    }
+    if (duration > 0){sendElemDbl(C, EID_DURATION, duration);}
     sendElemStr(C, EID_MUXINGAPP, appName);
     sendElemStr(C, EID_WRITINGAPP, appName);
   }
@@ -133,24 +131,23 @@ namespace EBML{
   }
 
   uint32_t sizeElemInfo(const std::string &appName, double duration){
-    return 13 + 2 * appName.size() + (duration>0?sizeElemDbl(EID_DURATION, duration):0) + sizeElemHead(EID_INFO, 13 + 2 * appName.size() + (duration>0?sizeElemDbl(EID_DURATION, duration):0));
+    return 13 + 2 * appName.size() + (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0) +
+           sizeElemHead(EID_INFO, 13 + 2 * appName.size() +
+                                      (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
   }
 
-  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet & pkt, uint64_t clusterTime, bool forceKeyframe){
-    unsigned int dataLen = 0;
-    char * dataPointer = 0;
+  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime,
+                       bool forceKeyframe){
+    size_t dataLen = 0;
+    char *dataPointer = 0;
     pkt.getString("data", dataPointer, dataLen);
     uint32_t blockSize = UniInt::writeSize(pkt.getTrackId()) + 3 + dataLen;
     sendElemHead(C, EID_SIMPLEBLOCK, blockSize);
     sendUniInt(C, pkt.getTrackId());
-    char blockHead[3] = {0, 0, 0};
-    if (pkt.hasMember("keyframe") || forceKeyframe){
-      blockHead[2] = 0x80;
-    }
+    char blockHead[3] ={0, 0, 0};
+    if (pkt.hasMember("keyframe") || forceKeyframe){blockHead[2] = 0x80;}
     int offset = 0;
-    if (pkt.hasMember("offset")){
-      offset = pkt.getInt("offset");
-    }
+    if (pkt.hasMember("offset")){offset = pkt.getInt("offset");}
     Bit::htobs(blockHead, (int16_t)(pkt.getTime() + offset - clusterTime));
     C.SendNow(blockHead, 3);
     C.SendNow(dataPointer, dataLen);
@@ -173,7 +170,8 @@ namespace EBML{
     return sizeElemHead(EID_SEEK, elems) + elems;
   }
 
-  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos, uint64_t relaPos){
+  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos,
+                        uint64_t relaPos){
     uint32_t elemsA = 0, elemsB = 0;
     elemsA += sizeElemUInt(EID_CUETRACK, track);
     elemsA += sizeElemUInt(EID_CUECLUSTERPOSITION, clusterPos);
@@ -197,6 +195,5 @@ namespace EBML{
     return sizeElemHead(EID_CUEPOINT, elems) + elems;
   }
 
-
-}
+}// namespace EBML
 

@@ -5,7 +5,7 @@ namespace RIFF{
   Chunk::Chunk(const void *_p, uint32_t len){
     p = (const char *)_p;
     if (len && len < getPayloadSize() + 8){
-      FAIL_MSG("Chunk %s (%lub) does not fit in %lu bytes length!", getType().c_str(),
+      FAIL_MSG("Chunk %s (%" PRIu32 "b) does not fit in %" PRIu32 " bytes length!", getType().c_str(),
                getPayloadSize() + 8, len);
       p = 0;
     }

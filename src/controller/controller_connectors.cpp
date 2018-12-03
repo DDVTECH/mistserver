@@ -63,7 +63,10 @@ namespace Controller {
   /// Deletes the shared memory page with connector information
   /// in preparation of shutdown.
   void prepareActiveConnectorsForShutdown(){
-    IPC::sharedPage f("MstCnns", 4096, true, false);
+    IPC::sharedPage f("MstCnns", 4096, false, false);
+    if (f){
+      f.master = true;
+    }
   }
 
   /// Forgets all active connectors, preventing them from being killed,
@@ -103,7 +106,7 @@ namespace Controller {
         }else{
           if (it.key() == "debug"){
             static std::string debugLvlStr;
-            debugLvlStr = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+            debugLvlStr = JSON::Value(Util::Config::printDebugLevel).asString();
             argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
             argarr[argnum++] = (char*)debugLvlStr.c_str();
           }

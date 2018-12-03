@@ -4,6 +4,7 @@
 #include <mist/shared_memory.h>
 #include <mist/dtsc.h>
 #include <mist/stream.h>
+#include <mist/bitfields.h>
 #include "controller_statistics.h"
 #include "controller_storage.h"
 
@@ -36,14 +37,14 @@ tthread::mutex Controller::statsMutex;
 
 //For server-wide totals. Local to this file only.
 struct streamTotals {
-  unsigned long long upBytes;
-  unsigned long long downBytes;
-  unsigned long long inputs;
-  unsigned long long outputs;
-  unsigned long long viewers;
-  unsigned long long currIns;
-  unsigned long long currOuts;
-  unsigned long long currViews;
+  uint64_t upBytes;
+  uint64_t downBytes;
+  uint64_t inputs;
+  uint64_t outputs;
+  uint64_t viewers;
+  uint64_t currIns;
+  uint64_t currOuts;
+  uint64_t currViews;
   uint8_t status;
 };
 static std::map<std::string, struct streamTotals> streamStats;
@@ -107,7 +108,7 @@ IPC::sharedServer * statPointer = 0;
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
 void Controller::SharedMemStats(void * config){
-  DEBUG_MSG(DLVL_HIGH, "Starting stats thread");
+  HIGH_MSG("Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
   statPointer = &statServer;
   std::set<std::string> inactiveStreams;
@@ -288,7 +289,7 @@ Controller::sessType Controller::statSession::getSessType(){
 }
 
 /// Archives the given connection.
-void Controller::statSession::wipeOld(unsigned long long cutOff){
+void Controller::statSession::wipeOld(uint64_t cutOff){
   if (firstSec > cutOff){
     return;
   }
@@ -326,7 +327,7 @@ void Controller::statSession::wipeOld(unsigned long long cutOff){
   }
 }
 
-void Controller::statSession::ping(const Controller::sessIndex & index, unsigned long long disconnectPoint){
+void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t disconnectPoint){
   if (!tracked){return;}
   if (lastSec < disconnectPoint){
     switch (sessionType){
@@ -338,6 +339,8 @@ void Controller::statSession::ping(const Controller::sessIndex & index, unsigned
         break;
       case SESS_VIEWER:
         if (streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
+        break;
+      default:
         break;
     }
     uint64_t duration = lastSec - firstActive;
@@ -418,17 +421,17 @@ void Controller::statSession::switchOverTo(statSession & newSess, unsigned long 
 }
 
 /// Returns the first measured timestamp in this session.
-unsigned long long Controller::statSession::getStart(){
+uint64_t Controller::statSession::getStart(){
   return firstSec;
 }
 
 /// Returns the last measured timestamp in this session.
-unsigned long long Controller::statSession::getEnd(){
+uint64_t Controller::statSession::getEnd(){
   return lastSec;
 }
 
 /// Returns true if there is data for this session at timestamp t.
-bool Controller::statSession::hasDataFor(unsigned long long t){
+bool Controller::statSession::hasDataFor(uint64_t t){
   if (lastSec < t){return false;}
   if (firstSec > t){return false;}
   if (oldConns.size()){
@@ -437,7 +440,7 @@ bool Controller::statSession::hasDataFor(unsigned long long t){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){return true;}
     }
   }
@@ -453,7 +456,7 @@ bool Controller::statSession::hasData(){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.log.size()){return true;}
     }
   }
@@ -461,7 +464,7 @@ bool Controller::statSession::hasData(){
 }
 
 /// Returns true if this session should count as a viewer on the given timestamp.
-bool Controller::statSession::isViewerOn(unsigned long long t){
+bool Controller::statSession::isViewerOn(uint64_t t){
   return getUp(t) + getDown(t) > COUNTABLE_BYTES;
 }
 
@@ -488,8 +491,8 @@ bool Controller::statSession::isViewer(){
 }
 
 /// Returns the cumulative connected time for this session at timestamp t.
-long long Controller::statSession::getConnTime(unsigned long long t){
-  long long retVal = 0;
+uint64_t Controller::statSession::getConnTime(uint64_t t){
+  uint64_t retVal = 0;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->hasDataFor(t)){
@@ -498,7 +501,7 @@ long long Controller::statSession::getConnTime(unsigned long long t){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         retVal += it->second.getDataFor(t).time;
       }
@@ -508,9 +511,9 @@ long long Controller::statSession::getConnTime(unsigned long long t){
 }
 
 /// Returns the last requested media timestamp for this session at timestamp t.
-long long Controller::statSession::getLastSecond(unsigned long long t){
+uint64_t Controller::statSession::getLastSecond(uint64_t t){
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         return it->second.getDataFor(t).lastSecond;
       }
@@ -527,8 +530,8 @@ long long Controller::statSession::getLastSecond(unsigned long long t){
 }
 
 /// Returns the cumulative downloaded bytes for this session at timestamp t.
-long long Controller::statSession::getDown(unsigned long long t){
-  long long retVal = wipedDown;
+uint64_t Controller::statSession::getDown(uint64_t t){
+  uint64_t retVal = wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->hasDataFor(t)){
@@ -537,7 +540,7 @@ long long Controller::statSession::getDown(unsigned long long t){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         retVal += it->second.getDataFor(t).down;
       }
@@ -547,8 +550,8 @@ long long Controller::statSession::getDown(unsigned long long t){
 }
 
 /// Returns the cumulative uploaded bytes for this session at timestamp t.
-long long Controller::statSession::getUp(unsigned long long t){
-  long long retVal = wipedUp;
+uint64_t Controller::statSession::getUp(uint64_t t){
+  uint64_t retVal = wipedUp;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->hasDataFor(t)){
@@ -557,7 +560,7 @@ long long Controller::statSession::getUp(unsigned long long t){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.hasDataFor(t)){
         retVal += it->second.getDataFor(t).up;
       }
@@ -567,8 +570,8 @@ long long Controller::statSession::getUp(unsigned long long t){
 }
 
 /// Returns the cumulative downloaded bytes for this session at timestamp t.
-long long Controller::statSession::getDown(){
-  long long retVal = wipedDown;
+uint64_t Controller::statSession::getDown(){
+  uint64_t retVal = wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->log.size()){
@@ -577,7 +580,7 @@ long long Controller::statSession::getDown(){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.log.size()){
         retVal += it->second.log.rbegin()->second.down;
       }
@@ -587,8 +590,8 @@ long long Controller::statSession::getDown(){
 }
 
 /// Returns the cumulative uploaded bytes for this session at timestamp t.
-long long Controller::statSession::getUp(){
-  long long retVal = wipedUp;
+uint64_t Controller::statSession::getUp(){
+  uint64_t retVal = wipedUp;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->log.size()){
@@ -597,7 +600,7 @@ long long Controller::statSession::getUp(){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.log.size()){
         retVal += it->second.log.rbegin()->second.up;
       }
@@ -607,35 +610,31 @@ long long Controller::statSession::getUp(){
 }
 
 /// Returns the cumulative downloaded bytes per second for this session at timestamp t.
-long long Controller::statSession::getBpsDown(unsigned long long t){
-  unsigned long long aTime = t - 5;
+uint64_t Controller::statSession::getBpsDown(uint64_t t){
+  uint64_t aTime = t - 5;
   if (aTime < firstSec){
     aTime = firstSec;
   }
-  long long valA = getDown(aTime);
-  long long valB = getDown(t);
-  if (t > aTime){
-    //INFO_MSG("Saying the speed from time %lli to %lli (being %lli - %lli) is %lli.", aTime, t, valB, valA, (valB - valA) / (t - aTime));
-    return (valB - valA) / (t - aTime);
-  }else{
-    //INFO_MSG("Saying the speed from time %lli to %lli (being %lli - %lli) is %lli.", aTime, t, valB, valA, 0);
+  if (t <= aTime){
     return 0;
   }
+  uint64_t valA = getDown(aTime);
+  uint64_t valB = getDown(t);
+  return (valB - valA) / (t - aTime);
 }
 
 /// Returns the cumulative uploaded bytes per second for this session at timestamp t.
-long long Controller::statSession::getBpsUp(unsigned long long t){
-  unsigned long long aTime = t - 5;
+uint64_t Controller::statSession::getBpsUp(uint64_t t){
+  uint64_t aTime = t - 5;
   if (aTime < firstSec){
     aTime = firstSec;
   }
-  long long valA = getUp(aTime);
-  long long valB = getUp(t);
-  if (t > aTime){
-    return (valB - valA) / (t - aTime);
-  }else{
+  if (t <= aTime){
     return 0;
   }
+  uint64_t valA = getUp(aTime);
+  uint64_t valB = getUp(t);
+  return (valB - valA) / (t - aTime);
 }
 
 /// Returns true if there is data available for timestamp t.
@@ -679,20 +678,25 @@ void Controller::statStorage::update(IPC::statExchange & data) {
   
 /// This function is called by the shared memory page that holds statistics.
 /// It updates the internally saved statistics data, moving across sessions or archiving when necessary.
-void Controller::parseStatistics(char * data, size_t len, unsigned int id){
+void Controller::parseStatistics(char * data, size_t len, uint32_t id){
   //retrieve stats data
   IPC::statExchange tmpEx(data);
   //calculate the current session index, store as idx.
   sessIndex idx(tmpEx);
   //if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
+    if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
+        INFO_MSG("Switching connection %" PRIu32 " from active session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
+    }else{
+        INFO_MSG("Switching connection %" PRIu32 " from inactive session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
+    }
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
     if (!sessions[connToSession[id]].hasData()){
       sessions.erase(connToSession[id]);
     }
   }
   if (!connToSession.count(id)){
-    INSANE_MSG("New connection: %lu as %s", id, idx.toStr().c_str());
+      INSANE_MSG("New connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
   }
   //store the index for later comparison
   connToSession[id] = idx;
@@ -702,7 +706,7 @@ void Controller::parseStatistics(char * data, size_t len, unsigned int id){
   char counter = (*(data - 1)) & 0x7F;
   if (counter == 126 || counter == 127){
     //the data is no longer valid - connection has gone away, store for later
-    INSANE_MSG("Ended connection: %lu as %s", id, idx.toStr().c_str());
+    INSANE_MSG("Ended connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
     sessions[idx].finish(id);
     connToSession.erase(id);
   }else{
@@ -763,7 +767,7 @@ bool Controller::hasViewers(std::string streamName){
 void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   //first, figure out the timestamp wanted
-  long long int reqTime = 0;
+  uint64_t reqTime = 0;
   if (req.isMember("time")){
     reqTime = req["time"].asInt();
   }
@@ -839,7 +843,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
           if (fields & STAT_CLI_UP){d.append(it->second.getUp(time));}
           if (fields & STAT_CLI_BPS_DOWN){d.append(it->second.getBpsDown(time));}
           if (fields & STAT_CLI_BPS_UP){d.append(it->second.getBpsUp(time));}
-          if (fields & STAT_CLI_CRC){d.append((long long)it->first.crc);}
+          if (fields & STAT_CLI_CRC){d.append(it->first.crc);}
           rep["data"].append(d);
         }
       }
@@ -917,7 +921,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
       rep[*it].null();
       jsonForEach(req, j){
         if (j->asStringRef() == "clients"){
-          rep[*it].append((long long)clients[*it]);
+          rep[*it].append(clients[*it]);
         }
         if (j->asStringRef() == "lastms"){
           char pageId[NAME_BUFFER_SIZE];
@@ -941,7 +945,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
             rep[*it].append(lms);
             metaLocker.post();
           }else{
-            rep[*it].append(-1ll);
+            rep[*it].append(-1);
           }
         }
       }
@@ -961,20 +965,21 @@ class totalsData {
       downbps = 0;
       upbps = 0;
     }
-    void add(unsigned int down, unsigned int up, Controller::sessType sT){
+    void add(uint64_t down, uint64_t up, Controller::sessType sT){
       switch (sT){
         case Controller::SESS_VIEWER: clients++; break;
         case Controller::SESS_INPUT: inputs++; break;
         case Controller::SESS_OUTPUT: outputs++; break;
+        default: break;
       }
       downbps += down;
       upbps += up;
     }
-    long long clients;
-    long long inputs;
-    long long outputs;
-    long long downbps;
-    long long upbps;
+    uint64_t clients;
+    uint64_t inputs;
+    uint64_t outputs;
+    uint64_t downbps;
+    uint64_t upbps;
 };
 
 /// This takes a "totals" request, and fills in the response data.
@@ -1036,7 +1041,7 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   if (fields & STAT_TOT_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
   //start data collection
-  std::map<long long unsigned int, totalsData> totalsCount;
+  std::map<uint64_t, totalsData> totalsCount;
   //loop over all sessions
   /// \todo Make the interval configurable instead of 1 second
   if (sessions.size()){
@@ -1061,13 +1066,13 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
     return;
   }
   //yay! We have data!
-  rep["start"] = (long long)totalsCount.begin()->first;
-  rep["end"] = (long long)totalsCount.rbegin()->first;
+  rep["start"] = totalsCount.begin()->first;
+  rep["end"] = totalsCount.rbegin()->first;
   rep["data"].null();
   rep["interval"].null();
-  long long prevT = 0;
+  uint64_t prevT = 0;
   JSON::Value i;
-  for (std::map<long long unsigned int, totalsData>::iterator it = totalsCount.begin(); it != totalsCount.end(); it++){
+  for (std::map<uint64_t, totalsData>::iterator it = totalsCount.begin(); it != totalsCount.end(); it++){
     JSON::Value d;
     if (fields & STAT_TOT_CLIENTS){d.append(it->second.clients);}
     if (fields & STAT_TOT_INPUTS){d.append(it->second.inputs);}
@@ -1077,13 +1082,13 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
     rep["data"].append(d);
     if (prevT){
       if (i.size() < 2){
-        i.append(1ll);
-        i.append((long long)(it->first - prevT));
+        i.append(1u);
+        i.append(it->first - prevT);
       }else{
-        if (i[1u].asInt() != (long long)(it->first - prevT)){
+        if (i[1u].asInt() != it->first - prevT){
           rep["interval"].append(i);
-          i[0u] = 1ll;
-          i[1u] = (long long)(it->first - prevT);
+          i[0u] = 1u;
+          i[1u] = it->first - prevT;
         }else{
           i[0u] = i[0u].asInt() + 1;
         }

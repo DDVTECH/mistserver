@@ -140,7 +140,7 @@ namespace Mist {
     DTSC::Track & trk = myMeta.tracks[tmpTag.getTrackID()];
     if (trk.codec == "PCM" && trk.size == 16){
       char * ptr = 0;
-      uint32_t ptrSize = 0;
+      size_t ptrSize = 0;
       thisPacket.getString("data", ptr, ptrSize);
       for (uint32_t i = 0; i < ptrSize; i+=2){
         char tmpchar = ptr[i];

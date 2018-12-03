@@ -29,15 +29,15 @@ void clock_gettime(int ign, struct timespec * ts) {
 /// Will not sleep for longer than 10 minutes (600000ms).
 /// If interrupted by signal, resumes sleep until at least ms milliseconds have passed.
 /// Can be slightly off (in positive direction only) depending on OS accuracy.
-void Util::wait(int ms){
+void Util::wait(int64_t ms){
   if (ms < 0) {
     return;
   }
   if (ms > 600000) {
     ms = 600000;
   }
-  long long int start = getMS();
-  long long int now = start;
+  uint64_t start = getMS();
+  uint64_t now = start;
   while (now < start+ms){
     sleep(start+ms-now);
     now = getMS();
@@ -49,7 +49,7 @@ void Util::wait(int ms){
 /// Will not sleep for longer than 100 seconds (100000ms).
 /// Can be interrupted early by a signal, no guarantee of minimum sleep time.
 /// Can be slightly off depending on OS accuracy.
-void Util::sleep(int ms) {
+void Util::sleep(int64_t ms) {
   if (ms < 0) {
     return;
   }
@@ -62,20 +62,20 @@ void Util::sleep(int ms) {
   nanosleep(&T, 0);
 }
 
-long long Util::getNTP() {
+uint64_t Util::getNTP() {
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return ((((long long int)t.tv_sec) + 2208988800ll) << 32) + (t.tv_nsec * 4.2949);
+  return ((uint64_t)(t.tv_sec + 2208988800ull) << 32) + (t.tv_nsec * 4.2949);
 }
 
 /// Gets the current time in milliseconds.
-long long int Util::getMS() {
+uint64_t Util::getMS() {
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return ((long long int)t.tv_sec) * 1000 + t.tv_nsec / 1000000;
+  return (uint64_t)t.tv_sec * 1000 + t.tv_nsec / 1000000;
 }
 
-long long int Util::bootSecs() {
+uint64_t Util::bootSecs() {
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC, &t);
   return t.tv_sec;
@@ -88,30 +88,30 @@ uint64_t Util::bootMS() {
 }
 
 /// Gets the current time in microseconds.
-long long unsigned int Util::getMicros() {
+uint64_t Util::getMicros() {
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return ((long long unsigned int)t.tv_sec) * 1000000 + t.tv_nsec / 1000;
+  return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
 }
 
 /// Gets the time difference in microseconds.
-long long unsigned int Util::getMicros(long long unsigned int previous) {
+uint64_t Util::getMicros(uint64_t previous) {
   struct timespec t;
   clock_gettime(CLOCK_REALTIME, &t);
-  return ((long long unsigned int)t.tv_sec) * 1000000 + t.tv_nsec / 1000 - previous;
+  return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000 - previous;
 }
 
 /// Gets the amount of seconds since 01/01/1970.
-long long int Util::epoch() {
+uint64_t Util::epoch() {
   return time(0);
 }
 
-std::string Util::getUTCString(long long int epoch){
+std::string Util::getUTCString(uint64_t epoch){
   if (!epoch){epoch = time(0);}
   time_t rawtime = epoch;
   struct tm * ptm;
   ptm = gmtime(&rawtime);
   char result[20];
-  snprintf(result, 20, "%0.4d-%0.2d-%0.2dT%0.2d:%0.2d:%0.2d", ptm->tm_year+1900, ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  snprintf(result, 20, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d", ptm->tm_year+1900, ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   return std::string(result);
 }

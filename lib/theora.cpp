@@ -61,8 +61,8 @@ namespace theora {
     if (length < 7){
       return false;
     }
-    if (! newData[0] & 0x80){
-      DEBUG_MSG(DLVL_FAIL, "newdata != 0x80: %.2X", newData[0]);
+    if (!(newData[0] & 0x80)){
+      FAIL_MSG("newdata != 0x80: %.2X", newData[0]);
       return false;
     }
     if (memcmp(newData + 1, "theora", 6) != 0){

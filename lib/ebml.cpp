@@ -37,11 +37,8 @@ namespace EBML{
   uint64_t UniInt::readInt(const char *p){
     switch (readSize(p)){
     case 1:
-      if (p[0] == 0xFF){
-        return 0xFFFFFFFFFFFFFFFFull;
-      }else{
-        return p[0] & 0x7F;
-      }
+      if (p[0] == 0xFF){return 0xFFFFFFFFFFFFFFFFull;}
+      return p[0] & 0x7F;
     case 2: return Bit::btohs(p) & 0x3FFFull;
     case 3: return Bit::btoh24(p) & 0x1FFFFFull;
     case 4: return Bit::btohl(p) & 0xFFFFFFFull;
@@ -66,8 +63,8 @@ namespace EBML{
     }
   }
 
-  /// Reads an EBML-encoded singed integer from a pointer. Expects the whole number to be readable without
-  /// bounds checking.
+  /// Reads an EBML-encoded singed integer from a pointer. Expects the whole number to be readable
+  /// without bounds checking.
   int64_t UniInt::readSInt(const char *p){
     switch (readSize(p)){
     case 1: return ((int64_t)readInt(p)) - 0x3Fll;
@@ -99,9 +96,7 @@ namespace EBML{
     // ELEM_MASTER types do not contain payload if minimal is true
     if (minimal && Element(p, true).getType() == ELEM_MASTER){return needed;}
     uint64_t pSize = UniInt::readInt(sizeOffset);
-    if (pSize != 0xFFFFFFFFFFFFFFFFull){
-      needed += pSize;
-    }
+    if (pSize != 0xFFFFFFFFFFFFFFFFull){needed += pSize;}
     return needed;
   }
 
@@ -193,7 +188,7 @@ namespace EBML{
     case 0x487: return "TagString";
     case 0x23C5: return "TagTrackUID";
     case 0x43a770: return "Chapters";
-    case  0x3a770: return "Chapters";
+    case 0x3a770: return "Chapters";
     case 0x941a469: return "Attachments";
     case 0x8: return "FlagDefault";
     case 0x461: return "DateUTC";
@@ -275,7 +270,7 @@ namespace EBML{
     case 0x3373:
     case 0x23C0:
     case 0x43a770:
-    case  0x3a770:
+    case 0x3a770:
     case 0x941a469:
     case 0x21A7:
     case 0x5B9:
@@ -476,7 +471,7 @@ namespace EBML{
     case 6: val = Bit::btoh48(payDat); break;
     case 7: val = Bit::btoh56(payDat); break;
     case 8: val = Bit::btohll(payDat); break;
-    default: WARN_MSG("UInt payload size %llu not implemented", getPayloadLen());
+    default: WARN_MSG("UInt payload size %" PRIu64 " not implemented", getPayloadLen());
     }
     return val;
   }
@@ -493,7 +488,7 @@ namespace EBML{
     case 6: val = (((int64_t)Bit::btoh48(payDat)) << 16) >> 16; break;
     case 7: val = (((int64_t)Bit::btoh56(payDat)) << 8) >> 8; break;
     case 8: val = Bit::btohll(payDat); break;
-    default: WARN_MSG("Int payload size %llu not implemented", getPayloadLen());
+    default: WARN_MSG("Int payload size %" PRIu64 " not implemented", getPayloadLen());
     }
     return val;
   }
@@ -504,21 +499,21 @@ namespace EBML{
     switch (getPayloadLen()){
     case 4: val = Bit::btohf(payDat); break;
     case 8: val = Bit::btohd(payDat); break;
-    default: WARN_MSG("Float payload size %llu not implemented", getPayloadLen());
+    default: WARN_MSG("Float payload size %" PRIu64 " not implemented", getPayloadLen());
     }
     return val;
   }
 
   std::string Element::getValString() const{
     uint64_t strLen = getPayloadLen();
-    const char * strPtr = getPayload();
-    while (strLen && strPtr[strLen-1] == 0){--strLen;}
+    const char *strPtr = getPayload();
+    while (strLen && strPtr[strLen - 1] == 0){--strLen;}
     return std::string(strPtr, strLen);
   }
 
   std::string Element::getValStringUntrimmed() const{
     uint64_t strLen = getPayloadLen();
-    const char * strPtr = getPayload();
+    const char *strPtr = getPayload();
     return std::string(strPtr, strLen);
   }
 
@@ -549,50 +544,50 @@ namespace EBML{
 
   uint32_t Block::getFrameSize(uint8_t no) const{
     switch (getLacing()){
-      case 0://No lacing
-        return getPayloadLen() - (UniInt::readSize(getPayload()) + 3);
-      case 1:{//Xiph lacing
-        uint64_t offset = (UniInt::readSize(getPayload()) + 3) + 1;
-        uint8_t frames = getFrameCount();
-        if (no > frames - 1){return 0;}//out of bounds
-        uint64_t laceNo = 0;
-        uint32_t currSize = 0;
-        uint32_t totSize = 0;
-        while (laceNo <= no && (laceNo < frames-1) && offset < getPayloadLen()){
-          currSize += getPayload()[offset];
-          if (getPayload()[offset] != 255){
-            totSize += currSize;
-            if (laceNo == no){return currSize;}
-            currSize = 0;
-            ++laceNo;
-          }
-          ++offset;
-        }
-        return getPayloadLen() - offset - totSize;//last frame is rest of the data
-      }
-      case 3:{//EBML lacing
-        const char * pl = getPayload();
-        uint64_t offset = (UniInt::readSize(pl) + 3) + 1;
-        uint8_t frames = getFrameCount();
-        if (no > frames - 1){return 0;}//out of bounds
-        uint64_t laceNo = 0;
-        uint32_t currSize = 0;
-        uint32_t totSize = 0;
-        while (laceNo <= no && (laceNo < frames-1) && offset < getPayloadLen()){
-          if (laceNo == 0){
-            currSize = UniInt::readInt(pl + offset);
-          }else{
-            currSize += UniInt::readSInt(pl + offset);
-          }
+    case 0: // No lacing
+      return getPayloadLen() - (UniInt::readSize(getPayload()) + 3);
+    case 1:{// Xiph lacing
+      uint64_t offset = (UniInt::readSize(getPayload()) + 3) + 1;
+      uint8_t frames = getFrameCount();
+      if (no > frames - 1){return 0;}// out of bounds
+      uint64_t laceNo = 0;
+      uint32_t currSize = 0;
+      uint32_t totSize = 0;
+      while (laceNo <= no && (laceNo < frames - 1) && offset < getPayloadLen()){
+        currSize += getPayload()[offset];
+        if (getPayload()[offset] != 255){
           totSize += currSize;
           if (laceNo == no){return currSize;}
+          currSize = 0;
           ++laceNo;
-          offset += UniInt::readSize(pl + offset);
         }
-        return getPayloadLen() - offset - totSize;//last frame is rest of the data 
+        ++offset;
       }
-      case 2://Fixed lacing
-        return (getPayloadLen() - (UniInt::readSize(getPayload()) + 3)) / getFrameCount();
+      return getPayloadLen() - offset - totSize; // last frame is rest of the data
+    }
+    case 3:{// EBML lacing
+      const char *pl = getPayload();
+      uint64_t offset = (UniInt::readSize(pl) + 3) + 1;
+      uint8_t frames = getFrameCount();
+      if (no > frames - 1){return 0;}// out of bounds
+      uint64_t laceNo = 0;
+      uint32_t currSize = 0;
+      uint32_t totSize = 0;
+      while (laceNo <= no && (laceNo < frames - 1) && offset < getPayloadLen()){
+        if (laceNo == 0){
+          currSize = UniInt::readInt(pl + offset);
+        }else{
+          currSize += UniInt::readSInt(pl + offset);
+        }
+        totSize += currSize;
+        if (laceNo == no){return currSize;}
+        ++laceNo;
+        offset += UniInt::readSize(pl + offset);
+      }
+      return getPayloadLen() - offset - totSize; // last frame is rest of the data
+    }
+    case 2: // Fixed lacing
+      return (getPayloadLen() - (UniInt::readSize(getPayload()) + 3)) / getFrameCount();
     }
     WARN_MSG("Lacing type not yet implemented!");
     return 0;
@@ -600,49 +595,43 @@ namespace EBML{
 
   const char *Block::getFrameData(uint8_t no) const{
     switch (getLacing()){
-      case 0://No lacing
-        return getPayload() + (UniInt::readSize(getPayload()) + 3);
-      case 1:{//Xiph lacing
-        uint64_t offset = (UniInt::readSize(getPayload()) + 3) + 1;
-        uint8_t frames = getFrameCount();
-        if (no > frames - 1){return 0;}//out of bounds
-        uint64_t laceNo = 0;
-        uint32_t currSize = 0;
-        while ((laceNo < frames-1) && offset < getPayloadLen()){
-          if (laceNo < no){
-            currSize += getPayload()[offset];
-          }
-          if (getPayload()[offset] != 255){
-            ++laceNo;
-          }
-          ++offset;
-        }
-        return getPayload() + offset + currSize;
+    case 0: // No lacing
+      return getPayload() + (UniInt::readSize(getPayload()) + 3);
+    case 1:{// Xiph lacing
+      uint64_t offset = (UniInt::readSize(getPayload()) + 3) + 1;
+      uint8_t frames = getFrameCount();
+      if (no > frames - 1){return 0;}// out of bounds
+      uint64_t laceNo = 0;
+      uint32_t currSize = 0;
+      while ((laceNo < frames - 1) && offset < getPayloadLen()){
+        if (laceNo < no){currSize += getPayload()[offset];}
+        if (getPayload()[offset] != 255){++laceNo;}
+        ++offset;
       }
-      case 3:{//EBML lacing
-        const char * pl = getPayload();
-        uint64_t offset = (UniInt::readSize(pl) + 3) + 1;
-        uint8_t frames = getFrameCount();
-        if (no > frames - 1){return 0;}//out of bounds
-        uint64_t laceNo = 0;
-        uint32_t currSize = 0;
-        uint32_t totSize = 0;
-        while ((laceNo < frames-1) && offset < getPayloadLen()){
-          if (laceNo == 0){
-            currSize = UniInt::readInt(pl + offset);
-          }else{
-            currSize += UniInt::readSInt(pl + offset);
-          }
-          if (laceNo < no){
-            totSize += currSize;
-          }
-          ++laceNo;
-          offset += UniInt::readSize(pl + offset);
+      return getPayload() + offset + currSize;
+    }
+    case 3:{// EBML lacing
+      const char *pl = getPayload();
+      uint64_t offset = (UniInt::readSize(pl) + 3) + 1;
+      uint8_t frames = getFrameCount();
+      if (no > frames - 1){return 0;}// out of bounds
+      uint64_t laceNo = 0;
+      uint32_t currSize = 0;
+      uint32_t totSize = 0;
+      while ((laceNo < frames - 1) && offset < getPayloadLen()){
+        if (laceNo == 0){
+          currSize = UniInt::readInt(pl + offset);
+        }else{
+          currSize += UniInt::readSInt(pl + offset);
         }
-        return pl + offset + totSize;
+        if (laceNo < no){totSize += currSize;}
+        ++laceNo;
+        offset += UniInt::readSize(pl + offset);
       }
-      case 2://Fixed lacing
-        return getPayload() + (UniInt::readSize(getPayload()) + 3) + 1 + no * getFrameSize(no);
+      return pl + offset + totSize;
+    }
+    case 2: // Fixed lacing
+      return getPayload() + (UniInt::readSize(getPayload()) + 3) + 1 + no * getFrameSize(no);
     }
     WARN_MSG("Lacing type not yet implemented!");
     return 0;
@@ -657,8 +646,7 @@ namespace EBML{
     if (isInvisible()){ret << " [Invisible]";}
     if (isDiscardable()){ret << " [Discardable]";}
     switch (getLacing()){
-    case 0:
-      break; // No lacing
+    case 0: break; // No lacing
     case 1: ret << " [Lacing: Xiph]"; break;
     case 3: ret << " [Lacing: EMBL]"; break;
     case 2: ret << " [Lacing: Fixed]"; break;
@@ -668,7 +656,8 @@ namespace EBML{
       for (uint32_t frameNo = 0; frameNo < getFrameCount(); ++frameNo){
         const char *payDat = getFrameData(frameNo);
         const uint64_t payLen = getFrameSize(frameNo);
-        ret << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo+1) << " (" << payLen << "b):";
+        ret << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo + 1) << " ("
+            << payLen << "b):";
         if (!payDat || !payLen || detail < 6){
           ret << std::endl;
           continue;
@@ -693,5 +682,5 @@ namespace EBML{
     ret << std::endl;
     return ret.str();
   }
-}
+}// namespace EBML
 

@@ -63,7 +63,7 @@ namespace TS {
       }
       INFO_MSG("Skipping invalid TS packet...");
     }
-    FAIL_MSG("Failed to read a good packet @ %lld bytes", bPos);
+    FAIL_MSG("Failed to read a good packet @ %" PRIu64 " bytes", bPos);
     return false;
   }
 
@@ -499,7 +499,7 @@ namespace TS {
 /// \return A character pointer to the internal packet buffer data
   const char * Packet::checkAndGetBuffer() const{
     if (pos != 188) {
-      DEBUG_MSG(DLVL_HIGH, "Size invalid (%d) - invalid data from this point on", pos);
+      HIGH_MSG("Size invalid (%d) - invalid data from this point on", pos);
     }
     return strBuf;
   }

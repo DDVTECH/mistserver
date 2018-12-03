@@ -80,6 +80,12 @@ namespace Encodings{
     return r;
   }
 
+  std::string Hex::encode(const std::string &in){
+    std::string res;
+    for (size_t i = 0; i < in.size(); i++){res += chr(in[i]);}
+    return res;
+  }
+
   /// Decodes a hex-encoded std::string to a raw binary std::string.
   std::string Hex::decode(const std::string &in){
     std::string ret(in.size() / 2, '\000');
@@ -97,8 +103,10 @@ namespace Encodings{
     for (int i = 0; i < max; i++){
       if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') ||
           ('A' <= c[i] && c[i] <= 'Z') ||
-          (c[i] == '$' || c[i] == '-' || c[i] == '_' || c[i] == '.' || c[i] == ',' || c[i] == '!' || c[i] == '~' || c[i] == ';' ||
-           c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '\'') || (ign.size() && ign.find(c[i]) != std::string::npos)){
+          (c[i] == '$' || c[i] == '-' || c[i] == '_' || c[i] == '.' || c[i] == ',' || c[i] == '!' ||
+           c[i] == '~' || c[i] == ';' || c[i] == '*' || c[i] == '(' || c[i] == ')' ||
+           c[i] == '\'') ||
+          (ign.size() && ign.find(c[i]) != std::string::npos)){
         escaped.append(&c[i], 1);
       }else{
         if (c[i] == ' '){

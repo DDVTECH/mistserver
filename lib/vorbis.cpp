@@ -198,7 +198,7 @@ namespace vorbis{
     for (int i = 0; i < codebook_count; i++){
       long long unsigned int CMN = stream.get(24);
       if (CMN != 0x564342){
-        DEBUG_MSG(DLVL_WARN,"Is dit het? VCB != %c%c%c", (char)(CMN >> 16), (char)(CMN >> 8), (char)CMN);
+        WARN_MSG("Is dit het? VCB != %c%c%c", (char)(CMN >> 16), (char)(CMN >> 8), (char)CMN);
         exit(1);
       }
       unsigned short codebook_dimensions = stream.get(16);
@@ -256,7 +256,7 @@ namespace vorbis{
       long long unsigned int floorType = stream.get(16);
       switch(floorType){
         case 0:{
-          DEBUG_MSG(DLVL_WARN, "FloorType 0 in vorbis setup header not tested!");
+          WARN_MSG("FloorType 0 in vorbis setup header not tested!");
           stream.skip(8);//order
           stream.skip(16);//rate
           stream.skip(16);//bark_map_size
@@ -359,7 +359,7 @@ namespace vorbis{
         }
         char meh = stream.get(2);
         if (meh != 0){
-          DEBUG_MSG(DLVL_ERROR, "Sanity check ==0 : %i", (int)meh);
+          ERROR_MSG("Sanity check ==0 : %i", (int)meh);
           exit(0);
         }
         if (mappingSubmaps > 1){

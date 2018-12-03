@@ -129,7 +129,7 @@ namespace Mist {
     unsigned int dheader_len = 1;
     static Util::ResizeablePointer swappy;
     char * tmpData = 0;//pointer to raw media data
-    unsigned int data_len = 0;//length of processed media data
+    size_t data_len = 0;//length of processed media data
     thisPacket.getString("data", tmpData, data_len);
     DTSC::Track & track = myMeta.tracks[thisPacket.getTrackId()];
     

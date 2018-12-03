@@ -7,16 +7,20 @@ namespace HTTP{
     Downloader();
     std::string &data();
     const std::string &const_data() const;
-    void doRequest(const HTTP::URL &link, const std::string &method="", const std::string &body="");
+    void doRequest(const HTTP::URL &link, const std::string &method = "",
+                   const std::string &body = "");
     bool get(const std::string &link);
     bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
-    bool post(const HTTP::URL &link, const std::string &payload, bool sync = true, uint8_t maxRecursiveDepth = 6);
+    bool post(const HTTP::URL &link, const std::string &payload, bool sync = true,
+              uint8_t maxRecursiveDepth = 6);
     std::string getHeader(const std::string &headerName);
     std::string &getStatusText();
     uint32_t getStatusCode();
-    bool isOk(); ///< True if the request was successful.
-    bool shouldContinue(); ///<True if the request should be followed-up with another. E.g. redirect or authenticate.
-    bool canContinue(const HTTP::URL &link);///<True if the request is able to continue, false if there is a state error or some such.
+    bool isOk();           ///< True if the request was successful.
+    bool shouldContinue(); ///< True if the request should be followed-up with another. E.g.
+                           ///< redirect or authenticate.
+    bool canContinue(const HTTP::URL &link); ///< True if the request is able to continue, false if
+                                             ///< there is a state error or some such.
     bool (*progressCallback)(); ///< Called every time the socket stalls, up to 4X per second.
     void setHeader(const std::string &name, const std::string &val);
     void clearHeaders();

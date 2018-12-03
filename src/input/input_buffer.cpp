@@ -497,7 +497,7 @@ namespace Mist {
             //Read in the metadata through a temporary JSON object
             ///\todo Optimize this part. Find a way to not have to store the metadata in JSON first, but read it from the page immediately
             JSON::Value tempJSONForMeta;
-            JSON::fromDTMI((const unsigned char *)tMeta.mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
+            JSON::fromDTMI((const char *)tMeta.mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
             
             tMeta.master = true;
 
@@ -563,7 +563,7 @@ namespace Mist {
         //Read in the metadata through a temporary JSON object
         ///\todo Optimize this part. Find a way to not have to store the metadata in JSON first, but read it from the page immediately
         JSON::Value tempJSONForMeta;
-        JSON::fromDTMI((const unsigned char *)nProxy.metaPages[value].mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
+        JSON::fromDTMI((const char *)nProxy.metaPages[value].mapped + 8, len, tempForReadingMeta, tempJSONForMeta);
         //Construct a metadata object for the current track
         DTSC::Meta trackMeta(tempJSONForMeta);
         //If the track metadata does not contain the negotiated track, assume the metadata is currently being written, and skip the element for now. It will be instantiated in the next call.

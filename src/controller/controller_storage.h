@@ -14,7 +14,7 @@ namespace Controller {
   extern bool restarting;///< Signals if the controller is shutting down (false) or restarting (true).
   extern bool isTerminal;///< True if connected to a terminal and not a log file.
   extern bool isColorized;///< True if we colorize the output
-  extern unsigned long long logCounter; ///<Count of logged messages since boot
+  extern uint64_t logCounter; ///<Count of logged messages since boot
   
   Util::RelAccX * logAccessor();
   Util::RelAccX * accesslogAccessor();

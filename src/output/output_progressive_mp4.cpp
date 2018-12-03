@@ -59,7 +59,7 @@ namespace Mist {
         + 32 //MDHD Box
         + 33 + thisTrack.getIdentifier().size() // HDLR Box
         + 8 //MINF Box
-        + 36 //DINF Box
+        + 44 //DINF Box
         + 8; // STBL Box
       if (thisTrack.firstms != firstms){
         tmpRes += 12;// EDTS entry extra
@@ -75,6 +75,7 @@ namespace Mist {
         tmpRes += 20//VMHD Box 
           + 16 //STSD
           + 86 //AVC1
+          + 16 //PASP
           + 8 + thisTrack.init.size();//avcC
         tmpRes += 16 + (thisTrack.keys.size() * 4);
       }
@@ -550,7 +551,7 @@ namespace Mist {
     
     //Obtain a pointer to the data of this packet
     char * dataPointer = 0;
-    unsigned int len = 0;
+    size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
 
     keyPart thisPart = *sortSet.begin();

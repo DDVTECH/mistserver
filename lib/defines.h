@@ -14,6 +14,8 @@
 #define DLVL_EXTREME   8 // Everything is reported in extreme detail.
 #define DLVL_INSANE    9 // Everything is reported in insane detail.
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
+#define PRETTY_PRINT_TIME "%ud%uh%um%us"
+#define PRETTY_ARG_TIME(t) (int)(t)/86400, ((int)(t)%86400)/3600, ((int)(t)%3600)/60, (int)(t)%60
 #if DEBUG > -1
 
 #include <stdio.h>

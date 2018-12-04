@@ -46,9 +46,10 @@ namespace Mist {
       WARN_MSG("Failed to reach %s on port %lu", url.host.c_str(), url.getPort());
     }else{
       HTTP::Parser http;
-      http.url = "/" + url.path + "?source=" + Encodings::URL::encode(streamName);
+      http.url = "/" + url.path;
+      http.SetVar("source", streamName);
       if (source.size()){
-        http.url += "&fallback=" + Encodings::URL::encode(source);
+        http.SetVar("fallback", source);
       }
       http.method = "GET";
       http.SetHeader("Host", url.host);

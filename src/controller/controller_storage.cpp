@@ -333,83 +333,87 @@ namespace Controller{
 
     /*LTS-START*/
     static std::map<std::string, IPC::sharedPage> pageForType; // should contain one page for every trigger type
+    static JSON::Value writtenTrigs;
     char tmpBuf[NAME_BUFFER_SIZE];
 
-    // for all shm pages that hold triggers
-    pageForType.clear();
+    if (writtenTrigs != Storage["config"]["triggers"]){
+      writtenTrigs = Storage["config"]["triggers"];
+      // for all shm pages that hold triggers
+      pageForType.clear();
 
-    if (Storage["config"]["triggers"].size()){
-      jsonForEach(Storage["config"]["triggers"], it){
-        snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_TRIGGER, (it.key()).c_str());
-        pageForType[it.key()].init(tmpBuf, 32 * 1024, true, false);
-        Util::RelAccX tPage(pageForType[it.key()].mapped, false);
-        tPage.addField("url", RAX_128STRING);
-        tPage.addField("sync", RAX_UINT);
-        tPage.addField("streams", RAX_256RAW);
-        tPage.addField("params", RAX_128STRING);
-        tPage.addField("default", RAX_128STRING);
-        tPage.setReady();
-        uint32_t i = 0;
-        uint32_t max = (32 * 1024 - tPage.getOffset()) / tPage.getRSize();
+      if (Storage["config"]["triggers"].size()){
+        jsonForEach(Storage["config"]["triggers"], it){
+          snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_TRIGGER, (it.key()).c_str());
+          pageForType[it.key()].init(tmpBuf, 32 * 1024, true, false);
+          Util::RelAccX tPage(pageForType[it.key()].mapped, false);
+          tPage.addField("url", RAX_128STRING);
+          tPage.addField("sync", RAX_UINT);
+          tPage.addField("streams", RAX_256RAW);
+          tPage.addField("params", RAX_128STRING);
+          tPage.addField("default", RAX_128STRING);
+          tPage.setReady();
+          uint32_t i = 0;
+          uint32_t max = (32 * 1024 - tPage.getOffset()) / tPage.getRSize();
 
-        // write data to page
-        jsonForEach(*it, triggIt){
-          if (i >= max){
-            ERROR_MSG("Not all %s triggers fit on the memory page!", (it.key()).c_str());
-            break;
-          }
+          // write data to page
+          jsonForEach(*it, triggIt){
+            if (i >= max){
+              ERROR_MSG("Not all %s triggers fit on the memory page!", (it.key()).c_str());
+              break;
+            }
 
-          if (triggIt->isArray()){
-            tPage.setString("url", (*triggIt)[0u].asStringRef(), i);
-            tPage.setInt("sync", ((*triggIt)[1u].asBool() ? 1 : 0), i);
-            char *strmP = tPage.getPointer("streams", i);
-            if (strmP){
-              ((unsigned int *)strmP)[0] = 0; // reset first 4 bytes of stream list pointer
-              if ((triggIt->size() >= 3) && (*triggIt)[2u].size()){
-                std::string namesArray;
-                jsonForEach((*triggIt)[2u], shIt){
-                  ((unsigned int *)tmpBuf)[0] = shIt->asString().size();
-                  namesArray.append(tmpBuf, 4);
-                  namesArray.append(shIt->asString());
+            if (triggIt->isArray()){
+              tPage.setString("url", (*triggIt)[0u].asStringRef(), i);
+              tPage.setInt("sync", ((*triggIt)[1u].asBool() ? 1 : 0), i);
+              char *strmP = tPage.getPointer("streams", i);
+              if (strmP){
+                ((unsigned int *)strmP)[0] = 0; // reset first 4 bytes of stream list pointer
+                if ((triggIt->size() >= 3) && (*triggIt)[2u].size()){
+                  std::string namesArray;
+                  jsonForEach((*triggIt)[2u], shIt){
+                    ((unsigned int *)tmpBuf)[0] = shIt->asString().size();
+                    namesArray.append(tmpBuf, 4);
+                    namesArray.append(shIt->asString());
+                  }
+                  if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
                 }
-                if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
               }
             }
-          }
 
-          if (triggIt->isObject()){
-            if (!triggIt->isMember("handler") || (*triggIt)["handler"].isNull()){continue;}
-            tPage.setString("url", (*triggIt)["handler"].asStringRef(), i);
-            tPage.setInt("sync", ((*triggIt)["sync"].asBool() ? 1 : 0), i);
-            char *strmP = tPage.getPointer("streams", i);
-            if (strmP){
-              ((unsigned int *)strmP)[0] = 0; // reset first 4 bytes of stream list pointer
-              if ((triggIt->isMember("streams")) && (*triggIt)["streams"].size()){
-                std::string namesArray;
-                jsonForEach((*triggIt)["streams"], shIt){
-                  ((unsigned int *)tmpBuf)[0] = shIt->asString().size();
-                  namesArray.append(tmpBuf, 4);
-                  namesArray.append(shIt->asString());
+            if (triggIt->isObject()){
+              if (!triggIt->isMember("handler") || (*triggIt)["handler"].isNull()){continue;}
+              tPage.setString("url", (*triggIt)["handler"].asStringRef(), i);
+              tPage.setInt("sync", ((*triggIt)["sync"].asBool() ? 1 : 0), i);
+              char *strmP = tPage.getPointer("streams", i);
+              if (strmP){
+                ((unsigned int *)strmP)[0] = 0; // reset first 4 bytes of stream list pointer
+                if ((triggIt->isMember("streams")) && (*triggIt)["streams"].size()){
+                  std::string namesArray;
+                  jsonForEach((*triggIt)["streams"], shIt){
+                    ((unsigned int *)tmpBuf)[0] = shIt->asString().size();
+                    namesArray.append(tmpBuf, 4);
+                    namesArray.append(shIt->asString());
+                  }
+                  if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
                 }
-                if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
+              }
+              if (triggIt->isMember("params") && !(*triggIt)["params"].isNull()){
+                tPage.setString("params", (*triggIt)["params"].asStringRef(), i);
+              }else{
+                tPage.setString("params", "", i);
+              }
+              if (triggIt->isMember("default") && !(*triggIt)["default"].isNull()){
+                tPage.setString("default", (*triggIt)["default"].asStringRef(), i);
+              }else{
+                tPage.setString("default", "", i);
               }
             }
-            if (triggIt->isMember("params") && !(*triggIt)["params"].isNull()){
-              tPage.setString("params", (*triggIt)["params"].asStringRef(), i);
-            }else{
-              tPage.setString("params", "", i);
-            }
-            if (triggIt->isMember("default") && !(*triggIt)["default"].isNull()){
-              tPage.setString("default", (*triggIt)["default"].asStringRef(), i);
-            }else{
-              tPage.setString("default", "", i);
-            }
-          }
 
-          ++i;
+            ++i;
+          }
+          tPage.setRCount(std::min(i, max));
+          tPage.setEndPos(std::min(i, max));
         }
-        tPage.setRCount(std::min(i, max));
-        tPage.setEndPos(std::min(i, max));
       }
     }
 

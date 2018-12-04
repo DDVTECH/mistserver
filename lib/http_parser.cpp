@@ -414,9 +414,9 @@ std::string &HTTP::Parser::BuildRequest(){
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
   if (method == "GET" && vars.size() && url.find('?') == std::string::npos){
-    builder = method + " " + url + allVars() + " " + protocol + "\r\n";
+    builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
   }else{
-    builder = method + " " + url + " " + protocol + "\r\n";
+    builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
   }
   for (it = headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){

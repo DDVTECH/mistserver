@@ -109,7 +109,8 @@ namespace Mist {
     HTTPOutput::init(cfg);
     capa.removeMember("deps");
     capa["name"] = "HTTP";
-    capa["desc"] = "Generic HTTP handler, required for all other HTTP-based outputs.";
+    capa["friendly"] = "HTTP";
+    capa["desc"] = "HTTP connection handler, provides all enabled HTTP-based outputs";
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
     capa["codecs"][0u][0u].append("*");

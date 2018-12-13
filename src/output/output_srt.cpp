@@ -11,7 +11,8 @@ namespace Mist {
   void OutProgressiveSRT::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "SRT";
-    capa["desc"] = "Enables HTTP protocol subtitle streaming in subrip and WebVTT formats.";
+    capa["friendly"] = "SubRip/WebVTT over HTTP";
+    capa["desc"] = "Pseudostreaming in SubRip Text (SRT) and WebVTT formats over HTTP";
     capa["url_match"].append("/$.srt");
     capa["url_match"].append("/$.vtt");
     capa["codecs"][0u][0u].append("subtitle");

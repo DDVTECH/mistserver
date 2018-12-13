@@ -13,7 +13,8 @@ namespace Mist {
   void OutProgressiveOGG::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "OGG";
-    capa["desc"] = "Enables HTTP protocol progressive streaming.";
+    capa["friendly"] = "OGG over HTTP";
+    capa["desc"] = "Pseudostreaming in OGG format over HTTP";
     capa["deps"] = "HTTP";
     capa["url_rel"] = "/$.ogg";
     capa["url_match"] = "/$.ogg";

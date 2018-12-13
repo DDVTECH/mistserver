@@ -17,7 +17,8 @@ namespace Mist{
   void OutProgressiveMP4::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "MP4";
-    capa["desc"] = "Enables HTTP protocol progressive streaming.";
+    capa["friendly"] = "MP4 over HTTP";
+    capa["desc"] = "Pseudostreaming in MP4 format over HTTP";
     capa["url_rel"] = "/$.mp4";
     capa["url_match"][0u] = "/$.mp4";
     capa["url_match"][1u] = "/$.3gp";

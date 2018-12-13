@@ -172,9 +172,11 @@ namespace Mist{
   void OutRTMP::init(Util::Config * cfg){
     Output::init(cfg);
     capa["name"] = "RTMP";
-    capa["desc"] = "Enables ingest and output over Adobe's RTMP protocol.";
+    capa["friendly"] = "RTMP";
+    capa["desc"] = "Real time streaming over Adobe RTMP";
     capa["deps"] = "";
     capa["url_rel"] = "/play/$";
+    capa["incoming_push_url"] = "rtmp://$host:$port/$password/$stream";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");

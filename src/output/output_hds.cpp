@@ -142,7 +142,8 @@ namespace Mist {
   void OutHDS::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "HDS";
-    capa["desc"] = "Enables HTTP protocol Adobe-specific dynamic streaming (also known as HDS).";
+    capa["friendly"] = "Flash segmented over HTTP (HDS)";
+    capa["desc"] = "Segmented streaming in Adobe/Flash (FLV-based) format over HTTP ( = HTTP Dynamic Streaming)";
     capa["url_rel"] = "/dynamic/$/manifest.f4m";
     capa["url_prefix"] = "/dynamic/$/";
     capa["codecs"][0u][0u].append("H264");

@@ -49,7 +49,8 @@ namespace Mist{
   void OutEBML::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "EBML";
-    capa["desc"] = "Enables MKV and WebM streaming over HTTP.";
+    capa["friendly"] = "WebM/MKV over HTTP";
+    capa["desc"] = "Pseudostreaming in MKV and WebM (EBML) formats over HTTP";
     capa["url_rel"] = "/$.webm";
     capa["url_match"].append("/$.mkv");
     capa["url_match"].append("/$.webm");

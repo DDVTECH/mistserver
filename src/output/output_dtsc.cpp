@@ -56,7 +56,8 @@ namespace Mist {
   void OutDTSC::init(Util::Config * cfg){
     Output::init(cfg);
     capa["name"] = "DTSC";
-    capa["desc"] = "Enables the DTSC protocol for efficient inter-server stream exchange.";
+    capa["friendly"] = "DTSC";
+    capa["desc"] = "Real time streaming over DTSC (MistServer proprietary protocol, for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
     cfg->addConnectorOptions(4200, capa);

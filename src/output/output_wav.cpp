@@ -8,7 +8,8 @@ namespace Mist{
   void OutWAV::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "WAV";
-    capa["desc"] = "Enables HTTP protocol progressive WAV streaming";
+    capa["friendly"] = "WAV over HTTP";
+    capa["desc"] = "Pseudostreaming in WAV format over HTTP";
     capa["url_rel"] = "/$.wav";
     capa["url_match"] = "/$.wav";
     capa["codecs"][0u][0u].append("ALAW");

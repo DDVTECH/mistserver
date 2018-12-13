@@ -83,10 +83,11 @@ namespace Mist{
   void OutRTSP::init(Util::Config *cfg){
     Output::init(cfg);
     capa["name"] = "RTSP";
-    capa["desc"] =
-        "Provides Real Time Streaming Protocol output, supporting both UDP and TCP transports.";
+    capa["friendly"] = "RTSP";
+    capa["desc"] = "Real Time Streaming in RTSP, over both RTP UDP and TCP";
     capa["deps"] = "";
     capa["url_rel"] = "/$";
+    capa["incoming_push_url"] = "rtsp://$host:$port/$stream?pass=$password";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("MPEG2");

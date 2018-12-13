@@ -487,7 +487,8 @@ namespace Mist{
   void OutDashMP4::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "DASHMP4";
-    capa["desc"] = "Enables HTTP protocol progressive streaming.";
+    capa["friendly"] = "DASH (fMP4) over HTTP";
+    capa["desc"] = "Segmented streaming in DASH (fMP4) format over HTTP";
     capa["url_rel"] = "/dash/$/index.mpd";
     capa["url_prefix"] = "/dash/$/";
     capa["socket"] = "http_dash_mp4";

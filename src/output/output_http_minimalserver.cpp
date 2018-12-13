@@ -16,6 +16,7 @@ namespace Mist {
   void OutHTTPMinimalServer::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "HTTPMinimalServer";
+    capa["friendly"] = "Utility: Static HTTP file server";
     capa["desc"] = "Serves static files over HTTP from a set folder";
     capa["url_rel"] = "/static/";
     capa["url_prefix"] = "/static/";

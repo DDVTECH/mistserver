@@ -32,7 +32,8 @@ namespace Mist{
   void OutH264::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "H264";
-    capa["desc"] = "Enables HTTP protocol H264 Annex B streaming";
+    capa["friendly"] = "H264 over HTTP";
+    capa["desc"] = "Pseudostreaming in raw H264 Annex B format over HTTP";
     capa["url_rel"] = "/$.h264";
     capa["url_match"] = "/$.h264";
     capa["codecs"][0u][0u].append("H264");

@@ -10,6 +10,9 @@ namespace Mist{
 
   void OutHTTPS::init(Util::Config *cfg){
     Output::init(cfg);
+    capa["name"] = "HTTPS";
+    capa["friendly"] = "HTTPS (HTTP+TLS)";
+    capa["desc"] = "HTTPS connection handler, provides all enabled HTTP-based outputs";
     capa["provides"] = "HTTP";
     capa["protocol"] = "https://";
     capa["required"]["cert"]["name"] = "Certificate";

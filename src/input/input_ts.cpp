@@ -126,6 +126,8 @@ namespace Mist {
     capa["always_match"].append("ts-exec:*");
     capa["always_match"].append("http://*.ts");
     capa["always_match"].append("http-ts://*");
+    capa["incoming_push_url"] = "udp://$host:$port";
+    capa["incoming_push_url_match"] = "tsudp://*";
     capa["priority"] = 9ll;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");

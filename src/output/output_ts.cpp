@@ -35,7 +35,8 @@ namespace Mist {
   void OutTS::init(Util::Config * cfg){
     Output::init(cfg);
     capa["name"] = "TS";
-    capa["desc"] = "Enables the raw MPEG Transport Stream protocol over TCP.";
+    capa["friendly"] = "TS over TCP";
+    capa["desc"] = "Real time streaming in MPEG2/TS format over raw TCP";
     capa["deps"] = "";
     capa["required"]["streamname"]["name"] = "Stream";
     capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add this protocol multiple times using different ports.";

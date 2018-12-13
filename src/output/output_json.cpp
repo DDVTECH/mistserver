@@ -14,7 +14,8 @@ namespace Mist {
   void OutJSON::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "JSON";
-    capa["desc"] = "Enables HTTP protocol JSON streaming.";
+    capa["name"] = "JSON over HTTP";
+    capa["desc"] = "Pseudostreaming in JSON format over HTTP";
     capa["url_match"] = "/$.json";
     capa["codecs"][0u][0u].append("@+meta");
     capa["methods"][0u]["handler"] = "http";

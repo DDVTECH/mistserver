@@ -152,7 +152,8 @@ namespace Mist {
   void OutHLS::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "HLS";
-    capa["desc"] = "Enables HTTP protocol Apple-specific streaming (also known as HLS).";
+    capa["friendly"] = "Apple segmented over HTTP (HLS)";
+    capa["desc"] = "Segmented streaming in Apple (TS-based) format over HTTP ( = HTTP Live Streaming)";
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
     capa["codecs"][0u][0u].append("H264");

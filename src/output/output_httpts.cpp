@@ -14,7 +14,8 @@ namespace Mist {
   void OutHTTPTS::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "HTTPTS";
-    capa["desc"] = "Enables HTTP protocol MPEG2/TS pseudostreaming.";
+    capa["friendly"] = "TS over HTTP";
+    capa["desc"] = "Pseudostreaming in MPEG2/TS format over HTTP";
     capa["url_rel"] = "/$.ts";
     capa["url_match"] = "/$.ts";
     capa["socket"] = "http_ts";

@@ -49,7 +49,8 @@ namespace Mist {
   void OutHSS::init(Util::Config * cfg) {
     HTTPOutput::init(cfg);
     capa["name"] = "HSS";
-    capa["desc"] = "Enables HTTP protocol Microsoft-specific smooth streaming through silverlight (also known as HSS).";
+    capa["friendly"] = "Microsoft segmented over HTTP (HSS)";
+    capa["desc"] = "Segmented streaming in Microsoft Silverlight (fMP4-based) format over HTTP ( = HTTP Smooth Streaming)";
     capa["url_rel"] = "/smooth/$.ism/Manifest";
     capa["url_prefix"] = "/smooth/$.ism/";
     capa["codecs"][0u][0u].append("H264");

@@ -65,6 +65,7 @@ bool Util::Procs::isRunning(pid_t pid){
 /// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
 /// all remaining children. Waits one more second for cleanup to finish, then exits.
 void Util::Procs::exit_handler() {
+  if (!handler_set){return;}
   int waiting = 0;
   std::set<pid_t> listcopy;
   {
@@ -319,6 +320,7 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
   }
   pid = fork();
   if (pid == 0) { //child
+    handler_set = false;
     //Close all sockets in the socketList
     for (std::set<int>::iterator it = Util::Procs::socketList.begin(); it != Util::Procs::socketList.end(); ++it){
       close(*it);

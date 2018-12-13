@@ -433,6 +433,23 @@ static void removeDuplicateProtocols(){
 }
 
 void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response){
+  /*LTS-START*/
+  //These are only used internally. We abort further processing if encountered.
+  if (Request.isMember("trigger_stat")){
+    JSON::Value & tStat = Request["trigger_stat"];
+    if (tStat.isMember("name") && tStat.isMember("ms")){
+      Controller::triggerLog & tLog = Controller::triggerStats[tStat["name"].asStringRef()];
+      tLog.totalCount++;
+      tLog.ms += tStat["ms"].asInt();
+      if (!tStat.isMember("ok") || !tStat["ok"].asBool()){tLog.failCount++;}
+    }
+    return;
+  }
+  if (Request.isMember("trigger_fail")){
+    Controller::triggerStats[Request["trigger_fail"].asStringRef()].failCount++;
+    return;
+  }
+  /*LTS-END*/
   //Parse config and streams from the request.
   if (Request.isMember("config") && Request["config"].isObject()){
     const JSON::Value & in = Request["config"];

@@ -20,9 +20,21 @@
 #include "procs.h"       //for StartPiped
 #include "shared_memory.h"
 #include "util.h"
+#include "timing.h"
 #include <string.h> //for strncmp
 
 namespace Triggers{
+
+
+  static void submitTriggerStat(const std::string trigger, uint64_t millis, bool ok){
+    JSON::Value j;
+    j["trigger_stat"]["name"] = trigger;
+    j["trigger_stat"]["ms"] = Util::bootMS()-millis;
+    j["trigger_stat"]["ok"] = ok;
+    Socket::UDPConnection uSock;
+    uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+    uSock.SendNow(j.toString());
+  }
 
   ///\brief Handles a trigger by sending a payload to a destination.
   ///\param trigger Trigger event type.
@@ -31,6 +43,7 @@ namespace Triggers{
   ///\param sync If true, handler is executed blocking and uses the response data.
   ///\returns String, false if further processing should be aborted.
   std::string handleTrigger(const std::string &trigger, const std::string &value, const std::string &payload, int sync, const std::string &defaultResponse){
+    uint64_t tStartMs = Util::bootMS();
     if (!value.size()){
       WARN_MSG("Trigger requested with empty destination");
       return "true";
@@ -42,21 +55,29 @@ namespace Triggers{
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && sync && DL.isOk()){
+        submitTriggerStat(trigger, tStartMs, true);
         return DL.data();
       }
       FAIL_MSG("Trigger failed to execute (%s), using default response: %s", DL.getStatusText().c_str(), defaultResponse.c_str());
+      submitTriggerStat(trigger, tStartMs, false);
       return defaultResponse;
     }else{// send payload to stdin of newly forked process
       int fdIn = -1;
       int fdOut = -1;
+      int fdErr = 2;
 
       char *argv[3];
       argv[0] = (char *)value.c_str();
       argv[1] = (char *)trigger.c_str();
       argv[2] = NULL;
-      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, 0); // start new process and return stdin file desc.
-      if (fdIn == -1 || fdOut == -1){// verify fdIn
-        FAIL_MSG("StartPiped returned invalid fd");
+      setenv("MIST_TRIGGER", trigger.c_str(), 1);
+      setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
+      pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
+      unsetenv("MIST_TRIGGER");
+      unsetenv("MIST_TRIG_DEF");
+      if (fdIn == -1 || fdOut == -1 || myProc == -1){
+        FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
+        submitTriggerStat(trigger, tStartMs, false);
         return defaultResponse;
       }
       write(fdIn, payload.data(), payload.size());
@@ -87,13 +108,16 @@ namespace Triggers{
         fclose(outFile);
         free(fileBuf);
         close(fdOut);
-        if (counter >= 150){
+        if (counter >= 150 && !ret.size()){
           WARN_MSG("Using default trigger response: %s", defaultResponse.c_str());
+          submitTriggerStat(trigger, tStartMs, false);
           return defaultResponse;
         }
+        submitTriggerStat(trigger, tStartMs, true);
         return ret;
       }
       close(fdOut);
+      submitTriggerStat(trigger, tStartMs, true);
       return defaultResponse;
     }
   }

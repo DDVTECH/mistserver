@@ -366,6 +366,19 @@ pid_t Util::Procs::StartPiped(const char * const * argv, int * fdin, int * fdout
     }
     //Because execvp requires a char* const* and we have a const char* const*
     execvp(argv[0], (char* const*)argv);
+    /*LTS-START*/
+    char * trggr = getenv("MIST_TRIGGER");
+    if (trggr && strlen(trggr)){
+      ERROR_MSG("%s trigger failed to execute %s: %s", trggr, argv[0], strerror(errno));
+      JSON::Value j;
+      j["trigger_fail"] = trggr;
+      Socket::UDPConnection uSock;
+      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+      uSock.SendNow(j.toString());
+      std::cout << getenv("MIST_TRIG_DEF");
+      exit(42);
+    }
+    /*LTS-END*/
     ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
     exit(42);
   } else if (pid == -1) {

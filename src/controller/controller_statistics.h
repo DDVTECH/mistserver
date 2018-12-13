@@ -119,6 +119,15 @@ namespace Controller {
   extern std::map<unsigned long, sessIndex> connToSession;
   extern tthread::mutex statsMutex;
 
+
+  struct triggerLog {
+    uint64_t totalCount;
+    uint64_t failCount;
+    uint64_t ms;
+  };
+
+  extern std::map<std::string, triggerLog> triggerStats;
+
   std::set<std::string> getActiveStreams(const std::string & prefix = "");
   void parseStatistics(char * data, size_t len, unsigned int id);
   void killStatistics(char * data, size_t len, unsigned int id);

@@ -43,6 +43,8 @@
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
+
+std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Holds prometheus stats for trigger executions
 bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
 unsigned int Controller::maxConnsPerIP = 0;
@@ -1611,6 +1613,18 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     response << "# TYPE mist_shm_used gauge\n";
     response << "mist_shm_used " << (shm_total - shm_free) << "\n\n";
 
+    if (Controller::triggerStats.size()){
+      response << "# HELP mist_trigger_count Total executions for the given trigger\n";
+      response << "# HELP mist_trigger_time Total execution time in millis for the given trigger\n";
+      response << "# HELP mist_trigger_fails Total failed executions for the given trigger\n";
+      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin(); it != Controller::triggerStats.end(); it++){
+        response << "mist_trigger_count{trigger=\"" << it->first << "\"} " << it->second.totalCount << "\n";
+        response << "mist_trigger_time{trigger=\"" << it->first << "\"} " << it->second.ms << "\n";
+        response << "mist_trigger_fails{trigger=\"" << it->first << "\"} " << it->second.failCount << "\n";
+      }
+      response << "\n";
+    }
+
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
@@ -1699,6 +1713,14 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     resp["shm_total"] = shm_total;
     resp["shm_used"] = (shm_total - shm_free);
     resp["logs"] = Controller::logCounter;
+    if (Controller::triggerStats.size()){
+      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin(); it != Controller::triggerStats.end(); it++){
+        JSON::Value & tVal = resp["triggers"][it->first];
+        tVal["count"] = it->second.totalCount;
+        tVal["ms"] = it->second.ms;
+        tVal["fails"] = it->second.failCount;
+      }
+    }
     {//Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first

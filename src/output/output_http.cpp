@@ -202,6 +202,7 @@ namespace Mist {
       if (!handler.size()){
         H.Clean();
         H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+        H.setCORSHeaders();
         H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite sure what you wanted to receive from it.</body></html>");
         H.SendResponse("415", "Unsupported Media Type", myConn);
         myConn.close();

@@ -12,9 +12,14 @@ void AnalyserDTSC::init(Util::Config &conf){
   opt.null();
 }
 
-AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
+bool AnalyserDTSC::open(const std::string &filename){
+  if (!Analyser::open(filename)){return false;}
   conn = Socket::Connection(1, 0);
   totalBytes = 0;
+  return true;
+}
+
+AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
   headLess = conf.getBool("headless");
 }
 

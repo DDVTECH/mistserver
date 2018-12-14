@@ -6,6 +6,7 @@ public:
   AnalyserDTSC(Util::Config &conf);
   bool parsePacket();
   static void init(Util::Config &conf);
+  virtual bool open(const std::string &filename);
 
 private:
   bool headLess;

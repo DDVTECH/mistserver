@@ -107,7 +107,7 @@ namespace Controller {
     trgs["STREAM_BUFFER"]["response_action"] = "None.";
 
     trgs["RTMP_PUSH_REWRITE"]["when"] = "On incoming RTMP pushes, allows rewriting the RTMP URL to/from custom formatting";
-    trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = true;
+    trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = false;
     trgs["RTMP_PUSH_REWRITE"]["payload"] = "full current RTMP url (string)\nconnection hostname (string)";
     trgs["RTMP_PUSH_REWRITE"]["response"] = "when-blocking";
     trgs["RTMP_PUSH_REWRITE"]["response_action"] = "If non-empty, overrides the full RTMP url to the response value. If empty, denies the incoming RTMP push.";

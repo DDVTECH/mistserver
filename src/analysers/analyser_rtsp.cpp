@@ -25,8 +25,13 @@ void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
   }
 }
 
-AnalyserRTSP::AnalyserRTSP(Util::Config &conf) : Analyser(conf){
+bool AnalyserRTSP::open(const std::string &filename){
+  if (!Analyser::open(filename)){return false;}
   myConn = Socket::Connection(1, 0);
+  return true;
+}
+
+AnalyserRTSP::AnalyserRTSP(Util::Config &conf) : Analyser(conf){
   sdpState.myMeta = &myMeta;
   sdpState.incomingPacketCallback = incomingPacket;
   classPointer = this;

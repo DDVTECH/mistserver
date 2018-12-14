@@ -12,6 +12,7 @@ public:
   static void init(Util::Config &cfg);
   bool parsePacket();
   void incoming(const DTSC::Packet &pkt);
+  virtual bool open(const std::string &filename);
   bool isOpen();
 
 private:

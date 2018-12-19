@@ -1,162 +1,216 @@
 mistplayers.dashjs = {
-  name: 'Dash.js Player',
-  version: '1.2',
-  mimes: ['dash/video/mp4'],
-  priority: Object.keys(mistplayers).length + 1,
+  name: "Dash.js player",
+  mimes: ["dash/video/mp4"/*,"html5/application/vnd.ms-ss"*/],
+  priority: MistUtil.object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
-    return (this.mimes.indexOf(mimetype) == -1 ? false : true);
+    return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
-  isBrowserSupported: function (mimetype,source,options) {
-    if ((options.host.substr(0,7) == 'http://') && (source.url.substr(0,8) == 'https://')) { return false; }
-    return (('MediaSource' in window) && (location.protocol != 'file:'));
+  isBrowserSupported: function (mimetype,source,MistVideo) {
+    
+    //check for http/https mismatch
+    if (location.protocol != MistUtil.http.url.split(source.url).protocol) {
+      MistVideo.log("HTTP/HTTPS mismatch for this source");
+      return false;
+    }
+    
+    //don't use dashjs if this location is loaded over file://
+    if (location.protocol == "file:") {
+      MistVideo.log("This source ("+mimetype+") won't load if the page is run via file://");
+      return false;
+    }
+    
+    return ("MediaSource" in window);
   },
-  player: function(){this.onreadylist = [];}
+  player: function(){this.onreadylist = [];},
+  scriptsrc: function(host) { return host+"/dashjs.js"; }
 };
 var p = mistplayers.dashjs.player;
 p.prototype = new MistPlayer();
-p.prototype.build = function (options,callback) {
-  var cont = document.createElement('div');
-  cont.className = 'mistplayer';
+p.prototype.build = function (MistVideo,callback) {
   var me = this;
   
-  function onplayerload () {
-    var ele = me.getElement('video');
-    ele.className = '';
-    cont.appendChild(ele);
-    ele.width = options.width;
-    ele.height = options.height;
+  this.onDashLoad = function() {
+    if (MistVideo.destroyed) { return; }
     
-    if (options.autoplay) {
-      ele.setAttribute('autoplay','');
-    }
-    if (options.loop) {
-      ele.setAttribute('loop','');
-    }
-    if (options.poster) {
-      ele.setAttribute('poster',options.poster);
-    }
-    if (options.controls) {
-      if (options.controls == 'stock') {
-        ele.setAttribute('controls','');
-      }
-      else {
-        me.buildMistControls();
-      }
-    }
+    MistVideo.log("Building DashJS player..");
     
-    ele.addEventListener('error',function(e){
-      var msg;
-      if ('message' in e) {
-        msg = e.message;
-      }
-      else {
-        msg = 'readyState: ';
-        switch (me.element.readyState) {
-          case 0:
-            msg += 'HAVE_NOTHING';
-            break;
-          case 1:
-            msg += 'HAVE_METADATA';
-            break;
-          case 2:
-            msg += 'HAVE_CURRENT_DATA';
-            break;
-          case 3:
-            msg += 'HAVE_FUTURE_DATA';
-            break;
-          case 4:
-            msg += 'HAVE_ENOUGH_DATA';
-            break;
+    var ele = document.createElement("video");
+    
+    if ("Proxy" in window) {
+      var overrides = {
+        get: {},
+        set: {}
+      };
+      
+      MistVideo.player.api = new Proxy(ele,{
+        get: function(target, key, receiver){
+          if (key in overrides.get) {
+            return overrides.get[key].apply(target, arguments);
+          }
+          var method = target[key];
+          if (typeof method === "function"){
+            return function () {
+              return method.apply(target, arguments);
+            }
+          }
+          return method;
+        },
+        set: function(target, key, value) {
+          if (key in overrides.set) {
+            return overrides.set[key].call(target,value);
+          }
+          return target[key] = value;
         }
-        msg += ' networkState: ';
-        switch (me.element.networkState) {
-          case 0:
-            msg += 'NETWORK_EMPTY';
-            break;
-          case 1:
-            msg += 'NETWORK_IDLE';
-            break;
-          case 2:
-            msg += 'NETWORK_LOADING';
-            break;
-          case 3:
-            msg += 'NETWORK_NO_SOURCE';
-            break;
-        }
-      }
-      //prevent onerror loops
-      if (e.target == me.element) {
-        e.message = msg;
-      }
-      else {
-        me.adderror(msg);
-      }
-    });
-    var events = ['abort','canplay','canplaythrough','durationchange','emptied','ended','interruptbegin','interruptend','loadeddata','loadedmetadata','loadstart','pause','play','playing','ratechange','seeked','seeking','stalled','volumechange','waiting'];
-    for (var i in events) {
-      ele.addEventListener(events[i],function(e){
-        me.addlog('Player event fired: '+e.type);
       });
+      
+      if (MistVideo.info.type == "live") {
+        overrides.get.duration = function(){
+          //this should indicate the end of Mist's buffer
+          var buffer_end = 0;
+          if (this.buffered.length) {
+            buffer_end = this.buffered.end(this.buffered.length-1)
+          }
+          var time_since_buffer = (new Date().getTime() - MistVideo.player.api.lastProgress.getTime())*1e-3;
+          return buffer_end + time_since_buffer + -1*MistVideo.player.api.liveOffset + 45;
+        };
+        overrides.set.currentTime = function(value){
+          var offset = value - MistVideo.player.api.duration;
+          //MistVideo.player.api.liveOffset = offset;
+          
+          MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
+          
+          MistVideo.video.currentTime = value;
+          //.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,{startunix:offset}));
+        }
+        MistUtil.event.addListener(ele,"progress",function(){
+          MistVideo.player.api.lastProgress = new Date();
+        });
+        MistVideo.player.api.lastProgress = new Date();
+        MistVideo.player.api.liveOffset = 0;
+      }
+      
+    }
+    else {
+      me.api = ele;
+    }
+    
+    if (MistVideo.options.autoplay) {
+      ele.setAttribute("autoplay","");
+    }
+    if ((MistVideo.options.loop) && (MistVideo.info.type != "live")) {
+      ele.setAttribute("loop","");
+    }
+    if (MistVideo.options.poster) {
+      ele.setAttribute("poster",MistVideo.options.poster);
+    }
+    if (MistVideo.options.controls == "stock") {
+      ele.setAttribute("controls","");
     }
     
     var player = dashjs.MediaPlayer().create();
-    player.getDebug().setLogToBrowserConsole(false);
-    player.initialize(ele,options.src,true);
+    //player.getDebug().setLogToBrowserConsole(false);
+    player.initialize(ele,MistVideo.source.url,MistVideo.options.autoplay);
+    
+    
     me.dash = player;
-    me.src = options.src;
     
+    //add listeners for events that we can log
+    var skipEvents = ["METRIC_ADDED","METRIC_CHANGED","METRICS_CHANGED","FRAGMENT_LOADING_STARTED","FRAGMENT_LOADING_COMPLETED","LOG","PLAYBACK_TIME_UPDATED","PLAYBACK_PROGRESS"];
+    for (var i in dashjs.MediaPlayer.events) {
+      if (skipEvents.indexOf(i) < 0) {
+        me.dash.on(dashjs.MediaPlayer.events[i],function(e){
+          MistVideo.log("Player event fired: "+e.type);
+        });
+      }
+    }
     
-    me.addlog('Built html');
-    callback(cont);
+    MistVideo.player.setSize = function(size){
+      this.api.style.width = size.width+"px";
+      this.api.style.height = size.height+"px";
+    };
+    MistVideo.player.api.setSource = function(url) {
+      MistVideo.player.dash.attachSource(url);
+    };
+    
+    //trackswitching
+    MistVideo.player.api.setTrack = function(type,id){
+      var meta = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
+      if ((!(type in meta)) || ((!(id in meta[type]) && (id != 0)))) {
+        MistVideo.log("Skipping trackselection of "+type+" track "+id+" because it does not exist");
+        return;
+      }
+      
+      //figure out what the track number is
+      //whyyyy did it have to be reverse order
+      var n = me.dash.getBitrateInfoListFor("video").length - 1;
+      for (var i in MistVideo.info.meta.tracks) {
+        var t = MistVideo.info.meta.tracks[i];
+        if (t.type == type) {
+          if (t.trackid == id) { break; }
+          n--;
+        }
+      }
+      
+      me.dash.setAutoSwitchQualityFor(type,false); //turn off ABR rules //TODO do we want this by default?
+      me.dash.setFastSwitchEnabled(true); //show the new track asap
+      me.dash.setQualityFor(type,n);
+      //dash does change the track, but is appended to the buffer, so it seems to take a while..
+    }
+    
+    //react to automatic trackswitching
+    me.dash.on("qualityChangeRendered",function(e){
+      //the newQuality-th track of type mediaType is being selected
+      
+      //figure out the track id
+      //whyyyy did it have to be reverse order
+      var n = me.dash.getBitrateInfoListFor("video").length - 1;
+      var id;
+      for (var i in MistVideo.info.meta.tracks) {
+        var t = MistVideo.info.meta.tracks[i];
+        if (t.type == e.mediaType) {
+          if (e.newQuality == n) {
+            id = t.trackid;
+            break;
+          }
+          n--;
+        }
+      }
+      
+      //create an event to pass this to the skin
+      MistUtil.event.send("playerUpdate_trackChanged",{
+        type: e.mediaType,
+        trackid: id
+      },MistVideo.video);
+      
+    });
+    
+    //dashjs keeps on spamming the stalled icon >_>
+    MistUtil.event.addListener(ele,"progress",function(e){
+      if (MistVideo.container.getAttribute("data-loading") == "stalled") {
+        MistVideo.container.removeAttribute("data-loading");
+      }
+    });
+    
+    me.api.unload = function(){
+      me.dash.reset();
+    };
+    
+    MistVideo.log("Built html");
+    callback(ele);
   }
   
-  if ('dash' in window) {
-    onplayerload();
+  if ("dashjs" in window) {
+    this.onDashLoad();
   }
   else {
-    //load the dashjs player
-    var scripttag = document.createElement('script');
-    scripttag.src = options.host+'/dashjs.js';
-    me.addlog('Retrieving dashjs player code from '+scripttag.src);
-    document.head.appendChild(scripttag);
-    scripttag.onerror = function(){
-      me.askNextCombo('Failed to load dashjs.js');
-    }
-    scripttag.onload = function(){
-      onplayerload();
-    }
+    
+    var scripttag = MistUtil.scripts.insert(MistVideo.urlappend(mistplayers.dashjs.scriptsrc(MistVideo.options.host)),{
+      onerror: function(e){
+        var msg = "Failed to load dashjs.js";
+        if (e.message) { msg += ": "+e.message; }
+        MistVideo.showError(msg);
+      },
+      onload: me.onDashLoad
+    },MistVideo);
   }
 }
-p.prototype.play = function(){ return this.element.play(); };
-p.prototype.pause = function(){ return this.element.pause(); };
-p.prototype.volume = function(level){
-  if (typeof level == 'undefined' ) { return this.element.volume; }
-  return this.element.volume = level;
-};
-p.prototype.play = function(){ return this.element.play(); };
-p.prototype.load = function(){ return this.element.load(); };
-if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled) {
-  p.prototype.fullscreen = function(){
-    if(this.element.requestFullscreen) {
-      return this.element.requestFullscreen();
-    } else if(this.element.mozRequestFullScreen) {
-      return this.element.mozRequestFullScreen();
-    } else if(this.element.webkitRequestFullscreen) {
-      return this.element.webkitRequestFullscreen();
-    } else if(this.element.msRequestFullscreen) {
-      return this.element.msRequestFullscreen();
-    }
-  };
-}
-p.prototype.resize = function(size){
-  this.element.width = size.width;
-  this.element.height = size.height;
-};
-p.prototype.updateSrc = function(src){
-  if (src == '') {
-    this.dash.reset();
-    return;
-  }
-  this.dash.attachSource(src);
-  return true;
-};

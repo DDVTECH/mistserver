@@ -123,9 +123,12 @@ namespace Mist {
     capa["url_match"].append("/info_$.js");
     capa["url_match"].append("/json_$.js");
     capa["url_match"].append("/player.js");
-    capa["url_match"].append("/player.css");
     capa["url_match"].append("/videojs.js");
     capa["url_match"].append("/dashjs.js");
+    capa["url_match"].append("/webrtc.js");
+    capa["url_match"].append("/skins/default.css");
+    capa["url_match"].append("/skins/dev.css");
+    capa["url_match"].append("/skins/videojs.css");
     capa["url_match"].append("/embed_$.js");
     capa["url_match"].append("/flashplayer.swf");
     capa["url_match"].append("/oldflashplayer.swf");
@@ -133,15 +136,11 @@ namespace Mist {
     capa["optional"]["wrappers"]["help"] = "Which players are attempted and in what order.";
     capa["optional"]["wrappers"]["default"] = "";
     capa["optional"]["wrappers"]["type"] = "ord_multi_sel";
-    /*capa["optional"]["wrappers"]["allowed"].append("theoplayer");
-    capa["optional"]["wrappers"]["allowed"].append("jwplayer");*/
     capa["optional"]["wrappers"]["allowed"].append("html5");
     capa["optional"]["wrappers"]["allowed"].append("videojs");
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
-    //capa["optional"]["wrappers"]["allowed"].append("polytrope"); //currently borked
+    capa["optional"]["wrappers"]["allowed"].append("webrtc");
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
-    capa["optional"]["wrappers"]["allowed"].append("silverlight");
-    capa["optional"]["wrappers"]["allowed"].append("img");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
     cfg->addConnectorOptions(8080, capa);
@@ -326,6 +325,10 @@ namespace Mist {
     }
     /*LTS-END*/
     std::string uAgent = H.GetHeader("User-Agent");
+    
+    std::string devSkin = "";
+    if (H.GetVar("dev").size()) { devSkin = ",skin:\"dev\""; }
+    
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
@@ -339,7 +342,7 @@ namespace Mist {
     std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
     std::string mp4Url = "/"+streamName+".mp4";
     
-    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><style>body{color:white;background:black;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')})</script></div></body></html>");
+    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')"+devSkin+"})</script></div></body></html>");
     if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
       H.SetHeader("Location",hlsUrl);
       H.SendResponse("307", "HLS redirect", myConn);
@@ -613,7 +616,7 @@ namespace Mist {
       return;
     }
     
-    if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 10 && H.url.substr(0, 7) == "/embed_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
+    if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") || (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
       if (websocketHandler()){return;}
       std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
       std::string useragent = H.GetVar("ua");
@@ -645,24 +648,13 @@ namespace Mist {
       }else{
         response = json_resp.toString();
       }
-      if (rURL.substr(0, 7) == "/embed_" && !json_resp.isMember("error")){
-        #include "embed.js.h"
-        response.append("\n(");
-        if (embed_js[embed_js_len - 2] == ';'){//check if we have a trailing ;\n or just \n
-          response.append((char*)embed_js, (size_t)embed_js_len - 2); //remove trailing ";\n" from xxd conversion
-        }else{
-          response.append((char*)embed_js, (size_t)embed_js_len - 1); //remove trailing "\n" from xxd conversion
-        }
-        response.append("(\"" + streamName + "\"));\n");
-      }
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
     } //embed code generator
     
-    
-    if (H.url == "/player.js"){
+    if ((H.url == "/player.js") || ((H.url.substr(0, 7) == "/embed_") && (H.url.length() > 10) && (H.url.substr(H.url.length() - 3, 3) == ".js"))){
       HTTP::URL fullURL(H.GetHeader("Host"));
       if (!fullURL.protocol.size()){
         fullURL.protocol = getProtocolForPort(fullURL.getPort());
@@ -681,7 +673,7 @@ namespace Mist {
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
-      H.SetHeader("Content-Type", "application/javascript");
+      H.SetHeader("Content-Type", "application/javascript; charset=utf-8");
       if(method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
@@ -689,8 +681,10 @@ namespace Mist {
       }
       
       response.append("if (typeof mistoptions == 'undefined') { mistoptions = {}; }\nif (!('host' in mistoptions)) { mistoptions.host = '"+fullURL.getUrl()+"'; }\n");
-      #include "core.js.h"
-      response.append((char*)core_js, (size_t)core_js_len);
+      
+      #include "player.js.h"
+      response.append((char*)player_js, (size_t)player_js_len);
+      
       jsonForEach(config->getOption("wrappers",true),it){
         bool used = false;
         if (it->asStringRef() == "html5"){
@@ -703,26 +697,6 @@ namespace Mist {
           response.append((char*)flash_strobe_js, (size_t)flash_strobe_js_len);
           used = true;
         }
-        if (it->asStringRef() == "silverlight"){
-          #include "silverlight.js.h"
-          response.append((char*)silverlight_js, (size_t)silverlight_js_len);
-          used = true;
-        }
-        if (it->asStringRef() == "theoplayer"){
-          #include "theoplayer.js.h"
-          response.append((char*)theoplayer_js, (size_t)theoplayer_js_len);
-          used = true;
-        }
-        if (it->asStringRef() == "jwplayer"){
-          #include "jwplayer.js.h"
-          response.append((char*)jwplayer_js, (size_t)jwplayer_js_len);
-          used = true;
-        }
-        if (it->asStringRef() == "polytrope"){
-          #include "polytrope.js.h"
-          response.append((char*)polytrope_js, (size_t)polytrope_js_len);
-          used = true;
-        }
         if (it->asStringRef() == "dashjs"){
           #include "dashjs.js.h"
           response.append((char*)dash_js, (size_t)dash_js_len);
@@ -733,14 +707,18 @@ namespace Mist {
           response.append((char*)video_js, (size_t)video_js_len);
           used = true;
         }
-        if (it->asStringRef() == "img"){
-          #include "img.js.h"
-          response.append((char*)img_js, (size_t)img_js_len);
+        if (it->asStringRef() == "webrtc"){
+          #include "webrtc.js.h"
+          response.append((char*)webrtc_js, (size_t)webrtc_js_len);
           used = true;
         }
         if (!used) {
           WARN_MSG("Unknown player type: %s",it->asStringRef().c_str());
         }
+      }
+      
+      if ((rURL.substr(0, 7) == "/embed_") && (rURL.length() > 10) && (rURL.substr(rURL.length() - 3, 3) == ".js")){
+        response.append("var container = document.createElement(\"div\");\ncontainer.id = \""+streamName+"\";\ndocument.write(container.outerHTML);\nmistPlay(\""+streamName+"\",{target:document.getElementById(\""+streamName+"\")});");
       }
       
       H.SetBody(response);
@@ -750,8 +728,9 @@ namespace Mist {
       
     }
     
-    if (H.url == "/player.css"){
+    if (H.url.substr(0, 7) == "/skins/"){
       std::string response;
+      std::string url = H.url;
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
@@ -762,8 +741,24 @@ namespace Mist {
         return;
       }
       
-      #include "mist.css.h"
-      response.append((char*)mist_css, (size_t)mist_css_len);
+      if (url == "/skins/default.css") {
+        #include "skin_default.css.h"
+        response.append((char*)skin_default_css, (size_t)skin_default_css_len);
+      }
+      else if (url == "/skins/dev.css") {
+        #include "skin_dev.css.h"
+        response.append((char*)skin_dev_css, (size_t)skin_dev_css_len);
+      }
+      else if (url == "/skins/videojs.css") {
+        #include "skin_videojs.css.h"
+        response.append((char*)skin_videojs_css, (size_t)skin_videojs_css_len);
+      }
+      else {
+        H.SetBody("Unknown stylesheet: "+url);
+        H.SendResponse("404", "Unknown stylesheet", myConn);
+        H.Clean();
+        return;
+      }
       
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
@@ -782,10 +777,8 @@ namespace Mist {
         return;
       }
       
-      #include "playervideo.js.h"
-      response.append((char*)playervideo_js, (size_t)playervideo_js_len);
-      #include "playerhlsvideo.js.h"
-      response.append((char*)playerhlsvideo_js, (size_t)playerhlsvideo_js_len);
+      #include "player_video.js.h"
+      response.append((char*)player_video_js, (size_t)player_video_js_len);
       
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
@@ -804,10 +797,30 @@ namespace Mist {
         return;
       }
       
-      #include "playerdashlic.js.h"
-      response.append((char*)playerdashlic_js, (size_t)playerdashlic_js_len);
-      #include "playerdash.js.h"
-      response.append((char*)playerdash_js, (size_t)playerdash_js_len);
+      #include "player_dash_lic.js.h"
+      response.append((char*)player_dash_lic_js, (size_t)player_dash_lic_js_len);
+      #include "player_dash.js.h"
+      response.append((char*)player_dash_js, (size_t)player_dash_js_len);
+      
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (H.url == "/webrtc.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      
+      #include "player_webrtc.js.h"
+      response.append((char*)player_webrtc_js, (size_t)player_webrtc_js_len);
       
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);

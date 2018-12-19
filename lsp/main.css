@@ -593,6 +593,29 @@ input[type=radio] {
   height: 1.1em;
   width: 1.1em;
 }
+.input_container .itemsettings {
+  margin-bottom: 1em;
+  margin-left: 1em;
+}
+.input_container .subitem {
+  font-size: 0.9em;
+  color: #777;
+  width: 25em;
+  min-width: auto;
+  display: flex;
+  flex-flow: row nowrap;
+}
+.input_container .subitem .itemdetails {
+  overflow: hidden;
+  min-width: auto;
+  flex-shrink: 1;
+  flex-grow: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.input_container .subitem:first-child button.move {
+  display: none;
+}
 
 .LTSonly {
   overflow: hidden;
@@ -872,11 +895,32 @@ button.return:before {
   max-width: 28em;
   font-size: 0.5em;
 }
-.mistvideo {
-  max-width: 90%;
-  max-width: calc(100vw - 22em);
-  overflow: hidden;
+.mistvideo * {
+  min-width: initial;
 }
+.mistvideo h3 {
+  color: inherit;
+  text-shadow: none;
+}
+.mistvideo table {
+  color: inherit;
+  box-shadow: none;
+  border: none;
+  margin: 0;
+}
+.mistvideo table tr {
+  background: none;
+}
+.mistvideo table td {
+  padding: 0;
+}
+.mistvideo button {
+  background-image: none;
+}
+.mistvideo .text {
+  font-size: inherit;
+}
+.mistvideo-container * {  min-width: auto; }
 .player_log {
   overflow-y: auto;
   max-height: 10em;
@@ -897,6 +941,20 @@ button.return:before {
 }
 .logs .content > * {
   margin-right: 0.5em;
+}
+.mistvideo-log table {
+  width: auto;
+  box-shadow: none;
+  border: none;
+}
+.mistvideo-log table tr {
+  background-color: transparent;
+}
+.mistvideo-container {
+  display: flex;
+}
+.mistvideo-column {
+  flex-direction: column;
 }
   
 @font-face {

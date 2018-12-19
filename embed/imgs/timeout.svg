@@ -1,0 +1,19 @@
+<svg width="25" height="25" version="1.1" viewBox="0 0 25 25" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <mask id="a">
+      <rect x="0" y="0" width="25" height="25" fill="#fff"/>
+      <rect x="-5" y="-5" width="17.5" height="35" fill="#000" transform="rotate(180,12.5,12.5)">
+        <animateTransform attributeName="transform" type="rotate" from="0,12.5,12.5" to="180,12.5,12.5" dur="5" repeatCount="1"/>
+      </rect>
+      <rect x="0" y="0" width="12.5" height="25" fill="#fff"/>
+      <rect x="-5" y="-5" width="17.5" height="35" fill="#000" transform="rotate(360,12.5,12.5)">
+        <animate attributeType="CSS" attributeName="opacity" from="0" to="1" dur="10" calcMode="discrete" repeatCount="1" />
+        <animateTransform attributeName="transform" type="rotate" from="180,12.5,12.5" to="360,12.5,12.5" begin="5" dur="5" repeatCount="1"/>
+      </rect>
+      <circle cx="12.5" cy="12.5" r="8" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#a)">
+    <circle cx="12.5" cy="12.5" r="12.5" class="fill"/>
+  </g>
+</svg>

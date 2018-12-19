@@ -469,22 +469,19 @@ add_executable(MistOutHTTP
   src/output/output_http.cpp 
   src/output/output_http_internal.cpp
   src/io.cpp
-  generated/silverlight.js.h
-  generated/embed.js.h
+  generated/player.js.h
   generated/html5.js.h
   generated/flash_strobe.js.h
-  generated/theoplayer.js.h
-  generated/jwplayer.js.h
-  generated/polytrope.js.h
   generated/dashjs.js.h
   generated/videojs.js.h
-  generated/img.js.h
-  generated/playerdash.js.h
-  generated/playerdashlic.js.h
-  generated/playervideo.js.h
-  generated/playerhlsvideo.js.h
-  generated/core.js.h
-  generated/mist.css.h
+  generated/webrtc.js.h
+  generated/player_dash.js.h
+  generated/player_dash_lic.js.h
+  generated/player_video.js.h
+  generated/player_webrtc.js.h
+  generated/skin_default.css.h
+  generated/skin_dev.css.h
+  generated/skin_videojs.css.h
 )
 set_target_properties(MistOutHTTP 
   PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_http_internal.h\""
@@ -544,69 +541,61 @@ endif()
 ########################################
 # Embed Code                           #
 ########################################
-add_custom_command(OUTPUT generated/silverlight.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js silverlight_js generated/silverlight.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/silverlight.js
+# main
+add_custom_command(OUTPUT generated/player.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/player.js player_js generated/player.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/player.js
 )
-add_custom_command(OUTPUT generated/embed.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/src/embed.js embed_js generated/embed.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/src/embed.js
-)
+# wrappers
 add_custom_command(OUTPUT generated/html5.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/html5.js html5_js generated/html5.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/html5.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/html5.js html5_js generated/html5.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/html5.js
 )
 add_custom_command(OUTPUT generated/flash_strobe.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js flash_strobe_js generated/flash_strobe.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/flash_strobe.js
-)
-add_custom_command(OUTPUT generated/theoplayer.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js theoplayer_js generated/theoplayer.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/theoplayer.js
-)
-add_custom_command(OUTPUT generated/jwplayer.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js jwplayer_js generated/jwplayer.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/jwplayer.js
-)
-add_custom_command(OUTPUT generated/polytrope.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js polytrope_js generated/polytrope.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/polytrope.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/flash_strobe.js flash_strobe_js generated/flash_strobe.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/flash_strobe.js
 )
 add_custom_command(OUTPUT generated/dashjs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js dash_js generated/dashjs.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/dashjs.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/dashjs.js dash_js generated/dashjs.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/dashjs.js
 )
 add_custom_command(OUTPUT generated/videojs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js video_js generated/videojs.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/videojs.js
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/videojs.js video_js generated/videojs.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/videojs.js
 )
-add_custom_command(OUTPUT generated/img.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/wrappers/img.js img_js generated/img.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/wrappers/img.js
+add_custom_command(OUTPUT generated/webrtc.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js webrtc_js generated/webrtc.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js
 )
-add_custom_command(OUTPUT generated/playerdashlic.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js playerdashlic_js generated/playerdashlic.js.h
+# players
+add_custom_command(OUTPUT generated/player_dash_lic.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js player_dash_lic_js generated/player_dash_lic.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js
 )
-add_custom_command(OUTPUT generated/playerdash.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js playerdash_js generated/playerdash.js.h
+add_custom_command(OUTPUT generated/player_dash.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js player_dash_js generated/player_dash.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js
 )
-add_custom_command(OUTPUT generated/playervideo.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/video.min.js playervideo_js generated/playervideo.js.h
+add_custom_command(OUTPUT generated/player_video.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/video.min.js player_video_js generated/player_video.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/video.min.js
 )
-add_custom_command(OUTPUT generated/playerhlsvideo.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/videojs-contrib-hls.min.js playerhlsvideo_js generated/playerhlsvideo.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/players/videojs-contrib-hls.min.js
+add_custom_command(OUTPUT generated/player_webrtc.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/webrtc.js player_webrtc_js generated/player_webrtc.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/webrtc.js
 )
-add_custom_command(OUTPUT generated/core.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/core.js core_js generated/core.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/core.js
+# css
+add_custom_command(OUTPUT generated/skin_default.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/default.css skin_default_css generated/skin_default.css.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/skins/default.css
 )
-add_custom_command(OUTPUT generated/mist.css.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/mist.css mist_css generated/mist.css.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/mist.css
+add_custom_command(OUTPUT generated/skin_dev.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/dev.css skin_dev_css generated/skin_dev.css.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/skins/dev.css
+)
+add_custom_command(OUTPUT generated/skin_videojs.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/skins/video-js.css skin_videojs_css generated/skin_videojs.css.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/skins/video-js.css
 )
 
 ########################################

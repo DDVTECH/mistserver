@@ -103,6 +103,9 @@ p.prototype.build = function (MistVideo,callback) {
     if (MistVideo.options.poster) {
       ele.setAttribute("poster",MistVideo.options.poster);
     }
+    if (MistVideo.options.muted) {
+      ele.muted = true;
+    }
     if (MistVideo.options.controls == "stock") {
       ele.setAttribute("controls","");
     }
@@ -141,20 +144,34 @@ p.prototype.build = function (MistVideo,callback) {
       }
       
       //figure out what the track number is
-      //whyyyy did it have to be reverse order
-      var n = me.dash.getBitrateInfoListFor("video").length - 1;
+      //for dash: 0 lowest bitrate, going up
+      //get the relevant tracks
+      var mistTracks = [];
       for (var i in MistVideo.info.meta.tracks) {
         var t = MistVideo.info.meta.tracks[i];
         if (t.type == type) {
-          if (t.trackid == id) { break; }
-          n--;
+          mistTracks.push(t);
         }
+      }
+      //sort by bitrate
+      MistUtil.array.multiSort(mistTracks,["bps"]);
+      var n = false;
+      for (var i in mistTracks) {
+        if (mistTracks[i].trackid == id) {
+          n = i;
+          break;
+        }
+      }
+      if (n === false) {
+        return false; //track not found
       }
       
       me.dash.setAutoSwitchQualityFor(type,false); //turn off ABR rules //TODO do we want this by default?
       me.dash.setFastSwitchEnabled(true); //show the new track asap
       me.dash.setQualityFor(type,n);
       //dash does change the track, but is appended to the buffer, so it seems to take a while..
+      
+      return true; //track found and change requested
     }
     
     //react to automatic trackswitching
@@ -162,19 +179,19 @@ p.prototype.build = function (MistVideo,callback) {
       //the newQuality-th track of type mediaType is being selected
       
       //figure out the track id
-      //whyyyy did it have to be reverse order
-      var n = me.dash.getBitrateInfoListFor("video").length - 1;
-      var id;
+      //for dash: 0 lowest bitrate, going up
+      //get the relevant tracks
+      var mistTracks = [];
       for (var i in MistVideo.info.meta.tracks) {
         var t = MistVideo.info.meta.tracks[i];
         if (t.type == e.mediaType) {
-          if (e.newQuality == n) {
-            id = t.trackid;
-            break;
-          }
-          n--;
+          mistTracks.push(t);
         }
       }
+      //sort by bitrate
+      MistUtil.array.multiSort(mistTracks,["bps"]);
+      //get mist's id for the track
+      var id = mistTracks[e.newQuality].trackid;
       
       //create an event to pass this to the skin
       MistUtil.event.send("playerUpdate_trackChanged",{
@@ -183,6 +200,37 @@ p.prototype.build = function (MistVideo,callback) {
       },MistVideo.video);
       
     });
+    var subsloaded = false;
+    me.dash.on("allTextTracksAdded",function(){
+      subsloaded = true;
+    });
+    
+    MistVideo.player.api.setSubtitle = function(trackmeta) {
+
+      if (!subsloaded) {
+        var f = function(){
+          MistVideo.player.api.setSubtitle(trackmeta);
+          me.dash.off("allTextTracksAdded",f);
+        };
+        me.dash.on("allTextTracksAdded",f);
+        return;
+      }
+      if (!trackmeta) {
+        me.dash.enableText(false);
+        return;
+      }
+      
+      var dashsubs = me.dash.getTracksFor("text");
+      for (var i in dashsubs) {
+        if (dashsubs[i].id == trackmeta.trackid) {
+          me.dash.setTextTrack(i);
+          if (!me.dash.isTextEnabled()) { me.dash.enableText(); }
+          return true;
+        }
+      }
+      
+      return false; //failed to find subtitle
+    };
     
     //dashjs keeps on spamming the stalled icon >_>
     MistUtil.event.addListener(ele,"progress",function(e){

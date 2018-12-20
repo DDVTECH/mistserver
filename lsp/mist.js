@@ -3932,7 +3932,7 @@ var UI = {
         var $preview_cont = $('<div>').css("flex-shrink","1").css("min-width","auto").css("max-width","100%");
         $cont.append($preview_cont);
         var $title = $('<div>');
-        var $video = $('<div>').addClass('mistvideo').text('Loading player..').css("max-width","100%").css("flex-shrink","1").css("min-width","auto");
+        var $video = $('<div>').text('Loading player..').css("max-width","100%").css("flex-shrink","1").css("min-width","auto");
         var $controls = $('<div>').addClass('controls');
         $preview_cont.append($video).append($title).append($controls);//.append($switches);
         
@@ -4279,6 +4279,7 @@ var UI = {
           controls: true,
           autoplay: true,
           loop: false,
+          muted: false,
           fillSpace: false,
           poster: '',
           urlappend: '',
@@ -4555,6 +4556,18 @@ var UI = {
             },
             'function': function(){
               embedoptions.loop = $(this).getval();
+              $('.embed_code').setval(embedhtml(embedoptions));
+            },
+            help: 'If the video should restart when the end is reached.'
+          },{
+            label: 'Start muted',
+            type: 'checkbox',
+            pointer: {
+              main: embedoptions,
+              index: 'muted'
+            },
+            'function': function(){
+              embedoptions.muted = $(this).getval();
               $('.embed_code').setval(embedhtml(embedoptions));
             },
             help: 'If the video should restart when the end is reached.'

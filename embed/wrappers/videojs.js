@@ -59,6 +59,10 @@ p.prototype.build = function (MistVideo,callback) {
       vjsopts.loop = true;
       ele.loop = true;
     }
+    if (MistVideo.options.muted) {
+      vjsopts.muted = true;
+      ele.muted = true;
+    }
     if (MistVideo.options.poster) { vjsopts.poster = MistVideo.options.poster; }
     if (MistVideo.options.controls == "stock") {
       ele.setAttribute("controls","");
@@ -70,7 +74,6 @@ p.prototype.build = function (MistVideo,callback) {
         document.head.appendChild(style);
       }
     }
-    
     
     me.onready(function(){
       me.videojs = videojs(ele,vjsopts,function(){

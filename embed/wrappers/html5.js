@@ -114,6 +114,9 @@ p.prototype.build = function (MistVideo,callback) {
       video.setAttribute(attr,(MistVideo.options[attr] === true ? "" : MistVideo.options[attr]));
     }
   }
+  if (MistVideo.options.muted) {
+    video.muted = true; //don't use attribute because of Chrome bug: https://stackoverflow.com/questions/14111917/html5-video-muted-but-stilly-playing?rq=1
+  }
   if (MistVideo.options.controls == "stock") {
     video.setAttribute("controls","");
   }
@@ -168,11 +171,19 @@ p.prototype.build = function (MistVideo,callback) {
       };
       overrides.set.currentTime = function(value){
         var offset = value - MistVideo.player.api.duration;
+        
+        if (offset > 0) {offset = 0;} //don't allow positive numbers, as Mist will interpret them as unix timestamps
+        
         MistVideo.player.api.liveOffset = offset;
         
         MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
         
-        MistVideo.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,{startunix:offset}));
+        var params = {startunix:offset};
+        if (offset == 0) {
+          params = {};
+        }
+        
+        MistVideo.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,params));
       }
       MistUtil.event.addListener(video,"progress",function(){
         MistVideo.player.api.lastProgress = new Date();

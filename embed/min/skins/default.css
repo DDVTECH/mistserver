@@ -1,7 +1,7 @@
 .mistvideo{display:inline-block;position:relative;color:$stroke;font-family:sans-serif;background-color:#000;justify-content:center;align-items:center}
 .mistvideo-controls{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 .mistvideo.novideo{overflow:visible}
-.mistvideo-video{overflow:hidden}
+.mistvideo-video{overflow:hidden;outline:0}
 svg.icon.loading{z-index:-1;position:absolute;top:0;left:0;right:0;bottom:0;margin:auto;opacity:0}
 [data-loading]{position:relative}
 [data-loading=stalled] svg.icon.loading{transition:opacity 0s 3s}
@@ -61,6 +61,7 @@ svg.icon .semiFill,svg.icon.semiFill{fill:$semiFill}
 svg.icon .stroke,svg.icon.stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
 svg.icon.off .toggle .fill,svg.icon.off .toggle .semiFill,svg.icon.off .toggle.fill,svg.icon.off .toggle.semiFill{fill:none}
 svg.icon .spin,svg.icon.spin{animation:spin 1.5s infinite linear;transform-origin:50% 50%}
+.vjs-text-track-display{pointer-events:none}
 .mistvideo{line-height:1.2;font-size:14.5px}
 .mistvideo svg{margin:2.5px}
 .mistvideo-background{background-color:$background}
@@ -79,7 +80,7 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mist.largeplay,.mist.muted{position:absolute;opacity:.5}
 .mist.largeplay{top:50%;left:0;right:0;margin:auto;transform:translateY(-50%)}
 .mist.muted{top:0;right:0;margin:1em}
-.mistvideo-secondaryVideo{z-index:1;width:50%;height:50%}
+.mistvideo-secondaryVideo{z-index:1;position:absolute;right:0;top:0;width:50%;height:50%;max-width:fit-content;max-height:fit-content}
 .mistvideo-polling{display:inline-block;position:relative;width:25px;height:25px}
 .mistvideo-polling svg.icon.loading{z-index:0;opacity:1}
 .mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}

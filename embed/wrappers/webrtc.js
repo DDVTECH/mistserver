@@ -49,6 +49,9 @@ p.prototype.build = function (MistVideo,callback) {
       video.setAttribute(attr,(MistVideo.options[attr] === true ? "" : MistVideo.options[attr]));
     }
   }
+  if (MistVideo.options.muted) {
+    video.muted = true; //don't use attribute because of Chrome bug
+  }
   if (MistVideo.info.type == "live") {
     video.loop = false;
   }

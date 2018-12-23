@@ -4029,7 +4029,7 @@ var UI = {
             host: embedbase,
             skin: "dev",
             loop: true,
-            MistVideoObject: MistVideoObject,
+            MistVideoObject: MistVideoObject
           };
           MistVideoObject.reference = mistPlay(streamname,options);
         }

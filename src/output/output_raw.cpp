@@ -32,7 +32,7 @@ namespace Mist {
   void OutRaw::init(Util::Config * cfg){
     Output::init(cfg);
     capa["name"] = "RAW";
-    capa["name"] = "DTSC over stdout";
+    capa["friendly"] = "DTSC over stdout";
     capa["desc"] = "Pseudostreaming in DTSC format over standard output";
     capa["deps"] = "";
     capa["required"]["streamname"]["name"] = "Stream";

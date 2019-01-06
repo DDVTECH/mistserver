@@ -516,7 +516,7 @@ uint32_t Controller::statSession::kill(){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
-  //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 1 = state known (100=denied, 10=accepted)
+  //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 2 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
     sessIndex tmpidx(data);
     std::string myHost = tmpidx.host;

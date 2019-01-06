@@ -282,25 +282,27 @@ namespace Mist{
           stats(true);
           tmpEx = IPC::statExchange(statsPage.getData());
         }
-        HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
-        //1 = check requested (connection is new)
-        if (tmpEx.getSync() == 1){
-          std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
-          if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
-            onFail("Not allowed to play (USER_NEW)");
-            tmpEx.setSync(100);//100 = denied
-          }else{
-            tmpEx.setSync(10);//10 = accepted
+        //If we aren't online, skip any further checks.
+        //We don't immediately return, so the recursing = false line only
+        //needs to be written once and will always be executed.
+        if (keepGoing()){
+          HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
+          //1 = check requested (connection is new)
+          if (tmpEx.getSync() == 1){
+            std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
+            if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
+              onFail("Not allowed to play (USER_NEW)");
+              tmpEx.setSync(100);//100 = denied
+            }else{
+              tmpEx.setSync(10);//10 = accepted
+            }
           }
+          //100 = denied
+          if (tmpEx.getSync() == 100){onFail("Not allowed to play (USER_NEW cache)");}
+          if (tmpEx.getSync() == 0){onFail("Not allowed to play (USER_NEW init timeout)", true);}
+          if (tmpEx.getSync() == 2){onFail("Not allowed to play (USER_NEW re-init timeout)", true);}
+          //anything else = accepted
         }
-        //100 = denied
-        if (tmpEx.getSync() == 100){
-          onFail("Not allowed to play (USER_NEW cache)");
-        }
-        if (tmpEx.getSync() == 0 || tmpEx.getSync() == 2){
-          onFail("Not allowed to play (USER_NEW timeout)", true);
-        }
-        //anything else = accepted
       }else{
         tmpEx.setSync(10);//auto-accept if no trigger
       }

@@ -6,7 +6,7 @@ namespace Mist {
   void OutProgressiveFLV::init(Util::Config * cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "FLV";
-    capa["name"] = "Flash progressive over HTTP (FLV)";
+    capa["friendly"] = "Flash progressive over HTTP (FLV)";
     capa["desc"] = "Pseudostreaming in Adobe Flash FLV format over HTTP";
     capa["url_rel"] = "/$.flv";
     capa["url_match"] = "/$.flv";

@@ -448,7 +448,7 @@ namespace IPC {
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
       if (handle == -1) {
         if (master) {
-          ERROR_MSG("Overwriting old page for %s", name.c_str());
+          if (len > 1){ERROR_MSG("Overwriting old page for %s", name.c_str());}
           handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
         } else {
           int i = 0;

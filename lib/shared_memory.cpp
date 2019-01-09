@@ -449,7 +449,7 @@ namespace IPC {
       handle = shm_open(name.c_str(), (master ? O_CREAT | O_EXCL : 0) | O_RDWR, ACCESSPERMS);
       if (handle == -1) {
         if (master) {
-          ERROR_MSG("Overwriting old page for %s", name.c_str());
+          if (len > 1){ERROR_MSG("Overwriting old page for %s", name.c_str());}
           handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
         } else {
           int i = 0;
@@ -1007,8 +1007,10 @@ namespace IPC {
                 amount = lastFilled+1;
                 VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
-              //stop, we're guaranteed no more pages are full at this point
-              break;
+              if (id >= amount + 100) {
+                //stop, we're guaranteed no more pages are full at this point
+                break;
+              }
             }
           }
         } else {
@@ -1029,11 +1031,13 @@ namespace IPC {
                 amount = lastFilled+1;
                 VERYHIGH_MSG("Shared memory %s is now at count %u", baseName.c_str(), amount);
               }
-              //stop, we're guaranteed no more pages are full at this point
-              if (empty) {
-                free(empty);
+              if (id >= amount + 100) {
+                //stop, we're guaranteed no more pages are full at this point
+                if (empty) {
+                  free(empty);
+                }
+                break;
               }
-              break;
             }
           }
         }

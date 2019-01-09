@@ -406,7 +406,7 @@ namespace Mist{
     r << "start=\"PT0S\">" << std::endl;
     if (vidInitTrack){
       DTSC::Track & trackRef = myMeta.tracks[vidInitTrack];
-      r << "    <AdaptationSet id=\"0\" mimeType=\"video/mp4\" width=\"" << trackRef.width << "\" height=\"" << trackRef.height << "\" frameRate=\"" << trackRef.fpks / 1000 << "\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">" << std::endl;
+      r << "    <AdaptationSet mimeType=\"video/mp4\" width=\"" << trackRef.width << "\" height=\"" << trackRef.height << "\" frameRate=\"" << trackRef.fpks / 1000 << "\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">" << std::endl;
       r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
       r << "        <SegmentTimeline>" << std::endl;
       addSegmentTimeline(r, trackRef, myMeta.live);
@@ -414,8 +414,7 @@ namespace Mist{
       r << "      </SegmentTemplate>" << std::endl;
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         if (it->second.codec == "H264"){
-          r << "      <Representation ";
-          r << "id=\"" << it->first << "\" ";
+          r << "      <Representation id=\"" << it->first << "\" ";
           r << "codecs=\"avc1." << h264init(it->second.init) << "\" ";
           //bandwidth is in bits per seconds, we have bytes, so times 8
           r << "bandwidth=\"" << (it->second.bps*8) << "\" ";
@@ -434,7 +433,7 @@ namespace Mist{
     }
     if (audInitTrack){
       DTSC::Track & trackRef = myMeta.tracks[audInitTrack];
-      r << "    <AdaptationSet id=\"1\" mimeType=\"audio/mp4\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\" >" << std::endl;
+      r << "    <AdaptationSet mimeType=\"audio/mp4\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\" >" << std::endl;
       r << "      <Role schemeIdUri=\"urn:mpeg:dash:role:2011\" value=\"main\"/>" << std::endl;
       r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
 
@@ -445,8 +444,7 @@ namespace Mist{
  
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
         if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
-          r << "      <Representation ";
-          r << "id=\"" << it->first << "\" ";
+          r << "      <Representation id=\"" << it->first << "\" ";
           // (see RFC6381): sample description entry , ObjectTypeIndication [MP4RA, RFC], ObjectTypeIndication [MP4A ISO/IEC 14496-3:2009]
           if (it->second.codec == "AAC" ){
             r << "codecs=\"mp4a.40.2\" ";
@@ -470,8 +468,8 @@ namespace Mist{
         if(it->second.codec == "subtitle"){
           subInitTrack = it->first;
           std::string lang = (it->second.lang == "" ? "unknown" : it->second.lang);
-          r << "<AdaptationSet group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang <<  "\">";
-          r << " <Representation id=\"caption_en"<< it->first << "\" bandwidth=\"256\">";
+          r << "<AdaptationSet id=\"" << it->first << "\" group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang <<  "\">";
+          r << " <Representation id=\"" << it->first << "\" bandwidth=\"256\">";
           r <<   " <BaseURL>../../" << streamName << ".vtt?track=" << it->first << "</BaseURL>";
           r << " </Representation></AdaptationSet>" << std::endl;
         }

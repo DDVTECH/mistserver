@@ -408,10 +408,17 @@ namespace Mist {
     } //crossdomain.xml
 
     if (H.method == "OPTIONS") {
+      bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
       H.Clean();
-      H.SetHeader("Content-Type", "application/octet-stream");
-      H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/octet-stream");
+      if (isTS && !hasSessionIDs()){
+        H.SetHeader("Cache-Control", "public, max-age=600, immutable");
+        H.SetHeader("Pragma", "");
+        H.SetHeader("Expires", "");
+      }else{
+        H.SetHeader("Cache-Control", "no-cache");
+      }
       H.SetBody("");
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -448,7 +455,6 @@ namespace Mist {
       }
       H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (relPushUrl == "/index.m3u8"){
-        H.SetHeader("Cache-Control", "no-cache");
         H.setCORSHeaders();
         H.SetBody(pushLiveIndex());
         H.SendResponse("200", "OK", myConn);
@@ -463,7 +469,6 @@ namespace Mist {
           if (eTime < bTime){
             eTime = bTime;
           }
-          H.SetHeader("Cache-Control", "no-cache");
           H.setCORSHeaders();
           H.SetBody(pushLiveIndex(vTrack, bTime, eTime));
           H.SendResponse("200", "OK", myConn);
@@ -520,6 +525,13 @@ namespace Mist {
 
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
+      if (hasSessionIDs()){
+        H.SetHeader("Cache-Control", "no-cache");
+      }else{
+        H.SetHeader("Cache-Control", "public, max-age=600, immutable");
+        H.SetHeader("Pragma", "");
+        H.SetHeader("Expires", "");
+      }
       if(method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
@@ -541,9 +553,8 @@ namespace Mist {
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.Clean();
-      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
-      H.SetHeader("Cache-Control", "no-cache");
       H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (!myMeta.tracks.size()){
         H.SendResponse("404", "Not online or found", myConn);
         H.Clean();

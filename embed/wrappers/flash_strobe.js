@@ -56,12 +56,21 @@ p.prototype.build = function (MistVideo,callback) {
     
     MistUtil.empty(ele);
     ele.appendChild(createParam("movie",MistVideo.urlappend(options.host+MistVideo.source.player_url)));
-    var flashvars = "src="+encodeURIComponent(source)+"&controlBarMode="+(options.controls ? "floating" : "none")+"&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3"+(options.live ? "&streamType=live" : "")+(options.autoplay ? "&autoPlay=true" : "" );
+    var flashvars = "src="+encodeURIComponent(source)+"&controlBarMode="+(options.controls ? "floating" : "none")+"&initialBufferTime=0.5&expandedBufferTime=5&minContinuousPlaybackTime=3"+(options.live ? "&streamType=live" : "")+(options.autoplay ? "&autoPlay=true" : "" )+(options.loop ? "&loop=true" : "" )+(options.poster ? "&poster="+options.poster : "" )+(options.muted ? "&muted=true" : "" );
     ele.appendChild(createParam("flashvars",flashvars));
     ele.appendChild(createParam("allowFullScreen","true"));
     ele.appendChild(createParam("wmode","direct"));
     if (options.autoplay) {
       ele.appendChild(createParam("autoPlay","true"));
+    }
+    if (options.loop) {
+      ele.appendChild(createParam("loop","true"));
+    }
+    if (options.poster) {
+      ele.appendChild(createParam("poster",options.poster));
+    }
+    if (options.muted) {
+      ele.appendChild(createParam("muted","true"));
     }
     
     e.setAttribute("src",MistVideo.urlappend(MistVideo.source.player_url));

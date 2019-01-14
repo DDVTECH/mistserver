@@ -18,6 +18,7 @@
 }
 .mistvideo-video {
   overflow: hidden;
+  outline: none;
 }
 svg.icon.loading {
   z-index: -1; /* don't use display: none because of transition for [data-loading=stalled] */
@@ -221,4 +222,7 @@ svg.icon.off .toggle .semiFill { fill: none; }
 svg.icon.spin, svg.icon .spin {
   animation: spin 1.5s infinite linear;
   transform-origin: 50% 50%;
+}
+.vjs-text-track-display {
+  pointer-events: none;
 }

@@ -205,15 +205,16 @@ MistSkins["default"] = {
         mode: "pos",
         transition: {
           hide: "left: 10px; bottom: -40px;",
-          show: "bottom: 10px;"
+          show: "bottom: 10px;",
+          viewport: "left: 0; right: 0; top: 0; bottom: 0"
         },
         button: {
           type: "container",
-          children: [{type: "video"}]
+          children: [{type: "videocontainer"}]
         },
         window: {
           type: "switchVideo",
-          classes: ["mistvideo-controls","mistvideo-padding","mistvideo-background"],
+          classes: ["mistvideo-controls","mistvideo-padding","mistvideo-background","mistvideo-pointer"],
           containers: switchThese
         }
       };
@@ -448,7 +449,8 @@ MistSkins["default"] = {
         MistVideo.secondary = [];
       }
       
-      var options = MistUtil.object.extend(o.options,MistVideo.options,true);
+      var options = MistUtil.object.extend({},MistVideo.options);
+      options = MistUtil.object.extend(options,o.options);
       MistVideo.secondary.push(options);
       
       var pointer = {
@@ -457,7 +459,14 @@ MistSkins["default"] = {
       };
       
       options.target = document.createElement("div");
-      options.callback = function(mv){
+      delete options.container;
+      
+      var mvo = {};
+      options.MistVideoObject = mvo;
+      
+      MistUtil.event.addListener(options.target,"initialized",function(){
+        var mv = mvo.reference;
+      //options.callback = function(mv){
         options.MistVideo = mv; //tell the main video we exist
         pointer.secondary = mv;
         
@@ -467,7 +476,7 @@ MistSkins["default"] = {
         //as all event listeners are tied to the video element (not the container), events don't bubble up and disturb higher players
         
         //prevent clicks on the control container from bubbling down to underlying elements
-        var controlContainers = options.target.querySelectorAll(".controls");
+        var controlContainers = options.target.querySelectorAll(".mistvideo-controls");
         for (var i = 0; i < controlContainers.length; i++) {
           MistUtil.event.addListener(controlContainers[i],"click",function(e){
             e.stopPropagation();
@@ -516,7 +525,7 @@ MistSkins["default"] = {
           mv.player.api.pausedesync = false;
         });
         
-      };
+      });
       options.skin = MistUtil.object.extend({},MistVideo.skin,true);
       options.skin.structure.main = MistUtil.object.extend({},MistVideo.skin.structure.secondaryVideo(pointer));
       
@@ -582,6 +591,8 @@ MistSkins["default"] = {
     },
     controls: function(){
       if ((this.options.controls) && (this.options.controls != "stock")) {
+        MistUtil.class.add(this.container,"hasControls");
+        
         var container = this.UI.buildStructure(this.skin.structure.controls);
         if (MistUtil.isTouchDevice()) {
           container.style.zoom = 1.5;
@@ -1274,27 +1285,30 @@ MistSkins["default"] = {
         function changeToTracks(type,value){
           MistVideo.log("User selected "+type+" track with id "+value);
           
-          if ("setTrack" in MistVideo.player.api) {
-            MistVideo.player.api.setTrack(type,value);
-            return;
-          }
+          if (!MistVideo.options.setTracks) { MistVideo.options.setTracks = {}; }
+          MistVideo.options.setTracks[type] = value;
           
+          if ("setTrack" in MistVideo.player.api) {
+            return MistVideo.player.api.setTrack(type,value);
+          }
+          else {
           //gather what tracks we should use
           var usetracks = {};
           for (var i in selections) {
-            if (i == "subtitle") { continue; } //subtitle tracks are handled seperately
+            if ((i == "subtitle") || (selections[i].value == "")) { continue; } //subtitle tracks are handled seperately
             usetracks[i] = selections[i].value;
           }
-          usetracks[type] = value;
+          if (value != ""){ usetracks[type] = value; }
           //use setTracks
           if ("setTracks" in MistVideo.player.api) {
-            MistVideo.player.api.setTracks(usetracks);
+            return MistVideo.player.api.setTracks(usetracks);
           }
           //use setSource
           if ("setSource" in MistVideo.player.api) {
-            MistVideo.player.api.setSource(
+            return MistVideo.player.api.setSource(
               MistUtil.http.url.addParam(MistVideo.source.url,usetracks)
             );
+          }
           }
         }
         
@@ -1373,6 +1387,7 @@ MistSkins["default"] = {
                     if (i == this.trackType) { continue; }
                     if (!checkboxes[i].checked) {
                       checkboxes[i].checked = true;
+                      changeToTracks(i,true);
                       break;
                     }
                   }
@@ -1405,13 +1420,14 @@ MistSkins["default"] = {
           //var determine the display info for the tracks
           function orderValues(trackinfoobj) {
             var order = {
-              width:    1,
-              bps:      2,
+              trackid:  0,
+              language: 1,
+              width:    2,
+              bps:      3,
               fpks:     4,
               channels: 5,
-              rate:     7,
-              language: 0,
-              codec:    6
+              codec:    6,
+              rate:     7
             };
             return MistUtil.object.values(trackinfoobj,function(keya,keyb,valuea,valueb){
               if (order[keya] > order[keyb]) { return 1; }
@@ -1429,6 +1445,13 @@ MistSkins["default"] = {
             select.trackType = type;
             cell.appendChild(select);
             
+            if (type != "subtitle") {
+              var option = document.createElement("option");
+              select.appendChild(option);
+              option.value = "";
+              option.appendChild(document.createTextNode("Automatic"));
+            }
+            
             //display properties that are the same for all tracks
             var same = orderValues(t[MistUtil.object.keys(t)[0]].same);
             if (same.length) {
@@ -1440,7 +1463,9 @@ MistSkins["default"] = {
             
             
             //add options to the select
-            var options = MistUtil.object.keys(t,true); //sort them
+            var options = MistUtil.object.keys(t,function(a,b){
+              return Number(a) - Number(b);
+            }); //sort them
             for (var i in options) {
               var track = t[options[i]];
               var option = document.createElement("option");
@@ -1495,11 +1520,14 @@ MistSkins["default"] = {
                   checkboxes[this.trackType].checked = true;
                 }
                 
-                changeToTracks(this.trackType,this.value);
+                if (!changeToTracks(this.trackType,this.value)) {
+                  //trackchange failed, reset select to old value
+                }
                 
               });
               
               //set to the track that plays by default
+              /*
               if (MistVideo.info.type == "live") {
                 //for live, the default track is the highest index
                 select.value = MistUtil.object.keys(t).pop();
@@ -1508,6 +1536,7 @@ MistSkins["default"] = {
                 //for vod, the default track is the lowest index
                 select.value = MistUtil.object.keys(t).shift();
               }
+              */
               
               MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
                 
@@ -1736,8 +1765,8 @@ MistSkins["default"] = {
       this.showError = function(message,options){
         if (!options) {
           options = {
-            softReload: true,
-            reload: true,//(MistVideo.options.reloadDelay ? MistVideo.options.reloadDelay : 10),
+            softReload: !!((MistVideo.video) && (MistVideo.video.load)),
+            reload: true,
             nextCombo: !!MistVideo.info,
             polling: false,
             passive: false
@@ -2456,7 +2485,7 @@ function MistSkin(MistVideo) {
     if ((typeof skinOptions == "string") && (skinOptions in MistSkins)) { skinOptions = MistUtil.object.extend({},MistSkins[skinOptions],true); }
     
     var skinParent;
-    if (("inherit" in skinOptions) && (skinOptions.inherit)) {
+    if (("inherit" in skinOptions) && (skinOptions.inherit) && (skinOptions.inherit in MistSkins)) {
       skinParent = this.applySkinOptions(skinOptions.inherit);
     }
     else {
@@ -2544,6 +2573,7 @@ function MistSkin(MistVideo) {
     return this;
   }
   this.applySkinOptions("skin" in MistVideo.options ? MistVideo.options.skin : "default");
+  
   
   //load css
   var styles = [];

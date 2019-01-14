@@ -213,10 +213,8 @@ var MistUtil = {
       
       if (sorting) {
         if (typeof sorting != "function") {
-          sorting = function(keya,keyb){
-            if (keya > keyb) { return 1; }
-            if (keya < keyb) { return -1; }
-            return 0;
+          sorting = function(a,b){
+            return a.localeCompare(b);
           };
         }
         
@@ -763,6 +761,22 @@ var MistUtil = {
           output[type][i].same = same;
           var d = MistUtil.object.values(different);
           output[type][i].displayName = (d.length ? d.join(", ") : MistUtil.object.values(output[type][i].describe).join(" "));
+        }
+        
+        //check if some tracks have the same display name
+        var names = {};
+        for (var i in output[type]) {
+          if (output[type][i].displayName in names) {
+            //we have double names, add the track id
+            var n = 1;
+            for (var i in output[type]) {
+              output[type][i].different.trackid = n+")";
+              output[type][i].displayName = "Track "+n+" ("+output[type][i].displayName+")";
+              n++;
+            }
+            break;
+          }
+          names[output[type][i].displayName] = 1;
         }
       }
       

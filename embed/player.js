@@ -15,7 +15,8 @@ function MistVideo(streamName,options) {
     autoplay: true,       //start playing when loaded
     controls: true,       //show controls (MistControls when available)
     loop: false,          //don't loop when the stream has finished
-    poster: null,         //don't show an image before the stream has started
+    poster: false,        //don't show an image before the stream has started
+    muted: false,         //don't start muted
     callback: false,      //don't call a function when the player has finished building
     streaminfo: false,    //don't use this streaminfo but collect it from the mistserverhost
     startCombo: false,    //start looking for a player/source match at the start
@@ -99,7 +100,7 @@ function MistVideo(streamName,options) {
   
   new MistSkin(this);
   
-  this.checkPlayer = function(options,quiet) {
+  this.checkCombo = function(options,quiet) {
     if (!options) {
       options = {};
     }
@@ -244,7 +245,7 @@ function MistVideo(streamName,options) {
   this.choosePlayer = function() {
     MistVideo.log("Checking available players..");
     
-    var result = this.checkPlayer();
+    var result = this.checkCombo();
     if (!result) { return false; }
     
     var player = mistplayers[result.player];
@@ -257,7 +258,7 @@ function MistVideo(streamName,options) {
     source.url = MistVideo.urlappend(source.url);
     MistVideo.source = source;
     
-    MistUtil.event.send("playerChosen","Player/source combination selected",MistVideo.options.target);
+    MistUtil.event.send("comboChosen","Player/source combination selected",MistVideo.options.target);
     
     return true;
   }
@@ -605,7 +606,7 @@ function MistVideo(streamName,options) {
         if ("setSize" in MistVideo.player) {
           MistVideo.player.videocontainer = MistVideo.video.parentNode;
           MistVideo.video.currentTarget = MistVideo.options.target;
-          if (!MistUtil.class.has(MistVideo.options.target,"secondaryVideo")) {
+          if (!MistUtil.class.has(MistVideo.options.target,"mistvideo-secondaryVideo")) {
             //this is the main MistVideo
             MistVideo.player.resizeAll = function(){
               function findVideo(startAt,matchTarget) {
@@ -622,14 +623,18 @@ function MistVideo(streamName,options) {
               }
               
               //find the video that is in the main container, and resize that one
-              findVideo(MistVideo,MistVideo.options.target).p.resize();
+              var main = findVideo(MistVideo,MistVideo.options.target);
+              if (!main) { throw "Main video not found"; }
+              main.p.resize();
               
               //then, resize the secondaries
               if ("secondary" in MistVideo) {
                 function tryResize(mv){
                   if (mv.MistVideo) {
                     if ("player" in mv.MistVideo) {
-                      findVideo(MistVideo,mv.MistVideo.options.target).p.resize();
+                      var sec = findVideo(MistVideo,mv.MistVideo.options.target);
+                      if (!sec) { throw "Secondary video not found"; }
+                      sec.p.resize();
                     }
                   }
                   else {
@@ -647,13 +652,14 @@ function MistVideo(streamName,options) {
             
           }
           MistVideo.player.resize = function(options){
-            if (!MistVideo.container.hasAttribute("data-fullscreen")) {
+            var container = MistVideo.video.currentTarget.querySelector(".mistvideo");
+            if (!container.hasAttribute("data-fullscreen")) {
               //if ((!document.fullscreenElement) || (document.fullscreenElement.parentElement != MistVideo.video.currentTarget)) {
               //first, base the size on the video dimensions
               size = MistVideo.calcSize(options);
               this.setSize(size);
-              MistVideo.container.style.width = size.width+"px";
-              MistVideo.container.style.height = size.height+"px";
+              container.style.width = size.width+"px";
+              container.style.height = size.height+"px";
               
               if ((MistVideo.options.fillSpace) && (!options || !options.reiterating)) {
                 //if this container is set to fill the available space
@@ -686,13 +692,6 @@ function MistVideo(streamName,options) {
               return true;
             }
             else {
-              function findVideo(parent) {
-                for (var i = 0; i < parent.children.length; i++) {
-                  if (MistUtil.class.has(parent.children[i],"video")) {
-                    return parent.children[i];
-                  }
-                }
-              }
               
               //this is the video that is in the main container, and resize this one to the screen dimensions
               this.setSize({
@@ -704,7 +703,7 @@ function MistVideo(streamName,options) {
           };
           
           //if this is the main video
-          if (!MistUtil.class.has(MistVideo.options.target,"secondaryVideo")) {
+          if (!MistUtil.class.has(MistVideo.options.target,"mistvideo-secondaryVideo")) {
             MistUtil.event.addListener(window,"resize",function(){
               if (MistVideo.destroyed) { return; }
               MistVideo.player.resizeAll();
@@ -738,7 +737,7 @@ function MistVideo(streamName,options) {
                   MistVideo.log("Skipping trackselection of "+i+" track "+usetracks[i]+" because it does not exist");
                   delete usetracks[i];
                 }
-                if (!MistUtil.object.keys(usetracks).length) { return; }
+                //if (!MistUtil.object.keys(usetracks).length) { return; } //don't do this; allow switching back to auto
                 
                 //create source url
                 var newurl;
@@ -771,11 +770,13 @@ function MistVideo(streamName,options) {
                 this.setSourceParams(newurl,usetracks);
                 
                 //restore video position
-                var f = function(){
-                  this.currentTime = time;
-                  this.removeEventListener("loadedmetadata",f);
-                };
-                MistUtil.event.addListener(MistVideo.video,"loadedmetadata",f);
+                if (MistVideo.info.type != "live") {
+                  var f = function(){
+                    this.currentTime = time;
+                    this.removeEventListener("loadedmetadata",f);
+                  };
+                  MistUtil.event.addListener(MistVideo.video,"loadedmetadata",f);
+                }
                 
               }
               
@@ -1091,9 +1092,9 @@ function MistVideo(streamName,options) {
       source: this.source.index,
       player: this.playerName
     };
-    if (!this.checkPlayer({startCombo:startCombo},true)) {
+    if (!this.checkCombo({startCombo:startCombo},true)) {
       //the nextCombo won't yield a result
-      if (this.checkPlayer({startCombo: false},true)) {
+      if (this.checkCombo({startCombo: false},true)) {
         //..but resetting the startcombo would
         startCombo = false;
       }
@@ -1107,7 +1108,7 @@ function MistVideo(streamName,options) {
     opts.startCombo = startCombo;
     MistVideo = mistPlay(this.stream,opts);
     
-    if ((time) && (isFinite(time))) {
+    if ((time) && (isFinite(time) && (this.info.type != "live"))) {
       //after load, try to restore the video position
       var f = function(){
         if (("player" in MistVideo) && ("api" in MistVideo.player)) { MistVideo.player.api.currentTime = time; }

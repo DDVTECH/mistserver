@@ -550,7 +550,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   if (!Request.isMember("minimal") || Request.isMember("config")){
     Response["config"] = Controller::Storage["config"];
     Response["config"]["iid"] = instanceId;
-    Response["config"]["version"] = PACKAGE_VERSION;
+    Response["config"]["version"] = PACKAGE_VERSION " " RELEASE;
     //add required data to the current unix time to the config, for syncing reasons
     Response["config"]["time"] = Util::epoch();
     if ( !Response["config"].isMember("serverid")){

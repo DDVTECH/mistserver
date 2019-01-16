@@ -13,9 +13,17 @@ namespace RTP{
   double Packet::startRTCP = 0;
   unsigned int MAX_SEND = 1500 - 28;
 
-  unsigned int Packet::getHsize() const{return 12 + 4 * getContribCount();}
+  unsigned int Packet::getHsize() const{
+    unsigned int r = 12 + 4 * getContribCount();
+    if (getExtension()){
+      r += (1+Bit::btohs(data+r+2)) * 4;
+    }
+    return r;
+  }
 
-  unsigned int Packet::getPayloadSize() const{return maxDataLen - getHsize();}
+  unsigned int Packet::getPayloadSize() const{
+    return maxDataLen - getHsize() - (getPadding() ? data[maxDataLen-1] : 0);
+  }
 
   char *Packet::getPayload() const{return data + getHsize();}
 

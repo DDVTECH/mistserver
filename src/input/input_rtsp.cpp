@@ -20,6 +20,7 @@ namespace Mist{
   void InputRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){sdpState.handleIncomingRTP(track, p);}
 
   InputRTSP::InputRTSP(Util::Config *cfg) : Input(cfg){
+    needAuth = false;
     TCPmode = true;
     sdpState.myMeta = &myMeta;
     sdpState.incomingPacketCallback = incomingPacket;
@@ -80,7 +81,8 @@ namespace Mist{
 
   void InputRTSP::sendCommand(const std::string &cmd, const std::string &cUrl,
                               const std::string &body,
-                              const std::map<std::string, std::string> *extraHeaders){
+                              const std::map<std::string, std::string> *extraHeaders,
+                              bool reAuth){
     ++cSeq;
     sndH.Clean();
     sndH.protocol = "RTSP/1.0";
@@ -100,6 +102,15 @@ namespace Mist{
       }
     }
     sndH.SendRequest(tcpCon, "", true);
+    parsePacket();
+
+    if (reAuth && needAuth && authRequest.size() && (username.size() || password.size()) && tcpCon){
+      INFO_MSG("Authenticating %s...", cmd.c_str());
+      sendCommand(cmd, cUrl, body, extraHeaders, false);
+      if (needAuth){
+        FAIL_MSG("Authentication failed! Are the provided credentials correct?");
+      }
+    }
   }
 
   bool InputRTSP::checkArguments(){
@@ -129,17 +140,11 @@ namespace Mist{
   }
 
   void InputRTSP::parseStreamHeader(){
+    tcpCon.setBlocking(false);
     std::map<std::string, std::string> extraHeaders;
     sendCommand("OPTIONS", url.getUrl(), "");
-    parsePacket();
     extraHeaders["Accept"] = "application/sdp";
     sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
-    parsePacket();
-    if (!seenSDP && authRequest.size() && (username.size() || password.size()) && tcpCon){
-      INFO_MSG("Authenticating...");
-      sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
-      parsePacket();
-    }
     if (!tcpCon || !seenSDP){
       FAIL_MSG("Could not get stream description!");
       return;
@@ -151,7 +156,6 @@ namespace Mist{
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
         sendCommand("SETUP", url.link(it->second.control).getUrl(), "", &extraHeaders);
-        parsePacket();
         if (!tcpCon || !transportSet){
           FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
           tcpCon.close();
@@ -164,8 +168,9 @@ namespace Mist{
     extraHeaders["Range"] = "npt=0.000-";
     sendCommand("PLAY", url.getUrl(), "", &extraHeaders);
     if (!TCPmode){
-      tcpCon.setBlocking(false);
       connectedAt = Util::epoch() + 2208988800ll;
+    }else{
+      tcpCon.setBlocking(true);
     }
   }
 
@@ -210,7 +215,8 @@ namespace Mist{
           if (recH.hasHeader("WWW-Authenticate")){
             authRequest = recH.GetHeader("WWW-Authenticate");
           }
-          if (recH.url == "401"){
+          needAuth = (recH.url == "401");
+          if (needAuth){
             INFO_MSG("Requires authentication");
             recH.Clean();
             return true;

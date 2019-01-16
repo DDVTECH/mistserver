@@ -27,7 +27,7 @@ namespace Mist{
     void parseStreamHeader();
     void seek(int seekTime){}
     void sendCommand(const std::string &cmd, const std::string &cUrl, const std::string &body,
-                     const std::map<std::string, std::string> *extraHeaders = 0);
+                     const std::map<std::string, std::string> *extraHeaders = 0, bool reAuth=true);
     bool parsePacket();
     bool handleUDP();
     std::string streamMainLoop();
@@ -40,6 +40,7 @@ namespace Mist{
     bool seenSDP;
     bool transportSet;
     bool TCPmode;
+    bool needAuth;
     std::string session;
     long long connectedAt; ///< The timestamp the connection was made, as reference point for RTCP
                            /// packets.

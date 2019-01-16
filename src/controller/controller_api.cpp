@@ -744,7 +744,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   if (!Request.isMember("minimal") || Request.isMember("config")){
     Response["config"] = Controller::Storage["config"];
     Response["config"]["iid"] = instanceId;
-    Response["config"]["version"] = PACKAGE_VERSION;
+    Response["config"]["version"] = PACKAGE_VERSION " " RELEASE;
     /*LTS-START*/
     #ifdef LICENSING
     Response["config"]["license"] = getLicense();

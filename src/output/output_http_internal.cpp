@@ -835,6 +835,9 @@ namespace Mist {
         if (newState == STRMSTAT_READY && (++metaCounter % 4) == 0){
           updateMeta();
         }
+        if ((metaCounter % 40) == 0){
+          ws.sendFrame("", 0, 0x9);
+        }
       }
     }
     return true;

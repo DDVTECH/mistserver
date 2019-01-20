@@ -45,7 +45,7 @@ namespace Mist{
     const char *packetPtr;
     uint64_t reloadNext;
 
-    int id;
+    uint32_t id;
     bool playlistEnd;
     int noChangeCount;
     uint64_t lastFileIndex;
@@ -84,8 +84,8 @@ namespace Mist{
     // std::vector<playListEntries> entries;
     std::vector<Playlist> playlists;
     // std::vector<int> pidMapping;
-    std::map<int, int> pidMapping;
-    std::map<int, int> pidMappingR;
+    std::map<uint64_t, uint64_t> pidMapping;
+    std::map<uint64_t, uint64_t> pidMappingR;
 
     int currentIndex;
     std::string currentFile;
@@ -118,9 +118,9 @@ namespace Mist{
 
     void parseStreamHeader();
 
-    int getMappedTrackId(int id);
-    int getMappedTrackPlaylist(int id);
-    int getOriginalTrackId(int playlistId, int id);
+    uint32_t getMappedTrackId(uint64_t id);
+    uint32_t getMappedTrackPlaylist(uint64_t id);
+    uint64_t getOriginalTrackId(uint32_t playlistId, uint32_t id);
     int getEntryId(int playlistId, uint64_t bytePos);
   };
 }// namespace Mist

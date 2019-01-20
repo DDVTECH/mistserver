@@ -67,8 +67,8 @@ void AnalyserHLS::stop(){
 
 bool AnalyserHLS::open(const std::string &url){
   root = HTTP::URL(url);
-  if (root.protocol != "http"){
-    FAIL_MSG("Only http protocol is supported (%s not supported)", root.protocol.c_str());
+  if (root.protocol != "http" && root.protocol != "https"){
+    FAIL_MSG("Only http(s) protocol is supported (%s not supported)", root.protocol.c_str());
     return false;
   }
   return true;

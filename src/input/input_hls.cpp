@@ -299,12 +299,12 @@ namespace Mist{
   }
 
   void inputHLS::parseStreamHeader(){
-    bool hasHeader = false;
-    if (!hasHeader){myMeta = DTSC::Meta();}
+    myMeta = DTSC::Meta();
+    myMeta.live = false;
+    myMeta.vod = true;
     VERYHIGH_MSG("parsestream");
     TS::Packet packet; // to analyse and extract data
     int counter = 1;
-    int packetId = 0;
 
     char *data;
     unsigned int dataLen;
@@ -320,7 +320,6 @@ namespace Mist{
 
       if (pListIt->isUrl()){
         bool ret = false;
-        continueNegotiate();
         nProxy.userClient.keepAlive();
         ret = pListIt->loadSegment(pListIt->root.link(entryIt->filename));
         keepReading = packet.FromPointer(pListIt->packetPtr);
@@ -347,11 +346,11 @@ namespace Mist{
           DTSC::Packet headerPack;
           tsStream.getEarliestPacket(headerPack);
           int tmpTrackId = headerPack.getTrackId();
-          packetId = pidMapping[(pListIt->id << 16) + tmpTrackId];
+          uint64_t packetId = pidMapping[(((uint64_t)pListIt->id) << 32) + tmpTrackId];
 
           if (packetId == 0){
-            pidMapping[(pListIt->id << 16) + headerPack.getTrackId()] = counter;
-            pidMappingR[counter] = (pListIt->id << 16) + headerPack.getTrackId();
+            pidMapping[(((uint64_t)pListIt->id) << 32) + headerPack.getTrackId()] = counter;
+            pidMappingR[counter] = (((uint64_t)pListIt->id) << 32) + headerPack.getTrackId();
             packetId = counter;
             HIGH_MSG("Added file %s, trackid: %d, mapped to: %d",
                      pListIt->root.link(entryIt->filename).getUrl().c_str(),
@@ -359,11 +358,7 @@ namespace Mist{
             counter++;
           }
 
-          myMeta.live = false;
-          myMeta.vod = true;
-
-          if (!hasHeader &&
-              (!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
+          if ((!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
             tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
             myMeta.tracks[packetId].minKeepAway = pListIt->waitTime * 2000;
             VERYHIGH_MSG("setting minKeepAway = %d for track: %d",
@@ -385,8 +380,6 @@ namespace Mist{
       in.close();
     }
     tsStream.clear();
-
-    if (hasHeader){return;}
     in.close();
   }
 
@@ -411,7 +404,6 @@ namespace Mist{
     TS::Packet packet; // to analyse and extract data
 
     int counter = 1;
-    int packetId = 0;
 
     char *data;
     size_t dataLen;
@@ -459,11 +451,11 @@ namespace Mist{
             tsStream.getEarliestPacket(headerPack);
 
             int tmpTrackId = headerPack.getTrackId();
-            packetId = pidMapping[(pListIt->id << 16) + tmpTrackId];
+            uint64_t packetId = pidMapping[(((uint64_t)pListIt->id) << 32) + tmpTrackId];
 
             if (packetId == 0){
-              pidMapping[(pListIt->id << 16) + headerPack.getTrackId()] = counter;
-              pidMappingR[counter] = (pListIt->id << 16) + headerPack.getTrackId();
+              pidMapping[(((uint64_t)pListIt->id) << 32) + headerPack.getTrackId()] = counter;
+              pidMappingR[counter] = (((uint64_t)pListIt->id) << 32) + headerPack.getTrackId();
               packetId = counter;
               counter++;
             }
@@ -504,11 +496,11 @@ namespace Mist{
         tsStream.getEarliestPacket(headerPack);
         while (headerPack){
           int tmpTrackId = headerPack.getTrackId();
-          packetId = pidMapping[(pListIt->id << 16) + tmpTrackId];
+          uint64_t packetId = pidMapping[(((uint64_t)pListIt->id) << 32) + tmpTrackId];
 
           if (packetId == 0){
-            pidMapping[(pListIt->id << 16) + headerPack.getTrackId()] = counter;
-            pidMappingR[counter] = (pListIt->id << 16) + headerPack.getTrackId();
+            pidMapping[(((uint64_t)pListIt->id) << 32) + headerPack.getTrackId()] = counter;
+            pidMappingR[counter] = (((uint64_t)pListIt->id) << 32) + headerPack.getTrackId();
             packetId = counter;
             INFO_MSG("Added file %s, trackid: %d, mapped to: %d",
                      pListIt->root.link(entryIt->filename).getUrl().c_str(),
@@ -599,7 +591,6 @@ namespace Mist{
         while (Util::bootSecs() < playlists[a].reloadNext &&
                (needsLock() || nProxy.userClient.isAlive())){
           Util::wait(1000);
-          continueNegotiate();
           nProxy.userClient.keepAlive();
         }
         MEDIUM_MSG("Reloading playlist %d", a);
@@ -621,7 +612,7 @@ namespace Mist{
       // Yes? Excellent! Read and return it.
       if (hasPacket){
         // Read
-        if (playlists[currentPlaylist].playlistType == LIVE){
+        if (myMeta.live){
           tsStream.getEarliestPacket(thisPacket);
           tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
         }else{
@@ -630,6 +621,7 @@ namespace Mist{
         if (!thisPacket){
           FAIL_MSG("Could not getNext TS packet!");
         }else{
+          DONTEVEN_MSG("Packet track %lu @ time %" PRIu64 " ms", tid, thisPacket.getTime());
           // overwrite trackId on success
           Bit::htobl(thisPacket.getData() + 8, tid);
         }
@@ -680,7 +672,6 @@ namespace Mist{
         endOfFile = false; // no longer at end of file
         // Prevent timeouts, we may have just finished a download after all.
         if (playlists[currentPlaylist].playlistType == LIVE){
-          continueNegotiate();
           nProxy.userClient.keepAlive();
         }
         continue; // Success! Continue regular parsing.
@@ -780,13 +771,13 @@ namespace Mist{
     return playlists[playlistId].entries.size() - 1;
   }
 
-  int inputHLS::getOriginalTrackId(int playlistId, int id){
-    return pidMapping[(playlistId << 16) + id];
+  uint64_t inputHLS::getOriginalTrackId(uint32_t playlistId, uint32_t id){
+    return pidMapping[(((uint64_t)playlistId) << 32) + id];
   }
 
-  int inputHLS::getMappedTrackId(int id){return (pidMappingR[id] & 0xFFFF);}
+  uint32_t inputHLS::getMappedTrackId(uint64_t id){return (pidMappingR[id] & 0xFFFFFFFFull);}
 
-  int inputHLS::getMappedTrackPlaylist(int id){return (pidMappingR[id] >> 16);}
+  uint32_t inputHLS::getMappedTrackPlaylist(uint64_t id){return (pidMappingR[id] >> 32);}
 
   /// Parses the main playlist, possibly containing variants.
   bool inputHLS::initPlaylist(const std::string &uri){

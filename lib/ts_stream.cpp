@@ -302,7 +302,7 @@ namespace TS{
     }
     std::deque<Packet> &inStream = pesStreams[tid];
     if (inStream.size() <= 1){
-      FAIL_MSG("No PES packets to parse");
+      if (!finished){FAIL_MSG("No PES packets to parse");}
       return;
     }
     // Find number of packets before unit Start
@@ -842,11 +842,13 @@ namespace TS{
   void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
 
+    size_t mId = mappingId;
+    
     for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
          it != pidToCodec.end(); it++){
       if (tid && it->first != tid){continue;}
 
-      size_t mId = it->first;
+      if (mId == 0){mId = it->first;}
 
       if (meta.tracks.count(mId) && meta.tracks[mId].codec.size()){continue;}
 

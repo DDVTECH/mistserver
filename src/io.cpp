@@ -733,6 +733,10 @@ namespace Mist {
           tmpMeta.tracks[newTid] = myMeta.tracks[tid];
           tmpMeta.tracks[newTid].trackID = newTid;
           JSON::Value tmpVal = tmpMeta.toJSON();
+          if (!myMeta.tracks[tid].type.size() || !myMeta.tracks[tid].codec.size()){
+            FAIL_MSG("Negotiating a track without metadata. This is a serious issue, please report this to the developers.");
+            BACKTRACE;
+          }
           std::string tmpStr = tmpVal.toNetPacked();
           memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
           HIGH_MSG("Temporary metadata written for incoming track %lu, handling as track %lu", tid, newTid);

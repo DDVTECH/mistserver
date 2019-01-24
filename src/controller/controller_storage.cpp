@@ -48,7 +48,7 @@ namespace Controller {
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
-  void Log(std::string kind, std::string message, bool noWriteToLog){
+  void Log(const std::string & kind, const std::string & message, const std::string & stream, bool noWriteToLog){
     if (noWriteToLog){
       tthread::lock_guard<tthread::mutex> guard(logMutex);
       JSON::Value m;
@@ -56,6 +56,7 @@ namespace Controller {
       m.append(logTime);
       m.append(kind);
       m.append(message);
+      m.append(stream);
       Storage["log"].append(m);
       Storage["log"].shrink(100); // limit to 100 log messages
       logCounter++;
@@ -68,6 +69,7 @@ namespace Controller {
         rlxLogs->setInt("time", logTime, logCounter-1);
         rlxLogs->setString("kind", kind, logCounter-1);
         rlxLogs->setString("msg", message, logCounter-1);
+        rlxLogs->setString("strm", stream, logCounter-1);
         rlxLogs->setEndPos(logCounter);
       }
     }else{
@@ -118,6 +120,7 @@ namespace Controller {
       rlxLogs->addField("time", RAX_64UINT);
       rlxLogs->addField("kind", RAX_32STRING);
       rlxLogs->addField("msg", RAX_512STRING);
+      rlxLogs->addField("strm", RAX_128STRING);
       rlxLogs->setReady();
     }
     maxLogsRecs = (1024*1024 - rlxLogs->getOffset()) / rlxLogs->getRSize();

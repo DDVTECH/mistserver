@@ -247,7 +247,8 @@ namespace Util{
 
   /// Parses log messages from the given file descriptor in, printing them to out, optionally calling the given callback for each valid message.
   /// Closes the file descriptor on read error
-  void logParser(int in, int out, bool colored, void callback(std::string, std::string, bool)){
+  void logParser(int in, int out, bool colored, void callback(const std::string &, const std::string &, const std::string &, bool)){
+
     char buf[1024];
     FILE *output = fdopen(in, "r");
     char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg, *WARN_msg, *INFO_msg;
@@ -327,7 +328,7 @@ namespace Util{
       buf[j] = 0;
       //print message
       if (message){
-        if (callback){callback(kind, message, true);}
+        if (callback){callback(kind, message, strmNm, true);}
         color_msg = color_end;
         if (colored){
           if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}

@@ -27,7 +27,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "flash/7";
-    capa["methods"][0u]["priority"] = 5ll;
+    capa["methods"][0u]["priority"] = 5;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
     capa["push_urls"].append("/*.flv");
     

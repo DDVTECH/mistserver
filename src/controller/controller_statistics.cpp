@@ -515,7 +515,7 @@ uint32_t Controller::statSession::kill(){
 }
 
 /// Updates the given active connection with new stats data.
-void Controller::statSession::update(unsigned long index, IPC::statExchange & data){
+void Controller::statSession::update(uint64_t index, IPC::statExchange & data){
   //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 2 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
     sessIndex tmpidx(data);
@@ -665,7 +665,7 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       while (it->second.log.size() > 1 && it->second.log.begin()->first < cutOff){
         it->second.log.erase(it->second.log.begin());
       }
@@ -747,7 +747,7 @@ void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t
 }
 
 /// Archives the given connection.
-void Controller::statSession::finish(unsigned long index){
+void Controller::statSession::finish(uint64_t index){
   oldConns.push_back(curConns[index]);
   curConns.erase(index);
 }
@@ -766,7 +766,7 @@ Controller::statSession::statSession(){
 }
 
 /// Moves the given connection to the given session
-void Controller::statSession::switchOverTo(statSession & newSess, unsigned long index){
+void Controller::statSession::switchOverTo(statSession & newSess, uint64_t index){
   //add to the given session first
   newSess.curConns[index] = curConns[index];
   //if this connection has data, update firstSec/lastSec if needed
@@ -797,7 +797,7 @@ void Controller::statSession::switchOverTo(statSession & newSess, unsigned long 
       }
     }
     if (curConns.size()){
-      for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
         if (it->second.log.size()){
           if (firstSec > it->second.log.begin()->first){
             firstSec = it->second.log.begin()->first;
@@ -871,7 +871,7 @@ bool Controller::statSession::isViewer(){
     }
   }
   if (curConns.size()){
-    for (std::map<unsigned long, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
       if (it->second.log.size()){
         upTotal += it->second.log.rbegin()->second.up + it->second.log.rbegin()->second.down;
         if (upTotal > COUNTABLE_BYTES){return true;}
@@ -1282,7 +1282,7 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
   //collect the data first
   std::set<std::string> streams;
-  std::map<std::string, unsigned long> clients;
+  std::map<std::string, uint64_t> clients;
   unsigned int tOut = Util::epoch() - STATS_DELAY;
   unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
   //check all sessions
@@ -1325,7 +1325,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
             IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
             metaLocker.wait();
             DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
-            long long lms = 0;
+            uint64_t lms = 0;
             DTSC::Scan trcks = strm.getMember("tracks");
             unsigned int trcks_ctr = trcks.getSize();
             for (unsigned int i = 0; i < trcks_ctr; ++i){

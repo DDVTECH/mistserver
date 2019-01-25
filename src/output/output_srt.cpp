@@ -18,11 +18,11 @@ namespace Mist {
     capa["codecs"][0u][0u].append("subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/plain";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 8;
     capa["methods"][0u]["url_rel"] = "/$.srt";
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "html5/text/vtt";
-    capa["methods"][1u]["priority"] = 9ll;
+    capa["methods"][1u]["priority"] = 9;
     capa["methods"][1u]["url_rel"] = "/$.vtt";
   }
   

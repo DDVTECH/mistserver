@@ -9,7 +9,7 @@ namespace Mist{
     capa["source_match"] = "h264-exec:*";
     //May be set to always-on mode
     capa["always_match"].append("h264-exec:*");
-    capa["priority"] = 0ll;
+    capa["priority"] = 0;
     capa["codecs"][0u][0u].append("H264");
     frameCount = 0;
     startTime = Util::bootMS();

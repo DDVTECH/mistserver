@@ -23,7 +23,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("opus");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/ogg";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 8;
     capa["methods"][0u]["nolive"] = 1;
   }
 

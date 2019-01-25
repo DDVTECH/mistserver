@@ -71,14 +71,14 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP2");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mpeg";
-    capa["methods"][0u]["priority"] = 1ll;
+    capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");
 
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target filename to store TS file as, or - for stdout.";
     cfg->addOption("target", opt);
   }

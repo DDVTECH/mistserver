@@ -401,9 +401,9 @@ namespace Mist {
       }
     }
     if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
-      json_resp["width"] = 640ll;
-      json_resp["height"] = 480ll;
-      if (!hasVideo){json_resp["height"] = 20ll;}
+      json_resp["width"] = 640;
+      json_resp["height"] = 480;
+      if (!hasVideo){json_resp["height"] = 20;}
     }
     if (myMeta.vod){
       json_resp["type"] = "vod";
@@ -596,7 +596,7 @@ namespace Mist {
         if (!myConn){return;}
         for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
           if (trit->second.type == "video"){
-            trackSources += "      <video src='"+ streamName + "?track=" + JSON::Value((long long)trit->first).asString() + "' height='" + JSON::Value((long long)trit->second.height).asString() + "' system-bitrate='" + JSON::Value((long long)trit->second.bps).asString() + "' width='" + JSON::Value((long long)trit->second.width).asString() + "' />\n";
+            trackSources += "      <video src='"+ streamName + "?track=" + JSON::Value(trit->first).asString() + "' height='" + JSON::Value(trit->second.height).asString() + "' system-bitrate='" + JSON::Value(trit->second.bps).asString() + "' width='" + JSON::Value(trit->second.width).asString() + "' />\n";
           }
         }
       }

@@ -82,7 +82,7 @@ bool AnalyserDTSC::parsePacket(){
       for (std::map<unsigned int, DTSC::Track>::iterator it = M.tracks.begin();
            it != M.tracks.end(); it++){
         JSON::Value track;
-        track["kbits"] = (long long)((double)it->second.bps * 8 / 1024);
+        track["kbits"] = (uint64_t)((double)it->second.bps * 8 / 1024);
         track["codec"] = it->second.codec;
         uint32_t shrtest_key = 0xFFFFFFFFul;
         uint32_t longest_key = 0;
@@ -106,12 +106,12 @@ bool AnalyserDTSC::parsePacket(){
             }
           }
         }
-        track["keys"]["ms_min"] = (long long)shrtest_key;
-        track["keys"]["ms_max"] = (long long)longest_key;
-        track["keys"]["frame_ms_min"] = (long long)shrtest_prt;
-        track["keys"]["frame_ms_max"] = (long long)longest_prt;
-        track["keys"]["frames_min"] = (long long)shrtest_cnt;
-        track["keys"]["frames_max"] = (long long)longest_cnt;
+        track["keys"]["ms_min"] = shrtest_key;
+        track["keys"]["ms_max"] = longest_key;
+        track["keys"]["frame_ms_min"] = shrtest_prt;
+        track["keys"]["frame_ms_max"] = longest_prt;
+        track["keys"]["frames_min"] = shrtest_cnt;
+        track["keys"]["frames_max"] = longest_cnt;
         if (longest_prt > 500){
           issues << "unstable connection (" << longest_prt << "ms " << it->second.codec
                  << " frame)! ";
@@ -123,8 +123,8 @@ bool AnalyserDTSC::parsePacket(){
         if (it->second.codec == "AAC"){hasAAC = true;}
         if (it->second.codec == "H264"){hasH264 = true;}
         if (it->second.type == "video"){
-          track["width"] = (long long)it->second.width;
-          track["height"] = (long long)it->second.height;
+          track["width"] = it->second.width;
+          track["height"] = it->second.height;
           track["fpks"] = it->second.fpks;
           if (it->second.codec == "H264"){
             h264::sequenceParameterSet sps;

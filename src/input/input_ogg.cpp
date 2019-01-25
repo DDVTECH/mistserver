@@ -18,20 +18,20 @@ namespace Mist {
 
   JSON::Value segment::toJSON(OGG::oggCodec myCodec){
     JSON::Value retval;
-    retval["time"] = (long long int)time;
-    retval["trackid"] = (long long int)tid;
+    retval["time"] = time;
+    retval["trackid"] = tid;
     std::string tmpString = "";
     for (unsigned int i = 0; i < parts.size(); i++){
       tmpString += parts[i];
     }
     retval["data"] = tmpString;
 //    INFO_MSG("Setting bpos for packet on track %llu, time %llu, to %llu", tid, time, bytepos);
-    retval["bpos"] = (long long int)bytepos;
+    retval["bpos"] = bytepos;
     if (myCodec == OGG::THEORA){
       if (!theora::isHeader(tmpString.data(), tmpString.size())){
         theora::header tmpHeader((char*)tmpString.data(), tmpString.size());
         if (tmpHeader.getFTYPE() == 0){
-          retval["keyframe"] = 1LL;
+          retval["keyframe"] = 1;
         }
       }
     }
@@ -434,7 +434,7 @@ namespace Mist {
         }
       }
       INFO_MSG("Found %dms for track %lu at %llu bytepos %llu", seekTime, *it, tmpPos.time, tmpPos.bytepos);
-      int backChrs=std::min(280ull, tmpPos.bytepos - 1);
+      int backChrs=std::min((uint64_t)280, tmpPos.bytepos - 1);
       fseek(inFile, tmpPos.bytepos - backChrs, SEEK_SET);
       char buffer[300];
       fread(buffer, 300, 1, inFile);

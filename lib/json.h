@@ -41,7 +41,6 @@ namespace JSON{
     Value(std::istream &fromstream);
     Value(const std::string &val);
     Value(const char *val);
-    Value(long long int val);
     Value(int32_t val);
     Value(int64_t val);
     Value(uint32_t val);
@@ -58,7 +57,6 @@ namespace JSON{
     Value &operator=(const Value &rhs);
     Value &operator=(const std::string &rhs);
     Value &operator=(const char *rhs);
-    Value &operator=(const long long int &rhs);
     Value &operator=(const int64_t &rhs);
     Value &operator=(const int32_t &rhs);
     Value &operator=(const uint64_t &rhs);

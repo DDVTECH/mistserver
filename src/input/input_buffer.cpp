@@ -32,33 +32,33 @@ namespace Mist {
     option["long"] = "buffer";
     option["short"] = "b";
     option["help"] = "DVR buffer time in ms";
-    option["value"].append(50000LL);
+    option["value"].append(50000);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 50000LL;
+    capa["optional"]["DVR"]["default"] = 50000;
     /*LTS-start*/
     option.null();
     option["arg"] = "integer";
     option["long"] = "cut";
     option["short"] = "c";
     option["help"] = "Any timestamps before this will be cut from the live buffer";
-    option["value"].append(0LL);
+    option["value"].append(0);
     config->addOption("cut", option);
     capa["optional"]["cut"]["name"] = "Cut time (ms)";
     capa["optional"]["cut"]["help"] = "Any timestamps before this will be cut from the live buffer.";
     capa["optional"]["cut"]["option"] = "--cut";
     capa["optional"]["cut"]["type"] = "uint";
-    capa["optional"]["cut"]["default"] = 0LL;
+    capa["optional"]["cut"]["default"] = 0;
     option.null();
 
     option["arg"] = "integer";
     option["long"] = "resume";
     option["short"] = "R";
     option["help"] = "Enable resuming support (1) or disable resuming support (0, default)";
-    option["value"].append(0LL);
+    option["value"].append(0);
     config->addOption("resume", option);
     capa["optional"]["resume"]["name"] = "Resume support";
     capa["optional"]["resume"]["help"] = "If enabled, the buffer will linger after source disconnect to allow resuming the stream later. If disabled, the buffer will instantly close on source disconnect.";
@@ -68,26 +68,26 @@ namespace Mist {
     capa["optional"]["resume"]["select"][0u][1u] = "Disabled";
     capa["optional"]["resume"]["select"][1u][0u] = "1";
     capa["optional"]["resume"]["select"][1u][1u] = "Enabled";
-    capa["optional"]["resume"]["default"] = 0LL;
+    capa["optional"]["resume"]["default"] = 0;
     option.null();
 
     option["arg"] = "integer";
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
-    option["value"].append(5000LL);
+    option["value"].append(5000);
     config->addOption("segmentsize", option);
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 5000LL;
+    capa["optional"]["segmentsize"]["default"] = 5000;
     option.null();
     /*LTS-end*/
 
     capa["source_match"] = "push://*";
     capa["non-provider"] = true;//Indicates we don't provide data, only collect it
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["desc"] = "This input type is both used for push- and pull-based streams. It provides a buffer for live media data. The push://[host][@password] style source allows all enabled protocols that support push input to accept a push into MistServer, where you can accept incoming streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
     capa["codecs"][0u][0u].append("*");
     capa["codecs"][0u][1u].append("*");
@@ -344,7 +344,7 @@ namespace Mist {
       nProxy.metaPages[0].master = false;
     }
     myMeta.writeTo(nProxy.metaPages[0].mapped);
-    memset(nProxy.metaPages[0].mapped + myMeta.getSendLen(), 0, (nProxy.metaPages[0].len > myMeta.getSendLen() ? std::min(nProxy.metaPages[0].len - myMeta.getSendLen(), 4ll) : 0));
+    memset(nProxy.metaPages[0].mapped + myMeta.getSendLen(), 0, (nProxy.metaPages[0].len > myMeta.getSendLen() ? std::min((size_t)(nProxy.metaPages[0].len - myMeta.getSendLen()), (size_t)4) : 0));
     liveMeta->post();
   }
 

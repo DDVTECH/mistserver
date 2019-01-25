@@ -13,12 +13,12 @@ namespace Mist {
     capa["codecs"][0u][0u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/mp3";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 8;
 
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target filename to store MP3 file as, or - for stdout.";
     cfg->addOption("target", opt);
   }

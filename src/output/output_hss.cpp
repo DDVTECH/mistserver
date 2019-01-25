@@ -63,7 +63,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "silverlight";
-    capa["methods"][0u]["priority"] = 1ll;
+    capa["methods"][0u]["priority"] = 1;
   }
 
   void OutHSS::sendNext() {

@@ -226,7 +226,7 @@ namespace Mist {
           std::string ua = H.GetVar("sessId");
           crc = checksum::crc32(0, ua.data(), ua.size());
         }else{
-          std::string ua = JSON::Value((long long)getpid()).asString();
+          std::string ua = JSON::Value(getpid()).asString();
           crc = checksum::crc32(0, ua.data(), ua.size());
         }
       }else{
@@ -339,7 +339,7 @@ namespace Mist {
     int argnum = 0;
     argarr[argnum++] = (char*)tmparg.c_str();
     std::string temphost=getConnectedHost();
-    std::string debuglevel = JSON::Value((long long)Util::Config::printDebugLevel).asString();
+    std::string debuglevel = JSON::Value(Util::Config::printDebugLevel).asString();
     argarr[argnum++] = (char*)"--ip";
     argarr[argnum++] = (char*)(temphost.c_str());
     argarr[argnum++] = (char*)"--stream";

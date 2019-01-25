@@ -19,7 +19,7 @@ namespace Mist {
     capa["name"] = "FLV";
     capa["desc"] = "Allows loading FLV files for Video on Demand.";
     capa["source_match"] = "/*.flv";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
     capa["codecs"][0u][0u].append("VP6");

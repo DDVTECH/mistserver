@@ -16,7 +16,7 @@ namespace Mist {
     capa["name"] = "MP3";
     capa["desc"] = "This input allows you to stream MP3 Video on Demand files.";
     capa["source_match"] = "/*.mp3";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("MP3");
     timestamp = 0;
   }
@@ -155,9 +155,9 @@ namespace Mist {
     static JSON::Value thisPack;
     thisPack.null();
     thisPack["trackid"] = 1;
-    thisPack["bpos"] = (long long)filePos;
+    thisPack["bpos"] = (uint64_t)filePos;
     thisPack["data"] = std::string(packHeader, dataSize);
-    thisPack["time"] = (long long)timestamp;
+    thisPack["time"] = timestamp;
     //Write the json value to lastpack
     std::string tmpStr = thisPack.toNetPacked();
     thisPacket.reInit(tmpStr.data(), tmpStr.size());

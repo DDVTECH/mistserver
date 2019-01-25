@@ -16,9 +16,9 @@ namespace Mist {
         return time < rhs.time || (time == rhs.time && tid < rhs.tid);
       }
       std::vector<std::string> parts;
-      unsigned long long int time;
-      unsigned long long int tid;
-      long long unsigned int bytepos;
+      uint64_t time;
+      uint64_t tid;
+      uint64_t bytepos;
       bool keyframe;
       JSON::Value toJSON(OGG::oggCodec myCodec);
   };
@@ -36,10 +36,10 @@ namespace Mist {
       }
       return false;
     }
-    long unsigned int trackID;
-    long long unsigned int time;
-    long long unsigned int bytepos;
-    long long unsigned int segmentNo;
+    uint64_t trackID;
+    uint64_t time;
+    uint64_t bytepos;
+    uint64_t segmentNo;
   };
 /*
   class oggTrack {

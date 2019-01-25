@@ -20,11 +20,11 @@ namespace Mist {
     capa["codecs"][0u][0u].append("@+meta");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/javascript";
-    capa["methods"][0u]["priority"] = 0ll;
+    capa["methods"][0u]["priority"] = 0;
     capa["methods"][0u]["url_rel"] = "/$.json";
     capa["methods"][1u]["handler"] = "ws";
     capa["methods"][1u]["type"] = "html5/text/javascript";
-    capa["methods"][1u]["priority"] = 0ll;
+    capa["methods"][1u]["priority"] = 0;
     capa["methods"][1u]["url_rel"] = "/$.json";
   }
 
@@ -41,8 +41,8 @@ namespace Mist {
       size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
       jPack["data"] = JSON::fromString(dPtr, dLen);
-      jPack["time"] = (long long)thisPacket.getTime();
-      jPack["track"] = (long long)thisPacket.getTrackId();
+      jPack["time"] = thisPacket.getTime();
+      jPack["track"] = (uint64_t)thisPacket.getTrackId();
     }else{
       jPack = thisPacket.toJSON();
     }

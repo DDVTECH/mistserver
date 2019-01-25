@@ -62,7 +62,7 @@ int Analyser::run(Util::Config &conf){
 void Analyser::init(Util::Config &conf){
   JSON::Value opt;
 
-  opt["arg_num"] = 1ll;
+  opt["arg_num"] = 1;
   opt["arg"] = "string";
   opt["default"] = "-";
   opt["help"] = "Filename to analyse, or - for standard input (default)";
@@ -72,7 +72,7 @@ void Analyser::init(Util::Config &conf){
   opt["long"] = "detail";
   opt["short"] = "D";
   opt["arg"] = "num";
-  opt["default"] = 2ll;
+  opt["default"] = 2;
   opt["help"] = "Detail level for analysis (0 = none, 2 = default, 10 = max)";
   conf.addOption("detail", opt);
   opt.null();

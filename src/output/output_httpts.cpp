@@ -24,7 +24,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mpeg";
-    capa["methods"][0u]["priority"] = 1ll;
+    capa["methods"][0u]["priority"] = 1;
   }
   
   void OutHTTPTS::onHTTP(){

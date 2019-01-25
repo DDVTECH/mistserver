@@ -310,8 +310,8 @@ namespace DTSC {
       std::string getIdentifier();
       std::string getWritableIdentifier();
       unsigned int trackID;
-      unsigned long long firstms;
-      unsigned long long lastms;
+      uint64_t firstms;
+      uint64_t lastms;
       int bps;
       int max_bps;
       int missedFrags;
@@ -366,8 +366,8 @@ namespace DTSC {
       bool live;
       bool merged;
       uint16_t version;
-      long long int moreheader;
-      long long int bufferWindow;
+      int64_t moreheader;
+      int64_t bufferWindow;
       int64_t bootMsOffset;///< Millis to add to packet timestamps to get millis since system boot.
       std::string sourceURI;
       JSON::Value inputLocalVars;

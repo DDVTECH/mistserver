@@ -502,7 +502,7 @@ namespace DTSC {
 
   ///\brief Returns the size of this packet.
   ///\return The size of this packet.
-  uint64_t Packet::getDataLen() const {
+  size_t Packet::getDataLen() const {
     return dataLen;
   }
 
@@ -2032,8 +2032,8 @@ namespace DTSC {
       result["lang"] = lang;
     }
     result["trackid"] = trackID;
-    result["firstms"] = (long long)firstms;
-    result["lastms"] = (long long)lastms;
+    result["firstms"] = firstms;
+    result["lastms"] = lastms;
     result["bps"] = bps;
     result["maxbps"] = max_bps;
     if (missedFrags) {
@@ -2065,22 +2065,22 @@ namespace DTSC {
       result["tracks"][it->second.getWritableIdentifier()] = it->second.toJSON();
     }
     if (vod) {
-      result["vod"] = 1ll;
+      result["vod"] = 1;
     }
     if (live) {
-      result["live"] = 1ll;
+      result["live"] = 1;
     }
     if (merged) {
-      result["merged"] = 1ll;
+      result["merged"] = 1;
     }
     if (bufferWindow) {
       result["buffer_window"] = bufferWindow;
     }
     if (version) {
-      result["version"] = (long long)version;
+      result["version"] = version;
     }
     if (bootMsOffset){
-      result["bootoffset"] = (long long)bootMsOffset;
+      result["bootoffset"] = bootMsOffset;
     }
     if (sourceURI.size()){
       result["source"] = sourceURI;

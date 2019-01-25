@@ -36,7 +36,7 @@ namespace Mist{
     option["long"] = "noinput";
     option["short"] = "N";
     option["help"] = "Do not start input if not already started";
-    option["value"].append(0ll);
+    option["value"].append(0);
     cfg->addOption("noinput", option);
   }
   

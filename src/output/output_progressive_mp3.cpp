@@ -13,7 +13,7 @@ namespace Mist {
     capa["codecs"][0u][0u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/mp3";
-    capa["methods"][0u]["priority"] = 8ll;
+    capa["methods"][0u]["priority"] = 8;
   }
   
   void OutProgressiveMP3::sendNext(){

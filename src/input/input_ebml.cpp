@@ -17,7 +17,7 @@ namespace Mist{
     capa["source_match"].append("/*.mk3d");
     capa["source_match"].append("/*.mks");
     capa["source_match"].append("/*.webm");
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"].append("H264");
     capa["codecs"].append("HEVC");
     capa["codecs"].append("VP8");
@@ -341,7 +341,7 @@ namespace Mist{
       }
       if (E.getID() == EBML::EID_TIMECODESCALE){
         uint64_t timeScaleVal = E.getValUInt();
-        myMeta.inputLocalVars["timescale"] = (long long)timeScaleVal;
+        myMeta.inputLocalVars["timescale"] = timeScaleVal;
         timeScale = ((double)timeScaleVal) / 1000000.0;
       }
       //Live streams stop parsing the header as soon as the first Cluster is encountered
@@ -413,7 +413,7 @@ namespace Mist{
       }
     }
 
-    myMeta.inputLocalVars["maxframeoffset"] = (long long)maxEBMLFrameOffset;
+    myMeta.inputLocalVars["maxframeoffset"] = maxEBMLFrameOffset;
 
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %llu ms", bench / 1000);

@@ -470,12 +470,6 @@ JSON::Value::Value(const char *val){
 }
 
 /// Sets this JSON::Value to the given integer.
-JSON::Value::Value(long long int val){
-  myType = INTEGER;
-  intVal = val;
-}
-
-/// Sets this JSON::Value to the given integer.
 JSON::Value::Value(uint32_t val){
   myType = INTEGER;
   intVal = val;
@@ -652,14 +646,6 @@ JSON::Value &JSON::Value::operator=(const std::string &rhs){
 /// Sets this JSON::Value to the given string.
 JSON::Value &JSON::Value::operator=(const char *rhs){
   return ((*this) = (std::string)rhs);
-}
-
-/// Sets this JSON::Value to the given integer.
-JSON::Value &JSON::Value::operator=(const long long int &rhs){
-  null();
-  myType = INTEGER;
-  intVal = rhs;
-  return *this;
 }
 
 /// Sets this JSON::Value to the given integer.

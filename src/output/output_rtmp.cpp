@@ -95,7 +95,7 @@ namespace Mist {
     capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "rtmp";
     capa["methods"][0u]["type"] = "flash/10";
-    capa["methods"][0u]["priority"] = 7ll;
+    capa["methods"][0u]["priority"] = 7;
     capa["methods"][0u]["player_url"] = "/flashplayer.swf";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;

@@ -16,7 +16,7 @@ namespace Mist {
   inputDTSC::inputDTSC(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "DTSC";
     capa["desc"] = "Load DTSC files as Video on Demand sources, or dtsc:// URLs from other MistServer instances for live sources. This is the optimal method to pull live sources from other MistServer (or compatible) instances.";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
     capa["codecs"][0u][0u].append("H264");
@@ -33,13 +33,13 @@ namespace Mist {
     option["long"] = "buffer";
     option["short"] = "b";
     option["help"] = "Live stream DVR buffer time in ms";
-    option["value"].append(50000LL);
+    option["value"].append(50000);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 50000LL;
+    capa["optional"]["DVR"]["default"] = 50000;
   }
 
   bool inputDTSC::needsLock(){

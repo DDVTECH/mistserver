@@ -194,6 +194,7 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
       tmp[1u].append(rlxLog.getInt("time", logPos));
       tmp[1u].append(rlxLog.getPointer("kind", logPos));
       tmp[1u].append(rlxLog.getPointer("msg", logPos));
+      tmp[1u].append(rlxLog.getPointer("strm", logPos));
       W.sendFrame(tmp.toString());
       logPos++;
     }

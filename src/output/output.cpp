@@ -289,7 +289,7 @@ namespace Mist{
           HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
           //1 = check requested (connection is new)
           if (tmpEx.getSync() == 1){
-            std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value((long long)crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
+            std::string payload = streamName+"\n" + getConnectedHost() +"\n" + JSON::Value(crc).asString() + "\n"+capa["name"].asStringRef()+"\n"+reqUrl+"\n"+tmpEx.getSessId();
             if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
               onFail("Not allowed to play (USER_NEW)");
               tmpEx.setSync(100);//100 = denied
@@ -428,7 +428,7 @@ namespace Mist{
       while (std::getline(ss, item, ',')){selectTrack(trackType, item);}
       return;
     }
-    long long trackNo = JSON::Value(trackVal).asInt();
+    uint64_t trackNo = JSON::Value(trackVal).asInt();
     if (trackVal == JSON::Value(trackNo).asString()){
       //It's an integer number
       if (!myMeta.tracks.count(trackNo)){
@@ -1010,7 +1010,7 @@ namespace Mist{
             WARN_MSG("Recording start time is earlier than stream begin - starting earliest possible");
             targetParams["recstart"] = "-1";
           }else{
-            targetParams["recstart"] = JSON::Value((long long)((startUnix - unixStreamBegin)*1000)).asString();
+            targetParams["recstart"] = JSON::Value((int64_t)((startUnix - unixStreamBegin)*1000)).asString();
           }
         }
         if (targetParams.count("recstopunix")){
@@ -1019,7 +1019,7 @@ namespace Mist{
             onFail("Recording stop time is earlier than stream begin - aborting", true);
             return;
           }else{
-            targetParams["recstop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
+            targetParams["recstop"] = JSON::Value((int64_t)((stopUnix - unixStreamBegin)*1000)).asString();
           }
         }
       }
@@ -1069,7 +1069,7 @@ namespace Mist{
             WARN_MSG("Start time is earlier than stream begin - starting earliest possible");
             targetParams["start"] = "-1";
           }else{
-            targetParams["start"] = JSON::Value((long long)((startUnix - unixStreamBegin)*1000)).asString();
+            targetParams["start"] = JSON::Value((int64_t)((startUnix - unixStreamBegin)*1000)).asString();
           }
         }
         if (targetParams.count("stopunix")){
@@ -1079,7 +1079,7 @@ namespace Mist{
             onFail("Stop time is earlier than stream begin - aborting", true);
             return;
           }else{
-            targetParams["stop"] = JSON::Value((long long)((stopUnix - unixStreamBegin)*1000)).asString();
+            targetParams["stop"] = JSON::Value((int64_t)((stopUnix - unixStreamBegin)*1000)).asString();
           }
         }
       }
@@ -1531,9 +1531,9 @@ namespace Mist{
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
-        unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+        uint64_t nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime && nextTime < nxt.time){
-          dropTrack(nxt.tid, "EOP: time going backwards ("+JSON::Value((long long)nextTime).asString()+" < "+JSON::Value((long long)nxt.time).asString()+")");
+          dropTrack(nxt.tid, "EOP: time going backwards ("+JSON::Value(nextTime).asString()+" < "+JSON::Value(nxt.time).asString()+")");
         }else{
           if (nextTime){
             nxt.time = nextTime;

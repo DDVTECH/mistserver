@@ -654,7 +654,7 @@ namespace SDP{
       if (tracks.size()){
         for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
           if (!it->second.control.size()){
-            it->second.control = "/track" + JSON::Value((long long)it->first).asString();
+            it->second.control = "/track" + JSON::Value(it->first).asString();
             INFO_MSG("Control track: %s", it->second.control.c_str());
           }
 

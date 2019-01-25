@@ -204,7 +204,7 @@ namespace Mist {
     std::stringstream issues;
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       JSON::Value & track = details[it->second.getWritableIdentifier()];
-      track["kbits"] = (long long)((double)it->second.bps * 8 / 1024);
+      track["kbits"] = (uint64_t)((double)it->second.bps * 8 / 1024);
       track["codec"] = it->second.codec;
       uint32_t shrtest_key = 0xFFFFFFFFul;
       uint32_t longest_key = 0;
@@ -221,19 +221,19 @@ namespace Mist {
         if ((k->getLength()/k->getParts()) > longest_prt){longest_prt = (k->getLength()/k->getParts());}
         if ((k->getLength()/k->getParts()) < shrtest_prt){shrtest_prt = (k->getLength()/k->getParts());}
       }
-      track["keys"]["ms_min"] = (long long)shrtest_key;
-      track["keys"]["ms_max"] = (long long)longest_key;
-      track["keys"]["frame_ms_min"] = (long long)shrtest_prt;
-      track["keys"]["frame_ms_max"] = (long long)longest_prt;
-      track["keys"]["frames_min"] = (long long)shrtest_cnt;
-      track["keys"]["frames_max"] = (long long)longest_cnt;
+      track["keys"]["ms_min"] = shrtest_key;
+      track["keys"]["ms_max"] = longest_key;
+      track["keys"]["frame_ms_min"] = shrtest_prt;
+      track["keys"]["frame_ms_max"] = longest_prt;
+      track["keys"]["frames_min"] = shrtest_cnt;
+      track["keys"]["frames_max"] = longest_cnt;
       if (longest_prt > 500){issues << "unstable connection (" << longest_prt << "ms " << it->second.codec << " frame)! ";}
       if (shrtest_cnt < 6){issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec << " frames in key)! ";}
       if (it->second.codec == "AAC"){hasAAC = true;}
       if (it->second.codec == "H264"){hasH264 = true;}
       if (it->second.type=="video"){
-        track["width"] = (long long)it->second.width;
-        track["height"] = (long long)it->second.height;
+        track["width"] = it->second.width;
+        track["height"] = it->second.height;
         track["fpks"] = it->second.fpks;
       }
     }
@@ -496,7 +496,7 @@ namespace Mist {
           }
           /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_REMOVE")) {
-            std::string payload = config->getString("streamname") + "\n" + JSON::Value((long long)it->first).asString() + "\n";
+            std::string payload = config->getString("streamname") + "\n" + JSON::Value((uint64_t)it->first).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_REMOVE", payload, config->getString("streamname"));
           }
           /*LTS-END*/
@@ -786,13 +786,13 @@ namespace Mist {
           collidesWith = -1;
         }
         /*LTS-START*/
-        unsigned long finalMap = collidesWith;
+        uint64_t finalMap = collidesWith;
         if (finalMap == -1) {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
           DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
           if (Triggers::shouldTrigger("STREAM_TRACK_ADD")) {
-            std::string payload = config->getString("streamname") + "\n" + JSON::Value((long long)finalMap).asString() + "\n";
+            std::string payload = config->getString("streamname") + "\n" + JSON::Value(finalMap).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_ADD", payload, config->getString("streamname"));
           }
         }

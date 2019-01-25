@@ -19,13 +19,13 @@ namespace Mist{
     capa["codecs"][0u][0u].append("FLOAT");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/wav";
-    capa["methods"][0u]["priority"] = 1ll;
+    capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.wav");
 
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target filename to store WAV file as, or - for stdout.";
     cfg->addOption("target", opt);
   }

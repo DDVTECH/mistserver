@@ -23,7 +23,7 @@ void AnalyserTS::init(Util::Config &conf){
   opt["long"] = "detail";
   opt["short"] = "D";
   opt["arg"] = "num";
-  opt["default"] = 3ll;
+  opt["default"] = 3;
   opt["help"] = "Detail level of analysis bitmask (default=3). 1 = PES, 2 = TS non-stream pkts, 4 "
                 "= TS stream pkts, 32 = raw PES packet bytes, 64 = raw TS packet bytes";
   conf.addOption("detail", opt);
@@ -31,7 +31,7 @@ void AnalyserTS::init(Util::Config &conf){
   opt["long"] = "pid";
   opt["short"] = "P";
   opt["arg"] = "num";
-  opt["default"] = 0ll;
+  opt["default"] = 0;
   opt["help"] = "Only use the given PID, ignore others";
   conf.addOption("pid", opt);
   opt.null();

@@ -314,9 +314,9 @@ namespace Mist {
             //Skip the current last fragment if we are live
             continue;
           }
-          long long int starttime = myMeta.tracks[*it].getKey(it3->getNumber()).getTime();
+          uint64_t starttime = myMeta.tracks[*it].getKey(it3->getNumber()).getTime();
           std::stringstream line;
-          long long duration = it3->getDuration();
+          uint64_t duration = it3->getDuration();
           if (duration <= 0) {
             duration = myMeta.tracks[*it].lastms - starttime;
           }
@@ -326,7 +326,7 @@ namespace Mist {
           //segment["url"] = segmenturl.str();
           segment["time"] = starttime;
           segment["duration"] = duration;
-          segment["number"] = (unsigned int)it3->getNumber();
+          segment["number"] = (uint64_t)it3->getNumber();
           quality["segments"].append(segment);
         }
         result["qualities"].append(quality);
@@ -371,7 +371,7 @@ namespace Mist {
     cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
     capa["optional"]["listlimit"]["name"] = "Live playlist limit";
     capa["optional"]["listlimit"]["help"] = "Maximum number of parts in live playlists. (0 = infinite)";
-    capa["optional"]["listlimit"]["default"] = 0ll;
+    capa["optional"]["listlimit"]["default"] = 0;
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
     

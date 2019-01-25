@@ -22,9 +22,9 @@ namespace Mist {
       }
       return (time == rhs.time && tid < rhs.tid);
     }
-    unsigned int tid;
-    long long unsigned int time;
-    unsigned int offset;
+    uint64_t tid;
+    uint64_t time;
+    uint32_t offset;
   };
 
   /// The output class is intended to be inherited by MistOut process classes.

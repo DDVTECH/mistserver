@@ -41,7 +41,7 @@ namespace Mist{
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target filename to store H264 file as, or - for stdout.";
     cfg->addOption("target", opt);
   }

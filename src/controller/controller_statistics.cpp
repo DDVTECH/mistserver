@@ -479,7 +479,7 @@ uint32_t Controller::statSession::invalidate(){
   uint32_t ret = 0;
   sync = 1;
   if (curConns.size() && statPointer){
-    for (std::map<unsigned long, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
+    for (std::map<uint64_t, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
       char * data = statPointer->getIndex(jt->first);
       if (data){
         IPC::statExchange tmpEx(data);
@@ -497,7 +497,7 @@ uint32_t Controller::statSession::kill(){
   uint32_t ret = 0;
   sync = 100;
   if (curConns.size() && statPointer){
-    for (std::map<unsigned long, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
+    for (std::map<uint64_t, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
       char * data = statPointer->getIndex(jt->first);
       if (data){
         IPC::statExchange tmpEx(data);
@@ -1725,9 +1725,9 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
       //collect the data first
       std::map<std::string, uint32_t> outputs;
-      unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
-      unsigned int tOut = Util::epoch() - STATS_DELAY;
-      unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
+      uint64_t totViewers = 0, totInputs = 0, totOutputs = 0;
+      uint64_t tOut = Util::epoch() - STATS_DELAY;
+      uint64_t tIn = Util::epoch() - STATS_INPUT_DELAY;
       //check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
@@ -1757,7 +1757,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       resp["curr"].append(totViewers);
       resp["curr"].append(totInputs);
       resp["curr"].append(totOutputs);
-      resp["curr"].append(sessions.size());
+      resp["curr"].append((uint64_t)sessions.size());
       resp["tot"].append(servViewers);
       resp["tot"].append(servInputs);
       resp["tot"].append(servOutputs);

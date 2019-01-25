@@ -33,7 +33,7 @@ namespace Mist{
     capa["source_match"].append("rtsp://*");
     // These can/may be set to always-on mode
     capa["always_match"].append("rtsp://*");
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("MPEG2");
@@ -51,7 +51,7 @@ namespace Mist{
     option["long"] = "buffer";
     option["short"] = "b";
     option["help"] = "DVR buffer time in ms";
-    option["value"].append(50000LL);
+    option["value"].append(50000);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in "
@@ -60,7 +60,7 @@ namespace Mist{
                                       "as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 50000LL;
+    capa["optional"]["DVR"]["default"] = 50000;
     option.null();
     option["arg"] = "string";
     option["long"] = "transport";
@@ -93,7 +93,7 @@ namespace Mist{
       sndH.auth(username, password, authRequest);
     }
     sndH.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
-    sndH.SetHeader("CSeq", JSON::Value((long long)cSeq).asString());
+    sndH.SetHeader("CSeq", JSON::Value(cSeq).asString());
     if (session.size()){sndH.SetHeader("Session", session);}
     if (extraHeaders && extraHeaders->size()){
       for (std::map<std::string, std::string>::const_iterator it = extraHeaders->begin();

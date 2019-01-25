@@ -109,7 +109,7 @@ void Analyser::init(Util::Config &conf){
   opt["long"] = "timeout";
   opt["short"] = "T";
   opt["arg"] = "num";
-  opt["default"] = 0ll;
+  opt["default"] = 0;
   opt["help"] = "Time out after X seconds of processing/retrieving";
   conf.addOption("timeout", opt);
   opt.null();

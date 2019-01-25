@@ -15,7 +15,7 @@ namespace Mist {
     capa["name"] = "ISMV";
     capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
 
@@ -97,7 +97,7 @@ namespace Mist {
           if (i) {
             lastBytePos ++;
           } else {
-            lastPack["keyframe"] = 1LL;
+            lastPack["keyframe"] = 1;
             lastBytePos = curBytePos;
           }
           lastPack["bpos"] = lastBytePos;
@@ -105,7 +105,7 @@ namespace Mist {
           lastPack["offset"] = (int)offsetConv;
         } else {
           if (i == 0) {
-            lastPack["keyframe"] = 1LL;
+            lastPack["keyframe"] = 1;
             lastPack["bpos"] = curBytePos;
           }
         }
@@ -128,7 +128,7 @@ namespace Mist {
       return;
     }
     int tId = buffered.begin()->trackId;
-    thisPack["time"] = (long long int)(buffered.begin()->time / 10000);
+    thisPack["time"] = (uint64_t)(buffered.begin()->time / 10000);
     thisPack["trackid"] = tId;
     fseek(inFile, buffered.begin()->position, SEEK_SET);
     char * tmpData = (char*)malloc(buffered.begin()->size * sizeof(char));
@@ -140,15 +140,15 @@ namespace Mist {
     }
     if (myMeta.tracks[tId].type == "video") {
       if (buffered.begin()->isKeyFrame) {
-        thisPack["keyframe"] = 1LL;
+        thisPack["keyframe"] = 1;
       }
-      thisPack["offset"] = buffered.begin()->offset / 10000;
+      thisPack["offset"] = (uint64_t)(buffered.begin()->offset / 10000);
     } else {
       if (buffered.begin()->isKeyFrame) {
-        thisPack["keyframe"] = 1LL;
+        thisPack["keyframe"] = 1;
       }
     }
-    thisPack["bpos"] = buffered.begin()->position;
+    thisPack["bpos"] = (uint64_t)buffered.begin()->position;
     buffered.erase(buffered.begin());
     if (buffered.size() < 2 * selectedTracks.size()){
       for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){

@@ -169,10 +169,10 @@ namespace Mist {
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = srtTrack;
-        thisPack["bpos"] = (long long)srtSource.tellg();
+        thisPack["bpos"] = (uint64_t)srtSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
-        thisPack["time"] = (long long)timestamp;
+        thisPack["time"] = timestamp;
         thisPack["duration"] = duration;
 
         std::string tmpStr = thisPack.toNetPacked();

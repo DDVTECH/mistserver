@@ -246,7 +246,7 @@ namespace TS{
 
   bool Stream::hasPacket(size_t tid) const {
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    std::map<unsigned long, std::deque<Packet> >::const_iterator pesIt = pesStreams.find(tid);
+    std::map<size_t, std::deque<Packet> >::const_iterator pesIt = pesStreams.find(tid);
     if (pesIt == pesStreams.end()){
       return false;
     }
@@ -275,7 +275,7 @@ namespace TS{
       }
     }
 
-    for (std::map<unsigned long, uint32_t>::const_iterator i = seenUnitStart.begin();
+    for (std::map<size_t, uint32_t>::const_iterator i = seenUnitStart.begin();
          i != seenUnitStart.end(); i++){
       if (pidToCodec.count(i->first) && i->second > 1){
         return true;
@@ -327,7 +327,7 @@ namespace TS{
     
     // We now know we're deleting 1 UnitStart, so we can pop the pesPositions and lower the seenUnitStart counter.
     --(seenUnitStart[tid]);
-    std::deque<size_t> &inPositions = pesPositions[tid];
+    std::deque<uint64_t> &inPositions = pesPositions[tid];
     uint64_t bPos = inPositions.front();
     inPositions.pop_front();
 
@@ -971,7 +971,7 @@ namespace TS{
     }
   }
 
-  std::set<unsigned long> Stream::getActiveTracks(){
+  std::set<size_t> Stream::getActiveTracks(){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     std::set<size_t> result;
     // Track 0 is always active

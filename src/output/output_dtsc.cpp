@@ -14,8 +14,8 @@ namespace Mist {
     JSON::Value prep;
     prep["cmd"] = "hi";
     prep["version"] = "MistServer " PACKAGE_VERSION;
-    prep["pack_method"] = 2ll;
-    salt = Secure::md5("mehstuff"+JSON::Value((long long)time(0)).asString());
+    prep["pack_method"] = 2;
+    salt = Secure::md5("mehstuff"+JSON::Value((uint64_t)time(0)).asString());
     prep["salt"] = salt;
     /// \todo Make this securererer.
     sendCmd(prep);

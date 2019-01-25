@@ -17,7 +17,7 @@ namespace Mist {
   inputDTSC::inputDTSC(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "DTSC";
     capa["desc"] = "Enables DTSC Input";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["source_match"] = "/*.dtsc";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");

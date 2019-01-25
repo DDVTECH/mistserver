@@ -86,7 +86,7 @@ namespace Mist{
         amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
         amfReply.getContentP(2)->addContent(AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
         if (port != 1935){
-          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + ":" + JSON::Value((long long)port).asString() + "/" + app));
+          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + ":" + JSON::Value(port).asString() + "/" + app));
         }else{
           amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
         }
@@ -200,19 +200,19 @@ namespace Mist{
     capa["optional"]["acceptable"]["help"] = "Whether to allow only incoming pushes (2), only outgoing pulls (1), or both (0, default)";
     capa["optional"]["acceptable"]["option"] = "--acceptable";
     capa["optional"]["acceptable"]["short"] = "T";
-    capa["optional"]["acceptable"]["default"] = (long long)0;
+    capa["optional"]["acceptable"]["default"] = 0;
     capa["optional"]["acceptable"]["type"] = "select";
-    capa["optional"]["acceptable"]["select"][0u][0u] = 0ll;
+    capa["optional"]["acceptable"]["select"][0u][0u] = 0;
     capa["optional"]["acceptable"]["select"][0u][1u] = "Allow both incoming and outgoing connections";
-    capa["optional"]["acceptable"]["select"][1u][0u] = 1ll;
+    capa["optional"]["acceptable"]["select"][1u][0u] = 1;
     capa["optional"]["acceptable"]["select"][1u][1u] = "Allow only outgoing connections";
-    capa["optional"]["acceptable"]["select"][2u][0u] = 2ll;
+    capa["optional"]["acceptable"]["select"][2u][0u] = 2;
     capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
     capa["optional"]["maxkbps"]["name"] = "Max. kbps";
     capa["optional"]["maxkbps"]["help"] = "Maximum bitrate to allow in the ingest direction, in kilobits per second.";
     capa["optional"]["maxkbps"]["option"] = "--maxkbps";
     capa["optional"]["maxkbps"]["short"] = "K";
-    capa["optional"]["maxkbps"]["default"] = (long long)0;
+    capa["optional"]["maxkbps"]["default"] = 0;
     capa["optional"]["maxkbps"]["type"] = "uint";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
@@ -221,7 +221,7 @@ namespace Mist{
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target rtmp:// URL to push out towards.";
     cfg->addOption("target", opt);
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream to push out, when pushing out.\"}"));

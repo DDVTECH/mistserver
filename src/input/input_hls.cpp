@@ -264,7 +264,7 @@ namespace Mist{
     // All URLs can be set to always-on mode.
     capa["always_match"] = capa["source_match"];
 
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("AC3");

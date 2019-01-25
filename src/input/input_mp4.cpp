@@ -161,7 +161,7 @@ namespace Mist{
     capa["desc"] = "This input allows streaming of MP4 files as Video on Demand.";
     capa["source_match"] = "/*.mp4";
     capa["source_file"] = "$source";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
@@ -502,12 +502,12 @@ namespace Mist{
 
         static JSON::Value thisPack;
         thisPack.null();
-        thisPack["trackid"] = (long long)curPart.trackID;
-        thisPack["bpos"] = (long long)curPart.bpos; //(long long)fileSource.tellg();
+        thisPack["trackid"] = (uint64_t)curPart.trackID;
+        thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
         thisPack["data"] = std::string(data+2,txtLen);
-        thisPack["time"] = (long long)curPart.time;
+        thisPack["time"] = curPart.time;
         if (curPart.duration){
-          thisPack["duration"] = (long long)curPart.duration;
+          thisPack["duration"] = curPart.duration;
         }
         thisPack["keyframe"] =  true;
         // Write the json value to lastpack

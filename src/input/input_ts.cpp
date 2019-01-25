@@ -128,7 +128,7 @@ namespace Mist {
     capa["always_match"].append("http-ts://*");
     capa["incoming_push_url"] = "udp://$host:$port";
     capa["incoming_push_url_match"] = "tsudp://*";
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("MPEG2");
@@ -143,13 +143,13 @@ namespace Mist {
     option["long"] = "buffer";
     option["short"] = "b";
     option["help"] = "DVR buffer time in ms";
-    option["value"].append(50000LL);
+    option["value"].append(50000);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
-    capa["optional"]["DVR"]["default"] = 50000LL;
+    capa["optional"]["DVR"]["default"] = 50000;
   }
 
   inputTS::~inputTS() {
@@ -522,7 +522,7 @@ namespace Mist {
         }
         nProxy.userClient.keepAlive();
 
-        std::set<unsigned long> activeTracks = liveStream.getActiveTracks();
+        std::set<size_t> activeTracks = liveStream.getActiveTracks();
         {
           tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
           if (hasStarted && !threadTimer.size()){
@@ -534,7 +534,7 @@ namespace Mist {
               hasStarted = false;
             }
           }
-          for (std::set<unsigned long>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
+          for (std::set<size_t>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++) {
             if (!liveStream.isDataTrack(*it)){continue;}
             if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))) {
               WARN_MSG("Thread for track %d timed out %d seconds ago without a clean shutdown.", *it, Util::bootSecs() - threadTimer[*it]);

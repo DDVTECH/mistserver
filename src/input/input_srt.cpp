@@ -8,7 +8,7 @@ namespace Mist{
     capa["decs"] = "This input allows streaming of SRT and WebVTT subtitle files as Video on Demand.";
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
-    capa["priority"] = 9ll;
+    capa["priority"] = 9;
     capa["codecs"][0u][0u].append("subtitle");
   }
 
@@ -92,7 +92,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = 1;
-        thisPack["bpos"] = (long long)fileSource.tellg();
+        thisPack["bpos"] = (uint64_t)fileSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;

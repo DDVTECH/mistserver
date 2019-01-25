@@ -502,7 +502,7 @@ namespace Mist{
 
     //MP3 does not work in browsers
     capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");
-   capa["methods"][0u]["priority"] = 8ll;
+   capa["methods"][0u]["priority"] = 8;
 
     cfg->addOption("nonchunked", JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not send chunked, but buffer whole segments.\"}"));
     capa["optional"]["nonchunked"]["name"] = "Send whole segments";

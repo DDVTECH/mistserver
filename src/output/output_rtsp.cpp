@@ -102,11 +102,11 @@ namespace Mist{
 
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
-    capa["methods"][0u]["priority"] = 2ll;
+    capa["methods"][0u]["priority"] = 2;
 
     capa["optional"]["maxsend"]["name"] = "Max RTP packet size";
     capa["optional"]["maxsend"]["help"] = "Maximum size of RTP packets in bytes";
-    capa["optional"]["maxsend"]["default"] = (long long)RTP::MAX_SEND;
+    capa["optional"]["maxsend"]["default"] = RTP::MAX_SEND;
     capa["optional"]["maxsend"]["type"] = "uint";
     capa["optional"]["maxsend"]["option"] = "--max-packet-size";
     capa["optional"]["maxsend"]["short"] = "m";

@@ -94,7 +94,7 @@ namespace Mist {
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
-    opt["arg_num"] = 1ll;
+    opt["arg_num"] = 1;
     opt["help"] = "Target tsudp:// URL to push out towards.";
     cfg->addOption("target", opt);
   }

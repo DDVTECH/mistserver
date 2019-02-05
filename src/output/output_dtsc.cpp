@@ -209,6 +209,7 @@ namespace Mist {
   void OutDTSC::handlePlay(DTSC::Scan & dScan){
     streamName = dScan.getMember("stream").asString();
     Util::sanitizeName(streamName);
+    Util::Config::streamName = streamName;
     parseData = true;
     INFO_MSG("Handled play for stream %s", streamName.c_str());
     setBlocking(false);
@@ -218,6 +219,7 @@ namespace Mist {
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
     Util::sanitizeName(streamName);
+    Util::Config::streamName = streamName;
     if (!allowPush(passString)){
       onFail("Push not allowed - stream and/or password incorrect", true);
       return;

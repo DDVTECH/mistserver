@@ -733,7 +733,7 @@ function MistVideo(streamName,options) {
                 //check tracks exist
                 var meta = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
                 for (var i in usetracks) {
-                  if ((i in meta) && ((usetracks[i] in meta[i]) || (usetracks[i] == 0))) { continue; }
+                  if ((i in meta) && ((usetracks[i] in meta[i]) || (usetracks[i] == "none"))) { continue; }
                   MistVideo.log("Skipping trackselection of "+i+" track "+usetracks[i]+" because it does not exist");
                   delete usetracks[i];
                 }
@@ -750,7 +750,7 @@ function MistVideo(streamName,options) {
                     switch (i) {
                       case "audio":
                       case "video":
-                        if (usetracks[i] == 0) { continue; }
+                        if (usetracks[i] == "none") { continue; }
                         hlstracks.push(usetracks[i]);
                         break;
                     }

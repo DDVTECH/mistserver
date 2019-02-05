@@ -676,7 +676,7 @@ var MistUtil = {
         }
         
         if (!(track.type in output)) { output[track.type] = {}; }
-        output[track.type][track.trackid] = track;
+        output[track.type][("idx" in track ? track.idx : track.trackid)] = track;
         
         //make up something logical for the track displayname
         var name = {};

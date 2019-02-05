@@ -1393,7 +1393,7 @@ MistSkins["default"] = {
                   }
                 }
                 
-                var value = 0;
+                var value = "none";
                 if (this.checked) {
                   if (this.trackType in selections) {
                     value = selections[this.trackType].value;
@@ -1403,9 +1403,9 @@ MistSkins["default"] = {
                   }
                 }
                 else {
-                  value = 0;
+                  value = "none";
                 }
-                changeToTracks(this.trackType,(this.checked ? value : 0));
+                changeToTracks(this.trackType,(this.checked ? value : "none"));
               });
             }
           }
@@ -1470,7 +1470,7 @@ MistSkins["default"] = {
               var track = t[options[i]];
               var option = document.createElement("option");
               select.appendChild(option);
-              option.value = track.trackid;
+              option.value = ("idx" in track ? track.idx : track.trackid);
               if (MistUtil.object.keys(track.different).length) {
                 option.appendChild(document.createTextNode(orderValues(track.different).join(" ")));
               }

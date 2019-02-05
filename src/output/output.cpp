@@ -416,11 +416,11 @@ namespace Mist{
 
   /*LTS-START*/
   /// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
-  /// trackVal may be a comma-separated list of numbers, codecs or the word "all" or an asterisk.
+  /// trackVal may be a comma-separated list of numbers, codecs or the word "all"/"none" or an asterisk.
   /// Does not do any checks if the protocol supports these tracks, just selects blindly.
   /// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported codecs/combinations.
   void Output::selectTrack(const std::string &trackType, const std::string &trackVal){
-    if (!trackVal.size() || trackVal == "0"){return;}//don't select anything in particular
+    if (!trackVal.size() || trackVal == "0" || trackVal == "none"){return;}//don't select anything in particular
     if (trackVal.find(',') != std::string::npos){
       //Comma-separated list, recurse.
       std::stringstream ss(trackVal);

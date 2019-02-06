@@ -1191,7 +1191,7 @@ namespace Mist{
   /// Waits for the given amount of millis, increasing the realtime playback
   /// related times as needed to keep smooth playback intact.
   void Output::playbackSleep(uint64_t millis){
-    if (realTime){
+    if (realTime && myMeta.live){
       firstTime += millis;
       extraKeepAway += millis;
     }

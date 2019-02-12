@@ -495,10 +495,33 @@ var MistUtil = {
       //remove all block comments
       css = css.replace(/\/\*.*?\*\//g,"");
       
-      //save all @{} blocks
-      var save = css.match(/@.*?{.*}/g);
+      //remove all @ {} blocks (media, keyframes, screen etc) and save it to re-insert them after class prepending
+      //match anything starting with @ something {,  until the first }
+      var save = css.match(/@[^}]*}/g);
+      
       for (var i in save) {
-        css = css.replace(save[i],"@@@@");
+        //add a placeholder for unfinished replace
+        css = css.replace(save[i],"@@#@@");
+        
+        var replacecount = 1;
+        
+        //while the amount of }s we've replaced is smaller than the amount of {'s in the match
+        while (replacecount < (save[i].match(/{/g).length)) {
+          //find the next } and save it in a group
+          var match = css.match(/@@#@@([^}]*})/); //match anything starting with @@#@@ until the first }
+          
+          //replace the full match with the unfinished placeholder
+          css = css.replace(match[0],"@@#@@");
+          
+          //add the group (the code untill the next }) to the save
+          save[i] += match[1];
+          
+          //increase the counter
+          replacecount++;
+        }
+        
+        //after the edits, @@@@ will be replaced with the contents of save[i]
+        css = css.replace("@@#@@","@@@@");
       }
       
       //find and replace selectors

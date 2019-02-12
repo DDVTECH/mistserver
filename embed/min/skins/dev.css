@@ -17,7 +17,7 @@ button:hover{opacity:1}
 select{background-color:transparent;color:$stroke;border:none;margin:0 .5em;font-size:inherit;cursor:pointer;-ms-background-color:red}
 select>option{background-color:$background}
 .browser-edge select,.browser-safari select{border:1px solid $semiFill;border-top:none;border-left:none;margin-top:2px}
-@keyframes spin{
+@keyframes mistvideo-spin{
 0%{transform:rotate(0)}
 100%{transform:rotate(360deg)}
 }
@@ -50,8 +50,8 @@ a{color:$accent}
 .mistvideo-placeholder{max-width:100%;max-height:100%}
 .mistvideo-topright{position:absolute;top:0;right:0}
 .mistvideo-topleft{position:absolute;top:0;left:0}
-.mistvideo-delay-display{animation:appear 1s;animation-iteration-count:1;animation-timing-function:steps(1,end)}
-@keyframes appear{
+.mistvideo-delay-display{animation:mistvideo-appear 1s;animation-iteration-count:1;animation-timing-function:steps(1,end)}
+@keyframes mistvideo-appear{
 from{opacity:0}
 to{opacity:1}
 }
@@ -60,7 +60,7 @@ svg.icon .fill,svg.icon.fill{fill:$fill}
 svg.icon .semiFill,svg.icon.semiFill{fill:$semiFill}
 svg.icon .stroke,svg.icon.stroke{stroke:$stroke;vector-effect:non-scaling-stroke}
 svg.icon.off .toggle .fill,svg.icon.off .toggle .semiFill,svg.icon.off .toggle.fill,svg.icon.off .toggle.semiFill{fill:none}
-svg.icon .spin,svg.icon.spin{animation:spin 1.5s infinite linear;transform-origin:50% 50%}
+svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .vjs-text-track-display{pointer-events:none}
 .mistvideo{line-height:1.2;font-size:14.5px}
 .mistvideo svg{margin:2.5px}
@@ -89,7 +89,7 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mistvideo-error[data-passive] .message{max-width:none}
 .mistvideo-error .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;justify-content:center}
 .mistvideo-error .mistvideo-buttoncontainer .mistvideo-button{white-space:nowrap}
-.browser-ie .mist.icon.loading{animation:spin 1.5s infinite linear;transform-origin:50% 50%}
+.browser-ie .mist.icon.loading{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .browser-ie .mist.icon.loading .spin{animation:none}
 .mistvideo-log{margin:.5em 0}
 .mistvideo-log .logs{max-height:10em;min-height:5em;width:100%;padding:.2em 0;padding-right:1em;overflow-y:auto;overflow-x:hidden;font-size:.9em}

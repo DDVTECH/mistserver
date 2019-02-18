@@ -4667,18 +4667,27 @@ var UI = {
             var tracks = {};
             for (var i in d.meta.tracks) {
               var t = d.meta.tracks[i];
-              if ((t.type != 'audio') && (t.type != 'video')) { continue; }
+              if (t.codec == "subtitle") {
+                t.type = "subtitle";
+              }
+              if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
               
               if (!(t.type in tracks)) {
-                tracks[t.type] = [['',UI.format.capital(t.type)+' track 1']];
+                if (t.type == "subtitle") {
+                  tracks[t.type] = [];
+                }
+                else {
+                  tracks[t.type] = [[(''),"Autoselect "+t.type]];
+                }
               }
-              else {
-                tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+1)]);
-              }
+              tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
             }
             if (Object.keys(tracks).length) {
               $setTracks.closest('label').show();
-              for (var i in tracks) {
+              var trackarray = ["audio","video","subtitle"];
+              for (var n in trackarray) {
+                var i = trackarray[n];
+                if (!tracks[i].length) { continue; }
                 var $select = $('<select>').attr('data-type',i).css('flex-grow','1').change(function(){
                   if ($(this).val() == '') {
                     delete embedoptions.setTracks[$(this).attr('data-type')];
@@ -4689,7 +4698,12 @@ var UI = {
                   $('.embed_code').setval(embedhtml(embedoptions));
                 });
                 $setTracks.append($select);
-                tracks[i].push([-1,'No '+i]);
+                if (i == "subtitle") {
+                  tracks[i].unshift(["","No "+i]);
+                }
+                else {
+                  tracks[i].push([-1,'No '+i]);
+                }
                 for (var j in tracks[i]) {
                   $select.append(
                     $('<option>').val(tracks[i][j][0]).text(tracks[i][j][1])

@@ -782,21 +782,68 @@ function MistVideo(streamName,options) {
               
             }
             
-            if (options.setTracks) {
-              if ("setTrack" in MistVideo.player.api) {
-                MistVideo.player.onready(function(){
-                  for (var i in options.setTracks) {
-                    MistVideo.player.api.setTrack(i,options.setTracks[i]);
+          }
+          
+          if (options.setTracks) {
+            var setTracks = MistUtil.object.extend({},options.setTracks);
+            if (("subtitle" in options.setTracks) && ("setSubtitle" in MistVideo.player.api)) {
+              MistVideo.player.onready(function(){
+                
+                //find the source for subtitles
+                var subtitleSource = false;
+                for (var i in MistVideo.info.source) {
+                  var source = MistVideo.info.source[i];
+                  //this is a subtitle source, and it's the same protocol (HTTP/HTTPS) as the video source
+                  if ((source.type == "html5/text/vtt") && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol)) {
+                    subtitleSource = source.url.replace(/.srt$/,".vtt");
+                    break;
                   }
-                });
-              }
-              else if ("setTracks" in MistVideo.player.api) {
-                MistVideo.player.onready(function(){
-                  MistVideo.player.api.setTracks(options.setTracks);
-                });
-              }
+                }
+                if (!subtitleSource) { return; }
+                
+                //find the track meta information
+                var tracks = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
+                if (!("subtitle" in tracks) || !(setTracks.subtitle in tracks.subtitle)) { return; }
+                meta = tracks.subtitle[setTracks.subtitle];
+                
+                //add source to the meta
+                meta.src = MistUtil.http.url.addParam(subtitleSource,{track:setTracks.subtitle});
+                
+                meta.label = "automatic";
+                meta.lang = "unknown";
+                
+                MistVideo.player.api.setSubtitle(meta);
+                MistUtil.event.send("playerUpdate_trackChanged",{
+                  type: "subtitle",
+                  trackid: setTracks.subtitle
+                }, MistVideo.video);
+                
+                delete setTracks.subtitle;
+              });
             }
             
+            if ("setTrack" in MistVideo.player.api) {
+              MistVideo.player.onready(function(){
+                for (var i in setTracks) {
+                  MistVideo.player.api.setTrack(i,setTracks[i]);
+                  MistUtil.event.send("playerUpdate_trackChanged",{
+                    type: i,
+                    trackid: setTracks[i]
+                  }, MistVideo.video);
+                }
+              });
+            }
+            else if ("setTracks" in MistVideo.player.api) {
+              MistVideo.player.onready(function(){
+                MistVideo.player.api.setTracks(setTracks);
+              });
+              for (var i in setTracks) {
+                MistUtil.event.send("playerUpdate_trackChanged",{
+                  type: i,
+                  trackid: setTracks[i]
+                }, MistVideo.video);
+              }
+            }
           }
           
         }

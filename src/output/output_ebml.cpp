@@ -75,9 +75,9 @@ namespace Mist{
     capa["codecs"][0u][2u].append("+JSON");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
-    capa["methods"][0u]["priority"] = 11;
+    capa["methods"][0u]["priority"] = 9;
     //EBML will only work with VP8/VP9/Opus except on Chrome
-    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\"], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]]]");
+    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\"], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
     capa["exceptions"]["codec:H264"] = blacklistNonChrome;
     capa["exceptions"]["codec:HEVC"] = blacklistNonChrome;
     capa["exceptions"]["codec:theora"] = blacklistNonChrome;

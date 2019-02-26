@@ -1292,23 +1292,23 @@ MistSkins["default"] = {
             return MistVideo.player.api.setTrack(type,value);
           }
           else {
-          //gather what tracks we should use
-          var usetracks = {};
-          for (var i in selections) {
-            if ((i == "subtitle") || (selections[i].value == "")) { continue; } //subtitle tracks are handled seperately
-            usetracks[i] = selections[i].value;
-          }
-          if (value != ""){ usetracks[type] = value; }
-          //use setTracks
-          if ("setTracks" in MistVideo.player.api) {
-            return MistVideo.player.api.setTracks(usetracks);
-          }
-          //use setSource
-          if ("setSource" in MistVideo.player.api) {
-            return MistVideo.player.api.setSource(
-              MistUtil.http.url.addParam(MistVideo.source.url,usetracks)
-            );
-          }
+            //gather what tracks we should use
+            var usetracks = {};
+            for (var i in selections) {
+              if ((i == "subtitle") || (selections[i].value == "")) { continue; } //subtitle tracks are handled seperately
+              usetracks[i] = selections[i].value;
+            }
+            if (value != ""){ usetracks[type] = value; }
+            //use setTracks
+            if ("setTracks" in MistVideo.player.api) {
+              return MistVideo.player.api.setTracks(usetracks);
+            }
+            //use setSource
+            if ("setSource" in MistVideo.player.api) {
+              return MistVideo.player.api.setSource(
+                MistUtil.http.url.addParam(MistVideo.source.url,usetracks)
+              );
+            }
           }
         }
         
@@ -1393,7 +1393,7 @@ MistSkins["default"] = {
                   }
                 }
                 
-                var value = 0;
+                var value = "none";
                 if (this.checked) {
                   if (this.trackType in selections) {
                     value = selections[this.trackType].value;
@@ -1403,9 +1403,9 @@ MistSkins["default"] = {
                   }
                 }
                 else {
-                  value = 0;
+                  value = "none";
                 }
-                changeToTracks(this.trackType,(this.checked ? value : 0));
+                changeToTracks(this.trackType,(this.checked ? value : "none"));
               });
             }
           }
@@ -1463,14 +1463,18 @@ MistSkins["default"] = {
             
             
             //add options to the select
+            function n(str) {
+              if (str == "") { return -1; }
+              return Number(str);
+            }
             var options = MistUtil.object.keys(t,function(a,b){
-              return Number(a) - Number(b);
+              return n(a) - n(b);
             }); //sort them
             for (var i in options) {
               var track = t[options[i]];
               var option = document.createElement("option");
               select.appendChild(option);
-              option.value = track.trackid;
+              option.value = ("idx" in track ? track.idx : track.trackid);
               if (MistUtil.object.keys(track.different).length) {
                 option.appendChild(document.createTextNode(orderValues(track.different).join(" ")));
               }
@@ -1479,6 +1483,15 @@ MistSkins["default"] = {
                 option.appendChild(document.createTextNode("Track "+(Number(i)+1)));
               }
             }
+            
+            MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
+              
+              if (e.message.type != type) { return; }
+              select.value = e.message.trackid;
+              MistVideo.log("Player selected "+type+" track with id "+e.message.trackid);
+              
+            },select);
+            
             if (type == "subtitle") {
               MistUtil.event.addListener(select,"change",function(){
                 try {
@@ -1538,13 +1551,6 @@ MistSkins["default"] = {
               }
               */
               
-              MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
-                
-                if (e.message.type != type) { return; }
-                select.value = e.message.trackid;
-                MistVideo.log("Player selected "+type+" track with id "+e.message.trackid);
-                
-              },select);
             }
           }
           else {

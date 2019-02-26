@@ -130,7 +130,7 @@ svg.icon.timeout {
   white-space: nowrap;
 }
 .browser-ie .mist.icon.loading {
-  animation: spin 1.5s infinite linear;
+  animation: mistvideo-spin 1.5s infinite linear;
   transform-origin: 50% 50%;
 }
 .browser-ie .mist.icon.loading .spin { animation: none; }

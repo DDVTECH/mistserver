@@ -138,7 +138,7 @@ p.prototype.build = function (MistVideo,callback) {
     //trackswitching
     MistVideo.player.api.setTrack = function(type,id){
       var meta = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
-      if ((!(type in meta)) || ((!(id in meta[type]) && (id != 0)))) {
+      if ((!(type in meta)) || ((!(id in meta[type]) && (id != "none")))) {
         MistVideo.log("Skipping trackselection of "+type+" track "+id+" because it does not exist");
         return;
       }
@@ -157,7 +157,8 @@ p.prototype.build = function (MistVideo,callback) {
       MistUtil.array.multiSort(mistTracks,["bps"]);
       var n = false;
       for (var i in mistTracks) {
-        if (mistTracks[i].trackid == id) {
+        var trackid = ("idx" in mistTracks[i] ? mistTracks[i].idx : mistTracks[i].trackid);
+        if (trackid == id) {
           n = i;
           break;
         }
@@ -191,7 +192,7 @@ p.prototype.build = function (MistVideo,callback) {
       //sort by bitrate
       MistUtil.array.multiSort(mistTracks,["bps"]);
       //get mist's id for the track
-      var id = mistTracks[e.newQuality].trackid;
+      var id = ("idx" in mistTracks[e.newQuality] ? mistTracks[e.newQuality].idx : mistTracks[e.newQuality].trackid);
       
       //create an event to pass this to the skin
       MistUtil.event.send("playerUpdate_trackChanged",{
@@ -222,7 +223,8 @@ p.prototype.build = function (MistVideo,callback) {
       
       var dashsubs = me.dash.getTracksFor("text");
       for (var i in dashsubs) {
-        if (dashsubs[i].id == trackmeta.trackid) {
+        var trackid = ("idx" in trackmeta ? trackmeta.idx : trackmeta.trackid);
+        if (dashsubs[i].id == trackid) {
           me.dash.setTextTrack(i);
           if (!me.dash.isTextEnabled()) { me.dash.enableText(); }
           return true;

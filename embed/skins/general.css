@@ -102,7 +102,7 @@ select > option {
   margin-top: 2px;
 }
 
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes mistvideo-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 [data-fullscreen] {
   position: fixed;
   top: 0;
@@ -200,11 +200,11 @@ a {
   left: 0;
 }
 .mistvideo-delay-display {
-  animation: appear 1s;
+  animation: mistvideo-appear 1s;
   animation-iteration-count: 1;
   animation-timing-function: steps(1,end);
 }
-@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mistvideo-appear { from { opacity: 0; } to { opacity: 1; } }
 
 svg.icon {
   display: block;
@@ -220,7 +220,7 @@ svg.icon.off .toggle.semiFill,
 svg.icon.off .toggle .fill,
 svg.icon.off .toggle .semiFill { fill: none; }
 svg.icon.spin, svg.icon .spin {
-  animation: spin 1.5s infinite linear;
+  animation: mistvideo-spin 1.5s infinite linear;
   transform-origin: 50% 50%;
 }
 .vjs-text-track-display {

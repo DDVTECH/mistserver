@@ -775,9 +775,25 @@ namespace Mist{
     return pidMapping[(((uint64_t)playlistId) << 32) + id];
   }
 
-  uint32_t inputHLS::getMappedTrackId(uint64_t id){return (pidMappingR[id] & 0xFFFFFFFFull);}
+  uint32_t inputHLS::getMappedTrackId(uint64_t id){
+    static uint64_t lastIn = id;
+    static uint32_t lastOut = (pidMappingR[id] & 0xFFFFFFFFull);
+    if (lastIn != id){
+      lastIn = id;
+      lastOut = (pidMappingR[id] & 0xFFFFFFFFull);
+    }
+    return lastOut;
+  }
 
-  uint32_t inputHLS::getMappedTrackPlaylist(uint64_t id){return (pidMappingR[id] >> 32);}
+  uint32_t inputHLS::getMappedTrackPlaylist(uint64_t id){
+    static uint64_t lastIn = id;
+    static uint32_t lastOut = (pidMappingR[id] >> 32);
+    if (lastIn != id){
+      lastIn = id;
+      lastOut = (pidMappingR[id] >> 32);
+    }
+    return lastOut;
+  }
 
   /// Parses the main playlist, possibly containing variants.
   bool inputHLS::initPlaylist(const std::string &uri){

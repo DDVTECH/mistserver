@@ -71,6 +71,8 @@ namespace TS{
       std::map<size_t, ProgramMappingTable> mappingTable;
 
       std::map<size_t, std::deque<Packet> > pesStreams;
+      std::deque<Packet> * psCache; /// Used only for internal speed optimizes.
+      uint32_t psCacheTid; /// Used only for internal speed optimizes.
       std::map<size_t, std::deque<uint64_t> > pesPositions;
       std::map<size_t, std::deque<DTSC::Packet> > outPackets;
       std::map<size_t, DTSC::Packet> buildPacket;

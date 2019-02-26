@@ -394,7 +394,7 @@ namespace Mist{
     r << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" << std::endl;
     r << "<MPD xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"urn:mpeg:dash:schema:mpd:2011\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xsi:schemaLocation=\"urn:mpeg:DASH:schema:MPD:2011 http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd\" profiles=\"urn:mpeg:dash:profile:isoff-live:2011\" ";
     if (myMeta.vod){
-      r << "type=\"static\" mediaPresentationDuration=\"" << makeTime(std::max(lastVidTime, lastAudTime)) << "\" minBufferTime=\"PT1.5S\" >" << std::endl;
+      r << "type=\"static\" mediaPresentationDuration=\"" << makeTime(myMeta.tracks[getMainSelectedTrack()].lastms - myMeta.tracks[getMainSelectedTrack()].firstms) << "\" minBufferTime=\"PT1.5S\" >" << std::endl;
     }else{
       r << "type=\"dynamic\" minimumUpdatePeriod=\"PT2.0S\" availabilityStartTime=\"" << Util::getUTCString(Util::epoch() - std::max(lastVidTime, lastAudTime)/1000) << "\" " << "timeShiftBufferDepth=\"" << makeTime(myMeta.tracks.begin()->second.lastms - myMeta.tracks.begin()->second.firstms) << "\" suggestedPresentationDelay=\"PT5.0S\" minBufferTime=\"PT2.0S\" >" << std::endl;
     }
@@ -403,11 +403,11 @@ namespace Mist{
     if (myMeta.live){
       r << "id=\"0\" ";
     }
-    r << "start=\"PT0S\">" << std::endl;
+    r << ">" << std::endl;
     if (vidInitTrack){
       DTSC::Track & trackRef = myMeta.tracks[vidInitTrack];
       r << "    <AdaptationSet group=\"1\" id=\"9998\" mimeType=\"video/mp4\" width=\"" << trackRef.width << "\" height=\"" << trackRef.height << "\" frameRate=\"" << trackRef.fpks / 1000 << "\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">" << std::endl;
-      r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
+      r << "      <SegmentTemplate presentationTimeOffset=\"" << trackRef.firstms << "\" timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
       r << "        <SegmentTimeline>" << std::endl;
       addSegmentTimeline(r, trackRef, myMeta.live);
       r << "        </SegmentTimeline>" << std::endl;
@@ -435,7 +435,7 @@ namespace Mist{
       DTSC::Track & trackRef = myMeta.tracks[audInitTrack];
       r << "    <AdaptationSet group=\"2\" id=\"9999\" mimeType=\"audio/mp4\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\" >" << std::endl;
       r << "      <Role schemeIdUri=\"urn:mpeg:dash:role:2011\" value=\"main\"/>" << std::endl;
-      r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
+      r << "      <SegmentTemplate presentationTimeOffset=\"" << trackRef.firstms << "\" timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
 
       r << "        <SegmentTimeline>" << std::endl;
       addSegmentTimeline(r, trackRef, myMeta.live);

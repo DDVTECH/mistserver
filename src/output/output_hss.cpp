@@ -43,7 +43,11 @@ std::string toUTF16(std::string original) {
   return result;
 }
 
-
+/// Converts bytes per second and track ID into a single bits per second value, where the last two digits are the track ID.
+/// Breaks for track IDs > 99. But really, this is MS-SS, so who cares..?
+uint64_t bpsAndIdToBitrate(uint32_t bps, uint64_t tid){
+  return ((uint64_t)((bps*8)/100))*100+tid;
+}
 
 namespace Mist {
   OutHSS::OutHSS(Socket::Connection & conn) : HTTPOutput(conn){
@@ -104,12 +108,12 @@ namespace Mist {
 
   void OutHSS::sendHeader() {
     //We have a non-manifest request, parse it.
-    std::string Quality = H.url.substr(H.url.find("TrackID=", 8) + 8);
+    std::string Quality = H.url.substr(H.url.find("Q(", 2) + 2);
     Quality = Quality.substr(0, Quality.find(")"));
     std::string parseString = H.url.substr(H.url.find(")/") + 2);
     parseString = parseString.substr(parseString.find("(") + 1);
     long long int seekTime = atoll(parseString.substr(0, parseString.find(")")).c_str()) / 10000;
-    unsigned int tid = atoll(Quality.c_str());
+    unsigned int tid = atoll(Quality.c_str()) % 100;
     selectedTracks.clear();
     selectedTracks.insert(tid);
     if (myMeta.live) {
@@ -415,7 +419,7 @@ namespace Mist {
     }
     DEBUG_MSG(DLVL_DONTEVEN, "Buffer window here %lld", myMeta.bufferWindow);
     if (myMeta.vod) {
-      Result << "Duration=\"" << (*videoIters.begin())->second.lastms << "0000\"";
+      Result << "Duration=\"" << ((*videoIters.begin())->second.lastms - (*videoIters.begin())->second.firstms) << "0000\"";
     } else {
       Result << "Duration=\"0\" "
              "IsLive=\"TRUE\" "
@@ -433,12 +437,12 @@ namespace Mist {
              "QualityLevels=\"" << audioIters.size() << "\" "
              "Name=\"audio\" "
              "Chunks=\"" << (*audioIters.begin())->second.keys.size() << "\" "
-             "Url=\"Q({bitrate},{CustomAttributes})/A({start time})\">\n";
+             "Url=\"Q({bitrate})/A({start time})\">\n";
       int index = 0;
       for (std::deque<std::map<unsigned int, DTSC::Track>::iterator>::iterator it = audioIters.begin(); it != audioIters.end(); it++) {
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
-               "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
+               "Bitrate=\"" << bpsAndIdToBitrate((*it)->second.bps, (*it)->first) << "\" "
                "CodecPrivateData=\"" << std::hex;
         for (unsigned int i = 0; i < (*it)->second.init.size(); i++) {
           Result << std::setfill('0') << std::setw(2) << std::right << (int)(*it)->second.init[i];
@@ -450,9 +454,6 @@ namespace Mist {
                "PacketSize=\"4\" "
                "AudioTag=\"255\" "
                "FourCC=\"AACL\" >\n";
-        Result << "<CustomAttributes>\n"
-               "<Attribute Name = \"TrackID\" Value = \"" << (*it)->first << "\" />"
-               "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }
@@ -474,7 +475,7 @@ namespace Mist {
              "QualityLevels=\"" << videoIters.size() << "\" "
              "Name=\"video\" "
              "Chunks=\"" << (*videoIters.begin())->second.keys.size() << "\" "
-             "Url=\"Q({bitrate},{CustomAttributes})/V({start time})\" "
+             "Url=\"Q({bitrate})/V({start time})\" "
              "MaxWidth=\"" << maxWidth << "\" "
              "MaxHeight=\"" << maxHeight << "\" "
              "DisplayWidth=\"" << maxWidth << "\" "
@@ -484,7 +485,7 @@ namespace Mist {
         //Add video qualities
         Result << "<QualityLevel "
                "Index=\"" << index << "\" "
-               "Bitrate=\"" << (*it)->second.bps * 8 << "\" "
+               "Bitrate=\"" << bpsAndIdToBitrate((*it)->second.bps, (*it)->first) << "\" "
                "CodecPrivateData=\"" << std::hex;
         MP4::AVCC avccbox;
         avccbox.setPayload((*it)->second.init);
@@ -496,9 +497,6 @@ namespace Mist {
                "MaxWidth=\"" << (*it)->second.width << "\" "
                "MaxHeight=\"" << (*it)->second.height << "\" "
                "FourCC=\"AVC1\" >\n";
-        Result << "<CustomAttributes>\n"
-               "<Attribute Name = \"TrackID\" Value = \"" << (*it)->first << "\" />"
-               "</CustomAttributes>";
         Result << "</QualityLevel>\n";
         index++;
       }

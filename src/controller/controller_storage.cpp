@@ -422,7 +422,10 @@ namespace Controller{
 
     static bool serverStartTriggered;
     if (!serverStartTriggered){
-      if (!Triggers::doTrigger("SYSTEM_START")){conf.is_active = false;}
+      if (!Triggers::doTrigger("SYSTEM_START")){
+        INFO_MSG("Shutting down because of SYSTEM_START trigger response");
+        conf.is_active = false;
+      }
       serverStartTriggered = true;
     }
     /*LTS-END*/

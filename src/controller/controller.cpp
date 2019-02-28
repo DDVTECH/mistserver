@@ -302,6 +302,7 @@ int main_loop(int argc, char **argv){
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
   Controller::writeConfig();
+  if (!Controller::conf.is_active){return 0;}
   Controller::checkAvailProtocols();
   Controller::checkAvailTriggers();
   Controller::writeCapabilities();

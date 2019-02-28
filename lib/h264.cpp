@@ -87,6 +87,9 @@ namespace h264{
     uint32_t heightInMapUnits = 0;
     uint32_t cropVertical = 0;
 
+    uint32_t sar_width = 0;
+    uint32_t sar_height = 0;
+
     // Fill the bitstream
     Utils::bitstream bs;
     for (size_t i = 1; i < dataLen; i++){
@@ -161,7 +164,74 @@ namespace h264{
     if (bs.get(1)){
       // Skipping all the paramters we dont use
       if (bs.get(1)){
-        if (bs.get(8) == 255){bs.skip(32);}
+        uint8_t aspect_ratio_idc = bs.get(8);
+        switch (aspect_ratio_idc){
+        case 255:
+          sar_width = bs.get(16);
+          sar_height = bs.get(16);
+          break;
+        case 2:
+          sar_width = 12;
+          sar_height = 11;
+          break;
+        case 3:
+          sar_width = 10;
+          sar_height = 11;
+          break;
+        case 4:
+          sar_width = 16;
+          sar_height = 11;
+          break;
+        case 5:
+          sar_width = 40;
+          sar_height = 33;
+          break;
+        case 6:
+          sar_width = 24;
+          sar_height = 11;
+          break;
+        case 7:
+          sar_width = 20;
+          sar_height = 11;
+          break;
+        case 8:
+          sar_width = 32;
+          sar_height = 11;
+          break;
+        case 9:
+          sar_width = 80;
+          sar_height = 33;
+          break;
+        case 10:
+          sar_width = 18;
+          sar_height = 11;
+          break;
+        case 11:
+          sar_width = 15;
+          sar_height = 11;
+          break;
+        case 12:
+          sar_width = 64;
+          sar_height = 33;
+          break;
+        case 13:
+          sar_width = 160;
+          sar_height = 99;
+          break;
+        case 14:
+          sar_width = 4;
+          sar_height = 3;
+          break;
+        case 15:
+          sar_width = 3;
+          sar_height = 2;
+          break;
+        case 16:
+          sar_width = 2;
+          sar_height = 1;
+          break;
+        default: break;
+        }
       }
       if (bs.get(1)){bs.skip(1);}
       if (bs.get(1)){
@@ -184,6 +254,15 @@ namespace h264{
 
     result.width = (widthInMbs * 16) - (cropHorizontal * 2);
     result.height = ((result.mbs_only ? 1 : 2) * heightInMapUnits * 16) - (cropVertical * 2);
+
+    if (sar_width != sar_height){
+      if (sar_width > sar_height){
+        result.width = ((result.width * sar_width) / sar_height);
+      }else{
+        result.height = ((result.height * sar_height) / sar_width);
+
+      }
+    }
     return result;
   }
 

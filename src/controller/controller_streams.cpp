@@ -42,6 +42,7 @@ namespace Controller {
     std::string prevState = data["error"].asStringRef();
     data["online"] = (std::string)"Checking...";
     data.removeMember("error");
+    data.removeNullMembers();
     switch (Util::getStreamStatus(name)){
       case STRMSTAT_OFF:
         //Do nothing

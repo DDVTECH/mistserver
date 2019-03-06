@@ -331,6 +331,7 @@ namespace Controller{
   void writeConfig(){
     writeProtocols();
     jsonForEach(Storage["streams"], it){
+      it->removeNullMembers();
       writeStream(it.key(), *it);
     }
 

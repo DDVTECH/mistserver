@@ -2,6 +2,7 @@
 /// Holds all code for the HTTP namespace.
 
 #include "http_parser.h"
+#include "util.h"
 #include "auth.h"
 #include "defines.h"
 #include "encode.h"
@@ -342,11 +343,12 @@ void HTTP::Parser::auth(const std::string &user, const std::string &pass,
     return;
   }
   std::string meth = authReq.substr(0, space);
-  if (meth == "Basic"){
+  Util::stringToLower(meth);
+  if (meth == "basic"){
     SetHeader(headerName, "Basic " + Encodings::Base64::encode(user + ":" + pass));
     return;
   }
-  if (meth == "Digest"){
+  if (meth == "digest"){
     std::string realm = findValIn(authReq, "realm"), nonce = findValIn(authReq, "nonce"),
                 opaque = findValIn(authReq, "opaque"), qop = findValIn(authReq, "qop"),
                 algo = findValIn(authReq, "algorithm");

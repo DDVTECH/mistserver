@@ -328,6 +328,10 @@ namespace Mist {
     
     std::string devSkin = "";
     if (H.GetVar("dev").size()) { devSkin = ",skin:\"dev\""; }
+    H.SetVar("stream", "");
+    H.SetVar("dev", "");
+    devSkin += ",urlappend:\"" + H.allVars() + "\"";
+    H.SetVar("stream", streamName);
     
     H.Clean();
     H.SetHeader("Content-Type", "text/html");

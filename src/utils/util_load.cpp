@@ -80,21 +80,21 @@ private:
   std::map<std::string, struct streamDetails> streams;
   std::set<std::string> conf_streams;
   std::map<std::string, outUrl> outputs;
-  unsigned int cpu;
-  unsigned long long ramMax;
-  unsigned long long ramCurr;
-  unsigned int upSpeed;
-  unsigned int downSpeed;
-  unsigned int total;
-  unsigned long long upPrev;
-  unsigned long long downPrev;
-  unsigned long long prevTime;
-  unsigned long long addBandwidth;
+  uint32_t cpu;
+  uint64_t ramMax;
+  uint64_t ramCurr;
+  uint32_t upSpeed;
+  uint32_t downSpeed;
+  uint32_t total;
+  uint64_t upPrev;
+  uint64_t downPrev;
+  uint64_t prevTime;
+  uint64_t addBandwidth;
 
 public:
   std::string host;
   char binHost[16];
-  unsigned long long availBandwidth;
+  uint64_t availBandwidth;
   JSON::Value geoDetails;
   double servLati, servLongi;
   std::string servLoc;
@@ -140,24 +140,23 @@ public:
   void fillState(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    r["cpu"] = (long long)(cpu / 10);
-    if (ramMax){r["ram"] = (long long)((ramCurr * 100) / ramMax);}
-    r["up"] = (long long)upSpeed;
-    r["up_add"] = (long long)addBandwidth;
-    r["down"] = (long long)downSpeed;
-    r["streams"] = (long long)streams.size();
-    r["viewers"] = (long long)total;
-    r["bwlimit"] = (long long)availBandwidth;
+    r["cpu"] = cpu / 10;
+    if (ramMax){r["ram"] = (ramCurr * 100) / ramMax;}
+    r["up"] = upSpeed;
+    r["up_add"] = addBandwidth;
+    r["down"] = downSpeed;
+    r["streams"] = streams.size();
+    r["viewers"] = total;
+    r["bwlimit"] = availBandwidth;
     if (servLati || servLongi){
       r["geo"]["lat"] = servLati;
       r["geo"]["lon"] = servLongi;
       r["geo"]["loc"] = servLoc;
     }
     if (ramMax && availBandwidth){
-      r["score"]["cpu"] = (long long)(weight_cpu - (cpu * weight_cpu) / 1000);
-      r["score"]["ram"] = (long long)(weight_ram - ((ramCurr * weight_ram) / ramMax));
-      r["score"]["bw"] =
-          (long long)(weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+      r["score"]["cpu"] = (weight_cpu - (cpu * weight_cpu) / 1000);
+      r["score"]["ram"] = (weight_ram - ((ramCurr * weight_ram) / ramMax));
+      r["score"]["bw"] = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
     }
   }
   /// Fills out a by reference given JSON::Value with current streams.
@@ -482,7 +481,7 @@ int handleRequest(Socket::Connection &conn){
           continue;
         }
         if (stream.size()){
-          long long count = 0;
+          uint32_t count = 0;
           for (HOSTLOOP){
             HOSTCHECK;
             count += HOST(i).details->getViewers(stream);
@@ -611,7 +610,7 @@ int handleRequest(Socket::Connection &conn){
 
 void handleServer(void *hostEntryPointer){
   hostEntry *entry = (hostEntry *)hostEntryPointer;
-  JSON::Value bandwidth = 128 * 1024 * 1024ll; // assume 1G connection
+  JSON::Value bandwidth = 128 * 1024 * 1024; // assume 1G connection
   HTTP::URL url(entry->name);
   if (!url.protocol.size()){url.protocol = "http";}
   if (!url.port.size()){url.port = "4242";}
@@ -703,7 +702,7 @@ int main(int argc, char **argv){
   opt["short"] = "p";
   opt["long"] = "port";
   opt["help"] = "TCP port to listen on";
-  opt["value"].append((long long)8042);
+  opt["value"].append(8042);
   conf.addOption("port", opt);
 
   opt["arg"] = "string";
@@ -738,35 +737,35 @@ int main(int argc, char **argv){
   opt["short"] = "R";
   opt["long"] = "ram";
   opt["help"] = "Weight for RAM scoring";
-  opt["value"].append((long long)weight_ram);
+  opt["value"].append(weight_ram);
   conf.addOption("ram", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "C";
   opt["long"] = "cpu";
   opt["help"] = "Weight for CPU scoring";
-  opt["value"].append((long long)weight_cpu);
+  opt["value"].append(weight_cpu);
   conf.addOption("cpu", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "B";
   opt["long"] = "bw";
   opt["help"] = "Weight for BW scoring";
-  opt["value"].append((long long)weight_bw);
+  opt["value"].append(weight_bw);
   conf.addOption("bw", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "G";
   opt["long"] = "geo";
   opt["help"] = "Weight for geo scoring";
-  opt["value"].append((long long)weight_geo);
+  opt["value"].append(weight_geo);
   conf.addOption("geo", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "X";
   opt["long"] = "extra";
   opt["help"] = "Weight for extra scoring when stream exists";
-  opt["value"].append((long long)weight_bonus);
+  opt["value"].append(weight_bonus);
   conf.addOption("extra", opt);
 
   opt.null();

@@ -19,8 +19,8 @@ namespace h265{
                                     size_t indent);
 
   struct metaInfo{
-    unsigned int width;
-    unsigned int height;
+    uint64_t width;
+    uint64_t height;
     double fps;
   };
 

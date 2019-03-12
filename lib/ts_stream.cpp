@@ -896,6 +896,10 @@ namespace TS{
         meta.tracks[mId].codec = "HEVC";
         meta.tracks[mId].trackID = mId;
         meta.tracks[mId].init = hevcInfo[it->first].generateHVCC();
+        h265::metaInfo metaInfo = hevcInfo[it->first].getMeta();
+        meta.tracks[mId].width = metaInfo.width;
+        meta.tracks[mId].height = metaInfo.height;
+        meta.tracks[mId].fpks = metaInfo.fps * 1000;
         int pmtCount = associationTable.getProgramCount();
         for (int i = 0; i < pmtCount; i++){
           int pid = associationTable.getProgramPID(i);

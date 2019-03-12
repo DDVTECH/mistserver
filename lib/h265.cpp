@@ -109,11 +109,6 @@ namespace h265{
     case 34: // pps
       nalUnits[nalType].insert(data);
     }
-    INFO_MSG("added nal of type %" PRIu8, nalType);
-    if (nalType == 32){
-      vpsUnit vps(data);
-      std::cout << vps.toPrettyString(0);
-    }
   }
 
   bool initData::haveRequired(){
@@ -161,7 +156,8 @@ namespace h265{
 
   metaInfo initData::getMeta(){
     metaInfo res;
-    if (!nalUnits.count(33)){return res;}
+    if (!nalUnits.count(33)){
+      return res;}
     spsUnit sps(*nalUnits[33].begin());
     sps.getMeta(res);
     return res;
@@ -396,28 +392,53 @@ namespace h265{
     }
   }
 
-  std::string printShortTermRefPicSet(Utils::bitstream &bs, unsigned int idx, size_t indent){
+  std::string printShortTermRefPicSet(Utils::bitstream &bs, uint64_t idx, size_t count, size_t indent){
+    static std::map<int, int> negativePics;
+    static std::map<int, int> positivePics;
+    if (idx == 0){
+      negativePics.clear();
+      positivePics.clear();
+    }
+
     std::stringstream r;
     bool interPrediction = false;
     if (idx != 0){
       interPrediction = bs.get(1);
       r << std::string(indent, ' ')
-        << "inter_ref_pic_set_predicition_flag: " << (interPrediction ? 1 : 0) << std::endl;
+        << "inter_ref_pic_set_prediction_flag: " << (interPrediction ? 1 : 0) << std::endl;
     }
     if (interPrediction){
-      WARN_MSG("interprediciton not yet handled");
+
+      uint64_t deltaIdxMinus1 = 0;
+      if (idx == count){
+        deltaIdxMinus1 = bs.getUExpGolomb();
+        r << std::string(indent, ' ') << "delta_idx_minus_1: " << deltaIdxMinus1 << std::endl;
+      }
+      r << std::string(indent, ' ')
+        << "delta_rps_sign: " << (int)bs.get(1) << std::endl;
+      r << std::string(indent, ' ')
+        << "abs_delta_rps_minus1: " << bs.getUExpGolomb() << std::endl;
+      uint64_t refRpsIdx = idx - deltaIdxMinus1 - 1;
+      uint64_t deltaPocs = negativePics[refRpsIdx] + positivePics[refRpsIdx];
+      for (int j = 0; j < deltaPocs; j++){
+        bool usedByCurrPicFlag = bs.get(1);
+        r << std::string(indent + 1, ' ') << "used_by_curr_pic_flag[" << j << "]: " << usedByCurrPicFlag << std::endl;
+        if (!usedByCurrPicFlag){
+          r << std::string(indent + 1, ' ') << "used_delta_flag[" << j << "]: " << bs.get(1) << std::endl;
+        }
+      }
     }else{
-      uint64_t negativePics = bs.getUExpGolomb();
-      uint64_t positivePics = bs.getUExpGolomb();
-      r << std::string(indent, ' ') << "num_negative_pics: " << negativePics << std::endl;
-      r << std::string(indent, ' ') << "num_positive_pics: " << positivePics << std::endl;
-      for (int i = 0; i < negativePics; i++){
+      negativePics[idx] = bs.getUExpGolomb();
+      positivePics[idx] = bs.getUExpGolomb();
+      r << std::string(indent, ' ') << "num_negative_pics: " << negativePics[idx] << std::endl;
+      r << std::string(indent, ' ') << "num_positive_pics: " << positivePics[idx] << std::endl;
+      for (int i = 0; i < negativePics[idx]; i++){
         r << std::string(indent + 1, ' ') << "delta_poc_s0_minus1[" << i
           << "]: " << bs.getUExpGolomb() << std::endl;
         r << std::string(indent + 1, ' ') << "used_by_curr_pic_s0_flag[" << i << "]: " << bs.get(1)
           << std::endl;
       }
-      for (int i = 0; i < positivePics; i++){
+      for (int i = 0; i < positivePics[idx]; i++){
         r << std::string(indent + 1, ' ') << "delta_poc_s1_minus1[" << i
           << "]: " << bs.getUExpGolomb() << std::endl;
         r << std::string(indent + 1, ' ') << "used_by_curr_pic_s1_flag[" << i << "]: " << bs.get(1)
@@ -639,7 +660,7 @@ namespace h265{
       << std::endl;
     for (int i = 0; i < shortTermPicSets; i++){
       r << std::string(indent, ' ') << "short_term_ref_pic_set(" << i << "):" << std::endl
-        << printShortTermRefPicSet(bs, i, indent + 1);
+        << printShortTermRefPicSet(bs, i, shortTermPicSets, indent + 1);
     }
     bool longTermRefPics = bs.get(1);
     r << std::string(indent, ' ')

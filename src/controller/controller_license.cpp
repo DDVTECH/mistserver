@@ -97,7 +97,11 @@ namespace Controller{
     JSON::Value response;
     
     HTTP::Downloader dl;
+#ifdef SSL
+    HTTP::URL url("https://releases.mistserver.org/license.php");
+#else
     HTTP::URL url("http://releases.mistserver.org/license.php");
+#endif
     url.args = "release="+Encodings::URL::encode(RELEASE)+"&version="+Encodings::URL::encode(PACKAGE_VERSION)+"&iid="+Encodings::URL::encode(instanceId)+"&hrn="+Encodings::URL::encode(Storage["config"]["serverid"])+"&lid="+currentLicense["lic_id"].asString() + extra;
 
     long long currID = currentLicense["lic_id"].asInt();

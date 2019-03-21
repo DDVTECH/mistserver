@@ -727,7 +727,7 @@ function MistVideo(streamName,options) {
             };
             
             //add track selection function
-            if (!("setTrack" in MistVideo.player.api)) {
+            if (!("setTracks" in MistVideo.player.api)) {
               MistVideo.player.api.setTracks = function(usetracks){
                 
                 //check tracks exist
@@ -782,6 +782,15 @@ function MistVideo(streamName,options) {
               
             }
             
+            
+          }
+          //add general setTracks function if setTrack exists
+          if (!("setTracks" in MistVideo.player.api) && ("setTrack" in MistVideo.player.api)) {
+            MistVideo.player.api.setTracks = function(usetracks){
+              for (var i in usetracks) {
+                MistVideo.player.api.setTrack(i,usetracks[i]);
+              }
+            };
           }
           
           if (options.setTracks) {

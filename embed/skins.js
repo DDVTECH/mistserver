@@ -91,12 +91,13 @@ MistSkins["default"] = {
                       children: [{
                         type: "volume",
                         mode: "horizontal",
-                        size: {height: 22}
+                        size: {height: 22},
+                        classes: ["mistvideo-pointer"]
                       }]
                     },
                     {
                       type: "speaker",
-                      classse: ["mistvideo-pointer"],
+                      classes: ["mistvideo-pointer"],
                       style: {"margin-left": "-2px"}
                     }
                   ]
@@ -129,7 +130,7 @@ MistSkins["default"] = {
                     show: "right: 5px;",
                     viewport: "right: 0; left: 0; bottom: 0; top: -1000px"
                   },
-                  button: {type: "settings"},
+                  button: {type: "settings", classes: ["mistvideo-pointer"]},
                   window: {type: "submenu"}
                 }
               ]}
@@ -1190,7 +1191,7 @@ MistSkins["default"] = {
     },
     settings: function(){
       var button = this.skin.icons.build("settings");
-      
+      button.setAttribute("onclick","");
       return button;
     },
     loop: function(){

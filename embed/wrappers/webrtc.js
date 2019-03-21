@@ -73,8 +73,10 @@ p.prototype.build = function (MistVideo,callback) {
       seekoffset = 0;
       hasended = false;
       this.webrtc.play();
+      MistUtil.event.send("webrtc_connected",null,video);
     },
     on_disconnected: function() {
+      MistUtil.event.send("webrtc_disconnected",null,video);
       MistVideo.log("Websocket sent on_disconnect");
       /*
         If a VoD file ends, we receive an on_stop, but no on_disconnect
@@ -105,10 +107,50 @@ p.prototype.build = function (MistVideo,callback) {
         duration = d;
         MistUtil.event.send("durationchange",d,video);
       }
+      
+      if (currenttracks != ev.tracks) {
+        var tracks = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
+        for (var i in ev.tracks) {
+          if (currenttracks.indexOf(ev.tracks[i]) < 0) {
+            //find track type
+            var type;
+            for (var j in tracks) {
+              if (ev.tracks[i] in tracks[j]) {
+                type = j;
+                break;
+              }
+            }
+            if (!type) {
+              //track type not found, this should not happen
+              continue;
+            }
+            
+            //create an event to pass this to the skin
+            MistUtil.event.send("playerUpdate_trackChanged",{
+              type: type,
+              trackid: ev.tracks[i]
+            },MistVideo.video);
+          }
+        }
+
+        currenttracks = ev.tracks;
+      }
     },
     on_seek: function(){
+      var thisPlayer = this;
       MistUtil.event.send("seeked",seekoffset,video);
-      video.play();
+      if ("seekPromise" in this.webrtc.signaling){
+        video.play().then(function(){
+          if ("seekPromise" in thisPlayer.webrtc.signaling) {
+            thisPlayer.webrtc.signaling.seekPromise.resolve("Play promise resolved");
+          }
+        }).catch(function(){
+          if ("seekPromise" in thisPlayer.webrtc.signaling) {
+            thisPlayer.webrtc.signaling.seekPromise.reject("Play promise rejected");
+          }
+        });
+      }
+      else { video.play(); }
     },
     on_stop: function(){
       MistVideo.log("Websocket sent on_stop");
@@ -185,8 +227,25 @@ p.prototype.build = function (MistVideo,callback) {
       this.signaling.send({type: "stop"});
     };
     this.seek = function(seekTime){
-      if (!this.isConnected) { return; }
-      this.signaling.send({type: "seek", "seek_time": seekTime*1e3});
+      var p = new Promise(function(resolve,reject){
+        if (!thisWebRTCPlayer.isConnected || !thisWebRTCPlayer.signaling) { return reject("Failed seek: not connected"); }
+        thisWebRTCPlayer.signaling.send({type: "seek", "seek_time": seekTime*1e3});
+        if ("seekPromise" in thisWebRTCPlayer.signaling) {
+          thisWebRTCPlayer.signaling.seekPromise.reject("Doing new seek");
+        }
+        
+        thisWebRTCPlayer.signaling.seekPromise = {
+          resolve: function(msg){
+            resolve("seeked");
+            delete thisWebRTCPlayer.signaling.seekPromise;
+          },
+          reject: function(msg) {
+            reject("Failed to seek: "+msg);
+            delete thisWebRTCPlayer.signaling.seekPromise;
+          }
+        };
+      });
+      return p;
     };
     this.pause = function(){
       if (!this.isConnected) { throw "Not connected, cannot pause." }
@@ -265,6 +324,7 @@ p.prototype.build = function (MistVideo,callback) {
   
   //override video duration
   var duration;
+  var currenttracks = [];
   Object.defineProperty(this.api,"duration",{
     get: function(){ return duration; }
   });
@@ -322,17 +382,28 @@ p.prototype.build = function (MistVideo,callback) {
   //redirect play
   me.api.play = function(){
     if (me.api.currentTime) {
-      if ((!me.webrtc.isConnected) || (me.webrtc.peerConn.iceConnectionState != "completed")) {
-        me.webrtc.connect(function(){
-          me.webrtc.seek(me.api.currentTime);
-        });
-      }
-      else {
-        me.webrtc.seek(me.api.currentTime);
-      }
+      var p = new Promise(function(resolve,reject){
+        if ((!me.webrtc.isConnected) || (me.webrtc.peerConn.iceConnectionState != "completed")) {
+          me.webrtc.connect(function(){
+            me.webrtc.seek(me.api.currentTime).then(function(msg){
+              resolve("played "+msg);
+            }).catch(function(msg){
+              reject(msg);
+            });
+          });
+        }
+        else {
+          me.webrtc.seek(me.api.currentTime).then(function(msg){
+            resolve("played "+msg);
+          }).catch(function(msg){
+            reject(msg);
+          });
+        }
+      });
+      return p;
     }
     else {
-      video.play();
+      return video.play();
     }
   };
   
@@ -347,7 +418,16 @@ p.prototype.build = function (MistVideo,callback) {
   };
   
   me.api.setTracks = function(obj){
-    me.webrtc.setTrack(obj);
+    if (me.webrtc.isConnected) {
+      me.webrtc.setTrack(obj);
+    }
+    else {
+      var f = function(){
+        me.webrtc.setTrack(obj);
+        MistUtil.event.removeListener({type: "webrtc_connected", callback: f, element: video});
+      };
+      MistUtil.event.addListener(video,"webrtc_connected",f);
+    }
   };
   function correctSubtitleSync() {
     if (!me.api.textTracks[0]) { return; }

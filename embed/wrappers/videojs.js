@@ -83,6 +83,13 @@ p.prototype.build = function (MistVideo,callback) {
       me.api.unload = function(){
         videojs(ele).dispose();
       };
+      
+      //because video reloads the m3u8 when the stream stops, creating all sorts of problems
+      MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
+        if (e.message == "Stream is shutting down") { 
+          me.api.unload();
+        }
+      });
     });
     
     MistVideo.log("Built html");
@@ -126,6 +133,10 @@ p.prototype.build = function (MistVideo,callback) {
         
         overrides.get.duration = function(){
           return (MistVideo.info.lastms + (new Date()).getTime() - MistVideo.info.updated.getTime())*1e-3;
+          if (MistVideo.info) {
+            return (MistVideo.info.lastms + (new Date()).getTime() - MistVideo.info.updated.getTime())*1e-3;
+          }
+          return false;
         };
         MistVideo.player.api.lastProgress = new Date();
         MistVideo.player.api.liveOffset = 0;

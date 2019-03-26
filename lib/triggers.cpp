@@ -54,7 +54,7 @@ namespace Triggers{
       DL.setHeader("X-Trigger", trigger);
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
-      if (DL.post(url, payload, sync) && sync && DL.isOk()){
+      if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
         submitTriggerStat(trigger, tStartMs, true);
         return DL.data();
       }

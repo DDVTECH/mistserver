@@ -200,8 +200,8 @@ namespace HTTP{
       MEDIUM_MSG("Posting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1,
                  retryCount);
       doRequest(link, "POST", payload);
-      // Not synced? Ignore the response and immediately return false.
-      if (!sync){return false;}
+      // Not synced? Ignore the response and immediately return true.
+      if (!sync){return true;}
       uint64_t reqTime = Util::bootSecs();
       while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
         // No data? Wait for a second or so.

@@ -1,3 +1,5 @@
+#include <stddef.h>
+
 namespace checksum {
   inline unsigned int crc32c(unsigned int crc, const char * data, size_t len) {
     static const unsigned int table[256] = {

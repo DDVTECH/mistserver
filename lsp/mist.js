@@ -439,11 +439,14 @@ var UI = {
               break;
             case 'save':
               $b.addClass('save').click(function(e){
+                var fn = $(this).data('opts')['preSave'];
+                if (fn) { fn.call(this); }
+                
                 var $ic = $(this).closest('.input_container');
                 
                 //skip any hidden fields
                 
-                //validate$()
+                //validate
                 var error = false;
                 $ic.find('.hasValidate:visible, input[type="hidden"].hasValidate').each(function(){
                   var vf = $(this).data('validate');
@@ -452,6 +455,8 @@ var UI = {
                     return false; //break loop
                   }
                 });
+                var fn = $(this).data('opts')['failedValidate'];
+                if (fn) { fn.call(this); }
                 if (error) { return; } //validation failed
                 
                 //for all inputs
@@ -497,6 +502,11 @@ var UI = {
       $e.append(
         $('<span>').addClass('label').html(('label' in e ? e.label+':' : ''))
       );
+      if ('classes' in e) {
+        for (var k in e.classes) {
+          $e.addClass(e.classes[k]);
+        }
+      }
       
       //field
       var $fc = $('<span>').addClass('field_container');
@@ -739,6 +749,16 @@ var UI = {
                 sublist
               ).concat([
                 {
+                  label: "Save first",
+                  type: "str",
+                  classes: ["onlyshowhelp"],
+                  validate: [function(){
+                    return {
+                      msg: "Did you want to save this "+e.itemLabel+"?",
+                      classes: ["red"]
+                    };
+                  }]
+                },{
                   type: "buttons",
                   buttons: [{
                     label: "Cancel",
@@ -751,6 +771,12 @@ var UI = {
                   },{
                     label: "Save "+e.itemLabel,
                     type: "save",
+                    preSave: function(){
+                      $(this).closest('.input_container').find(".onlyshowhelp").closest("label").hide();
+                    },
+                    failedValidate: function(){
+                      $(this).closest('.input_container').find(".onlyshowhelp").closest("label").show();
+                    },
                     "function": function(){
                       var savelist = $field.getval();
                       var save = Object.assign({},e.saveas);
@@ -1240,6 +1266,47 @@ var UI = {
                 };
                 break;
               }
+              case 'streamname_with_wildcard_and_variables': {
+                f = function(val,me) {
+                  if (val == "") { return; }
+                  
+                  streampart = val.split("+");
+                  var wildpart = streampart.slice(1).join("+");
+                  streampart = streampart[0];
+                  
+                  //validate streampart
+                  if (!isNaN(streampart.charAt(0))) {
+                    return {
+                      msg: 'The first character may not be a number.',
+                      classes: ['red']
+                    };
+                  }
+                  if (streampart.toLowerCase() != streampart) {
+                    return {
+                      msg: 'Uppercase letters are not allowed in a stream name.',
+                      classes: ['red']
+                    };
+                  }
+                  if (streampart.replace(/[^\da-z_$]/g,'') != streampart) {
+                    return {
+                      msg: 'Special characters (except for underscores) are not allowed in a stream name.',
+                      classes: ['red']
+                    };
+                  }
+                  
+                  if (streampart != val) {
+                    //validate wildcard part
+                    //anything is allowed except / and nullbytes
+                    if (wildpart.replace(/[\00|\0|\/]/g,'') != wildpart) {
+                      return {
+                        msg: 'Slashes or null bytes are not allowed in wildcards.',
+                        classes: ['red']
+                      };
+                    }
+                  }
+                };
+                break;
+              }
               case 'track_selector': {
                 //something like "audio=1&video=eng"
                 //keep at default for now..
@@ -1252,7 +1319,7 @@ var UI = {
           fs.push(f);
         }
         $field.data('validate_functions',fs).data('help_container',$ihc).data('validate',function(me,focusonerror){
-          if (!$(me).is(":visible")) { return; }
+          if ((!$(me).is(":visible")) && (!$(me).is("input[type=\"hidden\"]"))) { return; }
           
           var val = $(me).getval();
           var fs = $(me).data('validate_functions');
@@ -6623,13 +6690,19 @@ var mist = {
             var ele = input[type[j]][i];
             if (Array.isArray(ele)) {
               for (var m in ele) {
+                if (!("validate" in ele[m])) {
+                  ele[m].validate = [];
+                }
                 ele[m].validate = type[j];
                 ele[m].id = i;
                 list.push(ele[m]);
               }
             }
             else {
-              ele.validate = type[j];
+              if (!("validate" in ele)) {
+                ele.validate = [];
+              }
+              ele.validate.push(type[j]);
               ele.id = i;
               list.push(ele);
             }

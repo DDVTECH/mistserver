@@ -178,7 +178,10 @@ var UI = {
     var human = false;
     switch (type) {
       case 'html5/application/vnd.apple.mpegurl':
-        human = 'HLS';
+        human = 'HLS (TS)';
+        break;
+      case "html5/application/vnd.apple.mpegurl;version=7":
+        human = "HLS (CMAF)";
         break;
       case 'html5/video/webm':
         human = 'WebM';
@@ -208,8 +211,9 @@ var UI = {
       case 'html5/video/mpeg':
         human = 'TS';
         break;
+      case "html5/application/vnd.ms-sstr+xml":
       case 'html5/application/vnd.ms-ss':
-        human = 'Smooth';
+        human = 'Smooth Streaming';
         break;
       case 'html5/text/vtt':
         human = 'VTT Subtitles';

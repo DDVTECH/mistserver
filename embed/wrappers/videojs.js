@@ -1,6 +1,6 @@
 mistplayers.videojs = {
   name: "VideoJS player",
-  mimes: ["html5/application/vnd.apple.mpegurl"],
+  mimes: ["html5/application/vnd.apple.mpegurl","html5/application/vnd.apple.mpegurl;version=7"],
   priority: MistUtil.object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
     return (this.mimes.indexOf(mimetype) == -1 ? false : true);
@@ -40,7 +40,9 @@ p.prototype.build = function (MistVideo,callback) {
     }
     
     var shortmime = MistVideo.source.type.split("/");
-    shortmime.shift();
+    if (shortmime[0] == "html5") {
+      shortmime.shift();
+    }
     
     var source = document.createElement("source");
     source.setAttribute("src",MistVideo.source.url);
@@ -48,7 +50,7 @@ p.prototype.build = function (MistVideo,callback) {
     ele.appendChild(source);
     source.type = shortmime.join("/");
     MistVideo.log("Adding "+source.type+" source @ "+MistVideo.source.url);
-    if (source.type == "application/vnd.apple.mpegurl") { source.type = "application/x-mpegURL"; }
+    if (source.type.indexOf("application/vnd.apple.mpegurl") >= 0) { source.type = "application/x-mpegURL"; }
     
     MistUtil.class.add(ele,"video-js");
     

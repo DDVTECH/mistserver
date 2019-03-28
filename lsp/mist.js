@@ -2234,7 +2234,7 @@ var UI = {
             label: 'Desired password',
             type: 'password',
             validate: ['required',function(val,me){
-              $('.match_password').not($(me)).trigger('change');
+              $('.match_password.field').not($(me)).trigger('change');
               return false;
             }],
             help: 'Enter your desired password. In the future, you will need this to access the Management Interface.',
@@ -2247,7 +2247,7 @@ var UI = {
             label: 'Repeat password',
             type: 'password',
             validate: ['required',function(val,me){
-              if (val != $('.match_password').not($(me)).val()) {
+              if (val != $('.match_password.field').not($(me)).val()) {
                 return {
                   msg:'The fields "Desired password" and "Repeat password" do not match.',
                   classes: ['red']
@@ -4702,8 +4702,8 @@ var UI = {
           success: function(d) {
             
             var build = [];
-            var $s_forceType = $embedlinks.find('.forceType');
-            var $s_prioritizeType = $embedlinks.find('.prioritize_type');
+            var $s_forceType = $embedlinks.find('.field.forceType');
+            var $s_prioritizeType = $embedlinks.find('.field.prioritize_type');
             for (var i in d.source) {
               var source = d.source[i];
               var human = UI.humanMime(source.type);
@@ -4754,7 +4754,7 @@ var UI = {
               var trackarray = ["audio","video","subtitle"];
               for (var n in trackarray) {
                 var i = trackarray[n];
-                if (!tracks[i].length) { continue; }
+                if (!tracks[i] || !tracks[i].length) { continue; }
                 var $select = $('<select>').attr('data-type',i).css('flex-grow','1').change(function(){
                   if ($(this).val() == '') {
                     delete embedoptions.setTracks[$(this).attr('data-type')];
@@ -4803,7 +4803,7 @@ var UI = {
         script.src = embedbase+'player.js';
         document.head.appendChild(script);
         script.onload = function(){
-          var $s_forcePlayer = $embedlinks.find('.forcePlayer');
+          var $s_forcePlayer = $embedlinks.find('.field.forcePlayer');
           for (var i in mistplayers) {
             $s_forcePlayer.append(
               $('<option>').text(mistplayers[i].name).val(i)

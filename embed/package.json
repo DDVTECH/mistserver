@@ -1,0 +1,12 @@
+{
+  "name": "mistserver-metaplayer",
+  "version": "3.1.0",
+  "description": "Meta-player for use with MistServer",
+  "scripts": {
+    "minimize": "./minimize_internal.sh"
+  },
+  "dependencies": {
+    "clean-css-cli": "^4.2.1",
+    "terser": "^3.17.0"
+  }
+}

@@ -370,6 +370,7 @@ int handleRequest(Socket::Connection &conn){
       if (H.url.size() == 1){
         if (localMode && !conn.isLocal()){
           H.SetBody("Configuration only accessible from local interfaces");
+          H.setCORSHeaders();
           H.SendResponse("403", "Forbidden", conn);
           H.Clean();
           continue;
@@ -400,6 +401,7 @@ int handleRequest(Socket::Connection &conn){
           ret["geo"] = weight_geo;
           ret["bonus"] = weight_bonus;
           H.SetBody(ret.toString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -411,6 +413,7 @@ int handleRequest(Socket::Connection &conn){
             ret[(std::string)hosts[i].name] = stateLookup[hosts[i].state];
           }
           H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -426,6 +429,7 @@ int handleRequest(Socket::Connection &conn){
             }
           }
           H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -434,6 +438,7 @@ int handleRequest(Socket::Connection &conn){
         if (addserver.size()){
           if (addserver.size() > 199){
             H.SetBody("Host length too long for monitoring");
+            H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
             continue;
@@ -465,6 +470,7 @@ int handleRequest(Socket::Connection &conn){
             ret[addserver] = stateLookup[newEntry->state];
           }
           H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -476,6 +482,7 @@ int handleRequest(Socket::Connection &conn){
             HOST(i).details->fillStreams(ret);
           }
           H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -487,6 +494,7 @@ int handleRequest(Socket::Connection &conn){
             count += HOST(i).details->getViewers(stream);
           }
           H.SetBody(JSON::Value(count).asString());
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -519,6 +527,7 @@ int handleRequest(Socket::Connection &conn){
             INFO_MSG("Winner: %s scores %u", bestHost.c_str(), bestScore);
           }
           H.SetBody(bestHost);
+          H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
           continue;
@@ -539,6 +548,7 @@ int handleRequest(Socket::Connection &conn){
           }
         }
         H.SetBody(ret.toPrettyString());
+        H.setCORSHeaders();
         H.SendResponse("200", "OK", conn);
         H.Clean();
         continue;
@@ -573,6 +583,7 @@ int handleRequest(Socket::Connection &conn){
       INFO_MSG("Balancing stream %s", stream.c_str());
       H.Clean();
       H.SetHeader("Content-Type", "text/plain");
+      H.setCORSHeaders();
       hostEntry *bestHost = 0;
       unsigned int bestScore = 0;
       for (HOSTLOOP){

@@ -11,6 +11,7 @@ namespace Mist {
       void sendNext();
       void onHTTP();      
       bool isReadyForPlay();
+      virtual void onFail(const std::string & msg, bool critical = false);
     protected:
       std::string h264init(const std::string & initData);
 

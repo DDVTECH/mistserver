@@ -50,7 +50,8 @@ p.prototype.build = function (MistVideo,callback) {
     ele.appendChild(source);
     source.type = shortmime.join("/");
     MistVideo.log("Adding "+source.type+" source @ "+MistVideo.source.url);
-    if (source.type.indexOf("application/vnd.apple.mpegurl") >= 0) { source.type = "application/x-mpegURL"; }
+    //if (source.type.indexOf("application/vnd.apple.mpegurl") >= 0) { source.type = "application/x-mpegURL"; }
+    //source.type = "application/vnd.apple.mpegurl";
     
     MistUtil.class.add(ele,"video-js");
     
@@ -89,10 +90,37 @@ p.prototype.build = function (MistVideo,callback) {
         }
       };
       
-      //because video reloads the m3u8 when the stream stops, creating all sorts of problems
+      //special HLS live when-stream-ends code because holy crap latency
       MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
-        if (e.message == "Stream is offline") { 
-          me.api.unload();
+        var eventdata = false;
+        switch (e.message) {
+          case "Stream is shutting down": {
+            //MistVideo.clearError(); //we've probably got loads of buffer left to play
+            e.preventDefault();
+            break;
+          }
+          case "Stream is offline": {
+            MistVideo.clearError(); //we've probably got loads of buffer left to play
+            e.preventDefault();
+            
+            eventdata = MistUtil.event.addListener(MistVideo.video,"waiting",function(){
+              //stream has ended
+              
+              me.api.pause();
+              
+              //show stream offline error
+              MistVideo.showError("Stream is offline ",{polling:true});
+              
+              if (eventdata) { MistUtil.event.removeListener(eventdata); }
+            });
+            break;
+          }
+          case "Stream is waiting for data": {
+            if (eventdata) { MistUtil.event.removeListener(eventdata); }
+            me.api.pause();
+            MistVideo.reload();
+            break;
+          }
         }
       });
     });

@@ -43,7 +43,7 @@ function MistVideo(streamName,options) {
   this.logs = [];
   this.log = function(message,type){
     if (!type) { type = "log"; }
-    MistUtil.event.send(type,message,options.target);
+    var event = MistUtil.event.send(type,message,options.target);
     var data = {
       type: type
     };
@@ -59,6 +59,7 @@ function MistVideo(streamName,options) {
         else { console.log(msg); }
       } catch(e){}
     }
+    return event;
   };
   this.log("Initializing..");
   
@@ -301,7 +302,7 @@ function MistVideo(streamName,options) {
       var fw = size.width  || ('width'  in options && options.width  ? options.width   : false ); //force this width
       var fh = size.height || ('height' in options && options.height ? options.height  : false ); //force this height
       
-      if (!("source" in this.info)) {
+      if ((!this.info) || !("source" in this.info)) {
         fw = 640;
         fh = 480;
       }

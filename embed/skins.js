@@ -1702,7 +1702,7 @@ MistSkins["default"] = {
             d.appendChild(document.createTextNode(details));
           }
           else if ("decodingIssues" in MistVideo.skin.blueprints) { //dev mode
-            if (("player" in MistVideo) && ("api" in MistVideo.player)) {
+            if (("player" in MistVideo) && ("api" in MistVideo.player) && (MistVideo.video)) {
               details = [];
               if (typeof MistVideo.player.api.currentTime != "undefined") {
                 details.push(["Current video time:",MistUtil.format.time(MistVideo.player.api.currentTime)]);
@@ -1810,7 +1810,7 @@ MistSkins["default"] = {
         since = (new Date()).getTime();
         
         
-        this.log(message,"error");
+        var event = this.log(message,"error");
         var message_container = container.message(message,false,options);
         message_global = message_container;
         
@@ -1872,6 +1872,10 @@ MistSkins["default"] = {
         MistUtil.class.add(container,"show");
         if ("container" in MistVideo) {
           MistVideo.container.removeAttribute("data-loading");
+        }
+        
+        if (event.defaultPrevented) {
+          container.clear();
         }
       };
       container.clear = function(message){

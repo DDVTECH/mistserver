@@ -587,6 +587,7 @@ var MistUtil = {
         });
         event.message = message;
         target.dispatchEvent(event);
+        return event;
       }
       catch (e) {
         try {
@@ -594,6 +595,7 @@ var MistUtil = {
           event.initEvent(type,true,true);
           event.message = message;
           target.dispatchEvent(event);
+          return event;
         }
         catch (e) { return false; }
       }
@@ -946,6 +948,8 @@ var MistUtil = {
     line.setAttributeNS(null,"d","M"+path.join(" L"));
     
     line.addData = function(newData) {
+      
+      if (isNaN(newData.y)) { return; }
       
       if (options.differentiate) {
         var diff = newData.y - lasty;

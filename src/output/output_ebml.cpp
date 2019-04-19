@@ -138,6 +138,7 @@ namespace Mist{
 
   void OutEBML::sendNext(){
     if (thisPacket.getTime() >= newClusterTime){
+      if (liveSeek()){return;}
       currentClusterTime = thisPacket.getTime();
       if (myMeta.vod){
         //In case of VoD, clusters are aligned with the main track fragments

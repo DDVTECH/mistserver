@@ -388,6 +388,7 @@ function MistVideo(streamName,options) {
       
       
       MistVideo.player.build(MistVideo,function(video){
+        MistVideo.log("Building new player");
         
         MistVideo.container.removeAttribute("data-loading");
         MistVideo.video = video;
@@ -1110,6 +1111,12 @@ function MistVideo(streamName,options) {
     if ((this.UI) && (this.UI.elements)) {
       for (var i in this.UI.elements) {
         var e = this.UI.elements[i];
+        if ("attachedListeners" in e) {
+          //remove attached event listeners
+          for (var i in e.attachedListeners) {
+            MistUtil.event.removeListener(e.attachedListeners[i]);
+          }
+        }
         if (e.parentNode) {
           e.parentNode.removeChild(e);
         }

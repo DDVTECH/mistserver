@@ -29,12 +29,13 @@ p.prototype = new MistPlayer();
 p.prototype.build = function (MistVideo,callback) {
   var me = this; //to allow nested functions to access the player class itself
   
+  var ele;
   function onVideoJSLoad () {
     if (MistVideo.destroyed) { return;}
     
     MistVideo.log("Building VideoJS player..");
     
-    var ele = document.createElement("video");
+    ele = document.createElement("video");
     if (MistVideo.source.type != "html5/video/ogg") {
       ele.crossOrigin = "anonymous"; //required for subtitles, but if ogg, the video won"t load
     }
@@ -77,8 +78,12 @@ p.prototype.build = function (MistVideo,callback) {
         document.head.appendChild(style);
       }
     }
+    else {
+      vjsopts.controls = false;
+    }
     
     me.onready(function(){
+      MistVideo.log("Building videojs");
       me.videojs = videojs(ele,vjsopts,function(){
         MistVideo.log("Videojs initialized");
       });
@@ -87,6 +92,7 @@ p.prototype.build = function (MistVideo,callback) {
         if (me.videojs) {
           videojs(ele).dispose();
           me.videojs = false;
+          MistVideo.log("Videojs instance disposed");
         }
       };
       
@@ -103,16 +109,17 @@ p.prototype.build = function (MistVideo,callback) {
             MistVideo.clearError(); //we've probably got loads of buffer left to play
             e.preventDefault();
             
-            eventdata = MistUtil.event.addListener(MistVideo.video,"waiting",function(){
-              //stream has ended
-              
-              me.api.pause();
-              
-              //show stream offline error
-              MistVideo.showError("Stream is offline ",{polling:true});
-              
-              if (eventdata) { MistUtil.event.removeListener(eventdata); }
-            });
+            if (MistVideo.video) {
+              eventdata = MistUtil.event.addListener(MistVideo.video,"waiting",function(){
+                //stream has ended
+                me.api.pause();
+                
+                //show stream offline error
+                MistVideo.showError("Stream is offline ",{polling:true});
+                
+                if (eventdata) { MistUtil.event.removeListener(eventdata); }
+              });
+            }
             break;
           }
           case "Stream is waiting for data": {
@@ -122,7 +129,7 @@ p.prototype.build = function (MistVideo,callback) {
             break;
           }
         }
-      });
+      },MistVideo.video);
     });
     
     MistVideo.log("Built html");
@@ -162,13 +169,15 @@ p.prototype.build = function (MistVideo,callback) {
           }
           return buffer_end;
         }
-        var HLSlatency = 90; //best guess..
+        var HLSlatency = 0; //best guess..
         
         overrides.get.duration = function(){
           if (MistVideo.info) {
-            return (MistVideo.info.lastms + (new Date()).getTime() - MistVideo.info.updated.getTime())*1e-3;
+            var duration = (MistVideo.info.lastms + (new Date()).getTime() - MistVideo.info.updated.getTime())*1e-3;
+            //if (isNaN(duration)) { return 1e9; }
+            return duration;
           }
-          return false;
+          return 0;
         };
         MistVideo.player.api.lastProgress = new Date();
         MistVideo.player.api.liveOffset = 0;
@@ -184,8 +193,12 @@ p.prototype.build = function (MistVideo,callback) {
           MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
           MistVideo.video.currentTime -= diff;
         }
+        var lastms = 0;
         overrides.get.currentTime = function(){
-          return this.currentTime + MistVideo.info.lastms*1e-3 - MistVideo.player.api.liveOffset - HLSlatency;
+          if (MistVideo.info) { lastms = MistVideo.info.lastms*1e-3; }
+          var time = this.currentTime + lastms - MistVideo.player.api.liveOffset - HLSlatency;
+          if (isNaN(time)) { return 0; }
+          return time;
         }
       }
     }
@@ -241,7 +254,25 @@ p.prototype.build = function (MistVideo,callback) {
   else {
     //load the videojs player
     
-    var scripttag = MistUtil.scripts.insert(MistVideo.urlappend(mistplayers.videojs.scriptsrc(MistVideo.options.host)),{
+    var scripturl = MistVideo.urlappend(mistplayers.videojs.scriptsrc(MistVideo.options.host));
+    var scripttag;
+    window.onerror = function (msg, url, lineNo, columnNo, error) {
+      
+      if (url == scripttag.src) {
+        //error in internal videojs code
+        //console.error(me.videojs,MistVideo.video,ele,arguments);
+        
+        ele.pause();
+        
+        MistVideo.showError("Error in videojs player");
+        
+        MistVideo.reload();
+      }
+      
+      return false;
+    }
+    
+    scripttag = MistUtil.scripts.insert(scripturl,{
       onerror: function(e){
         var msg = "Failed to load videojs.js";
         if (e.message) { msg += ": "+e.message; }

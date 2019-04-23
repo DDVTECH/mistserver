@@ -1006,9 +1006,12 @@ MistSkins["default"] = {
       },button);
       
       //apply initial video state
-      if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
-        MistVideo.player.api.volume = localStorage['mistVolume'];
-      }
+      var initevent = MistUtil.event.addListener(video,"loadstart",function(){
+        if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
+          MistVideo.player.api.volume = localStorage['mistVolume'];
+        }
+        MistUtil.event.removeListener(initevent);
+      });
       
       button.addPadding = function(actual){
         return actual * (1 - (this.margin.start + this.margin.end)) + this.margin.start;

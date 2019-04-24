@@ -742,30 +742,7 @@ function MistVideo(streamName,options) {
                 //if (!MistUtil.object.keys(usetracks).length) { return; } //don't do this; allow switching back to auto
                 
                 //create source url
-                var newurl;
-                if (MistVideo.source.type == "html5/application/vnd.apple.mpegurl") { //for HLS, use a different format for track selection
-                  newurl = MistVideo.source.url.split("/");
-                  var m3u8 = newurl.pop(); //take this off now, it will be added back later
-                  var hlstracks = [];
-                  for (var i in usetracks) {
-                    //for audio or video tracks, just add the tracknumber between slashes
-                    switch (i) {
-                      case "audio":
-                      case "video":
-                        if (usetracks[i] == "none") { continue; }
-                        hlstracks.push(usetracks[i]);
-                        break;
-                    }
-                  }
-                  if (hlstracks.length) { newurl.push(hlstracks.join("_")); }
-                  newurl.push(m3u8); //put back index.m3u8
-                  newurl = newurl.join("/");
-                  usetracks = {};
-                }
-                else {
-                  newurl = MistVideo.source.url;
-                }
-                
+                var newurl = MistVideo.source.url;                
                 var time = MistVideo.player.api.currentTime;
                 
                 //actually switch to the new source url

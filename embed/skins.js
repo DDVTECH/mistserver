@@ -1291,6 +1291,9 @@ MistSkins["default"] = {
           
           if (!MistVideo.options.setTracks) { MistVideo.options.setTracks = {}; }
           MistVideo.options.setTracks[type] = value;
+          if ((value === true) && selections[type]) {
+            MistUtil.event.send("change",null,selections[type]);
+          }
           
           if ("setTrack" in MistVideo.player.api) {
             return MistVideo.player.api.setTrack(type,value);
@@ -1378,6 +1381,15 @@ MistSkins["default"] = {
               cell.appendChild(checkbox);
               checkboxes[type] = checkbox;
               
+              if (MistVideo.options.setTracks && (MistVideo.options.setTracks[type])) {
+                if (MistVideo.options.setTracks[type] == "none") {
+                  checkbox.checked = false;
+                }
+                else {
+                  checkbox.checked = true;
+                }
+              }
+              
               MistUtil.event.addListener(checkbox,"change",function(){
                 //make sure at least one checkbox is checked
                 var n = 0;
@@ -1411,6 +1423,15 @@ MistSkins["default"] = {
                 }
                 changeToTracks(this.trackType,(this.checked ? value : "none"));
               });
+              
+              MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
+                
+                if (e.message.type != type) { return; }
+                
+                if (e.message.value == "none") { this.checked = false; }
+                else { this.checked = true; }
+                
+              },select);
             }
           }
           
@@ -1490,7 +1511,7 @@ MistSkins["default"] = {
             
             MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
               
-              if (e.message.type != type) { return; }
+              if ((e.message.type != type) || (e.message.trackid == "none")) { return; }
               select.value = e.message.trackid;
               MistVideo.log("Player selected "+type+" track with id "+e.message.trackid);
               

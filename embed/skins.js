@@ -1775,7 +1775,7 @@ MistSkins["default"] = {
       this.showError = function(message,options){
         if (!options) {
           options = {
-            softReload: !!((MistVideo.video) && (MistVideo.video.load)),
+            softReload: !!(MistVideo.player && MistVideo.player.api && MistVideo.player.api.load),
             reload: true,
             nextCombo: !!MistVideo.info,
             polling: false,

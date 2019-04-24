@@ -160,6 +160,7 @@ p.prototype.build = function (MistVideo,callback) {
           return target[key] = value;
         }
       });
+      MistVideo.player.api.load = function(){};
       
       if (MistVideo.info.type == "live") {
         function getLastBuffer(video) {

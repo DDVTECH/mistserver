@@ -211,34 +211,11 @@ namespace Mist {
     sources.insert(tmp);
   }
  
-  /// Checks if a given user agent is allowed according to the given exception.
-  bool checkException(const JSON::Value & ex, const std::string & useragent){
-    //No user agent? Always allow everything.
-    if (!useragent.size()){return true;}
-    if (!ex.isArray() || !ex.size()){return true;}
-    bool ret = true;
-    jsonForEachConst(ex, e){
-      if (!e->isArray() || !e->size()){continue;}
-      bool setTo = ((*e)[0u].asStringRef() == "whitelist");
-      if (e->size() == 1){
-        ret = setTo;
-        continue;
-      }
-      if (!(*e)[1].isArray()){continue;}
-      jsonForEachConst((*e)[1u], i){
-        if (useragent.find(i->asStringRef()) != std::string::npos){
-          ret = setTo;
-        }
-      }
-    }
-    return ret;
-  }
-
   void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, HTTP::URL url, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string & useragent){
     if (strmMeta.isMember("live") && conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
       jsonForEach(conncapa["exceptions"], ex){
         if (ex.key() == "live"){
-          if (!checkException(*ex, useragent)){
+          if (!Util::checkException(*ex, useragent)){
             return;
           }
         }
@@ -255,14 +232,20 @@ namespace Mist {
             unsigned int matches = 0;
             if ((*itb).size() > 0){
               jsonForEach((*itb), itc) {
+                const std::string & strRef = (*itc).asStringRef();
+                bool byType = false;
+                bool multiSel = false;
+                uint8_t shift = 0;
+                if (strRef[shift] == '@'){byType = true; ++shift;}
+                if (strRef[shift] == '+'){multiSel = true; ++shift;}
                 jsonForEach(strmMeta["tracks"], trit) {
-                  if ((*trit)["codec"].asStringRef() == (*itc).asStringRef()){
+                  if ((!byType && (*trit)["codec"].asStringRef() == strRef.substr(shift)) || (byType && (*trit)["type"].asStringRef() == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     matches++;
                     total_matches++;
                     if (conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
                       jsonForEach(conncapa["exceptions"], ex){
-                        if (ex.key() == "codec:"+(*trit)["codec"].asStringRef()){
-                          if (!checkException(*ex, useragent)){
+                        if (ex.key() == "codec:"+strRef.substr(shift)){
+                          if (!Util::checkException(*ex, useragent)){
                             matches--;
                             total_matches--;
                           }

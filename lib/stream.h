@@ -20,6 +20,8 @@ namespace Util {
   JSON::Value getInputBySource(const std::string & filename, bool isProvider = false);
   DTSC::Meta getStreamMeta(const std::string & streamname);
   uint8_t getStreamStatus(const std::string & streamname);
+  bool checkException(const JSON::Value & ex, const std::string & useragent);
+  std::string codecString(const std::string & codec, const std::string & initData = "");
 
   class DTSCShmReader{
     public:

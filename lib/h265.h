@@ -22,6 +22,12 @@ namespace h265{
     uint64_t width;
     uint64_t height;
     double fps;
+    uint8_t general_profile_space;
+    bool general_tier_flag;
+    uint8_t general_profile_idc;
+    uint32_t general_profile_compatflags;
+    uint8_t constraint_flags[6];
+    uint8_t general_level_idc;
   };
 
   class initData{

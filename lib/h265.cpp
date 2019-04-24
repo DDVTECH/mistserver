@@ -163,12 +163,18 @@ namespace h265{
     return res;
   }
 
-  void skipProfileTierLevel(Utils::bitstream &bs, unsigned int maxSubLayersMinus1){
-    bs.skip(8);
-    bs.skip(32); // general_profile_flags
-    bs.skip(4);
-    bs.skip(44); // reserverd_zero
-    bs.skip(8);
+  void profileTierLevel(Utils::bitstream &bs, unsigned int maxSubLayersMinus1, metaInfo &res){
+    res.general_profile_space = bs.get(2);
+    res.general_tier_flag = bs.get(1);
+    res.general_profile_idc = bs.get(5);
+    res.general_profile_compatflags = bs.get(32);
+    res.constraint_flags[0] = bs.get(8);
+    res.constraint_flags[1] = bs.get(8);
+    res.constraint_flags[2] = bs.get(8);
+    res.constraint_flags[3] = bs.get(8);
+    res.constraint_flags[4] = bs.get(8);
+    res.constraint_flags[5] = bs.get(8);
+    res.general_level_idc = bs.get(8);
     std::deque<bool> profilePresent;
     std::deque<bool> levelPresent;
     for (size_t i = 0; i < maxSubLayersMinus1; i++){
@@ -220,7 +226,7 @@ namespace h265{
 
     if (maxSubLayersMinus1){
       for (int i = maxSubLayersMinus1; i < 8; i++){
-        r << std::string(indent + 1, ' ') << "reserver_zero_2_bits[" << i << "]: " << bs.get(2)
+        r << std::string(indent + 1, ' ') << "reserved_zero_2_bits[" << i << "]: " << bs.get(2)
           << std::endl;
       }
     }
@@ -521,7 +527,7 @@ namespace h265{
     bs.skip(4);
     unsigned int maxSubLayersMinus1 = bs.get(3);
     bs.skip(1);
-    skipProfileTierLevel(bs, maxSubLayersMinus1);
+    profileTierLevel(bs, maxSubLayersMinus1, res);
     bs.getUExpGolomb();
     uint64_t chromaFormatIdc = bs.getUExpGolomb();
     bool separateColorPlane = false;

@@ -10,6 +10,8 @@
 #include "shared_memory.h"
 #include "socket.h"
 #include "triggers.h" //LTS
+#include "h265.h"
+#include "mp4_generic.h"
 #include <semaphore.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -35,6 +37,76 @@ static void replace(std::string &str, const std::string &from, const std::string
     str.replace(start_pos, from.length(), to);
     start_pos += to.length();
   }
+}
+
+std::string Util::codecString(const std::string & codec, const std::string & initData){
+  if (codec == "H264"){ 
+    std::stringstream r;
+    MP4::AVCC avccBox;
+    avccBox.setPayload(initData);
+    r << "avc1.";
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
+    return r.str();
+  }
+  if (codec == "HEVC"){
+    h265::initData init(initData);
+    h265::metaInfo mInfo = init.getMeta();
+    std::stringstream r;
+    r << "hev1.";
+    switch (mInfo.general_profile_space){
+      case 0: break;
+      case 1: r << 'A'; break;
+      case 2: r << 'B'; break;
+      case 3: r << 'C'; break;
+    }
+    r << (unsigned long)mInfo.general_profile_idc << '.';
+    uint32_t mappedFlags = 0;
+    if (mInfo.general_profile_compatflags & 0x00000001ul){mappedFlags += 0x80000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000002ul){mappedFlags += 0x40000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000004ul){mappedFlags += 0x20000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000008ul){mappedFlags += 0x10000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000010ul){mappedFlags += 0x08000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000020ul){mappedFlags += 0x04000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000040ul){mappedFlags += 0x02000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000080ul){mappedFlags += 0x01000000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000100ul){mappedFlags += 0x00800000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000200ul){mappedFlags += 0x00400000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000400ul){mappedFlags += 0x00200000ul;}
+    if (mInfo.general_profile_compatflags & 0x00000800ul){mappedFlags += 0x00100000ul;}
+    if (mInfo.general_profile_compatflags & 0x00001000ul){mappedFlags += 0x00080000ul;}
+    if (mInfo.general_profile_compatflags & 0x00002000ul){mappedFlags += 0x00040000ul;}
+    if (mInfo.general_profile_compatflags & 0x00004000ul){mappedFlags += 0x00020000ul;}
+    if (mInfo.general_profile_compatflags & 0x00008000ul){mappedFlags += 0x00010000ul;}
+    if (mInfo.general_profile_compatflags & 0x00010000ul){mappedFlags += 0x00008000ul;}
+    if (mInfo.general_profile_compatflags & 0x00020000ul){mappedFlags += 0x00004000ul;}
+    if (mInfo.general_profile_compatflags & 0x00040000ul){mappedFlags += 0x00002000ul;}
+    if (mInfo.general_profile_compatflags & 0x00080000ul){mappedFlags += 0x00001000ul;}
+    if (mInfo.general_profile_compatflags & 0x00100000ul){mappedFlags += 0x00000800ul;}
+    if (mInfo.general_profile_compatflags & 0x00200000ul){mappedFlags += 0x00000400ul;}
+    if (mInfo.general_profile_compatflags & 0x00400000ul){mappedFlags += 0x00000200ul;}
+    if (mInfo.general_profile_compatflags & 0x00800000ul){mappedFlags += 0x00000100ul;}
+    if (mInfo.general_profile_compatflags & 0x01000000ul){mappedFlags += 0x00000080ul;}
+    if (mInfo.general_profile_compatflags & 0x02000000ul){mappedFlags += 0x00000040ul;}
+    if (mInfo.general_profile_compatflags & 0x04000000ul){mappedFlags += 0x00000020ul;}
+    if (mInfo.general_profile_compatflags & 0x08000000ul){mappedFlags += 0x00000010ul;}
+    if (mInfo.general_profile_compatflags & 0x10000000ul){mappedFlags += 0x00000008ul;}
+    if (mInfo.general_profile_compatflags & 0x20000000ul){mappedFlags += 0x00000004ul;}
+    if (mInfo.general_profile_compatflags & 0x40000000ul){mappedFlags += 0x00000002ul;}
+    if (mInfo.general_profile_compatflags & 0x80000000ul){mappedFlags += 0x00000001ul;}
+    r << std::hex << (unsigned long)mappedFlags << std::dec << '.';
+    if (mInfo.general_tier_flag){r << 'H';}else{r << 'L';}
+    r << (unsigned long)mInfo.general_level_idc;
+    if (mInfo.constraint_flags[0]){
+      r << '.' << std::hex << (unsigned long)mInfo.constraint_flags[0] << std::dec;
+    }
+    return r.str();
+  }
+  if (codec == "AAC"){return "mp4a.40.2";}
+  if (codec == "MP3"){return "mp4a.40.34";}
+  if (codec == "AC3"){return "ec-3";}
+  return "";
 }
 
 /// Replaces all stream-related variables in the given 'str' with their values.
@@ -491,6 +563,29 @@ uint8_t Util::getStreamStatus(const std::string &streamname){
   IPC::sharedPage streamStatus(pageName, 1, false, false);
   if (!streamStatus){return STRMSTAT_OFF;}
   return streamStatus.mapped[0];
+}
+
+/// Checks if a given user agent is allowed according to the given exception.
+bool Util::checkException(const JSON::Value & ex, const std::string & useragent){
+  //No user agent? Always allow everything.
+  if (!useragent.size()){return true;}
+  if (!ex.isArray() || !ex.size()){return true;}
+  bool ret = true;
+  jsonForEachConst(ex, e){
+    if (!e->isArray() || !e->size()){continue;}
+    bool setTo = ((*e)[0u].asStringRef() == "whitelist");
+    if (e->size() == 1){
+      ret = setTo;
+      continue;
+    }
+    if (!(*e)[1].isArray()){continue;}
+    jsonForEachConst((*e)[1u], i){
+      if (useragent.find(i->asStringRef()) != std::string::npos){
+        ret = setTo;
+      }
+    }
+  }
+  return ret;
 }
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){

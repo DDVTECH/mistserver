@@ -40,26 +40,19 @@ namespace Mist {
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex() {
     std::stringstream result;
+    selectDefaultTracks();
     result << "#EXTM3U\r\n";
     int audioId = -1;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3" || it->second.codec == "MP2") {
-        audioId = it->first;
-        break;
-      }
-    }
     unsigned int vidTracks = 0;
     bool hasSubs = false;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "subtitle"){
-        hasSubs = true;
-        break;
-      }
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+      if (audioId == -1 && myMeta.tracks[*it].type == "audio"){audioId = *it;}
+      if (!hasSubs && myMeta.tracks[*it].codec == "subtitle"){hasSubs = true;}
     }
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-      if (it->second.codec == "H264" || it->second.codec == "HEVC" || it->second.codec == "MPEG2") {
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+      if (myMeta.tracks[*it].type == "video") {
         vidTracks++;
-        int bWidth = it->second.bps;
+        int bWidth = myMeta.tracks[*it].bps;
         if (bWidth < 5) {
           bWidth = 5;
         }
@@ -67,33 +60,21 @@ namespace Mist {
           bWidth += myMeta.tracks[audioId].bps;
         }
         result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8);
-        result << ",RESOLUTION=" << it->second.width << "x" << it->second.height;
-        if (it->second.fpks){
-          result << ",FRAME-RATE=" << (float)it->second.fpks / 1000; 
+        result << ",RESOLUTION=" << myMeta.tracks[*it].width << "x" << myMeta.tracks[*it].height;
+        if (myMeta.tracks[*it].fpks){
+          result << ",FRAME-RATE=" << (float)myMeta.tracks[*it].fpks / 1000; 
         }
         if (hasSubs){
           result << ",SUBTITLES=\"sub1\"";
         }
-        if (it->second.codec == "H264" || it->second.codec == "HEVC"){
-          result << ",CODECS=\"";
-          if (it->second.codec == "H264"){
-            result << "avc1." << h264init(it->second.init);
-          }else{
-            result << "hev1." << h265init(it->second.init);
-          }
-          if (audioId != -1){
-            if (myMeta.tracks[audioId].codec == "AAC"){
-              result << ",mp4a.40.2";
-            }else if (myMeta.tracks[audioId].codec == "MP3" ){
-              result << ",mp4a.40.34";
-            }else if (myMeta.tracks[audioId].codec == "AC3" ){
-              result << ",ec-3";
-            }
-          }
-          result << "\"";
+        result << ",CODECS=\"";
+        result << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init);
+        if (audioId != -1){
+          result << "," << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init);
         }
+        result << "\"";
         result <<"\r\n";
-        result << it->first;
+        result << *it;
         if (audioId != -1) {
           result << "_" << audioId;
         }
@@ -102,24 +83,18 @@ namespace Mist {
         }else{
           result << "/index.m3u8\r\n";
         }
-      }else if(it->second.codec == "subtitle"){
+      }else if(myMeta.tracks[*it].codec == "subtitle"){
 
-        if(it->second.lang.empty()){
-          it->second.lang = "und";
+        if(myMeta.tracks[*it].lang.empty()){
+          myMeta.tracks[*it].lang = "und";
         }
 
-        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << it->second.lang << "\",NAME=\"" << Encodings::ISO639::decode(it->second.lang) << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8\"" << "\r\n";
+        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << myMeta.tracks[*it].lang << "\",NAME=\"" << Encodings::ISO639::decode(myMeta.tracks[*it].lang) << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << *it << "/index.m3u8\"" << "\r\n";
       }
     }
     if (!vidTracks && audioId) {
       result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[audioId].bps * 8);
-      if (myMeta.tracks[audioId].codec == "AAC"){
-        result << ",CODECS=\"mp4a.40.2\"";
-      }else if (myMeta.tracks[audioId].codec == "MP3" ){
-        result << ",CODECS=\"mp4a.40.34\"";
-      }else if (myMeta.tracks[audioId].codec == "AC3" ){
-        result << ",CODECS=\"ec-3\"";
-      }
+      result << ",CODECS=\"" << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init) << "\"";
       result << "\r\n";
       result << audioId << "/index.m3u8\r\n";
     }
@@ -354,19 +329,19 @@ namespace Mist {
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
     capa["url_pushlist"] = "/hls/$/push/list";
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"][0u][0u].append("+HEVC");
+    capa["codecs"][0u][1u].append("+H264");
+    capa["codecs"][0u][2u].append("+MPEG2");
+    capa["codecs"][0u][3u].append("+AAC");
+    capa["codecs"][0u][4u].append("+MP3");
+    capa["codecs"][0u][5u].append("+AC3");
+    capa["codecs"][0u][6u].append("+MP2");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9;
     //MP3 only works on Edge/Apple
-    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
-    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\"]]]");
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
+    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\"]]");
     /*LTS-START*/
     cfg->addOption("listlimit", JSON::fromString("{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\",\"help\":\"Maximum number of parts in live playlists (0 = infinite).\"}"));
     capa["optional"]["listlimit"]["name"] = "Live playlist limit";

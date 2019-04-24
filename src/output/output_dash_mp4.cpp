@@ -5,6 +5,7 @@
 #include <mist/mp4_dash.h>
 #include <mist/checksum.h>
 #include <mist/timing.h>
+#include <mist/stream.h>
 #include <iomanip>
 
 namespace Mist{
@@ -321,29 +322,6 @@ namespace Mist{
     H.Chunkify(data, dataLen, myConn);
   }
 
-  std::string OutDashMP4::h264init(const std::string & initData){
-    std::stringstream r;
-    MP4::AVCC avccBox;
-    avccBox.setPayload(initData);
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
-    return r.str();
-  }
-
-  std::string OutDashMP4::h265init(const std::string & initData){
-    std::stringstream r;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[6] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[7] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[8] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[9] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[10] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[11] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[12] << std::dec;
-    return r.str();
-  }
-
   /// Examines Trk and adds playable fragments from it to r.
   void OutDashMP4::addSegmentTimeline(std::stringstream & r, DTSC::Track & Trk, bool live){
     std::deque<DTSC::Fragment>::iterator it = Trk.fragments.begin();
@@ -369,6 +347,7 @@ namespace Mist{
   /// Returns a string with the full XML DASH manifest MPD file.
   std::string OutDashMP4::buildManifest(){
     initialize();
+    selectDefaultTracks();
     uint64_t lastVidTime = 0;
     uint64_t vidInitTrack = 0;
     uint64_t lastAudTime = 0;
@@ -376,17 +355,17 @@ namespace Mist{
     uint64_t subInitTrack = 0;
 
     /// \TODO DASH pretends there is only one audio/video track, and then prints them all using the same timing information. This is obviously wrong if the tracks are not in sync.
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it ++){
-      if ((it->second.codec == "H264" || it->second.codec == "HEVC") && it->second.lastms > lastVidTime){
-        lastVidTime = it->second.lastms;
-        vidInitTrack = it->first;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+      if (myMeta.tracks[*it].type == "video" && myMeta.tracks[*it].lastms > lastVidTime){
+        lastVidTime = myMeta.tracks[*it].lastms;
+        vidInitTrack = *it;
       }
-      if ((it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3")&& it->second.lastms > lastAudTime){
-        lastAudTime = it->second.lastms;
-        audInitTrack = it->first;
+      if (myMeta.tracks[*it].type == "audio" && myMeta.tracks[*it].lastms > lastAudTime){
+        lastAudTime = myMeta.tracks[*it].lastms;
+        audInitTrack = *it;
       }
-      if(it->second.codec == "subtitle"){
-        subInitTrack = it->first;
+      if(myMeta.tracks[*it].codec == "subtitle"){
+        subInitTrack = *it;
       }
     }
     std::stringstream r;
@@ -396,36 +375,36 @@ namespace Mist{
     if (myMeta.vod){
       r << "type=\"static\" mediaPresentationDuration=\"" << makeTime(myMeta.tracks[getMainSelectedTrack()].lastms - myMeta.tracks[getMainSelectedTrack()].firstms) << "\" minBufferTime=\"PT1.5S\" >" << std::endl;
     }else{
-      r << "type=\"dynamic\" minimumUpdatePeriod=\"PT2.0S\" availabilityStartTime=\"" << Util::getUTCString(Util::epoch() - std::max(lastVidTime, lastAudTime)/1000) << "\" " << "timeShiftBufferDepth=\"" << makeTime(myMeta.tracks.begin()->second.lastms - myMeta.tracks.begin()->second.firstms) << "\" suggestedPresentationDelay=\"PT5.0S\" minBufferTime=\"PT2.0S\" >" << std::endl;
+      r << "type=\"dynamic\" minimumUpdatePeriod=\"PT2.0S\" availabilityStartTime=\"" << Util::getUTCString(Util::epoch() - myMeta.tracks[getMainSelectedTrack()].lastms/1000) << "\" " << "timeShiftBufferDepth=\"" << makeTime(myMeta.tracks[getMainSelectedTrack()].lastms - myMeta.tracks[getMainSelectedTrack()].firstms) << "\" suggestedPresentationDelay=\"PT5.0S\" minBufferTime=\"PT2.0S\" publishTime=\"" << Util::getUTCString(Util::epoch()) << "\" >" << std::endl;
     }
     r << "  <ProgramInformation><Title>" << streamName << "</Title></ProgramInformation>" << std::endl;
     r << "  <Period ";
     if (myMeta.live){
-      r << "id=\"0\" ";
+      r << "start=\"0\" ";
     }
     r << ">" << std::endl;
     if (vidInitTrack){
       DTSC::Track & trackRef = myMeta.tracks[vidInitTrack];
       r << "    <AdaptationSet group=\"1\" id=\"9998\" mimeType=\"video/mp4\" width=\"" << trackRef.width << "\" height=\"" << trackRef.height << "\" frameRate=\"" << trackRef.fpks / 1000 << "\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">" << std::endl;
-      r << "      <SegmentTemplate presentationTimeOffset=\"" << trackRef.firstms << "\" timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
+      r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
       r << "        <SegmentTimeline>" << std::endl;
       addSegmentTimeline(r, trackRef, myMeta.live);
       r << "        </SegmentTimeline>" << std::endl;
       r << "      </SegmentTemplate>" << std::endl;
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.codec == "H264"){
-          r << "      <Representation id=\"" << it->first << "\" ";
-          r << "codecs=\"avc1." << h264init(it->second.init) << "\" ";
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+        if (myMeta.tracks[*it].codec == "H264"){
+          r << "      <Representation id=\"" << *it << "\" ";
+          r << "codecs=\"" << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init) << "\" ";
           //bandwidth is in bits per seconds, we have bytes, so times 8
-          r << "bandwidth=\"" << (it->second.bps*8) << "\" ";
+          r << "bandwidth=\"" << (myMeta.tracks[*it].bps*8) << "\" ";
           r << "/>" << std::endl;
         }
-        if (it->second.codec == "HEVC"){
+        if (myMeta.tracks[*it].codec == "HEVC"){
           r << "      <Representation ";
-          r << "id=\"" << it->first << "\" ";
-          r << "codecs=\"hev1." << h265init(it->second.init) << "\" ";
+          r << "id=\"" << *it << "\" ";
+          r << "codecs=\"" << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init) << "\" ";
           //bandwidth is in bits per seconds, we have bytes, so times 8
-          r << "bandwidth=\"" << (it->second.bps*8) << "\" ";
+          r << "bandwidth=\"" << (myMeta.tracks[*it].bps*8) << "\" ";
           r << "/>" << std::endl;
         }
       }
@@ -435,28 +414,22 @@ namespace Mist{
       DTSC::Track & trackRef = myMeta.tracks[audInitTrack];
       r << "    <AdaptationSet group=\"2\" id=\"9999\" mimeType=\"audio/mp4\" segmentAlignment=\"true\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\" >" << std::endl;
       r << "      <Role schemeIdUri=\"urn:mpeg:dash:role:2011\" value=\"main\"/>" << std::endl;
-      r << "      <SegmentTemplate presentationTimeOffset=\"" << trackRef.firstms << "\" timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
+      r << "      <SegmentTemplate timescale=\"1000\" media=\"chunk_$RepresentationID$_$Time$.m4s\" initialization=\"chunk_$RepresentationID$_init.m4s\">" << std::endl;
 
       r << "        <SegmentTimeline>" << std::endl;
       addSegmentTimeline(r, trackRef, myMeta.live);
       r << "        </SegmentTimeline>" << std::endl;
       r << "      </SegmentTemplate>" << std::endl;
  
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
-          r << "      <Representation id=\"" << it->first << "\" ";
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+        if (myMeta.tracks[*it].codec == "AAC" || myMeta.tracks[*it].codec == "MP3" || myMeta.tracks[*it].codec == "AC3"){
+          r << "      <Representation id=\"" << *it << "\" ";
           // (see RFC6381): sample description entry , ObjectTypeIndication [MP4RA, RFC], ObjectTypeIndication [MP4A ISO/IEC 14496-3:2009]
-          if (it->second.codec == "AAC" ){
-            r << "codecs=\"mp4a.40.2\" ";
-          }else if (it->second.codec == "MP3" ){
-            r << "codecs=\"mp4a.40.34\" ";
-          }else if (it->second.codec == "AC3" ){
-            r << "codecs=\"ec-3\" ";
-          }
-          r << "audioSamplingRate=\"" << it->second.rate << "\" ";
+          r << "codecs=\"" << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init) << "\" ";
+          r << "audioSamplingRate=\"" << myMeta.tracks[*it].rate << "\" ";
           //bandwidth is in bits per seconds, we have bytes, so times 8
-          r << "bandwidth=\"" << (it->second.bps*8) << "\">" << std::endl;
-          r << "        <AudioChannelConfiguration schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" value=\"" << it->second.channels << "\" />" << std::endl;
+          r << "bandwidth=\"" << (myMeta.tracks[*it].bps*8) << "\">" << std::endl;
+          r << "        <AudioChannelConfiguration schemeIdUri=\"urn:mpeg:dash:23003:3:audio_channel_configuration:2011\" value=\"" << myMeta.tracks[*it].channels << "\" />" << std::endl;
           r << "      </Representation>" << std::endl;
         }
       }
@@ -464,13 +437,13 @@ namespace Mist{
     }
 
     if(subInitTrack){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if(it->second.codec == "subtitle"){
-          subInitTrack = it->first;
-          std::string lang = (it->second.lang == "" ? "unknown" : it->second.lang);
-          r << "<AdaptationSet id=\"" << it->first << "\" group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang <<  "\">";
-          r << " <Representation id=\"" << it->first << "\" bandwidth=\"256\">";
-          r <<   " <BaseURL>../../" << streamName << ".vtt?track=" << it->first << "</BaseURL>";
+      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+        if(myMeta.tracks[*it].codec == "subtitle"){
+          subInitTrack = *it;
+          std::string lang = (myMeta.tracks[*it].lang == "" ? "unknown" : myMeta.tracks[*it].lang);
+          r << "<AdaptationSet id=\"" << *it << "\" group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang <<  "\">";
+          r << " <Representation id=\"" << *it << "\" bandwidth=\"256\">";
+          r <<   " <BaseURL>../../" << streamName << ".vtt?track=" << *it << "</BaseURL>";
           r << " </Representation></AdaptationSet>" << std::endl;
         }
       }
@@ -490,19 +463,21 @@ namespace Mist{
     capa["url_rel"] = "/dash/$/index.mpd";
     capa["url_prefix"] = "/dash/$/";
     capa["socket"] = "http_dash_mp4";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][2u].append("subtitle");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][1u].append("+HEVC");
+    capa["codecs"][0u][2u].append("+AAC");
+    capa["codecs"][0u][3u].append("+AC3");
+    capa["codecs"][0u][4u].append("+MP3");
+    capa["codecs"][0u][5u].append("+subtitle");
 
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
 
     //MP3 does not work in browsers
     capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");
-   capa["methods"][0u]["priority"] = 8;
+    //HEVC does not work in browsers
+    capa["exceptions"]["codec:HEVC"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");
+    capa["methods"][0u]["priority"] = 8;
 
     cfg->addOption("nonchunked", JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not send chunked, but buffer whole segments.\"}"));
     capa["optional"]["nonchunked"]["name"] = "Send whole segments";

@@ -541,6 +541,17 @@ namespace Mist{
               if (strRef[shift] == '+'){multiSel = true; ++shift;}
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
                 if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                  //user-agent-check
+                  bool problems = false;
+                  if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                    jsonForEach(capa["exceptions"], ex){
+                      if (ex.key() == "codec:"+strRef.substr(shift)){
+                        problems = !Util::checkException(*ex, UA);
+                        break;
+                      }
+                    }
+                  }
+                  if (problems){break;}
                   selCounter++;
                   if (!multiSel){
                     break;
@@ -600,6 +611,17 @@ namespace Mist{
                     if (noSelAudio && trit->second.type == "audio"){continue;}
                     if (noSelVideo && trit->second.type == "video"){continue;}
                     if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    //user-agent-check
+                    bool problems = false;
+                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                      jsonForEach(capa["exceptions"], ex){
+                        if (ex.key() == "codec:"+strRef.substr(shift)){
+                          problems = !Util::checkException(*ex, UA);
+                          break;
+                        }
+                      }
+                    }
+                    if (problems){continue;}
                     /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;
@@ -614,6 +636,17 @@ namespace Mist{
                     if (noSelAudio && trit->second.type == "audio"){continue;}
                     if (noSelVideo && trit->second.type == "video"){continue;}
                     if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    //user-agent-check
+                    bool problems = false;
+                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                      jsonForEach(capa["exceptions"], ex){
+                        if (ex.key() == "codec:"+strRef.substr(shift)){
+                          problems = !Util::checkException(*ex, UA);
+                          break;
+                        }
+                      }
+                    }
+                    if (problems){continue;}
                     /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;

@@ -52262,13 +52262,18 @@
     if (!playlist || !mediaSource) {
       return false;
     }
-
+    
     var segments = playlist.segments; // determine a few boolean values to help make the branch below easier
     // to read
 
-    var appendedLastSegment = segmentIndex === segments.length; // if we've buffered to the end of the video, we need to call endOfStream
-    // so that MediaSources can trigger the `ended` event when it runs out of
-    // buffered data instead of waiting for me
+    if (segments.length || (segmentIndex !== null)) {
+      var appendedLastSegment = segmentIndex === segments.length; // if we've buffered to the end of the video, we need to call endOfStream
+      // so that MediaSources can trigger the `ended` event when it runs out of
+      // buffered data instead of waiting for me
+    }
+    else {
+      appendedLastSegment = true;
+    }
 
     return playlist.endList && mediaSource.readyState === 'open' && appendedLastSegment;
   };
@@ -52920,12 +52925,12 @@
 
         var segmentInfo = this.checkBuffer_(this.buffered_(), this.playlist_, this.mediaIndex, this.hasPlayed_(), this.currentTime_(), this.syncPoint_);
 
-        if (!segmentInfo) {
+        if (this.isEndOfStream_(segmentInfo ? segmentInfo.mediaIndex : null)) {
+          this.endOfStream();
           return;
         }
 
-        if (this.isEndOfStream_(segmentInfo.mediaIndex)) {
-          this.endOfStream();
+        if (!segmentInfo) {
           return;
         }
 

@@ -60,12 +60,12 @@ p.prototype.build = function (MistVideo,callback) {
     
     if (MistVideo.options.autoplay) { vjsopts.autoplay = true; }
     if ((MistVideo.options.loop) && (MistVideo.info.type != "live")) {
-      vjsopts.loop = true;
-      ele.loop = true;
+      //vjsopts.loop = true;
+      ele.setAttribute("loop","");
     }
     if (MistVideo.options.muted) {
-      vjsopts.muted = true;
-      ele.muted = true;
+      //vjsopts.muted = true;
+      ele.setAttribute("muted","");
     }
     if (MistVideo.options.poster) { vjsopts.poster = MistVideo.options.poster; }
     if (MistVideo.options.controls == "stock") {
@@ -110,10 +110,7 @@ p.prototype.build = function (MistVideo,callback) {
             e.preventDefault();
             
             if (MistVideo.video) {
-              eventdata = MistUtil.event.addListener(MistVideo.video,"waiting",function(){
-                //stream has ended
-                me.api.pause();
-                
+              eventdata = MistUtil.event.addListener(MistVideo.video,"ended",function(){
                 //show stream offline error
                 MistVideo.showError("Stream is offline ",{polling:true});
                 

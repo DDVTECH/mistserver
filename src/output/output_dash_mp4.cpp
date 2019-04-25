@@ -506,7 +506,6 @@ namespace Mist{
       }
       H.SetBody(buildManifest());
       H.SendResponse("200", "OK", myConn);
-      DEVEL_MSG("Manifest sent");
       H.Clean();
       return;
     }
@@ -520,7 +519,6 @@ namespace Mist{
       H.Clean();
       return;
     }
-    DTSC::Track & Trk = myMeta.tracks[tid];
     H.Clean();
     H.SetHeader("Content-Type", "video/mp4");
     H.SetHeader("Cache-Control", "no-cache");
@@ -534,7 +532,7 @@ namespace Mist{
 
     if (url.find("init.m4s") != std::string::npos){
       //init segment
-      if (Trk.type == "video"){
+      if (myMeta.tracks[tid].type == "video"){
         H.Chunkify("\000\000\000\040ftypisom\000\000\000\000isomavc1mp42dash", 32, myConn);
       }else{
         H.Chunkify("\000\000\000\040ftypisom\000\000\000\000isomM4A mp42dash", 32, myConn);
@@ -548,9 +546,24 @@ namespace Mist{
     //data segment
     pos = url.find("_", pos + 1) + 1;
     uint64_t timeStamp = atoll(url.substr(pos).c_str());
-    uint32_t fragIndice = Trk.timeToFragnum(timeStamp);
-    uint32_t fragNum = Trk.fragments[fragIndice].getNumber();
+    uint32_t fragIndice = myMeta.tracks[tid].timeToFragnum(timeStamp);
+    uint32_t fragNum = myMeta.tracks[tid].fragments[fragIndice].getNumber();
     HIGH_MSG("Getting T%llu for track %lu, indice %lu, number %lu", timeStamp, tid, fragIndice, fragNum);
+    if (myMeta.live && !myMeta.tracks[tid].fragments[fragIndice].getDuration()){ 
+      size_t ctr = 0;
+      do {
+        if (ctr){Util::sleep(250);}
+        updateMeta();
+        stats();
+      }while(!myMeta.tracks[tid].fragments[fragIndice].getDuration() && ++ctr < 120);
+      if (!myMeta.tracks[tid].fragments[fragIndice].getDuration()){
+        WARN_MSG("Sending zero-length segment. This should never happen.");
+        H.SendResponse("404", "Segment download error", myConn);
+        H.Clean();
+        return;
+      }
+    }
+    DTSC::Track & Trk = myMeta.tracks[tid];
     H.Chunkify("\000\000\000\030stypmsdh\000\000\000\000msdhmsix", 24, myConn);
     MP4::SIDX sidxBox;
     sidxBox.setReferenceID(1);

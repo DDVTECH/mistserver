@@ -611,6 +611,7 @@ namespace Mist{
                     if (noSelAudio && trit->second.type == "audio"){continue;}
                     if (noSelVideo && trit->second.type == "video"){continue;}
                     if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    /*LTS-END*/
                     //user-agent-check
                     bool problems = false;
                     if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
@@ -622,7 +623,6 @@ namespace Mist{
                       }
                     }
                     if (problems){continue;}
-                    /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -636,6 +636,7 @@ namespace Mist{
                     if (noSelAudio && trit->second.type == "audio"){continue;}
                     if (noSelVideo && trit->second.type == "video"){continue;}
                     if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
+                    /*LTS-END*/
                     //user-agent-check
                     bool problems = false;
                     if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
@@ -647,7 +648,6 @@ namespace Mist{
                       }
                     }
                     if (problems){continue;}
-                    /*LTS-END*/
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}

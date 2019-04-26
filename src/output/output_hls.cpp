@@ -13,29 +13,6 @@ namespace Mist {
     return false;
   }
 
-  std::string OutHLS::h264init(const std::string & initData){
-    std::stringstream r;
-    MP4::AVCC avccBox;
-    avccBox.setPayload(initData);
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
-    return r.str();
-  }
-
-  std::string OutHLS::h265init(const std::string & initData){
-    std::stringstream r;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[6] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[7] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[8] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[9] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[10] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[11] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[12] << std::dec;
-    return r.str();
-  }
-
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex() {

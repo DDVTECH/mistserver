@@ -9,11 +9,29 @@
 #include "procs.h"
 #include "shared_memory.h"
 #include "socket.h"
+#include "mp4_generic.h"
 #include <semaphore.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+std::string Util::codecString(const std::string & codec, const std::string & initData){
+  if (codec == "H264"){ 
+    std::stringstream r;
+    MP4::AVCC avccBox;
+    avccBox.setPayload(initData);
+    r << "avc1.";
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
+    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
+    return r.str();
+  }
+  if (codec == "AAC"){return "mp4a.40.2";}
+  if (codec == "MP3"){return "mp4a.40.34";}
+  if (codec == "AC3"){return "ec-3";}
+  return "";
+}
 
 std::string Util::getTmpFolder(){
   std::string dir;
@@ -349,6 +367,29 @@ uint8_t Util::getStreamStatus(const std::string &streamname){
   IPC::sharedPage streamStatus(pageName, 1, false, false);
   if (!streamStatus){return STRMSTAT_OFF;}
   return streamStatus.mapped[0];
+}
+
+/// Checks if a given user agent is allowed according to the given exception.
+bool Util::checkException(const JSON::Value & ex, const std::string & useragent){
+  //No user agent? Always allow everything.
+  if (!useragent.size()){return true;}
+  if (!ex.isArray() || !ex.size()){return true;}
+  bool ret = true;
+  jsonForEachConst(ex, e){
+    if (!e->isArray() || !e->size()){continue;}
+    bool setTo = ((*e)[0u].asStringRef() == "whitelist");
+    if (e->size() == 1){
+      ret = setTo;
+      continue;
+    }
+    if (!(*e)[1].isArray()){continue;}
+    jsonForEachConst((*e)[1u], i){
+      if (useragent.find(i->asStringRef()) != std::string::npos){
+        ret = setTo;
+      }
+    }
+  }
+  return ret;
 }
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){

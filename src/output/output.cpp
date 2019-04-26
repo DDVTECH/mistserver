@@ -317,6 +317,17 @@ namespace Mist{
               if (strRef[shift] == '+'){multiSel = true; ++shift;}
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
                 if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                  //user-agent-check
+                  bool problems = false;
+                  if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                    jsonForEach(capa["exceptions"], ex){
+                      if (ex.key() == "codec:"+strRef.substr(shift)){
+                        problems = !Util::checkException(*ex, UA);
+                        break;
+                      }
+                    }
+                  }
+                  if (problems){break;}
                   selCounter++;
                   if (!multiSel){
                     break;
@@ -372,6 +383,17 @@ namespace Mist{
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
+                    //user-agent-check
+                    bool problems = false;
+                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                      jsonForEach(capa["exceptions"], ex){
+                        if (ex.key() == "codec:"+strRef.substr(shift)){
+                          problems = !Util::checkException(*ex, UA);
+                          break;
+                        }
+                      }
+                    }
+                    if (problems){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}
@@ -381,6 +403,17 @@ namespace Mist{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
+                    //user-agent-check
+                    bool problems = false;
+                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
+                      jsonForEach(capa["exceptions"], ex){
+                        if (ex.key() == "codec:"+strRef.substr(shift)){
+                          problems = !Util::checkException(*ex, UA);
+                          break;
+                        }
+                      }
+                    }
+                    if (problems){continue;}
                     selectedTracks.insert(trit->first);
                     found = true;
                     if (!multiSel){break;}

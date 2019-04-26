@@ -12,61 +12,46 @@ namespace Mist {
     return false;
   }
 
-  std::string OutHLS::h264init(const std::string & initData){
-    std::stringstream r;
-    MP4::AVCC avccBox;
-    avccBox.setPayload(initData);
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[1] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[2] << std::dec;
-    r << std::hex << std::setw(2) << std::setfill('0') << (int)initData[3] << std::dec;
-    return r.str();
-  }
-
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex(){
     std::stringstream result;
+    selectDefaultTracks();
     result << "#EXTM3U\r\n";
     int audioId = -1;
-    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC" || it->second.codec == "MP3"){
-        audioId = it->first;
-        break;
-      }
-    }
     unsigned int vidTracks = 0;
-    for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "H264"){
+    bool hasSubs = false;
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+      if (audioId == -1 && myMeta.tracks[*it].type == "audio"){audioId = *it;}
+      if (!hasSubs && myMeta.tracks[*it].codec == "subtitle"){hasSubs = true;}
+    }
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+      if (myMeta.tracks[*it].type == "video") {
         vidTracks++;
-        int bWidth = it->second.bps;
-        if (bWidth < 5){
+        int bWidth = myMeta.tracks[*it].bps;
+        if (bWidth < 5) {
           bWidth = 5;
         }
         if (audioId != -1){
           bWidth += myMeta.tracks[audioId].bps;
         }
         result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8);
-        result << ",RESOLUTION=" << it->second.width << "x" << it->second.height;
-        if (it->second.fpks){
-          result << ",FRAME-RATE=" << (float)it->second.fpks / 1000; 
+        result << ",RESOLUTION=" << myMeta.tracks[*it].width << "x" << myMeta.tracks[*it].height;
+        if (myMeta.tracks[*it].fpks){
+          result << ",FRAME-RATE=" << (float)myMeta.tracks[*it].fpks / 1000; 
         }
-        if (it->second.codec == "H264"){
-          result << ",CODECS=\"";
-          if (it->second.codec == "H264"){
-            result << "avc1." << h264init(it->second.init);
-          }
-          if (audioId != -1){
-            if (myMeta.tracks[audioId].codec == "AAC"){
-              result << ",mp4a.40.2";
-            }else if (myMeta.tracks[audioId].codec == "MP3" ){
-              result << ",mp4a.40.34";
-            }
-          }
-          result << "\"";
+        if (hasSubs){
+          result << ",SUBTITLES=\"sub1\"";
         }
-        result <<"\r\n";
-        result << it->first;
+        result << ",CODECS=\"";
+        result << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init);
         if (audioId != -1){
+          result << "," << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init);
+        }
+        result << "\"";
+        result <<"\r\n";
+        result << *it;
+        if (audioId != -1) {
           result << "_" << audioId;
         }
         result << "/index.m3u8?sessId=" << getpid() << "\r\n";
@@ -74,11 +59,7 @@ namespace Mist {
     }
     if (!vidTracks && audioId) {
       result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[audioId].bps * 8);
-      if (myMeta.tracks[audioId].codec == "AAC"){
-        result << ",CODECS=\"mp4a.40.2\"";
-      }else if (myMeta.tracks[audioId].codec == "MP3" ){
-        result << ",CODECS=\"mp4a.40.34\"";
-      }
+      result << ",CODECS=\"" << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init) << "\"";
       result << "\r\n";
       result << audioId << "/index.m3u8\r\n";
     }
@@ -156,14 +137,14 @@ namespace Mist {
     capa["desc"] = "Segmented streaming in Apple (TS-based) format over HTTP ( = HTTP Live Streaming)";
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][1u].append("+AAC");
+    capa["codecs"][0u][2u].append("+MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9;
     //MP3 only works on Edge/Apple
-    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\"],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]],[\"whitelist\",[\"iPad\",\"iPhone\",\"iPod\",\"MacIntel\",\"Edge\"]]]");
   }
 
   void OutHLS::onHTTP() {

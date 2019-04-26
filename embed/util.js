@@ -84,7 +84,11 @@ var MistUtil = {
           break;
         }
         case "html5/application/vnd.apple.mpegurl": {
-          return "HLS";
+          return "HLS (TS)";
+          break;
+        }
+        case "html5/application/vnd.apple.mpegurl;version=7": {
+          return "HLS (CMAF)";
           break;
         }
         case "flash/10": {
@@ -103,8 +107,9 @@ var MistUtil = {
           return "TS";
           break;
         }
+        case "html5/application/vnd.ms-sstr+xml":
         case "html5/application/vnd.ms-ss": {
-          return "Smooth streaming";
+          return "Smooth Streaming";
           break;
         }
         case "dash/video/mp4": {
@@ -582,6 +587,7 @@ var MistUtil = {
         });
         event.message = message;
         target.dispatchEvent(event);
+        return event;
       }
       catch (e) {
         try {
@@ -589,6 +595,7 @@ var MistUtil = {
           event.initEvent(type,true,true);
           event.message = message;
           target.dispatchEvent(event);
+          return event;
         }
         catch (e) { return false; }
       }
@@ -941,6 +948,8 @@ var MistUtil = {
     line.setAttributeNS(null,"d","M"+path.join(" L"));
     
     line.addData = function(newData) {
+      
+      if (isNaN(newData.y)) { return; }
       
       if (options.differentiate) {
         var diff = newData.y - lasty;

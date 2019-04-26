@@ -12,9 +12,9 @@ elementIn () {
 
 echo "Minimizing LSP..";
 
-if elementIn "lsp/plugins/md5.js" "${CHANGES[@]}" || elementIn "lsp/plugins/cattablesort.js" "${CHANGES[@]}" || elementIn "lsp/mist.js" "${CHANGES[@]}" ; then
+#if elementIn "lsp/plugins/md5.js" "${CHANGES[@]}" || elementIn "lsp/plugins/cattablesort.js" "${CHANGES[@]}" || elementIn "lsp/mist.js" "${CHANGES[@]}" ; then
   echo "  Generating minified.js.."
   java -jar closure-compiler.jar --warning_level QUIET  plugins/md5.js plugins/cattablesort.js mist.js > minified.js
-fi
+#fi
 
 echo "Done.";

@@ -612,4 +612,19 @@ namespace Mist {
   void OutHLS::sendTS(const char * tsData, unsigned int len) {
     H.Chunkify(tsData, len, myConn);
   }
+
+  void OutHLS::onFail(const std::string & msg, bool critical){
+    if (H.url.find(".m3u") == std::string::npos){
+      HTTPOutput::onFail(msg, critical);
+      return;
+    }
+    H.Clean(); //make sure no parts of old requests are left in any buffers
+    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.setCORSHeaders();
+    H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
+    H.SetHeader("Cache-Control", "no-cache");
+    H.SetBody("#EXTM3U\r\n#EXT-X-ERROR: "+msg+"\r\n#EXT-X-ENDLIST\r\n");
+    H.SendResponse("200", "OK", myConn);
+    Output::onFail(msg, critical);
+  }
 }

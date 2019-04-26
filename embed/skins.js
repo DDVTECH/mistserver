@@ -91,12 +91,13 @@ MistSkins["default"] = {
                       children: [{
                         type: "volume",
                         mode: "horizontal",
-                        size: {height: 22}
+                        size: {height: 22},
+                        classes: ["mistvideo-pointer"]
                       }]
                     },
                     {
                       type: "speaker",
-                      classse: ["mistvideo-pointer"],
+                      classes: ["mistvideo-pointer"],
                       style: {"margin-left": "-2px"}
                     }
                   ]
@@ -129,7 +130,7 @@ MistSkins["default"] = {
                     show: "right: 5px;",
                     viewport: "right: 0; left: 0; bottom: 0; top: -1000px"
                   },
-                  button: {type: "settings"},
+                  button: {type: "settings", classes: ["mistvideo-pointer"]},
                   window: {type: "submenu"}
                 }
               ]}
@@ -1005,9 +1006,12 @@ MistSkins["default"] = {
       },button);
       
       //apply initial video state
-      if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
-        MistVideo.player.api.volume = localStorage['mistVolume'];
-      }
+      var initevent = MistUtil.event.addListener(video,"loadstart",function(){
+        if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
+          MistVideo.player.api.volume = localStorage['mistVolume'];
+        }
+        MistUtil.event.removeListener(initevent);
+      });
       
       button.addPadding = function(actual){
         return actual * (1 - (this.margin.start + this.margin.end)) + this.margin.start;
@@ -1190,7 +1194,7 @@ MistSkins["default"] = {
     },
     settings: function(){
       var button = this.skin.icons.build("settings");
-      
+      button.setAttribute("onclick","");
       return button;
     },
     loop: function(){
@@ -1287,6 +1291,9 @@ MistSkins["default"] = {
           
           if (!MistVideo.options.setTracks) { MistVideo.options.setTracks = {}; }
           MistVideo.options.setTracks[type] = value;
+          if ((value === true) && selections[type]) {
+            MistUtil.event.send("change",null,selections[type]);
+          }
           
           if ("setTrack" in MistVideo.player.api) {
             return MistVideo.player.api.setTrack(type,value);
@@ -1374,6 +1381,15 @@ MistSkins["default"] = {
               cell.appendChild(checkbox);
               checkboxes[type] = checkbox;
               
+              if (MistVideo.options.setTracks && (MistVideo.options.setTracks[type])) {
+                if (MistVideo.options.setTracks[type] == "none") {
+                  checkbox.checked = false;
+                }
+                else {
+                  checkbox.checked = true;
+                }
+              }
+              
               MistUtil.event.addListener(checkbox,"change",function(){
                 //make sure at least one checkbox is checked
                 var n = 0;
@@ -1407,6 +1423,15 @@ MistSkins["default"] = {
                 }
                 changeToTracks(this.trackType,(this.checked ? value : "none"));
               });
+              
+              MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
+                
+                if (e.message.type != type) { return; }
+                
+                if (e.message.value == "none") { this.checked = false; }
+                else { this.checked = true; }
+                
+              },select);
             }
           }
           
@@ -1486,7 +1511,7 @@ MistSkins["default"] = {
             
             MistUtil.event.addListener(MistVideo.video,"playerUpdate_trackChanged",function(e){
               
-              if (e.message.type != type) { return; }
+              if ((e.message.type != type) || (e.message.trackid == "none")) { return; }
               select.value = e.message.trackid;
               MistVideo.log("Player selected "+type+" track with id "+e.message.trackid);
               
@@ -1701,7 +1726,7 @@ MistSkins["default"] = {
             d.appendChild(document.createTextNode(details));
           }
           else if ("decodingIssues" in MistVideo.skin.blueprints) { //dev mode
-            if (("player" in MistVideo) && ("api" in MistVideo.player)) {
+            if (("player" in MistVideo) && ("api" in MistVideo.player) && (MistVideo.video)) {
               details = [];
               if (typeof MistVideo.player.api.currentTime != "undefined") {
                 details.push(["Current video time:",MistUtil.format.time(MistVideo.player.api.currentTime)]);
@@ -1771,7 +1796,7 @@ MistSkins["default"] = {
       this.showError = function(message,options){
         if (!options) {
           options = {
-            softReload: !!((MistVideo.video) && (MistVideo.video.load)),
+            softReload: !!(MistVideo.player && MistVideo.player.api && MistVideo.player.api.load),
             reload: true,
             nextCombo: !!MistVideo.info,
             polling: false,
@@ -1809,7 +1834,7 @@ MistSkins["default"] = {
         since = (new Date()).getTime();
         
         
-        this.log(message,"error");
+        var event = this.log(message,"error");
         var message_container = container.message(message,false,options);
         message_global = message_container;
         
@@ -1871,6 +1896,10 @@ MistSkins["default"] = {
         MistUtil.class.add(container,"show");
         if ("container" in MistVideo) {
           MistVideo.container.removeAttribute("data-loading");
+        }
+        
+        if (event.defaultPrevented) {
+          container.clear();
         }
       };
       container.clear = function(message){

@@ -43,7 +43,7 @@ function MistVideo(streamName,options) {
   this.logs = [];
   this.log = function(message,type){
     if (!type) { type = "log"; }
-    MistUtil.event.send(type,message,options.target);
+    var event = MistUtil.event.send(type,message,options.target);
     var data = {
       type: type
     };
@@ -59,6 +59,7 @@ function MistVideo(streamName,options) {
         else { console.log(msg); }
       } catch(e){}
     }
+    return event;
   };
   this.log("Initializing..");
   
@@ -301,7 +302,7 @@ function MistVideo(streamName,options) {
       var fw = size.width  || ('width'  in options && options.width  ? options.width   : false ); //force this width
       var fh = size.height || ('height' in options && options.height ? options.height  : false ); //force this height
       
-      if (!("source" in this.info)) {
+      if ((!this.info) || !("source" in this.info)) {
         fw = 640;
         fh = 480;
       }
@@ -387,6 +388,7 @@ function MistVideo(streamName,options) {
       
       
       MistVideo.player.build(MistVideo,function(video){
+        MistVideo.log("Building new player");
         
         MistVideo.container.removeAttribute("data-loading");
         MistVideo.video = video;
@@ -727,7 +729,7 @@ function MistVideo(streamName,options) {
             };
             
             //add track selection function
-            if (!("setTrack" in MistVideo.player.api)) {
+            if (!("setTracks" in MistVideo.player.api)) {
               MistVideo.player.api.setTracks = function(usetracks){
                 
                 //check tracks exist
@@ -740,30 +742,7 @@ function MistVideo(streamName,options) {
                 //if (!MistUtil.object.keys(usetracks).length) { return; } //don't do this; allow switching back to auto
                 
                 //create source url
-                var newurl;
-                if (MistVideo.source.type == "html5/application/vnd.apple.mpegurl") { //for HLS, use a different format for track selection
-                  newurl = MistVideo.source.url.split("/");
-                  var m3u8 = newurl.pop(); //take this off now, it will be added back later
-                  var hlstracks = [];
-                  for (var i in usetracks) {
-                    //for audio or video tracks, just add the tracknumber between slashes
-                    switch (i) {
-                      case "audio":
-                      case "video":
-                        if (usetracks[i] == "none") { continue; }
-                        hlstracks.push(usetracks[i]);
-                        break;
-                    }
-                  }
-                  if (hlstracks.length) { newurl.push(hlstracks.join("_")); }
-                  newurl.push(m3u8); //put back index.m3u8
-                  newurl = newurl.join("/");
-                  usetracks = {};
-                }
-                else {
-                  newurl = MistVideo.source.url;
-                }
-                
+                var newurl = MistVideo.source.url;                
                 var time = MistVideo.player.api.currentTime;
                 
                 //actually switch to the new source url
@@ -782,6 +761,15 @@ function MistVideo(streamName,options) {
               
             }
             
+            
+          }
+          //add general setTracks function if setTrack exists
+          if (!("setTracks" in MistVideo.player.api) && ("setTrack" in MistVideo.player.api)) {
+            MistVideo.player.api.setTracks = function(usetracks){
+              for (var i in usetracks) {
+                MistVideo.player.api.setTrack(i,usetracks[i]);
+              }
+            };
           }
           
           if (options.setTracks) {
@@ -1100,6 +1088,12 @@ function MistVideo(streamName,options) {
     if ((this.UI) && (this.UI.elements)) {
       for (var i in this.UI.elements) {
         var e = this.UI.elements[i];
+        if ("attachedListeners" in e) {
+          //remove attached event listeners
+          for (var i in e.attachedListeners) {
+            MistUtil.event.removeListener(e.attachedListeners[i]);
+          }
+        }
         if (e.parentNode) {
           e.parentNode.removeChild(e);
         }

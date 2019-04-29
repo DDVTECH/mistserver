@@ -74,6 +74,7 @@ namespace Socket{
     int sSend;               ///< Write end of socket.
     int sRecv;               ///< Read end of socket.
     std::string remotehost; ///< Stores remote host address.
+    std::string boundaddr;          ///< Stores bound interface address.
     struct sockaddr_in6 remoteaddr;///< Stores remote host address.
     uint64_t up;
     uint64_t down;
@@ -83,6 +84,7 @@ namespace Socket{
     virtual unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
     bool iread(Buffer &buffer, int flags = 0);        ///< Incremental write call that is compatible with Socket::Buffer.
     bool iwrite(std::string &buffer);                 ///< Write call that is compatible with std::string.
+    void setBoundAddr();
   public:
     // friends
     friend class ::Buffer::user;
@@ -100,6 +102,7 @@ namespace Socket{
     std::string getHost() const;     ///< Gets hostname for connection, if available.
     std::string getBinHost();
     void setHost(std::string host); ///< Sets hostname for connection manually.
+    std::string getBoundAddress() const;
     int getSocket();                ///< Returns internal socket number.
     int getPureSocket();            ///< Returns non-piped internal socket number.
     std::string getError();         ///< Returns a string describing the last error that occured.

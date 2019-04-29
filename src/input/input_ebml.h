@@ -76,6 +76,11 @@ namespace Mist{
         }else{
           if (rem && !p.key){
             p.offset = p.time + maxEBMLFrameOffset - (lastTime + smallestFrame);
+            if (p.offset > (maxEBMLFrameOffset + frameOffset + smallestFrame)){
+              uint64_t diff = p.offset - (maxEBMLFrameOffset + frameOffset + smallestFrame);
+              p.offset -= diff;
+              lastTime += diff;
+            }
             //If we calculate an offset less than a frame away,
             //we assume it's just time stamp drift due to lack of precision.
             p.time = (lastTime + smallestFrame);
@@ -96,14 +101,15 @@ namespace Mist{
         }
         if (isVideo && ctr && ctr >= rem){
           int32_t currOffset = packTime - pkts[(ctr-1)%PKT_COUNT].time;
+          if (!frameOffsetKnown && currOffset < 0 && -currOffset < 8 * smallestFrame &&
+              -currOffset * 2 > maxEBMLFrameOffset && ctr < PKT_COUNT / 2){
+            maxEBMLFrameOffset = -currOffset * 2;
+            INFO_MSG("Max frame offset is now %u", maxEBMLFrameOffset);
+          }
           if (currOffset < 0){currOffset *= -1;}
           if (!smallestFrame || currOffset < smallestFrame){
             smallestFrame = currOffset;
             HIGH_MSG("Smallest frame is now %u", smallestFrame);
-          }
-          if (!frameOffsetKnown && currOffset < 8*smallestFrame && currOffset*2 > maxEBMLFrameOffset && ctr < PKT_COUNT/2){
-            maxEBMLFrameOffset = currOffset*2;
-            INFO_MSG("Max frame offset is now %u", maxEBMLFrameOffset);
           }
         }
         DONTEVEN_MSG("Ingesting %llu (%llu -> %llu)", packTime, ctr, ctr % PKT_COUNT);

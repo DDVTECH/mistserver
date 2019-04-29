@@ -372,6 +372,29 @@ void Socket::Buffer::clear(){
   data.clear();
 }
 
+void Socket::Connection::setBoundAddr(){
+  if (!isTrueSocket){
+    boundaddr = "";
+    return;
+  }
+  struct sockaddr_in6 tmpaddr;
+  socklen_t len = sizeof(tmpaddr);
+  if (!getsockname(sSend, (sockaddr*)&tmpaddr, &len)){
+    static char addrconv[INET6_ADDRSTRLEN];
+    if (tmpaddr.sin6_family == AF_INET6){
+      boundaddr = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+      if (boundaddr.substr(0, 7) == "::ffff:"){
+        boundaddr = boundaddr.substr(7);
+      }
+      HIGH_MSG("Local IPv6 addr [%s]", boundaddr.c_str());
+    }
+    if (tmpaddr.sin6_family == AF_INET){
+      boundaddr = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+      HIGH_MSG("Local IPv4 addr [%s]", boundaddr.c_str());
+    }
+  }
+}
+
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a
 /// Socket::Connection. \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
@@ -380,6 +403,7 @@ Socket::Connection::Connection(int sockNo){
   isTrueSocket = false;
   struct stat sBuf;
   if (sSend != -1 && !fstat(sSend, &sBuf)){isTrueSocket = S_ISSOCK(sBuf.st_mode);}
+  setBoundAddr();
   up = 0;
   down = 0;
   conntime = Util::epoch();
@@ -401,6 +425,7 @@ Socket::Connection::Connection(int write, int read){
   isTrueSocket = false;
   struct stat sBuf;
   if (sSend != -1 && !fstat(sSend, &sBuf)){isTrueSocket = S_ISSOCK(sBuf.st_mode);}
+  setBoundAddr();
   up = 0;
   down = 0;
   conntime = Util::epoch();
@@ -600,6 +625,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
     int optval = 1;
     int optlen = sizeof(optval);
     setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
+    setBoundAddr();
   }
 }// Socket::Connection TCP Constructor
 
@@ -794,6 +820,11 @@ bool Socket::Connection::iwrite(std::string &buffer){
 /// Gets hostname for connection, if available.
 std::string Socket::Connection::getHost() const{
   return remotehost;
+}
+
+/// Gets locally bound host for connection, if available.
+std::string Socket::Connection::getBoundAddress() const{
+  return boundaddr;
 }
 
 /// Gets binary IPv6 address for connection, if available.

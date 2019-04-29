@@ -12,6 +12,7 @@
 #include <mist/http_parser.h>
 #include <mist/timing.h>
 #include <mist/util.h>
+#include <mist/langcodes.h>
 #include "output.h"
 
 namespace Mist{
@@ -267,6 +268,63 @@ namespace Mist{
     }
   }
 
+  /// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
+  /// trackVal may be a comma-separated list of numbers, codecs or the word "all"/"none" or an asterisk.
+  /// Does not do any checks if the protocol supports these tracks, just selects blindly.
+  void Output::selectTrack(const std::string &trackType, const std::string &trackVal){
+    if (!trackVal.size() || trackVal == "0" || trackVal == "none"){return;}//don't select anything in particular
+    if (trackVal.find(',') != std::string::npos){
+      //Comma-separated list, recurse.
+      std::stringstream ss(trackVal);
+      std::string item;
+      while (std::getline(ss, item, ',')){selectTrack(trackType, item);}
+      return;
+    }
+    uint64_t trackNo = JSON::Value(trackVal).asInt();
+    if (trackVal == JSON::Value(trackNo).asString()){
+      //It's an integer number
+      if (!myMeta.tracks.count(trackNo)){
+        INFO_MSG("Track %lld does not exist in stream, cannot select", trackNo);
+        return;
+      }
+      const DTSC::Track & Trk = myMeta.tracks[trackNo];
+      if (Trk.type != trackType && Trk.codec != trackType){
+        INFO_MSG("Track %lld is not %s (%s/%s), cannot select", trackNo, trackType.c_str(), Trk.type.c_str(), Trk.codec.c_str());
+        return;
+      }
+      INFO_MSG("Selecting %s track %lld (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(), Trk.codec.c_str());
+      selectedTracks.insert(trackNo);
+      return;
+    }
+    std::string trackLow = trackVal;
+    Util::stringToLower(trackLow);
+    if (trackLow == "all" || trackLow == "*"){
+      //select all tracks of this type
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+        const DTSC::Track & Trk = it->second;
+        if (Trk.type == trackType || Trk.codec == trackType){
+          selectedTracks.insert(it->first);
+          INFO_MSG("Selecting %s track %lu (%s/%s)", trackType.c_str(), it->first, Trk.type.c_str(), Trk.codec.c_str());
+        }
+      }
+      return;
+    }
+    //attempt to do language/codec matching
+    //convert 2-character language codes into 3-character language codes
+    if (trackLow.size() == 2){trackLow = Encodings::ISO639::twoToThree(trackLow);}
+    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+      const DTSC::Track & Trk = it->second;
+      if (Trk.type == trackType || Trk.codec == trackType){
+        std::string codecLow = Trk.codec;
+        Util::stringToLower(codecLow);
+        if (Trk.lang == trackLow || trackLow == codecLow){
+          selectedTracks.insert(it->first);
+          INFO_MSG("Selecting %s track %lu (%s/%s)", trackType.c_str(), it->first, Trk.type.c_str(), Trk.codec.c_str());
+        }
+      }
+    }
+  }
+
   /// Automatically selects the tracks that are possible and/or wanted.
   /// Returns true if the track selection changed in any way.
   bool Output::selectDefaultTracks(){
@@ -282,6 +340,21 @@ namespace Mist{
     bool autoSeek = buffer.size();
     uint64_t seekTarget = currentTime();
 
+    bool noSelAudio = false, noSelVideo = false, noSelSub = false;
+    //Then, select the tracks we've been asked to select.
+    if (targetParams.count("audio") && targetParams["audio"].size()){
+      selectTrack("audio", targetParams["audio"]);
+      noSelAudio = true;
+    }
+    if (targetParams.count("video") && targetParams["video"].size()){
+      selectTrack("video", targetParams["video"]);
+      noSelVideo = true;
+    }
+    if (targetParams.count("subtitle") && targetParams["subtitle"].size()){
+      selectTrack("subtitle", targetParams["subtitle"]);
+      noSelSub = true;
+    }
+    
     //check which tracks don't actually exist
     std::set<unsigned long> toRemove;
     for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -383,6 +456,9 @@ namespace Mist{
                 for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
+                    if (noSelAudio && trit->second.type == "audio"){continue;}
+                    if (noSelVideo && trit->second.type == "video"){continue;}
+                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
                     //user-agent-check
                     bool problems = false;
                     if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
@@ -403,6 +479,9 @@ namespace Mist{
                 for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
                   if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                     if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
+                    if (noSelAudio && trit->second.type == "audio"){continue;}
+                    if (noSelVideo && trit->second.type == "video"){continue;}
+                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
                     //user-agent-check
                     bool problems = false;
                     if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){

@@ -52,6 +52,7 @@ namespace Mist {
       uint64_t liveTime();
       void setBlocking(bool blocking);
       void updateMeta();
+      void selectTrack(const std::string &trackType, const std::string &trackVal);
       bool selectDefaultTracks();
       bool connectToFile(std::string file);
       static bool listenMode(){return true;}
@@ -88,6 +89,7 @@ namespace Mist {
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
       bool pushing;
+      std::map<std::string, std::string> targetParams;
       std::string UA; ///< User Agent string, if known.
       uint16_t uaDelay;///<Seconds to wait before setting the UA.
       uint64_t lastRecv;

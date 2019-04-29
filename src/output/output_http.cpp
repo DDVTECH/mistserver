@@ -234,6 +234,9 @@ namespace Mist {
         crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
       }
 
+      if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
+      if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
+      if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
       //Handle upgrade to websocket if the output supports it
       if (doesWebsockets() && H.GetHeader("Upgrade") == "websocket"){
         INFO_MSG("Switching to Websocket mode");

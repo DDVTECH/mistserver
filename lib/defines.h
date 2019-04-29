@@ -16,6 +16,8 @@
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
 #define PRETTY_PRINT_TIME "%ud%uh%um%us"
 #define PRETTY_ARG_TIME(t) (int)(t)/86400, ((int)(t)%86400)/3600, ((int)(t)%3600)/60, (int)(t)%60
+#define PRETTY_PRINT_MSTIME "%ud%.2uh%.2um%.2us.%.3u"
+#define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME(t/1000), (int)(t%1000)
 #if DEBUG > -1
 
 #define __STDC_FORMAT_MACROS 1

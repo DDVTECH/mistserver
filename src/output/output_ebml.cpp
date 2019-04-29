@@ -66,6 +66,7 @@ namespace Mist{
   /// Calculates the size of a Cluster (contents only) and returns it.
   /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.
   uint32_t OutEBML::clusterSize(uint64_t start, uint64_t end){
+    if (start == end){++end;}
     uint32_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
          it != selectedTracks.end(); it++){

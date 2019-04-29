@@ -52,7 +52,7 @@ namespace Mist{
         if (finished){
           return (ctr - rem > 0);
         }else{
-          return (ctr - rem > 12);
+          return frameOffsetKnown ? (ctr - rem > 1) : (ctr - rem > 12);
         }
       }
       /// Clears all internal values, for reuse as-new.

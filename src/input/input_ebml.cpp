@@ -5,9 +5,6 @@
 
 namespace Mist{
 
-  uint16_t maxEBMLFrameOffset = 0;
-  bool frameOffsetKnown = false;
-
   InputEBML::InputEBML(Util::Config *cfg) : Input(cfg){
     timeScale = 1.0;
     capa["name"] = "EBML";
@@ -160,10 +157,6 @@ namespace Mist{
     }
     if (myMeta.inputLocalVars.isMember("timescale")){
         timeScale = ((double)myMeta.inputLocalVars["timescale"].asInt()) / 1000000.0;
-    }
-    if (myMeta.inputLocalVars.isMember("maxframeoffset")){
-      maxEBMLFrameOffset = myMeta.inputLocalVars["maxframeoffset"].asInt();
-      frameOffsetKnown = true;
     }
     return true;
   }
@@ -392,8 +385,7 @@ namespace Mist{
                  B.isKeyframe() && !isAudio, isVideo);
           }
         }
-        while (TP.hasPackets() && (isVideo || frameOffsetKnown)){
-          frameOffsetKnown = true;
+        while (TP.hasPackets()){
           packetData &C = TP.getPacketData(isVideo);
           myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
           TP.remove();
@@ -412,8 +404,6 @@ namespace Mist{
         }
       }
     }
-
-    myMeta.inputLocalVars["maxframeoffset"] = maxEBMLFrameOffset;
 
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %llu ms", bench / 1000);

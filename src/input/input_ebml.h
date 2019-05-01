@@ -5,8 +5,6 @@
 namespace Mist{
 
 
-  extern uint16_t maxEBMLFrameOffset;
-  extern bool frameOffsetKnown;
 #define PKT_COUNT 64
 
   class packetData{
@@ -40,79 +38,77 @@ namespace Mist{
   class trackPredictor{
     public:
       packetData pkts[PKT_COUNT];
-      uint64_t frameOffset;
-      uint16_t smallestFrame;
-      uint64_t lastTime;
-      uint64_t ctr;
-      uint64_t rem;
+      uint64_t frameOffset;///The static average offset between transmit time and display time
+      bool frameOffsetKnown;///Whether the average frame offset is known
+      uint16_t smallestFrame;///low-ball estimate of time per frame
+      uint64_t lastTime;///last send transmit timestamp
+      uint64_t ctr;///ingested frame count
+      uint64_t rem;///removed frame count
+      uint64_t maxOffset;///maximum offset for this track
+      uint64_t lowestTime;///First timestamp to enter the buffer
       trackPredictor(){
+        smallestFrame = 0xFFFF;
+        frameOffsetKnown = false;
+        frameOffset = 0;
+        maxOffset = 0;
         flush();
       }
       bool hasPackets(bool finished = false){
-        if (finished){
+        if (finished || frameOffsetKnown){
           return (ctr - rem > 0);
         }else{
-          return frameOffsetKnown ? (ctr - rem > 1) : (ctr - rem > 12);
+          return (ctr - rem > 12);
         }
       }
       /// Clears all internal values, for reuse as-new.
       void flush(){
-        frameOffset = 0;
-        smallestFrame = 0;
         lastTime = 0;
         ctr = 0;
         rem = 0;
+        lowestTime = 0;
       }
       packetData & getPacketData(bool mustCalcOffsets){
-        frameOffsetKnown = true;
         //grab the next packet to output
         packetData & p = pkts[rem % PKT_COUNT];
-        //Substract the max frame offset, so we know all offsets are positive, no matter what.
-        //if it's not the first and we're calculating offsets, see if we need an offset
         if (!mustCalcOffsets){
-          p.time += maxEBMLFrameOffset;
-          DONTEVEN_MSG("Outputting %llu + %llu (%llu -> %llu)", p.time, maxEBMLFrameOffset, rem, rem % PKT_COUNT);
+          frameOffsetKnown = true;
           return p;
-        }else{
-          if (rem && !p.key){
-            p.offset = p.time + maxEBMLFrameOffset - (lastTime + smallestFrame);
-            if (p.offset > (maxEBMLFrameOffset + frameOffset + smallestFrame)){
-              uint64_t diff = p.offset - (maxEBMLFrameOffset + frameOffset + smallestFrame);
-              p.offset -= diff;
-              lastTime += diff;
-            }
-            //If we calculate an offset less than a frame away,
-            //we assume it's just time stamp drift due to lack of precision.
-            p.time = (lastTime + smallestFrame);
-          }else{
-            p.time -= frameOffset?frameOffset + smallestFrame:0;
-            p.offset = maxEBMLFrameOffset + frameOffset + smallestFrame;
+        }
+        if (rem && !p.key){
+          p.offset = p.time - (lastTime + smallestFrame) + frameOffset;
+          if (p.offset > maxOffset){
+            uint64_t diff = p.offset - maxOffset;
+            p.offset -= diff;
+            lastTime += diff;
           }
+          //If we calculate an offset less than a frame away,
+          //we assume it's just time stamp drift due to lack of precision.
+          p.time = (lastTime + smallestFrame);
+        }else{
+          if (!frameOffsetKnown){
+            for (uint64_t i = 1; i < ctr; ++i){
+              uint64_t timeDiff = pkts[i%PKT_COUNT].time - lowestTime;
+              uint64_t timeExpt = smallestFrame*i;
+              if (timeDiff > timeExpt && maxOffset < timeDiff-timeExpt){
+                maxOffset = timeDiff-timeExpt;
+              }
+              if (timeDiff < timeExpt && frameOffset < timeExpt-timeDiff){
+                frameOffset = timeExpt - timeDiff;
+              }
+            }
+            maxOffset += frameOffset;
+            HIGH_MSG("smallestFrame=%" PRIu16 ", frameOffset=%" PRIu64 ", maxOffset=%" PRIu64, smallestFrame, frameOffset, maxOffset);
+            frameOffsetKnown = true;
+          }
+          p.offset = frameOffset;
         }
         lastTime = p.time;
-        DONTEVEN_MSG("Outputting%s %llu + %llu, offset %llu (%llu -> %llu), display at %llu", (p.key?" (KEY)":""), p.time, frameOffset, p.offset, rem, rem % PKT_COUNT, p.time+p.offset);
+        INSANE_MSG("Outputting%s %llu+%llu (#%llu, Max=%llu), display at %llu", (p.key?"KEY":""), p.time, p.offset, rem, maxOffset, p.time+p.offset);
         return p;
       }
       void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize, uint64_t packBytePos, bool isKeyframe, bool isVideo, void * dataPtr = 0){
-        //If no packets have been removed yet and there is more than one packet, calculate frameOffset
-        if (!rem && ctr && packTime < pkts[0].time){
-          frameOffset = pkts[0].time - packTime;
-          INSANE_MSG("Setting frameOffset to %llu", frameOffset);
-        }
-        if (isVideo && ctr && ctr >= rem){
-          int32_t currOffset = packTime - pkts[(ctr-1)%PKT_COUNT].time;
-          if (!frameOffsetKnown && currOffset < 0 && -currOffset < 8 * smallestFrame &&
-              -currOffset * 2 > maxEBMLFrameOffset && ctr < PKT_COUNT / 2){
-            maxEBMLFrameOffset = -currOffset * 2;
-            INFO_MSG("Max frame offset is now %u", maxEBMLFrameOffset);
-          }
-          if (currOffset < 0){currOffset *= -1;}
-          if (!smallestFrame || currOffset < smallestFrame){
-            smallestFrame = currOffset;
-            HIGH_MSG("Smallest frame is now %u", smallestFrame);
-          }
-        }
-        DONTEVEN_MSG("Ingesting %llu (%llu -> %llu)", packTime, ctr, ctr % PKT_COUNT);
+        if (!ctr){lowestTime = packTime;}
+        if (packTime > lowestTime && packTime - lowestTime < smallestFrame){smallestFrame = packTime - lowestTime;}
         pkts[ctr % PKT_COUNT].set(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe, dataPtr);
         ++ctr;
         if (ctr == PKT_COUNT-1){frameOffsetKnown = true;}

@@ -66,7 +66,7 @@ namespace Mist{
   /// Calculates the size of a Cluster (contents only) and returns it.
   /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.
   uint32_t OutEBML::clusterSize(uint64_t start, uint64_t end){
-    if (start == end){++end;}
+    if (start <= end){end = start+1;}
     uint32_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
          it != selectedTracks.end(); it++){
@@ -110,7 +110,7 @@ namespace Mist{
         EXTREME_MSG("Cluster: %llu - %llu (%lu/%lu) = %llu", currentClusterTime, newClusterTime, fragIndice, Trk.fragments.size(), clusterSize(currentClusterTime, newClusterTime));
       }else{
         //In live, clusters are aligned with the lookAhead time
-        newClusterTime += needsLookAhead;
+        newClusterTime = currentClusterTime+needsLookAhead;
       }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
       EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime);

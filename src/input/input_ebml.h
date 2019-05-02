@@ -75,17 +75,42 @@ namespace Mist{
           return p;
         }
         if (rem && !p.key){
+          uint64_t dispTime = p.time;
+          if (p.time + frameOffset < lastTime + smallestFrame){
+            uint32_t shift = (uint32_t)((((lastTime+smallestFrame)-(p.time+frameOffset)) + (smallestFrame-1)) / smallestFrame) * smallestFrame;
+            if (shift < smallestFrame){shift = smallestFrame;}
+            VERYHIGH_MSG("Offset negative, shifting original time forward by %" PRIu32, shift);
+            p.time += shift;
+          }
           p.offset = p.time - (lastTime + smallestFrame) + frameOffset;
           if (p.offset > maxOffset){
             uint64_t diff = p.offset - maxOffset;
+            VERYHIGH_MSG("Shifting forward %" PRIu64 "ms (maxOffset reached: %" PRIu64 " > %" PRIu64 ")", diff, p.offset, maxOffset);
             p.offset -= diff;
             lastTime += diff;
           }
+          p.time = (lastTime + smallestFrame);
           //If we calculate an offset less than a frame away,
           //we assume it's just time stamp drift due to lack of precision.
-          p.time = (lastTime + smallestFrame);
+          p.offset = ((uint32_t)((p.offset + (smallestFrame/2)) / smallestFrame)) * smallestFrame;
+          //Shift the time forward if needed, but never backward
+          if (p.offset + p.time < dispTime){
+            VERYHIGH_MSG("Shifting forward %" PRIu64 "ms (time drift)", dispTime - (p.offset + p.time));
+            p.time += dispTime - (p.offset + p.time);
+          }
         }else{
           if (!frameOffsetKnown){
+            //Check the first few timestamps against each other, find the smallest distance.
+            for (uint64_t i = 1; i < ctr; ++i){
+              uint64_t t1 = pkts[i%PKT_COUNT].time;
+              for (uint64_t j = 0; j < ctr; ++j){
+                if (i == j){continue;}
+                uint64_t t2 = pkts[j%PKT_COUNT].time;
+                uint64_t tDiff = (t1<t2)?(t2-t1):(t1-t2);
+                if (tDiff < smallestFrame){smallestFrame = tDiff;}
+              }
+            }
+            //Cool, now we're pretty sure we know the frame rate. Let's calculate some offsets.
             for (uint64_t i = 1; i < ctr; ++i){
               uint64_t timeDiff = pkts[i%PKT_COUNT].time - lowestTime;
               uint64_t timeExpt = smallestFrame*i;
@@ -97,10 +122,11 @@ namespace Mist{
               }
             }
             maxOffset += frameOffset;
+            //Print for debugging purposes, and consider them gospel from here on forward. Yay!
             HIGH_MSG("smallestFrame=%" PRIu16 ", frameOffset=%" PRIu64 ", maxOffset=%" PRIu64, smallestFrame, frameOffset, maxOffset);
             frameOffsetKnown = true;
           }
-          p.offset = frameOffset;
+          p.offset = ((uint32_t)((frameOffset + (smallestFrame/2)) / smallestFrame)) * smallestFrame;
         }
         lastTime = p.time;
         INSANE_MSG("Outputting%s %llu+%llu (#%llu, Max=%llu), display at %llu", (p.key?"KEY":""), p.time, p.offset, rem, maxOffset, p.time+p.offset);
@@ -131,6 +157,7 @@ namespace Mist{
     bool readElement();
     void getNext(bool smart = true);
     void seek(int seekTime);
+    void clearPredictors();
     FILE *inFile;
     Util::ResizeablePointer ptr;
     bool readingMinimal;

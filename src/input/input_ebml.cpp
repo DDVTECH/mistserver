@@ -407,7 +407,7 @@ namespace Mist{
 
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %llu ms", bench / 1000);
-    packBuf.clear();
+    clearPredictors();
     bufferedPacks = 0;
     myMeta.toFile(config->getString("input") + ".dtsh");
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
@@ -571,23 +571,26 @@ namespace Mist{
 
   void InputEBML::seek(int seekTime){
     wantBlocks = true;
-    packBuf.clear();
+    clearPredictors();
     bufferedPacks = 0;
     uint64_t mainTrack = getMainSelectedTrack();
     DTSC::Track Trk = myMeta.tracks[mainTrack];
     bool isVideo = (Trk.type == "video");
     uint64_t seekPos = Trk.keys[0].getBpos();
     // Replay the parts of the previous keyframe, so the timestaps match up
-    uint64_t partCount = 0;
-    for (unsigned int i = 0; i < Trk.keys.size(); i++){
-      if (Trk.keys[i].getTime() > seekTime){
-        break;
-      }
-      partCount += Trk.keys[i].getParts();
-      DONTEVEN_MSG("Seeking to %lu, found %llu...", seekTime, Trk.keys[i].getTime());
+    for (unsigned int i = 1; i < Trk.keys.size(); i++){
+      if (Trk.keys[i].getTime() > seekTime){break;}
       seekPos = Trk.keys[i].getBpos();
     }
     Util::fseek(inFile, seekPos, SEEK_SET);
+  }
+
+  ///Flushes all trackPredictors without deleting permanent data from them.
+  void InputEBML::clearPredictors(){
+    if (!packBuf.size()){return;}
+    for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
+      it->second.flush();
+    }
   }
 
 }// namespace Mist

@@ -45,8 +45,8 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
     capa["methods"][0u]["priority"] = 9;
-    //EBML will only work with VP8/VP9/Opus except on Chrome
-    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\"], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
+    //Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
+    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\", [\"Mozilla/\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
     capa["exceptions"]["codec:H264"] = blacklistNonChrome;
     capa["exceptions"]["codec:HEVC"] = blacklistNonChrome;
     capa["exceptions"]["codec:theora"] = blacklistNonChrome;
@@ -66,7 +66,6 @@ namespace Mist{
   /// Calculates the size of a Cluster (contents only) and returns it.
   /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.
   uint32_t OutEBML::clusterSize(uint64_t start, uint64_t end){
-    if (start <= end){end = start+1;}
     uint32_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
          it != selectedTracks.end(); it++){
@@ -110,7 +109,7 @@ namespace Mist{
         EXTREME_MSG("Cluster: %llu - %llu (%lu/%lu) = %llu", currentClusterTime, newClusterTime, fragIndice, Trk.fragments.size(), clusterSize(currentClusterTime, newClusterTime));
       }else{
         //In live, clusters are aligned with the lookAhead time
-        newClusterTime = currentClusterTime+needsLookAhead;
+        newClusterTime = currentClusterTime+(needsLookAhead?needsLookAhead:1);
       }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
       EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime);

@@ -5,6 +5,7 @@ namespace HTTP{
   class Downloader{
   public:
     Downloader();
+    ~Downloader();
     std::string &data();
     const std::string &const_data() const;
     void doRequest(const HTTP::URL &link, const std::string &method = "",

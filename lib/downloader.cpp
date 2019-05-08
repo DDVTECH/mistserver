@@ -65,6 +65,13 @@ namespace HTTP{
     return S;
   }
 
+  Downloader::~Downloader(){
+#ifdef SSL
+    if (ssl){S_SSL.close();}
+#endif
+    S.close();
+  }
+
   /// Sends a request for the given URL, does no waiting.
   void Downloader::doRequest(const HTTP::URL &link, const std::string &method,
                              const std::string &body){

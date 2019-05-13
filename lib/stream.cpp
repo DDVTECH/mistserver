@@ -125,7 +125,7 @@ DTSC::Meta Util::getStreamMeta(const std::string &streamname){
 bool Util::streamAlive(std::string &streamname){
   char semName[NAME_BUFFER_SIZE];
   snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamname.c_str());
-  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 1, true);
+  IPC::semaphore playerLock(semName, O_RDWR, ACCESSPERMS, 0, true);
   if (!playerLock){return false;}
   if (!playerLock.tryWait()){
     playerLock.close();

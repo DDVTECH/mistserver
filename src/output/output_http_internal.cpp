@@ -786,6 +786,7 @@ namespace Mist {
     if (H.GetHeader("Upgrade") != "websocket"){return false;}
     HTTP::Websocket ws(myConn, H);
     if (!ws){return false;}
+    setBlocking(false);
     //start the stream, if needed
     Util::startInput(streamName, "", true, false);
 
@@ -814,7 +815,11 @@ namespace Mist {
         if (newState == STRMSTAT_READY){
           stats();
         }
-        Util::sleep(250);
+        if (myConn.spool() && ws.readFrame()){
+          onWebsocketFrame();
+        }else{
+          Util::sleep(250);
+        }
         if (newState == STRMSTAT_READY && (++metaCounter % 4) == 0){
           updateMeta();
         }

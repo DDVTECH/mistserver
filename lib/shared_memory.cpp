@@ -122,6 +122,14 @@ namespace IPC {
 #else
       if (oflag & O_CREAT) {
         mySem = sem_open(name, oflag, mode, value);
+#if defined(__APPLE__)
+        if (!(*this)){
+          if (sem_unlink(name) == 0){
+            INFO_MSG("Deleted in-use semaphore: %s", name);
+            mySem = sem_open(name, oflag, mode, value);
+          }
+        }
+#endif
       } else {
         mySem = sem_open(name, oflag);
       }

@@ -1755,9 +1755,7 @@ namespace DTSC {
     if (!skipDynamic){
       result += fragments.size() * PACKED_FRAGMENT_SIZE + 16;
       result += keys.size() * PACKED_KEY_SIZE + 11;
-      if (keySizes.size()){
-        result += (keySizes.size() * 4) + 15;
-      }
+      result += (keySizes.size() * 4) + 15;
       result += parts.size() * 9 + 12;
       result += (ivecs.size() * 8) + 12; /*LTS*/
     }

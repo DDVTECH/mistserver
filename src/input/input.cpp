@@ -492,6 +492,7 @@ namespace Mist {
     finish();
     INFO_MSG("Input for stream %s closing clean", streamName.c_str());
     userPage.finishEach();
+    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
     //end player functionality
   }
 

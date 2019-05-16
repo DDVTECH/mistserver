@@ -159,6 +159,12 @@ p.prototype.build = function (MistVideo,callback) {
       });
       MistVideo.player.api.load = function(){};
       
+      overrides.set.currentTime = function(value){
+        console.log("seeking to",value);
+        MistVideo.player.videojs.currentTime(value); //seeking backwards does not work if we set it on the video directly
+        //MistVideo.video.currentTime = value;
+      };
+      
       if (MistVideo.info.type == "live") {
         function getLastBuffer(video) {
           var buffer_end = 0;
@@ -189,7 +195,8 @@ p.prototype.build = function (MistVideo,callback) {
           //MistVideo.player.api.liveOffset = offset;
           
           MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
-          MistVideo.video.currentTime -= diff;
+          //MistVideo.video.currentTime -= diff;
+          MistVideo.player.videojs.currentTime(MistVideo.video.currentTime - diff); //seeking backwards does not work if we set it on the video directly
         }
         var lastms = 0;
         overrides.get.currentTime = function(){

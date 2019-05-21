@@ -12,6 +12,8 @@
 #include <mist/downloader.h>
 #include <mist/http_parser.h>
 #include <mist/timing.h>
+#include <mist/encode.h>
+#include <mist/procs.h>
 #include <signal.h>   //for raise
 #include <sys/stat.h> //for chmod
 #include <time.h>     //for time
@@ -51,6 +53,11 @@ uint8_t updatePerc = 0;
 JSON::Value updates;
 HTTP::Downloader DL;
 
+bool updaterProgressCallback(){
+  updatePerc = DL.getHTTP().getPercentage() * 95 / 100;
+  return Util::Config::is_active;
+}
+
 namespace Controller{
 
   void updateThread(void *np){
@@ -67,16 +74,75 @@ namespace Controller{
           updates = result;
         }
         if (!result["uptodate"] && updatePerc){
-          // loop through the available components, update them
-          unsigned int needCount = result["needs_update"].size();
-          if (needCount){
-            jsonForEach(result["needs_update"], it){
-              if (!Controller::conf.is_active){break;}
-              updatePerc = ((it.num() * 99) / needCount) + 1;
-              updateComponent(it->asStringRef(), result[it->asStringRef()].asStringRef());
+          if (result["url"].asStringRef().find(".zip") != std::string::npos){
+            FAIL_MSG("Cannot auto-install update for this platform. Please download and install by hand.");
+            updatePerc = 0;
+            continue;
+          }
+          Log("UPDR", "Downloading update...");
+#ifdef SSL
+          HTTP::URL url("https://releases.mistserver.org/update.php");
+#else
+          HTTP::URL url("http://releases.mistserver.org/update.php");
+#endif
+          DL.dataTimeout = 50;//only timeout if no data received for 50 seconds
+          DL.progressCallback = updaterProgressCallback;
+          if (!DL.get(url.link(result["url"].asStringRef())) || !DL.isOk() || !DL.data().size()){
+            FAIL_MSG("Download failed - aborting update");
+            updatePerc = 0;
+            continue;
+          }
+          updatePerc = 50;
+          INFO_MSG("Downloaded update archive of %zuKiB", DL.data().size()/1024);
+          Log("UPDR", "Installing update...");
+          std::string tmpDir = Util::getMyPath();
+          char * tarArgs[4];
+          tarArgs[0] = (char*)"tar";
+          tarArgs[1] = (char*)"-xzC";
+          tarArgs[2] = (char*)tmpDir.c_str();
+          tarArgs[3] = 0;
+          int tarIn = -1;
+          pid_t tarPid = Util::Procs::StartPiped(tarArgs, &tarIn, 0, 0);
+          if (!tarPid){
+            FAIL_MSG("Could not extract update (is 'tar' installed..?)");
+            updatePerc = 0;
+            continue;
+          }
+          size_t tarProgress = 0;
+          while (tarProgress < DL.data().size()){
+            int written = write(tarIn, DL.data().data()+tarProgress, std::min((size_t)4096, DL.data().size() - tarProgress));
+            if (written < 0){
+              FAIL_MSG("Could not (fully) extract update! Aborting.");
+              break;
             }
+            tarProgress += written;
+            updatePerc = 95 + (5*tarProgress)/DL.data().size();
+          }
+          close(tarIn);
+          uint64_t waitCount = 0;
+          while (Util::Procs::isActive(tarPid)){
+            Util::wait(250);
+            if (waitCount == 40){
+              tarProgress = 0;
+              WARN_MSG("Sending stop signal to tar process (may result in partial update!)");
+              Util::Procs::Stop(tarPid);
+            }
+            if (waitCount == 80){
+              WARN_MSG("Sending kill signal to tar process (may result in partial update!)");
+              Util::Procs::Murder(tarPid);
+              break;
+            }
+            ++waitCount;
           }
           updatePerc = 0;
+          if (tarProgress == DL.data().size()){
+            Log("UPDR", "Install complete, initiating rolling restart.");
+            Util::Config::is_restarting = true;
+            raise(SIGINT); // trigger restart
+          }else{
+            Log("UPDR", "Install did not fully complete. Not restarting.");
+          }
+          DL.data() = "";
         }
         updateChecker = Util::epoch();
       }
@@ -102,45 +168,42 @@ namespace Controller{
       ret["date"] = "Now";
       return ret;
     }
-    HTTP::Parser http;
     JSON::Value updrInfo;
-    if (DL.get("http://releases.mistserver.org/getsums.php?verinfo=1&rel=" RELEASE "&pass=" SHARED_SECRET "&iid=" + instanceId) && DL.isOk()){
+#ifdef SSL
+    HTTP::URL url("https://releases.mistserver.org/update.php");
+#else
+    HTTP::URL url("http://releases.mistserver.org/update.php");
+#endif
+    url.args = "rel=" + Encodings::URL::encode(RELEASE) + "&pass=" + Encodings::URL::encode(SHARED_SECRET) + "&iid=" + Encodings::URL::encode(instanceId);
+    if (DL.get(url) && DL.isOk()){
       updrInfo = JSON::fromString(DL.data());
     }else{
       Log("UPDR", "Error getting update info: "+DL.getStatusText());
       ret["error"] = "Error getting update info: "+DL.getStatusText();
-      ret["uptodate"] = 1;
       return ret;
     }
-    if (updrInfo){
-      if (updrInfo.isMember("error")){
-        Log("UPDR", updrInfo["error"].asStringRef());
-        ret["error"] = updrInfo["error"];
-        ret["uptodate"] = 1;
-        return ret;
-      }
-      ret["release"] = RELEASE;
-      if (updrInfo.isMember("version")){ret["version"] = updrInfo["version"];}
-      if (updrInfo.isMember("date")){ret["date"] = updrInfo["date"];}
-      ret["uptodate"] = 1;
-      ret["needs_update"].null();
-
-      // check if everything is up to date or not
-      jsonForEach(updrInfo, it){
-        if (it.key().substr(0, 4) != "Mist"){continue;}
-        ret[it.key()] = *it;
-        if (it->asString() != Secure::md5(readFile(Util::getMyPath() + it.key()))){
-          ret["uptodate"] = 0;
-          if (it.key().substr(0, 14) == "MistController"){
-            ret["needs_update"].append(it.key());
-          }else{
-            ret["needs_update"].prepend(it.key());
-          }
-        }
-      }
-    }else{
+    if (!updrInfo){
       Log("UPDR", "Could not retrieve update information from releases server.");
       ret["error"] = "Could not retrieve update information from releases server.";
+    }
+    if (updrInfo.isMember("error")){
+      Log("UPDR", updrInfo["error"].asStringRef());
+      ret["error"] = updrInfo["error"];
+      return ret;
+    }
+    if (!updrInfo.isArray()){
+      ret["error"] = "Received invalid version list from server. Unknown update status.";
+      return ret;
+    }
+    ret["release"] = RELEASE;
+    ret["version"] = updrInfo[0u][0u];
+    ret["date"] = updrInfo[0u][1u];
+    ret["url"] = updrInfo[0u][2u];
+    ret["full_list"] = updrInfo;
+    if (updrInfo[0u][0u].asStringRef() == PACKAGE_VERSION){
+      ret["uptodate"] = 1;
+    }else{
+      ret["uptodate"] = 0;
     }
     return ret;
   }
@@ -148,31 +211,5 @@ namespace Controller{
   /// Causes the updater thread to download an update, if available
   void checkUpdates(){updatePerc = 1;}// CheckUpdates
 
-  /// Attempts to download an update for the listed component.
-  /// \param component Filename of the component being checked.
-  /// \param md5sum The MD5 sum of the latest version of this file.
-  /// \param updrConn An connection to releases.mistserver.org to (re)use. Will be (re)opened if
-  /// closed.
-  void updateComponent(const std::string &component, const std::string &md5sum){
-    Log("UPDR", "Updating " + component);
-    if (!DL.get("http://releases.mistserver.org/getfile.php?rel=" RELEASE "&pass=" SHARED_SECRET "&file=" + component) || !DL.isOk() || !DL.data().size()){
-      FAIL_MSG("Could not retrieve new version of %s, continuing without", component.c_str());
-      return;
-    }
-    if (Secure::md5(DL.data()) != md5sum){
-      FAIL_MSG("Checksum of %s incorrect, continuing without", component.c_str());
-      return;
-    }
-    if (!writeFile(Util::getMyPath() + component, DL.data())){
-      FAIL_MSG("Could not write updated version of %s, continuing without", component.c_str());
-      return;
-    }
-    Controller::UpdateProtocol(component);
-    if (component == "MistController"){
-      restarting = true;
-      raise(SIGINT); // trigger restart
-    }
-    Log("UPDR", "New version of " + component + " installed.");
-  }
 }
 

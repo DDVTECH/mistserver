@@ -10,6 +10,5 @@ namespace Controller{
   JSON::Value checkUpdateInfo();
   void checkUpdates();
   void insertUpdateInfo(JSON::Value &ret);
-  void updateComponent(const std::string &component, const std::string &md5sum);
 }
 

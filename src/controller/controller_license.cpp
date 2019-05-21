@@ -97,6 +97,7 @@ namespace Controller{
     JSON::Value response;
     
     HTTP::Downloader dl;
+    dl.dataTimeout = 25;//25-second data timeout, increased from 5s default
 #ifdef SSL
     HTTP::URL url("https://releases.mistserver.org/license.php");
 #else

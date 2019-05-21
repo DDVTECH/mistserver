@@ -36,17 +36,25 @@ namespace Controller {
       if ((*it).substr(0, 7) == "MistOut"){
         arg_one = Util::getMyPath() + (*it);
         conn_args[0] = arg_one.c_str();
-        capabilities["connectors"][(*it).substr(7)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
-        if (capabilities["connectors"][(*it).substr(7)].size() < 1){
-          capabilities["connectors"].removeMember((*it).substr(7));
+        std::string entryName = (*it).substr(7);
+        capabilities["connectors"][entryName] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["connectors"][entryName].size() < 1){
+          capabilities["connectors"].removeMember(entryName);
+        }else if (capabilities["connectors"][entryName]["version"].asStringRef() != PACKAGE_VERSION){
+          WARN_MSG("Output %s version mismatch (%s != " PACKAGE_VERSION ")", entryName.c_str(), capabilities["connectors"][entryName]["version"].asStringRef().c_str());
+          capabilities["connectors"].removeMember(entryName);
         }
       }
       if ((*it).substr(0, 6) == "MistIn" && (*it) != "MistInfo"){
         arg_one = Util::getMyPath() + (*it);
         conn_args[0] = arg_one.c_str();
-        capabilities["inputs"][(*it).substr(6)] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
-        if (capabilities["inputs"][(*it).substr(6)].size() < 1){
+        std::string entryName = (*it).substr(6);
+        capabilities["inputs"][entryName] = JSON::fromString(Util::Procs::getOutputOf((char**)conn_args));
+        if (capabilities["inputs"][entryName].size() < 1){
           capabilities["inputs"].removeMember((*it).substr(6));
+        }else if (capabilities["inputs"][entryName]["version"].asStringRef() != PACKAGE_VERSION){
+          WARN_MSG("Input %s version mismatch (%s != " PACKAGE_VERSION ")", entryName.c_str(), capabilities["inputs"][entryName]["version"].asStringRef().c_str());
+          capabilities["inputs"].removeMember(entryName);
         }
       }
     }

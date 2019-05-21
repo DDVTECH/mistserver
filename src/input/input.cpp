@@ -98,6 +98,7 @@ namespace Mist {
     Util::Config::streamName = streamName;
    
     if (config->getBool("json")) {
+      capa["version"] = PACKAGE_VERSION;
       std::cout << capa.toString() << std::endl;
       return 0;
     }

@@ -20,7 +20,6 @@ namespace Util {
       static bool thread_handler;///< True while thread handler should be running.
       static void childsig_handler(int signum);
       static void exit_handler();
-      static void runCmd(std::string & cmd);
       static char* const* dequeToArgv(std::deque<std::string> & argDeq);
       static void grim_reaper(void * n);
     public:

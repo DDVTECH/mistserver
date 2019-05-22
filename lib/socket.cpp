@@ -1272,7 +1272,9 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   // we could do this through accept4 with a flag, but that call is non-standard...
   if (r < 0){
     if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)){
-      FAIL_MSG("Error during accept: %s. Closing server socket %d.", strerror(errno), sock);
+      if (errno != EINVAL){
+        FAIL_MSG("Error during accept: %s. Closing server socket %d.", strerror(errno), sock);
+      }
       close();
     }
     return Socket::Connection();

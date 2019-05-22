@@ -9,7 +9,7 @@ namespace Controller {
   bool CheckProtocols(JSON::Value & p, const JSON::Value & capabilities);
 
   /// Updates the shared memory page with active connectors
-  void saveActiveConnectors();
+  void saveActiveConnectors(bool forceOverride = false);
 
   /// Reads active connectors from the shared memory pages
   void loadActiveConnectors();

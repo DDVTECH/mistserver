@@ -786,6 +786,13 @@ bool HTTP::Parser::Read(std::string &strbuf){
   return parse(strbuf);
 }// HTTPReader::Read
 
+/// Checks download completion percentage.
+/// Returns zero if that doesn't make sense at the time or cannot be determined.
+uint8_t HTTP::Parser::getPercentage() const{
+  if (!seenHeaders || length < 1){return 0;}
+  return ((body.length() * 100) / length);
+}
+
 /// Attempt to read a whole HTTP response or request from a data buffer.
 /// If succesful, fills its own fields with the proper data and removes the response/request
 /// from the data buffer.

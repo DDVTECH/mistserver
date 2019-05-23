@@ -183,7 +183,15 @@ namespace HTTP{
           return true; // Success!
         }
         // reset the data timeout
-        reqTime = Util::bootSecs();
+        if (reqTime != Util::bootSecs()){
+          if (progressCallback != 0){
+            if (!progressCallback()){
+              WARN_MSG("Download aborted by callback");
+              return false;
+            }
+          }
+          reqTime = Util::bootSecs();
+        }
       }
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
@@ -239,7 +247,15 @@ namespace HTTP{
           return true; // Success!
         }
         // reset the data timeout
-        reqTime = Util::bootSecs();
+        if (reqTime != Util::bootSecs()){
+          if (progressCallback != 0){
+            if (!progressCallback()){
+              WARN_MSG("Download aborted by callback");
+              return false;
+            }
+          }
+          reqTime = Util::bootSecs();
+        }
       }
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s", link.getUrl().c_str());

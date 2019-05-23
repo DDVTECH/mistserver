@@ -15,6 +15,7 @@ int main(int argc, char * argv[]) {
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)) {
     if (conf.getBool("json")) {
+      mistOut::capa["version"] = PACKAGE_VERSION;
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
     }

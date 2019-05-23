@@ -196,10 +196,10 @@ void Controller::SharedMemStats(void * config){
   }
   statPointer = 0;
   HIGH_MSG("Stopping stats thread");
-  if (Controller::restarting){
+  if (Util::Config::is_restarting){
     statServer.abandon();
   }
-  Controller::deinitState(Controller::restarting);
+  Controller::deinitState(Util::Config::is_restarting);
 }
 
 /// Gets a complete list of all streams currently in active state, with optional prefix matching

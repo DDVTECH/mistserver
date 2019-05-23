@@ -58,6 +58,13 @@ bool Socket::isLocalhost(const std::string &remotehost){
   return false;
 }
 
+///Checks if the given file descriptor is actually socket or not.
+bool Socket::checkTrueSocket(int sock){
+  struct stat sBuf;
+  if (sock != -1 && !fstat(sock, &sBuf)){return S_ISSOCK(sBuf.st_mode);}
+  return false;
+}
+
 bool Socket::isLocal(const std::string &remotehost){
   struct ifaddrs *ifAddrStruct = NULL;
   struct ifaddrs *ifa = NULL;
@@ -400,9 +407,7 @@ void Socket::Connection::setBoundAddr(){
 Socket::Connection::Connection(int sockNo){
   sSend = sockNo;
   sRecv = -1;
-  isTrueSocket = false;
-  struct stat sBuf;
-  if (sSend != -1 && !fstat(sSend, &sBuf)){isTrueSocket = S_ISSOCK(sBuf.st_mode);}
+  isTrueSocket = Socket::checkTrueSocket(sSend);
   setBoundAddr();
   up = 0;
   down = 0;
@@ -422,9 +427,7 @@ Socket::Connection::Connection(int write, int read){
   }else{
     sRecv = -1;
   }
-  isTrueSocket = false;
-  struct stat sBuf;
-  if (sSend != -1 && !fstat(sSend, &sBuf)){isTrueSocket = S_ISSOCK(sBuf.st_mode);}
+  isTrueSocket = Socket::checkTrueSocket(sSend);
   setBoundAddr();
   up = 0;
   down = 0;
@@ -1088,6 +1091,11 @@ void Socket::SSLConnection::setBlocking(bool blocking){
 Socket::Server::Server(){
   sock = -1;
 }// Socket::Server base Constructor
+
+/// Create a new Server from existing socket.
+Socket::Server::Server(int fromSock){
+  sock = fromSock;
+}
 
 /// Create a new TCP Server. The socket is immediately bound and set to listen.
 /// A maximum of 100 connections will be accepted between accept() calls.

@@ -56,11 +56,13 @@ namespace Controller {
     IPC::sharedPage f("MstCnns", 4096, false, false);
     const Util::RelAccX A(f.mapped, false);
     if (A.isReady()){
+      INFO_MSG("Reloading existing connectors to complete rolling restart");
       for (uint32_t i = 0; i < A.getRCount(); ++i){
         char * p = A.getPointer("cmd", i);
         if (p != 0 && p[0] != 0){
           currentConnectors[p] = A.getInt("pid", i);
           Util::Procs::remember(A.getInt("pid", i));
+          kill(A.getInt("pid", i), SIGUSR1);
         }
       }
     }

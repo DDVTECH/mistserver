@@ -20,7 +20,6 @@ namespace Controller {
   tthread::mutex logMutex;
   uint64_t logCounter = 0;
   bool configChanged = false;
-  bool restarting = false;
   bool isTerminal = false;
   bool isColorized = false;
   uint32_t maxLogsRecs = 0;

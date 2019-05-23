@@ -24,6 +24,7 @@ namespace Util{
   public:
     // variables
     static bool is_active; ///< Set to true by activate(), set to false by the signal handler.
+    static bool is_restarting; ///< Set to true when restarting, set to false on boot.
     static uint32_t printDebugLevel;
     static std::string streamName; ///< Used by debug messages to identify the stream name
     // functions

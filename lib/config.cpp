@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 bool Util::Config::is_active = false;
+bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::Config::printDebugLevel = DEBUG; //
 std::string Util::Config::streamName;
@@ -321,16 +322,19 @@ int Util::Config::forkServer(Socket::Server &server_socket, int (*callback)(Sock
     }
   }
   Util::Procs::socketList.erase(server_socket.getSocket());
-  server_socket.close();
+  if (!is_restarting){
+    server_socket.close();
+  }
   return 0;
 }
 
 int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
   Socket::Server server_socket;
-  if (vals.isMember("socket")){
+  if (Socket::checkTrueSocket(0)){
+    server_socket = Socket::Server(0);
+  }else if (vals.isMember("socket")){
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }
-  if (vals.isMember("port") && vals.isMember("interface")){
+  } else if (vals.isMember("port") && vals.isMember("interface")){
     server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()){
@@ -340,6 +344,13 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
   serv_sock_pointer = &server_socket;
   DEVEL_MSG("Activating threaded server: %s", getString("cmd").c_str());
   activate();
+  if (server_socket.getSocket()){
+    int oldSock = server_socket.getSocket();
+    if (!dup2(oldSock, 0)){
+      server_socket = Socket::Server(0);
+      close(oldSock);
+    }
+  }
   int r = threadServer(server_socket, callback);
   serv_sock_pointer = 0;
   return r;
@@ -347,10 +358,11 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
 
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
   Socket::Server server_socket;
-  if (vals.isMember("socket")){
+  if (Socket::checkTrueSocket(0)){
+    server_socket = Socket::Server(0);
+  }else if (vals.isMember("socket")){
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }
-  if (vals.isMember("port") && vals.isMember("interface")){
+  } else if (vals.isMember("port") && vals.isMember("interface")){
     server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()){
@@ -360,6 +372,13 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
   serv_sock_pointer = &server_socket;
   DEVEL_MSG("Activating forked server: %s", getString("cmd").c_str());
   activate();
+  if (server_socket.getSocket()){
+    int oldSock = server_socket.getSocket();
+    if (!dup2(oldSock, 0)){
+      server_socket = Socket::Server(0);
+      close(oldSock);
+    }
+  }
   int r = forkServer(server_socket, callback);
   serv_sock_pointer = 0;
   return r;

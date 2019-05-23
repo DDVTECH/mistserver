@@ -9,6 +9,12 @@ int spawnForked(Socket::Connection & S){
   return tmp.run();
 }
 
+void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
+  HIGH_MSG("USR1 received - triggering rolling restart");
+  Util::Config::is_restarting = true;
+  Util::Config::is_active = false;
+}
+
 int main(int argc, char * argv[]) {
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
@@ -21,7 +27,19 @@ int main(int argc, char * argv[]) {
     }
     conf.activate();
     if (mistOut::listenMode()){
+      {
+        struct sigaction new_action;
+        new_action.sa_sigaction = handleUSR1;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGUSR1, &new_action, NULL);
+      }
       mistOut::listener(conf, spawnForked);
+      if (conf.is_restarting && Socket::checkTrueSocket(0)){
+        INFO_MSG("Reloading input while re-using server socket");
+        execvp(argv[0], argv);
+        FAIL_MSG("Error reloading: %s", strerror(errno));
+      }
     }else{
       Socket::Connection S(fileno(stdout),fileno(stdin) );
       mistOut tmp(S);

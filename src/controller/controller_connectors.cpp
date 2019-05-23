@@ -24,11 +24,17 @@ namespace Controller {
   static std::map<std::string, pid_t> currentConnectors; ///<The currently running connectors.
 
   /// Updates the shared memory page with active connectors
-  void saveActiveConnectors(){
-    IPC::sharedPage f("MstCnns", 4096, true, false);
+  void saveActiveConnectors(bool forceOverride){
+    IPC::sharedPage f("MstCnns", 4096, forceOverride, false);
     if (!f.mapped){
-      FAIL_MSG("Could not store connector data!");
-      return;
+      if (!forceOverride){
+        saveActiveConnectors(true);
+        return;
+      }
+      if (!f.mapped){
+        FAIL_MSG("Could not store connector data!");
+        return;
+      }
     }
     memset(f.mapped, 0, 32);
     Util::RelAccX A(f.mapped, false);

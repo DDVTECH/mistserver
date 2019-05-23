@@ -202,7 +202,7 @@ namespace Controller{
       Util::wait(1000); // wait at least a second
     }
     //keep the pushPage if we are restarting, so we can restore state from it
-    if (Controller::restarting){
+    if (Util::Config::is_restarting){
       pushPage.master = false;
       //forget about all pushes, so they keep running
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){

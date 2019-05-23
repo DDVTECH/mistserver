@@ -433,7 +433,7 @@ void Controller::SharedMemStats(void * config){
   }
   statPointer = 0;
   HIGH_MSG("Stopping stats thread");
-  if (Controller::restarting){
+  if (Util::Config::is_restarting){
     statServer.abandon();
     shmSessions->master = false;
   }else{/*LTS-START*/
@@ -443,7 +443,7 @@ void Controller::SharedMemStats(void * config){
     }
     /*LTS-END*/
   }
-  Controller::deinitState(Controller::restarting);
+  Controller::deinitState(Util::Config::is_restarting);
   delete shmSessions;
   shmSessions = 0;
   delete cacheLock;

@@ -86,7 +86,7 @@ void statusMonitor(void *np){
     }
     Util::sleep(3000); // wait at least 3 seconds
   }
-  if (Controller::restarting){
+  if (Util::Config::is_restarting){
     Controller::prepareActiveConnectorsForReload();
   }else{
     Controller::prepareActiveConnectorsForShutdown();
@@ -457,7 +457,7 @@ int main_loop(int argc, char **argv){
     }else{
       shutdown_reason = "socket problem (API port closed)";
     }
-    if (Controller::restarting){shutdown_reason = "restart (on request)";}
+    if (Util::Config::is_restarting){shutdown_reason = "restart (on request)";}
 /*LTS-START*/
 #ifdef LICENSING
     if (!Controller::isLicensed()){shutdown_reason = "no valid license";}
@@ -465,7 +465,7 @@ int main_loop(int argc, char **argv){
     if (Triggers::shouldTrigger("SYSTEM_STOP")){
       if (!Triggers::doTrigger("SYSTEM_STOP", shutdown_reason)){
         Controller::conf.is_active = true;
-        Controller::restarting = false;
+        Util::Config::is_restarting = false;
         Util::sleep(1000);
       }else{
         Controller::conf.is_active = false;
@@ -513,7 +513,7 @@ int main_loop(int argc, char **argv){
               << " seconds, on license server request..." << std::endl;
     while (Controller::exitDelay--){Util::wait(1000);}
   }
-  if (Controller::restarting){return 42;}
+  if (Util::Config::is_restarting){return 42;}
   // close stderr to make the stderr reading thread exit
   close(STDERR_FILENO);
   return 0;
@@ -521,7 +521,7 @@ int main_loop(int argc, char **argv){
 
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   Controller::Log("CONF", "USR1 received - restarting controller");
-  Controller::restarting = true;
+  Util::Config::is_restarting = true;
   raise(SIGINT); // trigger restart
 }
 
@@ -561,9 +561,9 @@ int main(int argc, char **argv){
     // wait for the process to exit
     int status;
     while (waitpid(pid, &status, 0) != pid && errno == EINTR){
-      if (Controller::restarting){
+      if (Util::Config::is_restarting){
         Controller::conf.is_active = true;
-        Controller::restarting = false;
+        Util::Config::is_restarting = false;
         kill(pid, SIGUSR1);
       }
       if (!Controller::conf.is_active){

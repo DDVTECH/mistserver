@@ -41,6 +41,7 @@ namespace Socket{
   bool isLocal(const std::string & host);
   /// Returns true if given human-readable hostname is a local address.
   bool isLocalhost(const std::string & host);
+  bool checkTrueSocket(int sock);
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{
@@ -165,7 +166,8 @@ namespace Socket{
     bool IPv4bind(int port, std::string hostname, bool nonblock); ///< Attempt to bind an IPv4 socket
   public:
     Server();                                                                  ///< Create a new base Server.
-    Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
+    Server(int existingSock);                                                  ///< Create a new Server from existing socket.
+    Server(int port, std::string hostname, bool nonblock = false);             ///< Create a new TCP Server.
     Server(std::string adres, bool nonblock = false);                          ///< Create a new Unix Server.
     Connection accept(bool nonblock = false);                                  ///< Accept any waiting connections.
     void setBlocking(bool blocking);                                           ///< Set this socket to be blocking (true) or nonblocking (false).

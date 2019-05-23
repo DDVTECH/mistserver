@@ -2559,17 +2559,30 @@ var UI = {
                 UI.showTab("Overview");
                 return;
               }
-              
               var perc = "";
               if ("progress" in d.update) {
                 perc = " ("+d.update.progress+"%)";
               }
               $versioncheck.text("Updating.."+perc);
+              add_logs(d.log);
               setTimeout(function(){
                 mist.send(function(d){
                   update_progress(d);
                 },{update:true});
-              },5e3);
+              },1e3);
+            }
+            function add_logs(log) {
+              var msgs = log.filter(function(a){return a[1] == "UPDR"});
+              if (msgs.length) {
+                var $cont = $("<div>");
+                $versioncheck.append($cont);
+                for (var i in msgs) {
+                  $cont.append(
+                    $("<div>").text(msgs[i][2])
+                  );
+                  
+                }
+              }
             }
             
             if ((!d.update) || (!('uptodate' in d.update))) {
@@ -2596,18 +2609,31 @@ var UI = {
               update_progress(d);
             }
             else {
-              $versioncheck.addClass('red').text('Version outdated!').append(
-                $('<button>').text('Update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
-                  if (confirm('Are you sure you want to execute a rolling update?')) {
-                    $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
-                    
-                    mist.send(function(d){
-                      update_progress(d);
-                    },{autoupdate: true});
-                  }
-                })
+              $versioncheck.text("");
+              $versioncheck.append(
+                $("<span>").addClass('red').text('On '+new Date(d.update.date).toLocaleDateString()+' version '+d.update.version+' became available.')
+              );
+              if (!d.update.url || (d.update.url.slice(-4) != ".zip")) {
+                //show update button if not windows version
+                $versioncheck.append(
+                  $('<button>').text('Rolling update').css({'font-size':'1em','margin-left':'1em'}).click(function(){
+                    if (confirm('Are you sure you want to execute a rolling update?')) {
+                      $versioncheck.addClass('orange').removeClass('red').text('Rolling update command sent..');
+                      
+                      mist.send(function(d){
+                        update_progress(d);
+                      },{autoupdate: true});
+                    }
+                  })
+                );
+              }
+              var a = $("<a>").attr("href",d.update.url).attr("target","_blank").text("Manual download");
+              a[0].protocol = "https:";
+              $versioncheck.append(
+                $("<div>").append(a)
               );
             }
+            add_logs(d.log);
           }
           
           update_update(mist.data);
@@ -6300,6 +6326,8 @@ var mist = {
       timeout: opts.timeout*1000,
       async: true,
       error: function(jqXHR,textStatus,errorThrown){
+        console.warn("connection failed :(",errorThrown);
+        
         //connection failed
         delete mist.user.loggedin;
         

@@ -82,6 +82,11 @@ namespace Mist {
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 1900;
+
+    capa["optional"]["fallback_stream"]["name"] = "Fallback stream";
+    capa["optional"]["fallback_stream"]["help"] = "Alternative stream to load for playback when there is no active broadcast";
+    capa["optional"]["fallback_stream"]["type"] = "str";
+    capa["optional"]["fallback_stream"]["default"] = "";
     option.null();
     /*LTS-end*/
 

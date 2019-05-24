@@ -372,6 +372,19 @@ namespace Mist{
       }
     }else{
       if (!Util::startInput(streamName, "", true, isPushing())){
+        //If stream is configured, use fallback stream setting, if set.
+        JSON::Value strCnf = Util::getStreamConfig(streamName);
+        if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
+          streamName = strCnf["fallback_stream"].asStringRef();
+          Util::Config::streamName = streamName;
+          INFO_MSG("Switching to configured fallback stream '%s'", streamName.c_str());
+          reconnect();
+          return;
+        }
+
+        //Not configured or no fallback stream? Use the default stream handler instead
+        //Note: Since fallback stream is handled recursively, the defaultStream handler
+        //may still be triggered for the fallback stream! This is intentional.
         JSON::Value defStrmJson = Util::getGlobalConfig("defaultStream");
         std::string defStrm = defStrmJson.asString();
         if(Triggers::shouldTrigger("DEFAULT_STREAM", streamName)){

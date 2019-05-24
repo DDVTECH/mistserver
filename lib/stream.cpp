@@ -363,6 +363,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   // check required parameters
   if (input.isMember("required")){
     jsonForEachConst(input["required"], prm){
+      if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
       if (overrides.count(opt)){
@@ -379,6 +380,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   // check optional parameters
   if (input.isMember("optional")){
     jsonForEachConst(input["optional"], prm){
+      if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
       if (overrides.count(opt)){

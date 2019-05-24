@@ -433,7 +433,8 @@ namespace Mist {
       H.Clean(); //clean for any possible next requests
       return;
     }else if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u") {
-      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
+      size_t slashPos = H.getUrl().find('/', 5);
+      std::string tmpStr = H.getUrl().substr(slashPos);
       long long unsigned int from;
       if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4) {
         if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3) {

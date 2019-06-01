@@ -124,6 +124,7 @@ namespace Controller {
     }
     //non-VoD stream
     if (URL.substr(0, 1) != "/"){return;}
+    Util::streamVariables(URL, name, "");
     //VoD-style stream
     struct stat fileinfo;
       if (stat(URL.c_str(), &fileinfo) != 0){

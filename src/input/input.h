@@ -34,7 +34,7 @@ namespace Mist {
       virtual bool readHeader() = 0;
       virtual bool needHeader(){return !readExistingHeader();}
       virtual bool preRun(){return true;}
-      virtual bool isSingular(){return true;}
+      virtual bool isSingular(){return !config->getBool("realtime");}
       virtual bool readExistingHeader();
       virtual bool atKeyFrame();
       virtual void getNext(bool smart = true) {}
@@ -73,8 +73,7 @@ namespace Mist {
       JSON::Value capa;
       
       std::map<int,std::set<int> > keyTimes;
-      uint64_t timeOffset;
-      std::map<int, uint64_t> originalFirstms;
+      int64_t timeOffset;
 
       //Create server for user pages
       IPC::sharedServer userPage;

@@ -86,6 +86,8 @@ namespace DTSC {
       Scan getMember(const std::string & indice) const;
       Scan getMember(const char * indice) const;
       Scan getMember(const char * indice, size_t ind_len) const;
+      void nullMember(const std::string & indice);
+      void nullMember(const char * indice, size_t ind_len);
       Scan getIndice(size_t num) const;
       std::string getIndiceName(size_t num) const;
       size_t getSize() const;
@@ -132,6 +134,7 @@ namespace DTSC {
       void setKeyFrame(bool kf);
       virtual uint64_t getTime() const;
       void setTime(uint64_t _time);
+      void nullMember(const std::string & memb);
       size_t getTrackId() const;
       char * getData() const;
       size_t getDataLen() const;
@@ -141,6 +144,7 @@ namespace DTSC {
       JSON::Value toJSON() const;
       std::string toSummary() const;
       Scan getScan() const;
+      Scan getScan();
     protected:
       bool master;
       packType version;
@@ -366,6 +370,7 @@ namespace DTSC {
       Meta();
       Meta(const DTSC::Packet & source);
       Meta(JSON::Value & meta);
+      bool nextIsKey;
 
       inline operator bool() const { //returns if the object contains valid meta data BY LOOKING AT vod/live FLAGS
         return vod || live;

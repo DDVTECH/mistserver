@@ -247,7 +247,7 @@ namespace Mist {
       return 0;
     }
 
-    INFO_MSG("Booting input for stream %s", streamName.c_str());
+    INFO_MSG("Input booting");
 
     if (!checkArguments()) {
       FAIL_MSG("Setup failed - exiting");
@@ -410,7 +410,7 @@ namespace Mist {
         return 0;
       }else{
         timer = Util::bootMS() - timer;
-        DEBUG_MSG(DLVL_DEVEL, "Read header for '%s' in %llums", streamName.c_str(), timer);
+        DEBUG_MSG(DLVL_DEVEL, "Read header for '%s' in %" PRIu64 "ms", streamName.c_str(), timer);
       }
     }
     if (myMeta.vod){
@@ -586,7 +586,7 @@ namespace Mist {
   /// - call getNext() in a loop, buffering packets
   void Input::stream(){
    
-    if (Util::streamAlive(streamName)){
+    if (!config->getBool("realtime") && Util::streamAlive(streamName)){
       WARN_MSG("Stream already online, cancelling");
       return;
     }
@@ -596,16 +596,13 @@ namespace Mist {
     if(isSingular()){
       overrides["singular"] = "";
     }
-    if (config->getBool("realtime")){
+    if (config->getBool("realtime") || (capa.isMember("hardcoded") && capa["hardcoded"].isMember("resume") && capa["hardcoded"]["resume"])){
       overrides["resume"] = "1";
     }
     if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
       WARN_MSG("Could not start buffer, cancelling");
       return;
     }
-
-   
-    INFO_MSG("Input for stream %s started", streamName.c_str());
 
     if (!openStreamSource()){
       FAIL_MSG("Unable to connect to source");
@@ -628,6 +625,7 @@ namespace Mist {
 
 
     timeOffset = 0;
+    uint64_t minFirstMs = 0;
 
     //If resume mode is on, find matching tracks and set timeOffset values to make sure we append to the tracks.
     if (config->getBool("realtime")){
@@ -655,24 +653,39 @@ namespace Mist {
         liveSem = 0;
       }
       DTSC::Meta tmpM(tmpMeta);
-      unsigned int minKeepAway = 0;
+      minFirstMs = 0xFFFFFFFFFFFFFFFFull;
+      uint64_t maxFirstMs = 0;
+      uint64_t minLastMs = 0xFFFFFFFFFFFFFFFFull;
+      uint64_t maxLastMs = 0;
+      
+      //track lowest firstms value
       for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
-        for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin(); secondIt != tmpM.tracks.end(); ++secondIt){
-          if (it->second.codec == secondIt->second.codec && it->second.init == secondIt->second.init){
-            timeOffset = std::max(timeOffset, (uint64_t)secondIt->second.lastms);
-            minKeepAway = std::max(minKeepAway, secondIt->second.minKeepAway);
-          }
-        }
+        if (it->second.firstms < minFirstMs){minFirstMs = it->second.firstms;}
+        if (it->second.firstms > maxFirstMs){maxFirstMs = it->second.firstms;}
+        if (it->second.lastms < minLastMs){minLastMs = it->second.lastms;}
+        if (it->second.lastms > maxLastMs){maxLastMs = it->second.lastms;}
+      }
+      if (maxFirstMs - minFirstMs > 500){
+        WARN_MSG("Begin timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxFirstMs-minFirstMs, minFirstMs, maxFirstMs);
+      }
+      if (maxLastMs - minLastMs > 500){
+        WARN_MSG("Stop timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxLastMs-minLastMs, minLastMs, maxLastMs);
+      }
+      //find highest current time
+      for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin(); secondIt != tmpM.tracks.end(); ++secondIt){
+        timeOffset = std::max(timeOffset, (int64_t)secondIt->second.lastms);
       }
       
       if (timeOffset){
-        timeOffset += 1000;//Add an artificial second to make sure we append and not overwrite
+        if (minFirstMs == 0xFFFFFFFFFFFFFFFFull){minFirstMs = 0;}
+        MEDIUM_MSG("Offset is %" PRId64 ", adding 1s and subtracting the start time of %" PRIu64, timeOffset, minFirstMs);
+        timeOffset += 1000;//Add an artificial frame at 25 FPS to make sure we append, not overwrite
+        timeOffset -= minFirstMs;//we don't need to add the lowest firstms value to the offset, as it's already there
       }
     }
 
     for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      originalFirstms[it->first] = it->second.firstms;
-      it->second.firstms = timeOffset;
+      it->second.firstms += timeOffset;
       it->second.lastms = 0;
       selectedTracks.insert(it->first);
       it->second.minKeepAway = SIMULATED_LIVE_BUFFER;
@@ -680,9 +693,7 @@ namespace Mist {
     nProxy.pagesByTrack.clear();
 
     simStartTime = config->getInteger("simulated-starttime");
-    if (!simStartTime){
-      simStartTime = Util::bootMS();
-    }
+    if (!simStartTime){simStartTime = Util::bootMS();}
 
 
     std::string reason;
@@ -716,31 +727,26 @@ namespace Mist {
   std::string Input::realtimeMainLoop(){
     getNext();
     while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
-      while (config->is_active&& nProxy.userClient.isAlive() && Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]) + simStartTime){
-        Util::sleep(std::min(((thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER), (uint64_t)1000));
+      thisPacket.nullMember("bpos");
+      while (config->is_active&& nProxy.userClient.isAlive() && Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset) + simStartTime){
+        Util::sleep(std::min(((thisPacket.getTime() + timeOffset) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER), (uint64_t)1000));
         nProxy.userClient.keepAlive();
       }
       uint64_t originalTime = thisPacket.getTime();
-      if (originalTime >= originalFirstms[thisPacket.getTrackId()]){
-        if (timeOffset || originalFirstms[thisPacket.getTrackId()]){
-          thisPacket.setTime(thisPacket.getTime() + timeOffset - originalFirstms[thisPacket.getTrackId()]);
-        }
-        nProxy.bufferLivePacket(thisPacket, myMeta);
-        if (timeOffset){
-          thisPacket.setTime(originalTime);
-        }
-      }
+      thisPacket.setTime(originalTime + timeOffset);
+      nProxy.bufferLivePacket(thisPacket, myMeta);
+      thisPacket.setTime(originalTime);
       getNext();
       nProxy.userClient.keepAlive();
     }
-    if (!thisPacket){return "Invalid packet";}
+    if (!thisPacket){return "end of file";}
     if (!config->is_active){return "received deactivate signal";}
     if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
     return "Unknown";
   }
 
   void Input::finish() {
-    if (!standAlone){
+    if (!standAlone || config->getBool("realtime")){
       return;
     }
     for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin(); it != pageCounter.end(); it++) {
@@ -914,7 +920,7 @@ namespace Mist {
     VERYHIGH_MSG("Buffering stream %s, track %u, key %u", streamName.c_str(), track, keyNum);
     if (keyNum > myMeta.tracks[track].keys.size()) {
       //End of movie here, returning true to avoid various error messages
-      WARN_MSG("Key %llu is higher than total (%llu). Cancelling buffering.", keyNum, myMeta.tracks[track].keys.size());
+      WARN_MSG("Key %u is higher than total (%zu). Cancelling buffering.", keyNum, myMeta.tracks[track].keys.size());
       return true;
     }
     if (keyNum < 1) {
@@ -981,7 +987,7 @@ namespace Mist {
       getNext();
       //in case earlier seeking was inprecise, seek to the exact point
       while (thisPacket && thisPacket.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()) {
-        DONTEVEN_MSG("Skipping packet: %d@%llu, %llub", track, thisPacket.getTime(), thisPacket.getDataLen());
+        DONTEVEN_MSG("Skipping packet: %u@%" PRIu64 ", %zub", track, thisPacket.getTime(), thisPacket.getDataLen());
         getNext();
       }
     }
@@ -1001,7 +1007,7 @@ namespace Mist {
     }else{
       while (thisPacket && thisPacket.getTime() < stopTime) {
         if (thisPacket.getTime() >= lastBuffered){
-          DONTEVEN_MSG("Buffering packet: %d@%llu, %llub", track, thisPacket.getTime(), thisPacket.getDataLen());
+          DONTEVEN_MSG("Buffering packet: %u@%" PRIu64 ", %zub", track, thisPacket.getTime(), thisPacket.getDataLen());
           bufferNext(thisPacket);
           ++packCounter;
           byteCounter += thisPacket.getDataLen();
@@ -1056,7 +1062,7 @@ namespace Mist {
       return false;
     }
     if (tmpdtsh.getMeta().version != DTSH_VERSION){
-      INFO_MSG("Updating wrong version header file from version %llu to %llu", tmpdtsh.getMeta().version, DTSH_VERSION);
+      INFO_MSG("Updating wrong version header file from version %" PRIu16 " to %d", tmpdtsh.getMeta().version, DTSH_VERSION);
       return false;
     }
     myMeta = tmpdtsh.getMeta();

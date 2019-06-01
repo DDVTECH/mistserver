@@ -12,14 +12,12 @@ namespace Mist {
     capa["name"] = "Playlist";
     capa["desc"] = "Enables Playlist Input";
     capa["source_match"] = "*.pls";
+    capa["always_match"] = "*.pls";
+    capa["variables_match"] = "*.pls";
     capa["priority"] = 9;
-
     capa["hardcoded"]["resume"] = 1;
-    capa["hardcoded"]["always_on"] = 1;
-
 
     playlistIndex = 0xFFFFFFFEull;//Not FFFFFFFF on purpose!
-    seenValidEntry = true;
   }
 
   bool inputPlaylist::checkArguments(){
@@ -41,54 +39,35 @@ namespace Mist {
     return true;
   }
 
-  void inputPlaylist::stream(){
-    IPC::semaphore playlistLock;
-    playlistLock.open(std::string("/MstPlaylist_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!playlistLock){
-      FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
-      return;
-    }
-    if (!playlistLock.tryWait()){
-      WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
-      playlistLock.close();
-      return;
-    }
-
-    std::map<std::string, std::string> overrides;
-    overrides["resume"] = "1";
-    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:"+config->getString("input"), true, true, overrides)) {//manually override stream url to start the buffer
-      playlistLock.post();
-      playlistLock.close();
-      playlistLock.unlink();
-      WARN_MSG("Could not start buffer, cancelling");
-      return;
-    }
-
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    nProxy.userClient.countAsViewer = false;
-
+  std::string inputPlaylist::streamMainLoop(){
+    bool seenValidEntry = true;
     uint64_t startTime = Util::bootMS();
-  
     while (config->is_active && nProxy.userClient.isAlive()){
+      struct tm * wTime;
+      time_t nowTime = time(0);
+      wTime = localtime(&nowTime);
+      wallTime = wTime->tm_hour*60+wTime->tm_min;
       nProxy.userClient.keepAlive();
       reloadPlaylist();
       if (!playlist.size()){
-        playlistLock.post();
-        playlistLock.close();
-        playlistLock.unlink();
-        WARN_MSG("No entries in playlist, exiting");
-        break;
+        return "No entries in playlist";
       }
       ++playlistIndex;
       if (playlistIndex >= playlist.size()){
         if (!seenValidEntry){
-          HIGH_MSG("Parsed entire playlist without seeing a valid entry, wait a second for any entry to become available");
+          HIGH_MSG("Parsed entire playlist without seeing a valid entry, waiting for any entry to become available");
           Util::sleep(1000);
         }
         playlistIndex = 0;
         seenValidEntry = false;
+      }
+      if (minIndex != std::string::npos && playlistIndex < minIndex){
+        INFO_MSG("Clipping playlist index from %zu to %zu to stay within playback timing schedule", playlistIndex, minIndex);
+        playlistIndex = minIndex;
+      }
+      if (maxIndex != std::string::npos && playlistIndex > maxIndex){
+        INFO_MSG("Clipping playlist index from %zu to %zu to stay within playback timing schedule", playlistIndex, maxIndex);
+        playlistIndex = maxIndex;
       }
       currentSource = playlist.at(playlistIndex);
 
@@ -107,6 +86,7 @@ namespace Mist {
         srcPath = std::string(workingDir) + "/" + srcPath;
       }
       free(workingDir);
+      Util::streamVariables(srcPath, streamName, "");
 
       struct stat statRes;
       if (stat(srcPath.c_str(), &statRes)){
@@ -118,39 +98,80 @@ namespace Mist {
         continue;
       }
       pid_t spawn_pid = 0;
-      if (!Util::startInput(streamName, srcPath, true, true, overrides, &spawn_pid)) {//manually override stream url to start the correct input
+      //manually override stream url to start the correct input
+      if (!Util::startInput(streamName, srcPath, true, true, overrides, &spawn_pid)){
         FAIL_MSG("Could not start input for source %s", srcPath.c_str());
         continue;
       }
       seenValidEntry = true;
       while (Util::Procs::isRunning(spawn_pid) && nProxy.userClient.isAlive() && config->is_active){
         Util::sleep(1000);
+        if (reloadOn != 0xFFFF){
+          time_t nowTime = time(0);
+          wTime = localtime(&nowTime);
+          wallTime = wTime->tm_hour*60+wTime->tm_min;
+          if (wallTime >= reloadOn){
+            reloadPlaylist();
+          }
+          if ((minIndex != std::string::npos && playlistIndex < minIndex) || (maxIndex != std::string::npos && playlistIndex > maxIndex)){
+            INFO_MSG("Killing current playback to stay within min/max playlist entry for current time of day");
+            Util::Procs::Stop(spawn_pid);
+          }
+        }
         nProxy.userClient.keepAlive();
       }
       if (!config->is_active && Util::Procs::isRunning(spawn_pid)){
         Util::Procs::Stop(spawn_pid);
       }
     }
-    playlistLock.post();
-    playlistLock.close();
-    playlistLock.unlink();
-
-    nProxy.userClient.finish();
+    if (!config->is_active){return "received deactivate signal";}
+    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    return "Unknown";
   }
   
   void inputPlaylist::reloadPlaylist(){
-    std::string playlistFile = config->getString("input");
+    minIndex = std::string::npos;
+    maxIndex = std::string::npos;
+    std::string playlistFile;
+    char * origSource = getenv("MIST_ORIGINAL_SOURCE");
+    if (origSource){
+      playlistFile = origSource;
+    }else{
+      playlistFile = config->getString("input");
+    }
+    MEDIUM_MSG("Reloading playlist '%s'", playlistFile.c_str());
+    Util::streamVariables(playlistFile, streamName, playlistFile);
     std::ifstream inFile(playlistFile.c_str());
     if (!inFile.good()){
-      WARN_MSG("Unable to open playlist, aborting reload!");
+      WARN_MSG("Unable to open playlist '%s', aborting reload!", playlistFile.c_str());
       return;
     }
     std::string line;
+    uint16_t plsStartTime = 0xFFFF;
+    reloadOn = 0xFFFF;
     playlist.clear();
+    playlist_startTime.clear();
     while (inFile.good()){
       std::getline(inFile, line);
       if (inFile.good() && line.size() && line.at(0) != '#'){
         playlist.push_back(line);
+        playlist_startTime.push_back(plsStartTime);
+        if (plsStartTime != 0xFFFF){
+          //If the newest entry has a time under the current time, we know we should never play earlier than this
+          if (plsStartTime <= wallTime){minIndex = playlist.size() - 1;}
+          //If the newest entry has a time above the current time, we know we should never play it
+          if (plsStartTime > wallTime && maxIndex == std::string::npos){
+            maxIndex = playlist.size() - 2;
+            reloadOn = plsStartTime;
+          }
+          HIGH_MSG("Start %s on %d (min: %zu, max: %zu)", line.c_str(), plsStartTime, minIndex, maxIndex);
+        }
+        plsStartTime = 0xFFFF;
+      }else{
+        if (line.size() > 13 && line.at(0) == '#' && line.substr(0, 13) == "#X-STARTTIME:"){
+          int hour, min;
+          if (sscanf(line.c_str()+13, "%d:%d", &hour, &min) == 2){plsStartTime = hour*60+min;}
+        }
       }
     }
     inFile.close();

@@ -960,6 +960,8 @@ namespace Mist {
     }
     lastUpdated[tNum] = Util::bootSecs();
     while (tmpPack) {
+      //Make sure the first item on a page is always marked as key frame
+      myMeta.nextIsKey = !pageData.curOffset;
       //Update the metadata with this packet
       myMeta.update(tmpPack, segmentSize);/*LTS*/
       //Set the first time when appropriate

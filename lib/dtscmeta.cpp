@@ -485,6 +485,14 @@ namespace DTSC {
     Bit::htobll(data + 12, _time);
   }
 
+  void Packet::nullMember(const std::string & memb){
+    if (!master){
+      INFO_MSG("Can't null '%s' for this packet, as it is not master.", memb.c_str());
+      return;
+    }
+    getScan().nullMember(memb);
+  }
+
   ///\brief Returns the track id of the packet.
   ///\return The track id of this packet.
   size_t Packet::getTrackId() const {
@@ -519,6 +527,15 @@ namespace DTSC {
   /// Returns a DTSC::Scan instance to the contents of this packet.
   /// May return an invalid instance if this packet is invalid.
   Scan Packet::getScan() const {
+    if (!*this || !getDataLen() || !getPayloadLen() || getDataLen() <= getPayloadLen()){
+      return Scan();
+    }
+    return Scan(data + (getDataLen() - getPayloadLen()), getPayloadLen());
+  }
+
+  /// Returns a DTSC::Scan instance to the contents of this packet.
+  /// May return an invalid instance if this packet is invalid.
+  Scan Packet::getScan(){
     if (!*this || !getDataLen() || !getPayloadLen() || getDataLen() <= getPayloadLen()){
       return Scan();
     }
@@ -598,6 +615,32 @@ namespace DTSC {
       }
     }
     return Scan();
+  }
+
+  /// If this is an object type and contains the given indice/len, sets the indice name to all zeroes.
+  void Scan::nullMember(const std::string & indice){
+    nullMember(indice.data(), indice.size());
+  }
+
+  /// If this is an object type and contains the given indice/len, sets the indice name to all zeroes.
+  void Scan::nullMember(const char * indice, const size_t ind_len){
+    if (getType() != DTSC_OBJ && getType() != DTSC_CON){return;}
+    char * i = p + 1;
+    //object, scan contents
+    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+      if (i + 2 >= p + len) {
+        return;//out of packet!
+      }
+      uint16_t strlen = Bit::btohs(i);
+      i += 2;
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
+        memset(i, 0, strlen);
+        return;
+      }
+      i = skipDTSC(i + strlen, p + len);
+      if (!i) {return;}
+    }
+    return;
   }
 
   /// Returns an object representing the named indice of this object.
@@ -1476,6 +1519,7 @@ namespace DTSC {
 
   ///\brief Creates an empty meta object
   Meta::Meta() {
+    nextIsKey = false;
     vod = false;
     live = false;
     version = DTSH_VERSION;
@@ -1582,6 +1626,10 @@ namespace DTSC {
   }
 
   void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * ivec){
+    if (nextIsKey){
+      isKeyframe = true;
+      nextIsKey = false;
+    }
     DONTEVEN_MSG("Updating meta with: t=%lld, o=%lld, s=%lld, t=%lld, p=%lld", packTime, packOffset, packDataSize, packTrack, packBytePos);
     if (!packSendSize){
       //time and trackID are part of the 20-byte header.

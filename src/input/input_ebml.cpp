@@ -84,12 +84,9 @@ namespace Mist{
   }
 
   bool InputEBML::needsLock() {
-    //Standard input requires no lock, everything else does.
-    if (config->getString("input") != "-"){
-      return true;
-    }else{
-      return false;
-    }
+    //Standard input requires no lock, otherwise default behaviour.
+    if (config->getString("input") == "-"){return false;}
+    return Input::needsLock();
   }
 
   bool InputEBML::preRun(){

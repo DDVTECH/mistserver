@@ -354,6 +354,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     filename = stream_cfg["source"].asStringRef();
   }
 
+  bool hadOriginal = getenv("MIST_ORIGINAL_SOURCE");
+  if (!hadOriginal){setenv("MIST_ORIGINAL_SOURCE", filename.c_str(), 1);}
   streamVariables(filename, streamname);
   const JSON::Value input = getInputBySource(filename, isProvider);
   if (!input){return false;}
@@ -366,13 +368,15 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
       if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
-      if (overrides.count(opt)){
-        str_args[opt] = overrides.at(opt);
+      if (overrides.count(prm.key())){
+        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
+        str_args[opt] = overrides.at(prm.key());
       }else{
         if (!stream_cfg.isMember(prm.key())){
           FAIL_MSG("Required parameter %s for stream %s missing", prm.key().c_str(), streamname.c_str());
           return false;
         }
+        HIGH_MSG("Setting option '%s' to '%s'", opt.c_str(), stream_cfg[prm.key()].asStringRef().c_str());
         str_args[opt] = stream_cfg[opt].asStringRef();
       }
     }
@@ -383,10 +387,14 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
       if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
-      if (overrides.count(opt)){
-        str_args[opt] = overrides.at(opt);
+      if (overrides.count(prm.key())){
+        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
+        str_args[opt] = overrides.at(prm.key());
       }else{
-        if (stream_cfg.isMember(prm.key())){str_args[opt] = stream_cfg[prm.key()].asStringRef();}
+        if (stream_cfg.isMember(prm.key()) && stream_cfg[prm.key()].asStringRef().size()){
+          HIGH_MSG("Setting option '%s' to '%s'", opt.c_str(), stream_cfg[prm.key()].asStringRef().c_str());
+          str_args[opt] = stream_cfg[prm.key()].asStringRef();
+        }
       }
       if (!prm->isMember("type") && str_args.count(opt)){str_args[opt] = "";}
     }
@@ -398,7 +406,6 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
 
   std::string player_bin = Util::getMyPath() + "MistIn" + input["name"].asStringRef();
-  INFO_MSG("Starting %s -s %s %s", player_bin.c_str(), streamname.c_str(), filename.c_str());
   char *argv[30] ={(char *)player_bin.c_str(), (char *)"-s", (char *)streamname.c_str(),
                     (char *)filename.c_str()};
   int argNum = 3;
@@ -422,6 +429,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     pid = fork();
     if (pid == -1){
       FAIL_MSG("Forking process for stream %s failed: %s", streamname.c_str(), strerror(errno));
+      if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
       return false;
     }
     if (pid && overrides.count("singular")){
@@ -438,13 +446,19 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     }
     Socket::Connection io(0, 1);
     io.drop();
-    DONTEVEN_MSG("execvp");
+    std::stringstream args;
+    for (size_t i = 0; i < 30; ++i){
+      if (!argv[i] || !argv[i][0]){break;}
+      args << argv[i] << " ";
+    }
+    INFO_MSG("Starting %s", args.str().c_str());
     execvp(argv[0], argv);
-    FAIL_MSG("Starting process %s for stream %s failed: %s", argv[0], streamname.c_str(), strerror(errno));
+    FAIL_MSG("Starting process %s failed: %s", argv[0], strerror(errno));
     _exit(42);
   }else if (spawn_pid != NULL){
     *spawn_pid = pid;
   }
+  if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
 
   unsigned int waiting = 0;
   while (!streamAlive(streamname) && ++waiting < 240){
@@ -947,7 +961,7 @@ std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value
         if (found){break;}
       }
       if (!found){
-        HIGH_MSG("Track %zu with codec %s not supported!", *it, codec.c_str());
+        HIGH_MSG("Track %u with codec %s not supported!", it->first, codec.c_str());
         continue;
       }
     }

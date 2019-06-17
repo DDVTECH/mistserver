@@ -1013,6 +1013,7 @@ int Socket::SSLConnection::iread(void *buffer, int len, int flags){
   }
   if (r < 0){
     switch (errno){
+    case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY: close(); return 0; break;
     case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
     case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
     case EWOULDBLOCK: return 0; break;

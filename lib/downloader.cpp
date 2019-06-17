@@ -198,8 +198,11 @@ namespace HTTP{
                  retryCount - loop + 1, retryCount);
         getSocket().close();
       }else{
-        FAIL_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
-                 retryCount - loop + 1, retryCount);
+        if (retryCount - loop + 1 > 2){
+          INFO_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
+        }else{
+          MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
+        }
       }
       Util::sleep(500); // wait a bit before retrying
     }

@@ -11,15 +11,19 @@ namespace HTTP{
 
   Websocket::Websocket(Socket::Connection &c, HTTP::Parser &h) : C(c), H(h){
     frameType = 0;
-    if (H.GetHeader("Connection").find("Upgrade") == std::string::npos){
+    std::string connHeader = H.GetHeader("Connection");
+    Util::stringToLower(connHeader);
+    if (connHeader.find("upgrade") == std::string::npos){
       FAIL_MSG("Could not negotiate websocket, connection header incorrect (%s).",
-               H.GetHeader("Connection").c_str());
+               connHeader.c_str());
       C.close();
       return;
     }
-    if (H.GetHeader("Upgrade") != "websocket"){
+    std::string upgradeHeader = H.GetHeader("Upgrade");
+    Util::stringToLower(upgradeHeader);
+    if (upgradeHeader != "websocket"){
       FAIL_MSG("Could not negotiate websocket, upgrade header incorrect (%s).",
-               H.GetHeader("Upgrade").c_str());
+               upgradeHeader.c_str());
       C.close();
       return;
     }

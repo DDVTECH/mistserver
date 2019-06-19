@@ -210,6 +210,8 @@ namespace Mist {
         myConn.close();
         return;
       }
+    std::string connHeader = H.GetHeader("Connection");
+    Util::stringToLower(connHeader);
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(), streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         streamName = H.GetVar("stream");
@@ -265,7 +267,9 @@ namespace Mist {
         }
       }
       //Handle upgrade to websocket if the output supports it
-      if (doesWebsockets() && H.GetHeader("Upgrade") == "websocket"){
+      std::string upgradeHeader = H.GetHeader("Upgrade");
+      Util::stringToLower(upgradeHeader);
+      if (doesWebsockets() && upgradeHeader == "websocket"){
         INFO_MSG("Switching to Websocket mode");
         setBlocking(false);
         preWebsocketConnect();

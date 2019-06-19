@@ -857,7 +857,9 @@ namespace Mist {
     if (!useragent.size()){
       useragent = H.GetHeader("User-Agent");
     }
-    if (H.GetHeader("Upgrade") != "websocket"){return false;}
+    std::string upgradeHeader = H.GetHeader("Upgrade");
+    Util::stringToLower(upgradeHeader);
+    if (upgradeHeader != "websocket"){return false;}
     HTTP::Websocket ws(myConn, H);
     if (!ws){return false;}
     setBlocking(false);

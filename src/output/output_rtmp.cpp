@@ -15,29 +15,25 @@ namespace Mist{
     rtmpOffset = 0;
     bootMsOffset = 0;
     maxbps = config->getInteger("maxkbps")*128;
-    if (config->getString("target").size() && config->getString("target").substr(0, 7) == "rtmp://"){
+    if (config->getString("target").size()){
       streamName = config->getString("streamname");
-      std::string pushStr= config->getString("target");
-      pushStr = pushStr.substr(7);
-      std::string host, app = "default";
+      HTTP::URL pushUrl(config->getString("target"));
+#ifdef SSL
+      if (pushUrl.protocol != "rtmp" && pushUrl.protocol != "rtmps"){
+        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
+        return;
+      }
+#else
+      if (pushUrl.protocol != "rtmp"){
+        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
+        return;
+      }
+#endif
+      std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
+      if (pushUrl.args.size()){app += "?" + pushUrl.args;}
       streamOut = streamName;
-      int port = 1935;
 
-      size_t slash = pushStr.find('/');
-      if (slash != std::string::npos){
-        app = pushStr.substr(slash+1, std::string::npos);
-        host = pushStr.substr(0, slash);
-      }else{
-        host = pushStr;
-      }
-
-      size_t colon = host.find(':');
-      if (colon != std::string::npos && colon != 0 && colon != host.size()){
-        port = atoi(host.substr(colon + 1, std::string::npos).c_str());
-        host = host.substr(0, colon);
-      }
-
-      slash = app.find('/');
+      size_t slash = app.find('/');
       if (slash != std::string::npos){
         streamOut = app.substr(slash+1, std::string::npos);
         app = app.substr(0, slash);
@@ -46,10 +42,13 @@ namespace Mist{
         }
       }
       initialize();
-      INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), host.c_str(), port, app.c_str(), streamOut.c_str());
-      myConn = Socket::Connection(host, port, false);
+      INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+      if (pushUrl.protocol == "rtmp"){myConn = Socket::Connection(pushUrl.host, pushUrl.getPort(), false);}
+#ifdef SSL
+      if (pushUrl.protocol == "rtmps"){myConn = Socket::Connection(pushUrl.host, pushUrl.getPort(), false, true);}
+#endif
       if (!myConn){
-        FAIL_MSG("Could not connect to %s:%d!", host.c_str(), port);
+        FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
         return;
       }
       //do handshake
@@ -85,10 +84,10 @@ namespace Mist{
         amfReply.getContentP(2)->addContent(AMF::Object("app", app));
         amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
         amfReply.getContentP(2)->addContent(AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
-        if (port != 1935){
-          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + ":" + JSON::Value(port).asString() + "/" + app));
+        if (pushUrl.getPort() != 1935){
+          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/" + app));
         }else{
-          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + host + "/" + app));
+          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + pushUrl.host + "/" + app));
         }
         sendCommand(amfReply, 20, 0);
       }
@@ -217,12 +216,13 @@ namespace Mist{
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
     capa["push_urls"].append("rtmp://*");
+    capa["push_urls"].append("rtmps://*");
     
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
     opt["arg_num"] = 1;
-    opt["help"] = "Target rtmp:// URL to push out towards.";
+    opt["help"] = "Target RTMP URL to push out towards.";
     cfg->addOption("target", opt);
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":\"stream\",\"help\":\"The name of the stream to push out, when pushing out.\"}"));
   }
@@ -1027,6 +1027,11 @@ namespace Mist{
         HIGH_MSG("Publish starting");
         realTime = 0;
         parseData = true;
+        return;
+      }
+      if (amfData.getContentP(0)->StrValue() == "onStatus" && amfData.getContentP(3)->getContentP("level")->StrValue() == "error"){
+          WARN_MSG("Received error response: %s; %s", amfData.getContentP(3)->getContentP("code")->StrValue().c_str(), amfData.getContentP(3)->getContentP("description")->StrValue().c_str());
+          return;
       }
 
       //Other results are ignored. We don't really care.

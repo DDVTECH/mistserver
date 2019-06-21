@@ -405,22 +405,17 @@ void Socket::Connection::setBoundAddr(){
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a
 /// Socket::Connection. \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
+  clear();
   sSend = sockNo;
-  sRecv = -1;
   isTrueSocket = Socket::checkTrueSocket(sSend);
   setBoundAddr();
-  up = 0;
-  down = 0;
-  conntime = Util::epoch();
-  Error = false;
-  Blocking = false;
-  skipCount = 0;
 }// Socket::Connection basic constructor
 
 /// Simulate a socket using two file descriptors.
 /// \param write The filedescriptor to write to.
 /// \param read The filedescriptor to read from.
 Socket::Connection::Connection(int write, int read){
+  clear();
   sSend = write;
   if (write != read){
     sRecv = read;
@@ -429,17 +424,9 @@ Socket::Connection::Connection(int write, int read){
   }
   isTrueSocket = Socket::checkTrueSocket(sSend);
   setBoundAddr();
-  up = 0;
-  down = 0;
-  conntime = Util::epoch();
-  Error = false;
-  Blocking = false;
-  skipCount = 0;
 }// Socket::Connection basic constructor
 
-/// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
-/// A socket created like this is always disconnected and should/could be overwritten at some point.
-Socket::Connection::Connection(){
+void Socket::Connection::clear(){
   sSend = -1;
   sRecv = -1;
   isTrueSocket = false;
@@ -449,6 +436,20 @@ Socket::Connection::Connection(){
   Error = false;
   Blocking = false;
   skipCount = 0;
+#ifdef SSL
+  sslConnected = false;
+  server_fd = 0;
+  ssl = 0;
+  conf = 0;
+  ctr_drbg = 0;
+  entropy = 0;
+#endif
+}
+
+/// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
+/// A socket created like this is always disconnected and should/could be overwritten at some point.
+Socket::Connection::Connection(){
+  clear();
 }// Socket::Connection basic constructor
 
 void Socket::Connection::resetCounter(){
@@ -483,12 +484,28 @@ bool isFDBlocking(int FD){
 
 /// Set this socket to be blocking (true) or nonblocking (false).
 void Socket::Connection::setBlocking(bool blocking){
+#ifdef SSL
+  if (sslConnected){
+    if (blocking == Blocking){return;}
+    if (blocking){
+      mbedtls_net_set_block(server_fd);
+      Blocking = true;
+    }else{
+      mbedtls_net_set_nonblock(server_fd);
+      Blocking = false;
+    }
+    return;
+  }
+#endif
   if (sSend >= 0){setFDBlocking(sSend, blocking);}
   if (sRecv >= 0 && sSend != sRecv){setFDBlocking(sRecv, blocking);}
 }
 
 /// Set this socket to be blocking (true) or nonblocking (false).
 bool Socket::Connection::isBlocking(){
+#ifdef SSL
+  if (sslConnected){return Blocking;}
+#endif
   if (sSend >= 0){return isFDBlocking(sSend);}
   if (sRecv >= 0){return isFDBlocking(sRecv);}
   return false;
@@ -499,6 +516,38 @@ bool Socket::Connection::isBlocking(){
 /// This function calls shutdown, thus making the socket unusable in all other
 /// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Connection::close(){
+#ifdef SSL
+  if (sslConnected){
+    DONTEVEN_MSG("SSL close");
+    if (server_fd){
+      mbedtls_net_free(server_fd);
+      delete server_fd;
+      server_fd = 0;
+    }
+    if (ssl){
+      mbedtls_ssl_free(ssl);
+      delete ssl;
+      ssl = 0;
+    }
+    if (conf){
+      mbedtls_ssl_config_free(conf);
+      delete conf;
+      conf = 0;
+    }
+    if (ctr_drbg){
+      mbedtls_ctr_drbg_free(ctr_drbg);
+      delete ctr_drbg;
+      ctr_drbg = 0;
+    }
+    if (entropy){
+      mbedtls_entropy_free(entropy);
+      delete entropy;
+      entropy = 0;
+    }
+    sslConnected = false;
+    return;
+  }
+#endif
   if (sSend != -1){shutdown(sSend, SHUT_RDWR);}
   drop();
 }// Socket::Connection::close
@@ -547,8 +596,7 @@ std::string Socket::Connection::getError(){
 /// \param address String containing the location of the Unix socket to connect to.
 /// \param nonblock Whether the socket should be nonblocking. False by default.
 Socket::Connection::Connection(std::string address, bool nonblock){
-  skipCount = 0;
-  sRecv = -1;
+  clear();
   isTrueSocket = true;
   sSend = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sSend < 0){
@@ -556,11 +604,6 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     FAIL_MSG("Could not create socket! Error: %s", remotehost.c_str());
     return;
   }
-  Error = false;
-  Blocking = false;
-  up = 0;
-  down = 0;
-  conntime = Util::epoch();
   sockaddr_un addr;
   addr.sun_family = AF_UNIX;
   strncpy(addr.sun_path, address.c_str(), address.size() + 1);
@@ -578,20 +621,90 @@ Socket::Connection::Connection(std::string address, bool nonblock){
   }
 }// Socket::Connection Unix Constructor
 
+#ifdef SSL
+///Local-only function for debugging SSL sockets
+static void my_debug(void *ctx, int level, const char *file, int line, const char *str){
+  ((void)level);
+  fprintf((FILE *)ctx, "%s:%04d: %s", file, line, str);
+  fflush((FILE *)ctx);
+}
+#endif
+
 /// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
 /// \param host String containing the hostname to connect to.
 /// \param port String containing the port to connect to.
 /// \param nonblock Whether the socket should be nonblocking.
-Socket::Connection::Connection(std::string host, int port, bool nonblock){
-  skipCount = 0;
-  sRecv = -1;
+Socket::Connection::Connection(std::string host, int port, bool nonblock, bool with_ssl){
+  clear();
+  if (with_ssl){
+#ifdef SSL
+    mbedtls_debug_set_threshold(0);
+    server_fd = new mbedtls_net_context;
+    ssl = new mbedtls_ssl_context;
+    conf = new mbedtls_ssl_config;
+    ctr_drbg = new mbedtls_ctr_drbg_context;
+    entropy = new mbedtls_entropy_context;
+    mbedtls_net_init(server_fd);
+    mbedtls_ssl_init(ssl);
+    mbedtls_ssl_config_init(conf);
+    mbedtls_ctr_drbg_init(ctr_drbg);
+    mbedtls_entropy_init(entropy);
+    DONTEVEN_MSG("SSL init");
+    if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char *)"meow",
+                              4) != 0){
+      FAIL_MSG("SSL socket init failed");
+      close();
+      return;
+    }
+    DONTEVEN_MSG("SSL connect");
+    int ret = 0;
+    if ((ret = mbedtls_net_connect(server_fd, host.c_str(), JSON::Value(port).asString().c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
+      FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+      close();
+      return;
+    }
+    if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
+      FAIL_MSG(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
+      close();
+      return;
+    }
+    mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
+    mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, ctr_drbg);
+    mbedtls_ssl_conf_dbg(conf, my_debug, stderr);
+    if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      FAIL_MSG("SSL setup error %d: %s", ret, estr);
+      close();
+      return;
+    }
+    if ((ret = mbedtls_ssl_set_hostname(ssl, host.c_str())) != 0){
+      FAIL_MSG(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+      close();
+      return;
+    }
+    mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
+    while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
+      if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
+        char estr[200];
+        mbedtls_strerror(ret, estr, 200);
+        FAIL_MSG("SSL handshake error %d: %s", ret, estr);
+        close();
+        return;
+      }
+    }
+    sslConnected = true;
+    Blocking = true;
+    if (nonblock){setBlocking(false);}
+    DONTEVEN_MSG("SSL connect success");
+    return;
+#endif
+    FAIL_MSG("Attempted to open SSL socket without SSL support compiled in!");
+    return;
+  }
   isTrueSocket = true;
   struct addrinfo *result, *rp, hints;
-  Error = false;
-  Blocking = false;
-  up = 0;
-  down = 0;
-  conntime = Util::epoch();
   std::stringstream ss;
   ss << port;
 
@@ -638,6 +751,9 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock){
 /// and when the socket is closed manually.
 /// \returns True if socket is connected, false otherwise.
 bool Socket::Connection::connected() const{
+#ifdef SSL
+  if (sslConnected){return true;}
+#endif
   return (sSend >= 0) || (sRecv >= 0);
 }
 
@@ -721,6 +837,38 @@ void Socket::Connection::skipBytes(uint32_t byteCount){
 /// \param len Amount of bytes to write.
 /// \returns The amount of bytes actually written.
 unsigned int Socket::Connection::iwrite(const void *buffer, int len){
+#ifdef SSL
+  if (sslConnected){
+    DONTEVEN_MSG("SSL iwrite");
+    if (!connected() || len < 1){return 0;}
+    int r;
+    r = mbedtls_ssl_write(ssl, (const unsigned char *)buffer, len);
+    if (r < 0){
+      char estr[200];
+      mbedtls_strerror(r, estr, 200);
+      INFO_MSG("Write returns %d: %s", r, estr);
+    }
+    if (r < 0){
+      switch (errno){
+      case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
+      case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
+      case EWOULDBLOCK: return 0; break;
+      default:
+        Error = true;
+        INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
+        close();
+        return 0;
+        break;
+      }
+    }
+    if (r == 0 && (sSend >= 0)){
+      DONTEVEN_MSG("Socket closed by remote");
+      close();
+    }
+    up += r;
+    return r;
+  }
+#endif
   if (!connected() || len < 1){return 0;}
   if (skipCount){
     // We have bytes to skip writing.
@@ -766,6 +914,38 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
 /// \param flags Flags to use in the recv call. Ignored on fake sockets.
 /// \returns The amount of bytes actually read.
 int Socket::Connection::iread(void *buffer, int len, int flags){
+#ifdef SSL
+  if (sslConnected){
+    DONTEVEN_MSG("SSL iread");
+    if (!connected() || len < 1){return 0;}
+    int r;
+    /// \TODO Flags ignored... Bad.
+    r = mbedtls_ssl_read(ssl, (unsigned char *)buffer, len);
+    if (r < 0){
+      switch (errno){
+      case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY: close(); return 0; break;
+      case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
+      case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
+      case EWOULDBLOCK: return 0; break;
+      case EINTR: return 0; break;
+      default:
+        Error = true;
+        char estr[200];
+        mbedtls_strerror(r, estr, 200);
+        INFO_MSG("Read returns %d: %s (%s)", r, estr, strerror(errno));
+        close();
+        return 0;
+        break;
+      }
+    }
+    if (r == 0){
+      DONTEVEN_MSG("Socket closed by remote");
+      close();
+    }
+    down += r;
+    return r;
+  }
+#endif
   if (!connected() || len < 1){return 0;}
   int r;
   if (sRecv != -1 || !isTrueSocket){
@@ -885,207 +1065,6 @@ bool Socket::Connection::isLocal(){
   return Socket::isLocal(remotehost);
 }
 
-#ifdef SSL
-Socket::SSLConnection::SSLConnection() : Socket::Connection::Connection(){
-  isConnected = false;
-  server_fd = 0;
-  ssl = 0;
-  conf = 0;
-  ctr_drbg = 0;
-  entropy = 0;
-}
-
-static void my_debug(void *ctx, int level, const char *file, int line, const char *str){
-  ((void)level);
-  fprintf((FILE *)ctx, "%s:%04d: %s", file, line, str);
-  fflush((FILE *)ctx);
-}
-
-Socket::SSLConnection::SSLConnection(std::string hostname, int port, bool nonblock)
-    : Socket::Connection(){
-  mbedtls_debug_set_threshold(0);
-  isConnected = true;
-  server_fd = new mbedtls_net_context;
-  ssl = new mbedtls_ssl_context;
-  conf = new mbedtls_ssl_config;
-  ctr_drbg = new mbedtls_ctr_drbg_context;
-  entropy = new mbedtls_entropy_context;
-  mbedtls_net_init(server_fd);
-  mbedtls_ssl_init(ssl);
-  mbedtls_ssl_config_init(conf);
-  mbedtls_ctr_drbg_init(ctr_drbg);
-  mbedtls_entropy_init(entropy);
-  DONTEVEN_MSG("SSL init");
-  if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char *)"meow",
-                            4) != 0){
-    FAIL_MSG("SSL socket init failed");
-    close();
-    return;
-  }
-  DONTEVEN_MSG("SSL connect");
-  int ret = 0;
-  if ((ret = mbedtls_net_connect(server_fd, hostname.c_str(), JSON::Value(port).asString().c_str(), MBEDTLS_NET_PROTO_TCP)) != 0){
-    FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
-    close();
-    return;
-  }
-  if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
-                                         MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
-    FAIL_MSG(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
-    close();
-    return;
-  }
-  mbedtls_ssl_conf_authmode(conf, MBEDTLS_SSL_VERIFY_NONE);
-  mbedtls_ssl_conf_rng(conf, mbedtls_ctr_drbg_random, ctr_drbg);
-  mbedtls_ssl_conf_dbg(conf, my_debug, stderr);
-  if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
-    char estr[200];
-    mbedtls_strerror(ret, estr, 200);
-    FAIL_MSG("SSL setup error %d: %s", ret, estr);
-    close();
-    return;
-  }
-  if ((ret = mbedtls_ssl_set_hostname(ssl, hostname.c_str())) != 0){
-    FAIL_MSG(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
-    close();
-    return;
-  }
-  mbedtls_ssl_set_bio(ssl, server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-  while ((ret = mbedtls_ssl_handshake(ssl)) != 0){
-    if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
-      char estr[200];
-      mbedtls_strerror(ret, estr, 200);
-      FAIL_MSG("SSL handshake error %d: %s", ret, estr);
-      close();
-      return;
-    }
-  }
-  Blocking = true;
-  if (nonblock){setBlocking(false);}
-}
-
-void Socket::SSLConnection::close(){
-  DONTEVEN_MSG("SSL close");
-  if (server_fd){
-    mbedtls_net_free(server_fd);
-    delete server_fd;
-    server_fd = 0;
-  }
-  if (ssl){
-    mbedtls_ssl_free(ssl);
-    delete ssl;
-    ssl = 0;
-  }
-  if (conf){
-    mbedtls_ssl_config_free(conf);
-    delete conf;
-    conf = 0;
-  }
-  if (ctr_drbg){
-    mbedtls_ctr_drbg_free(ctr_drbg);
-    delete ctr_drbg;
-    ctr_drbg = 0;
-  }
-  if (entropy){
-    mbedtls_entropy_free(entropy);
-    delete entropy;
-    entropy = 0;
-  }
-  isConnected = false;
-}
-
-/// Incremental read call. This function tries to read len bytes to the buffer from the socket,
-/// returning the amount of bytes it actually read.
-/// \param buffer Location of the buffer to read to.
-/// \param len Amount of bytes to read.
-/// \param flags Flags to use in the recv call. Ignored on fake sockets.
-/// \returns The amount of bytes actually read.
-int Socket::SSLConnection::iread(void *buffer, int len, int flags){
-  DONTEVEN_MSG("SSL iread");
-  if (!connected() || len < 1){return 0;}
-  int r;
-  /// \TODO Flags ignored... Bad.
-  r = mbedtls_ssl_read(ssl, (unsigned char *)buffer, len);
-  if (r < 0){
-    char estr[200];
-    mbedtls_strerror(r, estr, 200);
-    INFO_MSG("Read returns %d: %s", r, estr);
-  }
-  if (r < 0){
-    switch (errno){
-    case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY: close(); return 0; break;
-    case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
-    case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
-    case EWOULDBLOCK: return 0; break;
-    case EINTR: return 0; break;
-    default:
-      Error = true;
-      INSANE_MSG("Could not iread data! Error: %s", strerror(errno));
-      close();
-      return 0;
-      break;
-    }
-  }
-  if (r == 0){
-    DONTEVEN_MSG("Socket closed by remote");
-    close();
-  }
-  down += r;
-  return r;
-}
-
-/// Incremental write call. This function tries to write len bytes to the socket from the buffer,
-/// returning the amount of bytes it actually wrote.
-/// \param buffer Location of the buffer to write from.
-/// \param len Amount of bytes to write.
-/// \returns The amount of bytes actually written.
-unsigned int Socket::SSLConnection::iwrite(const void *buffer, int len){
-  DONTEVEN_MSG("SSL iwrite");
-  if (!connected() || len < 1){return 0;}
-  int r;
-  r = mbedtls_ssl_write(ssl, (const unsigned char *)buffer, len);
-  if (r < 0){
-    char estr[200];
-    mbedtls_strerror(r, estr, 200);
-    INFO_MSG("Write returns %d: %s", r, estr);
-  }
-  if (r < 0){
-    switch (errno){
-    case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
-    case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
-    case EWOULDBLOCK: return 0; break;
-    default:
-      Error = true;
-      INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
-      close();
-      return 0;
-      break;
-    }
-  }
-  if (r == 0 && (sSend >= 0)){
-    DONTEVEN_MSG("Socket closed by remote");
-    close();
-  }
-  up += r;
-  return r;
-}
-
-bool Socket::SSLConnection::connected() const{
-  return isConnected;
-}
-
-void Socket::SSLConnection::setBlocking(bool blocking){
-  if (blocking != Blocking){return;}
-  if (blocking){
-    mbedtls_net_set_block(server_fd);
-    Blocking = true;
-  }else{
-    mbedtls_net_set_nonblock(server_fd);
-    Blocking = false;
-  }
-}
-
-#endif
 
 /// Create a new base Server. The socket is never connected, and a placeholder for later
 /// connections.

@@ -59,16 +59,10 @@ namespace HTTP{
 
   /// Returns a reference to the internal Socket::Connection class instance.
   Socket::Connection &Downloader::getSocket(){
-#ifdef SSL
-    if (ssl){return S_SSL;}
-#endif
     return S;
   }
 
   Downloader::~Downloader(){
-#ifdef SSL
-    if (ssl){S_SSL.close();}
-#endif
     S.close();
   }
 
@@ -87,7 +81,7 @@ namespace HTTP{
         connectedPort = link.getPort();
 #ifdef SSL
         if (needSSL){
-          S_SSL = Socket::SSLConnection(connectedHost, connectedPort, true);
+          S = Socket::Connection(connectedHost, connectedPort, true, true);
         }else{
           S = Socket::Connection(connectedHost, connectedPort, true);
         }

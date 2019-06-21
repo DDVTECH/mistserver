@@ -875,6 +875,23 @@ function MistVideo(streamName,options) {
   
   //listen for changes to the srteam status
   //TODO switch to polling-mode if websockets are not supported
+  
+  function openWithGet() {
+    var url = MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js");
+    MistVideo.log("Requesting stream info from "+url);
+    MistUtil.http.get(url,function(d){
+      if (MistVideo.destroyed) { return; }
+      onStreamInfo(JSON.parse(d));
+    },function(xhr){
+      var msg = "Connection failed: the media server may be offline";
+      MistVideo.showError(msg,{reload:30});
+      if (!MistVideo.info) {
+        MistUtil.event.send("initializeFailed",null,options.target);
+        MistVideo.log("Initialization failed");
+      }
+    });
+  }
+  
   if ("WebSocket" in window) {
     function openSocket() {
       MistVideo.log("Opening stream status stream..");
@@ -899,13 +916,9 @@ function MistVideo(streamName,options) {
           openSocket();
           return;
         }
-        var msg = "Connection failed: the media server may be offline.";
-        MistVideo.showError(msg,{reload:30});
         
-        if (!MistVideo.info) {
-          MistUtil.event.send("initializeFailed",null,options.target);
-          MistVideo.log("Initialization failed");
-        }
+        openWithGet();
+        
       };
       socket.addEventListener("message",function(e){
         var data = JSON.parse(e.data);
@@ -1040,19 +1053,7 @@ function MistVideo(streamName,options) {
     openSocket();
   }
   else {
-    
-    //get info
-    var url = this.urlappend(options.host+"/json_"+encodeURIComponent(this.stream)+".js");
-    this.log("Requesting stream info from "+url);
-    MistUtil.http.get(url,function(d){
-      if (MistVideo.destroyed) { return; }
-      onStreamInfo(JSON.parse(d));
-    },function(xhr){
-      var msg = "Connection failed (failed to load "+url+")";
-      MistVideo.showError(msg,{reload:true});
-      MistUtil.event.send("initializeFailed",null,options.target);
-      MistVideo.log("Initialization failed");
-    });
+    openWithGet();
   }
   
   this.unload = function(){

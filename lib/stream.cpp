@@ -377,17 +377,27 @@ bool Util::checkException(const JSON::Value & ex, const std::string & useragent)
   bool ret = true;
   jsonForEachConst(ex, e){
     if (!e->isArray() || !e->size()){continue;}
-    bool setTo = ((*e)[0u].asStringRef() == "whitelist");
+    bool setTo = false;
+    bool except = false;
+    //whitelist makes the return value true if any value is contained in the UA, blacklist makes it false.
+    //the '_except' variants do so only if none of the values are contained in the UA.
+    if ((*e)[0u].asStringRef() == "whitelist"){setTo = true; except = false;}
+    if ((*e)[0u].asStringRef() == "whitelist_except"){setTo = true; except = true;}
+    if ((*e)[0u].asStringRef() == "blacklist"){setTo = false; except = false;}
+    if ((*e)[0u].asStringRef() == "blacklist_except"){setTo = false; except = true;}
     if (e->size() == 1){
       ret = setTo;
       continue;
     }
     if (!(*e)[1].isArray()){continue;}
+    bool match = false;
     jsonForEachConst((*e)[1u], i){
       if (useragent.find(i->asStringRef()) != std::string::npos){
-        ret = setTo;
+        match = true;
       }
     }
+    //set the (temp) return value if this was either a match in regular mode, or a non-match in except-mode.
+    if (except != match){ret = setTo;}
   }
   return ret;
 }

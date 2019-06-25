@@ -26,6 +26,7 @@ namespace Mist {
     capa["methods"][0u]["type"] = "html5/video/mp4";
     capa["methods"][0u]["priority"] = 10;
     capa["methods"][0u]["nolive"] = 1;
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Windows NT 5\", \"Windows NT 6.0\", \"Windows NT 6.1\"]],[\"whitelist_except\",[\"Trident\"]]]");
   }
   uint64_t OutProgressiveMP4::estimateFileSize() {
     uint64_t retVal = 0;

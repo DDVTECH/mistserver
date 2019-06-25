@@ -32,6 +32,7 @@ namespace Mist{
     capa["methods"][0u]["priority"] = 10;
     //MP4 live is broken on Apple
     capa["exceptions"]["live"] = JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]]]");
+    capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Windows NT 5\", \"Windows NT 6.0\", \"Windows NT 6.1\"]],[\"whitelist_except\",[\"Trident\"]]]");
   }
 
   uint64_t OutProgressiveMP4::estimateFileSize(){

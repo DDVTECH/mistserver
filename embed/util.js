@@ -420,7 +420,9 @@ var MistUtil = {
       },
       sanitizeHost: function(host){
         var split = MistUtil.http.url.split(host);
-        return split.protocol + "//" + split.host + (split.port && (split.port != "") ? ":"+split.port : "") + (split.hash && (split.hash != "") ? "#"+split.hash : "") + (split.path ? split.path : "");
+        var out = split.protocol + "//" + split.host + (split.port && (split.port != "") ? ":"+split.port : "") + (split.hash && (split.hash != "") ? "#"+split.hash : "") + (split.path ? (split.path.charAt(0) == "/" ? split.path : "/"+split.path) : "");
+        console.log("converted",host,"to",out);
+        return out;
       }
     }
   },

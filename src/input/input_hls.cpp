@@ -149,7 +149,7 @@ namespace Mist{
 
         if (key == "TARGETDURATION"){
           waitTime = atoi(val.c_str()) / 2;
-          if (waitTime < 2){waitTime = 2;}
+          if (waitTime < 5){waitTime = 5;}
         }
 
         if (key == "MEDIA-SEQUENCE"){fileNo = atoll(val.c_str());}
@@ -313,71 +313,79 @@ namespace Mist{
     for (std::vector<Playlist>::iterator pListIt = playlists.begin(); pListIt != playlists.end();
          pListIt++){
       if (!pListIt->entries.size()){continue;}
-      std::deque<playListEntries>::iterator entryIt = pListIt->entries.begin();
-
+      int preCounter = counter;
       tsStream.clear();
-      uint64_t lastBpos = entryIt->bytePos;
 
-      if (pListIt->isUrl()){
-        bool ret = false;
-        nProxy.userClient.keepAlive();
-        ret = pListIt->loadSegment(pListIt->root.link(entryIt->filename));
-        keepReading = packet.FromPointer(pListIt->packetPtr);
-        pListIt->packetPtr += 188;
-      }else{
-        in.open(pListIt->root.link(entryIt->filename).getUrl().c_str());
-        if (!in.good()){
-          FAIL_MSG("Could not open segment (%s): %s", strerror(errno),
-                   pListIt->root.link(entryIt->filename).getFilePath().c_str());
-          continue; // skip to the next one
-        }
-        keepReading = packet.FromStream(in);
-      }
 
-      while (keepReading){
-        tsStream.parse(packet, lastBpos);
-        if (pListIt->isUrl()){
-          lastBpos = entryIt->bytePos + pListIt->segDL.data().size();
-        }else{
-          lastBpos = entryIt->bytePos + in.tellg();
-        }
-
-        while (tsStream.hasPacketOnEachTrack()){
-          DTSC::Packet headerPack;
-          tsStream.getEarliestPacket(headerPack);
-          int tmpTrackId = headerPack.getTrackId();
-          uint64_t packetId = pidMapping[(((uint64_t)pListIt->id) << 32) + tmpTrackId];
-
-          if (packetId == 0){
-            pidMapping[(((uint64_t)pListIt->id) << 32) + headerPack.getTrackId()] = counter;
-            pidMappingR[counter] = (((uint64_t)pListIt->id) << 32) + headerPack.getTrackId();
-            packetId = counter;
-            HIGH_MSG("Added file %s, trackid: %d, mapped to: %d",
-                     pListIt->root.link(entryIt->filename).getUrl().c_str(),
-                     headerPack.getTrackId(), counter);
-            counter++;
-          }
-
-          if ((!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
-            tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
-            myMeta.tracks[packetId].minKeepAway = pListIt->waitTime * 2000;
-            VERYHIGH_MSG("setting minKeepAway = %d for track: %d",
-                         myMeta.tracks[packetId].minKeepAway, packetId);
-          }
-        }
+      std::deque<playListEntries>::iterator entryIt = pListIt->entries.begin();
+      while (true){
+        uint64_t lastBpos = entryIt->bytePos;
 
         if (pListIt->isUrl()){
-          keepReading = !pListIt->atEnd();
-          if (keepReading){
-            packet.FromPointer(pListIt->packetPtr);
-            pListIt->packetPtr += 188;
-          }
+          bool ret = false;
+          nProxy.userClient.keepAlive();
+          ret = pListIt->loadSegment(pListIt->root.link(entryIt->filename));
+          keepReading = packet.FromPointer(pListIt->packetPtr);
+          pListIt->packetPtr += 188;
         }else{
+          in.open(pListIt->root.link(entryIt->filename).getUrl().c_str());
+          if (!in.good()){
+            FAIL_MSG("Could not open segment (%s): %s", strerror(errno),
+                     pListIt->root.link(entryIt->filename).getFilePath().c_str());
+            continue; // skip to the next one
+          }
           keepReading = packet.FromStream(in);
         }
-      }
 
-      in.close();
+        while (keepReading){
+          tsStream.parse(packet, lastBpos);
+          if (pListIt->isUrl()){
+            lastBpos = entryIt->bytePos + pListIt->segDL.data().size();
+          }else{
+            lastBpos = entryIt->bytePos + in.tellg();
+          }
+
+          while (tsStream.hasPacketOnEachTrack()){
+            DTSC::Packet headerPack;
+            tsStream.getEarliestPacket(headerPack);
+            int tmpTrackId = headerPack.getTrackId();
+            uint64_t packetId = pidMapping[(((uint64_t)pListIt->id) << 32) + tmpTrackId];
+
+            if (packetId == 0){
+              pidMapping[(((uint64_t)pListIt->id) << 32) + headerPack.getTrackId()] = counter;
+              pidMappingR[counter] = (((uint64_t)pListIt->id) << 32) + headerPack.getTrackId();
+              packetId = counter;
+              HIGH_MSG("Added file %s, trackid: %d, mapped to: %d",
+                       pListIt->root.link(entryIt->filename).getUrl().c_str(),
+                       headerPack.getTrackId(), counter);
+              counter++;
+            }
+
+            if ((!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
+              tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
+              myMeta.tracks[packetId].minKeepAway = pListIt->waitTime * 2000;
+              VERYHIGH_MSG("setting minKeepAway = %d for track: %d",
+                           myMeta.tracks[packetId].minKeepAway, packetId);
+            }
+          }
+
+          if (pListIt->isUrl()){
+            keepReading = !pListIt->atEnd();
+            if (keepReading){
+              packet.FromPointer(pListIt->packetPtr);
+              pListIt->packetPtr += 188;
+            }
+          }else{
+            keepReading = packet.FromStream(in);
+          }
+        }
+
+        in.close();
+        
+        //Go to next segment, abort if we found at least one track or ran out of segments.
+        entryIt++;
+        if (counter != preCounter || entryIt == pListIt->entries.end()){break;}
+      }
     }
     tsStream.clear();
     in.close();

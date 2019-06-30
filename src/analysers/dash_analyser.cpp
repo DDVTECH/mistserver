@@ -369,7 +369,7 @@ int main(int argc, char ** argv) {
   std::string urlPrependStuff= url.substr(0, url.rfind("/")+1);
   DEBUG_MSG(DLVL_INFO, "prepend stuff: %s", urlPrependStuff.c_str());
   if (!conn) {
-    conn = Socket::Connection(server, port, false);
+    conn.open(server, port, false);
   }
   unsigned int pos = 0;
   HTTP::Parser H;
@@ -434,7 +434,7 @@ int main(int argc, char ** argv) {
       if( streamData[i].trackID ==  currentPos.begin()->trackID && streamData[i].adaptationSet ==  currentPos.begin()->adaptationSet ) tempID=i;
     }
     if (!conn) {
-      conn = Socket::Connection(server,port, false);
+      conn.open(server,port, false);
     }
     HTTP::Parser H;
     H.url = urlPrependStuff;

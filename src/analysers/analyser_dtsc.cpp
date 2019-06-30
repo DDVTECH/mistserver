@@ -14,7 +14,7 @@ void AnalyserDTSC::init(Util::Config &conf){
 
 bool AnalyserDTSC::open(const std::string &filename){
   if (!Analyser::open(filename)){return false;}
-  conn = Socket::Connection(1, 0);
+  conn.open(1, 0);
   totalBytes = 0;
   return true;
 }

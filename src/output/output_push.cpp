@@ -143,7 +143,7 @@ void pushFirstElement(std::string qId) {
   proxyToPost(srcConn, srcLocation, dstConn, dstLocation);
   
   
-  srcConn = Socket::Connection(srcHost, srcPort, true);
+  srcConn.open(srcHost, srcPort, true);
 
   //Set the location to push to for the index containing this segment.
   //The index will contain (at most) the last PUSH_INDEX_SIZE segments.
@@ -156,7 +156,7 @@ void pushFirstElement(std::string qId) {
   proxyToPost(srcConn, srcLocation, dstConn, dstLocation);
 
 
-  srcConn = Socket::Connection(srcHost, srcPort, true);
+  srcConn.open(srcHost, srcPort, true);
 
   //Set the location to push to for the global index containing all qualities.
   srcLocation = baseURL + "/push/index.m3u8";
@@ -255,7 +255,7 @@ namespace Mist {
     }
     //Reconnect when disconnected
     if (!listConn.connected()){
-      listConn = Socket::Connection(srcHost, srcPort, true);
+      listConn.open(srcHost, srcPort, true);
     }
     //Request the push list
     if (listConn.connected()){

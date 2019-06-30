@@ -41,8 +41,7 @@ namespace Mist {
       std::string host = getConnectedHost();
       dup2(myConn.getSocket(), STDIN_FILENO);
       dup2(myConn.getSocket(), STDOUT_FILENO);
-      myConn.drop();
-      myConn = Socket::Connection(STDOUT_FILENO, STDIN_FILENO);
+      myConn.open(STDOUT_FILENO, STDIN_FILENO);
       myConn.setHost(host);
     }
     if (config->getString("nostreamtext").size()){

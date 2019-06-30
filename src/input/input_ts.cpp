@@ -212,13 +212,13 @@ namespace Mist {
 
       int fin = -1, fout = -1;
       inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
-      tcpCon = Socket::Connection(-1, fout);
+      tcpCon.open(-1, fout);
       return true;
     }
     //streamed file
     if (inpt.substr(0,9) == "stream://"){
       inFile = fopen(inpt.c_str()+9, "r");
-      tcpCon = Socket::Connection(-1, fileno(inFile));
+      tcpCon.open(-1, fileno(inFile));
       standAlone = false;
       return inFile;
     }

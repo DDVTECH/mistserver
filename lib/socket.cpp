@@ -402,19 +402,39 @@ void Socket::Connection::setBoundAddr(){
   }
 }
 
+//Cleans up the socket by dropping the connection.
+//Does not call close because it calls shutdown, which would destroy any copies of this socket too.
+Socket::Connection::~Connection(){
+  drop();
+}
+
+
 /// Create a new base socket. This is a basic constructor for converting any valid socket to a
 /// Socket::Connection. \param sockNo Integer representing the socket to convert.
 Socket::Connection::Connection(int sockNo){
   clear();
-  sSend = sockNo;
-  isTrueSocket = Socket::checkTrueSocket(sSend);
-  setBoundAddr();
+  open(sockNo, sockNo);
 }// Socket::Connection basic constructor
+
+/// Open from existing socket connection.
+/// Closes any existing connections and resets all internal values beforehand.
+/// Simply calls open(sockNo, sockNo) internally.
+void Socket::Connection::open(int sockNo){
+  open(sockNo, sockNo);
+}
 
 /// Simulate a socket using two file descriptors.
 /// \param write The filedescriptor to write to.
 /// \param read The filedescriptor to read from.
 Socket::Connection::Connection(int write, int read){
+  clear();
+  open(write, read);
+}// Socket::Connection basic constructor
+
+/// Open from two existing file descriptors.
+/// Closes any existing connections and resets all internal values beforehand.
+void Socket::Connection::open(int write, int read){
+  drop();
   clear();
   sSend = write;
   if (write != read){
@@ -424,7 +444,7 @@ Socket::Connection::Connection(int write, int read){
   }
   isTrueSocket = Socket::checkTrueSocket(sSend);
   setBoundAddr();
-}// Socket::Connection basic constructor
+}
 
 void Socket::Connection::clear(){
   sSend = -1;
@@ -516,9 +536,21 @@ bool Socket::Connection::isBlocking(){
 /// This function calls shutdown, thus making the socket unusable in all other
 /// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Connection::close(){
+  if (sSend != -1){shutdown(sSend, SHUT_RDWR);}
+  drop();
+}// Socket::Connection::close
+
+/// Close connection. The internal socket is closed and then set to -1.
+/// If the connection is already closed, nothing happens.
+/// This function does *not* call shutdown, allowing continued use in other
+/// processes.
+void Socket::Connection::drop(){
 #ifdef SSL
   if (sslConnected){
     DONTEVEN_MSG("SSL close");
+    if (ssl){
+      mbedtls_ssl_close_notify(ssl);
+    }
     if (server_fd){
       mbedtls_net_free(server_fd);
       delete server_fd;
@@ -548,15 +580,6 @@ void Socket::Connection::close(){
     return;
   }
 #endif
-  if (sSend != -1){shutdown(sSend, SHUT_RDWR);}
-  drop();
-}// Socket::Connection::close
-
-/// Close connection. The internal socket is closed and then set to -1.
-/// If the connection is already closed, nothing happens.
-/// This function does *not* call shutdown, allowing continued use in other
-/// processes.
-void Socket::Connection::drop(){
   if (connected()){
     if (sSend != -1){
       HIGH_MSG("Socket %d closed", sSend);
@@ -597,6 +620,14 @@ std::string Socket::Connection::getError(){
 /// \param nonblock Whether the socket should be nonblocking. False by default.
 Socket::Connection::Connection(std::string address, bool nonblock){
   clear();
+  open(address, nonblock);
+}// Socket::Connection Unix Constructor
+
+/// Open Unix connection.
+/// Closes any existing connections and resets all internal values beforehand.
+void Socket::Connection::open(std::string address, bool nonblock){
+  drop();
+  clear();
   isTrueSocket = true;
   sSend = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sSend < 0){
@@ -619,7 +650,7 @@ Socket::Connection::Connection(std::string address, bool nonblock){
     FAIL_MSG("Could not connect to %s! Error: %s", address.c_str(), remotehost.c_str());
     close();
   }
-}// Socket::Connection Unix Constructor
+}
 
 #ifdef SSL
 ///Local-only function for debugging SSL sockets
@@ -635,6 +666,14 @@ static void my_debug(void *ctx, int level, const char *file, int line, const cha
 /// \param port String containing the port to connect to.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::Connection::Connection(std::string host, int port, bool nonblock, bool with_ssl){
+  clear();
+  open(host, port, nonblock, with_ssl);
+}
+
+/// Open TCP connection.
+/// Closes any existing connections and resets all internal values beforehand.
+void Socket::Connection::open(std::string host, int port, bool nonblock, bool with_ssl){
+  drop();
   clear();
   if (with_ssl){
 #ifdef SSL
@@ -743,7 +782,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock, bool w
     setsockopt(sSend, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
     setBoundAddr();
   }
-}// Socket::Connection TCP Constructor
+}
 
 /// Returns the connected-state for this socket.
 /// Note that this function might be slightly behind the real situation.
@@ -1051,6 +1090,56 @@ bool Socket::Connection::operator!=(const Connection &B) const{
 /// Aliases for Socket::Connection::connected()
 Socket::Connection::operator bool() const{
   return connected();
+}
+
+//Copy constructor
+Socket::Connection::Connection(const Connection& rhs){
+  clear();
+  if (!rhs){return;}
+#if DEBUG >= DLVL_DEVEL
+  INFO_MSG("Copying %s socket", rhs.sslConnected?"SSL":"regular");
+  BACKTRACE;
+#endif
+  conntime = rhs.conntime;
+  isTrueSocket = rhs.isTrueSocket;
+  remotehost = rhs.remotehost;
+  boundaddr = rhs.boundaddr;
+  up = rhs.up;
+  down = rhs.down;
+  downbuffer = rhs.downbuffer;
+  if (!rhs.sslConnected){
+    if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
+    if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
+#if DEBUG >= DLVL_DEVEL
+    INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
+#endif
+  }
+}
+
+//Assignment constructor
+Socket::Connection& Socket::Connection::operator=(const Socket::Connection& rhs){
+  drop();
+  clear();
+  if (!rhs){return *this;}
+#if DEBUG >= DLVL_DEVEL
+  INFO_MSG("Assigning %s socket", rhs.sslConnected?"SSL":"regular");
+  BACKTRACE;
+#endif
+  conntime = rhs.conntime;
+  isTrueSocket = rhs.isTrueSocket;
+  remotehost = rhs.remotehost;
+  boundaddr = rhs.boundaddr;
+  up = rhs.up;
+  down = rhs.down;
+  downbuffer = rhs.downbuffer;
+  if (!rhs.sslConnected){
+    if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
+    if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
+#if DEBUG >= DLVL_DEVEL
+    INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
+#endif
+  }
+  return *this;
 }
 
 /// Returns true if the given address can be matched with the remote host.

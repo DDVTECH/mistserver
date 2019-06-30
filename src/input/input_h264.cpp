@@ -44,9 +44,9 @@ namespace Mist{
 
       int fin = -1, fout = -1;
       inputProcess = Util::Procs::StartPiped(args, &fin, &fout, 0);
-      myConn = Socket::Connection(-1, fout);
+      myConn.open(-1, fout);
     }else{
-      myConn = Socket::Connection(fileno(stdout), fileno(stdin));
+      myConn.open(fileno(stdout), fileno(stdin));
     }
     myConn.Received().splitter.assign("\000\000\001", 3);
     myMeta.vod = false;

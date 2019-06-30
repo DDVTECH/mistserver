@@ -134,7 +134,7 @@ namespace Mist{
   }
 
   bool InputRTSP::openStreamSource(){
-    tcpCon = Socket::Connection(url.host, url.getPort(), false);
+    tcpCon.open(url.host, url.getPort(), false);
     mainConn = &tcpCon;
     return tcpCon;
   }

@@ -323,7 +323,7 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   startTime = Util::bootSecs();
   abortTime = conf.getInteger("abort");
 
-  conn = Socket::Connection(server, port, false);
+  conn.open(server, port, false);
 
   if(!conn.connected())
   {
@@ -336,7 +336,7 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   urlPrependStuff = url.substr(0, url.rfind("/") + 1);
   DEBUG_MSG(DLVL_INFO, "prepend stuff: %s", urlPrependStuff.c_str());
   if (!conn) {
-    conn = Socket::Connection(server, port, false);
+    conn.open(server, port, false);
   }
 
   pos = 0;
@@ -414,7 +414,7 @@ int dashAnalyser::doAnalyse() {
   for (unsigned int i = 0; i < streamData.size(); i++) {
     if (streamData[i].trackID == currentPos.begin()->trackID && streamData[i].adaptationSet == currentPos.begin()->adaptationSet) tempID = i;
   }
-  if (!conn) { conn = Socket::Connection(server, port, false); }
+  if (!conn) { conn.open(server, port, false); }
   HTTP::Parser H;
   H.url = urlPrependStuff;
   H.url.append(currentPos.begin()->url);
@@ -530,7 +530,7 @@ int main2(int argc, char **argv) {
   DEBUG_MSG(DLVL_INFO, "url %s server: %s port: %d", url.c_str(), server.c_str(), port);
   std::string urlPrependStuff = url.substr(0, url.rfind("/") + 1);
   DEBUG_MSG(DLVL_INFO, "prepend stuff: %s", urlPrependStuff.c_str());
-  if (!conn) { conn = Socket::Connection(server, port, false); }
+  if (!conn) { conn.open(server, port, false); }
   unsigned int pos = 0;
   HTTP::Parser H;
   H.url = url;
@@ -593,7 +593,7 @@ int main2(int argc, char **argv) {
     for (unsigned int i = 0; i < streamData.size(); i++) {
       if (streamData[i].trackID == currentPos.begin()->trackID && streamData[i].adaptationSet == currentPos.begin()->adaptationSet) tempID = i;
     }
-    if (!conn) { conn = Socket::Connection(server, port, false); }
+    if (!conn) { conn.open(server, port, false); }
     HTTP::Parser H;
     H.url = urlPrependStuff;
     H.url.append(currentPos.begin()->url);

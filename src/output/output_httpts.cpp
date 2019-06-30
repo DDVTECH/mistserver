@@ -33,7 +33,7 @@ namespace Mist{
 
         int fin = -1;
         Util::Procs::StartPiped(args, &fin, 0, 0);
-        myConn = Socket::Connection(fin, -1);
+        myConn.open(fin, -1);
 
         wantRequest = false;
         parseData = true;

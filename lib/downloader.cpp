@@ -81,12 +81,12 @@ namespace HTTP{
         connectedPort = link.getPort();
 #ifdef SSL
         if (needSSL){
-          S = Socket::Connection(connectedHost, connectedPort, true, true);
+          S.open(connectedHost, connectedPort, true, true);
         }else{
-          S = Socket::Connection(connectedHost, connectedPort, true);
+          S.open(connectedHost, connectedPort, true);
         }
 #else
-        S = Socket::Connection(connectedHost, connectedPort, true);
+        S.open(connectedHost, connectedPort, true);
 #endif
       }
     }else{
@@ -95,7 +95,7 @@ namespace HTTP{
         getSocket().close();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
-        S = Socket::Connection(connectedHost, connectedPort, true);
+        S.open(connectedHost, connectedPort, true);
       }
     }
     ssl = needSSL;

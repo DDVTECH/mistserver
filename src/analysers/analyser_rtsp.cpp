@@ -27,7 +27,7 @@ void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
 
 bool AnalyserRTSP::open(const std::string &filename){
   if (!Analyser::open(filename)){return false;}
-  myConn = Socket::Connection(1, 0);
+  myConn.open(1, 0);
   return true;
 }
 

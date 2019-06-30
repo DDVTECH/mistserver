@@ -43,9 +43,9 @@ namespace Mist{
       }
       initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
-      if (pushUrl.protocol == "rtmp"){myConn = Socket::Connection(pushUrl.host, pushUrl.getPort(), false);}
+      if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
 #ifdef SSL
-      if (pushUrl.protocol == "rtmps"){myConn = Socket::Connection(pushUrl.host, pushUrl.getPort(), false, true);}
+      if (pushUrl.protocol == "rtmps"){myConn.open(pushUrl.host, pushUrl.getPort(), false, true);}
 #endif
       if (!myConn){
         FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());

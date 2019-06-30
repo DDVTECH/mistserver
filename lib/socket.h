@@ -109,7 +109,16 @@ namespace Socket{
     Connection(std::string hostname, int port, bool nonblock, bool with_ssl = false); ///< Create a new TCP socket.
     Connection(std::string adres, bool nonblock = false);      ///< Create a new Unix Socket.
     Connection(int write, int read);                           ///< Simulate a socket using two file descriptors.
+    // copy/assignment constructors
+    Connection(const Connection& rhs);
+    Connection& operator=(const Connection& rhs);
+    // destructor
+    ~Connection();
     // generic methods
+    void open(int sockNo);//Open from existing socket connection.
+    void open(std::string hostname, int port, bool nonblock, bool with_ssl = false);//Open TCP connection.
+    void open(std::string adres, bool nonblock = false);//Open Unix connection.
+    void open(int write, int read);//Open from two existing file descriptors.
     void close();                    ///< Close connection.
     void drop();                     ///< Close connection without shutdown.
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).

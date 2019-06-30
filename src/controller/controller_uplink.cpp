@@ -39,7 +39,7 @@ void Controller::uplinkConnection(void * np) {
   while (Controller::conf.is_active) {
     if (!uplink) {
       INFO_MSG("Connecting to uplink at %s:%u", uplink_host.c_str(), uplink_port);
-      uplink = Socket::Connection(uplink_host, uplink_port, true);
+      uplink.open(uplink_host, uplink_port, true);
     }
     if (uplink) {
       if (uplink.spool()) {

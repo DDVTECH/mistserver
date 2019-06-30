@@ -112,7 +112,7 @@ namespace Mist {
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config * cfg) : Input(cfg) {
     capa["name"] = "TS";
-    capa["desc"] = "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files or named pipes (stream://*.ts), streamed over HTTP (http://*.ts, http-ts://*), standard input (ts-exec:*), or multicast/unicast UDP sockets (tsudp://*).";
+    capa["desc"] = "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files or named pipes (stream://*.ts), streamed over HTTP (http(s)://*.ts, http(s)-ts://*), standard input (ts-exec:*), or multicast/unicast UDP sockets (tsudp://*).";
     capa["source_match"].append("/*.ts");
     capa["source_file"] = "$source";
     capa["source_match"].append("stream://*.ts");
@@ -120,12 +120,16 @@ namespace Mist {
     capa["source_match"].append("ts-exec:*");
     capa["source_match"].append("http://*.ts");
     capa["source_match"].append("http-ts://*");
+    capa["source_match"].append("https://*.ts");
+    capa["source_match"].append("https-ts://*");
     //These can/may be set to always-on mode
     capa["always_match"].append("stream://*.ts");
     capa["always_match"].append("tsudp://*");
     capa["always_match"].append("ts-exec:*");
     capa["always_match"].append("http://*.ts");
     capa["always_match"].append("http-ts://*");
+    capa["always_match"].append("https://*.ts");
+    capa["always_match"].append("https-ts://*");
     capa["incoming_push_url"] = "udp://$host:$port";
     capa["incoming_push_url_match"] = "tsudp://*";
     capa["priority"] = 9;
@@ -172,19 +176,21 @@ namespace Mist {
     //streamed standard input
     if (inpt == "-") {
       standAlone = false;
-      tcpCon = Socket::Connection(fileno(stdout), fileno(stdin));
+      tcpCon.open(fileno(stdout), fileno(stdin));
       return true;
     }
-    if (inpt.substr(0, 7) == "http://" || inpt.substr(0, 10) == "http-ts://"){
+    if (inpt.substr(0, 7) == "http://" || inpt.substr(0, 10) == "http-ts://" || inpt.substr(0, 8) == "https://" || inpt.substr(0, 11) == "https-ts://"){
       standAlone = false;
       HTTP::URL url(inpt);
-      url.protocol = "http";
+      if (url.protocol == "http-ts"){url.protocol = "http";}
+      if (url.protocol == "https-ts"){url.protocol = "https";}
       HTTP::Downloader DL;
       DL.getHTTP().headerOnly = true;
       if (!DL.get(url)){
         return false;
       }
       tcpCon = DL.getSocket();
+      DL.getSocket().drop();//Prevent shutdown of connection, keeping copy of socket open
       return true;
     }
     if (inpt.substr(0, 8) == "ts-exec:") {
@@ -592,7 +598,7 @@ namespace Mist {
     if (!standAlone){return false;}
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://"){
+    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" && inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
       return true;
     }else{
       return false;

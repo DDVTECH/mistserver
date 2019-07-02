@@ -390,7 +390,7 @@ makeInput(Buffer buffer)
 makeInput(H264 h264)
 makeInput(EBML ebml)
 makeInput(ISMV ismv)#LTS
-makeInput(MP4 mp4)#LTS
+makeInput(MP4 mp4)
 makeInput(TS ts)#LTS
 makeInput(Folder folder)#LTS
 makeInput(Balancer balancer)#LTS

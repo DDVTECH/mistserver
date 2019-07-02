@@ -312,6 +312,7 @@ makeInput(OGG ogg)
 makeInput(Buffer buffer)
 makeInput(H264 h264)
 makeInput(EBML ebml)
+makeInput(MP4 mp4)
 
 ########################################
 # MistServer - Outputs                 #

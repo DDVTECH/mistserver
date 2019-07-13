@@ -57,16 +57,17 @@ namespace Mist {
   bool InOutBase::bufferStart(unsigned long tid, unsigned long pageNumber) {
     VERYHIGH_MSG("bufferStart for stream %s, track %lu, page %lu", streamName.c_str(), tid, pageNumber);
     //Initialize the stream metadata if it does not yet exist
+#ifndef TSLIVE_INPUT
     if (!nProxy.metaPages.count(0)) {
       initiateMeta();
     }
+#endif
     //If we are a stand-alone player skip track negotiation, as there will be nothing to negotiate with.
     if (standAlone) {
       if (!nProxy.trackMap.count(tid)) {
         nProxy.trackMap[tid] = tid;
       }
     }
-    //Negotiate the requested track if needed.
     return nProxy.bufferStart(tid, pageNumber, myMeta);
   }
 
@@ -667,6 +668,10 @@ namespace Mist {
           tmpMeta.tracks[newTid] = myMeta.tracks[tid];
           tmpMeta.tracks[newTid].trackID = newTid;
           JSON::Value tmpVal = tmpMeta.toJSON();
+          if (!myMeta.tracks[tid].type.size() || !myMeta.tracks[tid].codec.size()){
+            FAIL_MSG("Negotiating a track without metadata. This is a serious issue, please report this to the developers.");
+            BACKTRACE;
+          }
           std::string tmpStr = tmpVal.toNetPacked();
           memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
           HIGH_MSG("Temporary metadata written for incoming track %lu, handling as track %lu", tid, newTid);

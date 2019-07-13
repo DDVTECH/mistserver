@@ -59,16 +59,10 @@ namespace HTTP{
 
   /// Returns a reference to the internal Socket::Connection class instance.
   Socket::Connection &Downloader::getSocket(){
-#ifdef SSL
-    if (ssl){return S_SSL;}
-#endif
     return S;
   }
 
   Downloader::~Downloader(){
-#ifdef SSL
-    if (ssl){S_SSL.close();}
-#endif
     S.close();
   }
 
@@ -87,12 +81,12 @@ namespace HTTP{
         connectedPort = link.getPort();
 #ifdef SSL
         if (needSSL){
-          S_SSL = Socket::SSLConnection(connectedHost, connectedPort, true);
+          S.open(connectedHost, connectedPort, true, true);
         }else{
-          S = Socket::Connection(connectedHost, connectedPort, true);
+          S.open(connectedHost, connectedPort, true);
         }
 #else
-        S = Socket::Connection(connectedHost, connectedPort, true);
+        S.open(connectedHost, connectedPort, true);
 #endif
       }
     }else{
@@ -101,7 +95,7 @@ namespace HTTP{
         getSocket().close();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
-        S = Socket::Connection(connectedHost, connectedPort, true);
+        S.open(connectedHost, connectedPort, true);
       }
     }
     ssl = needSSL;
@@ -218,8 +212,8 @@ namespace HTTP{
       MEDIUM_MSG("Posting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1,
                  retryCount);
       doRequest(link, "POST", payload);
-      // Not synced? Ignore the response and immediately return false.
-      if (!sync){return false;}
+      // Not synced? Ignore the response and immediately return true.
+      if (!sync){return true;}
       uint64_t reqTime = Util::bootSecs();
       while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
         // No data? Wait for a second or so.

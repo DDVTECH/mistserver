@@ -363,6 +363,9 @@ makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(EBML ebml)
+if (NOT DEFINED NOSSL )
+  makeOutput(HTTPS https)#LTS
+endif()
 
 add_executable(MistOutHTTP 
   ${BINARY_DIR}/mist/.headers

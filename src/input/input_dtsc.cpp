@@ -144,7 +144,7 @@ namespace Mist {
   bool inputDTSC::openStreamSource() {
     std::string source = config->getString("input");
     if (source == "-"){
-      srcConn = Socket::Connection(fileno(stdout),fileno(stdin));
+      srcConn.open(fileno(stdout),fileno(stdin));
       return true;
     }
     if (source.find("dtsc://") == 0) {
@@ -159,7 +159,7 @@ namespace Mist {
     if (streamName == "") {
       streamName = givenStream;
     }
-    srcConn = Socket::Connection(host, port, true);
+    srcConn.open(host, port, true);
     if (!srcConn.connected()){
       return false;
     }

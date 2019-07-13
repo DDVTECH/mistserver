@@ -36,9 +36,6 @@ namespace HTTP{
     uint32_t connectedPort;                          ///< Currently connected port number
     Parser H;                                        ///< HTTP parser for downloader
     Socket::Connection S;                            ///< TCP socket for downloader
-#ifdef SSL
-    Socket::SSLConnection S_SSL; ///< SSL socket for downloader
-#endif
     bool ssl;                 ///< True if ssl is currently in use.
     std::string authStr;      ///< Most recently seen WWW-Authenticate request
     std::string proxyAuthStr; ///< Most recently seen Proxy-Authenticate request

@@ -107,7 +107,7 @@ static inline void show_stackframe(){}
 #define STATS_INPUT_DELAY 2
 
 #ifndef INPUT_TIMEOUT
-#define INPUT_TIMEOUT STATS_DELAY
+#define INPUT_TIMEOUT STATS_DELAY*2
 #endif
 
 /// The size used for stream headers for live streams

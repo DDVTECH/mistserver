@@ -581,16 +581,34 @@ namespace Mist {
 
         std::string trackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
         DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", trackIdentifier.c_str());
-
+        //Get the identifier for the track, and attempt colission detection.
+        int collidesWith = -1;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
+          //If the identifier of an existing track and the current track match, assume the are the same track and reject the negotiated one.
+          ///\todo Maybe switch to a new form of detecting collisions, especially with regards to multiple audio languages and camera angles.
+          if (it->second.getIdentifier() == trackIdentifier) {
+            collidesWith = it->first;
+            break;
+          }
+        }
         //Remove the "negotiate" status in either case
         negotiatingTracks.erase(value);
         //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
         nProxy.metaPages[value].master = true;
         nProxy.metaPages.erase(value);
 
-        int finalMap = 3;
-        if (trackMeta.tracks.find(value)->second.type == "video"){finalMap = 1;}
-        if (trackMeta.tracks.find(value)->second.type == "audio"){finalMap = 2;}
+        //Check if the track collides, and whether the track it collides with is active.
+        if (collidesWith != -1 && activeTracks.count(collidesWith)) { /*LTS*/
+          //Print a warning message and set the state of the track to rejected.
+          WARN_MSG("Collision of temporary track %lu with existing track %d detected. Handling as a new valid track.", value, collidesWith);
+          collidesWith = -1;
+        }
+        uint64_t finalMap = collidesWith;
+        if (finalMap == -1) {
+          //No collision has been detected, assign a new final number
+          finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
+          DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+        }
         //Resume either if we have more than 1 keyframe on the replacement track (assume it was already pushing before the track "dissapeared")
         //or if the firstms of the replacement track is later than the lastms on the existing track
         if (!myMeta.tracks.count(finalMap) || trackMeta.tracks.find(value)->second.keys.size() > 1 || trackMeta.tracks.find(value)->second.firstms >= myMeta.tracks[finalMap].lastms) {

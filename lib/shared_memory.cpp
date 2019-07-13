@@ -1192,8 +1192,6 @@ namespace IPC {
   ///\brief The deconstructor
   sharedClient::~sharedClient() {
     mySemaphore.close();
-
-
   }
 
   ///\brief Writes data to the shared data

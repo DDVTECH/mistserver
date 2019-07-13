@@ -492,6 +492,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     Response["capabilities"] = capabilities;
   }
 
+
   if(Request.isMember("browse")){                    
     if(Request["browse"] == ""){
       Request["browse"] = ".";

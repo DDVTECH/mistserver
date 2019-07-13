@@ -41,8 +41,7 @@ namespace Mist {
       std::string host = getConnectedHost();
       dup2(myConn.getSocket(), STDIN_FILENO);
       dup2(myConn.getSocket(), STDOUT_FILENO);
-      myConn.drop();
-      myConn = Socket::Connection(STDOUT_FILENO, STDIN_FILENO);
+      myConn.open(STDOUT_FILENO, STDIN_FILENO);
       myConn.setHost(host);
     }
     if (config->getOption("wrappers",true).size() == 0 || config->getString("wrappers") == ""){
@@ -279,6 +278,10 @@ namespace Mist {
     
     std::string devSkin = "";
     if (H.GetVar("dev").size()) { devSkin = ",skin:\"dev\""; }
+    H.SetVar("stream", "");
+    H.SetVar("dev", "");
+    devSkin += ",urlappend:\"" + H.allVars() + "\"";
+    H.SetVar("stream", streamName);
     
     H.Clean();
     H.SetHeader("Content-Type", "text/html");

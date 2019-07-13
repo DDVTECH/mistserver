@@ -1053,7 +1053,7 @@ namespace Mist{
       //actually drop what we found.
       //if both of the above cases occur, the next prepareNext iteration will take care of that
       for (std::set<uint32_t>::iterator it = dropTracks.begin(); it != dropTracks.end(); ++it){
-        dropTrack(*it, "seek/select mismatch", true);
+        dropTrack(*it, "seek/select mismatch");
       }
       return false;
     }
@@ -1061,7 +1061,7 @@ namespace Mist{
     sortedPageInfo nxt = *(buffer.begin());
 
     if (!myMeta.tracks.count(nxt.tid)){
-      dropTrack(nxt.tid, "disappeared from metadata", true);
+      dropTrack(nxt.tid, "disappeared from metadata");
       return false;
     }
 
@@ -1105,7 +1105,7 @@ namespace Mist{
       }
       //for VoD, check if we've reached the end of the track, if so, drop it
       if (myMeta.vod && nxt.time > myMeta.tracks[nxt.tid].lastms){
-        dropTrack(nxt.tid, "Reached end of track");
+        dropTrack(nxt.tid, "Reached end of track", false);
       }
       //if this is a live stream, we might have just reached the live point.
       //check where the next key is
@@ -1137,9 +1137,9 @@ namespace Mist{
       loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
       nxt.offset = 0;
       if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
-        unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
+        uint64_t nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
         if (nextTime && nextTime < nxt.time){
-          dropTrack(nxt.tid, "time going backwards");
+          dropTrack(nxt.tid, "EOP: time going backwards ("+JSON::Value(nextTime).asString()+" < "+JSON::Value(nxt.time).asString()+")");
         }else{
           if (nextTime){
             nxt.time = nextTime;

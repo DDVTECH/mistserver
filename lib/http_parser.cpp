@@ -150,6 +150,7 @@ uint32_t HTTP::URL::getDefaultPort() const{
   if (protocol == "http"){return 80;}
   if (protocol == "https"){return 443;}
   if (protocol == "rtmp"){return 1935;}
+  if (protocol == "rtmps"){return 443;}
   if (protocol == "dtsc"){return 4200;}
   if (protocol == "rtsp"){return 554;}
   return 0;
@@ -418,8 +419,29 @@ std::string &HTTP::Parser::BuildRequest(){
 /// Creates and sends a valid HTTP 1.0 or 1.1 request.
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.
-void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqbody){
+void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqbody, bool allAtOnce){
   /// \todo Include GET/POST variable parsing?
+  if (allAtOnce){
+    /// \TODO Make this less duplicated / more pretty.
+
+    std::map<std::string, std::string>::iterator it;
+    if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
+    builder = method + " " + url + " " + protocol + "\r\n";
+    if (reqbody.size()){SetHeader("Content-Length", reqbody.length());}
+    for (it = headers.begin(); it != headers.end(); it++){
+      if ((*it).first != "" && (*it).second != ""){
+        builder += (*it).first + ": " + (*it).second + "\r\n";
+      }
+    }
+    builder += "\r\n";
+    if (reqbody.size()){
+      builder += reqbody;
+    }else{
+      builder += body;
+    }
+    conn.SendNow(builder);
+    return;
+  }
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
   builder = method + " " + url + " " + protocol + "\r\n";
@@ -825,6 +847,10 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
           body.clear();
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
+            if (body.capacity() < length){body.reserve(length);}
+          }
+          if (GetHeader("Content-length") != ""){
+            length = atoi(GetHeader("Content-length").c_str());
             if (body.capacity() < length){body.reserve(length);}
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){

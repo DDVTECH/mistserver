@@ -37,9 +37,11 @@ namespace Controller {
     }
     memset(f.mapped, 0, 32);
     Util::RelAccX A(f.mapped, false);
+    if (!A.isReady()){
     A.addField("cmd", RAX_128STRING);
     A.addField("pid", RAX_64UINT);
     A.setReady();
+    }
     uint32_t count = 0;
     std::map<std::string, pid_t>::iterator it;
     for (it = currentConnectors.begin(); it != currentConnectors.end(); ++it){

@@ -761,7 +761,6 @@ namespace Mist {
 
         std::string trackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
         DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", trackIdentifier.c_str());
-        /*LTS-START*/
         //Get the identifier for the track, and attempt colission detection.
         int collidesWith = -1;
         for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
@@ -772,7 +771,6 @@ namespace Mist {
             break;
           }
         }
-        /*LTS-END*/
         //Remove the "negotiate" status in either case
         negotiatingTracks.erase(value);
         //Set master to true before erasing the page, because we are responsible for cleaning up unused pages
@@ -785,12 +783,12 @@ namespace Mist {
           WARN_MSG("Collision of temporary track %lu with existing track %d detected. Handling as a new valid track.", value, collidesWith);
           collidesWith = -1;
         }
-        /*LTS-START*/
         uint64_t finalMap = collidesWith;
         if (finalMap == -1) {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
           DEBUG_MSG(DLVL_DEVEL, "No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+        /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_ADD")) {
             std::string payload = config->getString("streamname") + "\n" + JSON::Value(finalMap).asString() + "\n";
             Triggers::doTrigger("STREAM_TRACK_ADD", payload, config->getString("streamname"));

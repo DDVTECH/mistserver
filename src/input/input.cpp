@@ -277,6 +277,33 @@ namespace Mist {
     }
 
     config->activate();
+
+    if (getenv("NOFORK")){
+      INFO_MSG("Not using angel process due to NOFORK environment variable");
+      if (playerLock){
+        //Re-init streamStatus, previously closed
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, true, false);
+        streamStatus.master = false;
+        if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
+      }
+      //Abandon all semaphores, ye who enter here.
+      playerLock.abandon();
+      pullLock.abandon();
+      if (!preRun()){return 0;}
+      int ret = run();
+      if (playerLock){
+        playerLock.unlink();
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+        streamStatus.init(pageName, 1, true, false);
+        streamStatus.close();
+      }
+      pullLock.unlink();
+      return ret;
+    }
+
     uint64_t reTimer = 0;
     while (config->is_active){
       pid_t pid = fork();

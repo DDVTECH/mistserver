@@ -9,6 +9,12 @@ namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){
     sendRepeatingHeaders = 500;//PAT/PMT every 500ms (DVB spec)
     
+    if (config->getString("target").substr(0, 6) == "srt://"){
+      std::string tgt = config->getString("target");
+      HTTP::URL srtUrl(tgt);
+      config->getOption("target", true).append("ts-exec:srt-live-transmit file://con "+srtUrl.getUrl());
+      INFO_MSG("Rewriting SRT target '%s' to '%s'", tgt.c_str(), config->getString("target").c_str());
+    }
     if(config->getString("target").substr(0,8) == "ts-exec:"){
         std::string input = config->getString("target").substr(8);
         char *args[128];
@@ -74,6 +80,19 @@ namespace Mist{
     capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");
+   
+    {
+      int fin = 0, fout = 0, ferr = 0;
+      pid_t srt_tx = -1;
+      const char *args[] = {"srt-live-transmit", 0};
+      srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
+      if (srt_tx > 1){
+        capa["push_urls"].append("srt://*");
+        capa["desc"] = capa["desc"].asStringRef() + ". SRT push output support (srt://*) is installed and available.";
+      }else{
+        capa["desc"] = capa["desc"].asStringRef() + ". To enable SRT push output support, please install the srt-live-transmit binary.";
+      }
+    }
 
     JSON::Value opt;
     opt["arg"] = "string";

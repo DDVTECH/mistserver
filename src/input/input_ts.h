@@ -16,7 +16,7 @@ namespace Mist {
       bool needsLock();
     protected:
       //Private Functions
-      bool checkArguments(){return true;}
+      bool checkArguments();
       bool preRun();
       bool readHeader();
       bool needHeader();

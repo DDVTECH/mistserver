@@ -142,6 +142,20 @@ namespace Mist {
     inFile = NULL;
     inputProcess = 0;
 
+    {
+      int fin = 0, fout = 0, ferr = 0;
+      pid_t srt_tx = -1;
+      const char *args[] = {"srt-live-transmit", 0};
+      srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
+      if (srt_tx > 1){
+        capa["source_match"].append("srt://*");
+        capa["always_match"].append("srt://*");
+        capa["desc"] = capa["desc"].asStringRef() + " SRT support (srt://*) is installed and available.";
+      }else{
+        capa["desc"] = capa["desc"].asStringRef() + " To enable SRT support, please install the srt-live-transmit binary.";
+      }
+    }
+
     JSON::Value option;
     option["arg"] = "integer";
     option["long"] = "buffer";
@@ -170,18 +184,28 @@ namespace Mist {
     }
   }
 
+
+  bool inputTS::checkArguments(){
+    if (config->getString("input").substr(0, 6) == "srt://"){
+      std::string source = config->getString("input");
+      HTTP::URL srtUrl(source);
+      config->getOption("input", true).append("ts-exec:srt-live-transmit "+srtUrl.getUrl()+" file://con");
+      INFO_MSG("Rewriting SRT source '%s' to '%s'", source.c_str(), config->getString("input").c_str());
+    }
+    return true;
+  }
+
   ///Live Setup of TS Input
   bool inputTS::preRun() {
-    const std::string & inpt = config->getString("input");
     //streamed standard input
-    if (inpt == "-") {
+    if (config->getString("input") == "-") {
       standAlone = false;
       tcpCon.open(fileno(stdout), fileno(stdin));
       return true;
     }
-    if (inpt.substr(0, 7) == "http://" || inpt.substr(0, 10) == "http-ts://" || inpt.substr(0, 8) == "https://" || inpt.substr(0, 11) == "https-ts://"){
+    if (config->getString("input").substr(0, 7) == "http://" || config->getString("input").substr(0, 10) == "http-ts://" || config->getString("input").substr(0, 8) == "https://" || config->getString("input").substr(0, 11) == "https-ts://"){
       standAlone = false;
-      HTTP::URL url(inpt);
+      HTTP::URL url(config->getString("input"));
       if (url.protocol == "http-ts"){url.protocol = "http";}
       if (url.protocol == "https-ts"){url.protocol = "https";}
       HTTP::Downloader DL;
@@ -193,9 +217,9 @@ namespace Mist {
       DL.getSocket().drop();//Prevent shutdown of connection, keeping copy of socket open
       return true;
     }
-    if (inpt.substr(0, 8) == "ts-exec:") {
+    if (config->getString("input").substr(0, 8) == "ts-exec:") {
       standAlone = false;
-      std::string input = inpt.substr(8);
+      std::string input = config->getString("input").substr(8);
       char *args[128];
       uint8_t argCnt = 0;
       char *startCh = 0;
@@ -222,19 +246,19 @@ namespace Mist {
       return true;
     }
     //streamed file
-    if (inpt.substr(0,9) == "stream://"){
-      inFile = fopen(inpt.c_str()+9, "r");
+    if (config->getString("input").substr(0,9) == "stream://"){
+      inFile = fopen(config->getString("input").c_str()+9, "r");
       tcpCon.open(-1, fileno(inFile));
       standAlone = false;
       return inFile;
     }
     //UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
-    if (inpt.substr(0, 8) == "tsudp://"){
+    if (config->getString("input").substr(0, 8) == "tsudp://"){
       standAlone = false;
       return true;
     }
     //plain VoD file
-    inFile = fopen(inpt.c_str(), "r");
+    inFile = fopen(config->getString("input").c_str(), "r");
     return inFile;
   }
 
@@ -598,7 +622,7 @@ namespace Mist {
     if (!standAlone){return false;}
     //otherwise, check input param
     const std::string & inpt = config->getString("input");
-    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" && inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
+    if (inpt.size() && inpt != "-" && inpt.substr(0,9) != "stream://" && inpt.substr(0,8) != "tsudp://" && inpt.substr(0, 8) != "ts-exec:" && inpt.substr(0, 6) != "srt://" && inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" && inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
       return true;
     }else{
       return false;

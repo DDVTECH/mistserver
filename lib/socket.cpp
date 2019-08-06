@@ -1107,13 +1107,17 @@ Socket::Connection::Connection(const Connection& rhs){
   up = rhs.up;
   down = rhs.down;
   downbuffer = rhs.downbuffer;
+#ifdef SSL
   if (!rhs.sslConnected){
+#endif
     if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
     if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
 #if DEBUG >= DLVL_DEVEL
     INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
 #endif
+#ifdef SSL
   }
+#endif
 }
 
 //Assignment constructor
@@ -1132,13 +1136,17 @@ Socket::Connection& Socket::Connection::operator=(const Socket::Connection& rhs)
   up = rhs.up;
   down = rhs.down;
   downbuffer = rhs.downbuffer;
+#ifdef SSL
   if (!rhs.sslConnected){
+#endif
     if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
     if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
 #if DEBUG >= DLVL_DEVEL
     INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
 #endif
+#ifdef SSL
   }
+#endif
   return *this;
 }
 

@@ -5,6 +5,7 @@
 #include <mist/triggers.h>
 #include <mist/encode.h>
 #include <mist/util.h>
+#include <mist/auth.h>
 #include <sys/stat.h>
 #include <cstring>
 #include <cstdlib>
@@ -14,10 +15,11 @@ namespace Mist{
     lastOutTime = 0;
     rtmpOffset = 0;
     bootMsOffset = 0;
+    authAttempts = 0;
     maxbps = config->getInteger("maxkbps")*128;
     if (config->getString("target").size()){
       streamName = config->getString("streamname");
-      HTTP::URL pushUrl(config->getString("target"));
+      pushUrl = HTTP::URL(config->getString("target"));
 #ifdef SSL
       if (pushUrl.protocol != "rtmp" && pushUrl.protocol != "rtmps"){
         FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
@@ -43,57 +45,7 @@ namespace Mist{
       }
       initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
-      if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
-#ifdef SSL
-      if (pushUrl.protocol == "rtmps"){myConn.open(pushUrl.host, pushUrl.getPort(), false, true);}
-#endif
-      if (!myConn){
-        FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
-        return;
-      }
-      //do handshake
-      myConn.SendNow("\003", 1);//protocol version. Always 3
-      char * temp = (char*)malloc(3072);
-      if (!temp){
-        myConn.close();
-        return;
-      }
-      *((uint32_t *)temp) = 0; //time zero
-      *(((uint32_t *)(temp + 4))) = htonl(0x01020304); //version 1 2 3 4
-      for (int i = 8; i < 3072; ++i){
-        temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
-      }//"random" data
-      myConn.SendNow(temp, 3072);
-      free(temp);
-      setBlocking(true);
-      while (!myConn.Received().available(3073) && myConn.connected() && config->is_active){
-        myConn.spool();
-      }
-      if (!myConn || !config->is_active){return;}
-      conn.Received().remove(3073);
-      RTMPStream::rec_cnt += 3073;
-      RTMPStream::snd_cnt += 3073;
-      setBlocking(false);
-      VERYHIGH_MSG("Push out handshake completed");
-
-      {
-        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
-        amfReply.addContent(AMF::Object("", "connect")); //command
-        amfReply.addContent(AMF::Object("", (double)1)); //transaction ID
-        amfReply.addContent(AMF::Object("")); //options
-        amfReply.getContentP(2)->addContent(AMF::Object("app", app));
-        amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
-        amfReply.getContentP(2)->addContent(AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
-        if (pushUrl.getPort() != 1935){
-          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/" + app));
-        }else{
-          amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", "rtmp://" + pushUrl.host + "/" + app));
-        }
-        sendCommand(amfReply, 20, 0);
-      }
-      RTMPStream::chunk_snd_max = 65536; //64KiB
-      myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
-      HIGH_MSG("Waiting for server to acknowledge connect request...");
+      startPushOut("");
     }else{
       setBlocking(true);
       while (!conn.Received().available(1537) && conn.connected() && config->is_active){
@@ -120,6 +72,81 @@ namespace Mist{
     }
 
     maxSkipAhead = 1500;
+  }
+
+  void OutRTMP::startPushOut(const char * args){
+
+    myConn.close();
+    myConn.Received().clear();
+
+    RTMPStream::chunk_rec_max = 128;
+    RTMPStream::chunk_snd_max = 128;
+    RTMPStream::rec_window_size = 2500000;
+    RTMPStream::snd_window_size = 2500000;
+    RTMPStream::rec_window_at = 0;
+    RTMPStream::snd_window_at = 0;
+    RTMPStream::rec_cnt = 0;
+    RTMPStream::snd_cnt = 0;
+
+    RTMPStream::lastsend.clear();
+    RTMPStream::lastrecv.clear();
+
+    std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
+    size_t slash = app.find('/');
+    if (slash != std::string::npos){app = app.substr(0, slash);}
+
+    if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
+#ifdef SSL
+    if (pushUrl.protocol == "rtmps"){myConn.open(pushUrl.host, pushUrl.getPort(), false, true);}
+#endif
+    if (!myConn){
+      FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
+      return;
+    }
+    //do handshake
+    myConn.SendNow("\003", 1);//protocol version. Always 3
+    char * temp = (char*)malloc(3072);
+    if (!temp){
+      myConn.close();
+      return;
+    }
+    *((uint32_t *)temp) = 0; //time zero
+    *(((uint32_t *)(temp + 4))) = htonl(0x01020304); //version 1 2 3 4
+    for (int i = 8; i < 3072; ++i){
+      temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
+    }//"random" data
+    myConn.SendNow(temp, 3072);
+    free(temp);
+    setBlocking(true);
+    while (!myConn.Received().available(3073) && myConn.connected() && config->is_active){
+      myConn.spool();
+    }
+    if (!myConn || !config->is_active){return;}
+    myConn.Received().remove(3073);
+    RTMPStream::rec_cnt += 3073;
+    RTMPStream::snd_cnt += 3073;
+    setBlocking(false);
+    VERYHIGH_MSG("Push out handshake completed");
+    std::string pushHost = "rtmp://" + pushUrl.host + "/";
+    if (pushUrl.getPort() != 1935){
+      pushHost = "rtmp://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
+    }
+
+    AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+    amfReply.addContent(AMF::Object("", "connect")); //command
+    amfReply.addContent(AMF::Object("", (double)1)); //transaction ID
+    amfReply.addContent(AMF::Object("")); //options
+    amfReply.getContentP(2)->addContent(AMF::Object("app", app + args));
+    amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
+    amfReply.getContentP(2)->addContent(AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
+    amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", pushHost + app + args));
+    sendCommand(amfReply, 20, 0);
+
+    RTMPStream::chunk_snd_max = 65536; //64KiB
+    myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); //send chunk size max (msg 1)
+    HIGH_MSG("Waiting for server to acknowledge connect request...");
+
+
   }
 
   bool OutRTMP::listenMode(){
@@ -977,6 +1004,48 @@ namespace Mist{
           }
         }
         if (code.size() || description.size()){
+          if (description.find("authmod=adobe") != std::string::npos){
+            if (!pushUrl.user.size() && !pushUrl.pass.size()){
+              FAIL_MSG("Receiving side wants credentials, but none were provided in the target");
+              return;
+            }
+            if (description.find("?reason=authfailed") != std::string::npos || authAttempts > 1){
+              FAIL_MSG("Credentials provided in the target were not accepted by the receiving side");
+              myConn.close();
+              return;
+            }
+            if (description.find("?reason=needauth") != std::string::npos){
+              std::map<std::string, std::string> authVars;
+              HTTP::parseVars(description.substr(description.find("?reason=needauth")+1), authVars);
+              std::string authSalt = authVars.count("salt") ? authVars["salt"] : "";
+              std::string authOpaque = authVars.count("opaque") ? authVars["opaque"] : "";
+              std::string authChallenge = authVars.count("challenge") ? authVars["challenge"] : "";
+              std::string authNonce = authVars.count("nonce") ? authVars["nonce"] : "";
+              INFO_MSG("Adobe auth: sending credentials phase 2 (salt=%s, opaque=%s, challenge=%s, nonce=%s)", authSalt.c_str(), authOpaque.c_str(), authChallenge.c_str(), authNonce.c_str());
+              authAttempts++;
+
+              char md5buffer[16];
+              std::string to_hash = pushUrl.user + authSalt + pushUrl.pass;
+              Secure::md5bin(to_hash.data(), to_hash.size(), md5buffer);
+              std::string hash_one = Encodings::Base64::encode(std::string(md5buffer, 16));
+              if (authOpaque.size()){
+                to_hash = hash_one+authOpaque+"00000000";
+              }else if (authOpaque.size()){
+                to_hash = hash_one+authChallenge+"00000000";
+              }
+              Secure::md5bin(to_hash.data(), to_hash.size(), md5buffer);
+              std::string hash_two = Encodings::Base64::encode(std::string(md5buffer, 16));
+              std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user) + "&challenge=00000000&response=" + hash_two;
+              if (authOpaque.size()){authStr += "&opaque=" + authOpaque;}
+              startPushOut(authStr.c_str());
+              return;
+            }
+            INFO_MSG("Adobe auth: sending credentials phase 1");
+            authAttempts++;
+            std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user);
+            startPushOut(authStr.c_str());
+            return;
+          }
           WARN_MSG("Received error response: %s; %s", amfData.getContentP(3)->getContentP("code")->StrValue().c_str(), amfData.getContentP(3)->getContentP("description")->StrValue().c_str());
         }else{
           WARN_MSG("Received generic error response (no useful content)");
@@ -1121,6 +1190,7 @@ namespace Mist{
                 break;
               case 6:
                 MEDIUM_MSG("CTRL: UCM PingRequest %i", ntohl(*((int *)(next.data.c_str() + 2))));
+                myConn.SendNow(RTMPStream::SendUSR(7, 1)); //send UCM PingResponse (7)
                 break;
               case 7:
                 MEDIUM_MSG("CTRL: UCM PingResponse %i", ntohl(*((int *)(next.data.c_str() + 2))));

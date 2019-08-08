@@ -2,6 +2,7 @@
 #include <mist/flv_tag.h>
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
+#include <mist/http_parser.h>
 
 
 namespace Mist {
@@ -26,6 +27,9 @@ namespace Mist {
       void parseChunk(Socket::Buffer & inputBuffer);
       void parseAMFCommand(AMF::Object & amfData, int messageType, int streamId);
       void sendCommand(AMF::Object & amfReply, int messageType, int streamId);
+      void startPushOut(const char * args);
+      HTTP::URL pushApp, pushUrl;
+      uint8_t authAttempts;
   };
 }
 

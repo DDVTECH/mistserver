@@ -342,7 +342,6 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
     return 1;
   }
   serv_sock_pointer = &server_socket;
-  DEVEL_MSG("Activating threaded server: %s", getString("cmd").c_str());
   activate();
   if (server_socket.getSocket()){
     int oldSock = server_socket.getSocket();
@@ -370,7 +369,6 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
     return 1;
   }
   serv_sock_pointer = &server_socket;
-  DEVEL_MSG("Activating forked server: %s", getString("cmd").c_str());
   activate();
   if (server_socket.getSocket()){
     int oldSock = server_socket.getSocket();

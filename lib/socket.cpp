@@ -1097,8 +1097,7 @@ Socket::Connection::Connection(const Connection& rhs){
   clear();
   if (!rhs){return;}
 #if DEBUG >= DLVL_DEVEL
-  INFO_MSG("Copying %s socket", rhs.sslConnected?"SSL":"regular");
-  BACKTRACE;
+  HIGH_MSG("Copying %s socket", rhs.sslConnected?"SSL":"regular");
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;
@@ -1113,7 +1112,7 @@ Socket::Connection::Connection(const Connection& rhs){
     if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
     if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
 #if DEBUG >= DLVL_DEVEL
-    INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
+    HIGH_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
 #endif
 #ifdef SSL
   }
@@ -1126,8 +1125,7 @@ Socket::Connection& Socket::Connection::operator=(const Socket::Connection& rhs)
   clear();
   if (!rhs){return *this;}
 #if DEBUG >= DLVL_DEVEL
-  INFO_MSG("Assigning %s socket", rhs.sslConnected?"SSL":"regular");
-  BACKTRACE;
+  HIGH_MSG("Assigning %s socket", rhs.sslConnected?"SSL":"regular");
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;
@@ -1142,7 +1140,7 @@ Socket::Connection& Socket::Connection::operator=(const Socket::Connection& rhs)
     if (rhs.sSend >= 0){sSend = dup(rhs.sSend);}
     if (rhs.sRecv >= 0){sRecv = dup(rhs.sRecv);}
 #if DEBUG >= DLVL_DEVEL
-    INFO_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
+    HIGH_MSG("Socket original = (%d / %d), copy = (%d / %d)", rhs.sSend, rhs.sRecv, sSend, sRecv);
 #endif
 #ifdef SSL
   }

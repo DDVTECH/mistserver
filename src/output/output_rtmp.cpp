@@ -493,9 +493,9 @@ namespace Mist{
   void OutRTMP::requestHandler(){
     //If needed, slow down the reading to a rate of maxbps on average
     static bool slowWarned = false;
-    if (maxbps && (Util::epoch() - myConn.connTime()) && myConn.dataDown() / (Util::epoch() - myConn.connTime()) > maxbps){
+    if (maxbps && (Util::bootSecs() - myConn.connTime()) && myConn.dataDown() / (Util::bootSecs() - myConn.connTime()) > maxbps){
       if (!slowWarned){
-        WARN_MSG("Slowing down connection from %s because rate of %llukbps > %llukbps", getConnectedHost().c_str(), (myConn.dataDown() / (Util::epoch() - myConn.connTime())) / 128, maxbps / 128);
+        WARN_MSG("Slowing down connection from %s because rate of %llukbps > %llukbps", getConnectedHost().c_str(), (myConn.dataDown() / (Util::bootSecs() - myConn.connTime())) / 128, maxbps / 128);
         slowWarned = true;
       }
       Util::sleep(250);

@@ -1394,8 +1394,8 @@ namespace Mist{
       payl << config->getString("target") << '\n';
       payl << capa["name"].asStringRef() << '\n';
       payl << myConn.dataUp() << '\n';
-      payl << (rightNow - myConn.connTime()) << '\n';
-      payl << myConn.connTime() << '\n';
+      payl << (Util::bootSecs() - myConn.connTime()) << '\n';
+      payl << (rightNow - (Util::bootSecs() - myConn.connTime())) << '\n';
       payl << rightNow << '\n';
       if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
         payl << (lastPacketTime - firstPacketTime) << '\n';
@@ -1705,7 +1705,7 @@ namespace Mist{
       tmpEx.connector(getStatsName());
       tmpEx.up(myConn.dataUp());
       tmpEx.down(myConn.dataDown());
-      tmpEx.time(now - myConn.connTime());
+      tmpEx.time(Util::bootSecs() - myConn.connTime());
       if (thisPacket){
         tmpEx.lastSecond(thisPacket.getTime());
       }else{
@@ -1714,7 +1714,7 @@ namespace Mist{
       /*LTS-START*/
       //Tag the session with the user agent
       static bool newUA = true;//we only do this once per connection
-      if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
+      if (newUA && ((Util::bootSecs() - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
         std::string APIcall = "{\"tag_sessid\":{\"" + tmpEx.getSessId() + "\":" + JSON::string_escape("UA:"+UA) + "}}";
         Socket::UDPConnection uSock;
         uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);

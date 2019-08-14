@@ -1272,7 +1272,7 @@ namespace Mist{
       tmpEx.connector(getStatsName());
       tmpEx.up(myConn.dataUp());
       tmpEx.down(myConn.dataDown());
-      tmpEx.time(now - myConn.connTime());
+      tmpEx.time(Util::bootSecs() - myConn.connTime());
       if (thisPacket){
         tmpEx.lastSecond(thisPacket.getTime());
       }else{

@@ -1093,11 +1093,28 @@ namespace Mist{
         seekPos = startRec;
       }
     }else{
+      if (myMeta.live && targetParams.count("pushdelay")){
+        INFO_MSG("Converting pushdelay syntax into corresponding startunix+realtime options");
+        targetParams["startunix"] = std::string("-")+targetParams["pushdelay"];
+        targetParams["realtime"] = "1";
+      }
       if (myMeta.live && (targetParams.count("startunix") || targetParams.count("stopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
         if (targetParams.count("startunix")){
           long long startUnix = atoll(targetParams["startunix"].c_str());
-          if (startUnix < 0){startUnix += Util::epoch();}
+          if (startUnix < 0){
+            long long origStartUnix = startUnix;
+            startUnix += Util::epoch();
+            if (startUnix < unixStreamBegin){
+              INFO_MSG("Waiting for stream to reach intended starting point");
+              while (startUnix < Util::epoch() - (liveTime() / 1000) && keepGoing()){
+                Util::wait(1000);
+                updateMeta();
+                stats();
+                startUnix = origStartUnix + Util::epoch();
+              }
+            }
+          }
           if (startUnix < unixStreamBegin){
             WARN_MSG("Start time is earlier than stream begin - starting earliest possible");
             targetParams["start"] = "-1";

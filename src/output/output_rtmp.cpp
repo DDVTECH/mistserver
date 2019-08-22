@@ -43,8 +43,9 @@ namespace Mist{
           streamOut = streamName;
         }
       }
-      initialize();
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+      initialize();
+      initialSeek();
       startPushOut("");
     }else{
       setBlocking(true);
@@ -1094,7 +1095,7 @@ namespace Mist{
           sendCommand(amfReply, 20, 1);
         }
         HIGH_MSG("Publish starting");
-        realTime = 0;
+        if (!targetParams.count("realtime")){realTime = 0;}
         parseData = true;
         return;
       }

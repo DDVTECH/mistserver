@@ -1056,14 +1056,6 @@ namespace Mist{
           }
         }
       }
-      if (targetParams.count("recstop")){
-        long long endRec = atoll(targetParams["recstop"].c_str());
-        if (endRec < 0 || endRec < startTime()){
-          onFail("Entire recording range is in the past", true);
-          return;
-        }
-        INFO_MSG("Recording will stop at %lld", endRec);
-      }
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
         unsigned long int mainTrack = getMainSelectedTrack();
         long long startRec = atoll(targetParams["recstart"].c_str());
@@ -1091,6 +1083,19 @@ namespace Mist{
         }
         INFO_MSG("Recording will start at %lld", startRec);
         seekPos = startRec;
+      }
+      //Duration to record in seconds. Overrides recstop.
+      if (targetParams.count("duration")){
+        long long endRec = atoll(targetParams["duration"].c_str())*1000;
+        targetParams["recstop"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
+      }
+      if (targetParams.count("recstop")){
+        long long endRec = atoll(targetParams["recstop"].c_str());
+        if (endRec < 0 || endRec < startTime()){
+          onFail("Entire recording range is in the past", true);
+          return;
+        }
+        INFO_MSG("Recording will stop at %lld", endRec);
       }
     }else{
       if (myMeta.live && targetParams.count("pushdelay")){
@@ -1182,6 +1187,7 @@ namespace Mist{
     static uint32_t seekCount = 2;
     unsigned long long seekPos = 0;
     if (!myMeta.live){return false;}
+    if (isRecordingToFile){return false;}
     long unsigned int mainTrack = getMainSelectedTrack();
     //cancel if there are no keys in the main track
     if (!myMeta.tracks.count(mainTrack)){return false;}

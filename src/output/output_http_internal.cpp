@@ -308,6 +308,9 @@ namespace Mist {
     /*LTS-END*/
     std::string uAgent = H.GetHeader("User-Agent");
     
+    std::string forceType = "";
+    if (H.GetVar("forcetype").size()) { forceType = ",forceType:\""+H.GetVar("forcetype")+"\""; }
+    
     std::string devSkin = "";
     if (H.GetVar("dev").size()) { devSkin = ",skin:\"dev\""; }
     H.SetVar("stream", "");
@@ -328,7 +331,7 @@ namespace Mist {
     std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
     std::string mp4Url = "/"+streamName+".mp4";
     
-    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')"+devSkin+"})</script></div></body></html>");
+    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')"+forceType+devSkin+"})</script></div></body></html>");
     if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
       H.SetHeader("Location",hlsUrl);
       H.SendResponse("307", "HLS redirect", myConn);

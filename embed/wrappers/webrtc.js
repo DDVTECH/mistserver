@@ -136,9 +136,15 @@ p.prototype.build = function (MistVideo,callback) {
         currenttracks = ev.tracks;
       }
     },
-    on_seek: function(){
+    on_seek: function(e){
       var thisPlayer = this;
       MistUtil.event.send("seeked",seekoffset,video);
+      
+      //set playback rate to auto if seek was to live point
+      if (e.live_point) {
+        thisPlayer.webrtc.playbackrate("auto");
+      }
+      
       if ("seekPromise" in this.webrtc.signaling){
         video.play().then(function(){
           if ("seekPromise" in thisPlayer.webrtc.signaling) {
@@ -152,6 +158,10 @@ p.prototype.build = function (MistVideo,callback) {
       }
       else { video.play(); }
     },
+    on_speed: function(e){
+      this.webrtc.play_rate = e.play_rate_curr;
+      MistUtil.event.send("ratechange",e,video);
+    },
     on_stop: function(){
       MistVideo.log("Websocket sent on_stop");
       MistUtil.event.send("ended",null,video);
@@ -164,6 +174,7 @@ p.prototype.build = function (MistVideo,callback) {
     this.peerConn = null;
     this.localOffer = null;
     this.isConnected = false;
+    this.play_rate = "auto";
     var thisWebRTCPlayer = this;
     
     this.on_event = function(ev) {
@@ -256,6 +267,19 @@ p.prototype.build = function (MistVideo,callback) {
       obj.type = "tracks";
       this.signaling.send(obj);
     };
+    this.playbackrate = function(value) {
+      if (typeof value == "undefined") {
+        return (me.webrtc.play_rate == "auto" ? 1 : me.webrtc.play_rate);
+      }
+      
+      if (!this.isConnected) { throw "Not connected, cannot change playback rate." }
+      
+      this.signaling.send({
+        type: "set_speed",
+        play_rate: value
+      });
+      
+    };
     this.getStats = function(callback){
       this.peerConn.getStats().then(function(d){
         var output = {};
@@ -339,6 +363,17 @@ p.prototype.build = function (MistVideo,callback) {
       video.pause();
       me.webrtc.seek(value);
       MistUtil.event.send("seeking",value,video);
+    }
+  });
+  
+  //override playbackrate
+  Object.defineProperty(this.api,"playbackRate",{
+    get: function(){
+      return me.webrtc.playbackrate();
+    },
+    set: function(value){
+      return me.webrtc.playbackrate(value);
+      //TODO send playbackrate changed event?
     }
   });
   

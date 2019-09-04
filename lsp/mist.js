@@ -4205,7 +4205,7 @@ var UI = {
             },
             video: {
               vheader: 'Video',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Size','Framerate','Language','Track index','Has B-Frames'],
               content: []
             },
             subtitle: {
@@ -4263,7 +4263,8 @@ var UI = {
                     UI.format.addUnit(track.width,'x ')+UI.format.addUnit(track.height,'px'),
                     UI.format.addUnit(UI.format.number(track.fpks/1000),'fps'),
                     ('language' in track ? track.language : 'unknown'),
-                    (trackindex.video)
+                    (trackindex.video),
+                    ("bframes" in track ? "yes" : "no")
                   ]
                 });
                 trackindex.video++

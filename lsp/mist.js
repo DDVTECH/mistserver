@@ -732,16 +732,19 @@ var UI = {
           var $itemsettings = $("<div>").addClass("itemsettings");
           var $newitembutton = $("<button>").text("New "+e.itemLabel);
           var sublist = e.sublist;
+          var local_e = e;
+          var $local_field = $field;
+          var $local_e = $e;
           $field.data("build",function(values,index){
             var savepos = index;
             
             //apply settings of var values
-            for (var i in e.saveas) {
+            for (var i in local_e.saveas) {
               if (!(i in values)) {
-                delete e.saveas[i];
+                delete local_e.saveas[i];
               }
             }
-            e.saveas = Object.assign(e.saveas,values);
+            local_e.saveas = Object.assign(local_e.saveas,values);
             
             var mode = "New";
             if (typeof index != "undefined") {
@@ -749,7 +752,7 @@ var UI = {
             }
             //Object.assign(e.saveas,values);
             var newUI = UI.buildUI(
-              [$("<h4>").text(mode+" "+e.itemLabel)].concat(
+              [$("<h4>").text(mode+" "+local_e.itemLabel)].concat(
                 sublist
               ).concat([
                 {
@@ -758,7 +761,7 @@ var UI = {
                   classes: ["onlyshowhelp"],
                   validate: [function(){
                     return {
-                      msg: "Did you want to save this "+e.itemLabel+"?",
+                      msg: "Did you want to save this "+local_e.itemLabel+"?",
                       classes: ["red"]
                     };
                   }]
@@ -770,10 +773,10 @@ var UI = {
                     "function": function(){
                       $itemsettings.html("");
                       $newitembutton.show();
-                      $e.show();
+                      $local_e.show();
                     }
                   },{
-                    label: "Save "+e.itemLabel,
+                    label: "Save "+local_e.itemLabel,
                     type: "save",
                     preSave: function(){
                       $(this).closest('.input_container').find(".onlyshowhelp").closest("label").hide();
@@ -782,8 +785,8 @@ var UI = {
                       $(this).closest('.input_container').find(".onlyshowhelp").closest("label").show();
                     },
                     "function": function(){
-                      var savelist = $field.getval();
-                      var save = Object.assign({},e.saveas);
+                      var savelist = $local_field.getval();
+                      var save = Object.assign({},local_e.saveas);
                       for (var i in save) {
                         if (save[i] === null) {
                           delete save[i];
@@ -795,10 +798,10 @@ var UI = {
                       else {
                         savelist[savepos] = save;
                       }
-                      $field.setval(savelist);
+                      $local_field.setval(savelist);
                       $itemsettings.html("");
                       $newitembutton.show();
-                      $e.show();
+                      $local_e.show();
                     }
                   }]
                 }
@@ -806,10 +809,11 @@ var UI = {
             );
             $itemsettings.html(newUI);
             $newitembutton.hide();
-            $e.hide();
+            $local_e.hide();
           });
+          var $sublistfield = $field;
           $newitembutton.click(function(){
-            $field.data("build")({});
+            $sublistfield.data("build")({});
           });
           sublist.unshift({
             type: "str",
@@ -2411,7 +2415,7 @@ var UI = {
             LTSonly: true
           },{
             type: 'span',
-            label: 'Active products',
+            label: 'Active licenses',
             value: $activeproducts,
             LTSonly: true
           },{

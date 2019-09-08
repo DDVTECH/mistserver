@@ -2,8 +2,8 @@
 
 namespace Controller {
 
-  /// Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
-  void UpdateProtocol(std::string protocol);
+  /// Marks the given protocol as needing a reload (signal USR1) on next check
+  void reloadProtocol(size_t indice);
 
   /// Checks current protocol configuration, updates state of enabled connectors if neccesary.
   bool CheckProtocols(JSON::Value & p, const JSON::Value & capabilities);

@@ -21,7 +21,12 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller {
 
+  static std::set<size_t> needsReload; ///< List of connector indices that needs a reload
   static std::map<std::string, pid_t> currentConnectors; ///<The currently running connectors.
+
+  void reloadProtocol(size_t indice){
+    needsReload.insert(indice);
+  }
 
   /// Updates the shared memory page with active connectors
   void saveActiveConnectors(bool forceOverride){
@@ -91,18 +96,6 @@ namespace Controller {
     currentConnectors.clear();
   }
 
-  ///\brief Checks if the binary mentioned in the protocol argument is currently active, if so, restarts it.
-  ///\param protocol The protocol to check.
-  void UpdateProtocol(std::string protocol){
-    std::map<std::string, pid_t>::iterator iter;
-    for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){
-      if (iter->first.substr(0, protocol.size()) == protocol){
-        Log("CONF", "Killing connector for update: " + iter->first);
-        Util::Procs::Stop(iter->second);
-      }
-    }
-  }
-  
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, const JSON::Value & argset){
     jsonForEachConst(argset, it) {
       if (it->isMember("option")){
@@ -214,6 +207,11 @@ namespace Controller {
       runningConns.insert(myCmd);
       if (currentConnectors.count(myCmd) && Util::Procs::isActive(currentConnectors[myCmd])){
         ( *ait)["online"] = 1;
+        //Reload connectors that need it
+        if (needsReload.count(ait.num())){
+          kill(currentConnectors[myCmd], SIGUSR1);
+          needsReload.erase(ait.num());
+        }
       }else{
         ( *ait)["online"] = 0;
       }

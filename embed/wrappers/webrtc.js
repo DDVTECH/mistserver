@@ -68,6 +68,7 @@ p.prototype.build = function (MistVideo,callback) {
   
   var seekoffset = 0;
   var hasended = false;
+  var currenttracks = [];
   this.listeners = {
     on_connected: function() {
       seekoffset = 0;
@@ -101,6 +102,10 @@ p.prototype.build = function (MistVideo,callback) {
       var oldoffset = seekoffset;
       seekoffset = ev.current*1e-3 - video.currentTime;
       if (Math.abs(oldoffset - seekoffset) > 1) { correctSubtitleSync(); }
+      
+      if ((!("paused" in ev) || (!ev.paused)) && (video.paused)) {
+        video.play();
+      }
       
       var d = (ev.end == 0 ? Infinity : ev.end*1e-3);
       if (d != duration) {
@@ -174,6 +179,7 @@ p.prototype.build = function (MistVideo,callback) {
     this.peerConn = null;
     this.localOffer = null;
     this.isConnected = false;
+    this.isConnecting = false;
     this.play_rate = "auto";
     var thisWebRTCPlayer = this;
     
@@ -182,6 +188,7 @@ p.prototype.build = function (MistVideo,callback) {
       switch (ev.type) {
         case "on_connected": {
           thisWebRTCPlayer.isConnected = true;
+          thisWebRTCPlayer.isConnecting = false;
           break;
         }
         case "on_answer_sdp": {
@@ -205,6 +212,7 @@ p.prototype.build = function (MistVideo,callback) {
     };
     
     this.connect = function(callback){
+      thisWebRTCPlayer.isConnecting = true;
       thisWebRTCPlayer.signaling = new WebRTCSignaling(thisWebRTCPlayer.on_event);
       thisWebRTCPlayer.peerConn = new RTCPeerConnection();
       thisWebRTCPlayer.peerConn.ontrack = function(ev) {
@@ -240,7 +248,7 @@ p.prototype.build = function (MistVideo,callback) {
     this.seek = function(seekTime){
       var p = new Promise(function(resolve,reject){
         if (!thisWebRTCPlayer.isConnected || !thisWebRTCPlayer.signaling) { return reject("Failed seek: not connected"); }
-        thisWebRTCPlayer.signaling.send({type: "seek", "seek_time": seekTime*1e3});
+        thisWebRTCPlayer.signaling.send({type: "seek", "seek_time": (seekTime == "live" ? "live" : seekTime*1e3)});
         if ("seekPromise" in thisWebRTCPlayer.signaling) {
           thisWebRTCPlayer.signaling.seekPromise.reject("Doing new seek");
         }
@@ -348,7 +356,6 @@ p.prototype.build = function (MistVideo,callback) {
   
   //override video duration
   var duration;
-  var currenttracks = [];
   Object.defineProperty(this.api,"duration",{
     get: function(){ return duration; }
   });
@@ -416,25 +423,39 @@ p.prototype.build = function (MistVideo,callback) {
   
   //redirect play
   me.api.play = function(){
+    var seekto;
     if (me.api.currentTime) {
+      seekto = me.api.currentTime;
+    }
+    if ((MistVideo.info) && (MistVideo.info.type == "live")) { 
+      seekto = "live";
+    }
+    if (seekto) {
       var p = new Promise(function(resolve,reject){
-        if ((!me.webrtc.isConnected) || (me.webrtc.peerConn.iceConnectionState != "completed")) {
-          me.webrtc.connect(function(){
-            me.webrtc.seek(me.api.currentTime).then(function(msg){
-              resolve("played "+msg);
-            }).catch(function(msg){
-              reject(msg);
+        if ((!me.webrtc.isConnected) && (me.webrtc.peerConn.iceConnectionState != "completed")) {
+          if (!me.webrtc.isConnecting) {
+            MistVideo.log("Received call to play while not connected, connecting "+me.webrtc.peerConn.iceConnectionState);
+            me.webrtc.connect(function(){
+              me.webrtc.seek(seekto).then(function(msg){
+                resolve("played "+msg);
+              }).catch(function(msg){
+                reject(msg);
+              });
             });
-          });
+          }
+          else {
+            reject("Still connecting");
+          }
         }
         else {
-          me.webrtc.seek(me.api.currentTime).then(function(msg){
+          me.webrtc.seek(seekto).then(function(msg){
             resolve("played "+msg);
           }).catch(function(msg){
             reject(msg);
           });
         }
       });
+      
       return p;
     }
     else {

@@ -108,14 +108,6 @@ namespace Mist{
     args.push_back(Util::getMyPath() + "MistOutHTTP");
     args.push_back("--ip");
     args.push_back(myConn.getHost());
-    if (config->getString("nostreamtext").size()){
-      args.push_back("--nostreamtext");
-      args.push_back(config->getString("nostreamtext"));
-    }
-    if (config->getString("pubaddr").size()){
-      args.push_back("--public-address");
-      args.push_back(config->getString("pubaddr"));
-    }
     args.push_back("");
     Util::Procs::socketList.insert(fd[0]);
     pid_t http_proc = Util::Procs::StartPiped(args, &(fd[1]), &(fd[1]), &fderr);

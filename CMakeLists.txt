@@ -275,6 +275,7 @@ endmacro()
 
 makeUtil(RAX rax)
 makeUtil(AMF amf)
+makeUtil(Certbot certbot)
 
 ########################################
 # MistServer - Inputs                  #

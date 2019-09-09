@@ -122,6 +122,7 @@ namespace Mist {
     capa["url_match"].append("/embed_$.js");
     capa["url_match"].append("/flashplayer.swf");
     capa["url_match"].append("/oldflashplayer.swf");
+    capa["url_prefix"] = "/.well-known/";
     capa["optional"]["wrappers"]["name"] = "Active players";
     capa["optional"]["wrappers"]["help"] = "Which players are attempted and in what order.";
     capa["optional"]["wrappers"]["default"] = "";
@@ -133,6 +134,12 @@ namespace Mist {
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
+    capa["optional"]["certbot"]["name"] = "Certbot validation token";
+    capa["optional"]["certbot"]["help"] = "Automatically set by the MistUtilCertbot authentication hook for certbot. Not intended to be set manually.";
+    capa["optional"]["certbot"]["default"] = "";
+    capa["optional"]["certbot"]["type"] = "str";
+    capa["optional"]["certbot"]["option"] = "--certbot";
+    capa["optional"]["certbot"]["short"] = "C";
     cfg->addConnectorOptions(8080, capa);
   }
   
@@ -447,6 +454,31 @@ namespace Mist {
 
   void OutHTTP::onHTTP(){
     std::string method = H.method;
+
+    //Handle certbot validations
+    if (H.url.substr(0, 28) == "/.well-known/acme-challenge/"){
+      std::string cbToken = H.url.substr(28);
+      jsonForEach(config->getOption("certbot",true),it){
+        if (it->asStringRef().substr(0, cbToken.size()+1) == cbToken+":"){
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
+          H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+          H.setCORSHeaders();
+          H.SetBody(it->asStringRef().substr(cbToken.size()+1));
+          H.SendResponse("200", "OK", myConn);
+          H.Clean();
+          return;
+        }
+      }
+      H.Clean();
+      H.SetHeader("Content-Type", "text/plain");
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetBody("No matching validation found for token '" + cbToken + "'");
+      H.SendResponse("404", "Not found", myConn);
+      H.Clean();
+      return;
+    }
     
     if (H.url == "/crossdomain.xml"){
       H.Clean();

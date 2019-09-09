@@ -478,6 +478,10 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     if (Request["updateprotocol"].isArray() && Request["updateprotocol"].size() == 2){
       jsonForEach(Controller::Storage["config"]["protocols"], it){
         if ((*it).compareExcept(Request["updateprotocol"][0u], ignores)){
+          //If the connector type didn't change, mark it as needing a reload
+          if ((*it)["connector"] == Request["updateprotocol"][1u]["connector"]){
+            reloadProtocol(it.num());
+          }
           (*it) = Request["updateprotocol"][1u];
         }
       }

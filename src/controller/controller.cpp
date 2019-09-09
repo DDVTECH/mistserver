@@ -360,6 +360,8 @@ int main_loop(int argc, char **argv){
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   // start monitoring thread
   tthread::thread monitorThread(statusMonitor, 0);
+  // start UDP API thread
+  tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
 
   // start main loop
   while (Controller::conf.is_active){
@@ -380,6 +382,8 @@ int main_loop(int argc, char **argv){
   statsThread.join();
   HIGH_MSG("Joining monitor thread...");
   monitorThread.join();
+  HIGH_MSG("Joining UDP API thread...");
+  UDPAPIThread.join();
   // write config
   tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
   Controller::writeConfigToDisk();

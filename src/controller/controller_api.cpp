@@ -5,6 +5,7 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/timing.h>
+#include <mist/procs.h>
 #include "controller_api.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
@@ -358,6 +359,31 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
     }//if HTTP request received
   }//while connected
   return 0;
+}
+
+void Controller::handleUDPAPI(void * np){
+  Socket::UDPConnection uSock(true);
+  if (!uSock.bind(UDP_API_PORT, UDP_API_HOST)){
+    FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
+    return;
+  }
+  Util::Procs::socketList.insert(uSock.getSock());
+  while (Controller::conf.is_active){
+    if (uSock.Receive()){
+      MEDIUM_MSG("UDP API: %s", uSock.data);
+      JSON::Value Request = JSON::fromString(uSock.data, uSock.data_len);
+      Request["minimal"] = true;
+      JSON::Value Response;
+      if (Request.isObject()){
+        tthread::lock_guard<tthread::mutex> guard(configMutex);
+        handleAPICommands(Request, Response);
+      }else{
+        WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
+      }
+    }else{
+      Util::sleep(500);
+    }
+  }
 }
 
 /// Local-only helper function that checks for duplicate protocols and removes them

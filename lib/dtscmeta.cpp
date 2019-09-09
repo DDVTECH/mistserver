@@ -1578,7 +1578,7 @@ namespace DTSC {
     char * ivec;
     size_t ivecLen;
     pack.getString("ivec", ivec, ivecLen);
-    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen(), 5000, ivecLen?ivec:0);
+    update(pack.getTime(), pack.hasMember("offset")?pack.getInt("offset"):0, pack.getTrackId(), dataLen, bpos, pack.hasMember("keyframe"), pack.getDataLen(), 1900, ivecLen?ivec:0);
   }
 
   void Meta::update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size, const char * ivec){

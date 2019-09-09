@@ -289,7 +289,7 @@ namespace DTSC {
       inline operator bool() const {
         return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
       }
-      void update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 5000);
+      void update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 1900);
       int getSendLen(bool skipDynamic = false);
       void send(Socket::Connection & conn, bool skipDynamic = false);
       void writeTo(char *& p);
@@ -347,10 +347,10 @@ namespace DTSC {
         return vod || live;
       }
       void reinit(const DTSC::Packet & source);
-      void update(const DTSC::Packet & pack, unsigned long segment_size = 5000);
+      void update(const DTSC::Packet & pack, unsigned long segment_size = 1900);
       void updatePosOverride(DTSC::Packet & pack, uint64_t bpos);
-      void update(JSON::Value & pack, unsigned long segment_size = 5000);
-      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 5000);
+      void update(JSON::Value & pack, unsigned long segment_size = 1900);
+      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 1900);
       unsigned int getSendLen(bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void send(Socket::Connection & conn, bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
       void writeTo(char * p);

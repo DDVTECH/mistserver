@@ -436,12 +436,12 @@ int main_loop(int argc, char **argv){
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
   // start monitoring thread
   tthread::thread monitorThread(statusMonitor, 0);
+  // start UDP API thread
+  tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
   // start monitoring thread /*LTS*/
   tthread::thread uplinkThread(Controller::uplinkConnection, 0); /*LTS*/
   // start push checking thread
   tthread::thread pushThread(Controller::pushCheckLoop, 0);
-  // start UDP API thread
-  tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
 #ifdef UPDATER
   // start updater thread
   tthread::thread updaterThread(Controller::updateThread, 0);
@@ -484,13 +484,13 @@ int main_loop(int argc, char **argv){
   statsThread.join();
   HIGH_MSG("Joining monitor thread...");
   monitorThread.join();
+  HIGH_MSG("Joining UDP API thread...");
+  UDPAPIThread.join();
   /*LTS-START*/
   HIGH_MSG("Joining uplink thread...");
   uplinkThread.join();
   HIGH_MSG("Joining push thread...");
   pushThread.join();
-  HIGH_MSG("Joining UDP API thread...");
-  UDPAPIThread.join();
 #ifdef LICENSING
   HIGH_MSG("Joining license thread...");
   licenseThread.join();

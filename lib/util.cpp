@@ -287,84 +287,69 @@ namespace Util{
       char * lineno = 0;
       char * strmNm = 0;
       char * message = 0;
-      while (i < 9 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] == '|'){
-        buf[i] = 0;//insert null byte
-        ++i;
-        progname = buf+i;//progname starts here
-      }
+      while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
+      if (buf[i] != '|'){continue;}//on parse error, skip to next message
+      buf[i] = 0;//insert null byte
+      ++i;
+      progname = buf+i;//progname starts here
       while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] == '|'){
-        buf[i] = 0;//insert null byte
-        ++i;
-        progpid = buf+i;//progpid starts here
-      }
+      if (buf[i] != '|'){continue;}//on parse error, skip to next message
+      buf[i] = 0;//insert null byte
+      ++i;
+      progpid = buf+i;//progpid starts here
       while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] == '|'){
-        buf[i] = 0;//insert null byte
-        ++i;
-        lineno = buf+i;//lineno starts here
-      }
+      if (buf[i] != '|'){continue;}//on parse error, skip to next message
+      buf[i] = 0;//insert null byte
+      ++i;
+      lineno = buf+i;//lineno starts here
       while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] == '|'){
-        buf[i] = 0;//insert null byte
-        ++i;
-        strmNm = buf+i;//stream name starts here
-      }
+      if (buf[i] != '|'){continue;}//on parse error, skip to next message
+      buf[i] = 0;//insert null byte
+      ++i;
+      strmNm = buf+i;//stream name starts here
       while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] == '|'){
-        buf[i] = 0;//insert null byte
-        ++i;
-        message = buf+i;//message starts here
-      }
-      if (!message){
-        message = strmNm;
-        strmNm = 0;
-        if (message){i = message-buf;}
-      }
+      if (buf[i] != '|'){continue;}//on parse error, skip to next message
+      buf[i] = 0;//insert null byte
+      ++i;
+      message = buf+i;//message starts here
       //find end of line, insert null byte
       unsigned int j = i;
       while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
       buf[j] = 0;
       //print message
-      if (message){
-        if (callback){callback(kind, message, strmNm, true);}
-        color_msg = color_end;
-        if (colored){
-          if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
-          if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
-          if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
-          if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
-          if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
-        }
-        time_t rawtime;
-        struct tm *timeinfo;
-        struct tm timetmp;
-        char buffer[100];
-        time(&rawtime);
-        timeinfo = localtime_r(&rawtime, &timetmp);
-        strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-        dprintf(out, "%s[%s] ", color_time, buffer);
-        if (progname && progpid && strlen(progname) && strlen(progpid)){
-          if (strmNm && strlen(strmNm)){
-            dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
-          }else{
-            dprintf(out, "%s (%s) ", progname, progpid);
-          }
-        }else{
-          if (strmNm && strlen(strmNm)){
-            dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);
-          }
-        }
-        dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
-        if (lineno && strlen(lineno)){
-          dprintf(out, " (%s) ", lineno);
-        }
-        dprintf(out, "\n");
-      }else{
-        //could not be parsed as log string - print the whole thing
-        dprintf(out, "%s\n", buf);
+      if (callback){callback(kind, message, strmNm, true);}
+      color_msg = color_end;
+      if (colored){
+        if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
+        if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
+        if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
+        if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
+        if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
       }
+      time_t rawtime;
+      struct tm *timeinfo;
+      struct tm timetmp;
+      char buffer[100];
+      time(&rawtime);
+      timeinfo = localtime_r(&rawtime, &timetmp);
+      strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+      dprintf(out, "%s[%s] ", color_time, buffer);
+      if (progname && progpid && strlen(progname) && strlen(progpid)){
+        if (strmNm && strlen(strmNm)){
+          dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
+        }else{
+          dprintf(out, "%s (%s) ", progname, progpid);
+        }
+      }else{
+        if (strmNm && strlen(strmNm)){
+          dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);
+        }
+      }
+      dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
+      if (lineno && strlen(lineno)){
+        dprintf(out, " (%s) ", lineno);
+      }
+      dprintf(out, "\n");
     }
     fclose(output);
     close(in);

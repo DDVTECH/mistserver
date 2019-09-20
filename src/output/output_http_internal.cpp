@@ -293,6 +293,12 @@ namespace Mist {
     devSkin += ",urlappend:\"" + H.allVars() + "\"";
     H.SetVar("stream", streamName);
     
+    std::string seekTo = "";
+    if (true) {
+      std::string t = "60"; //hoi Jaron, kan je hier de timestamp naar waar geseeked moet worden in gooien? in seconden graag. Ik heb het even n string gemaakt want geen zin om uit te zoeken hoe ik een int maak en hieronder insert en zooi.. :)
+      seekTo = "var f = function(){ if (mv.reference && mv.reference.player && mv.reference.player.api) { mv.reference.player.api.currentTime = "+t+"; } this.removeEventListener(\"initialized\",f); }; document.getElementById(\""+streamName+"\").addEventListener(\"initialized\",f);";
+    }
+    
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
@@ -306,7 +312,7 @@ namespace Mist {
     std::string hlsUrl = "/hls/"+streamName+"/index.m3u8";
     std::string mp4Url = "/"+streamName+".mp4";
     
-    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"')"+forceType+devSkin+"})</script></div></body></html>");
+    H.SetBody("<!DOCTYPE html><html><head><title>"+streamName+"</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>html{margin:0;padding:0;display:table;width:100%;height:100%;}body{color:white;background:#0f0f0f;margin:0;padding:0;display:table-cell;vertical-align:middle;text-align:center}body>div>div{text-align:left;}</style></head><body><div class=mistvideo id=\""+streamName+"\"><noscript><video controls autoplay><source src=\""+hlsUrl+"\" type=\"application/vnd.apple.mpegurl\"><source src=\""+mp4Url+"\" type=\"video/mp4\"><a href=\""+hlsUrl+"\">Click here to play the video [Apple]</a><br><a href=\""+mp4Url+"\">Click here to play the video [MP4]</a></video></noscript><script src=\"player.js\"></script><script>var mv = {reference:false}; mistPlay('"+streamName+"',{host:'"+fullURL.getUrl()+"',target:document.getElementById('"+streamName+"'),MistVideoObject:mv"+forceType+devSkin+"});"+seekTo+"</script></div></body></html>");
     if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) || (uAgent.find("iPhone") != std::string::npos)) {
       H.SetHeader("Location",hlsUrl);
       H.SendResponse("307", "HLS redirect", myConn);

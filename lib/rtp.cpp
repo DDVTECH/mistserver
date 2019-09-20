@@ -703,7 +703,18 @@ namespace RTP{
     }
     uint8_t nalType = (pl[0] & 0x7E) >> 1;
     if (nalType == 48){
-      ERROR_MSG("AP not supported yet");
+      unsigned int pos = 2;
+      while (pos + 2 < plSize){
+        unsigned int pLen = Bit::btohs(pl + pos);
+        VERYHIGH_MSG("AP Packet of %ub and type %s", pLen, h265::typeToStr((pl[pos+2]&0x7E) >> 1));
+        if (packBuffer.allocate(4 + pLen)){
+          Bit::htobl(packBuffer, pLen); // size-prepend
+          memcpy(packBuffer + 4, pl + pos + 2, pLen);
+          handleHEVCSingle(msTime, packBuffer, pLen + 4, h265::isKeyframe(pl + pos + 2, pLen));
+        }
+        pos += 2 + pLen;
+      }
+      return;
     }else if (nalType == 49){
       DONTEVEN_MSG("H265 Fragmentation Unit");
       // No length yet? Check for start bit. Ignore rest.

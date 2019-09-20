@@ -384,7 +384,7 @@ namespace Mist{
         HTTP_R.Clean();
         continue;
       }
-      WARN_MSG("Unhandled command %s:\n%s", HTTP_R.method.c_str(), HTTP_R.BuildRequest().c_str());
+      WARN_MSG("Unhandled command received (protocol corruption?)");
       HTTP_R.Clean();
     }
   }

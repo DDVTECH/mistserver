@@ -10,7 +10,8 @@ namespace Mist{
     void sendNext();
     virtual void sendHeader();
     uint32_t clusterSize(uint64_t start, uint64_t end);
-
+  protected:
+    virtual bool inlineRestartCapable() const{return true;}
   private:
     bool isRecording();
     std::string doctype;

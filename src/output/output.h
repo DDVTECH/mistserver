@@ -61,6 +61,7 @@ namespace Mist {
       static bool listenMode(){return true;}
       uint32_t currTrackCount() const;
       virtual bool isReadyForPlay();
+      virtual bool reachedPlannedStop();
       //virtuals. The optional virtuals have default implementations that do as little as possible.
       /// This function is called whenever a packet is ready for sending.
       /// Inside it, thisPacket is guaranteed to contain a valid packet.
@@ -102,6 +103,7 @@ namespace Mist {
       std::set<sortedPageInfo> buffer;///< A sorted list of next-to-be-loaded packets.
       bool sought;///<If a seek has been done, this is set to true. Used for seeking on prepareNext().
     protected://these are to be messed with by child classes
+      virtual bool inlineRestartCapable() const{return false;}///< True if the output is capable of restarting mid-stream. This is used for swapping recording files
       bool pushing;
       std::map<std::string, std::string> targetParams; /*LTS*/
       std::string UA; ///< User Agent string, if known.
@@ -118,6 +120,7 @@ namespace Mist {
       bool isBlocking;///< If true, indicates that myConn is blocking.
       uint32_t crc;///< Checksum, if any, for usage in the stats.
       unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
+      uint64_t nextKeyTime();
       
       //stream delaying variables
       unsigned int maxSkipAhead;///< Maximum ms that we will go ahead of the intended timestamps.

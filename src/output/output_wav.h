@@ -9,6 +9,8 @@ namespace Mist {
       void onHTTP();
       void sendNext();
       void sendHeader();
+    protected:
+      virtual bool inlineRestartCapable() const{return true;}
     private:
       bool isRecording();
       bool isFileTarget(){return isRecording();}

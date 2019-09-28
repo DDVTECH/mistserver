@@ -153,6 +153,10 @@ namespace Mist{
       }else{
         //In live, clusters are aligned with the lookAhead time
         newClusterTime = currentClusterTime+(needsLookAhead?needsLookAhead:1);
+        //EXCEPT if there's a keyframe within the lookAhead window, then align to that keyframe instead
+        //This makes sure that inlineRestartCapable works as intended
+        uint64_t nxtKTime = nextKeyTime();
+        if (nxtKTime && nxtKTime < newClusterTime){newClusterTime = nxtKTime;}
       }
       EBML::sendElemHead(myConn, EBML::EID_CLUSTER, clusterSize(currentClusterTime, newClusterTime));
       EBML::sendElemUInt(myConn, EBML::EID_TIMECODE, currentClusterTime);

@@ -10,6 +10,7 @@ namespace Mist {
       void sendNext();
       void sendHeader();
     private:
+      virtual bool inlineRestartCapable() const{return true;}
       FLV::Tag tag;
       bool isRecording();
       bool isFileTarget(){return isRecording();}

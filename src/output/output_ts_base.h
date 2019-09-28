@@ -17,13 +17,18 @@ namespace Mist {
       virtual void sendNext();      
       virtual void sendTS(const char * tsData, unsigned int len=188){};
       void fillPacket(char const * data, size_t dataLen, bool & firstPack, bool video, bool keyframe, uint32_t pkgPid, int & contPkg);    
+      virtual void sendHeader(){
+        sentHeader = true;
+        packCounter = 0;
+      }
     protected:
+      virtual bool inlineRestartCapable() const{return true;}
       std::map<unsigned int, bool> first;
       std::map<unsigned int, int> contCounters;
       int contPAT;
       int contPMT;
       int contSDT;
-      unsigned int packCounter; ///\todo update constructors?
+      unsigned int packCounter;
       TS::Packet packData;
       bool appleCompat;
       uint64_t sendRepeatingHeaders; ///< Amount of ms between PAT/PMT. Zero means do not repeat.

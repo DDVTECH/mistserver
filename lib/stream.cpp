@@ -509,6 +509,9 @@ pid_t Util::startPush(const std::string &streamname, std::string &target){
     return 0;
   }
 
+  //Set original target string in environment
+  setenv("MST_ORIG_TARGET", target.c_str(), 1);
+
   // The target can hold variables like current time etc
   streamVariables(target, streamname);
 
@@ -554,7 +557,12 @@ pid_t Util::startPush(const std::string &streamname, std::string &target){
                   (char *)target.c_str(), (char *)NULL};
 
   int stdErr = 2;
-  return Util::Procs::StartPiped(argv, 0, 0, &stdErr);
+  //Cache return value so we can do some cleaning before we return
+  pid_t ret = Util::Procs::StartPiped(argv, 0, 0, &stdErr);
+  //Clean up environment
+  unsetenv("MST_ORIG_TARGET");
+  //Actually return the resulting PID
+  return ret;
 }
 
 uint8_t Util::getStreamStatus(const std::string &streamname){

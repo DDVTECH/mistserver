@@ -710,6 +710,19 @@ namespace Mist{
     }
     return keyNo;
   }
+
+  ///Returns the timestamp of the next upcoming keyframe after thisPacket, or 0 if that cannot be determined (yet).
+  uint64_t Output::nextKeyTime(){
+    DTSC::Track & trk = myMeta.tracks[getMainSelectedTrack()];
+    if (!trk.keys.size()){
+      return 0;
+    }
+    std::deque<DTSC::Key>::iterator it;
+    for (it = trk.keys.begin(); it != trk.keys.end(); it++){
+      if (it->getTime() > lastPacketTime){return it->getTime();}
+    }
+    return 0;
+  }
   
   int Output::pageNumForKey(long unsigned int trackId, long long int keyNum){
     if (!nProxy.metaPages.count(trackId) || !nProxy.metaPages[trackId].mapped){
@@ -1085,6 +1098,11 @@ namespace Mist{
         seekPos = startRec;
       }
       //Duration to record in seconds. Overrides recstop.
+      if (targetParams.count("split")){
+        long long endRec = atoll(targetParams["split"].c_str())*1000;
+        INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
+        targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
+      }
       if (targetParams.count("duration")){
         long long endRec = atoll(targetParams["duration"].c_str())*1000;
         targetParams["recstop"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
@@ -1253,6 +1271,34 @@ namespace Mist{
     }
     Util::wait(millis);
   }
+  
+  /// Called right before sendNext(). Should return true if this is a stopping point.
+  bool Output::reachedPlannedStop(){
+    //If we're recording to file and reached the target position, stop
+    if (isRecordingToFile && targetParams.count("recstop") && atoll(targetParams["recstop"].c_str()) <= lastPacketTime){
+      INFO_MSG("End of planned recording reached");
+      return true;
+    }
+    //Regardless of playback method, if we've reached the wanted stop point, stop
+    if (targetParams.count("stop") && atoll(targetParams["stop"].c_str()) <= lastPacketTime){
+      INFO_MSG("End of planned playback reached");
+      return true;
+    }
+    //check if we need to split here
+    if (inlineRestartCapable() && targetParams.count("split")){
+      //Make sure that inlineRestartCapable outputs with splitting enabled only stop right before keyframes
+      //This works because this function is executed right BEFORE sendNext(), causing thisPacket to be the next packet
+      //in the newly splitted file.
+      if (!thisPacket.getFlag("keyframe")){return false;}
+      //is this a split point?
+      if (targetParams.count("nxt-split") && atoll(targetParams["nxt-split"].c_str()) <= lastPacketTime){
+        INFO_MSG("Split point reached");
+        return true;
+      }
+    }
+    //Otherwise, we're not stopping
+    return false;
+  }
  
   /// \triggers 
   /// The `"CONN_OPEN"` trigger is stream-specific, and is ran when a connection is made or passed to a new handler. Its payload is:
@@ -1374,15 +1420,30 @@ namespace Mist{
               }
             }
             
-            if (isRecordingToFile && targetParams.count("recstop") && atoll(targetParams["recstop"].c_str()) < lastPacketTime){
-              INFO_MSG("End of planned recording reached, shutting down");
-              if (!onFinish()){
-                break;
-              }
-            }else if (targetParams.count("stop") && atoll(targetParams["stop"].c_str()) < lastPacketTime){
-              INFO_MSG("End of planned playback reached, shutting down");
-              if (!onFinish()){
-                break;
+            if (reachedPlannedStop()){
+              const char * origTarget = getenv("MST_ORIG_TARGET");
+              targetParams.erase("nxt-split");
+              if (inlineRestartCapable() && origTarget && !reachedPlannedStop()){
+                std::string newTarget = origTarget;
+                Util::streamVariables(newTarget, streamName);
+                if (newTarget.rfind('?') != std::string::npos){
+                  newTarget.erase(newTarget.rfind('?'));
+                }
+                INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
+                if (!connectToFile(newTarget)){
+                  FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
+                  onFinish();
+                  break;
+                }
+                uint64_t endRec = lastPacketTime + atoll(targetParams["split"].c_str())*1000;
+                targetParams["nxt-split"] = JSON::Value(endRec).asString();
+                sentHeader = false;
+                sendHeader();
+              }else{
+                if (!onFinish()){
+                  INFO_MSG("Shutting down because planned stopping point reached");
+                  break;
+                }
               }
             }
             sendNext();
@@ -1815,7 +1876,6 @@ namespace Mist{
     }
     close(outFile);
     isRecordingToFile = true;
-    sought = false;
     return true;
   }
 

@@ -213,6 +213,44 @@ void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
   }
 }
 
+/// Resolves a hostname into a human-readable address that is the best guess for external address matching this host.
+/// The optional family can force IPv4/IPv6 resolving, while the optional hint will allow forcing resolving to a
+/// specific address if it is a match for this host.
+/// Returns empty string if no reasonable match could be made.
+std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, int family,
+                                                       const std::string &hint){
+  struct addrinfo *result, *rp, hints;
+  std::string newaddr;
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = family;
+  hints.ai_socktype = 0;
+  hints.ai_flags = AI_ADDRCONFIG;
+  int s = getaddrinfo(host.c_str(), 0, &hints, &result);
+  if (s != 0){
+    FAIL_MSG("Could not resolve %s! Error: %s", host.c_str(), gai_strerror(s));
+    return "";
+  }
+
+  for (rp = result; rp != NULL; rp = rp->ai_next){
+    static char addrconv[INET6_ADDRSTRLEN];
+    if (rp->ai_family == AF_INET6){
+      newaddr = inet_ntop(rp->ai_family, &((const sockaddr_in6 *)rp->ai_addr)->sin6_addr, addrconv, INET6_ADDRSTRLEN);
+    }
+    if (rp->ai_family == AF_INET){
+      newaddr = inet_ntop(rp->ai_family, &((const sockaddr_in *)rp->ai_addr)->sin_addr, addrconv, INET6_ADDRSTRLEN);
+    }
+    if (newaddr.substr(0, 7) == "::ffff:"){newaddr = newaddr.substr(7);}
+    HIGH_MSG("Resolved to %s addr [%s]", addrFam(rp->ai_family), newaddr.c_str());
+    // if not a local address, we can't bind, so don't bother trying it
+    if (!isLocal(newaddr)){continue;}
+    // we match the hint, done!
+    if (newaddr == hint){break;}
+  }
+  freeaddrinfo(result);
+  return newaddr;
+}
+
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
@@ -1644,6 +1682,25 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
   }else{
     FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
   }
+}
+
+std::string Socket::UDPConnection::getBoundAddress(){
+  struct sockaddr_in6 tmpaddr;
+  socklen_t len = sizeof(tmpaddr);
+  std::string boundaddr;
+  if (!getsockname(sock, (sockaddr *)&tmpaddr, &len)){
+    static char addrconv[INET6_ADDRSTRLEN];
+    if (tmpaddr.sin6_family == AF_INET6){
+      boundaddr = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+      if (boundaddr.substr(0, 7) == "::ffff:"){boundaddr = boundaddr.substr(7);}
+      HIGH_MSG("Local IPv6 addr [%s]", boundaddr.c_str());
+    }
+    if (tmpaddr.sin6_family == AF_INET){
+      boundaddr = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+      HIGH_MSG("Local IPv4 addr [%s]", boundaddr.c_str());
+    }
+  }
+  return boundaddr;
 }
 
 /// Bind to a port number, returning the bound port.

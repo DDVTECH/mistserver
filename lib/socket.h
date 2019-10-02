@@ -42,6 +42,8 @@ namespace Socket{
   /// Returns true if given human-readable hostname is a local address.
   bool isLocalhost(const std::string &host);
   bool checkTrueSocket(int sock);
+  std::string resolveHostToBestExternalAddrGuess(const std::string &host, int family = AF_UNSPEC,
+                                                 const std::string &hint = "");
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{
@@ -205,6 +207,7 @@ namespace Socket{
     void setBlocking(bool blocking);
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);
+    std::string getBoundAddress();
     uint32_t getDestPort() const;
     bool Receive();
     void SendNow(const std::string &data);

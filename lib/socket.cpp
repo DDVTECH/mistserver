@@ -1137,7 +1137,11 @@ Socket::Connection::Connection(const Connection &rhs){
   clear();
   if (!rhs){return;}
 #if DEBUG >= DLVL_DEVEL
+#ifdef SSL
   HIGH_MSG("Copying %s socket", rhs.sslConnected ? "SSL" : "regular");
+#else
+  HIGH_MSG("Copying regular socket");
+#endif
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;
@@ -1166,7 +1170,11 @@ Socket::Connection &Socket::Connection::operator=(const Socket::Connection &rhs)
   clear();
   if (!rhs){return *this;}
 #if DEBUG >= DLVL_DEVEL
+#ifdef SSL
   HIGH_MSG("Assigning %s socket", rhs.sslConnected ? "SSL" : "regular");
+#else
+  HIGH_MSG("Assigning regular socket");
+#endif
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;
@@ -1766,6 +1774,11 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       sockaddr_in *addr4 = (sockaddr_in *)(rp->ai_addr);
       // multicast has a "1110" bit prefix
       multicast = (((char *)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
+#ifdef __CYGWIN__
+      if (multicast){
+        ((sockaddr_in*)rp->ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY);
+      }
+#endif
     }
     if (multicast){
       const int optval = 1;

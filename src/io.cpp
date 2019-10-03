@@ -599,6 +599,9 @@ namespace Mist {
       DEBUG_MSG(DLVL_FAIL, "Failed to negotiate for incoming track %lu, there does not seem to be a connection with the buffer", tid);
       return;
     }
+    #if defined(__CYGWIN__) || defined(_WIN32)
+    static std::map<unsigned long, std::string> preservedTempMetas;
+    #endif
     unsigned long offset = 6 * trackOffset[tid];
     //If we have a new track to negotiate
     if (!trackState.count(tid)) {
@@ -626,9 +629,10 @@ namespace Mist {
         std::string tmpStr = tmpVal.toNetPacked();
         memcpy(metaPages[tid].mapped, tmpStr.data(), tmpStr.size());
 
-
-
-
+        #if defined(__CYGWIN__) || defined(_WIN32)
+        IPC::preservePage(pageName);
+        preservedTempMetas[tid] = pageName;
+        #endif
 
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), finalTid);
         metaPages[tid].init(pageName, SHM_TRACK_INDEX_SIZE, true);
@@ -645,9 +649,6 @@ namespace Mist {
       }
       return;
     }
-    #if defined(__CYGWIN__) || defined(_WIN32)
-    static std::map<unsigned long, std::string> preservedTempMetas;
-    #endif
     switch (trackState[tid]) {
       case FILL_NEW: {
           unsigned long newTid = ((long)(tmp[offset]) << 24) | ((long)(tmp[offset + 1]) << 16) | ((long)(tmp[offset + 2]) << 8) | tmp[offset + 3];

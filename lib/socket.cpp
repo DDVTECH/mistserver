@@ -1137,7 +1137,11 @@ Socket::Connection::Connection(const Connection &rhs){
   clear();
   if (!rhs){return;}
 #if DEBUG >= DLVL_DEVEL
+#ifdef SSL
   HIGH_MSG("Copying %s socket", rhs.sslConnected ? "SSL" : "regular");
+#else
+  HIGH_MSG("Copying regular socket");
+#endif
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;
@@ -1166,7 +1170,11 @@ Socket::Connection &Socket::Connection::operator=(const Socket::Connection &rhs)
   clear();
   if (!rhs){return *this;}
 #if DEBUG >= DLVL_DEVEL
+#ifdef SSL
   HIGH_MSG("Assigning %s socket", rhs.sslConnected ? "SSL" : "regular");
+#else
+  HIGH_MSG("Assigning regular socket");
+#endif
 #endif
   conntime = rhs.conntime;
   isTrueSocket = rhs.isTrueSocket;

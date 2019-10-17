@@ -107,6 +107,7 @@ namespace Mist{
     Socket::Connection http(fd[0]);
     http.setBlocking(false);
     Socket::Buffer &http_buf = http.Received();
+    http_buf.splitter.clear();
 
     // pass data back and forth between the SSL connection and HTTP process while connected
     while (config->is_active && http){

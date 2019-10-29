@@ -133,6 +133,7 @@ static inline void show_stackframe(){}
 #define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
 #define SHM_STREAM_CONF "MstSCnf%s" //%s stream name
+#define SHM_GLOBAL_CONF "MstGlobalConfig"
 #define STRMSTAT_OFF 0
 #define STRMSTAT_INIT 1
 #define STRMSTAT_BOOT 2

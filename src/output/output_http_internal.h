@@ -20,6 +20,8 @@ namespace Mist {
       virtual bool onFinish(){
         return stayConnected;
       }
+    private:
+      std::string origStreamName;
   };
 }
 

@@ -372,8 +372,31 @@ namespace Mist{
       }
     }else{
       if (!Util::startInput(streamName, "", true, isPushing())){
-        onFail("Stream open failed", true);
-        return;
+        JSON::Value defStrmJson = Util::getGlobalConfig("defaultStream");
+        std::string defStrm = defStrmJson.asString();
+        if(Triggers::shouldTrigger("DEFAULT_STREAM", streamName)){
+          std::string payload = defStrm+"\n"+streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+          //The return value is ignored, because the response (defStrm in this case) tells us what to do next, if anything.
+          Triggers::doTrigger("DEFAULT_STREAM", payload, streamName, false, defStrm);
+        }
+        if (!defStrm.size()){
+          onFail("Stream open failed", true);
+          return;
+        }
+        std::string newStrm = defStrm;
+        Util::streamVariables(newStrm, streamName, "");
+        if (streamName == newStrm){
+          onFail("Stream open failed; nothing to fall back to ("+defStrm+" == "+newStrm+")", true);
+          return;
+        }
+        INFO_MSG("Stream open failed; falling back to default stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
+        std::string origStream = streamName;
+        streamName = newStrm;
+        Util::Config::streamName = streamName;
+        if (!Util::startInput(streamName, "", true, isPushing())){
+          onFail("Stream open failed (fallback stream for '"+origStream+"')", true);
+          return;
+        }
       }
     }
     disconnect();

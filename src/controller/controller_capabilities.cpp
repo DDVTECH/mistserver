@@ -160,6 +160,13 @@ namespace Controller {
     trgs["LIVE_BANDWIDTH"]["response"] = "always";
     trgs["LIVE_BANDWIDTH"]["response_action"] = "If false, shuts down the stream buffer.";
     trgs["LIVE_BANDWIDTH"]["argument"] = "Triggers only if current bytes per second exceeds this amount (integer)";
+
+    trgs["DEFAULT_STREAM"]["when"] = "When any user attempts to open a stream that cannot be opened (because it is either offline or not configured), allows rewriting the stream to a different one as fallback. Supports variable substitution.";
+    trgs["DEFAULT_STREAM"]["stream_specific"] = true;
+    trgs["DEFAULT_STREAM"]["payload"] = "current defaultStream setting (string)\nrequested stream name (string)\nviewer host (string)\noutput type (string)\nfull request URL (string, may be blank for non-URL-based requests!)";
+    trgs["DEFAULT_STREAM"]["response"] = "always";
+    trgs["DEFAULT_STREAM"]["response_action"] = "Overrides the default stream setting (for this view) to the response value. If empty, fails loading the stream and returns an error to the viewer/user.";
+
   }
   
   ///Aquire list of available protocols, storing in global 'capabilities' JSON::Value.

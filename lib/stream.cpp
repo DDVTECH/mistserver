@@ -205,10 +205,42 @@ JSON::Value Util::getStreamConfig(const std::string &streamname){
   Util::DTSCShmReader rStrmConf(tmpBuf);
   DTSC::Scan stream_cfg = rStrmConf.getScan();
   if (!stream_cfg){
-    WARN_MSG("Could not get stream '%s' config!", smp.c_str());
+    if (!Util::getGlobalConfig("defaultStream")){
+      WARN_MSG("Could not get stream '%s' config!", smp.c_str());
+    }else{
+      INFO_MSG("Could not get stream '%s' config, not emitting WARN message because fallback is configured", smp.c_str());
+    }
     return result;
   }
   return stream_cfg.asJSON();
+}
+
+JSON::Value Util::getGlobalConfig(const std::string &optionName){
+  IPC::sharedPage globCfg(SHM_GLOBAL_CONF);
+  if (!globCfg.mapped){
+    FAIL_MSG("Could not open global configuration options to read setting for '%s'", optionName.c_str());
+    return JSON::Value();
+  }
+  Util::RelAccX cfgData(globCfg.mapped);
+  if (!cfgData.isReady()){
+    FAIL_MSG("Global configuration options not ready; cannot read setting for '%s'", optionName.c_str());
+    return JSON::Value();
+  }
+  Util::RelAccXFieldData dataField = cfgData.getFieldData(optionName);
+  switch (dataField.type & 0xF0){
+    case RAX_INT:
+    case RAX_UINT:
+      //Integer types, return JSON::Value integer
+      return JSON::Value(cfgData.getInt(dataField));
+    case RAX_RAW:
+    case RAX_STRING:
+      //String types, return JSON::Value string
+      return JSON::Value(std::string(cfgData.getPointer(dataField), cfgData.getSize(optionName)));
+    default:
+      //Unimplemented types
+      FAIL_MSG("Global configuration setting for '%s' is not an implemented datatype!", optionName.c_str());
+      return JSON::Value();
+  }
 }
 
 DTSC::Meta Util::getStreamMeta(const std::string &streamname){

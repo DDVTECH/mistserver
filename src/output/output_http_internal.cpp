@@ -6,6 +6,7 @@
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 #include <mist/websocket.h>
+#include <mist/triggers.h>
 
 namespace Mist {
   /// Helper function to find the protocol entry for a given port number
@@ -358,8 +359,36 @@ namespace Mist {
     if (config->getString("nostreamtext") != ""){
       json_resp["on_error"] = config->getString("nostreamtext");
     }
+    //Make note of any defaultStream-based redirection
+    if (origStreamName.size() && origStreamName != streamName){
+      json_resp["redirected"].append(origStreamName);
+      json_resp["redirected"].append(streamName);
+    }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     if (streamStatus != STRMSTAT_READY){
+      //If we haven't rewritten the stream name yet to a fallback, attempt to do so
+      if (origStreamName == streamName){
+        JSON::Value defStrmJson = Util::getGlobalConfig("defaultStream");
+        std::string defStrm = defStrmJson.asString();
+        if(Triggers::shouldTrigger("DEFAULT_STREAM", streamName)){
+          std::string payload = defStrm+"\n"+streamName+"\n" + getConnectedHost() +"\n"+capa["name"].asStringRef()+"\n"+reqUrl;
+          //The return value is ignored, because the response (defStrm in this case) tells us what to do next, if anything.
+          Triggers::doTrigger("DEFAULT_STREAM", payload, streamName, false, defStrm);
+        }
+        if (defStrm.size()){
+          std::string newStrm = defStrm;
+          Util::streamVariables(newStrm, streamName, "");
+          if (streamName != newStrm){
+            INFO_MSG("Falling back to default stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
+            origStreamName = streamName;
+            streamName = newStrm;
+            Util::Config::streamName = streamName;
+            reconnect();
+            return getStatusJSON(reqHost, useragent);
+          }
+        }
+        origStreamName.clear();//no fallback, don't check again
+      }
       switch (streamStatus){
         case STRMSTAT_OFF:
           json_resp["error"] = "Stream is offline";
@@ -504,6 +533,7 @@ namespace Mist {
   }
 
   void OutHTTP::onHTTP(){
+    origStreamName = streamName;
     std::string method = H.method;
 
     //Handle certbot validations
@@ -907,6 +937,8 @@ namespace Mist {
     Util::startInput(streamName, "", true, false);
 
     char pageName[NAME_BUFFER_SIZE];
+    std::string currStreamName;
+    currStreamName = streamName;
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
     IPC::sharedPage streamStatus(pageName, 1, false, false);
     uint8_t prevState, newState, metaCounter;
@@ -925,6 +957,11 @@ namespace Mist {
           disconnect();
         }
         JSON::Value resp = getStatusJSON(reqHost, useragent);
+        if (currStreamName != streamName){
+          currStreamName = streamName;
+          snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
+          streamStatus.close();
+        }
         ws.sendFrame(resp.toString());
         prevState = newState;
       }else{

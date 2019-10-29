@@ -494,6 +494,9 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       out["prometheus"] = in["prometheus"];
       Controller::prometheus = out["prometheus"].asStringRef();
     }
+    if (in.isMember("defaultStream")){
+      out["defaultStream"] = in["defaultStream"];
+    }
   }
   if (Request.isMember("bandwidth")){
     if (Request["bandwidth"].isObject()){

@@ -334,6 +334,27 @@ namespace Controller{
       writeStream(it.key(), *it);
     }
 
+    {
+      //Global configuration options, if any
+      IPC::sharedPage globCfg;
+      globCfg.init(SHM_GLOBAL_CONF, 4096, false, false);
+      if (!globCfg.mapped){
+        globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);
+      }
+      if (globCfg.mapped){
+        Util::RelAccX globAccX(globCfg.mapped, false);
+        if (!globAccX.isReady()){
+          globAccX.addField("defaultStream", RAX_128STRING);
+          globAccX.setRCount(1);
+          globAccX.setEndPos(1);
+          globAccX.setReady();
+        }
+        globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
+        globCfg.master = false;//leave the page after closing
+      }
+    }
+
+
     /*LTS-START*/
     static std::map<std::string, IPC::sharedPage> pageForType; // should contain one page for every trigger type
     static JSON::Value writtenTrigs;

@@ -2366,7 +2366,8 @@ var UI = {
           serverid: mist.data.config.serverid,
           debug: mist.data.config.debug,
           accesslog: mist.data.config.accesslog,
-          prometheus: mist.data.config.prometheus
+          prometheus: mist.data.config.prometheus,
+          defaultStream: mist.data.config.defaultStream
         };
         var b = {};
         if ("bandwidth" in mist.data) {
@@ -2521,6 +2522,16 @@ var UI = {
             help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
             LTSonly: true
           },{
+            type: "str",
+            validate: ['streamname_with_wildcard_and_variables'],
+            label: 'Fallback stream',
+            pointer: {
+              main: s,
+              index: "defaultStream"
+            },
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
+            LTSonly: true
+          },{
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
@@ -2590,6 +2601,7 @@ var UI = {
             }
             
             if ((!d.update) || (!('uptodate' in d.update))) {
+              
               $versioncheck.text('Unknown, checking..');
               setTimeout(function(){
                 mist.send(function(d){

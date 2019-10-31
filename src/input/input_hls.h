@@ -17,6 +17,10 @@
 namespace Mist{
 
   enum PlaylistType{VOD, LIVE, EVENT};
+  
+  extern bool streamIsLive;
+  extern uint32_t globalWaitTime;//largest waitTime for any playlist we're loading - used to update minKeepAway
+  void parseKey(std::string key, char * newKey, unsigned int len);
 
   struct playListEntries{
     std::string filename;
@@ -24,25 +28,35 @@ namespace Mist{
     float duration;
     unsigned int timestamp;
     unsigned int wait;
+    char ivec[16];
+    char keyAES[16];
+  };
+
+  /// Keeps the segment entry list by playlist ID
+  extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
+
+  class SegmentDownloader{
+  public:
+    SegmentDownloader();
+    HTTP::Downloader segDL;
+    const char *packetPtr;
+    bool loadSegment(const playListEntries & entry);
+    bool atEnd() const;
   };
 
   class Playlist{
   public:
     Playlist(const std::string &uriSrc = "");
-    bool atEnd() const;
     bool isUrl() const;
     bool reload();
-    void addEntry(const std::string &filename, float duration, uint64_t &totalBytes);
-    bool loadSegment(const HTTP::URL &uri);
+    void addEntry(const std::string &filename, float duration, uint64_t &totalBytes, const std::string &key, const std::string &keyIV);
     bool isSupportedFile(const std::string filename);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
 
-    HTTP::Downloader segDL;
     HTTP::Downloader plsDL;
 
-    const char *packetPtr;
     uint64_t reloadNext;
 
     uint32_t id;
@@ -52,16 +66,13 @@ namespace Mist{
 
     int waitTime;
     PlaylistType playlistType;
-    std::deque<playListEntries> entries;
     unsigned int lastTimestamp;
     unsigned int startTime;
+    char keyAES[16];
+    std::map<std::string, std::string> keys;
   };
 
-  struct entryBuffer{
-    int timestamp;
-    playListEntries entry;
-    int playlistIndex;
-  };
+  void playlistRunner(void * ptr);
 
   class inputHLS : public Input{
   public:
@@ -70,33 +81,25 @@ namespace Mist{
     bool needsLock();
     bool openStreamSource();
     bool callback();
-
   protected:
-    // Private Functions
-
     unsigned int startTime;
     PlaylistType playlistType;
+    SegmentDownloader segDowner;
     int version;
     int targetDuration;
     bool endPlaylist;
     int currentPlaylist;
-
-    // std::vector<playListEntries> entries;
-    std::vector<Playlist> playlists;
-    // std::vector<int> pidMapping;
+    
     std::map<uint64_t, uint64_t> pidMapping;
     std::map<uint64_t, uint64_t> pidMappingR;
 
     int currentIndex;
     std::string currentFile;
-    std::ifstream in;
 
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
 
     Socket::Connection conn;
     TS::Packet tsBuf;
-
-    int getFirstPlaylistToReload();
 
     int firstSegment();
     void waitForNextSegment();
@@ -112,8 +115,8 @@ namespace Mist{
     FILE *tsFile;
 
     bool readIndex();
-    bool initPlaylist(const std::string &uri);
-    bool readPlaylist(const HTTP::URL &uri);
+    bool initPlaylist(const std::string &uri, bool fullInit = true);
+    bool readPlaylist(const HTTP::URL &uri, bool fullInit = true);
     bool readNextFile();
 
     void parseStreamHeader();

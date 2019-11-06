@@ -6829,6 +6829,9 @@ $.fn.getval = function(){
       case 'span':
         val = $(this).html();
         break;
+      case 'debug':
+        val = Number($(this).val());
+        break;
       case 'checkbox':
         val = $(this).prop('checked');
         break;

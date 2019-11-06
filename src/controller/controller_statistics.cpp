@@ -679,7 +679,7 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
 }
 
 void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t disconnectPoint){
-  if (!tracked){return;}
+  if (!tracked || curConns.size()){return;}
   if (lastSec < disconnectPoint){
     switch (sessionType){
       case SESS_INPUT:
@@ -1100,10 +1100,6 @@ void Controller::parseStatistics(char * data, size_t len, uint32_t id){
     INSANE_MSG("Ended connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
     sessions[idx].finish(id);
     connToSession.erase(id);
-  }else{
-    if (sessions[idx].getSessType() != SESS_OUTPUT && sessions[idx].getSessType() != SESS_UNSET){
-      std::string strmName = tmpEx.streamName();
-    }
   }
 }
 

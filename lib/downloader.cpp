@@ -20,6 +20,8 @@ namespace HTTP{
     }
   }
 
+  bool Downloader::isProxied() const{return proxied;}
+
   /// Returns a reference to the internal HTTP::Parser body element
   std::string &Downloader::data(){return H.body;}
 

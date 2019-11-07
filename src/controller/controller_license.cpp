@@ -100,6 +100,7 @@ namespace Controller{
     dl.dataTimeout = 25;//25-second data timeout, increased from 5s default
 #ifdef SSL
     HTTP::URL url("https://releases.mistserver.org/license.php");
+    if (dl.isProxied()){url.protocol = "http";}
 #else
     HTTP::URL url("http://releases.mistserver.org/license.php");
 #endif

@@ -82,6 +82,7 @@ namespace Controller{
           Log("UPDR", "Downloading update...");
 #ifdef SSL
           HTTP::URL url("https://releases.mistserver.org/update.php");
+          if (DL.isProxied()){url.protocol = "http";}
 #else
           HTTP::URL url("http://releases.mistserver.org/update.php");
 #endif
@@ -171,6 +172,7 @@ namespace Controller{
     JSON::Value updrInfo;
 #ifdef SSL
     HTTP::URL url("https://releases.mistserver.org/update.php");
+    if (DL.isProxied()){url.protocol = "http";}
 #else
     HTTP::URL url("http://releases.mistserver.org/update.php");
 #endif

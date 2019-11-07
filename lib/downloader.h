@@ -29,6 +29,7 @@ namespace HTTP{
     Parser &getHTTP();
     Socket::Connection &getSocket();
     uint32_t retryCount, dataTimeout;
+    bool isProxied() const;
 
   private:
     std::map<std::string, std::string> extraHeaders; ///< Holds extra headers to sent with request

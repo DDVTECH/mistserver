@@ -175,3 +175,5 @@ static inline void show_stackframe(){}
 #define UDP_API_PORT 4242
 #endif
 
+#define INVALID_TRACK_ID 0
+

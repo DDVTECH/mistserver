@@ -505,207 +505,31 @@ namespace Mist{
       if (!isInitialized){return false;}
     }
 
-    //First, back up and wipe the existing selections, if any.
-    std::set<unsigned long> oldSel = selectedTracks;
-    selectedTracks.clear();
-
     bool autoSeek = buffer.size();
     uint64_t seekTarget = currentTime();
+    std::set<size_t> newSelects = Util::wouldSelect(myMeta, targetParams, capa, UA, autoSeek?seekTarget:0);
 
-    /*LTS-START*/
-    bool noSelAudio = false, noSelVideo = false, noSelSub = false;
-    //Then, select the tracks we've been asked to select.
-    if (targetParams.count("audio") && targetParams["audio"].size()){
-      selectTrack("audio", targetParams["audio"]);
-      noSelAudio = true;
-    }
-    if (targetParams.count("video") && targetParams["video"].size()){
-      selectTrack("video", targetParams["video"]);
-      noSelVideo = true;
-    }
-    if (targetParams.count("subtitle") && targetParams["subtitle"].size()){
-      selectTrack("subtitle", targetParams["subtitle"]);
-      noSelSub = true;
-    }
-    /*LTS-END*/
-
-    //check which tracks don't actually exist
-    std::set<unsigned long> toRemove;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (!myMeta.tracks.count(*it)){
-        toRemove.insert(*it);
-        continue;
-      }
-      //autoSeeking and target not in bounds? Drop it too.
-      if (autoSeek && myMeta.tracks[*it].lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){
-        toRemove.insert(*it);
-      }
-    }
-    //remove those from selectedtracks
-    for (std::set<unsigned long>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
-      selectedTracks.erase(*it);
-    }
-    
-    //loop through all codec combinations, count max simultaneous active
-    unsigned int bestSoFar = 0;
-    unsigned int bestSoFarCount = 0;
-    unsigned int index = 0;
-    jsonForEach(capa["codecs"], it){
-      unsigned int selCounter = 0;
-      if ((*it).size() > 0){
-        jsonForEach((*it), itb){
-          if ((*itb).size() > 0){
-            jsonForEach(*itb, itc){
-              const std::string & strRef = (*itc).asStringRef();
-              bool byType = false;
-              bool multiSel = false;
-              uint8_t shift = 0;
-              if (strRef[shift] == '@'){byType = true; ++shift;}
-              if (strRef[shift] == '+'){multiSel = true; ++shift;}
-              for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                  //user-agent-check
-                  bool problems = false;
-                  if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
-                    jsonForEach(capa["exceptions"], ex){
-                      if (ex.key() == "codec:"+strRef.substr(shift)){
-                        problems = !Util::checkException(*ex, UA);
-                        break;
-                      }
-                    }
-                  }
-                  if (problems){break;}
-                  selCounter++;
-                  if (!multiSel){
-                    break;
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (selCounter == selectedTracks.size()){
-          if (selCounter > bestSoFarCount){
-            bestSoFarCount = selCounter;
-            bestSoFar = index;
-            HIGH_MSG("Matched %u: %s", selCounter, (*it).toString().c_str());
-          }
-        }else{
-          VERYHIGH_MSG("Not a match for currently selected tracks: %s", (*it).toString().c_str());
-        }
-      }
-      index++;
-    }
-    
-    MEDIUM_MSG("Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
-    //try to fill as many codecs simultaneously as possible
-    if (capa["codecs"][bestSoFar].size() > 0){
-      jsonForEach(capa["codecs"][bestSoFar], itb){
-        if ((*itb).size() && myMeta.tracks.size()){
-          bool found = false;
-          bool multiFind = false;
-          jsonForEach((*itb), itc){
-            const std::string & strRef = (*itc).asStringRef();
-            bool byType = false;
-            uint8_t shift = 0;
-            if (strRef[shift] == '@'){byType = true; ++shift;}
-            if (strRef[shift] == '+'){multiFind = true; ++shift;}
-            for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-              if ((!byType && myMeta.tracks[*itd].codec == strRef.substr(shift)) || (byType && myMeta.tracks[*itd].type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                found = true;
-                break;
-              }
-            }
-          }
-          if (!found || multiFind){
-            jsonForEach((*itb), itc){
-              const std::string & strRef = (*itc).asStringRef();
-              bool byType = false;
-              bool multiSel = false;
-              uint8_t shift = 0;
-              if (strRef[shift] == '@'){byType = true; ++shift;}
-              if (strRef[shift] == '+'){multiSel = true; ++shift;}
-              if (found && !multiSel){continue;}
-              if (myMeta.live){
-                for (std::map<unsigned int, DTSC::Track>::reverse_iterator trit = myMeta.tracks.rbegin(); trit != myMeta.tracks.rend(); trit++){
-                  if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                    if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
-                    /*LTS-START*/
-                    if (noSelAudio && trit->second.type == "audio"){continue;}
-                    if (noSelVideo && trit->second.type == "video"){continue;}
-                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
-                    /*LTS-END*/
-                    //user-agent-check
-                    bool problems = false;
-                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
-                      jsonForEach(capa["exceptions"], ex){
-                        if (ex.key() == "codec:"+strRef.substr(shift)){
-                          problems = !Util::checkException(*ex, UA);
-                          break;
-                        }
-                      }
-                    }
-                    if (problems){continue;}
-                    selectedTracks.insert(trit->first);
-                    found = true;
-                    if (!multiSel){break;}
-                  }
-                }
-              }else{
-                for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if ((!byType && trit->second.codec == strRef.substr(shift)) || (byType && trit->second.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                    if (autoSeek && trit->second.lastms < std::max(seekTarget, (uint64_t)6000lu) - 6000){continue;}
-                    /*LTS-START*/
-                    if (noSelAudio && trit->second.type == "audio"){continue;}
-                    if (noSelVideo && trit->second.type == "video"){continue;}
-                    if (noSelSub && (trit->second.type == "subtitle" || trit->second.codec == "subtitle")){continue;}
-                    /*LTS-END*/
-                    //user-agent-check
-                    bool problems = false;
-                    if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
-                      jsonForEach(capa["exceptions"], ex){
-                        if (ex.key() == "codec:"+strRef.substr(shift)){
-                          problems = !Util::checkException(*ex, UA);
-                          break;
-                        }
-                      }
-                    }
-                    if (problems){continue;}
-                    selectedTracks.insert(trit->first);
-                    found = true;
-                    if (!multiSel){break;}
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+    std::set<size_t> oldSel;
+    for (std::set<unsigned long>::iterator selIt = selectedTracks.begin(); selIt != selectedTracks.end(); ++selIt){
+      oldSel.insert(*selIt);
     }
 
-    if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
-      //print the selected tracks
-      std::stringstream selected;
-      if (selectedTracks.size()){
-        for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-          if (it != selectedTracks.begin()){
-            selected << ", ";
-          }
-          selected << (*it);
-        }
-      }
-      MEDIUM_MSG("Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
+    if (oldSel == newSelects){
+      //No new selections? Do nothing, return no change.
+      return false;
     }
-    
-    if (!selectedTracks.size() && myMeta.tracks.size() && capa["codecs"][bestSoFar].size()){
-      WARN_MSG("No tracks selected (%u total) for stream %s!", myMeta.tracks.size(), streamName.c_str());
+
+    //We changed the selection! Change to the new selection.
+    selectedTracks.clear();
+    for (std::set<size_t>::iterator reselIt = newSelects.begin(); reselIt != newSelects.end(); ++reselIt){
+      selectedTracks.insert(*reselIt);
     }
-    bool madeChange = (oldSel != selectedTracks);
-    if (autoSeek && madeChange){
+
+    if (autoSeek){
       INFO_MSG("Automatically seeking to position %llu to resume playback", seekTarget);
       seek(seekTarget);
     }
-    return madeChange;
+    return true;
   }
   
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.

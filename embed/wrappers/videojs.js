@@ -250,6 +250,23 @@ p.prototype.build = function (MistVideo,callback) {
       }
     };
     
+    if (MistVideo.info.type == "live") {
+      
+      //for some reason, videojs doesn't always fire the canplay event ???
+      //mitigate by sending one when durationchange follows loadstart
+      
+      var loadstart = MistUtil.event.addListener(ele,"loadstart",function(e){
+        MistUtil.event.removeListener(loadstart);
+        MistUtil.event.send("canplay",false,this);
+      });
+      var canplay = MistUtil.event.addListener(ele,"canplay",function(e){
+        //remove the listener
+        if (loadstart) { MistUtil.event.removeListener(loadstart); }
+        MistUtil.event.removeListener(canplay);
+      });
+      
+    }
+    
     callback(ele);
   }
   

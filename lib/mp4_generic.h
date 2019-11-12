@@ -31,7 +31,19 @@ namespace MP4{
   };
   // TRAF Box
 
-  struct trunSampleInformation{
+  class BTRT: public Box {
+    public:
+      BTRT();
+      uint32_t getDecodingBufferSize();
+      void setDecodingBufferSize(uint32_t val);
+      uint32_t getMaxBitrate();
+      void setMaxBitrate(uint32_t val);
+      uint32_t getAverageBitrate();
+      void setAverageBitrate(uint32_t val);
+      std::string toPrettyString(uint32_t indent = 0);
+  };
+
+  struct trunSampleInformation {
     uint32_t sampleDuration;
     uint32_t sampleSize;
     uint32_t sampleFlags;
@@ -273,6 +285,7 @@ namespace MP4{
     void setMajorBrand(const char *newMajorBrand);
     std::string getMajorBrand();
     void setMinorVersion(const char *newMinorVersion);
+    std::string getMinorVersionHex();
     std::string getMinorVersion();
     size_t getCompatibleBrandsCount();
     void setCompatibleBrands(const char *newCompatibleBrand, size_t index);
@@ -719,6 +732,11 @@ namespace MP4{
     void setCodecBox(Box &newBox);
     Box &getCodecBox();
     Box &getSINFBox(); /*LTS*/
+
+    size_t getBoxEntryCount();
+    Box &getBoxEntry(size_t index);
+    void setBoxEntry(size_t index, Box &box);
+
     std::string toPrettyAudioString(uint32_t indent = 0, std::string name = "");
   };
 

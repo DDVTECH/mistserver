@@ -1,14 +1,20 @@
 #include "cmaf.h"
 
 namespace CMAF{
-  size_t payloadSize(const DTSC::Meta &M, size_t track, size_t fragment){
+  /// Function to determine the payload size of a CMAF fragment.
+  /// \parm isKeyIndex indicates whether we are sending DTSC Fragment or DTSC Key based CMAF fragments.
+  size_t payloadSize(const DTSC::Meta &M, size_t track, size_t index, bool isKeyIndex){
     DTSC::Fragments fragments(M.fragments(track));
     DTSC::Keys keys(M.keys(track));
     DTSC::Parts parts(M.parts(track));
 
-    size_t firstKey = fragments.getFirstKey(fragment);
+    size_t firstKey = (isKeyIndex ? index : fragments.getFirstKey(index));
     size_t endKey = keys.getEndValid();
-    if (fragment + 1 < fragments.getEndValid()){endKey = fragments.getFirstKey(fragment + 1);}
+    if (isKeyIndex) {
+      if (index + 1 < keys.getEndValid()){endKey = index + 1;}
+    } else {
+      if (index + 1 < fragments.getEndValid()){endKey = fragments.getFirstKey(index + 1);}
+    }
 
     size_t firstPart = keys.getFirstPart(firstKey);
     size_t endPart = parts.getEndValid();
@@ -22,13 +28,13 @@ namespace CMAF{
     // EDTS Box needed? + 36
     size_t res = 36 + 8 + 108 + 8 + 92 + 8 + 32 + 33 + 44 + 8 + 20 + 16 + 16 + 16 + 40;
 
-    res += M.getTrackIdentifier(track).size();
+    res += M.getType(track).size();
 
     // Type-specific boxes
     std::string tType = M.getType(track);
-    if (tType == "video"){res += 20 + 16 + 86 + 16 + 8 + M.getInit(track).size();}
+    if (tType == "video"){res += 20 + 16 + 86 + 16 + 8 + M.getInit(track).size() + 20;}//20 for btrt box
     if (tType == "audio"){
-      res += 16 + 16 + 36 + 35 + (M.getInit(track).size() ? 2 + M.getInit(track).size() : 0);
+      res += 16 + 16 + 36 + 35 + (M.getInit(track).size() ? 2 + M.getInit(track).size() : 0) + 20;//20 for btrt box
     }
     if (tType == "meta"){res += 12 + 16 + 64;}
 
@@ -36,8 +42,16 @@ namespace CMAF{
 
     return res;
   }
+  
+  size_t simplifiedTrackId(const DTSC::Meta & M, size_t idx) { 
+    std::string type = M.getType(idx);
+    if (type == "video") {return 1;}
+    if (type == "audio") {return 2;}
+    if (type == "meta") {return 3;}
+    return idx;
+  }
 
-  std::string trackHeader(const DTSC::Meta &M, size_t track){
+  std::string trackHeader(const DTSC::Meta &M, size_t track, bool simplifyTrackIds){
     std::string tType = M.getType(track);
 
     std::stringstream header;
@@ -53,12 +67,15 @@ namespace CMAF{
     MP4::MOOV moovBox;
 
     MP4::MVHD mvhdBox(0);
-    mvhdBox.setTrackID(track + 2); // This value needs to point to an unused trackid
+    mvhdBox.setTrackID(0xFFFFFFFF); // This value needs to point to an unused trackid
     moovBox.setContent(mvhdBox, 0);
 
     MP4::TRAK trakBox;
 
     MP4::TKHD tkhdBox(M, track);
+    if (simplifyTrackIds){
+      tkhdBox.setTrackID(simplifiedTrackId(M, track));
+    }
     tkhdBox.setDuration(0);
     trakBox.setContent(tkhdBox, 0);
 
@@ -67,7 +84,7 @@ namespace CMAF{
     MP4::MDHD mdhdBox(0, M.getLang(track));
     mdiaBox.setContent(mdhdBox, 0);
 
-    MP4::HDLR hdlrBox(tType, M.getTrackIdentifier(track));
+    MP4::HDLR hdlrBox(tType, M.getType(track));
     mdiaBox.setContent(hdlrBox, 1);
 
     MP4::MINF minfBox;
@@ -95,9 +112,21 @@ namespace CMAF{
     MP4::STSD stsdBox(0);
     if (tType == "video"){
       MP4::VisualSampleEntry sampleEntry(M, track);
+      MP4::BTRT btrtBox;
+      btrtBox.setDecodingBufferSize(0xFFFFFFFFull);
+      btrtBox.setAverageBitrate(M.getBps(track));
+      btrtBox.setMaxBitrate(M.getMaxBps(track));
+
+      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(),btrtBox);
       stsdBox.setEntry(sampleEntry, 0);
     }else if (tType == "audio"){
       MP4::AudioSampleEntry sampleEntry(M, track);
+      MP4::BTRT btrtBox;
+      btrtBox.setDecodingBufferSize(0xFFFFFFFFull);
+      btrtBox.setAverageBitrate(M.getBps(track));
+      btrtBox.setMaxBitrate(M.getMaxBps(track));
+
+      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(),btrtBox);
       stsdBox.setEntry(sampleEntry, 0);
     }else if (tType == "meta"){
       MP4::TextSampleEntry sampleEntry(M, track);
@@ -132,6 +161,9 @@ namespace CMAF{
     }
 
     MP4::TREX trexBox(track + 1);
+    if (simplifyTrackIds){
+      trexBox.setTrackID(simplifiedTrackId(M, track));
+    }
     trexBox.setDefaultSampleDuration(1000);
     mvexBox.setContent(trexBox, M.getVod() ? 1 : 0);
 
@@ -196,7 +228,7 @@ namespace CMAF{
     return tmpRes;
   }
 
-  std::string fragmentHeader(const DTSC::Meta &M, size_t track, size_t fragment){
+  std::string fragmentHeader(const DTSC::Meta &M, size_t track, size_t fragment, bool simplifyTrackIds, bool UTCTime){
 
     DTSC::Fragments fragments(M.fragments(track));
     DTSC::Keys keys(M.keys(track));
@@ -258,18 +290,21 @@ namespace CMAF{
 
     tfhdBox.setFlags(MP4::tfhdSampleFlag | MP4::tfhdBaseIsMoof | MP4::tfhdSampleDesc);
     tfhdBox.setTrackID(track + 1);
+    if (simplifyTrackIds){
+      tfhdBox.setTrackID(simplifiedTrackId(M, track));
+    }
     tfhdBox.setDefaultSampleDuration(444);
     tfhdBox.setDefaultSampleSize(444);
     tfhdBox.setDefaultSampleFlags((M.getType(track) == "video") ? (MP4::noIPicture | MP4::noKeySample)
                                                                 : (MP4::isIPicture | MP4::isKeySample));
-    tfhdBox.setSampleDescriptionIndex(0);
+    tfhdBox.setSampleDescriptionIndex(1);
     trafBox.setContent(tfhdBox, 0);
 
     MP4::TFDT tfdtBox;
     if (M.getVod()){
       tfdtBox.setBaseMediaDecodeTime(M.getTimeForFragmentIndex(track, fragment) - M.getFirstms(track));
     }else{
-      tfdtBox.setBaseMediaDecodeTime(M.getTimeForFragmentIndex(track, fragment));
+      tfdtBox.setBaseMediaDecodeTime((UTCTime ? Util::epoch()*1000 : M.getTimeForFragmentIndex(track, fragment)));
     }
     trafBox.setContent(tfdtBox, 1);
 
@@ -278,6 +313,108 @@ namespace CMAF{
                      MP4::trunsampleDuration | MP4::trunsampleOffsets);
 
     // The value set here, will be updated afterwards to the correct value
+    trunBox.setDataOffset(trunOrder.begin()->bytePos);
+
+    trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::isKeySample);
+
+    size_t trunOffset = 0;
+
+    for (std::set<sortPart>::iterator it = trunOrder.begin(); it != trunOrder.end(); it++){
+      MP4::trunSampleInformation sampleInfo;
+      sampleInfo.sampleSize = parts.getSize(it->partIndex);
+      sampleInfo.sampleDuration = parts.getDuration(it->partIndex);
+      sampleInfo.sampleOffset = parts.getOffset(it->partIndex);
+      trunBox.setSampleInformation(sampleInfo, trunOffset++);
+    }
+    trafBox.setContent(trunBox, 2);
+
+    moofBox.setContent(trafBox, 1);
+
+    header.write(moofBox.asBox(), moofBox.boxedSize());
+
+    return header.str();
+  }
+
+  /// Calculates the full size of a 'moof' box for a DTSC::Key based fragment.
+  /// Used when building the 'moof' box to calculate the relative data offsets.
+  size_t keyHeaderSize(const DTSC::Meta &M, size_t track, size_t key){
+    uint64_t tmpRes = 8 + 16 + 32 + 20;
+
+    DTSC::Keys keys(M.keys(track));
+    DTSC::Parts parts(M.parts(track));
+
+    size_t firstPart = keys.getFirstPart(key);
+    size_t endPart = parts.getEndValid();
+    if (key + 1 < keys.getEndValid()){
+      endPart = keys.getFirstPart(key + 1);
+    }
+
+    tmpRes += 24 + ((endPart - firstPart) * 12);
+    return tmpRes;
+  }
+
+  /// Generates the 'moof' box for a DTSC::Key based CMAF fragment.
+  std::string keyHeader(const DTSC::Meta &M, size_t track, size_t key, bool simplifyTrackIds, bool UTCTime){
+    DTSC::Keys keys(M.keys(track));
+    DTSC::Parts parts(M.parts(track));
+
+    size_t firstPart = keys.getFirstPart(key);
+    size_t endPart = parts.getEndValid();
+    if (key + 1 < keys.getEndValid()){
+      endPart = keys.getFirstPart(key + 1);
+    }
+
+    std::stringstream header;
+
+    MP4::MOOF moofBox;
+    MP4::MFHD mfhdBox(key + 1);
+    moofBox.setContent(mfhdBox, 0);
+
+
+    std::set<sortPart> trunOrder;
+
+    //We use keyHeaderSize here to determine the relative offsets of the data in the 'mdat' box. 
+    uint64_t relativeOffset = keyHeaderSize(M, track, key) + 8;
+
+    sortPart temp;
+    temp.time = keys.getTime(key);
+    temp.partIndex = firstPart;
+    temp.bytePos = relativeOffset;
+
+    for (size_t p = firstPart; p < endPart; p++){
+      trunOrder.insert(temp);
+      temp.time += parts.getDuration(p);
+      temp.partIndex++;
+      temp.bytePos += parts.getSize(p);
+    }
+
+    MP4::TRAF trafBox;
+    MP4::TFHD tfhdBox;
+
+    tfhdBox.setFlags(MP4::tfhdSampleFlag | MP4::tfhdBaseIsMoof | MP4::tfhdSampleDesc);
+    tfhdBox.setTrackID(track + 1);
+    if (simplifyTrackIds){
+      tfhdBox.setTrackID(simplifiedTrackId(M, track));
+    }
+    tfhdBox.setDefaultSampleDuration(444);
+    tfhdBox.setDefaultSampleSize(444);
+    tfhdBox.setDefaultSampleFlags((M.getType(track) == "video") ? (MP4::noIPicture | MP4::noKeySample)
+                                                                : (MP4::isIPicture | MP4::isKeySample));
+    tfhdBox.setSampleDescriptionIndex(1);
+    trafBox.setContent(tfhdBox, 0);
+
+    MP4::TFDT tfdtBox;
+    if (M.getVod()){
+      tfdtBox.setBaseMediaDecodeTime(keys.getTime(key) - M.getFirstms(track));
+    }else{
+      tfdtBox.setBaseMediaDecodeTime((UTCTime ? Util::epoch()*1000 : keys.getTime(key) ));
+    }
+    trafBox.setContent(tfdtBox, 1);
+
+    MP4::TRUN trunBox;
+    trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize |
+                     MP4::trunsampleDuration | MP4::trunsampleOffsets);
+
     trunBox.setDataOffset(trunOrder.begin()->bytePos);
 
     trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::isKeySample);

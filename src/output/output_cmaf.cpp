@@ -16,13 +16,80 @@
 uint64_t bootMsOffset;
 
 namespace Mist{
+  void CMAFPushTrack::connect(std::string debugParam) {
+    D.setHeader("Transfer-Encoding", "chunked");
+    D.prepareRequest(url, "POST");
+
+    HTTP::Parser & http = D.getHTTP();
+    http.sendingChunks = true;
+    http.SendRequest(D.getSocket());
+
+    if (debugParam.length()){
+      if (debugParam[debugParam.length()-1] != '/'){
+        debugParam += '/';
+      }
+      debug = true;
+      std::string filename = url.getUrl();
+      filename.erase(0, filename.rfind("/")+1);
+      snprintf(debugName, 500, "%s%s-%" PRIu64, debugParam.c_str(), filename.c_str(), Util::bootMS());
+      INFO_MSG("CMAF DEBUG FILE: %s", debugName);
+      debugFile = fopen(debugName, "wb");
+    }
+  }
+
+  void CMAFPushTrack::disconnect() {
+    Socket::Connection & sock = D.getSocket();
+
+    MP4::MFRA mfraBox;
+    send(mfraBox.asBox(), mfraBox.boxedSize());
+    send("");
+    sock.close();
+
+    if (debugFile) {
+      fclose(debugFile);
+      debugFile = 0;
+    }
+  }
+
+  void CMAFPushTrack::send(const char * data, size_t len){
+    D.getHTTP().Chunkify(data, len, D.getSocket());
+    if (debug && debugFile) {
+      fwrite(data, 1, len, debugFile);
+
+    }
+  }
+
+  void CMAFPushTrack::send(const std::string & data){
+    send(data.data(), data.size());
+  }
 
   OutCMAF::OutCMAF(Socket::Connection &conn) : HTTPOutput(conn){
     uaDelay = 0;
-    realTime = 0;
+    if (config->getString("target").size()){
+      needsLookAhead = 5000;
+
+      streamName = config->getString("streamname");
+      std::string target = config->getString("target");
+      target.replace(0, 4, "http");//Translate to http for cmaf:// or https for cmafs://
+      pushUrl = HTTP::URL(target);
+
+      INFO_MSG("About to push stream %s out. Host: %s, port: %d, location: %s", streamName.c_str(),
+               pushUrl.host.c_str(), pushUrl.getPort(), pushUrl.path.c_str());
+      initialize();
+      initialSeek();
+      startPushOut();
+    } else {
+      realTime = 0;
+    }
+    INFO_MSG("Out of constructor now");
   }
 
-  OutCMAF::~OutCMAF(){}
+  //Properly end all tracks on shutdown.
+  OutCMAF::~OutCMAF() {
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      onTrackEnd(it->first);
+    }
+  }
 
   void OutCMAF::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
@@ -66,6 +133,16 @@ namespace Mist{
         "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
         "significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
+
+    capa["push_urls"].append("cmaf://*");
+    capa["push_urls"].append("cmafs://*");
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1;
+    opt["help"] = "Target CMAF URL to push out towards.";
+    cfg->addOption("target", opt);
   }
 
   void OutCMAF::onHTTP(){
@@ -157,7 +234,7 @@ namespace Mist{
     uint64_t fragmentIndex = M.getFragmentIndexForTime(idx, startTime);
     targetTime = M.getTimeForFragmentIndex(idx, fragmentIndex + 1);
 
-    std::string headerData = CMAF::fragmentHeader(M, idx, fragmentIndex);
+    std::string headerData = CMAF::fragmentHeader(M, idx, fragmentIndex, false, false);
     H.Chunkify(headerData.c_str(), headerData.size(), myConn);
 
     uint64_t mdatSize = 8 + CMAF::payloadSize(M, idx, fragmentIndex);
@@ -172,7 +249,13 @@ namespace Mist{
     parseData = true;
   }
 
+
+
   void OutCMAF::sendNext(){
+    if (isRecording()){
+      pushNext();
+      return;
+    }
     if (thisPacket.getTime() >= targetTime){
       HIGH_MSG("Finished playback to %" PRIu64, targetTime);
       wantRequest = true;
@@ -682,6 +765,122 @@ namespace Mist{
     r << "</SmoothStreamingMedia>\n";
 
     return toUTF16(r.str());
-  }// namespace Mist
+  }
+
+  /**********************************/
+  /* CMAF Push Output functionality */
+  /**********************************/
+
+  //When we disconnect a track, or when we're done pushing out, send an empty 'mfra' box to indicate track end.
+  void OutCMAF::onTrackEnd(size_t idx) {
+    if (!isRecording()){return;}
+    if (!pushTracks.count(idx) || !pushTracks.at(idx).D.getSocket()){return;}
+    INFO_MSG("Disconnecting track %zu", idx);
+    pushTracks[idx].disconnect();
+    
+    pushTracks.erase(idx);
+  }
+  
+  //Create the connections and post request needed to start pushing out a track.
+  void OutCMAF::setupTrackObject(size_t idx) {
+    CMAFPushTrack & track = pushTracks[idx];
+    track.url = pushUrl;
+    if (targetParams.count("usp") && targetParams["usp"] == "1"){
+      std::string usp_path = "Streams(" + M.getType(idx) + + "_" + JSON::Value(idx).asString() + ")"; 
+      track.url = track.url.link(usp_path);
+    }else{
+      track.url.path += "/"; 
+      track.url = track.url.link(M.getTrackIdentifier(idx));
+    }
+
+    track.connect(targetParams["debug"]);
+
+    std::string header = CMAF::trackHeader(M, idx, true);
+    track.send(header);
+  }
+
+
+  /// Function that waits at most `maxWait` ms (in steps of 100ms) for the next keyframe to become available.
+  /// Uses thisIdx and thisPacket to determine track and current timestamp respectively.
+  bool OutCMAF::waitForNextKey(uint64_t maxWait){
+    size_t currentKey = M.getKeyIndexForTime(thisIdx, thisPacket.getTime());
+    DTSC::Keys keys(M.keys(thisIdx));
+    size_t waitTimes = maxWait / 100; 
+    for (size_t i = 0; i < waitTimes; ++i){
+      if (keys.getEndValid() > currentKey + 1){return true;}
+      Util::wait(100);
+      //Make sure we don't accidentally timeout while waiting - runs approximately every second.
+      if (i % 10 == 0){
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+          it->second.keepAlive();
+          stats();
+        }
+      }
+    }
+    return (keys.getEndValid() > currentKey + 1);
+  }
+
+  //Set up an empty connection to the target to make sure we can push data towards it.
+  void OutCMAF::startPushOut(){
+    myConn.close();
+    myConn.Received().clear();
+    myConn.open(pushUrl.host, pushUrl.getPort(), true);
+    wantRequest = false;
+    parseData = true;
+  }
+
+  //CMAF Push output uses keyframe boundaries instead of fragment boundaries, to allow for lower latency
+  void OutCMAF::pushNext() {
+    //Set up a new connection if this is a new track, or if we have been disconnected.
+    if (!pushTracks.count(thisIdx) || !pushTracks.at(thisIdx).D.getSocket()){
+      CMAFPushTrack & track = pushTracks[thisIdx];
+      size_t keyIndex = M.getKeyIndexForTime(thisIdx, thisPacket.getTime());
+      track.headerFrom = M.getTimeForKeyIndex(thisIdx, keyIndex);
+      if (track.headerFrom < thisPacket.getTime()){
+        track.headerFrom = M.getTimeForKeyIndex(thisIdx, keyIndex + 1);
+      }
+
+      HIGH_MSG("Starting track %zu at %" PRIu64 "ms into the stream, current packet at %" PRIu64 "ms", thisIdx, track.headerFrom, thisPacket.getTime());
+
+      setupTrackObject(thisIdx);
+      track.headerUntil = 0;
+
+    }
+    CMAFPushTrack & track = pushTracks[thisIdx];
+    if (thisPacket.getTime() < track.headerFrom){return;}
+    if (thisPacket.getTime() > track.headerUntil || !track.headerUntil){
+      size_t keyIndex = M.getKeyIndexForTime(thisIdx, thisPacket.getTime());
+      uint64_t keyTime = M.getTimeForKeyIndex(thisIdx, keyIndex);
+      if (keyTime != thisPacket.getTime()){
+        WARN_MSG("Corruption probably occured, initiating reconnect %" PRIu64 " != %" PRIu64, keyTime, thisPacket.getTime());
+        onTrackEnd(thisIdx);
+        track.headerFrom = M.getTimeForKeyIndex(thisIdx, keyIndex + 1);
+        track.headerUntil = 0;
+        pushNext();
+        return;
+      }
+      track.headerFrom = keyTime;
+      if (!waitForNextKey()){
+        onTrackEnd(thisIdx);
+        dropTrack(thisIdx, "No next keyframe available");
+        return;
+      }
+      track.headerUntil = M.getTimeForKeyIndex(thisIdx, keyIndex + 1) - 1;
+      std::string keyHeader = CMAF::keyHeader(M, thisIdx, keyIndex, true, true);
+
+      uint64_t mdatSize = 8 + CMAF::payloadSize(M, thisIdx, keyIndex, true);
+      char mdatHeader[] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
+      Bit::htobl(mdatHeader, mdatSize);
+
+      track.send(keyHeader);
+      track.send(mdatHeader, 8);
+    }
+    char *data;
+    size_t dataLen;
+    thisPacket.getString("data", data, dataLen);
+
+    track.send(data, dataLen);
+  }
+
 
 }// namespace Mist

@@ -75,6 +75,38 @@ namespace MP4{
     return r.str();
   }
 
+  BTRT::BTRT() {
+    memcpy(data + 4, "btrt", 4);
+  }
+
+  uint32_t BTRT::getDecodingBufferSize(){
+    return getInt32(0);
+  }
+  void BTRT::setDecodingBufferSize(uint32_t val){
+    setInt32(val, 0);
+  }
+  uint32_t BTRT::getMaxBitrate(){
+    return getInt32(4);
+  }
+  void BTRT::setMaxBitrate(uint32_t val){
+    setInt32(val, 4);
+  }
+  uint32_t BTRT::getAverageBitrate(){
+    return getInt32(8);
+  }
+  void BTRT::setAverageBitrate(uint32_t val){
+    setInt32(val, 8);
+  }
+
+  std::string BTRT::toPrettyString(uint32_t indent) {
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[btrt] Bitrate Box (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent+2, ' ') << "DecodingBufferSize: " << getDecodingBufferSize() << std::endl;
+    r << std::string(indent+2, ' ') << "Maximum Bitrate: " << getMaxBitrate() << std::endl;
+    r << std::string(indent+2, ' ') << "Average Bitrate: " << getAverageBitrate() << std::endl;
+    return r.str();
+  }
+
   TRUN::TRUN(){memcpy(data + 4, "trun", 4);}
 
   void TRUN::setFlags(uint32_t newFlags){setInt24(newFlags, 1);}
@@ -1217,6 +1249,14 @@ namespace MP4{
     memcpy(data + payloadOffset + 4, newMinorVersion, 4);
   }
 
+  std::string FTYP::getMinorVersionHex(){
+    static char zero[4] ={0, 0, 0, 0};
+    if (memcmp(zero, data + payloadOffset + 4, 4) == 0){return "";}
+    char val[20];
+    snprintf(val, 20, "%.2X%.2X%.2X%.2X", data[payloadOffset + 4], data[payloadOffset + 5], data[payloadOffset + 6], data[payloadOffset + 7]);
+    return std::string(val);
+  }
+
   std::string FTYP::getMinorVersion(){
     static char zero[4] ={0, 0, 0, 0};
     if (memcmp(zero, data + payloadOffset + 4, 4) == 0){return "";}
@@ -1241,7 +1281,7 @@ namespace MP4{
     std::stringstream r;
     r << std::string(indent, ' ') << "[ftyp] File Type (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "MajorBrand: " << getMajorBrand() << std::endl;
-    r << std::string(indent + 1, ' ') << "MinorVersion: " << getMinorVersion() << std::endl;
+    r << std::string(indent + 1, ' ') << "MinorVersion: 0x" << getMinorVersionHex() << std::endl;
     r << std::string(indent + 1, ' ') << "CompatibleBrands (" << getCompatibleBrandsCount()
       << "):" << std::endl;
     for (unsigned int i = 0; i < getCompatibleBrandsCount(); i++){
@@ -1765,7 +1805,7 @@ namespace MP4{
       if (i != getMatrixCount() - 1){r << ", ";}
     }
     r << std::endl;
-    r << std::string(indent + 1, ' ') << "TrackID: " << getTrackID() << std::endl;
+    r << std::string(indent + 1, ' ') << "next_track_ID: " << getTrackID() << std::endl;
     return r.str();
   }
 
@@ -2887,6 +2927,55 @@ namespace MP4{
   }
   /*LTS-END*/
 
+  size_t AudioSampleEntry::getBoxEntryCount(){
+    if (payloadSize() < 36){// if the EntryBox is not big enough to hold any box
+      return 0;
+    }
+    size_t count = 0;
+    size_t offset = 28;
+    while (offset < payloadSize()){
+      offset += getBoxLen(offset);
+      count++;
+    }
+    return count;
+  }
+
+  Box &AudioSampleEntry::getBoxEntry(size_t index){
+    static Box ret = Box((char *)"\000\000\000\010erro", false);
+    if (index >= getBoxEntryCount()){return ret;}
+    size_t count = 0;
+    size_t offset = 28;
+    while (offset < payloadSize()){
+      if (count == index){return getBox(offset);}
+      offset += getBoxLen(offset);
+      count++;
+    }
+    return ret;
+  }
+
+  void AudioSampleEntry::setBoxEntry(size_t index, Box &box){
+    if (index > getBoxEntryCount()){
+      index = getBoxEntryCount();
+      WARN_MSG("This function can not leave empty spaces, appending at index %zu nstead!", index);
+    }
+    size_t count = 0;
+    size_t offset = 28;
+    while (offset < payloadSize()){
+      if (count == index){
+        setBox(box, offset);
+        return;
+      }
+      offset += getBoxLen(offset);
+      count++;
+    }
+    if (count == index){
+      setBox(box, offset);
+    }else{
+      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %zu",
+               index, count, offset, payloadSize());
+    }
+  }
+
   std::string AudioSampleEntry::toPrettyAudioString(uint32_t indent, std::string name){
     std::stringstream r;
     r << std::string(indent, ' ') << name << " (" << boxedSize() << ")" << std::endl;
@@ -2895,10 +2984,13 @@ namespace MP4{
     r << std::string(indent + 1, ' ') << "SampleSize: " << getSampleSize() << std::endl;
     r << std::string(indent + 1, ' ') << "PreDefined: " << getPreDefined() << std::endl;
     r << std::string(indent + 1, ' ') << "SampleRate: " << getSampleRate() << std::endl;
-    r << getCodecBox().toPrettyString(indent + 1) << std::endl;
-    /*LTS-START*/
-    if (isType("enca")){r << getSINFBox().toPrettyString(indent + 1);}
-    /*LTS-END*/
+    size_t firstBox = 0; 
+    if (getBoxEntryCount() > firstBox){
+      for (size_t index = firstBox; index < getBoxEntryCount(); ++index){
+        MP4::Box tmpBox = getBoxEntry(index);
+        r << tmpBox.toPrettyString(indent + 1);
+      }
+    }
     return r.str();
   }
 

@@ -308,6 +308,7 @@ namespace MP4{
     case 0x74656E63: return ((TENC *)this)->toPrettyString(indent); break;
     case 0x7361697A: return ((SAIZ *)this)->toPrettyString(indent); break;
     case 0x7361696F: return ((SAIO *)this)->toPrettyString(indent); break;
+    case 0x62747274: return ((BTRT *)this)->toPrettyString(indent); break;
     /*LTS-END*/
     default: INFO_MSG("no code found: 0x%.8x", Bit::btohl(data + 4)); break;
     }

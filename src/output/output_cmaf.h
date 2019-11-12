@@ -1,8 +1,30 @@
 #include "output_http.h"
 #include <mist/http_parser.h>
+#include <mist/downloader.h>
 #include <mist/mp4_generic.h>
 
 namespace Mist{
+  /// Keeps track of the state of an outgoing CMAF Push track.
+  class CMAFPushTrack {
+    public:
+      CMAFPushTrack() {debug = false; debugFile = 0;}
+      ~CMAFPushTrack() {disconnect();}
+      void connect(std::string debugParam = "");
+      void disconnect();
+
+      void send(const char * data, size_t len);
+      void send(const std::string & data);
+
+      HTTP::Downloader D;
+      HTTP::URL url;
+      uint64_t headerFrom;
+      uint64_t headerUntil;
+
+      bool debug;
+      char debugName[500];
+      FILE * debugFile;
+  };
+
   class OutCMAF : public HTTPOutput{
   public:
     OutCMAF(Socket::Connection &conn);
@@ -13,6 +35,8 @@ namespace Mist{
     void sendHeader(){};
 
   protected:
+    void onTrackEnd(size_t idx);
+
     void sendDashManifest();
     void dashAdaptationSet(size_t id, size_t idx, std::stringstream &r);
     void dashRepresentation(size_t id, size_t idx, std::stringstream &r);
@@ -37,6 +61,16 @@ namespace Mist{
 
     std::string h264init(const std::string &initData);
     std::string h265init(const std::string &initData);
+
+    // For CMAF push out
+    void startPushOut();
+    void pushNext();
+
+    HTTP::URL pushUrl;
+    std::map<size_t, CMAFPushTrack> pushTracks; 
+    void setupTrackObject(size_t idx);
+    bool waitForNextKey(uint64_t maxWait = 5000);
+    // End CMAF push out
   };
 }// namespace Mist
 

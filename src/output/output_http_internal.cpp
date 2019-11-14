@@ -334,6 +334,7 @@ namespace Mist {
     
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
+    H.SetHeader("X-UA-Compatible", "IE=edge");
     H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
     H.setCORSHeaders();
     if(method == "OPTIONS" || method == "HEAD"){

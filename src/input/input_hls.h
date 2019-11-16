@@ -17,14 +17,15 @@
 namespace Mist{
 
   enum PlaylistType{VOD, LIVE, EVENT};
-  
+
   extern bool streamIsLive;
-  extern uint32_t globalWaitTime;//largest waitTime for any playlist we're loading - used to update minKeepAway
-  void parseKey(std::string key, char * newKey, unsigned int len);
+  extern uint32_t globalWaitTime; // largest waitTime for any playlist we're loading - used to update minKeepAway
+  void parseKey(std::string key, char *newKey, unsigned int len);
 
   struct playListEntries{
     std::string filename;
     uint64_t bytePos;
+    uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
     float duration;
     unsigned int timestamp;
     unsigned int wait;
@@ -40,7 +41,7 @@ namespace Mist{
     SegmentDownloader();
     HTTP::Downloader segDL;
     const char *packetPtr;
-    bool loadSegment(const playListEntries & entry);
+    bool loadSegment(const playListEntries &entry);
     bool atEnd() const;
   };
 
@@ -49,7 +50,8 @@ namespace Mist{
     Playlist(const std::string &uriSrc = "");
     bool isUrl() const;
     bool reload();
-    void addEntry(const std::string &filename, float duration, uint64_t &totalBytes, const std::string &key, const std::string &keyIV);
+    void addEntry(const std::string &filename, float duration, uint64_t &totalBytes,
+                  const std::string &key, const std::string &keyIV);
     bool isSupportedFile(const std::string filename);
 
     std::string uri; // link to the current playlistfile
@@ -68,11 +70,12 @@ namespace Mist{
     PlaylistType playlistType;
     unsigned int lastTimestamp;
     unsigned int startTime;
+    uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];
     std::map<std::string, std::string> keys;
   };
 
-  void playlistRunner(void * ptr);
+  void playlistRunner(void *ptr);
 
   class inputHLS : public Input{
   public:
@@ -81,7 +84,10 @@ namespace Mist{
     bool needsLock();
     bool openStreamSource();
     bool callback();
+
   protected:
+    uint64_t zUTC; ///< Zero point in local millis, as UTC unix time millis
+    uint64_t nUTC; ///< Next packet timestamp in UTC unix time millis
     unsigned int startTime;
     PlaylistType playlistType;
     SegmentDownloader segDowner;
@@ -89,9 +95,13 @@ namespace Mist{
     int targetDuration;
     bool endPlaylist;
     int currentPlaylist;
-    
+
+    bool allowRemap; ///< True if the next packet may remap the timestamps
     std::map<uint64_t, uint64_t> pidMapping;
     std::map<uint64_t, uint64_t> pidMappingR;
+    std::map<int, int64_t> plsTimeOffset;
+    std::map<int, uint64_t> plsLastTime;
+    std::map<int, uint64_t> plsInterval;
 
     int currentIndex;
     std::string currentFile;
@@ -129,4 +139,3 @@ namespace Mist{
 }// namespace Mist
 
 typedef Mist::inputHLS mistIn;
-

@@ -436,13 +436,21 @@ void Socket::Buffer::clear(){
 }
 
 void Socket::Connection::setBoundAddr(){
+  //If a bound address was set through environment (e.g. HTTPS output), restore it from there.
+  char * envbound = getenv("MIST_BOUND_ADDR");
+  if (envbound){
+    boundaddr = envbound;
+    return;
+  }
+  //If we can't read the address, don't try
   if (!isTrueSocket){
     boundaddr = "";
     return;
   }
+  //Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
   struct sockaddr_in6 tmpaddr;
   socklen_t len = sizeof(tmpaddr);
-  if (!getsockname(sSend, (sockaddr *)&tmpaddr, &len)){
+  if (!getsockname(getSocket(), (sockaddr *)&tmpaddr, &len)){
     static char addrconv[INET6_ADDRSTRLEN];
     if (tmpaddr.sin6_family == AF_INET6){
       boundaddr = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
@@ -649,12 +657,18 @@ void Socket::Connection::drop(){
 
 /// Returns internal socket number.
 int Socket::Connection::getSocket(){
+#ifdef SSL
+  if (sslConnected){return server_fd->fd;}
+#endif
   if (sSend != -1){return sSend;}
   return sRecv;
 }
 
 /// Returns non-piped internal socket number.
 int Socket::Connection::getPureSocket(){
+#ifdef SSL
+  if (sslConnected){return server_fd->fd;}
+#endif
   if (!isTrueSocket){return -1;}
   return sSend;
 }
@@ -790,6 +804,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       }
     }
     sslConnected = true;
+    isTrueSocket = true;
+    setBoundAddr();
     Blocking = true;
     if (nonblock){setBlocking(false);}
     DONTEVEN_MSG("SSL connect success");

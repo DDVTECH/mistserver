@@ -875,7 +875,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
           HTTPbuffer.erase(0, toappend);
         }
         if (length == body.length()){
-          parseVars(body, vars); // parse POST variables
+          //parse POST variables
+          if (method == "POST"){parseVars(body, vars);}
           return true;
         }else{
           return false;

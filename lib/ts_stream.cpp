@@ -223,6 +223,10 @@ namespace TS{
       return;
     }
 
+    if (!pidToCodec.count(tid)){
+      return; // skip unknown codecs
+    }
+
     while(seenUnitStart[tid] > 1) {
       parsePES(tid);
     }

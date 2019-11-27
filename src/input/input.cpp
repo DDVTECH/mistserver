@@ -625,9 +625,9 @@ namespace Mist {
       getNext();
       nProxy.userClient.keepAlive();
     }
-    if (!thisPacket){return "Invalid packet";}
-    if (!config->is_active){return "received deactivate signal";}
     if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    if (!config->is_active){return "received deactivate signal";}
+    if (!thisPacket){return "Invalid packet";}
     return "Unknown";
   }
 

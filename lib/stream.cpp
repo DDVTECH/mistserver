@@ -452,6 +452,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
 }
 
 JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider){
+  std::string tmpFn = filename;
+  if (tmpFn.find('?') != std::string::npos){tmpFn.erase(tmpFn.find('?'), std::string::npos);}
   JSON::Value ret;
 
   // Attempt to load up configuration and find this stream
@@ -482,8 +484,8 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
           MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                      tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-          if (filename.substr(0, front.size()) == front &&
-              filename.substr(filename.size() - back.size()) == back){
+          if (tmpFn.substr(0, front.size()) == front &&
+              tmpFn.substr(tmpFn.size() - back.size()) == back){
             if (tmp_input.getMember("non-provider") && !isProvider){
               noProviderNoPick = true;
               continue;
@@ -500,8 +502,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
         MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                    tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-        if (filename.substr(0, front.size()) == front &&
-            filename.substr(filename.size() - back.size()) == back){
+        if (tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
           if (tmp_input.getMember("non-provider") && !isProvider){
             noProviderNoPick = true;
             continue;
@@ -515,9 +516,9 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   }
   if (!selected){
     if (noProviderNoPick){
-      INFO_MSG("Not a media provider for input: %s", filename.c_str());
+      INFO_MSG("Not a media provider for input: %s", tmpFn.c_str());
     }else{
-      FAIL_MSG("No compatible input found for: %s", filename.c_str());
+      FAIL_MSG("No compatible input found for: %s", tmpFn.c_str());
     }
   }else{
     ret = input.asJSON();

@@ -138,7 +138,7 @@ namespace Mist{
     amfReply.getContentP(2)->addContent(AMF::Object("app", app + args));
     amfReply.getContentP(2)->addContent(AMF::Object("type", "nonprivate"));
     amfReply.getContentP(2)->addContent(
-        AMF::Object("flashVer", "FMLE/3.0 (compatible; MistServer/" PACKAGE_VERSION "/" RELEASE ")"));
+        AMF::Object("flashVer", "FMLE/3.0 (compatible; " APPNAME ")"));
     amfReply.getContentP(2)->addContent(AMF::Object("tcUrl", pushHost + app + args));
     sendCommand(amfReply, 20, 0);
 

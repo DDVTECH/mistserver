@@ -840,7 +840,7 @@ namespace SDP{
 
     M.setCodec(tid, codecRTP2Mist(answerVideoFormat.encodingName));
     if (M.getCodec(tid).empty()){
-      FAIL_MSG("Failed to convert the format codec into one that MistServer understands. %s.",
+      FAIL_MSG("Failed to convert the format codec into one that " APPNAME " understands. %s.",
                answerVideoFormat.encodingName.c_str());
       return false;
     }
@@ -859,7 +859,7 @@ namespace SDP{
 
     M.setCodec(tid, codecRTP2Mist(answerAudioFormat.encodingName));
     if (M.getCodec(tid).empty()){
-      FAIL_MSG("Failed to convert the format codec into one that MistServer understands. %s.",
+      FAIL_MSG("Failed to convert the format codec into one that " APPNAME " understands. %s.",
                answerAudioFormat.encodingName.c_str());
       return false;
     }

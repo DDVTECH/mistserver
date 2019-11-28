@@ -16,13 +16,13 @@ namespace Controller{
   /// Generate list of available triggers, storing in global 'capabilities' JSON::Value.
   void checkAvailTriggers(){
     JSON::Value &trgs = capabilities["triggers"];
-    trgs["SYSTEM_START"]["when"] = "After MistServer boot";
+    trgs["SYSTEM_START"]["when"] = "After " APPNAME " boot";
     trgs["SYSTEM_START"]["stream_specific"] = false;
     trgs["SYSTEM_START"]["payload"] = "";
     trgs["SYSTEM_START"]["response"] = "always";
     trgs["SYSTEM_START"]["response_action"] = "If false, shuts down the server.";
 
-    trgs["SYSTEM_STOP"]["when"] = "Before MistServer shuts down";
+    trgs["SYSTEM_STOP"]["when"] = "Before " APPNAME " shuts down";
     trgs["SYSTEM_STOP"]["stream_specific"] = false;
     trgs["SYSTEM_STOP"]["payload"] = "shutdown reason (string)";
     trgs["SYSTEM_STOP"]["response"] = "always";

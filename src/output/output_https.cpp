@@ -223,7 +223,7 @@ namespace Mist{
 
     // seed the rng
     if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char *)"MistServer", 10)) != 0){
+                                     (const unsigned char *)APPNAME, strlen(APPNAME))) != 0){
       FAIL_MSG("Could not seed the random number generator!");
     }
 

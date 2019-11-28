@@ -344,7 +344,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
             if (!authorized){
               H.Clean();
               H.body = "Please login first or provide a valid token authentication.";
-              H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+              H.SetHeader("Server", APPIDENT);
               H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
               H.SendResponse("403", "Not authorized", conn);
               H.Clean();
@@ -358,7 +358,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         if (!authorized){
           H.Clean();
           H.body = "Please login first or provide a valid token authentication.";
-          H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+          H.SetHeader("Server", APPIDENT);
           H.SendResponse("403", "Not authorized", conn);
           H.Clean();
           continue;
@@ -388,7 +388,7 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         H.Clean();
         H.SetHeader("Content-Type", "text/html");
         H.SetHeader("X-Info", "To force an API response, request the file /api");
-        H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+        H.SetHeader("Server", APPIDENT);
         H.SetHeader("Content-Length", server_html_len);
         H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
         H.SendResponse("200", "OK", conn);

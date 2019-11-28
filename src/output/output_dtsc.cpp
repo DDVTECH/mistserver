@@ -13,7 +13,7 @@ namespace Mist{
     setBlocking(true);
     JSON::Value prep;
     prep["cmd"] = "hi";
-    prep["version"] = "MistServer " PACKAGE_VERSION;
+    prep["version"] = APPIDENT;
     prep["pack_method"] = 2;
     salt = Secure::md5("mehstuff" + JSON::Value((uint64_t)time(0)).asString());
     prep["salt"] = salt;
@@ -55,8 +55,7 @@ namespace Mist{
     Output::init(cfg);
     capa["name"] = "DTSC";
     capa["friendly"] = "DTSC";
-    capa["desc"] = "Real time streaming over DTSC (MistServer proprietary protocol, for efficient "
-                   "inter-server streaming)";
+    capa["desc"] = "Real time streaming over DTSC (proprietary protocol for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
     cfg->addConnectorOptions(4200, capa);

@@ -21,6 +21,7 @@
 #define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME(t / 1000), (int)(t % 1000)
 #if DEBUG > -1
 
+#define APPIDENT APPNAME "/" PACKAGE_VERSION
 #define __STDC_FORMAT_MACROS 1
 #include "config.h"
 #include <inttypes.h>

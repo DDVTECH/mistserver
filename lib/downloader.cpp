@@ -117,7 +117,11 @@ namespace HTTP{
     }
 
     if (method.size()){H.method = method;}
-    H.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
+    if (link.host.find("mistserver") != std::string::npos){
+      H.SetHeader("User-Agent", "MistServer" PACKAGE_VERSION);
+    }else{
+      H.SetHeader("User-Agent", APPIDENT);
+    }
     H.SetHeader("X-Version", PACKAGE_VERSION);
     H.SetHeader("Accept", "*/*");
     if (authStr.size() && (link.user.size() || link.pass.size())){

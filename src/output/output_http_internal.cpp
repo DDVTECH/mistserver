@@ -375,7 +375,7 @@ namespace Mist{
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");
-    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.SetHeader("Server", APPIDENT);
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
@@ -599,7 +599,7 @@ namespace Mist{
         if (it->asStringRef().substr(0, cbToken.size() + 1) == cbToken + ":"){
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
-          H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+          H.SetHeader("Server", APPIDENT);
           H.setCORSHeaders();
           H.SetBody(it->asStringRef().substr(cbToken.size() + 1));
           H.SendResponse("200", "OK", myConn);
@@ -609,7 +609,7 @@ namespace Mist{
       }
       H.Clean();
       H.SetHeader("Content-Type", "text/plain");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetBody("No matching validation found for token '" + cbToken + "'");
       H.SendResponse("404", "Not found", myConn);
@@ -620,7 +620,7 @@ namespace Mist{
     if (H.url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -639,7 +639,7 @@ namespace Mist{
     if (H.url == "/clientaccesspolicy.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -660,7 +660,7 @@ namespace Mist{
     if (H.url == "/flashplayer.swf"){
       H.Clean();
       H.SetHeader("Content-Type", "application/x-shockwave-flash");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_101_swf, FlashMediaPlayback_101_swf_len);
       H.SendResponse("200", "OK", myConn);
       return;
@@ -668,7 +668,7 @@ namespace Mist{
     if (H.url == "/oldflashplayer.swf"){
       H.Clean();
       H.SetHeader("Content-Type", "application/x-shockwave-flash");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_swf, FlashMediaPlayback_swf_len);
       H.SendResponse("200", "OK", myConn);
       return;
@@ -723,7 +723,7 @@ namespace Mist{
 
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -747,7 +747,7 @@ namespace Mist{
       std::string rURL = H.url;
       if (method != "OPTIONS" && method != "HEAD"){initialize();}
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (rURL.substr(0, 6) != "/json_"){
         H.SetHeader("Content-Type", "application/javascript");
@@ -787,7 +787,7 @@ namespace Mist{
       std::string response;
       std::string rURL = H.url;
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript; charset=utf-8");
       if (method == "OPTIONS" || method == "HEAD"){
@@ -860,7 +860,7 @@ namespace Mist{
       std::string response;
       std::string url = H.url;
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "text/css");
       if (method == "OPTIONS" || method == "HEAD"){
@@ -893,7 +893,7 @@ namespace Mist{
     if (H.url == "/videojs.js"){
       std::string response;
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
@@ -913,7 +913,7 @@ namespace Mist{
     if (H.url == "/dashjs.js"){
       std::string response;
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
@@ -935,7 +935,7 @@ namespace Mist{
     if (H.url == "/webrtc.js"){
       std::string response;
       H.Clean();
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
@@ -979,7 +979,7 @@ namespace Mist{
     /*LTS-START*/
     if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
       H.Clean();
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -995,7 +995,7 @@ namespace Mist{
     H.Clean();
 #include "../icon.h"
     H.SetHeader("Content-Type", "image/x-icon");
-    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.SetHeader("Server", APPIDENT);
     H.SetHeader("Content-Length", icon_len);
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){

@@ -48,7 +48,7 @@ namespace Mist{
         WARN_MSG("URL %s is not inside webroot %s: %s", H.url.c_str(), resolved_path.c_str(), path.c_str());
       }
       H.Clean();
-      H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -65,7 +65,7 @@ namespace Mist{
     unsigned long long filesize = inFile.tellg();
     inFile.seekg(0, std::ios_base::beg);
     H.Clean();
-    H.SetHeader("Server", "mistserver/" PACKAGE_VERSION);
+    H.SetHeader("Server", APPIDENT);
     H.SetHeader("Content-Length", filesize);
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){

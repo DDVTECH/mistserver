@@ -212,7 +212,7 @@ int main_loop(int argc, char **argv){
       strftime(buffer, 25, "%c", timeinfo);
       std::cerr << std::endl
                 << std::endl
-                << "!----MistServer Started at " << buffer << " ----!" << std::endl;
+                << "!----" APPNAME " Started at " << buffer << " ----!" << std::endl;
     }
   }
   // reload config from config file

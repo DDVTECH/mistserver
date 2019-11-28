@@ -335,7 +335,7 @@ namespace Mist{
       EBML::sendElemSeek(myConn, EBML::EID_CUES, seekheadSize + infoSize + tracksSize);
     }
     // Info
-    EBML::sendElemInfo(myConn, "MistServer " PACKAGE_VERSION, duration);
+    EBML::sendElemInfo(myConn, APPIDENT, duration);
     // Tracks
     size_t trackSizes = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -497,7 +497,7 @@ namespace Mist{
     // Segment contains SeekHead, Info, Tracks, Cues (in that order)
     // Howeveer, SeekHead is dependent on Info/Tracks sizes, so we calculate those first.
     // Calculating Info size
-    infoSize = EBML::sizeElemInfo("MistServer " PACKAGE_VERSION, duration);
+    infoSize = EBML::sizeElemInfo(APPIDENT, duration);
     // Calculating Tracks size
     tracksSize = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){

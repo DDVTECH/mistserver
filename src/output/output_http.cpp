@@ -58,7 +58,7 @@ namespace Mist{
     INFO_MSG("Failing '%s': %s", H.url.c_str(), msg.c_str());
     if (!webSock && !isRecording()){
       H.Clean(); // make sure no parts of old requests are left in any buffers
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetBody("Could not retrieve stream: " + msg);
       H.SendResponse("404", "Error opening stream", myConn);
@@ -208,7 +208,7 @@ namespace Mist{
                H.GetVar("stream").c_str());
       if (!handler.size()){
         H.Clean();
-        H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+        H.SetHeader("Server", APPIDENT);
         H.setCORSHeaders();
         H.SetBody("<!DOCTYPE html><html><head><title>Unsupported Media "
                   "Type</title></head><body><h1>Unsupported Media Type</h1>The server isn't quite "

@@ -226,7 +226,7 @@ namespace Mist{
     if (H.url == "/crossdomain.xml"){
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
-      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -415,7 +415,7 @@ namespace Mist{
       return;
     }
     H.Clean(); // make sure no parts of old requests are left in any buffers
-    H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+    H.SetHeader("Server", APPIDENT);
     H.setCORSHeaders();
     H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
     H.SetHeader("Cache-Control", "no-cache");

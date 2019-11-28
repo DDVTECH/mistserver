@@ -1474,7 +1474,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
     break;
   }
-  H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+  H.SetHeader("Server", APPIDENT);
   H.StartResponse("200", "OK", H, conn, true);
 
   // Collect core server stats

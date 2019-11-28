@@ -189,7 +189,7 @@ namespace Mist{
                       << reqUrl
                       << "\r\n"
                          "t=0 0\r\n"
-                         "a=tool:MistServer\r\n"
+                         "a=tool:" APPIDENT "\r\n"
                          "a=type:broadcast\r\n"
                          "a=control:*\r\n"
                       << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
@@ -327,7 +327,7 @@ namespace Mist{
                         << reqUrl
                         << "\r\n"
                            "t=0 0\r\n"
-                           "a=tool:MistServer\r\n"
+                           "a=tool:" APPIDENT "\r\n"
                            "a=type:broadcast\r\n"
                            "a=control:*\r\n"
                         << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"

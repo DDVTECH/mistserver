@@ -1110,8 +1110,7 @@ namespace Mist{
             "</ServerKey><RequestXml>"
             "<![CDATA["
             "<KeyOSEncryptionInfoRequest><APIVersion>5.0.0.2</APIVersion><DRMType>smooth</"
-            "DRMType><EncoderVersion>"
-            "MistServer " RELEASE "_" PACKAGE_VERSION "</EncoderVersion><UserKey>";
+            "DRMType><EncoderVersion>" APPIDENT "</EncoderVersion><UserKey>";
     soap << config->getString("buydrm");
     soap << "</UserKey><KeyID>";
     soap << formatGUID(contentID);

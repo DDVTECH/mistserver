@@ -100,7 +100,7 @@ namespace Mist{
     if ((username.size() || password.size()) && authRequest.size()){
       sndH.auth(username, password, authRequest);
     }
-    sndH.SetHeader("User-Agent", "MistServer " PACKAGE_VERSION);
+    sndH.SetHeader("User-Agent", APPIDENT);
     sndH.SetHeader("CSeq", JSON::Value(cSeq).asString());
     if (session.size()){sndH.SetHeader("Session", session);}
     if (extraHeaders && extraHeaders->size()){

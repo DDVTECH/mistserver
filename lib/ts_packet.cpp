@@ -1515,9 +1515,10 @@ namespace TS{
     entry.setFreeCAM(true);    // Not conditional access
     std::string sdti;
     sdti += (char)0x48;
-    sdti += (char)(15 + streamName.size()); // length
+    sdti += (char)(4 + strlen(APPNAME) + streamName.size()); // length
     sdti += (char)1;                        // digital television service
-    sdti.append("\012MistServer");
+    sdti += (char)strlen(APPNAME);
+    sdti.append(APPNAME);
     sdti += (char)streamName.size();
     sdti.append(streamName);
     entry.setESInfo(sdti);

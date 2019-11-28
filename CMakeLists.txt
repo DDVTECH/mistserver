@@ -107,6 +107,10 @@ endif()
 if (DEFINED UDP_API_PORT )
   add_definitions(-DUDP_API_PORT=${UDP_API_PORT})
 endif()
+if (NOT DEFINED APPNAME )
+  set(APPNAME "MistServer")
+endif()
+add_definitions(-DAPPNAME="${APPNAME}")
 
 ########################################
 # Build Variables - Thread Names       #

@@ -29,6 +29,7 @@ namespace Mist{
     void parseAMFCommand(AMF::Object &amfData, int messageType, int streamId);
     void sendCommand(AMF::Object &amfReply, int messageType, int streamId);
     void startPushOut(const char *args);
+    uint64_t lastAck;
     HTTP::URL pushApp, pushUrl;
     uint8_t authAttempts;
   };

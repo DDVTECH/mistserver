@@ -250,7 +250,7 @@ std::string &RTMPStream::SendMedia(FLV::Tag &tag){
 std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::getMS();
+  ch.timestamp = 0;
   ch.msg_type_id = type;
   ch.msg_stream_id = 0;
   ch.len_left = 0;
@@ -265,6 +265,7 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data){
     ch.data.resize(4);
   }
   *(int *)((char *)ch.data.data()) = htonl(data);
+  lastsend.erase(2u);
   return ch.Pack();
 }// SendCTL
 
@@ -272,7 +273,7 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data){
 std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned char data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::getMS();
+  ch.timestamp = 0;
   ch.len = 5;
   ch.real_len = 5;
   ch.len_left = 0;
@@ -281,6 +282,7 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned
   ch.data.resize(5);
   *(unsigned int *)((char *)ch.data.c_str()) = htonl(data);
   ch.data[4] = data2;
+  lastsend.erase(2u);
   return ch.Pack();
 }// SendCTL
 
@@ -288,7 +290,7 @@ std::string &RTMPStream::SendCTL(unsigned char type, unsigned int data, unsigned
 std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::getMS();
+  ch.timestamp = 0;
   ch.len = 6;
   ch.real_len = 6;
   ch.len_left = 0;
@@ -298,6 +300,7 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data){
   *(unsigned int *)(((char *)ch.data.c_str()) + 2) = htonl(data);
   ch.data[0] = 0;
   ch.data[1] = type;
+  lastsend.erase(2u);
   return ch.Pack();
 }// SendUSR
 
@@ -305,7 +308,7 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data){
 std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned int data2){
   static RTMPStream::Chunk ch;
   ch.cs_id = 2;
-  ch.timestamp = Util::getMS();
+  ch.timestamp = 0;
   ch.len = 10;
   ch.real_len = 10;
   ch.len_left = 0;
@@ -316,6 +319,7 @@ std::string &RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigned
   *(unsigned int *)(((char *)ch.data.c_str()) + 6) = htonl(data2);
   ch.data[0] = 0;
   ch.data[1] = type;
+  lastsend.erase(2u);
   return ch.Pack();
 }// SendUSR
 

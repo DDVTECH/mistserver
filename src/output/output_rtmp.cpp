@@ -13,6 +13,7 @@
 
 namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
+    lastAck = Util::bootSecs();
     lastOutTime = 0;
     setRtmpOffset = false;
     rtmpOffset = 0;
@@ -1151,7 +1152,8 @@ namespace Mist{
     while (next.Parse(inputBuffer)){
 
       // send ACK if we received a whole window
-      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size)){
+      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size) || Util::bootSecs() > lastAck+15){
+        lastAck = Util::bootSecs();
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
         myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); // send ack (msg 3)
       }
@@ -1203,7 +1205,7 @@ namespace Mist{
           break;
         case 6:
           MEDIUM_MSG("CTRL: UCM PingRequest %" PRIu32, Bit::btohl(next.data.data() + 2));
-          myConn.SendNow(RTMPStream::SendUSR(7, 1)); // send UCM PingResponse (7)
+          myConn.SendNow(RTMPStream::SendUSR(7, Bit::btohl(next.data.data() + 2))); // send UCM PingResponse (7)
           break;
         case 7:
           MEDIUM_MSG("CTRL: UCM PingResponse %" PRIu32, Bit::btohl(next.data.data() + 2));
@@ -1216,6 +1218,7 @@ namespace Mist{
         RTMPStream::rec_window_size = Bit::btohl(next.data.data());
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
         myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); // send ack (msg 3)
+        lastAck = Util::bootSecs();
         break;
       case 6:
         MEDIUM_MSG("CTRL: Set peer bandwidth");

@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+static const std::set<std::string> emptyset;
+
 /// JSON-related classes and functions
 namespace JSON{
 
@@ -50,10 +52,11 @@ namespace JSON{
     // comparison operators
     bool operator==(const Value &rhs) const;
     bool operator!=(const Value &rhs) const;
-    bool compareExcept(const Value &rhs, const std::set<std::string> &skip) const;
-    bool compareOnly(const Value &rhs, const std::set<std::string> &check) const;
+    bool compareExcept(const Value &rhs, const std::set<std::string> &skip = emptyset) const;
+    bool compareOnly(const Value &rhs, const std::set<std::string> &check = emptyset) const;
     // assignment operators
-    Value &assignFrom(const Value &rhs, const std::set<std::string> &skip);
+    Value &extend(const Value &rhs, const std::set<std::string> &skip = emptyset);
+    Value &assignFrom(const Value &rhs, const std::set<std::string> &skip = emptyset);
     Value &operator=(const Value &rhs);
     Value &operator=(const std::string &rhs);
     Value &operator=(const char *rhs);

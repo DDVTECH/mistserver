@@ -33,6 +33,15 @@ static const char *addrFam(int f){
   }
 }
 
+/// Calls gai_strerror with the given argument, calling regular strerror on the global errno as needed
+static const char * gai_strmagic(int errcode){
+  if (errcode == EAI_SYSTEM){
+    return strerror(errno);
+  }else{
+    return gai_strerror(errcode);
+  }
+}
+
 static std::string getIPv6BinAddr(const struct sockaddr_in6 &remoteaddr){
   char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
   switch (remoteaddr.sin6_family){
@@ -238,7 +247,7 @@ std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, 
   hints.ai_flags = AI_ADDRCONFIG;
   int s = getaddrinfo(host.c_str(), 0, &hints, &result);
   if (s != 0){
-    FAIL_MSG("Could not resolve %s! Error: %s", host.c_str(), gai_strerror(s));
+    FAIL_MSG("Could not resolve %s! Error: %s", host.c_str(), gai_strmagic(s));
     return "";
   }
 
@@ -825,7 +834,7 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
   hints.ai_flags = AI_ADDRCONFIG;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    lastErr = gai_strerror(s);
+    lastErr = gai_strmagic(s);
     FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, lastErr.c_str());
     close();
     return;
@@ -1621,7 +1630,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   hints.ai_next = NULL;
   int s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strerror(s));
+    FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strmagic(s));
     return;
   }
 
@@ -1778,12 +1787,12 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 
   if (iface == "0.0.0.0" || iface.length() == 0){
     if ((addr_ret = getaddrinfo(0, ss.str().c_str(), &hints, &addr_result)) != 0){
-      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strerror(addr_ret));
+      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strmagic(addr_ret));
       return 0;
     }
   }else{
     if ((addr_ret = getaddrinfo(iface.c_str(), ss.str().c_str(), &hints, &addr_result)) != 0){
-      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strerror(addr_ret));
+      FAIL_MSG("Could not resolve %s for UDP: %s", iface.c_str(), gai_strmagic(addr_ret));
       return 0;
     }
   }
@@ -1860,7 +1869,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
     memset(&mreq6, 0, sizeof(mreq6));
     struct addrinfo *reslocal, *resmulti;
     if ((addr_ret = getaddrinfo(iface.c_str(), 0, &hints, &resmulti)) != 0){
-      WARN_MSG("Unable to parse multicast address: %s", gai_strerror(addr_ret));
+      WARN_MSG("Unable to parse multicast address: %s", gai_strmagic(addr_ret));
       close();
       return 0;
     }
@@ -1899,7 +1908,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
         if (family == AF_INET6){
           INFO_MSG("Registering for IPv6 multicast on interface %s", curIface.c_str());
           if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
-            WARN_MSG("Unable to resolve IPv6 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+            WARN_MSG("Unable to resolve IPv6 interface address %s: %s", curIface.c_str(), gai_strmagic(addr_ret));
             continue;
           }
           memcpy(&mreq6.ipv6mr_multiaddr, &((sockaddr_in6 *)resmulti->ai_addr)->sin6_addr,
@@ -1914,7 +1923,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
         }else{
           INFO_MSG("Registering for IPv4 multicast on interface %s", curIface.c_str());
           if ((addr_ret = getaddrinfo(curIface.c_str(), 0, &hints, &reslocal)) != 0){
-            WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(), gai_strerror(addr_ret));
+            WARN_MSG("Unable to resolve IPv4 interface address %s: %s", curIface.c_str(), gai_strmagic(addr_ret));
             continue;
           }
           mreq4.imr_multiaddr = ((sockaddr_in *)resmulti->ai_addr)->sin_addr;

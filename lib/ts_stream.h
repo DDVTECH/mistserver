@@ -1,6 +1,5 @@
 #include "adts.h"
 #include "h265.h"
-#include "tinythread.h"
 #include "ts_packet.h"
 #include <deque>
 #include <map>
@@ -47,7 +46,7 @@ namespace TS{
 
   class Stream{
   public:
-    Stream(bool _threaded = false);
+    Stream();
     ~Stream();
     void add(char *newPack, uint64_t bytePos = 0);
     void add(Packet &newPack, uint64_t bytePos = 0);
@@ -101,10 +100,6 @@ namespace TS{
 
     std::map<size_t, size_t> rolloverCount;
     std::map<size_t, unsigned long long> lastms;
-
-    mutable tthread::recursive_mutex tMutex;
-
-    bool threaded;
 
     std::set<size_t> pmtTracks;
 

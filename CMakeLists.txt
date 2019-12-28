@@ -520,6 +520,17 @@ add_executable(MistProcMKVExec
 )
 target_link_libraries(MistProcMKVExec mist)
 
+add_executable(MistProcLivepeer
+  ${BINARY_DIR}/mist/.headers
+  src/process/process_livepeer.cpp
+  src/input/input.cpp
+  src/output/output_http.cpp
+  src/output/output_ts_base.cpp
+  src/output/output.cpp
+  src/io.cpp
+)
+target_link_libraries(MistProcLivepeer mist)
+
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
 endif()

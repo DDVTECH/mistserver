@@ -51,7 +51,6 @@ namespace Mist{
                                                 "\"prequest\",\"help\":\"Data to pretend arrived "
                                                 "on the socket before parsing the socket.\"}"));
     cfg->addBasicConnectorOptions(capa);
-    config = cfg;
   }
 
   void HTTPOutput::onFail(const std::string &msg, bool critical){

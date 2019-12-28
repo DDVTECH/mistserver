@@ -23,7 +23,7 @@
 
 tthread::mutex threadClaimMutex;
 std::string globalStreamName;
-TS::Stream liveStream(true);
+TS::Stream liveStream;
 Util::Config *cfgPointer = NULL;
 
 #define THREAD_TIMEOUT 15
@@ -230,6 +230,7 @@ namespace Mist{
 
   /// Live Setup of TS Input
   bool inputTS::preRun(){
+    INFO_MSG("Prerun: %s", config->getString("input").c_str());
     // streamed standard input
     if (config->getString("input") == "-"){
       standAlone = false;
@@ -285,6 +286,14 @@ namespace Mist{
       tcpCon.open(-1, fileno(inFile));
       standAlone = false;
       return inFile;
+    }
+    //file descriptor input
+    if (config->getString("input").substr(0, 5) == "fd://"){
+      int fd = atoi(config->getString("input").c_str() + 5);
+      INFO_MSG("Opening file descriptor %s (%d)", config->getString("input").c_str(), fd);
+      tcpCon.open(-1, fd);
+      standAlone = false;
+      return tcpCon;
     }
     // UDP input (tsudp://[host:]port[/iface[,iface[,...]]])
     if (config->getString("input").substr(0, 8) == "tsudp://"){

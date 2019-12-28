@@ -343,7 +343,7 @@ namespace Controller{
     if (!skip.size()){
       skip.insert("online");
       skip.insert("error");
-      skip.insert("name");
+      skip.insert("x-LSP-name");
     }
     if (sConf.isNull()){
       writtenStrms.erase(sName);

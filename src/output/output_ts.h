@@ -9,7 +9,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
     void sendTS(const char *tsData, size_t len = 188);
     static bool listenMode();
-    void initialSeek();
+    virtual void initialSeek();
     bool isReadyForPlay();
     void onRequest();
 

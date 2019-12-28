@@ -7,6 +7,10 @@
 #include "ts_stream.h"
 #include <stdint.h>
 #include <sys/stat.h>
+#include "tinythread.h"
+
+tthread::recursive_mutex tMutex;
+
 
 namespace TS{
 
@@ -67,8 +71,7 @@ namespace TS{
   uint64_t ADTSRemainder::getTodo(){return len - now;}
   char *ADTSRemainder::getData(){return data;}
 
-  Stream::Stream(bool _threaded){
-    threaded = _threaded;
+  Stream::Stream(){
     psCache = 0;
     psCacheTid = 0;
   }

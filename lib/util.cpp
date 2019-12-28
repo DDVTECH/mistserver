@@ -856,6 +856,7 @@ namespace Util{
     uint32_t &recordsCount = RAXHDR_RECORDCNT;
     uint64_t &recordEndPos = RAXHDR_ENDPOS;
     if (recsPresent + amount > recordsCount){
+      BACKTRACE;
       WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", recsPresent + amount, recsPresent, amount, recordsCount);
       recsPresent = 0;
     }else{

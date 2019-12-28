@@ -12,7 +12,7 @@ namespace Mist{
   public:
     inputTS(Util::Config *cfg);
     ~inputTS();
-    bool needsLock();
+    virtual bool needsLock();
 
     virtual std::string getConnectedBinHost(){
       if (tcpCon){return tcpCon.getBinHost();}
@@ -24,8 +24,8 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    bool needHeader();
-    void getNext(size_t idx = INVALID_TRACK_ID);
+    virtual bool needHeader();
+    virtual void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void readPMT();
     bool openStreamSource();

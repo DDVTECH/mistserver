@@ -44,6 +44,7 @@ namespace Mist{
     option["help"] = "Do not start input if not already started";
     option["value"].append(0);
     cfg->addOption("noinput", option);
+    config = cfg;
   }
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
@@ -1262,7 +1263,8 @@ namespace Mist{
       }
       stats();
     }
-    if (!myConn){Util::logExitReason("remote connection closed");}
+    if (!config->is_active){Util::logExitReason("set inactive");}
+    if (!myConn){Util::logExitReason("connection closed");}
     INFO_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
     onFinish();
 

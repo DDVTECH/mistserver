@@ -122,6 +122,9 @@ void Util::streamVariables(std::string &str, const std::string &streamname,
   replace(str, "$hour", strftime_now("%H"));
   replace(str, "$minute", strftime_now("%M"));
   replace(str, "$second", strftime_now("%S"));
+  replace(str, "$wday", strftime_now("%u"));//weekday, 1-7, monday=1
+  replace(str, "$yday", strftime_now("%j"));//yearday, 001-366
+  replace(str, "$week", strftime_now("%V"));//week number, 01-53
   replace(str, "$stream", streamname);
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));
@@ -672,15 +675,15 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (trackVal == JSON::Value(trackNo).asString()){
       //It's an integer number
       if (!M.tracks.count(trackNo)){
-        INFO_MSG("Track %lld does not exist in stream, cannot select", trackNo);
+        INFO_MSG("Track %zd does not exist in stream, cannot select", trackNo);
         return result;
       }
       const DTSC::Track & Trk = M.tracks.at(trackNo);
       if (Trk.type != trackType && Trk.codec != trackType){
-        INFO_MSG("Track %lld is not %s (%s/%s), cannot select", trackNo, trackType.c_str(), Trk.type.c_str(), Trk.codec.c_str());
+        INFO_MSG("Track %zd is not %s (%s/%s), cannot select", trackNo, trackType.c_str(), Trk.type.c_str(), Trk.codec.c_str());
         return result;
       }
-      INFO_MSG("Selecting %s track %lld (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(), Trk.codec.c_str());
+      INFO_MSG("Selecting %s track %zd (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(), Trk.codec.c_str());
       result.insert(trackNo);
       return result;
     }

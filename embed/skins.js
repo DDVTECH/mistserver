@@ -1728,6 +1728,9 @@ MistSkins["default"] = {
           else if ("decodingIssues" in MistVideo.skin.blueprints) { //dev mode
             if (("player" in MistVideo) && ("api" in MistVideo.player) && (MistVideo.video)) {
               details = [];
+              if (typeof MistVideo.state != "undefined") {
+                details.push(["Stream state:",MistVideo.state]);
+              }
               if (typeof MistVideo.player.api.currentTime != "undefined") {
                 details.push(["Current video time:",MistUtil.format.time(MistVideo.player.api.currentTime)]);
               }

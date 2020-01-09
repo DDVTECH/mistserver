@@ -155,7 +155,7 @@ namespace Mist{
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-        sendCommand("SETUP", url.link(it->second.control).getUrl(), "", &extraHeaders);
+        sendCommand("SETUP", HTTP::URL(url.getUrl()+"/").link(it->second.control).getUrl(), "", &extraHeaders);
         if (!tcpCon || !transportSet){
           FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
           tcpCon.close();
@@ -234,8 +234,9 @@ namespace Mist{
               session.erase(session.find(';'), std::string::npos);
             }
           }
-          if (recH.hasHeader("Content-Type") &&
-              recH.GetHeader("Content-Type") == "application/sdp"){
+          if ((recH.hasHeader("Content-Type") &&
+              recH.GetHeader("Content-Type") == "application/sdp") || (recH.hasHeader("Content-type") &&
+              recH.GetHeader("Content-type") == "application/sdp")){
             INFO_MSG("Received SDP");
             seenSDP = true;
             sdpState.parseSDP(recH.body);

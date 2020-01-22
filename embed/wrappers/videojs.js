@@ -276,23 +276,58 @@ p.prototype.build = function (MistVideo,callback) {
   else {
     //load the videojs player
     
+    var timer = false;
+    function reloadVJSrateLimited(){
+      try {
+        MistVideo.video.pause();
+      } catch (e) {}
+      MistVideo.showError("Error in videojs player");
+      
+      
+      //rate limit the reload
+      if (!window.mistplayer_videojs_failures) {
+        window.mistplayer_videojs_failures = 1;
+        MistVideo.reload();
+      }
+      else {
+        if (!timer) { 
+          var delay = 0.05*Math.pow(2,window.mistplayer_videojs_failures)
+          MistVideo.log("Rate limiter activated: MistPlayer reload delayed by "+Math.round(delay*10)/10+" seconds.","error");
+          timer = MistVideo.timers.start(function(){
+            timer = false;
+            delete window.videojs;
+            MistVideo.reload();
+          },delay*1e3);
+          window.mistplayer_videojs_failures++;
+        }
+      }
+    }
+    
     var scripturl = MistVideo.urlappend(mistplayers.videojs.scriptsrc(MistVideo.options.host));
     var scripttag;
-    window.onerror = function (msg, url, lineNo, columnNo, error) {
+    var f = function (msg, url, lineNo, columnNo, error) {
+      if (!scripttag) { return; }
       
       if (url == scripttag.src) {
         //error in internal videojs code
         //console.error(me.videojs,MistVideo.video,ele,arguments);
-        
-        ele.pause();
-        
-        MistVideo.showError("Error in videojs player");
-        
-        MistVideo.reload();
+        window.removeEventListener("error",f);
+        reloadVJSrateLimited();
       }
       
       return false;
-    }
+    };
+    window.addEventListener("error",f);
+    
+    var old_console_error = console.error;
+    console.error = function(){
+      if (arguments[0] == "VIDEOJS:") {
+        //videojs reports an error
+        console.error = old_console_error;
+        reloadVJSrateLimited();
+      }
+      return old_console_error.apply(this,arguments);
+    };
     
     scripttag = MistUtil.scripts.insert(scripturl,{
       onerror: function(e){

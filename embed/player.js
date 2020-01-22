@@ -940,6 +940,7 @@ function MistVideo(streamName,options) {
             case "Stream is booting":
             case "Stream is waiting for data":
             case "Stream is shutting down":
+            case "Stream status is invalid?!":
               if ((MistVideo.player) && (MistVideo.player.api) && (!MistVideo.player.api.paused)) {
                 //something is (still) playing
                 return;

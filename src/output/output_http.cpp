@@ -309,15 +309,13 @@ namespace Mist {
       DTSC::Scan prots = rProto.getScan();
       unsigned int prots_ctr = prots.getSize();
      
-      //find connector in config
-      for (unsigned int i=0; i < prots_ctr; ++i){
-        if (prots.getIndice(i).getMember("connector").asString() == connector) {
-          id =  i;
-          break;    //pick the first protocol in the list that matches the connector 
+      if (connector == "HTTP" || connector == "HTTP.exe"){
+        //restore from values in the environment, regardless of configged settings
+        if (getenv("MIST_HTTP_pubaddr")){
+          p["pubaddr"] = getenv("MIST_HTTP_pubaddr");
         }
-      }
-      if (id == -1) {
-        connector = connector + ".exe";
+      }else{
+        //find connector in config
         for (unsigned int i=0; i < prots_ctr; ++i){
           if (prots.getIndice(i).getMember("connector").asString() == connector) {
             id =  i;
@@ -325,13 +323,22 @@ namespace Mist {
           }
         }
         if (id == -1) {
-          connector = connector.substr(0, connector.size() - 4);
-          ERROR_MSG("No connector found for: %s", connector.c_str());
-          return;
+          connector = connector + ".exe";
+          for (unsigned int i=0; i < prots_ctr; ++i){
+            if (prots.getIndice(i).getMember("connector").asString() == connector) {
+              id =  i;
+              break;    //pick the first protocol in the list that matches the connector 
+            }
+          }
+          if (id == -1) {
+            connector = connector.substr(0, connector.size() - 4);
+            ERROR_MSG("No connector found for: %s", connector.c_str());
+            return;
+          }
         }
+        //read options from found connector
+        p = prots.getIndice(id).asJSON();
       }
-      //read options from found connector
-      p = prots.getIndice(id).asJSON();
       
       HIGH_MSG("Connector found: %s", connector.c_str());
       Util::DTSCShmReader rCapa(SHM_CAPA);

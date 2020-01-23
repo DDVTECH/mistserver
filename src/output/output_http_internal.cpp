@@ -45,6 +45,9 @@ namespace Mist {
       myConn.open(STDOUT_FILENO, STDIN_FILENO);
       myConn.setHost(host);
     }
+    if (config->getString("pubaddr").size()){
+      setenv("MIST_HTTP_pubaddr", config->getString("pubaddr").c_str(), 1);
+    }
     if (config->getOption("wrappers",true).size() == 0 || config->getString("wrappers") == ""){
       JSON::Value & wrappers = config->getOption("wrappers",true);
       wrappers.shrink(0);
@@ -142,6 +145,12 @@ namespace Mist {
     capa["optional"]["certbot"]["option"] = "--certbot";
     capa["optional"]["certbot"]["short"] = "C";
     cfg->addConnectorOptions(8080, capa);
+    cfg->addOption("pubaddr", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"A\",\"long\":\"public-address\",\"help\":\"Full public address this output is available as.\"}"));
+    capa["optional"]["pubaddr"]["name"] = "Public address";
+    capa["optional"]["pubaddr"]["help"] = "Full public address this output is available as, if being proxied";
+    capa["optional"]["pubaddr"]["default"] = "";
+    capa["optional"]["pubaddr"]["type"] = "str";
+    capa["optional"]["pubaddr"]["option"] = "--public-address";
   }
   
   /// Sorts the JSON::Value objects that hold source information by preference.
@@ -281,6 +290,13 @@ namespace Mist {
     HTTP::URL fullURL(H.GetHeader("Host"));
     if (!fullURL.protocol.size()){
       fullURL.protocol = getProtocolForPort(fullURL.getPort());
+    }
+    if (config->getString("pubaddr") != ""){
+      HTTP::URL altURL(config->getString("pubaddr"));
+      fullURL.protocol = altURL.protocol;
+      if (altURL.host.size()){fullURL.host = altURL.host;}
+      fullURL.port = altURL.port;
+      fullURL.path = altURL.path;
     }
     std::string uAgent = H.GetHeader("User-Agent");
     
@@ -437,6 +453,13 @@ namespace Mist {
         outURL.protocol = capa.getMember("protocol").asString();
         if (outURL.protocol.find(':') != std::string::npos){
           outURL.protocol.erase(outURL.protocol.find(':'));
+        }
+        if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").asString().size()){
+          HTTP::URL altURL(prots.getIndice(i).getMember("pubaddr").asString());
+          outURL.protocol = altURL.protocol;
+          if (altURL.host.size()){outURL.host = altURL.host;}
+          outURL.port = altURL.port;
+          outURL.path = altURL.path;
         }
         //and a URL - then list the URL
         JSON::Value capa_json = capa.asJSON();
@@ -651,6 +674,13 @@ namespace Mist {
       HTTP::URL fullURL(H.GetHeader("Host"));
       if (!fullURL.protocol.size()){
         fullURL.protocol = getProtocolForPort(fullURL.getPort());
+      }
+      if (config->getString("pubaddr") != ""){
+        HTTP::URL altURL(config->getString("pubaddr"));
+        fullURL.protocol = altURL.protocol;
+        if (altURL.host.size()){fullURL.host = altURL.host;}
+        fullURL.port = altURL.port;
+        fullURL.path = altURL.path;
       }
       std::string response;
       std::string rURL = H.url;

@@ -45,7 +45,7 @@ namespace Mist{
     capa["optional"]["pubaddr"]["name"] = "Public address";
     capa["optional"]["pubaddr"]["help"] = "Full public address this output is available as, if being proxied";
     capa["optional"]["pubaddr"]["default"] = "";
-    capa["optional"]["pubaddr"]["type"] = "str";
+    capa["optional"]["pubaddr"]["type"] = "inputlist";
     capa["optional"]["pubaddr"]["option"] = "--public-address";
     config = cfg;
   }
@@ -102,9 +102,12 @@ namespace Mist{
     args.push_back(Util::getMyPath() + "MistOutHTTP");
     args.push_back("--ip");
     args.push_back(myConn.getHost());
-    if (config->getString("pubaddr").size()){
-      args.push_back("--public-address");
-      args.push_back(config->getString("pubaddr"));
+    if (config->getOption("pubaddr", true).size()){
+      JSON::Value pubAddrs = config->getOption("pubaddr", true);
+      jsonForEach(pubAddrs, jIt){
+        args.push_back("--public-address");
+        args.push_back(jIt->asStringRef());
+      }
     }
     args.push_back("");
     Util::Procs::socketList.insert(fd[0]);

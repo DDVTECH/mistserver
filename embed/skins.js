@@ -1709,7 +1709,8 @@ MistSkins["default"] = {
         message_container.appendChild(p);
         message_container.update = function(message){
           MistUtil.empty(p);
-          p.appendChild(document.createTextNode(message));
+          //p.appendChild(document.createTextNode(message));
+          p.innerHTML = message; //allow custom html messages (configured in MI/HTTP/nostreamtext)
         };
         if (message) {
           if (MistVideo.info.on_error) {
@@ -1905,7 +1906,7 @@ MistSkins["default"] = {
           container.clear();
         }
       };
-      container.clear = function(message){
+      container.clear = function(){
         var countdowns = container.querySelectorAll("svg.icon.timeout");
         for (var i = 0; i < countdowns.length; i++) {
           MistVideo.timers.stop(countdowns[i].timeout);

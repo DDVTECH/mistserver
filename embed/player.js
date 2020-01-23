@@ -286,10 +286,10 @@ function MistVideo(streamName,options) {
     MistVideo.log("Stream info was loaded succesfully.");
     
     if ("error" in d) {
-      var e = data.error;
+      var e = d.error;
       if ("on_error" in d) {
         MistVideo.log(e);
-        e = data.on_error;
+        e = d.on_error;
       }
       MistVideo.showError(e,{reload:true});
       return;
@@ -874,7 +874,7 @@ function MistVideo(streamName,options) {
   MistVideo.container.setAttribute("data-loading","");
   
   //listen for changes to the srteam status
-  //TODO switch to polling-mode if websockets are not supported
+  //switch to polling-mode if websockets are not supported
   
   function openWithGet() {
     var url = MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js");

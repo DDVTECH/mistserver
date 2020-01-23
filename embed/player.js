@@ -931,6 +931,7 @@ function MistVideo(streamName,options) {
             MistVideo.log(e);
             e = data.on_error;
           }
+          MistVideo.state = data.error;
           var buttons;
           switch (data.error) {
             case "Stream is offline":
@@ -939,16 +940,23 @@ function MistVideo(streamName,options) {
             case "Stream is booting":
             case "Stream is waiting for data":
             case "Stream is shutting down":
+              if ((MistVideo.player) && (MistVideo.player.api) && (!MistVideo.player.api.paused)) {
+                //something is (still) playing
+                return;
+              }
               buttons = {polling:true};
               break;
             default:
               buttons = {reload:true};
           }
+          
           MistVideo.showError(e,buttons);
         }
         else {
           //new metadata object!
           //console.log("stream status stream said",data);
+          MistVideo.state = "Stream is online";
+          MistVideo.clearError();
           
           if (!MistVideo.info) {
             onStreamInfo(data);

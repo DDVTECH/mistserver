@@ -4884,6 +4884,8 @@ var UI = {
               $('<th>').text('Target')
             ).append(
               $('<th>')
+            ).append(
+              $('<th>')
             )
           );
           var $autopush = $push.clone();
@@ -4915,8 +4917,10 @@ var UI = {
               },{push_list:1});
             },1e3);
           }
+          var showing = false;
           function buildTr(push,type) {
             var $target = $('<span>');
+            var $logs = $("<span>");
             if ((type == "Automatic") && (push.length >= 4)) {
               $target.append(
                 $('<span>').text(push[2])
@@ -5005,10 +5009,43 @@ var UI = {
                 })
               );
             }
-            return $('<tr>').attr('data-pushid',push[0]).append(
+            else {
+              //it's a non-automatic push
+              if (push.length >= 6) {
+                var stats = push[5];
+                $logs.append(
+                  $("<div>").append(
+                    "Active for: "+UI.format.duration(stats.active_seconds)
+                  )
+                ).append(
+                  $("<div>").append(
+                    "Data transfered: "+UI.format.bytes(stats.bytes)
+                  )
+                ).append(
+                  $("<div>").append(
+                    "Media time transfered: "+UI.format.duration(stats.mediatime*1e-3)
+                  )
+                );
+              }
+              if (push.length >= 5) {
+                //there are logs
+                for (var i in push[4]) {
+                  var item = push[4][i];
+                  $logs.append(
+                    $("<div>").append(
+                      UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
+                    )
+                  );
+                }
+              }
+              
+            }
+            return $('<tr>').css("vertical-align","top").attr('data-pushid',push[0]).append(
               $('<td>').text(push[1])
             ).append(
               $('<td>').append($target.children())
+            ).append(
+              $("<td>").addClass("logs").append($logs.children())
             ).append(
               $buttons
             );
@@ -5194,6 +5231,17 @@ var UI = {
               )
             ).append($push);
           }
+          
+          UI.interval.set(function(){
+            mist.send(function(d){
+              var $header = $push.find("tr").first();
+              $push.empty();
+              $push.append($header);
+              for (var i in d.push_list) {
+                $push.append(buildTr(d.push_list[i]));
+              }
+            },{push_list:1});
+          },5e3);
           
         },{push_settings:1,push_list:1,push_auto_list:1});
         

@@ -82,6 +82,19 @@ p.prototype.build = function (MistVideo,callback) {
       vjsopts.controls = false;
     }
     
+    //for android < 7, enable override native
+    function androidVersion(){
+      var match = navigator.userAgent.toLowerCase().match(/android\s([\d\.]*)/i);
+      return match ? match[1] : false;
+    }
+    var android = MistUtil.getAndroid();
+    if (android && (parseFloat(android) < 7)) {
+      MistVideo.log("Detected android < 7: instructing videojs to override native playback");
+      vjsopts.html5 = {hls: {overrideNative: true}};
+      vjsopts.nativeAudioTracks = false;
+      vjsopts.nativeVideoTracks = false;
+    }
+    
     me.onready(function(){
       MistVideo.log("Building videojs");
       me.videojs = videojs(ele,vjsopts,function(){
@@ -160,7 +173,6 @@ p.prototype.build = function (MistVideo,callback) {
       MistVideo.player.api.load = function(){};
       
       overrides.set.currentTime = function(value){
-        console.log("seeking to",value);
         MistVideo.player.videojs.currentTime(value); //seeking backwards does not work if we set it on the video directly
         //MistVideo.video.currentTime = value;
       };

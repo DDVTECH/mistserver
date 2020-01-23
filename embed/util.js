@@ -998,5 +998,9 @@ var MistUtil = {
       return "firefox";
     }
     return false; //unknown
+  },
+  getAndroid: function(){
+    var match = navigator.userAgent.toLowerCase().match(/android\s([\d\.]*)/i);
+    return match ? match[1] : false;
   }
 };

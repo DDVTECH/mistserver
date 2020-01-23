@@ -18,6 +18,14 @@ mistplayers.html5 = {
       }
     }
     
+    if (mimetype == "html5/application/vnd.apple.mpegurl") {
+      var android = MistUtil.getAndroid();
+      if (android && (parseFloat(android) < 7)) { 
+        MistVideo.log("Skipping native HLS as videojs will do better");
+        return false;
+      }
+    }
+    
     
     var support = false;
     var shortmime = mimetype.split("/");

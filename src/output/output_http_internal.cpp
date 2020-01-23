@@ -327,11 +327,20 @@ namespace Mist {
     H.SetVar("stream", streamName);
     
     std::string seekTo = "";
-    if (true) {
-      std::string t = "60"; //hoi Jaron, kan je hier de timestamp naar waar geseeked moet worden in gooien? in seconden graag. Ik heb het even n string gemaakt want geen zin om uit te zoeken hoe ik een int maak en hieronder insert en zooi.. :)
-      seekTo = "var f = function(){ if (mv.reference && mv.reference.player && mv.reference.player.api) { mv.reference.player.api.currentTime = "+t+"; } this.removeEventListener(\"initialized\",f); }; document.getElementById(\""+streamName+"\").addEventListener(\"initialized\",f);";
+    if (H.GetVar("t").size()){
+      uint64_t autoSeekTime = 0;
+      std::string sTime = H.GetVar("t");
+      unsigned long long h = 0, m = 0, s = 0;
+      autoSeekTime = JSON::Value(sTime).asInt();
+      if (sscanf(sTime.c_str(), "%llum%llus", &m, &s) == 2){autoSeekTime = m*60+s;}
+      if (sscanf(sTime.c_str(), "%llu:%llu", &m, &s) == 2){autoSeekTime = m*60+s;}
+      if (sscanf(sTime.c_str(), "%lluh%llum%llus", &h, &m, &s) == 3){autoSeekTime = h*3600+m*60+s;}
+      if (sscanf(sTime.c_str(), "%llu:%llu:%llu", &h, &m, &s) == 3){autoSeekTime = h*3600+m*60+s;}
+      if (autoSeekTime){
+        seekTo = "var f = function(){ if (mv.reference && mv.reference.player && mv.reference.player.api) { mv.reference.player.api.currentTime = "+JSON::Value(autoSeekTime).toString()+"; } this.removeEventListener(\"initialized\",f); }; document.getElementById(\""+streamName+"\").addEventListener(\"initialized\",f);";
+      }
     }
-    
+ 
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");

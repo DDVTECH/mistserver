@@ -96,7 +96,8 @@ namespace Mist{
     bool endPlaylist;
     int currentPlaylist;
 
-    bool allowRemap; ///< True if the next packet may remap the timestamps
+    bool allowRemap;     ///< True if the next packet may remap the timestamps
+    bool allowSoftRemap; ///< True if the next packet may soft-remap the timestamps
     std::map<uint64_t, uint64_t> pidMapping;
     std::map<uint64_t, uint64_t> pidMappingR;
     std::map<int, int64_t> plsTimeOffset;

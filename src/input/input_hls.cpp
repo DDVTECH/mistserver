@@ -71,12 +71,24 @@ static uint64_t ISO8601toUnixmillis(const std::string &ts){
     {
       unsigned long hrs, mins;
       if (sscanf(zone.c_str() + 1, "%lu:%lu", &hrs, &mins) == 2){
-        unxTime += mins * 60000 + hrs * 3600000;
+        if (sign){
+          unxTime += mins * 60000 + hrs * 3600000;
+        }else{
+          unxTime -= mins * 60000 + hrs * 3600000;
+        }
       }else if (sscanf(zone.c_str() + 1, "%lu", &hrs) == 1){
         if (hrs > 100){
-          unxTime += (hrs % 100) * 60000 + ((uint64_t)(hrs / 100)) * 3600000;
+          if (sign){
+            unxTime += (hrs % 100) * 60000 + ((uint64_t)(hrs / 100)) * 3600000;
+          }else{
+            unxTime -= (hrs % 100) * 60000 + ((uint64_t)(hrs / 100)) * 3600000;
+          }
         }else{
-          unxTime += hrs * 3600000;
+          if (sign){
+            unxTime += hrs * 3600000;
+          }else{
+            unxTime -= hrs * 3600000;
+          }
         }
       }else{
         WARN_MSG("Could not parse time zone '%s'; assuming UTC", zone.c_str());
@@ -267,13 +279,13 @@ namespace Mist{
     // check first byte = 0x47. begin of ts file, then check if it is a multiple of 188bytes
     if (segDL.data().data()[0] == 0x47){
       if (segDL.data().size() % 188){
-        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes. url: %s",
+        FAIL_MSG("Expected a multiple of 188 bytes, received %zu bytes. url: %s",
                  segDL.data().size(), entry.filename.c_str());
         return false;
       }
     }else if (segDL.data().data()[5] == 0x47){
       if (segDL.data().size() % 192){
-        FAIL_MSG("Expected a multiple of 192 bytes, received %d bytes. url: %s",
+        FAIL_MSG("Expected a multiple of 192 bytes, received %zu bytes. url: %s",
                  segDL.data().size(), entry.filename.c_str());
         return false;
       }
@@ -310,7 +322,9 @@ namespace Mist{
 
     if (isUrl()){
       if (!plsDL.get(uri) || !plsDL.isOk()){
-        FAIL_MSG("Could not download playlist, aborting.");
+        FAIL_MSG("Could not download playlist '%s', aborting: %" PRIu32 " %s", uri.c_str(),
+                 plsDL.getStatusCode(), plsDL.getStatusText().c_str());
+        reloadNext = Util::bootSecs() + waitTime;
         return false;
       }
       urlSource.str(plsDL.data());
@@ -318,6 +332,8 @@ namespace Mist{
       fileSource.open(uri.c_str());
       if (!fileSource.good()){
         FAIL_MSG("Could not open playlist (%s): %s", strerror(errno), uri.c_str());
+        reloadNext = Util::bootSecs() + waitTime;
+        return false;
       }
     }
 
@@ -475,8 +491,8 @@ namespace Mist{
       // The mutex assures we have a unique count/number.
       if (!id){id = listEntries.size() + 1;}
       listEntries[id].push_back(entry);
-      MEDIUM_MSG("Added segment to variant %" PRIu32 " (#%d, now %d queued): %s", id, lastFileIndex,
-                 listEntries[id].size(), filename.c_str());
+      MEDIUM_MSG("Added segment to variant %" PRIu32 " (#%d, now %zu queued): %s", id,
+                 lastFileIndex, listEntries[id].size(), filename.c_str());
     }
   }
 
@@ -552,10 +568,6 @@ namespace Mist{
     INFO_MSG("Parsing live stream to create header...");
     TS::Packet packet; // to analyse and extract data
     int counter = 1;
-
-    char *data;
-    unsigned int dataLen;
-    bool keepReading = false;
 
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
@@ -639,10 +651,9 @@ namespace Mist{
 
     TS::Packet packet; // to analyse and extract data
 
-    int counter = 1;
-
     char *data;
     size_t dataLen;
+    int counter = 1;
 
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
@@ -807,9 +818,11 @@ namespace Mist{
         if (plsTimeOffset.count(currentPlaylist)){newTime += plsTimeOffset[currentPlaylist];}
 
         if (zUTC){
-          //UTC based timestamp offsets
-          if (allowRemap && nUTC){
+          if (allowSoftRemap && thisPacket.getTime() < 1000){allowSoftRemap = false;}
+          // UTC based timestamp offsets
+          if ((allowRemap || allowSoftRemap) && nUTC){
             allowRemap = false;
+            allowSoftRemap = !thisPacket.getTime();
             int64_t prevOffset = plsTimeOffset[currentPlaylist];
             plsTimeOffset[currentPlaylist] = (nUTC - zUTC) - thisPacket.getTime();
             newTime = thisPacket.getTime() + plsTimeOffset[currentPlaylist];
@@ -818,14 +831,16 @@ namespace Mist{
                      prevOffset, plsTimeOffset[currentPlaylist], tid, thisPacket.getTime(), newTime);
           }
         }else{
-          //Non-UTC based
+          // Non-UTC based
           if (plsLastTime.count(currentPlaylist)){
             if (plsInterval.count(currentPlaylist)){
-              if (allowRemap && (newTime < plsLastTime[currentPlaylist] || newTime > plsLastTime[currentPlaylist] + plsInterval[currentPlaylist] * 60)){
+              if (allowRemap && (newTime < plsLastTime[currentPlaylist] ||
+                                 newTime > plsLastTime[currentPlaylist] + plsInterval[currentPlaylist] * 60)){
                 allowRemap = false;
                 // time difference too great, change offset to correct for it
                 int64_t prevOffset = plsTimeOffset[currentPlaylist];
-                plsTimeOffset[currentPlaylist] += (int64_t)(plsLastTime[currentPlaylist] + plsInterval[currentPlaylist]) - (int64_t)newTime;
+                plsTimeOffset[currentPlaylist] +=
+                    (int64_t)(plsLastTime[currentPlaylist] + plsInterval[currentPlaylist]) - (int64_t)newTime;
                 newTime = thisPacket.getTime() + plsTimeOffset[currentPlaylist];
                 INFO_MSG("[Guess; New offset: %" PRId64 " -> %" PRId64 "] Packet %lu@%" PRIu64
                          "ms -> %" PRIu64 "ms",
@@ -834,7 +849,8 @@ namespace Mist{
             }
             // check if time increased, and no increase yet or is less than current, set new interval
             if (newTime > plsLastTime[currentPlaylist] &&
-                (!plsInterval.count(currentPlaylist) || newTime - plsLastTime[currentPlaylist] < plsInterval[currentPlaylist])){
+                (!plsInterval.count(currentPlaylist) ||
+                 newTime - plsLastTime[currentPlaylist] < plsInterval[currentPlaylist])){
               plsInterval[currentPlaylist] = newTime - plsLastTime[currentPlaylist];
             }
           }
@@ -842,7 +858,7 @@ namespace Mist{
           plsLastTime[tid] = newTime;
         }
 
-        DONTEVEN_MSG("Packet %lu@%" PRIu64 "ms -> %ms" PRIu64, tid, thisPacket.getTime(), newTime);
+        DONTEVEN_MSG("Packet %" PRIu32 "@%" PRIu64 "ms -> %" PRIu64 "ms", tid, thisPacket.getTime(), newTime);
         // overwrite trackId on success
         Bit::htobl(thisPacket.getData() + 8, tid);
         Bit::htobll(thisPacket.getData() + 12, newTime);
@@ -877,11 +893,17 @@ namespace Mist{
       }
 
       // Now that we know our playlist is up-to-date, actually try to read the file.
-      VERYHIGH_MSG("Moving on to next TS segment (variant %u)", currentPlaylist);
+      VERYHIGH_MSG("Moving on to next TS segment (variant %" PRIu32 ")", currentPlaylist);
       if (readNextFile()){
         MEDIUM_MSG("Next segment read successfully");
         endOfFile = false; // no longer at end of file
         continue;          // Success! Continue regular parsing.
+      }else{
+        // failed to read segment for playlist, dropping it
+        WARN_MSG("Dropping variant %" PRIu32 " because we couldn't read anything from it", currentPlaylist);
+        tthread::lock_guard<tthread::mutex> guard(entryMutex);
+        listEntries.erase(currentPlaylist);
+        if (listEntries.size()){continue;}
       }
 
       // Nothing works!
@@ -894,7 +916,6 @@ namespace Mist{
 
   void inputHLS::readPMT(){
     HIGH_MSG("readPMT()");
-    size_t bpos;
     TS::Packet tsBuffer;
     const char *tmpPtr = segDowner.segDL.data().data();
 
@@ -1159,9 +1180,10 @@ namespace Mist{
       return readNextFile(); // Attempt to read another, if possible.
     }
     nUTC = ntry.mUTC;
-    //If we don't have a zero-time yet, guess an hour before this UTC time is probably fine
+    // If we don't have a zero-time yet, guess an hour before this UTC time is probably fine
     if (nUTC && !zUTC){zUTC = nUTC - 3600000;}
     allowRemap = true;
+    allowSoftRemap = false;
     return true;
   }
 

@@ -900,6 +900,7 @@ MistSkins["default"] = {
       //obey video states
       MistUtil.event.addListener(video,"playing",function(){
         button.setState("playing");
+        MistVideo.options.autoplay = true;
       },button);
       MistUtil.event.addListener(video,"pause",function(){
         button.setState("paused");
@@ -919,6 +920,7 @@ MistSkins["default"] = {
         }
         else {
           MistVideo.player.api.pause();
+          MistVideo.options.autoplay = false;
         }
       });
       
@@ -926,7 +928,10 @@ MistSkins["default"] = {
       if (MistVideo.player.api) {
         MistUtil.event.addListener(MistVideo.video,"click",function(){
           if (MistVideo.player.api.paused) { MistVideo.player.api.play(); }
-          else if (!MistUtil.isTouchDevice()) { MistVideo.player.api.pause(); }
+          else if (!MistUtil.isTouchDevice()) {
+            MistVideo.player.api.pause();
+            MistVideo.options.autoplay = false;
+          }
         },button);
       }
       

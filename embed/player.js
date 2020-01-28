@@ -943,6 +943,7 @@ function MistVideo(streamName,options) {
             case "Stream status is invalid?!":
               if ((MistVideo.player) && (MistVideo.player.api) && (!MistVideo.player.api.paused)) {
                 //something is (still) playing
+                MistVideo.log(data.error,"error");
                 return;
               }
               buttons = {polling:true};

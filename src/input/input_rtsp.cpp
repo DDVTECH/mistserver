@@ -180,16 +180,44 @@ namespace Mist{
   }
 
   std::string InputRTSP::streamMainLoop(){
+    IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+    uint64_t startTime = Util::epoch();
     uint64_t lastPing = Util::bootSecs();
+    uint64_t lastSecs = 0;
     while (config->is_active && nProxy.userClient.isAlive() && parsePacket()){
       handleUDP();
       // keep going
       nProxy.userClient.keepAlive();
-      if (Util::bootSecs() - lastPing > 30){
+      uint64_t currSecs = Util::bootSecs();
+      if (currSecs - lastPing > 30){
         sendCommand("GET_PARAMETER", url.getUrl(), "");
         lastPing = Util::bootSecs();
       }
+      if (lastSecs != currSecs){
+        if (!statsPage.getData()){
+          statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+        }
+        if (statsPage.getData()){
+          if (!statsPage.isAlive()){
+            config->is_active = false;
+            statsPage.finish();
+            return "received shutdown request from controller";
+          }
+          uint64_t now = Util::epoch();
+          IPC::statExchange tmpEx(statsPage.getData());
+          tmpEx.now(now);
+          tmpEx.crc(getpid());
+          tmpEx.streamName(streamName);
+          tmpEx.connector("INPUT");
+          tmpEx.up(tcpCon.dataUp());
+          tmpEx.down(tcpCon.dataDown());
+          tmpEx.time(now - startTime);
+          tmpEx.lastSecond(0);
+          statsPage.keepAlive();
+        }
+      }
     }
+    statsPage.finish();
     if (!tcpCon){return "TCP connection closed";}
     if (!config->is_active){return "received deactivate signal";}
     if (!nProxy.userClient.isAlive()){return "buffer shutdown";}

@@ -385,6 +385,8 @@ namespace Controller {
   bool isMatch(const std::string & source, const std::string & match){
     std::string front = match.substr(0,match.find('*'));
     std::string back = match.substr(match.find('*')+1);
+    //if the length of the source is smaller than the front and back matching parts together, it can never match
+    if (source.size() < front.size()+back.size()){return false;}
     return (source.substr(0,front.size()) == front && source.substr(source.size()-back.size()) == back);
   }
 

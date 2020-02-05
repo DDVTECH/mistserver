@@ -446,7 +446,12 @@ namespace TS{
           timeOffset = timeStamp;
           timeStamp = decodePTS(pesHeader + pesOffset);
           pesOffset += 5;
-          timeOffset -= timeStamp;
+          if (timeStamp > timeOffset){
+            WARN_MSG("TS packet invalid: DTS > PTS. Ignoring DTS value.");
+            timeStamp = timeOffset;
+          }else{
+            timeOffset -= timeStamp;
+          }
         }
       }
 

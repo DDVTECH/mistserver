@@ -279,7 +279,7 @@ namespace Mist {
           if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
             p[it.key()] = p[it.key()].asString();
           }
-          if (((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int") && !p[it.key()].isInt()){
+          if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" || (*it)["type"].asStringRef() == "debug"){
             p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
           }
         }

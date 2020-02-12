@@ -109,37 +109,6 @@ p.prototype.build = function (MistVideo,callback) {
         }
       };
       
-      //special HLS live when-stream-ends code because holy crap latency
-      MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
-        var eventdata = false;
-        switch (e.message) {
-          case "Stream is shutting down": {
-            //MistVideo.clearError(); //we've probably got loads of buffer left to play
-            e.preventDefault();
-            break;
-          }
-          case "Stream is offline": {
-            MistVideo.clearError(); //we've probably got loads of buffer left to play
-            e.preventDefault();
-            
-            if (MistVideo.video) {
-              eventdata = MistUtil.event.addListener(MistVideo.video,"ended",function(){
-                //show stream offline error
-                MistVideo.showError("Stream is offline ",{polling:true});
-                
-                if (eventdata) { MistUtil.event.removeListener(eventdata); }
-              });
-            }
-            break;
-          }
-          case "Stream is waiting for data": {
-            if (eventdata) { MistUtil.event.removeListener(eventdata); }
-            me.api.pause();
-            MistVideo.reload();
-            break;
-          }
-        }
-      },MistVideo.video);
     });
     
     MistVideo.log("Built html");

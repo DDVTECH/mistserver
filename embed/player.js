@@ -291,7 +291,7 @@ function MistVideo(streamName,options) {
         MistVideo.log(e);
         e = d.on_error;
       }
-      MistVideo.showError(e,{reload:true});
+      MistVideo.showError(e,{reload:true,hideTitle:true});
       return;
     }
     
@@ -601,7 +601,15 @@ function MistVideo(streamName,options) {
             msg = "An error was encountered.";
             //console.log("Err:",e);
           }
-          MistVideo.showError(msg);
+          if (MistVideo.state == "Stream is online") {
+            MistVideo.showError(msg);
+          }
+          else {
+            //it was probaby an error like "PIPELINE_ERROR_READ: FFmpegDemuxer: data source error" because the live stream has ended. Print it in the log, but display the stream state instead.
+            MistVideo.log(msg,"error");
+            MistVideo.showError(MistVideo.state,{polling:true});
+          }
+          
         });
         
         //add general resize function
@@ -892,7 +900,7 @@ function MistVideo(streamName,options) {
     });
   }
   
-  if ("WebSocket" in window) {
+  if (false) {
     function openSocket() {
       MistVideo.log("Opening stream status stream..");
       var url = MistVideo.options.host.replace(/^http/i,"ws");
@@ -920,6 +928,8 @@ function MistVideo(streamName,options) {
         openWithGet();
         
       };
+      var on_ended_show_state = false;
+      var on_waiting_show_state = false;
       socket.addEventListener("message",function(e){
         var data = JSON.parse(e.data);
         if (!data) { MistVideo.showError("Error while parsing stream status stream. Obtained: "+e.data.toString(),{reload:true}); }
@@ -944,6 +954,19 @@ function MistVideo(streamName,options) {
               if ((MistVideo.player) && (MistVideo.player.api) && (!MistVideo.player.api.paused)) {
                 //something is (still) playing
                 MistVideo.log(data.error,"error");
+                
+                //on ended, show state
+                if (!on_ended_show_state) {
+                  on_ended_show_state = MistUtil.event.addListener(MistVideo.video,"ended",function(){
+                    MistVideo.showError(data.error,{polling:true});
+                  });
+                }
+                if (!on_waiting_show_state) {
+                  on_ended_show_state = MistUtil.event.addListener(MistVideo.video,"waiting",function(){
+                    MistVideo.showError(data.error,{polling:true});
+                  });
+                }
+                
                 return;
               }
               buttons = {polling:true};
@@ -959,6 +982,8 @@ function MistVideo(streamName,options) {
           //console.log("stream status stream said",data);
           MistVideo.state = "Stream is online";
           MistVideo.clearError();
+          if (on_ended_show_state) { MistUtil.event.removeListener(on_ended_show_state); }
+          if (on_waiting_show_state) { MistUtil.event.removeListener(on_waiting_show_state); }
           
           if (!MistVideo.info) {
             onStreamInfo(data);

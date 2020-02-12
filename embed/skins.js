@@ -1704,7 +1704,7 @@ MistSkins["default"] = {
         message_container.className = "message";
         this.appendChild(message_container);
         
-        if (!options.polling && !options.passive) {
+        if (!options.polling && !options.passive && !options.hideTitle) {
           var header = document.createElement("h3");
           message_container.appendChild(header);
           header.appendChild(document.createTextNode("The player has encountered a problem"));

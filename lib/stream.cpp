@@ -376,8 +376,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
           FAIL_MSG("Required parameter %s for stream %s missing", prm.key().c_str(), streamname.c_str());
           return false;
         }
-        HIGH_MSG("Setting option '%s' to '%s'", opt.c_str(), stream_cfg[prm.key()].asStringRef().c_str());
-        str_args[opt] = stream_cfg[opt].asStringRef();
+        if (stream_cfg[prm.key()].isString()){
+          str_args[opt] = stream_cfg[prm.key()].asStringRef();
+        }else{
+          str_args[opt] = stream_cfg[prm.key()].toString();
+        }
       }
     }
   }
@@ -391,9 +394,12 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
         HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
         str_args[opt] = overrides.at(prm.key());
       }else{
-        if (stream_cfg.isMember(prm.key()) && stream_cfg[prm.key()].asStringRef().size()){
-          HIGH_MSG("Setting option '%s' to '%s'", opt.c_str(), stream_cfg[prm.key()].asStringRef().c_str());
-          str_args[opt] = stream_cfg[prm.key()].asStringRef();
+        if (stream_cfg.isMember(prm.key()) && stream_cfg[prm.key()]){
+          if (stream_cfg[prm.key()].isString()){
+            str_args[opt] = stream_cfg[prm.key()].asStringRef();
+          }else{
+            str_args[opt] = stream_cfg[prm.key()].toString();
+          }
         }
       }
       if (!prm->isMember("type") && str_args.count(opt)){str_args[opt] = "";}

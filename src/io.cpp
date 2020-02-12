@@ -533,6 +533,9 @@ namespace Mist {
         HIGH_MSG("Wrong order on track %lu ignored: %lu < %lu", tid, packet.getTime(), myMeta.tracks[tid].lastms);
         return;
       }
+      if (packet.getTime() > myMeta.tracks[tid].lastms + 30000 && myMeta.tracks[tid].lastms){
+        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, myMeta.tracks[tid].lastms, packet.getTime());
+      }
     }
 
     //Determine if we need to open the next page

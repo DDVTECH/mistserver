@@ -194,9 +194,11 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   // check required parameters
   if (input.isMember("required")){
     jsonForEachConst(input["required"], prm){
+      if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
       if (overrides.count(opt)){
+        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
         str_args[opt] = overrides.at(opt);
       }else{
         if (!stream_cfg.isMember(prm.key())){
@@ -204,19 +206,32 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
                    streamname.c_str());
           return false;
         }
-        str_args[opt] = stream_cfg[opt].asStringRef();
+        if (stream_cfg[prm.key()].isString()){
+          str_args[opt] = stream_cfg[prm.key()].asStringRef();
+        }else{
+          str_args[opt] = stream_cfg[prm.key()].toString();
+        }
       }
     }
   }
   // check optional parameters
   if (input.isMember("optional")){
     jsonForEachConst(input["optional"], prm){
+      if (!prm->isMember("option")){continue;}
       const std::string opt = (*prm)["option"].asStringRef();
       // check for overrides
       if (overrides.count(opt)){
+        HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
         str_args[opt] = overrides.at(opt);
       }else{
-        if (stream_cfg.isMember(prm.key())){str_args[opt] = stream_cfg[prm.key()].asStringRef();}
+        if (stream_cfg.isMember(prm.key()) && stream_cfg[prm.key()]){
+          if (stream_cfg[prm.key()].isString()){
+            str_args[opt] = stream_cfg[prm.key()].asStringRef();
+          }else{
+            str_args[opt] = stream_cfg[prm.key()].toString();
+          }
+          INFO_MSG("Setting option '%s' to '%s' = '%s'", opt.c_str(), stream_cfg[prm.key()].toString().c_str(), str_args[opt].c_str());
+        }
       }
       if (!prm->isMember("type") && str_args.count(opt)){str_args[opt] = "";}
     }

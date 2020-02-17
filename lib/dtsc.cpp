@@ -2890,27 +2890,27 @@ namespace DTSC{
     return keys.getTime(fragments.getFirstKey(fragmentIdx));
   }
 
-  /// Returns the part index for the given DTSC::Packet by timestamp.
+  /// Returns the part index for the given timestamp.
   /// Assumes the Packet is for the given track, and assumes the metadata and track data are not out
   /// of sync. Works by looking up the key for the Packet's timestamp, then walking through the
   /// parts until the time matches or exceeds the time of the Packet. Returns zero if the track
   /// index is invalid or if the timestamp cannot be found.
-  uint32_t Meta::getPartIndex(const DTSC::Packet &pack, size_t idx) const{
+  uint32_t Meta::getPartIndex(uint64_t timestamp, size_t idx) const{
     if (idx == INVALID_TRACK_ID){return 0;}
 
     uint32_t res = 0;
-    uint32_t keyIdx = getKeyIndexForTime(idx, pack.getTime());
+    uint32_t keyIdx = getKeyIndexForTime(idx, timestamp);
     DTSC::Keys Keys(keys(idx));
     DTSC::Parts Parts(parts(idx));
     uint64_t currentTime = Keys.getTime(keyIdx);
     res = Keys.getFirstPart(keyIdx);
-    size_t endPart = res + Keys.getParts(keyIdx);
+    size_t endPart = Parts.getEndValid();
     for (size_t i = res; i < endPart; i++){
-      if (currentTime >= pack.getTime()){return res;}
+      if (currentTime >= timestamp){return res;}
       currentTime += Parts.getDuration(i);
       res++;
     }
-    return 0;
+    return res;
   }
 
   /// Given the current page, check if the next page is available. Returns true if it is.

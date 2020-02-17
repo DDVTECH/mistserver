@@ -1,24 +1,13 @@
 #include "cmaf.h"
 
+static uint64_t unixBootDiff = (Util::unixMS() - Util::bootMS());
+
 namespace CMAF{
   /// Function to determine the payload size of a CMAF fragment.
-  /// \parm isKeyIndex indicates whether we are sending DTSC Fragment or DTSC Key based CMAF fragments.
-  size_t payloadSize(const DTSC::Meta &M, size_t track, size_t index, bool isKeyIndex){
-    DTSC::Fragments fragments(M.fragments(track));
-    DTSC::Keys keys(M.keys(track));
+  size_t payloadSize(const DTSC::Meta &M, size_t track, uint64_t startTime, uint64_t endTime){
     DTSC::Parts parts(M.parts(track));
-
-    size_t firstKey = (isKeyIndex ? index : fragments.getFirstKey(index));
-    size_t endKey = keys.getEndValid();
-    if (isKeyIndex) {
-      if (index + 1 < keys.getEndValid()){endKey = index + 1;}
-    } else {
-      if (index + 1 < fragments.getEndValid()){endKey = fragments.getFirstKey(index + 1);}
-    }
-
-    size_t firstPart = keys.getFirstPart(firstKey);
-    size_t endPart = parts.getEndValid();
-    if (endKey != keys.getEndValid()){endPart = keys.getFirstPart(endKey);}
+    size_t firstPart = M.getPartIndex(startTime, track);
+    size_t endPart = M.getPartIndex(endTime, track);
     size_t payloadSize = 0;
     for (size_t i = firstPart; i < endPart; i++){payloadSize += parts.getSize(i);}
     return payloadSize;
@@ -186,7 +175,7 @@ namespace CMAF{
             ((i + 1 < fragments.getEndValid()) ? fragments.getFirstKey(i + 1) : keys.getEndValid());
 
         MP4::sidxReference refItem;
-        refItem.referencedSize = payloadSize(M, track, i) + fragmentHeaderSize(M, track, i) + 8;
+        refItem.referencedSize = payloadSize(M, track, keys.getTime(firstKey), keys.getTime(endKey)) + fragmentHeaderSize(M, track, i) + 8;
         refItem.subSegmentDuration =
             (endKey == keys.getEndValid() ? M.getLastms(track) : keys.getTime(endKey)) - keys.getTime(firstKey);
         refItem.sapStart = true;
@@ -304,7 +293,7 @@ namespace CMAF{
     if (M.getVod()){
       tfdtBox.setBaseMediaDecodeTime(M.getTimeForFragmentIndex(track, fragment) - M.getFirstms(track));
     }else{
-      tfdtBox.setBaseMediaDecodeTime((UTCTime ? Util::epoch()*1000 : M.getTimeForFragmentIndex(track, fragment)));
+      tfdtBox.setBaseMediaDecodeTime((UTCTime ? M.getTimeForFragmentIndex(track, fragment) + M.getBootMsOffset() + unixBootDiff : M.getTimeForFragmentIndex(track, fragment)));
     }
     trafBox.setContent(tfdtBox, 1);
 
@@ -337,50 +326,36 @@ namespace CMAF{
 
   /// Calculates the full size of a 'moof' box for a DTSC::Key based fragment.
   /// Used when building the 'moof' box to calculate the relative data offsets.
-  size_t keyHeaderSize(const DTSC::Meta &M, size_t track, size_t key){
+  size_t keyHeaderSize(const DTSC::Meta &M, size_t track, uint64_t startTime, uint64_t endTime){
     uint64_t tmpRes = 8 + 16 + 32 + 20;
-
-    DTSC::Keys keys(M.keys(track));
-    DTSC::Parts parts(M.parts(track));
-
-    size_t firstPart = keys.getFirstPart(key);
-    size_t endPart = parts.getEndValid();
-    if (key + 1 < keys.getEndValid()){
-      endPart = keys.getFirstPart(key + 1);
-    }
-
+    size_t firstPart = M.getPartIndex(startTime, track);
+    size_t endPart = M.getPartIndex(endTime, track);
     tmpRes += 24 + ((endPart - firstPart) * 12);
     return tmpRes;
   }
 
   /// Generates the 'moof' box for a DTSC::Key based CMAF fragment.
-  std::string keyHeader(const DTSC::Meta &M, size_t track, size_t key, bool simplifyTrackIds, bool UTCTime){
-    DTSC::Keys keys(M.keys(track));
-    DTSC::Parts parts(M.parts(track));
+  std::string keyHeader(const DTSC::Meta &M, size_t track, uint64_t startTime, uint64_t endTime, uint64_t segmentNum, bool simplifyTrackIds, bool UTCTime){
 
-    size_t firstPart = keys.getFirstPart(key);
-    size_t endPart = parts.getEndValid();
-    if (key + 1 < keys.getEndValid()){
-      endPart = keys.getFirstPart(key + 1);
-    }
-
+    size_t firstPart = M.getPartIndex(startTime, track);
+    size_t endPart = M.getPartIndex(endTime, track);
     std::stringstream header;
-
     MP4::MOOF moofBox;
-    MP4::MFHD mfhdBox(key + 1);
+    MP4::MFHD mfhdBox(segmentNum);
     moofBox.setContent(mfhdBox, 0);
 
 
     std::set<sortPart> trunOrder;
 
     //We use keyHeaderSize here to determine the relative offsets of the data in the 'mdat' box. 
-    uint64_t relativeOffset = keyHeaderSize(M, track, key) + 8;
+    uint64_t relativeOffset = keyHeaderSize(M, track, startTime, endTime) + 8;
 
     sortPart temp;
-    temp.time = keys.getTime(key);
+    temp.time = startTime;
     temp.partIndex = firstPart;
     temp.bytePos = relativeOffset;
 
+    DTSC::Parts parts(M.parts(track));
     for (size_t p = firstPart; p < endPart; p++){
       trunOrder.insert(temp);
       temp.time += parts.getDuration(p);
@@ -405,9 +380,9 @@ namespace CMAF{
 
     MP4::TFDT tfdtBox;
     if (M.getVod()){
-      tfdtBox.setBaseMediaDecodeTime(keys.getTime(key) - M.getFirstms(track));
+      tfdtBox.setBaseMediaDecodeTime(startTime - M.getFirstms(track));
     }else{
-      tfdtBox.setBaseMediaDecodeTime((UTCTime ? Util::epoch()*1000 : keys.getTime(key) ));
+      tfdtBox.setBaseMediaDecodeTime((UTCTime ? startTime + M.getBootMsOffset() + unixBootDiff : startTime));
     }
     trafBox.setContent(tfdtBox, 1);
 
@@ -421,12 +396,21 @@ namespace CMAF{
 
     size_t trunOffset = 0;
 
-    for (std::set<sortPart>::iterator it = trunOrder.begin(); it != trunOrder.end(); it++){
-      MP4::trunSampleInformation sampleInfo;
-      sampleInfo.sampleSize = parts.getSize(it->partIndex);
-      sampleInfo.sampleDuration = parts.getDuration(it->partIndex);
-      sampleInfo.sampleOffset = parts.getOffset(it->partIndex);
-      trunBox.setSampleInformation(sampleInfo, trunOffset++);
+    if (trunOrder.size()){
+      std::set<sortPart>::iterator lastOne = trunOrder.end();
+      lastOne--;
+      for (std::set<sortPart>::iterator it = trunOrder.begin(); it != trunOrder.end(); it++){
+        MP4::trunSampleInformation sampleInfo;
+        sampleInfo.sampleSize = parts.getSize(it->partIndex);
+        sampleInfo.sampleDuration = parts.getDuration(it->partIndex);
+        if (it == lastOne){
+          sampleInfo.sampleDuration = endTime - it->time;
+        }
+        sampleInfo.sampleOffset = parts.getOffset(it->partIndex);
+        trunBox.setSampleInformation(sampleInfo, trunOffset++);
+      }
+    }else{
+      WARN_MSG("Empty CMAF header for track %zu: %zu-%zu contains no packets (first: %" PRIu64 ", last: %" PRIu64 "), firstPart=%zu, lastPart=%zu", track, startTime, endTime, M.getFirstms(track), M.getLastms(track), firstPart, endPart);
     }
     trafBox.setContent(trunBox, 2);
 

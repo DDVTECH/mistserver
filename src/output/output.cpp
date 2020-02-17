@@ -725,7 +725,7 @@ namespace Mist{
     if (tmpPack){
       HIGH_MSG("Sought to time %" PRIu64 " (yields a packet at %" PRIu64 "ms) in %s@%zu", tmp.time,
                tmpPack.getTime(), streamName.c_str(), tid);
-      tmp.partIndex = M.getPartIndex(tmpPack, tmp.tid);
+      tmp.partIndex = M.getPartIndex(tmpPack.getTime(), tmp.tid);
       buffer.insert(tmp);
       return true;
     }

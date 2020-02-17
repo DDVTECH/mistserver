@@ -1262,11 +1262,11 @@ namespace Mist{
               }
               if (encryption.substr(0, encryption.find('/')) == "CTR128"){
                 DTSC::Packet encPacket = aesCipher.encryptPacketCTR(
-                    M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisPacket, idx), idx);
+                    M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisPacket.getTime(), idx), idx);
                 thisPacket = encPacket;
               }else if (encryption.substr(0, encryption.find('/')) == "CBC128"){
                 char ivec[] ={0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-                Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisPacket, idx));
+                Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisPacket.getTime(), idx));
                 DTSC::Packet encPacket = aesCipher.encryptPacketCBC(M, thisPacket, ivec, idx);
                 thisPacket = encPacket;
               }

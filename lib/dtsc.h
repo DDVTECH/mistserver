@@ -426,7 +426,7 @@ namespace DTSC{
     uint64_t getTimeForKeyIndex(uint32_t idx, uint32_t keyIdx) const;
     uint32_t getKeyIndexForTime(uint32_t idx, uint64_t timestamp) const;
 
-    uint32_t getPartIndex(const DTSC::Packet &pack, size_t idx) const;
+    uint32_t getPartIndex(uint64_t timestamp, size_t idx) const;
 
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
     size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;

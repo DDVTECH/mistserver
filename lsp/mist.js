@@ -2367,7 +2367,8 @@ var UI = {
           debug: mist.data.config.debug,
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
-          defaultStream: mist.data.config.defaultStream
+          defaultStream: mist.data.config.defaultStream,
+          trustedproxy: mist.data.config.trustedproxy
         };
         var b = {};
         if ("bandwidth" in mist.data) {
@@ -2494,6 +2495,15 @@ var UI = {
             },
             help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
             LTSonly: true
+          },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            LTSonly: true,
+            pointer: {
+              main: s,
+              index: "trustedproxy"
+            }
           },{
             type: "selectinput",
             label: "Load balancer bandwidth limit",

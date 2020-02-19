@@ -301,6 +301,7 @@ int main_loop(int argc, char **argv){
   Controller::maxConnsPerIP = Controller::conf.getInteger("maxconnsperip");
   Controller::Storage["config"]["prometheus"] = Controller::conf.getString("prometheus");
   Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
+  Controller::normalizeTrustedProxies(Controller::Storage["config"]["trustedproxy"]);
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
   Controller::writeConfig();

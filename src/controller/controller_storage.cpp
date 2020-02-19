@@ -101,6 +101,33 @@ namespace Controller{
     }
   }
 
+  void normalizeTrustedProxies(JSON::Value & tp){
+    //First normalize to arrays
+    if (!tp.isArray()){tp.append(tp.asString());}
+    //Now, wipe any empty entries, and convert spaces to array entries
+    std::set<std::string> n;
+    jsonForEach(tp, jit){
+      if (!jit->isString()){*jit = jit->asString();}
+      if (jit->asStringRef().find(' ') == std::string::npos){
+        n.insert(jit->asStringRef());
+        continue;
+      }
+      std::string tmp = jit->asStringRef();
+      while (tmp.find(' ') != std::string::npos){
+        size_t p = tmp.find(' ');
+        n.insert(tmp.substr(0, p));
+        tmp.erase(0, p+1);
+      }
+      if (tmp.size()){n.insert(tmp);}
+    }
+    n.erase("");
+    //Re-write the entire array, which is now normalized
+    tp.shrink(0);
+    for (std::set<std::string>::iterator it = n.begin(); it != n.end(); ++it){
+      tp.append(*it);
+    }
+  }
+
   ///\brief Write contents to Filename
   ///\param Filename The full path of the file to write to.
   ///\param contents The data to be written to the file.
@@ -239,8 +266,20 @@ namespace Controller{
 
   void writeProtocols(){
     static std::string proxy_written;
-    if (proxy_written != Storage["config"]["trustedproxy"].asStringRef()){
-      proxy_written = Storage["config"]["trustedproxy"].asStringRef();
+    std::string tmpProxy;
+    if (Storage["config"]["trustedproxy"].isArray()){
+      jsonForEachConst(Storage["config"]["trustedproxy"], jit){
+        if (tmpProxy.size()){
+          tmpProxy += " "+jit->asString();
+        }else{
+          tmpProxy = jit->asString();
+        }
+      }
+    }else{
+      tmpProxy = Storage["config"]["trustedproxy"].asString();
+    }
+    if (proxy_written != tmpProxy){
+      proxy_written = tmpProxy;
       static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size()+100, true, false);
       mistProxOut.close();
       mistProxOut.init(SHM_PROXY, proxy_written.size()+100, true, false);

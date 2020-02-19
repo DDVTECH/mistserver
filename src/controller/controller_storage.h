@@ -25,6 +25,10 @@ namespace Controller {
   void Log(const std::string & kind, const std::string & message, const std::string & stream = "", bool noWriteToLog = false);
   void logAccess(const std::string & sessId, const std::string & strm, const std::string & conn, const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags);
 
+
+  void normalizeTrustedProxies(JSON::Value & tp);
+
+
   /// Write contents to Filename.
   bool WriteFile(std::string Filename, std::string contents);
   void writeConfigToDisk();

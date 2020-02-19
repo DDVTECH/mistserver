@@ -528,6 +528,10 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       out["protocols"] = in["protocols"];
       removeDuplicateProtocols();
     }
+    if (in.isMember("trustedproxy")){
+      out["trustedproxy"] = in["trustedproxy"];
+      Controller::normalizeTrustedProxies(out["trustedproxy"]);
+    }
     if (in.isMember("controller")){
       out["controller"] = in["controller"];
     }

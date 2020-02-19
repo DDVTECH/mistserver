@@ -448,8 +448,7 @@ namespace Mist {
   bool HTTPOutput::isTrustedProxy(const std::string & ip){
     static std::set<std::string> trustedProxies;
     if (!trustedProxies.size()){
-      trustedProxies.insert("::1");
-      trustedProxies.insert("127.0.0.1");
+      trustedProxies.insert("localhost");
 
       IPC::sharedPage rPage(SHM_PROXY, 0, false, false);
       if (rPage){
@@ -467,11 +466,11 @@ namespace Mist {
         }
       }
     }
-    //Make sure to also check for IPv6 addresses
-    if (ip.substr(0, 7) == "::ffff:" && trustedProxies.count(ip.substr(7))){
-      return true;
+    std::string binIp = Socket::getBinForms(ip);
+    for (std::set<std::string>::iterator it = trustedProxies.begin(); it != trustedProxies.end(); ++it){
+      if (Socket::isBinAddress(binIp, *it)){return true;}
     }
-    return trustedProxies.count(ip) > 0;
+    return false;
   }
   /*LTS-END*/
   

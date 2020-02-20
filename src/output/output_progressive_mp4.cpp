@@ -478,6 +478,13 @@ namespace Mist {
       }
       H.SetHeader("Content-Type", "video/MP4");
       H.SetHeader("Accept-Ranges", "bytes, parsec");
+
+      if(!myMeta.live){
+        fileSize = 0;
+        uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live);
+        H.SetHeader("Content-Length", fileSize);
+      }
+
       H.SendResponse("200", "OK", myConn);
       return;
     }

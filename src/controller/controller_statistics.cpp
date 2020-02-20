@@ -1777,7 +1777,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         resp["streams"][it->first]["curr"].append(it->second.currOuts);
       }
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
-        resp["outputs"][it->first] = it->second;
+        resp["output_counts"][it->first] = it->second;
       }
     }
 

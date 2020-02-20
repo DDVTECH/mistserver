@@ -29,6 +29,8 @@
 #define RAX_REQDFIELDS_LEN 36
 
 namespace Util{
+    Util::DataCallback defaultDataCallback;
+
   /// Helper function that cross-platform checks if a given directory exists.
   bool isDirectory(const std::string &path){
 #if defined(_WIN32)

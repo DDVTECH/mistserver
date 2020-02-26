@@ -4006,15 +4006,26 @@ var UI = {
         
         if (other == '') { UI.navto('Streams'); }
         
+        var parsed = parseURL(mist.user.host);
+        var http_protocol = parsed.protocol;
+        var http_host = parsed.host;
         var http_port = ':8080';
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            http_port = (protocol.port ? ':'+protocol.port : ':8080');
+            if (protocol.pubaddr) {
+              var pub_parsed = parseURL(protocol.pubaddr);
+              http_protocol = pub_parsed.protocol;
+              http_host = pub_parsed.host;
+              http_port = pub_parsed.port;
+            }
+            else {
+              http_port = (protocol.port ? ':'+protocol.port : ':8080');
+            }
           }
         }
-        var parsed = parseURL(mist.user.host);
-        var embedbase = parsed.protocol+parsed.host+http_port+'/';
+        
+        var embedbase = http_protocol+http_host+http_port+'/';
         
         var $cont = $('<div>').css({
           'display':'flex',

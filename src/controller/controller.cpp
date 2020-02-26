@@ -24,6 +24,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <vector>
+#include <sys/statvfs.h> //for shm space check
+#include <fstream> //for ram space check
 
 #ifndef COMPILED_USERNAME
 #define COMPILED_USERNAME ""
@@ -244,6 +246,59 @@ int main_loop(int argc, char **argv){
   Controller::writeCapabilities();
   createAccount(Controller::conf.getString("account"));
   Controller::conf.activate(); // activate early, so threads aren't killed.
+
+
+#if !defined(__CYGWIN__) && !defined(_WIN32)
+  {
+    uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0, shm_total = 0, shm_free = 0;
+    std::ifstream meminfo("/proc/meminfo");
+    if (meminfo){
+      char line[300];
+      while (meminfo.good()){
+        meminfo.getline(line, 300);
+        if (meminfo.fail()){
+          //empty lines? ignore them, clear flags, continue
+          if ( !meminfo.eof()){
+            meminfo.ignore();
+            meminfo.clear();
+          }
+          continue;
+        }
+        long long int i;
+        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){mem_total = i;}
+        if (sscanf(line, "MemFree : %lli kB", &i) == 1){mem_free = i;}
+        if (sscanf(line, "Buffers : %lli kB", &i) == 1){mem_bufcache += i;}
+        if (sscanf(line, "Cached : %lli kB", &i) == 1){mem_bufcache += i;}
+      }
+    }
+    struct statvfs shmd;
+    IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
+    if (tmpCapa.mapped && tmpCapa.handle){
+      fstatvfs(tmpCapa.handle, &shmd);
+      shm_free = (shmd.f_bfree*shmd.f_frsize)/1024;
+      shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
+    }
+
+    if (mem_free+mem_bufcache < 1024*1024){
+      WARN_MSG("You have very little free RAM available (%" PRIu64 " MiB). While Mist will run just fine with this amount, do note that random crashes may occur should you ever run out of free RAM. Please be pro-active and keep an eye on the RAM usage!");
+    }
+    if (shm_free < 1024*1024 && mem_total > 1024*1024*1.12){
+      WARN_MSG("You have very little shared memory available (%" PRIu64 " MiB). Mist heavily relies on shared memory: please ensure your shared memory is set to a high value, preferably ~95%% of your total available RAM.", shm_free/1024);
+      if (shm_total == 65536){
+        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64 "m` parameter to your `docker run` command to fix this.", (uint64_t)(mem_total*0.95/1024));
+      }else{
+        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o remount,size=%" PRIu64 "m /dev/shm` as root. Doing this automatically every boot depends on your distribution: please check your distro's documentation for instructions.", (uint64_t)(mem_total*0.95/1024));
+      }
+    }else if (shm_total <= mem_total/2){
+      WARN_MSG("Your shared memory is half or less of your RAM (%" PRIu64 " / %" PRIu64 " MiB). Mist heavily relies on shared memory: please ensure your shared memory is set to a high value, preferably ~95%% of your total available RAM.", shm_total/1024, mem_total/1024);
+      if (shm_total == 65536){
+        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64 "m` parameter to your `docker run` command to fix this.", (uint64_t)(mem_total*0.95/1024));
+      }else{
+        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o remount,size=%" PRIu64 "m /dev/shm` as root. Doing this automatically every boot depends on your distribution: please check your distro's documentation for instructions.", (uint64_t)(mem_total*0.95/1024));
+      }
+    }
+  }
+#endif
 
   // if a terminal is connected and we're not logging to file
   if (Controller::isTerminal){

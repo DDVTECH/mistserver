@@ -11,6 +11,7 @@ endif(COMMAND cmake_policy)
 
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #For YCM support
 include_directories(${SOURCE_DIR})
 include_directories(${BINARY_DIR} ${BINARY_DIR}/generated)
 

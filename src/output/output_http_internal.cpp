@@ -3,6 +3,7 @@
 #include <mist/stream.h>
 #include <mist/encode.h>
 #include <mist/langcodes.h>
+#include <mist/url.h>
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 #include <mist/websocket.h>

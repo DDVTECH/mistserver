@@ -6,6 +6,7 @@
 #include <mist/rtp.h>
 #include <mist/sdp.h>
 #include <mist/socket.h>
+#include <mist/url.h>
 
 namespace Mist{
   class OutRTSP : public Output{

@@ -4,6 +4,7 @@
 #include <mist/stream.h>
 #include <unistd.h>
 #include <mist/procs.h>
+#include <mist/url.h>
 
 namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn) : TSOutput(conn){

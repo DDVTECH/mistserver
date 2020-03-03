@@ -8,6 +8,7 @@
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/bitfields.h>
+#include <mist/url.h>
 #include "controller_statistics.h"
 #include "controller_limits.h"
 #include "controller_push.h"

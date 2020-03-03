@@ -1,4 +1,5 @@
 #include "http_parser.h"
+#include "url.h"
 #include "socket.h"
 
 namespace HTTP{

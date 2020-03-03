@@ -2,6 +2,7 @@
 #include <mist/stream.h>
 #include <mist/http_parser.h>
 #include <mist/encode.h>
+#include <mist/url.h>
 #include "input_balancer.h"
 
 namespace Mist {

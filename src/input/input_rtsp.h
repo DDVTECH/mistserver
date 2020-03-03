@@ -4,6 +4,7 @@
 #include <mist/nal.h>
 #include <mist/rtp.h>
 #include <mist/sdp.h>
+#include <mist/url.h>
 #include <set>
 #include <string>
 

@@ -3,6 +3,7 @@
 #include <mist/amf.h>
 #include <mist/rtmpchunks.h>
 #include <mist/http_parser.h>
+#include <mist/url.h>
 
 
 namespace Mist {

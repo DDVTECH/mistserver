@@ -363,9 +363,7 @@ var MistUtil = {
           callback(xhr.response);
         }
         else if (errorCallback) {
-          xhr.onerror = function() {
-            errorCallback(xhr);
-          }
+          errorCallback(xhr);
         }
       };
       if (errorCallback) {
@@ -461,7 +459,12 @@ var MistUtil = {
           }
           cache[url] = d;
         },function(){
-          throw "Failed to load CSS from "+url;
+          var d = "/*Failed to load*/";
+          for (var i in cache[url]) {
+            cache[url][i](d);
+          }
+          cache[url] = d;
+          
         });
       }
       

@@ -418,7 +418,9 @@ MistSkins["default"] = {
                       //remove all the things when unmuted
                       var fu = function(){
                         if (!MistVideo.video.muted) {
-                          MistVideo.container.removeChild(largeMutedButton);
+                          if (largeMutedButton.parentNode) {
+                            MistVideo.container.removeChild(largeMutedButton);
+                          }
                           MistVideo.video.removeEventListener("volumechange",fu);
                           document.body.removeEventListener("click",i);
                           MistVideo.video.removeEventListener("mouseenter",f);
@@ -2621,10 +2623,10 @@ function MistSkin(MistVideo) {
   
   //load css
   var styles = [];
-  var toload = 0;
   for (var i in this.css) {
     if (typeof this.css[i] == "string") {
-      styles.push(MistUtil.css.load(MistVideo.urlappend(this.css[i]),this.colors));
+      var a = MistUtil.css.load(MistVideo.urlappend(this.css[i]),this.colors);
+      styles.push(a);
     }
   }
   this.css = styles; //overwrite 

@@ -2487,16 +2487,6 @@ MistSkins.dev.structure.submenu.children.unshift({
           style: {"flex-wrap": "wrap"},
           children: [
             {
-              if: function(){ return !!(this.player && this.player.api); },
-                then: {
-                  type: "button",
-                  title: "Reload the video source",
-                  label: "video.load();",
-                  onclick: function(){
-                    this.player.api.load();
-                  }
-                }
-            },{
               type: "button",
               title: "Build MistVideo again",
               label: "MistVideo.reload();",

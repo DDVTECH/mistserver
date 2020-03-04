@@ -23,6 +23,10 @@ namespace Mist{
   void Input::userOnActive(size_t id){
     ++connectedUsers;
     size_t track = users.getTrack(id);
+    if (!M.trackValid(track)){
+      WARN_MSG("Player is inside invalid track: %zu", track);
+      return;
+    }
     size_t key = users.getKeyNum(id);
     uint64_t time = M.getTimeForKeyIndex(track, key);
     size_t endKey = M.getKeyIndexForTime(track, time + 20000);

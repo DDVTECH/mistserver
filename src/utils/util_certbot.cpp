@@ -55,6 +55,54 @@ int main(int argc, char **argv){
   Util::Config conf(argv[0]);
   conf.parseArgs(argc, argv);
 
+  //Handle --deploy-hook
+  if (getenv("RENEWED_LINEAGE")){
+    INFO_MSG("Detected '--deploy-hook' calling. Installing certificate.");
+    std::string cbPath = getenv("RENEWED_LINEAGE");
+    std::string cbCert = cbPath + "/fullchain.pem";
+    std::string cbKey = cbPath + "/privkey.pem";
+    Socket::UDPConnection uSock;
+    uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+    Util::DTSCShmReader rProto(SHM_PROTO);
+    DTSC::Scan prtcls = rProto.getScan();
+    unsigned int pro_cnt = prtcls.getSize();
+    bool found = false;
+    for (unsigned int i = 0; i < pro_cnt; ++i){
+      std::string ctor = prtcls.getIndice(i).getMember("connector").asString();
+      if (ctor == "HTTPS"){
+        found = true;
+        JSON::Value currConf = prtcls.getIndice(i).asJSON();
+        JSON::Value cmd;
+        cmd["updateprotocol"].append(currConf);
+        cmd["updateprotocol"].append(currConf);
+        cmd["updateprotocol"][1u]["cert"] = cbCert;
+        cmd["updateprotocol"][1u]["key"] = cbKey;
+        INFO_MSG("Executing: %s", cmd.toString().c_str());
+        uSock.SendNow(cmd.toString());
+        Util::wait(500);
+        uSock.SendNow(cmd.toString());
+        Util::wait(500);
+        uSock.SendNow(cmd.toString());
+      }
+    }
+    if (!found){
+      INFO_MSG("No HTTPS active; enabling on port 443");
+      JSON::Value cmd;
+      cmd["addprotocol"]["connector"] = "HTTPS";
+      cmd["addprotocol"]["port"] = 443;
+      cmd["addprotocol"]["cert"] = cbCert;
+      cmd["addprotocol"]["key"] = cbKey;
+      INFO_MSG("Executing: %s", cmd.toString().c_str());
+      uSock.SendNow(cmd.toString());
+      Util::wait(500);
+      uSock.SendNow(cmd.toString());
+      Util::wait(500);
+      uSock.SendNow(cmd.toString());
+    }
+    Util::wait(5000);
+    return 0;
+  }
+
   //Handle --manual-auth-hook
   if (getenv("CERTBOT_VALIDATION") && getenv("CERTBOT_TOKEN")){
     INFO_MSG("Detected '--manual-auth-hook' calling. Performing authentication.");
@@ -115,54 +163,6 @@ int main(int argc, char **argv){
       INFO_MSG("Success!");
       Util::wait(5000);
     }
-    return 0;
-  }
-
-  //Handle --deploy-hook
-  if (getenv("RENEWED_LINEAGE")){
-    INFO_MSG("Detected '--deploy-hook' calling. Installing certificate.");
-    std::string cbPath = getenv("RENEWED_LINEAGE");
-    std::string cbCert = cbPath + "/fullchain.pem";
-    std::string cbKey = cbPath + "/privkey.pem";
-    Socket::UDPConnection uSock;
-    uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-    Util::DTSCShmReader rProto(SHM_PROTO);
-    DTSC::Scan prtcls = rProto.getScan();
-    unsigned int pro_cnt = prtcls.getSize();
-    bool found = false;
-    for (unsigned int i = 0; i < pro_cnt; ++i){
-      std::string ctor = prtcls.getIndice(i).getMember("connector").asString();
-      if (ctor == "HTTPS"){
-        found = true;
-        JSON::Value currConf = prtcls.getIndice(i).asJSON();
-        JSON::Value cmd;
-        cmd["updateprotocol"].append(currConf);
-        cmd["updateprotocol"].append(currConf);
-        cmd["updateprotocol"][1u]["cert"] = cbCert;
-        cmd["updateprotocol"][1u]["key"] = cbKey;
-        INFO_MSG("Executing: %s", cmd.toString().c_str());
-        uSock.SendNow(cmd.toString());
-        Util::wait(500);
-        uSock.SendNow(cmd.toString());
-        Util::wait(500);
-        uSock.SendNow(cmd.toString());
-      }
-    }
-    if (!found){
-      INFO_MSG("No HTTPS active; enabling on port 443");
-      JSON::Value cmd;
-      cmd["addprotocol"]["connector"] = "HTTPS";
-      cmd["addprotocol"]["port"] = 443;
-      cmd["addprotocol"]["cert"] = cbCert;
-      cmd["addprotocol"]["key"] = cbKey;
-      INFO_MSG("Executing: %s", cmd.toString().c_str());
-      uSock.SendNow(cmd.toString());
-      Util::wait(500);
-      uSock.SendNow(cmd.toString());
-      Util::wait(500);
-      uSock.SendNow(cmd.toString());
-    }
-    Util::wait(5000);
     return 0;
   }
 

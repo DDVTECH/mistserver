@@ -22,6 +22,7 @@ namespace Mist {
       }
     private:
       std::string origStreamName;
+      std::string mistPath;
   };
 }
 

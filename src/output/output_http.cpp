@@ -309,6 +309,14 @@ namespace Mist {
           if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" || (*it)["type"].asStringRef() == "debug"){
             p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
           }
+          if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
+            jsonForEach(p[it.key()], iVal){
+              (*iVal) = iVal->asString();
+              argarr[argnum++] = (char*)((*it)["option"].c_str());
+              argarr[argnum++] = (char*)((*iVal).c_str());
+            }
+            continue;
+          }
         }
         if (p[it.key()].asStringRef().size() > 0){
           argarr[argnum++] = (char*)((*it)["option"].c_str());
@@ -342,7 +350,8 @@ namespace Mist {
           p["nostreamtext"] = getenv("MIST_HTTP_nostreamtext");
         }
         if (getenv("MIST_HTTP_pubaddr")){
-          p["pubaddr"] = getenv("MIST_HTTP_pubaddr");
+          std::string pubAddrs = getenv("MIST_HTTP_pubaddr");
+          p["pubaddr"] = JSON::fromString(pubAddrs);
         }
       }else{
         //find connector in config

@@ -50,7 +50,8 @@ namespace Mist {
       setenv("MIST_HTTP_nostreamtext", config->getString("nostreamtext").c_str(), 1);
     }
     if (config->getString("pubaddr").size()){
-      setenv("MIST_HTTP_pubaddr", config->getString("pubaddr").c_str(), 1);
+      std::string pubAddrs = config->getOption("pubaddr", true).toString();
+      setenv("MIST_HTTP_pubaddr", pubAddrs.c_str(), 1);
     }
     if (config->getOption("wrappers",true).size() == 0 || config->getString("wrappers") == ""){
       JSON::Value & wrappers = config->getOption("wrappers",true);
@@ -159,13 +160,13 @@ namespace Mist {
     capa["optional"]["nostreamtext"]["default"] = "";
     capa["optional"]["nostreamtext"]["type"] = "str";
     capa["optional"]["nostreamtext"]["option"] = "--nostreamtext";
+    /*LTS-END*/
     cfg->addOption("pubaddr", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"A\",\"long\":\"public-address\",\"help\":\"Full public address this output is available as.\"}"));
     capa["optional"]["pubaddr"]["name"] = "Public address";
     capa["optional"]["pubaddr"]["help"] = "Full public address this output is available as, if being proxied";
     capa["optional"]["pubaddr"]["default"] = "";
-    capa["optional"]["pubaddr"]["type"] = "str";
+    capa["optional"]["pubaddr"]["type"] = "inputlist";
     capa["optional"]["pubaddr"]["option"] = "--public-address";
-    /*LTS-END*/
   }
   
   /// Sorts the JSON::Value objects that hold source information by preference.
@@ -211,15 +212,12 @@ namespace Mist {
     if (conncapa.isMember("player_url")){tmp["player_url"] = conncapa["player_url"].asStringRef();}
     tmp["simul_tracks"] = most_simul;
     tmp["total_matches"] = total_matches;
-    if (url.path.size()){
-      tmp["url"] = url.protocol + "://" + url.host + ":" + url.port + "/" + url.path + rel;
-    }else{
-      tmp["url"] = url.protocol + "://" + url.host + ":" + url.port + rel;
-    }
+    tmp["url"] = url.link(rel).getUrl();
     sources.insert(tmp);
   }
  
   void addSources(std::string & streamname, std::set<JSON::Value, sourceCompare> & sources, HTTP::URL url, JSON::Value & conncapa, JSON::Value & strmMeta, const std::string & useragent){
+    url.path += "/";
     if (strmMeta.isMember("live") && conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
       jsonForEach(conncapa["exceptions"], ex){
         if (ex.key() == "live"){
@@ -279,15 +277,15 @@ namespace Mist {
       std::string relurl;
       size_t found = rel.find('$');
       if (found != std::string::npos){
-        relurl = rel.substr(0, found) + Encodings::URL::encode(streamname) + rel.substr(found+1);
+        relurl = rel.substr(1, found-1) + Encodings::URL::encode(streamname) + rel.substr(found+1);
       }else{
-        relurl = "/";
+        relurl = "";
       }
       jsonForEach(conncapa["methods"], it) {
         if (it->isMember("url_rel")){
           size_t foundb = (*it)["url_rel"].asStringRef().find('$');
           if (foundb != std::string::npos){
-            relurl = (*it)["url_rel"].asStringRef().substr(0, foundb) + Encodings::URL::encode(streamname) + (*it)["url_rel"].asStringRef().substr(foundb+1);
+            relurl = (*it)["url_rel"].asStringRef().substr(1, foundb-1) + Encodings::URL::encode(streamname) + (*it)["url_rel"].asStringRef().substr(foundb+1);
           }
         }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
@@ -306,7 +304,6 @@ namespace Mist {
     if (!fullURL.protocol.size()){
       fullURL.protocol = getProtocolForPort(fullURL.getPort());
     }
-    /*LTS-START*/
     if (config->getString("pubaddr") != ""){
       HTTP::URL altURL(config->getString("pubaddr"));
       fullURL.protocol = altURL.protocol;
@@ -314,7 +311,7 @@ namespace Mist {
       fullURL.port = altURL.port;
       fullURL.path = altURL.path;
     }
-    /*LTS-END*/
+    if (mistPath.size()){fullURL = mistPath;}
     std::string uAgent = H.GetHeader("User-Agent");
     
     std::string forceType = "";
@@ -503,19 +500,30 @@ namespace Mist {
         if (outURL.protocol.find(':') != std::string::npos){
           outURL.protocol.erase(outURL.protocol.find(':'));
         }
-        /*LTS-START*/
-        if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").asString().size()){
-          HTTP::URL altURL(prots.getIndice(i).getMember("pubaddr").asString());
-          outURL.protocol = altURL.protocol;
-          if (altURL.host.size()){outURL.host = altURL.host;}
-          outURL.port = altURL.port;
-          outURL.path = altURL.path;
+        JSON::Value pubAddrs;
+        pubAddrs.append("");
+        if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").getType() == DTSC_STR){
+          if (prots.getIndice(i).getMember("pubaddr").asString().size()){
+            pubAddrs[0u] = prots.getIndice(i).getMember("pubaddr").asString();
+          }
         }
-        /*LTS-END*/
+        if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").getType() ==  DTSC_ARR){
+          pubAddrs = prots.getIndice(i).getMember("pubaddr").asJSON();
+        }
+        if (mistPath.size()){
+          pubAddrs.null();
+          pubAddrs.append(mistPath);
+        }
         //and a URL - then list the URL
         JSON::Value capa_json = capa.asJSON();
         if (capa.getMember("url_rel") || capa.getMember("methods")){
-          addSources(streamName, sources, outURL, capa_json, json_resp["meta"], useragent);
+          jsonForEach(pubAddrs, jit){
+            HTTP::URL altURL = outURL;
+            if (jit->asString().size()){altURL = jit->asString();}
+            if (!altURL.host.size()){altURL.host = outURL.host;}
+            if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
+            addSources(streamName, sources, altURL, capa_json, json_resp["meta"], useragent);
+          }
         }
         //Make note if this connector can be depended upon by other connectors
         if (capa.getMember("provides")){
@@ -527,7 +535,14 @@ namespace Mist {
             //if it depends on this connector and has a URL, list it
             if (conns.count(connectors.getIndiceName(j)) && connectors.getIndice(j).getMember("deps").asString() == cProv && connectors.getIndice(j).getMember("methods")){
               JSON::Value subcapa_json = connectors.getIndice(j).asJSON();
-              addSources(streamName, sources, outURL, subcapa_json, json_resp["meta"], useragent);
+
+              jsonForEach(pubAddrs, jit){
+                HTTP::URL altURL = outURL;
+                if (jit->asString().size()){altURL = jit->asString();}
+                if (!altURL.host.size()){altURL.host = outURL.host;}
+                if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
+                addSources(streamName, sources, altURL, subcapa_json, json_resp["meta"], useragent);
+              }
             }
           }
         }
@@ -546,6 +561,8 @@ namespace Mist {
   void OutHTTP::onHTTP(){
     origStreamName = streamName;
     std::string method = H.method;
+
+    if (H.GetHeader("X-Mst-Path").size()){mistPath = H.GetHeader("X-Mst-Path");}
 
     //Handle certbot validations
     if (H.url.substr(0, 28) == "/.well-known/acme-challenge/"){
@@ -727,7 +744,6 @@ namespace Mist {
       if (!fullURL.protocol.size()){
         fullURL.protocol = getProtocolForPort(fullURL.getPort());
       }
-      /*LTS-START*/
       if (config->getString("pubaddr") != ""){
         HTTP::URL altURL(config->getString("pubaddr"));
         fullURL.protocol = altURL.protocol;
@@ -735,7 +751,7 @@ namespace Mist {
         fullURL.port = altURL.port;
         fullURL.path = altURL.path;
       }
-      /*LTS-END*/
+      if (mistPath.size()){fullURL = mistPath;}
       std::string response;
       std::string rURL = H.url;
       H.Clean();
@@ -934,6 +950,7 @@ namespace Mist {
   bool OutHTTP::websocketHandler(){
     stayConnected = true;
     std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
+    if (H.GetHeader("X-Mst-Path").size()){mistPath = H.GetHeader("X-Mst-Path");}
     std::string useragent = H.GetVar("ua");
     if (!useragent.size()){
       useragent = H.GetHeader("User-Agent");

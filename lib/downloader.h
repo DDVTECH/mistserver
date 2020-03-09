@@ -40,6 +40,7 @@ namespace HTTP{
     Socket::Connection &getSocket();
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
+    const HTTP::URL & lastURL();
 
   private:
     bool isComplete;

@@ -95,6 +95,7 @@ namespace HTTP{
     }
     ssl = needSSL;
     if (!getSocket()){
+      H.method = S.getError();
       return; // socket is closed
     }
     if (proxied && !ssl){
@@ -131,6 +132,7 @@ namespace HTTP{
       }
     }
 
+    nbLink = link;
     H.SendRequest(getSocket(), body);
     H.Clean();
   }
@@ -142,6 +144,10 @@ namespace HTTP{
     while (--loop){// loop while we are unsuccessful
       MEDIUM_MSG("Retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
       doRequest(link, "HEAD");
+      if (!getSocket()){
+        FAIL_MSG("Could not retrieve %s: %s", link.getUrl().c_str(), getSocket().getError().c_str());
+        return false;
+      }
       H.headerOnly = true;
       uint64_t reqTime = Util::bootSecs();
       while (getSocket() && Util::bootSecs() < reqTime + dataTimeout){
@@ -177,6 +183,7 @@ namespace HTTP{
             getSocket().close();
           }
 
+          H.headerOnly = false;
           return true; // Success!
         }
         // reset the data timeout
@@ -196,6 +203,7 @@ namespace HTTP{
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
                  retryCount - loop + 1, retryCount);
+        H.Clean();
         getSocket().close();
       }else{
         if (retryCount - loop + 1 > 2){
@@ -203,6 +211,7 @@ namespace HTTP{
         }else{
           MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
         }
+        H.Clean();
       }
       Util::sleep(500); // wait a bit before retrying
     }
@@ -213,9 +222,9 @@ namespace HTTP{
   bool Downloader::getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb){
     char tmp[32];
     if (byteEnd <= 0){// get range from byteStart til eof
-      sprintf(tmp, "bytes=%llu-", byteStart);
+      sprintf(tmp, "bytes=%zu-", byteStart);
     }else{
-      sprintf(tmp, "bytes=%llu-%llu", byteStart, byteEnd - 1);
+      sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
     }
     setHeader("Range", tmp);
     return getNonBlocking(link, 6);
@@ -224,9 +233,9 @@ namespace HTTP{
   bool Downloader::getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb){
     char tmp[32];
     if (byteEnd <= 0){// get range from byteStart til eof
-      sprintf(tmp, "bytes=%llu-", byteStart);
+      sprintf(tmp, "bytes=%zu-", byteStart);
     }else{
-      sprintf(tmp, "bytes=%llu-%llu", byteStart, byteEnd - 1);
+      sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
     }
     setHeader("Range", tmp);
     return get(link, 6, cb);
@@ -257,6 +266,10 @@ namespace HTTP{
     return true;
   }
 
+  const HTTP::URL & Downloader::lastURL(){
+    return nbLink;
+  }
+
   // continue handling a request, origininally set up by the getNonBlocking() function
   // returns true if the request is complete
   bool Downloader::continueNonBlocking(Util::DataCallback &cb){
@@ -283,7 +296,6 @@ namespace HTTP{
         }
 
         if (H.hasHeader("Accept-Ranges") && getHeader("Accept-Ranges").size() > 0){
-          INFO_MSG("new request? range! len: %llu, currlength: %llu", H.length, H.currentLength);
           getRangeNonBlocking(nbLink, H.currentLength, 0, cb);
           return true;
         }else{
@@ -324,10 +336,9 @@ namespace HTTP{
           if (!canContinue(nbLink)){return false;}
           --nbMaxRecursiveDepth;
           if (getStatusCode() >= 300 && getStatusCode() < 400){
-            doRequest(nbLink.link(getHeader("Location")));
-          }else{
-            doRequest(nbLink);
+            nbLink = nbLink.link(getHeader("Location"));
           }
+          doRequest(nbLink);
           return false;
         }
 
@@ -345,7 +356,7 @@ namespace HTTP{
         nbReqTime = Util::bootSecs();
       }
     }
-
+    WARN_MSG("Invalid connection state for HTTP request");
     return false; //we should never get here
   }
 
@@ -445,7 +456,7 @@ namespace HTTP{
         FAIL_MSG("Authentication required but not included in URL");
         return false;
       }
-      FAIL_MSG("Authenticating...");
+      INFO_MSG("Authenticating...");
       return true;
     }
     if (getStatusCode() == 407){
@@ -459,7 +470,7 @@ namespace HTTP{
         FAIL_MSG("Proxy authentication required but not included in URL");
         return false;
       }
-      FAIL_MSG("Authenticating proxy...");
+      INFO_MSG("Authenticating proxy...");
       return true;
     }
     if (getStatusCode() >= 300 && getStatusCode() < 400){

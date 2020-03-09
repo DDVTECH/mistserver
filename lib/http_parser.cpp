@@ -8,6 +8,7 @@
 #include "timing.h"
 #include "url.h"
 #include "util.h"
+#include <strings.h>
 #include <iomanip>
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
@@ -412,17 +413,28 @@ std::string HTTP::Parser::getUrl(){
 
 /// Returns header i, if set.
 const std::string &HTTP::Parser::GetHeader(const std::string &i) const{
-  if (headers.count(i)){
-    return headers.at(i);
-  }else{
-    static const std::string empty;
-    return empty;
+  if (headers.count(i)){return headers.at(i);}
+  for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
+    if (it->first.length() != i.length()){continue;}
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
+      return it->second;
+    }
   }
+  //Return empty string if not found
+  static const std::string empty;
+  return empty;
 }
 
 /// Returns header i, if set.
 bool HTTP::Parser::hasHeader(const std::string &i) const{
-  return headers.count(i);
+  if (headers.count(i)){return true;}
+  for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
+    if (it->first.length() != i.length()){continue;}
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Returns POST variable i, if set.
@@ -594,12 +606,6 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
               body.reserve(length);
             }
           }
-          if (GetHeader("Content-length") != ""){
-            length = atoi(GetHeader("Content-length").c_str());
-            if (!bodyCallback && (&cb == &Util::defaultDataCallback) && body.capacity() < length){
-              body.reserve(length);
-            }
-          }
           if (GetHeader("Transfer-Encoding") == "chunked"){
             getChunks = true;
             doingChunk = 0;
@@ -713,8 +719,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           if (shouldAppend){body.append(HTTPbuffer, 0, toappend);}
           HTTPbuffer.erase(0, toappend);
 
-          // return false when callbacks are used.
-          return shouldAppend;
+          // return true if there is no body, otherwise we only stop when the connection is dropped
+          return true;
         }
       }
     }

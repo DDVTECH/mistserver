@@ -79,5 +79,6 @@ namespace HTTP{
     URIType stateType;     /// Holds the type of URI this is, for internal processing purposes.
     std::ifstream fReader; /// For file-based URIs, the ifstream used for the file.
     HTTP::Downloader downer; /// For HTTP(S)-based URIs, the Downloader instance used for the download.
+    void init();
   };
 }// namespace HTTP

@@ -8,10 +8,11 @@
 
 namespace HTTP{
 
-  URIReader::URIReader(){
+
+  void URIReader::init(){
     char workDir[512];
     getcwd(workDir, 512);
-    myURI = HTTP::URL(std::string("file://") + workDir);
+    myURI = HTTP::URL(std::string("file://") + workDir + "/");
     cbProgress = 0;
     minLen = 1;
     maxLen = std::string::npos;
@@ -19,17 +20,21 @@ namespace HTTP{
     supportRangeRequest = false;
     endPos = std::string::npos;
     totalSize = std::string::npos;
-    stateType = URIType::Closed;
+    stateType = HTTP::Closed;
     clearPointer = true;
   }
 
+  URIReader::URIReader(){
+    init();
+  }
+
   URIReader::URIReader(const HTTP::URL &uri){
-    URIReader();
+    init();
     open(uri);
   }
 
   URIReader::URIReader(const std::string &reluri){
-    URIReader();
+    init();
     open(reluri);
   }
 
@@ -48,77 +53,82 @@ namespace HTTP{
     if (!myURI.protocol.size() || myURI.protocol == "file"){
       if (!myURI.path.size() || myURI.path == "-"){
         downer.getSocket().open(-1, fileno(stdin));
-        stateType = URIType::Stream;
+        stateType = HTTP::Stream;
         startPos = 0;
 
         endPos = std::string::npos;
         totalSize = std::string::npos;
         if (!downer.getSocket()){
-          FAIL_MSG("Could not open '%s': %s", myURI.getUrl().c_str(), strerror(errno));
-          stateType = URIType::Closed;
+          FAIL_MSG("Could not open '%s': %s", myURI.getUrl().c_str(), downer.getSocket().getError().c_str());
+          stateType = HTTP::Closed;
           return false;
         }
         return true;
       }else{
-        //
-        //
-        /// \todo Use ACCESSPERMS instead of 0600?
-        int handle = ::open(myURI.getFilePath().c_str(), O_RDWR, (mode_t)0600);
+        int handle = ::open(myURI.getFilePath().c_str(), O_RDONLY);
         if (handle == -1){
-          FAIL_MSG("opening file: %s failed: %s", myURI.getFilePath().c_str(), strerror(errno));
-          stateType = URIType::Closed;
+          FAIL_MSG("Opening file '%s' failed: %s", myURI.getFilePath().c_str(), strerror(errno));
+          stateType = HTTP::Closed;
           return false;
         }
 
         struct stat buffStats;
         int xRes = fstat(handle, &buffStats);
         if (xRes < 0){
-          FAIL_MSG("Cheking size of %s failed: %s", myURI.getFilePath().c_str(), strerror(errno));
-          stateType = URIType::Closed;
+          FAIL_MSG("Checking size of '%s' failed: %s", myURI.getFilePath().c_str(), strerror(errno));
+          stateType = HTTP::Closed;
           return false;
         }
         totalSize = buffStats.st_size;
         //        INFO_MSG("size: %llu", totalSize);
 
-        mapped = (char *)mmap(0, totalSize, PROT_READ | PROT_WRITE, MAP_SHARED, handle, 0);
+        mapped = (char *)mmap(0, totalSize, PROT_READ, MAP_SHARED, handle, 0);
         if (mapped == MAP_FAILED){
+          FAIL_MSG("Memory-mapping file '%s' failed: %s", myURI.getFilePath().c_str(), strerror(errno));
           mapped = 0;
-          stateType = URIType::Closed;
+          stateType = HTTP::Closed;
           return false;
         }
         startPos = 0;
 
-        stateType = URIType::File;
+        stateType = HTTP::File;
         return true;
       }
     }
 
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){
-      stateType = URIType::HTTP;
+      stateType = HTTP::HTTP;
 
       // Send HEAD request to determine range request is supported, and get total length
-      if (!downer.head(myURI)){FAIL_MSG("Error sending HEAD request");}
-
-      std::string header1 = downer.getHeader("Accept-Ranges");
-      supportRangeRequest = (header1.size() > 0);
-
-      header1 = downer.getHeader("Content-Length");
-      totalSize = atoi(header1.c_str());
+      if (!downer.head(myURI) || !downer.isOk()){
+        FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(), downer.getStatusCode(), downer.getStatusText().c_str());
+        if (!downer.isOk()){
+          return false;
+        }
+        supportRangeRequest = false;
+        totalSize = std::string::npos;
+      }else{
+        supportRangeRequest = (downer.getHeader("Accept-Ranges").size() > 0);
+        std::string header1 = downer.getHeader("Content-Length");
+        if (header1.size()){totalSize = atoi(header1.c_str());}
+        myURI = downer.lastURL();
+      }
 
       // streaming mode when size is unknown
       if (!supportRangeRequest){
-        downer.getNonBlocking(uri);
+        MEDIUM_MSG("URI get without range request: %s, totalsize: %zu", myURI.getUrl().c_str(), totalSize);
+        downer.getNonBlocking(myURI);
       }else{
-        MEDIUM_MSG("download file with range request: %s, totalsize: %llu", myURI.getUrl().c_str(), totalSize);
-        if (!downer.getRangeNonBlocking(myURI.getUrl(), curPos, 0)){
+        MEDIUM_MSG("URI get with range request: %s, totalsize: %zu", myURI.getUrl().c_str(), totalSize);
+        if (!downer.getRangeNonBlocking(myURI, curPos, 0)){
           FAIL_MSG("error loading url: %s", myURI.getUrl().c_str());
         }
       }
 
       if (!downer.getSocket()){
-        FAIL_MSG("Could not open '%s': %s", myURI.getUrl().c_str(), strerror(errno));
-        stateType = URIType::Closed;
+        FAIL_MSG("Could not open '%s': %s", myURI.getUrl().c_str(), downer.getStatusText().c_str());
+        stateType = HTTP::Closed;
         return false;
       }
       return true;
@@ -131,11 +141,11 @@ namespace HTTP{
   // seek to pos, return true if succeeded.
   bool URIReader::seek(const uint64_t pos){
     if (isSeekable()){
-      if (stateType == URIType::File){
+      if (stateType == HTTP::File){
         curPos = pos;
         return true;
-      }else if (stateType == URIType::HTTP && supportRangeRequest){
-        INFO_MSG("SEEK: RangeRequest to %llu", pos);
+      }else if (stateType == HTTP::HTTP && supportRangeRequest){
+        INFO_MSG("SEEK: RangeRequest to %" PRIu64, pos);
         if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
           FAIL_MSG("error loading request");
         }
@@ -179,7 +189,7 @@ namespace HTTP{
   // readsome with callback
   void URIReader::readSome(size_t wantedLen, Util::DataCallback &cb){
     if (isEOF()){return;}
-    if (stateType == URIType::File){
+    if (stateType == HTTP::File){
       //      dataPtr = mapped + curPos;
       uint64_t dataLen = 0;
 
@@ -199,7 +209,7 @@ namespace HTTP{
 
       curPos += dataLen;
 
-    }else if (stateType == URIType::HTTP){
+    }else if (stateType == HTTP::HTTP){
 
       bool res = downer.continueNonBlocking(cb);
 
@@ -208,8 +218,8 @@ namespace HTTP{
           MEDIUM_MSG("completed");
         }else{
           if (supportRangeRequest){
-            MEDIUM_MSG("do new range request, previous request not completed yet!, curpos: %llu, "
-                       "length: %llu",
+            MEDIUM_MSG("do new range request, previous request not completed yet!, curpos: %zu, "
+                       "length: %zu",
                        curPos, getSize());
           }
         }
@@ -231,7 +241,7 @@ namespace HTTP{
 
   /// Readsome blocking function.
   void URIReader::readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen){
-    if (stateType == URIType::File){
+    if (stateType == HTTP::File){
 
       dataPtr = mapped + curPos;
 
@@ -246,7 +256,7 @@ namespace HTTP{
       }
 
       curPos += dataLen;
-    }else if (stateType == URIType::HTTP){
+    }else if (stateType == HTTP::HTTP){
 
       dataLen = downer.data().size();
       curPos += dataLen;
@@ -301,15 +311,15 @@ namespace HTTP{
   }
 
   void URIReader::close(){
-    if (stateType == URIType::File){
+    if (stateType == HTTP::File){
       if (mapped){
         munmap(mapped, totalSize);
         mapped = 0;
         totalSize = 0;
       }
-    }else if (stateType == URIType::Stream){
+    }else if (stateType == HTTP::Stream){
       downer.getSocket().close();
-    }else if (stateType == URIType::HTTP){
+    }else if (stateType == HTTP::HTTP){
       downer.getSocket().close();
     }else{
       // INFO_MSG("already closed");
@@ -326,22 +336,22 @@ namespace HTTP{
   }
 
   bool URIReader::isSeekable(){
-    if (stateType == URIType::HTTP){
+    if (stateType == HTTP::HTTP){
 
-      if (supportRangeRequest && totalSize > 0){return true;}
+      if (supportRangeRequest && totalSize != std::string::npos){return true;}
     }
 
-    return (stateType == URIType::File);
+    return (stateType == HTTP::File);
   }
 
   bool URIReader::isEOF(){
-    if (stateType == URIType::File){
+    if (stateType == HTTP::File){
       return (curPos >= totalSize);
-    }else if (stateType == URIType::Stream){
+    }else if (stateType == HTTP::Stream){
       if (!downer.getSocket()){return true;}
 
       // if ((totalSize > 0) && (curPos >= totalSize)){return true;}
-    }else if (stateType == URIType::HTTP){
+    }else if (stateType == HTTP::HTTP){
       // INFO_MSG("iseof, C: %s, seekable: %s", C?"connected":"disconnected", isSeekable()?"yes":"no");
       if (!downer.getSocket() && !downer.getSocket().Received().available(1) && !isSeekable()){
         return true;

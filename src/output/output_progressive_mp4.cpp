@@ -481,7 +481,7 @@ namespace Mist {
 
       if(!myMeta.live){
         fileSize = 0;
-        uint64_t headerSize = mp4HeaderSize(fileSize, myMeta.live);
+        uint64_t headerSize = mp4HeaderSize(fileSize);
         H.SetHeader("Content-Length", fileSize);
       }
 

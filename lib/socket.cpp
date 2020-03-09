@@ -79,14 +79,23 @@ bool Socket::isLocal(const std::string &remotehost){
       tmpAddrPtr = &((struct sockaddr_in *)ifa->ifa_addr)->sin_addr;
       inet_ntop(AF_INET, tmpAddrPtr, addressBuffer, INET_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == addressBuffer){ret = true; break;}
+      if (remotehost == addressBuffer){
+        ret = true;
+        break;
+      }
       INSANE_MSG("Comparing '%s'  to '::ffff:%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == std::string("::ffff:") + addressBuffer){ret = true; break;}
+      if (remotehost == std::string("::ffff:") + addressBuffer){
+        ret = true;
+        break;
+      }
     }else if (ifa->ifa_addr->sa_family == AF_INET6){// check it is IP6
       tmpAddrPtr = &((struct sockaddr_in6 *)ifa->ifa_addr)->sin6_addr;
       inet_ntop(AF_INET6, tmpAddrPtr, addressBuffer, INET6_ADDRSTRLEN);
       INSANE_MSG("Comparing '%s'  to '%s'", remotehost.c_str(), addressBuffer);
-      if (remotehost == addressBuffer){ret = true; break;}
+      if (remotehost == addressBuffer){
+        ret = true;
+        break;
+      }
     }
   }
   if (ifAddrStruct != NULL) freeifaddrs(ifAddrStruct);
@@ -654,7 +663,7 @@ int Socket::Connection::getPureSocket(){
 /// Only reports errors if an error actually occured - returns the host address or empty string
 /// otherwise.
 std::string Socket::Connection::getError(){
-  return remotehost;
+  return lastErr;
 }
 
 /// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
@@ -673,8 +682,8 @@ void Socket::Connection::open(std::string address, bool nonblock){
   isTrueSocket = true;
   sSend = socket(PF_UNIX, SOCK_STREAM, 0);
   if (sSend < 0){
-    remotehost = strerror(errno);
-    FAIL_MSG("Could not create socket! Error: %s", remotehost.c_str());
+    lastErr = strerror(errno);
+    FAIL_MSG("Could not create socket! Error: %s", lastErr.c_str());
     return;
   }
   sockaddr_un addr;
@@ -688,8 +697,8 @@ void Socket::Connection::open(std::string address, bool nonblock){
       fcntl(sSend, F_SETFL, flags);
     }
   }else{
-    remotehost = strerror(errno);
-    FAIL_MSG("Could not connect to %s! Error: %s", address.c_str(), remotehost.c_str());
+    lastErr = strerror(errno);
+    FAIL_MSG("Could not connect to %s! Error: %s", address.c_str(), lastErr.c_str());
     close();
   }
 }
@@ -732,6 +741,7 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     mbedtls_entropy_init(entropy);
     DONTEVEN_MSG("SSL init");
     if (mbedtls_ctr_drbg_seed(ctr_drbg, mbedtls_entropy_func, entropy, (const unsigned char *)"meow", 4) != 0){
+      lastErr = "SSL socket init failed";
       FAIL_MSG("SSL socket init failed");
       close();
       return;
@@ -740,12 +750,14 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     int ret = 0;
     if ((ret = mbedtls_net_connect(server_fd, host.c_str(), JSON::Value(port).asString().c_str(),
                                    MBEDTLS_NET_PROTO_TCP)) != 0){
+      lastErr = "mbedtls_net_connect failed";
       FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
       close();
       return;
     }
     if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                            MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
+      lastErr = "mbedtls_ssl_config_defaults failed";
       FAIL_MSG(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
       close();
       return;
@@ -756,7 +768,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     if ((ret = mbedtls_ssl_setup(ssl, conf)) != 0){
       char estr[200];
       mbedtls_strerror(ret, estr, 200);
-      FAIL_MSG("SSL setup error %d: %s", ret, estr);
+      lastErr = estr;
+      FAIL_MSG("SSL setup error %d: %s", ret, lastErr.c_str());
       close();
       return;
     }
@@ -770,7 +783,8 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
         char estr[200];
         mbedtls_strerror(ret, estr, 200);
-        FAIL_MSG("SSL handshake error %d: %s", ret, estr);
+        lastErr = estr;
+        FAIL_MSG("SSL handshake error %d: %s", ret, lastErr.c_str());
         close();
         return;
       }
@@ -795,12 +809,13 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
   hints.ai_flags = AI_ADDRCONFIG;
   int s = getaddrinfo(host.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, gai_strerror(s));
+    lastErr = gai_strerror(s);
+    FAIL_MSG("Could not connect to %s:%i! Error: %s", host.c_str(), port, lastErr.c_str());
     close();
     return;
   }
 
-  remotehost = "";
+  lastErr = "";
   for (rp = result; rp != NULL; rp = rp->ai_next){
     sSend = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sSend < 0){continue;}
@@ -808,13 +823,13 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       remoteaddr = *((sockaddr_in6 *)rp->ai_addr);
       break;
     }
-    remotehost += strerror(errno);
+    lastErr += strerror(errno);
     ::close(sSend);
   }
   freeaddrinfo(result);
 
   if (rp == 0){
-    FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), remotehost.c_str());
+    FAIL_MSG("Could not connect to %s! Error: %s", host.c_str(), lastErr.c_str());
     close();
   }else{
     if (nonblock){
@@ -923,7 +938,8 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
     if (r < 0){
       char estr[200];
       mbedtls_strerror(r, estr, 200);
-      INFO_MSG("Write returns %d: %s", r, estr);
+      lastErr = estr;
+      INFO_MSG("Write returns %d: %s", r, lastErr.c_str());
     }
     if (r < 0){
       switch (errno){
@@ -932,7 +948,8 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
       case EWOULDBLOCK: return 0; break;
       default:
         Error = true;
-        INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
+        lastErr = strerror(errno);
+        INSANE_MSG("Could not iwrite data! Error: %s", lastErr.c_str());
         close();
         return 0;
         break;
@@ -970,7 +987,8 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
     case EWOULDBLOCK: return 0; break;
     default:
       Error = true;
-      INSANE_MSG("Could not iwrite data! Error: %s", strerror(errno));
+      lastErr = strerror(errno);
+      INSANE_MSG("Could not iwrite data! Error: %s", lastErr.c_str());
       close();
       return 0;
       break;
@@ -1012,7 +1030,8 @@ int Socket::Connection::iread(void *buffer, int len, int flags){
         Error = true;
         char estr[200];
         mbedtls_strerror(r, estr, 200);
-        INFO_MSG("Read returns %d: %s (%s)", r, estr, strerror(errno));
+        lastErr = estr;
+        INFO_MSG("Read returns %d: %s (%s)", r, estr, lastErr.c_str());
         close();
         return 0;
         break;
@@ -1039,7 +1058,8 @@ int Socket::Connection::iread(void *buffer, int len, int flags){
     case EINTR: return 0; break;
     default:
       Error = true;
-      INSANE_MSG("Could not iread data! Error: %s", strerror(errno));
+      lastErr = strerror(errno);
+      INSANE_MSG("Could not iread data! Error: %s", lastErr.c_str());
       close();
       return 0;
       break;
@@ -1149,6 +1169,7 @@ Socket::Connection::Connection(const Connection &rhs){
   remotehost = rhs.remotehost;
   boundaddr = rhs.boundaddr;
   remoteaddr = rhs.remoteaddr;
+  lastErr = rhs.lastErr;
   up = rhs.up;
   down = rhs.down;
   downbuffer = rhs.downbuffer;
@@ -1182,6 +1203,7 @@ Socket::Connection &Socket::Connection::operator=(const Socket::Connection &rhs)
   remotehost = rhs.remotehost;
   boundaddr = rhs.boundaddr;
   remoteaddr = rhs.remoteaddr;
+  lastErr = rhs.lastErr;
   up = rhs.up;
   down = rhs.down;
   downbuffer = rhs.downbuffer;
@@ -1776,9 +1798,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       // multicast has a "1110" bit prefix
       multicast = (((char *)&(addr4->sin_addr))[0] & 0xF0) == 0xE0;
 #ifdef __CYGWIN__
-      if (multicast){
-        ((sockaddr_in*)rp->ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY);
-      }
+      if (multicast){((sockaddr_in *)rp->ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY);}
 #endif
     }
     if (multicast){

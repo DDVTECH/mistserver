@@ -92,6 +92,7 @@ namespace Socket{
 #ifdef SSL
     /// optional extension that uses mbedtls for SSL
   protected:
+    std::string lastErr; ///< Stores last error, if any.
     bool sslConnected;
     int ssl_iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
     unsigned int ssl_iwrite(const void *buffer, int len); ///< Incremental write call.

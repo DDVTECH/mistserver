@@ -1,6 +1,7 @@
 #include "http_parser.h"
 #include "url.h"
 #include "socket.h"
+#include "util.h"
 
 namespace HTTP{
   class Downloader{
@@ -11,10 +12,17 @@ namespace HTTP{
     const std::string &const_data() const;
     void doRequest(const HTTP::URL &link, const std::string &method = "",
                    const std::string &body = "");
-    bool get(const std::string &link);
-    bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
+    bool get(const std::string &link, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool head(const HTTP::URL &link,uint8_t maxRecursiveDepth = 6);
+    bool getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb = Util::defaultDataCallback);
     bool post(const HTTP::URL &link, const std::string &payload, bool sync = true,
               uint8_t maxRecursiveDepth = 6);
+
+    bool getNonBlocking(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
+    bool continueNonBlocking(Util::DataCallback &cb);
+
     std::string getHeader(const std::string &headerName);
     std::string &getStatusText();
     uint32_t getStatusCode();
@@ -27,12 +35,15 @@ namespace HTTP{
     void setHeader(const std::string &name, const std::string &val);
     void clearHeaders();
     bool canRequest(const HTTP::URL &link);
+    bool completed(){return isComplete;}
     Parser &getHTTP();
     Socket::Connection &getSocket();
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
+    const HTTP::URL & lastURL();
 
   private:
+    bool isComplete;
     std::map<std::string, std::string> extraHeaders; ///< Holds extra headers to sent with request
     std::string connectedHost;                       ///< Currently connected host name
     uint32_t connectedPort;                          ///< Currently connected port number
@@ -43,6 +54,14 @@ namespace HTTP{
     std::string proxyAuthStr; ///< Most recently seen Proxy-Authenticate request
     bool proxied;             ///< True if proxy server is configured.
     HTTP::URL proxyUrl;       ///< Set to the URL of the configured proxy.
+    size_t nbLoop;
+    HTTP::URL nbLink;
+    uint8_t nbMaxRecursiveDepth;
+    uint64_t nbReqTime;
   };
+
+
+
+
 }// namespace HTTP
 

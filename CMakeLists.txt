@@ -187,6 +187,7 @@ set(libHeaders
   lib/ebml_socketglue.h
   lib/websocket.h
   lib/url.h
+  lib/urireader.h
 )
 
 ########################################
@@ -242,6 +243,7 @@ add_library (mist
   lib/ebml_socketglue.cpp
   lib/websocket.cpp
   lib/url.cpp
+  lib/urireader.cpp
 )
 if (NOT APPLE)
   set (LIBRT -lrt)

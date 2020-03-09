@@ -3,6 +3,7 @@
 
 #pragma once
 #include "socket.h"
+#include "util.h"
 #include <map>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,10 +17,10 @@ namespace HTTP{
   void parseVars(const std::string &data, std::map<std::string, std::string> &storage);
 
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
-  class Parser{
+  class Parser : public Util::DataCallback{
   public:
     Parser();
-    bool Read(Socket::Connection &conn);
+    bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback);
     bool Read(std::string &strbuf);
     const std::string &GetHeader(const std::string &i) const;
     bool hasHeader(const std::string &i) const;
@@ -54,10 +55,12 @@ namespace HTTP{
     std::string url;
     std::string protocol;
     unsigned int length;
+    unsigned int currentLength;
     bool headerOnly; ///< If true, do not parse body if the length is a known size.
     bool bufferChunks;
     // this bool was private
     bool sendingChunks;
+    void (*bodyCallback)(const char *, size_t);
 
   private:
     std::string cnonce;
@@ -65,7 +68,7 @@ namespace HTTP{
     bool seenReq;
     bool getChunks;
     unsigned int doingChunk;
-    bool parse(std::string &HTTPbuffer);
+    bool parse(std::string &HTTPbuffer, Util::DataCallback &cb = Util::defaultDataCallback);
     std::string builder;
     std::string read_buffer;
     std::map<std::string, std::string> headers;
@@ -74,4 +77,3 @@ namespace HTTP{
   };
 
 }// namespace HTTP
-

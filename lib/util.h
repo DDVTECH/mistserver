@@ -6,6 +6,7 @@
 #include <map>
 #include <stdint.h>
 #include <stdlib.h>
+#include "defines.h"
 
 namespace Util{
   bool isDirectory(const std::string &path);
@@ -17,6 +18,15 @@ namespace Util{
 
   uint64_t ftell(FILE *stream);
   uint64_t fseek(FILE *stream, uint64_t offset, int whence);
+
+  class DataCallback{
+    public:
+    virtual void dataCallback(const char * ptr, size_t size){
+      INFO_MSG("default callback, size: %llu", size);
+    }
+  };
+
+  extern Util::DataCallback defaultDataCallback;
 
  //Forward declaration
   class FieldAccX; 

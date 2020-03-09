@@ -1,19 +1,21 @@
 /// \file http_parser.cpp
 /// Holds all code for the HTTP namespace.
 
-#include "http_parser.h"
-#include "util.h"
 #include "auth.h"
 #include "defines.h"
 #include "encode.h"
+#include "http_parser.h"
 #include "timing.h"
 #include "url.h"
+#include "util.h"
+#include <strings.h>
 #include <iomanip>
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
 HTTP::Parser::Parser(){
   headerOnly = false;
+  bodyCallback = 0;
   Clean();
   std::stringstream nStr;
   nStr << std::hex << std::setw(16) << std::setfill('0') << (uint64_t)(Util::bootMS());
@@ -267,8 +269,7 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser &request,
                                  Socket::Connection &conn, bool bufferAllChunks){
   std::string prot = request.protocol;
-  sendingChunks =
-      (!bufferAllChunks && protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
+  sendingChunks = (!bufferAllChunks && protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
   CleanPreserveHeaders();
   protocol = prot;
   if (sendingChunks){
@@ -286,8 +287,7 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Pa
 /// a zero-content-length HTTP/1.0 response. This call simply calls StartResponse("200", "OK",
 /// request, conn) \param request The HTTP request to respond to. \param conn The connection to send
 /// over.
-void HTTP::Parser::StartResponse(HTTP::Parser &request, Socket::Connection &conn,
-                                 bool bufferAllChunks){
+void HTTP::Parser::StartResponse(HTTP::Parser &request, Socket::Connection &conn, bool bufferAllChunks){
   StartResponse("200", "OK", request, conn, bufferAllChunks);
 }
 
@@ -300,8 +300,7 @@ void HTTP::Parser::Proxy(Socket::Connection &from, Socket::Connection &to){
   if (getChunks){
     unsigned int proxyingChunk = 0;
     while (to.connected() && from.connected()){
-      if ((from.Received().size() &&
-           (from.Received().size() > 1 || *(from.Received().get().rbegin()) == '\n')) ||
+      if ((from.Received().size() && (from.Received().size() > 1 || *(from.Received().get().rbegin()) == '\n')) ||
           from.spool()){
         if (proxyingChunk){
           while (proxyingChunk && from.Received().size()){
@@ -414,17 +413,28 @@ std::string HTTP::Parser::getUrl(){
 
 /// Returns header i, if set.
 const std::string &HTTP::Parser::GetHeader(const std::string &i) const{
-  if (headers.count(i)){
-    return headers.at(i);
-  }else{
-    static const std::string empty;
-    return empty;
+  if (headers.count(i)){return headers.at(i);}
+  for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
+    if (it->first.length() != i.length()){continue;}
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
+      return it->second;
+    }
   }
+  //Return empty string if not found
+  static const std::string empty;
+  return empty;
 }
 
 /// Returns header i, if set.
 bool HTTP::Parser::hasHeader(const std::string &i) const{
-  return headers.count(i);
+  if (headers.count(i)){return true;}
+  for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
+    if (it->first.length() != i.length()){continue;}
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
+      return true;
+    }
+  }
+  return false;
 }
 
 /// Returns POST variable i, if set.
@@ -483,26 +493,30 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// If a whole request could be read, it is removed from the front of the socket buffer and true
 /// returned. If not, as much as can be interpreted is removed and false returned. \param conn The
 /// socket to read from. \return True if a whole request or response was read, false otherwise.
-bool HTTP::Parser::Read(Socket::Connection &conn){
-  // Make sure the received data ends in a newline (\n).
-  while ((!seenHeaders || (getChunks && !doingChunk)) && conn.Received().get().size() &&
-         *(conn.Received().get().rbegin()) != '\n'){
-    if (conn.Received().size() > 1){
-      // make a copy of the first part
-      std::string tmp = conn.Received().get();
-      // clear the first part, wiping it from the partlist
-      conn.Received().get().clear();
-      conn.Received().size();
-      // take the now first (was second) part, insert the stored part in front of it
-      conn.Received().get().insert(0, tmp);
-    }else{
-      return false;
+bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
+  while (conn.Received().size()){
+    // Make sure the received data ends in a newline (\n).
+    while ((!seenHeaders || (getChunks && !doingChunk)) && conn.Received().get().size() &&
+           *(conn.Received().get().rbegin()) != '\n'){
+      if (conn.Received().size() > 1){
+        // make a copy of the first part
+        std::string tmp = conn.Received().get();
+        // clear the first part, wiping it from the partlist
+        conn.Received().get().clear();
+        conn.Received().size();
+        // take the now first (was second) part, insert the stored part in front of it
+        conn.Received().get().insert(0, tmp);
+      }else{
+        return false;
+      }
+    }
+
+    // return true if a parse succeeds, and is not a request
+    if (parse(conn.Received().get(), cb) && (!JSON::Value(url).isInt() || headerOnly || length ||
+                                             getChunks || (!conn && !conn.Received().size()))){
+      return true;
     }
   }
-  // if a parse succeeds, simply return true
-  if (parse(conn.Received().get())){return true;}
-  // otherwise, if we have parts left, call ourselves recursively
-  if (conn.Received().size()){return Read(conn);}
   return false;
 }// HTTPReader::Read
 
@@ -526,7 +540,7 @@ uint8_t HTTP::Parser::getPercentage() const{
 /// from the data buffer.
 /// \param HTTPbuffer The data buffer to read from.
 /// \return True on success, false otherwise.
-bool HTTP::Parser::parse(std::string &HTTPbuffer){
+bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
   size_t f;
   std::string tmpA, tmpB, tmpC;
   /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the
@@ -588,11 +602,9 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
           body.clear();
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
-            if (body.capacity() < length){body.reserve(length);}
-          }
-          if (GetHeader("Content-length") != ""){
-            length = atoi(GetHeader("Content-length").c_str());
-            if (body.capacity() < length){body.reserve(length);}
+            if (!bodyCallback && (&cb == &Util::defaultDataCallback) && body.capacity() < length){
+              body.reserve(length);
+            }
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){
             getChunks = true;
@@ -611,12 +623,33 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
       if (length > 0){
         if (headerOnly){return true;}
         unsigned int toappend = length - body.length();
+
+        // limit the amount of bytes that will be appended to the amount there
+        // is available
+        if (toappend > HTTPbuffer.size()){toappend = HTTPbuffer.size();}
+
         if (toappend > 0){
-          body.append(HTTPbuffer, 0, toappend);
+          bool shouldAppend = true;
+          // check if pointer callback function is set and run callback. remove partial data from buffer
+          if (bodyCallback){
+            bodyCallback(HTTPbuffer.data(), toappend);
+            length -= toappend;
+            shouldAppend = false;
+          }
+
+          // check if reference callback function is set and run callback. remove partial data from buffer
+          if (&cb != &Util::defaultDataCallback){
+            cb.dataCallback(HTTPbuffer.data(), toappend);
+            length -= toappend;
+            shouldAppend = false;
+          }
+
+          if (shouldAppend){body.append(HTTPbuffer, 0, toappend);}
           HTTPbuffer.erase(0, toappend);
+          currentLength += toappend;
         }
         if (length == body.length()){
-          //parse POST variables
+          // parse POST variables
           if (method == "POST"){parseVars(body, vars);}
           return true;
         }else{
@@ -624,16 +657,32 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
         }
       }else{
         if (getChunks){
+
+          // toappend
+          currentLength += HTTPbuffer.size();
+
           if (headerOnly){return true;}
           if (doingChunk){
             unsigned int toappend = HTTPbuffer.size();
             if (toappend > doingChunk){toappend = doingChunk;}
-            body.append(HTTPbuffer, 0, toappend);
+
+            bool shouldAppend = true;
+            if (bodyCallback){
+              bodyCallback(HTTPbuffer.data(), toappend);
+              shouldAppend = false;
+            }
+
+            if (&cb != &Util::defaultDataCallback){
+              cb.dataCallback(HTTPbuffer.data(), toappend);
+              shouldAppend = false;
+            }
+
+            if (shouldAppend){body.append(HTTPbuffer, 0, toappend);}
             HTTPbuffer.erase(0, toappend);
             doingChunk -= toappend;
           }else{
             f = HTTPbuffer.find('\n');
-            if (f == std::string::npos) return false;
+            if (f == std::string::npos){return false;}
             tmpA = HTTPbuffer.substr(0, f);
             while (tmpA.find('\r') != std::string::npos){tmpA.erase(tmpA.find('\r'));}
             unsigned int chunkLen = 0;
@@ -655,6 +704,22 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer){
           }
           return false;
         }else{
+          unsigned int toappend = HTTPbuffer.size();
+          bool shouldAppend = true;
+          if (bodyCallback){
+            bodyCallback(HTTPbuffer.data(), toappend);
+            shouldAppend = false;
+          }
+
+          if (&cb != &Util::defaultDataCallback){
+            cb.dataCallback(HTTPbuffer.data(), toappend);
+            shouldAppend = false;
+          }
+
+          if (shouldAppend){body.append(HTTPbuffer, 0, toappend);}
+          HTTPbuffer.erase(0, toappend);
+
+          // return true if there is no body, otherwise we only stop when the connection is dropped
           return true;
         }
       }
@@ -743,4 +808,3 @@ void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connect
     }
   }
 }
-

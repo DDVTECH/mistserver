@@ -468,7 +468,7 @@ var UI = {
                   var val = $(this).getval();
                   var pointer = $(this).data('pointer');
                   
-                  if (val == '') {
+                  if (val === '') {
                     if ('default' in $(this).data('opts')) {
                       val = $(this).data('opts')['default'];
                     }
@@ -6888,7 +6888,7 @@ $.fn.getval = function(){
         val = $(this).html();
         break;
       case 'debug':
-        val = Number($(this).val());
+        val = $(this).val() == "" ? null : Number($(this).val());
         break;
       case 'checkbox':
         val = $(this).prop('checked');

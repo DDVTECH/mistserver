@@ -418,7 +418,9 @@ MistSkins["default"] = {
                       //remove all the things when unmuted
                       var fu = function(){
                         if (!MistVideo.video.muted) {
-                          MistVideo.container.removeChild(largeMutedButton);
+                          if (largeMutedButton.parentNode) {
+                            MistVideo.container.removeChild(largeMutedButton);
+                          }
                           MistVideo.video.removeEventListener("volumechange",fu);
                           document.body.removeEventListener("click",i);
                           MistVideo.video.removeEventListener("mouseenter",f);
@@ -900,6 +902,7 @@ MistSkins["default"] = {
       //obey video states
       MistUtil.event.addListener(video,"playing",function(){
         button.setState("playing");
+        MistVideo.options.autoplay = true;
       },button);
       MistUtil.event.addListener(video,"pause",function(){
         button.setState("paused");
@@ -919,6 +922,7 @@ MistSkins["default"] = {
         }
         else {
           MistVideo.player.api.pause();
+          MistVideo.options.autoplay = false;
         }
       });
       
@@ -926,7 +930,10 @@ MistSkins["default"] = {
       if (MistVideo.player.api) {
         MistUtil.event.addListener(MistVideo.video,"click",function(){
           if (MistVideo.player.api.paused) { MistVideo.player.api.play(); }
-          else if (!MistUtil.isTouchDevice()) { MistVideo.player.api.pause(); }
+          else if (!MistUtil.isTouchDevice()) {
+            MistVideo.player.api.pause();
+            MistVideo.options.autoplay = false;
+          }
         },button);
       }
       
@@ -1699,7 +1706,7 @@ MistSkins["default"] = {
         message_container.className = "message";
         this.appendChild(message_container);
         
-        if (!options.polling && !options.passive) {
+        if (!options.polling && !options.passive && !options.hideTitle) {
           var header = document.createElement("h3");
           message_container.appendChild(header);
           header.appendChild(document.createTextNode("The player has encountered a problem"));
@@ -1709,7 +1716,8 @@ MistSkins["default"] = {
         message_container.appendChild(p);
         message_container.update = function(message){
           MistUtil.empty(p);
-          p.appendChild(document.createTextNode(message));
+          //p.appendChild(document.createTextNode(message));
+          p.innerHTML = message; //allow custom html messages (configured in MI/HTTP/nostreamtext)
         };
         if (message) {
           if (MistVideo.info.on_error) {
@@ -1905,7 +1913,7 @@ MistSkins["default"] = {
           container.clear();
         }
       };
-      container.clear = function(message){
+      container.clear = function(){
         var countdowns = container.querySelectorAll("svg.icon.timeout");
         for (var i = 0; i < countdowns.length; i++) {
           MistVideo.timers.stop(countdowns[i].timeout);
@@ -2479,16 +2487,6 @@ MistSkins.dev.structure.submenu.children.unshift({
           style: {"flex-wrap": "wrap"},
           children: [
             {
-              if: function(){ return !!(this.player && this.player.api); },
-                then: {
-                  type: "button",
-                  title: "Reload the video source",
-                  label: "video.load();",
-                  onclick: function(){
-                    this.player.api.load();
-                  }
-                }
-            },{
               type: "button",
               title: "Build MistVideo again",
               label: "MistVideo.reload();",
@@ -2615,10 +2613,10 @@ function MistSkin(MistVideo) {
   
   //load css
   var styles = [];
-  var toload = 0;
   for (var i in this.css) {
     if (typeof this.css[i] == "string") {
-      styles.push(MistUtil.css.load(MistVideo.urlappend(this.css[i]),this.colors));
+      var a = MistUtil.css.load(MistVideo.urlappend(this.css[i]),this.colors);
+      styles.push(a);
     }
   }
   this.css = styles; //overwrite 

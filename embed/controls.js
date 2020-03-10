@@ -93,14 +93,20 @@ function MistUI(MistVideo,structure) {
   
   //apply skin CSS
   var uid = MistUtil.createUnique();
-  var toload = MistVideo.skin.css.length;
-  if (toload) { container.style.opacity = "0"; }
+  var loaded = 0;
+  if (MistVideo.skin.css.length) { container.style.opacity = 0; }
   for (var i in MistVideo.skin.css) {
     var style = MistVideo.skin.css[i];
     style.callback = function(css) {
-      this.textContent = MistUtil.css.prependClass(css,uid,true);
-      toload--;
-      if (toload <= 0) {
+      if (css == "/*Failed to load*/") {
+        this.textContent = css;
+        MistVideo.showError("Failed to load CSS from "+this.getAttribute("data-source"));
+      }
+      else {
+        this.textContent = MistUtil.css.prependClass(css,uid,true);
+      }
+      loaded++;
+      if (MistVideo.skin.css.length <= loaded) {
         container.style.opacity = "";
       }
     };

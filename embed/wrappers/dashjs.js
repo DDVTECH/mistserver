@@ -118,7 +118,7 @@ p.prototype.build = function (MistVideo,callback) {
     me.dash = player;
     
     //add listeners for events that we can log
-    var skipEvents = ["METRIC_ADDED","METRIC_CHANGED","METRICS_CHANGED","FRAGMENT_LOADING_STARTED","FRAGMENT_LOADING_COMPLETED","LOG","PLAYBACK_TIME_UPDATED","PLAYBACK_PROGRESS"];
+    var skipEvents = ["METRIC_ADDED","METRIC_UPDATED","METRIC_CHANGED","METRICS_CHANGED","FRAGMENT_LOADING_STARTED","FRAGMENT_LOADING_COMPLETED","LOG","PLAYBACK_TIME_UPDATED","PLAYBACK_PROGRESS"];
     for (var i in dashjs.MediaPlayer.events) {
       if (skipEvents.indexOf(i) < 0) {
         me.dash.on(dashjs.MediaPlayer.events[i],function(e){

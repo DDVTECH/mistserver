@@ -66,6 +66,20 @@ p.prototype.build = function (MistVideo,callback) {
   MistUtil.event.addListener(video,"loadeddata",correctSubtitleSync);
   MistUtil.event.addListener(video,"seeked",correctSubtitleSync);
   
+  if (!MistVideo.options.autoplay) {
+    MistUtil.event.addListener(video,"canplay",function(){
+      var onplay = MistUtil.event.addListener(video,"play",function(){
+        MistVideo.log("Pausing because autoplay is disabled");
+        var onpause = MistUtil.event.addListener(video,"pause",function(){
+          MistVideo.options.autoplay = false;
+          MistUtil.event.removeListener(onpause);
+        });
+        me.api.pause();
+        MistUtil.event.removeListener(onplay);
+      });
+    });
+  }
+  
   var seekoffset = 0;
   var hasended = false;
   var currenttracks = [];
@@ -84,10 +98,11 @@ p.prototype.build = function (MistVideo,callback) {
         If a live stream ends, we receive an on_disconnect, but no on_stop
         If MistOutWebRTC crashes, we receive an on_stop and then an on_disconnect
       */
-      if (hasended) {
+      if (!hasended) {
         MistVideo.showError("Connection to media server ended unexpectedly.");
+        video.pause();
       }
-      video.pause();
+      
     },
     on_answer_sdp: function (ev) {
       if (!ev.result) {
@@ -113,8 +128,8 @@ p.prototype.build = function (MistVideo,callback) {
         MistUtil.event.send("durationchange",d,video);
       }
       
-      if (currenttracks != ev.tracks) {
-        var tracks = MistUtil.tracks.parse(MistVideo.info.meta.tracks);
+      if ((ev.tracks) && (currenttracks != ev.tracks)) {
+        var tracks = MistVideo.info ? MistUtil.tracks.parse(MistVideo.info.meta.tracks) : [];
         for (var i in ev.tracks) {
           if (currenttracks.indexOf(ev.tracks[i]) < 0) {
             //find track type
@@ -169,6 +184,7 @@ p.prototype.build = function (MistVideo,callback) {
     },
     on_stop: function(){
       MistVideo.log("Websocket sent on_stop");
+      video.pause();
       MistUtil.event.send("ended",null,video);
       hasended = true;
     }
@@ -247,7 +263,19 @@ p.prototype.build = function (MistVideo,callback) {
     };
     this.seek = function(seekTime){
       var p = new Promise(function(resolve,reject){
-        if (!thisWebRTCPlayer.isConnected || !thisWebRTCPlayer.signaling) { return reject("Failed seek: not connected"); }
+        if (!thisWebRTCPlayer.isConnected || !thisWebRTCPlayer.signaling) {
+          if (thisWebRTCPlayer.isConnecting) {
+            
+            var listener = MistUtil.event.addListener(MistVideo.video,"loadstart",function(){
+              thisWebRTCPlayer.seek(seekTime);
+              MistUtil.event.removeListener(listener);
+            });
+            return reject("Not connected yet, will seek once connected");
+          }
+          else {
+            return reject("Failed seek: not connected");
+          }
+        }
         thisWebRTCPlayer.signaling.send({type: "seek", "seek_time": (seekTime == "live" ? "live" : seekTime*1e3)});
         if ("seekPromise" in thisWebRTCPlayer.signaling) {
           thisWebRTCPlayer.signaling.seekPromise.reject("Doing new seek");
@@ -368,8 +396,15 @@ p.prototype.build = function (MistVideo,callback) {
     set: function(value){
       seekoffset = value - video.currentTime;
       video.pause();
-      me.webrtc.seek(value);
+      var promise = me.webrtc.seek(value);
       MistUtil.event.send("seeking",value,video);
+      if (promise) {
+        promise.catch(function(e){
+          //do nothing
+          //keep this code because not handling this shows an error message in the console:
+          //  (Uncaught (in promise) Failed seek: not connected)
+        });
+      }
     }
   });
   

@@ -4016,15 +4016,29 @@ var UI = {
         
         if (other == '') { UI.navto('Streams'); }
         
+        var parsed = parseURL(mist.user.host);
+        var http_protocol = parsed.protocol;
+        var http_host = parsed.host;
         var http_port = ':8080';
+        var embedbase = http_protocol+http_host+http_port+'/';
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            http_port = (protocol.port ? ':'+protocol.port : ':8080');
+            if (protocol.pubaddr) {
+              if (typeof protocol.pubaddr == "string") {
+                embedbase = protocol.pubaddr.replace(/\/$/,'')+"/";
+              }
+              else {
+                embedbase = protocol.pubaddr[0].replace(/\/$/,'')+"/";
+              }
+            }
+            else {
+              http_port = (protocol.port ? ':'+protocol.port : ':8080');
+              embedbase = http_protocol+http_host+http_port+'/';
+            }
+            break;
           }
         }
-        var parsed = parseURL(mist.user.host);
-        var embedbase = parsed.protocol+parsed.host+http_port+'/';
         
         var $cont = $('<div>').css({
           'display':'flex',
@@ -4374,27 +4388,68 @@ var UI = {
         
         var escapedstream = encodeURIComponent(other);
         var parsed = parseURL(mist.user.host);
-        
-        var http = {
-          '': {
-            port: ':8080'
-          }
+        var http_protocol = parsed.protocol;
+        var http_host = parsed.host;
+        var http_port = ':8080';
+        var https_port;
+        var puburls = {};
+        var embedbase = {
+          http: http_protocol+http_host+http_port+"/"
         };
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            http[''].port = (protocol.port ? ':'+protocol.port : ':8080');
+            if (protocol.pubaddr && protocol.pubaddr.length) {
+              if (typeof protocol.pubaddr == "string") {
+                embedbase.http = protocol.pubaddr.replace(/\/$/,'')+"/";
+              }
+              else {
+                embedbase.http = protocol.pubaddr[0].replace(/\/$/,'')+"/";
+              }
+              puburls.http = protocol.pubaddr;
+            }
+            else {
+              http_port = (protocol.port ? ':'+protocol.port : ':8080');
+              embedbase.http = http_protocol+http_host+http_port+"/";
+            }
           }
-          if ((protocol.connector == 'HTTPS') || (protocol.connector == 'HTTPS.exe')) {
-            http.s = {};
-            http.s.port = (protocol.port ? ':'+protocol.port : ':4433');
+          else if ((protocol.connector == 'HTTPS') || (protocol.connector == 'HTTPS.exe')) {
+            if (protocol.pubaddr && protocol.pubaddr.length) {
+              if (typeof protocol.pubaddr == "string") {
+                embedbase.https = protocol.pubaddr.replace(/\/$/,'')+"/";
+              }
+              else {
+                embedbase.https = protocol.pubaddr[0].replace(/\/$/,'')+"/";
+              }
+              puburls.https = protocol.pubaddr;
+            }
+            else {
+              https_port = (protocol.port ? ':'+protocol.port : ':4433');
+              embedbase.https = "https://"+http_host+https_port+"/";
+            }
+            
           }
         }
         
-        var embedbase = 'http://'+parsed.host+http[''].port+'/';
-        var otherbase = embedbase;
+        
+        var otherbase = embedbase.http;
+        var other_split = {
+          http: embedbase.http
+        };
+        if ("https" in embedbase) {
+          other_split.https = embedbase.https;
+        }
         if ((otherhost.host) || (otherhost.https)) {
-          otherbase = (otherhost.https && ('s' in http) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && ('s' in http) ? http.s.port : http[''].port)+'/';
+          otherbase = (otherhost.https && (https_port) ? 'https://' : 'http://')+(otherhost.host ? otherhost.host : parsed.host)+(otherhost.https && (https_port) ? https_port : http_port)+'/';
+          if (otherhost.host) {
+            if (!("http" in puburls)) {
+              other_split.http = parseURL(other_split.http,{hostname:otherhost.host}).full;
+            }
+            if (("https" in other_split) && (!("https" in puburls))) {
+              other_split.https = parseURL(other_split.https,{hostname:otherhost.host}).full;
+            }
+          }
+          otherbase = (otherhost.https ? other_split.http : other_split.https);
         }
         var done = false;
         var defaultembedoptions = {
@@ -4494,7 +4549,7 @@ var UI = {
           var output = [];
           output.push('<div class="mistvideo" id="'+target+'">');
           output.push('  <noscript>');
-          output.push('    <a href="'+otherbase+escapedstream+'.html'+'" target="_blank">');
+          output.push('    <a href="'+(otherhost.https ? other_split.https : other_split.http)+escapedstream+'.html'+'" target="_blank">');
           output.push('      Click here to play this video');
           output.push('    </a>');
           output.push('  </noscript>');
@@ -4506,7 +4561,13 @@ var UI = {
           output.push('    };');
           output.push('    if (!window.mistplayers) {');
           output.push('      var p = document.createElement("script");');
-          output.push('      p.src = "'+otherbase+'player.js"');
+          if (("https" in embedbase) && (parseURL(embedbase.http).protocol != "https://")) {
+            output.push('      if (location.protocol == "https:") { p.src = "'+other_split.https+'player.js" } ');
+            output.push('      else { p.src = "'+other_split.http+'player.js" } ');
+          }
+          else {
+            output.push('      p.src = "'+otherbase+'player.js"');
+          }
           output.push('      document.head.appendChild(p);');
           output.push('      p.onload = a;');
           output.push('    }');
@@ -4523,7 +4584,7 @@ var UI = {
         
         
         var $usehttps = '';
-        if ('s' in http) {
+        if ('https' in embedbase) {
           $usehttps = UI.buildUI([{
             label: 'Use HTTPS',
             type: 'checkbox',
@@ -4857,7 +4918,7 @@ var UI = {
         });
         
         var script = document.createElement('script');
-        script.src = embedbase+'player.js';
+        script.src = embedbase.http+'player.js';
         document.head.appendChild(script);
         script.onload = function(){
           var $s_forcePlayer = $embedlinks.find('.field.forcePlayer');
@@ -6733,6 +6794,10 @@ var mist = {
               obj.select.unshift(["",("placeholder" in obj ? "Default ("+obj.placeholder+")" : "" )]);
             }
             break;
+          case 'inputlist': {
+            obj.type = "inputlist";
+            break;
+          }
           case 'sublist': {
             obj.type = 'sublist';
             //var subele = Object.assign({},ele);
@@ -7018,6 +7083,7 @@ $.fn.setval = function(val){
         }
         break;
       case "inputlist":
+        if (typeof val == "string") { val = [val]; }
         for (var i in val) {
           $(this).append(
             $(this).data("newitem")().val(val[i])
@@ -7087,10 +7153,16 @@ $.fn.setval = function(val){
   $(this).trigger('change');
   return $(this);
 }
-function parseURL(url) {
+function parseURL(url,set) {
   var a = document.createElement('a');
   a.href = url;
+  if (set) {
+    for (var i in set) {
+      a[i] = set[i];
+    }
+  }
   return {
+    full: a.href,
     protocol: a.protocol+'//',
     host: a.hostname,
     port: (a.port ? ':'+a.port : '')

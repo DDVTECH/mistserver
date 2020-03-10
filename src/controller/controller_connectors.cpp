@@ -98,22 +98,37 @@ namespace Controller {
 
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, const JSON::Value & argset){
     jsonForEachConst(argset, it) {
-      if (it->isMember("option")){
-        if (p.isMember(it.key())){
-          p[it.key()] = p[it.key()].asString();
-          if (p[it.key()].asStringRef().size() > 0){
-            argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
-            if (it->isMember("type")){
-              argarr[argnum++] = (char*)(p[it.key()].asStringRef().c_str());
-            }
+      if (it->isMember("option") && p.isMember(it.key())){
+        if (it->isMember("type")){
+          if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
+            p[it.key()] = p[it.key()].asString();
           }
+          if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" || (*it)["type"].asStringRef() == "debug"){
+            p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
+          }
+          if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
+            jsonForEach(p[it.key()], iVal){
+              (*iVal) = iVal->asString();
+              argarr[argnum++] = (char*)((*it)["option"].c_str());
+              argarr[argnum++] = (char*)((*iVal).c_str());
+            }
+            continue;
+          }
+        }
+        if (p[it.key()].asStringRef().size() > 0){
+          argarr[argnum++] = (char*)((*it)["option"].c_str());
+          argarr[argnum++] = (char*)(p[it.key()].c_str());
         }else{
           if (it.key() == "debug"){
-            static std::string debugLvlStr;
-            debugLvlStr = JSON::Value(Util::Config::printDebugLevel).asString();
-            argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
-            argarr[argnum++] = (char*)debugLvlStr.c_str();
+            if (Util::Config::printDebugLevel != DEBUG){
+              static std::string debugLvlStr;
+              debugLvlStr = JSON::Value(Util::Config::printDebugLevel).asString();
+              argarr[argnum++] = (char*)((*it)["option"].asStringRef().c_str());
+              argarr[argnum++] = (char*)debugLvlStr.c_str();
+            }
+            continue;
           }
+          argarr[argnum++] = (char*)((*it)["option"].c_str());
         }
       }
     }

@@ -818,9 +818,10 @@ unsigned int FLV::Tag::getDataLen(){
 
 void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage){
   size_t reTrack = INVALID_TRACK_ID;
-  toMeta(meta, amf_storage, reTrack);
+  std::map<std::string, std::string> targetParams;
+  toMeta(meta, amf_storage, reTrack, targetParams);
 }
-void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack){
+void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams){
   std::string trackType;
   switch (data[0]){
   case 0x09: trackType = "video"; break; // video
@@ -849,6 +850,9 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
   if (reTrack == INVALID_TRACK_ID){
     reTrack = meta.addTrack();
     meta.setID(reTrack, getTrackID());
+    if (targetParams.count("lang")){
+      meta.setLang(reTrack, targetParams.at("lang"));
+    }
   }
 
   std::string codec = meta.getCodec(reTrack);

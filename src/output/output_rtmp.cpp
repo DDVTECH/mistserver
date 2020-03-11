@@ -721,6 +721,15 @@ namespace Mist{
       }
       if (amfData.getContentP(3)){
         streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
+
+        // handle variables
+        if (streamName.find('?') != std::string::npos){
+          std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+          streamName = streamName.substr(0, streamName.find('?'));
+          Util::Config::streamName = streamName;
+          HTTP::parseVars(tmpVars, targetParams);
+        }
+
         Util::Config::streamName = streamName;
         reqUrl += "/" + streamName; // LTS
 
@@ -1248,7 +1257,7 @@ namespace Mist{
 
         size_t reTrack = next.cs_id * 3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
         if (!reTrackToID.count(reTrack)){reTrackToID[reTrack] = INVALID_TRACK_ID;}
-        F.toMeta(meta, *amf_storage, reTrackToID[reTrack]);
+        F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
           if (!M.getBootMsOffset()){

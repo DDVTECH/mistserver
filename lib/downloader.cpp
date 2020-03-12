@@ -64,8 +64,8 @@ namespace HTTP{
 
   Downloader::~Downloader(){S.close();}
 
-  /// Sends a request for the given URL, does no waiting.
-  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
+  /// Prepares a request for the given URL, does not send anything
+  void Downloader::prepareRequest(const HTTP::URL &link, const std::string &method){
     if (!canRequest(link)){return;}
     bool needSSL = (link.protocol == "https");
     H.Clean();
@@ -131,11 +131,21 @@ namespace HTTP{
         H.SetHeader(it->first, it->second);
       }
     }
-
     nbLink = link;
-    H.SendRequest(getSocket(), body);
+  }
+
+  /// Sends a request for the given URL, does no waiting.
+  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const void * body, const size_t bodyLen){
+    prepareRequest(link, method);
+    H.sendRequest(getSocket(), body, bodyLen, false);
     H.Clean();
   }
+
+  /// Sends a request for the given URL, does no waiting.
+  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
+    doRequest(link, method, body.data(), body.size());
+  }
+
 
   /// Do a HEAD request to download the HTTP headers only, returns true on success
   bool Downloader::head(const HTTP::URL &link, uint8_t maxRecursiveDepth){
@@ -361,11 +371,15 @@ namespace HTTP{
   }
 
   bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync, uint8_t maxRecursiveDepth){
+    return post(link, payload.data(), payload.size(), sync, maxRecursiveDepth);
+  }
+
+  bool Downloader::post(const HTTP::URL &link, const void * payload, const size_t payloadLen, bool sync, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
     size_t loop = retryCount; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
       MEDIUM_MSG("Posting to %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
-      doRequest(link, "POST", payload);
+      doRequest(link, "POST", payload, payloadLen);
       // Not synced? Ignore the response and immediately return true.
       if (!sync){return true;}
       uint64_t reqTime = Util::bootSecs();
@@ -390,9 +404,9 @@ namespace HTTP{
             }
             if (!canContinue(link)){return false;}
             if (getStatusCode() >= 300 && getStatusCode() < 400){
-              return post(link.link(getHeader("Location")), payload, sync, --maxRecursiveDepth);
+              return post(link.link(getHeader("Location")), payload, payloadLen, sync, --maxRecursiveDepth);
             }else{
-              return post(link, payload, sync, --maxRecursiveDepth);
+              return post(link, payload, payloadLen, sync, --maxRecursiveDepth);
             }
           }
           return true; // Success!

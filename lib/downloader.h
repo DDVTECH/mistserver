@@ -10,13 +10,17 @@ namespace HTTP{
     ~Downloader();
     std::string &data();
     const std::string &const_data() const;
-    void doRequest(const HTTP::URL &link, const std::string &method = "",
-                   const std::string &body = "");
+    void prepareRequest(const HTTP::URL &link, const std::string &method = "");
+    void doRequest(const HTTP::URL &link, const std::string &method = "", const void * body = 0, const size_t bodyLen = 0);
+    void doRequest(const HTTP::URL &link, const std::string &method, const std::string &body);
     bool get(const std::string &link, Util::DataCallback &cb = Util::defaultDataCallback);
     bool get(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6, Util::DataCallback &cb = Util::defaultDataCallback);
-    bool head(const HTTP::URL &link,uint8_t maxRecursiveDepth = 6);
-    bool getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb = Util::defaultDataCallback);
-    bool getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb = Util::defaultDataCallback);
+    bool head(const HTTP::URL &link, uint8_t maxRecursiveDepth = 6);
+    bool getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd,
+                  Util::DataCallback &cb = Util::defaultDataCallback);
+    bool getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd,
+                             Util::DataCallback &cb = Util::defaultDataCallback);
+    bool post(const HTTP::URL &link, const void * payload, const size_t payloadLen, bool sync = true, uint8_t maxRecursiveDepth = 6);
     bool post(const HTTP::URL &link, const std::string &payload, bool sync = true,
               uint8_t maxRecursiveDepth = 6);
 

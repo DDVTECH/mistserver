@@ -55,6 +55,17 @@ int main(int argc, char* argv[]){
     fullText = fullText.substr(0, locStart) + "<script>" + subText + fullText.substr(locEnd+2);
   }
 
+  //replace every <link rel="stylesheet" href="*"> with the contents of the file '*'
+  while (fullText.find("<link rel=\"stylesheet\" href=\"") != std::string::npos){
+    size_t locStart = fullText.find("<link rel=\"stylesheet\" href=\"");
+    size_t locEnd = fullText.find("\">", locStart);
+    //Assume we should abort if the strlen of the filename is > 230 chars
+    if (locEnd - locStart >= 230){break;}
+    HTTP::URL fileName = inUri.link(fullText.substr(locStart+29, locEnd-locStart-29));
+    std::string subText = getContents(fileName.getFilePath().c_str());
+    fullText = fullText.substr(0, locStart) + "<style>" + subText + "</style>" + fullText.substr(locEnd+2);
+  }
+
   size_t splitPoint = std::string::npos;
   size_t splitLen = 0;
   if (splitText){

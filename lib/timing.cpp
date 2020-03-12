@@ -87,6 +87,12 @@ uint64_t Util::bootMS() {
   return ((uint64_t)t.tv_sec) * 1000 + t.tv_nsec / 1000000;
 }
 
+uint64_t Util::unixMS(){
+  struct timeval t;
+  gettimeofday(&t, 0);
+  return ((uint64_t)t.tv_sec) * 1000 + t.tv_usec / 1000;
+}
+
 /// Gets the current time in microseconds.
 uint64_t Util::getMicros() {
   struct timespec t;

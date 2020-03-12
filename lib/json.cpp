@@ -612,6 +612,24 @@ JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::strin
   return *this;
 }
 
+/// Extends this JSON::Value object with the given JSON::Value object, skipping given member(s) recursively.
+JSON::Value &JSON::Value::extend(const Value &rhs, const std::set<std::string> &skip){
+  //Null values turn into objects automatically for sanity reasons
+  if (myType == EMPTY){myType = OBJECT;}
+  //Abort if either value is not an object
+  if (myType != rhs.myType || myType != OBJECT){return *this;}
+  jsonForEachConst(rhs, i){
+    if (!skip.count(i.key())){
+      if (!objVal.count(i.key()) || !i->isObject()){
+        (*this)[i.key()] = *i;
+      }else{
+        (*this)[i.key()].extend(*i, skip);
+      }
+    }
+  }
+  return *this;
+}
+
 /// Sets this JSON::Value to be equal to the given JSON::Value.
 JSON::Value &JSON::Value::operator=(const JSON::Value &rhs){
   null();

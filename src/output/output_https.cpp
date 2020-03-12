@@ -121,7 +121,9 @@ namespace Mist{
     }
     args.push_back("");
     Util::Procs::socketList.insert(fd[0]);
+    setenv("MIST_BOUND_ADDR", myConn.getBoundAddress().c_str(), 1);
     pid_t http_proc = Util::Procs::StartPiped(args, &(fd[1]), &(fd[1]), &fderr);
+    unsetenv("MIST_BOUND_ADDR");
     close(fd[1]);
     if (http_proc < 2){
       FAIL_MSG("Could not spawn MistOutHTTP process for SSL connection!");

@@ -178,7 +178,7 @@ static std::string read_string(char separator, std::istream &fromstream){
   while (fromstream.good()){
     char c;
     fromstream.get(c);
-    if (c == '\\'){
+    if (!escaped && c == '\\'){
       escaped = true;
       continue;
     }
@@ -189,6 +189,7 @@ static std::string read_string(char separator, std::istream &fromstream){
       }
       switch (c){
       case 'b': out += '\b'; break;
+      case '\\': out += '\\'; break;
       case 'f': out += '\f'; break;
       case 'n': out += '\n'; break;
       case 'r': out += '\r'; break;

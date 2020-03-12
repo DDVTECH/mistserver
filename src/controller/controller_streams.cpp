@@ -113,7 +113,7 @@ namespace Controller {
       }
     }
     //new style always on
-    if (data.isMember("always_on")){
+    if (data.isMember("always_on") && data["always_on"].asBool()){
       INFO_MSG("Starting always-on input %s: %s", name.c_str(), URL.c_str());
       std::map<std::string, std::string> empty_overrides;
       pid_t program = 0;

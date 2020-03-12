@@ -163,6 +163,10 @@ std::string &HTTP::Parser::BuildRequest(){
 /// The request is build from internal variables set before this call is made.
 /// To be precise, method, url, protocol, headers and body are used.
 void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqbody, bool allAtOnce){
+  sendRequest(conn, reqbody.data(), reqbody.size(), allAtOnce);
+}
+
+void HTTP::Parser::sendRequest(Socket::Connection &conn, const void * reqbody, const size_t reqbodyLen, bool allAtOnce){
   /// \todo Include GET/POST variable parsing?
   if (allAtOnce){
     /// \TODO Make this less duplicated / more pretty.
@@ -170,15 +174,15 @@ void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqb
     std::map<std::string, std::string>::iterator it;
     if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
     builder = method + " " + url + " " + protocol + "\r\n";
-    if (reqbody.size()){SetHeader("Content-Length", reqbody.length());}
+    if (reqbodyLen){SetHeader("Content-Length", reqbodyLen);}
     for (it = headers.begin(); it != headers.end(); it++){
       if ((*it).first != "" && (*it).second != ""){
         builder += (*it).first + ": " + (*it).second + "\r\n";
       }
     }
     builder += "\r\n";
-    if (reqbody.size()){
-      builder += reqbody;
+    if (reqbodyLen){
+      builder += std::string((char*)reqbody, reqbodyLen);
     }else{
       builder += body;
     }
@@ -189,7 +193,7 @@ void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqb
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
   builder = method + " " + url + " " + protocol + "\r\n";
   conn.SendNow(builder);
-  if (reqbody.size()){SetHeader("Content-Length", reqbody.length());}
+  if (reqbodyLen){SetHeader("Content-Length", reqbodyLen);}
   for (it = headers.begin(); it != headers.end(); it++){
     if ((*it).first != "" && (*it).second != ""){
       builder = (*it).first + ": " + (*it).second + "\r\n";
@@ -197,8 +201,8 @@ void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqb
     }
   }
   conn.SendNow("\r\n", 2);
-  if (reqbody.size()){
-    conn.SendNow(reqbody);
+  if (reqbodyLen){
+    conn.SendNow((char*)reqbody, reqbodyLen);
   }else{
     conn.SendNow(body);
   }

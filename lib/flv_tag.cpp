@@ -56,6 +56,20 @@ bool FLV::is_header(char *header){
   return true;
 }// FLV::is_header
 
+  
+size_t FLV::bytesNeeded(const char * ptr, size_t len){
+  if(len < 15){return 15;}
+  if(is_header(ptr)){
+    return 13;
+  }
+
+  size_t ret = ptr[3] + 15;
+  ret += (ptr[2] << 8);
+  ret += (ptr[1] << 16);
+
+  return ret;
+}
+
 /// Helper function that can quickly skip through a file looking for a particular tag type
 bool FLV::seekToTagType(FILE *f, uint8_t t){
   long long startPos = Util::ftell(f);

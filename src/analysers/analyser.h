@@ -2,6 +2,7 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <string>
+#include <mist/urireader.h>
 
 #define DETAIL_LOW(msg, ...)                                                                       \
   if (detail >= 1){printf(msg "\n", ##__VA_ARGS__);}
@@ -36,5 +37,10 @@ protected:
   uint64_t mediaTime; ///< Timestamp in ms of last media packet received
   uint64_t upTime;    ///< Unix time of analyser start
   uint64_t finTime;   ///< Unix time of last packet received
+  uint64_t firstMediaTime;
+  uint64_t firstMediaBootTime;
   bool *isActive;     ///< Pointer to is_active bool from config
+  HTTP::URIReader uri;
+  std::string  uriSource;
 };
+

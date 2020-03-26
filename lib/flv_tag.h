@@ -23,10 +23,11 @@ namespace FLV{
   // functions
   bool check_header(char *header); ///< Checks a FLV Header for validness.
   bool is_header(char *header);    ///< Checks the first 3 bytes for the string "FLV".
+  size_t bytesNeeded(const char * ptr, size_t len);
 
   /// Helper function that can quickly skip through a file looking for a particular tag type
   bool seekToTagType(FILE *f, uint8_t type);
-
+  
   /// This class is used to hold, work with and get information about a single FLV tag.
   class Tag{
   public:
@@ -42,8 +43,8 @@ namespace FLV{
     void tagTime(uint64_t T);
     int64_t offset();
     void offset(int64_t o);
-    Tag();                        ///< Constructor for a new, empty, tag.
-    Tag(const Tag &O);            ///< Copy constructor, copies the contents of an existing tag.
+    Tag();             ///< Constructor for a new, empty, tag.
+    Tag(const Tag &O); ///< Copy constructor, copies the contents of an existing tag.
     Tag &operator=(const Tag &O); ///< Assignment operator - works exactly like the copy constructor.
     Tag(const RTMPStream::Chunk &O); ///< Copy constructor from a RTMP chunk.
     ~Tag();                          ///< Generic destructor.

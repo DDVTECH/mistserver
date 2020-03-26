@@ -2,7 +2,6 @@
 /// Debugging tool for RTMP data.
 
 #include "analyser_rtmp.h"
-#include <mist/bitfields.h>
 
 void AnalyserRTMP::init(Util::Config &conf){
   Analyser::init(conf);
@@ -16,11 +15,6 @@ void AnalyserRTMP::init(Util::Config &conf){
   opt.null();
 }
 
-/// Checks if standard input is still valid.
-bool AnalyserRTMP::isOpen(){
-  return (*isActive) && (std::cin.good() || strbuf.size());
-}
-
 AnalyserRTMP::AnalyserRTMP(Util::Config &conf) : Analyser(conf){
   if (conf.getString("reconstruct") != ""){
     reconstruct.open(conf.getString("reconstruct").c_str());
@@ -31,38 +25,55 @@ AnalyserRTMP::AnalyserRTMP(Util::Config &conf) : Analyser(conf){
   }
 }
 
-bool AnalyserRTMP::open(const std::string &filename){
+bool AnalyserRTMP::open(const std::string & filename){
   if (!Analyser::open(filename)){return false;}
   // Skip the 3073 byte handshake - there is no (truly) useful data in this.
   MEDIUM_MSG("Skipping handshake...");
   std::string inbuffer;
-  inbuffer.reserve(3073);
-  while (std::cin.good() && inbuffer.size() < 3073){inbuffer += std::cin.get();}
-  RTMPStream::rec_cnt += 3073;
-  inbuffer.erase(0, 3073); // strip the handshake part
+  const size_t bytesNeeded = 3073;
+  inbuffer.reserve(bytesNeeded);
+
+  while (inbuffer.size() < bytesNeeded) {
+    while (!buffer.available(bytesNeeded)) {
+      if (uri.isEOF()) {
+        FAIL_MSG("End of file");
+        return false;
+      }
+
+      uri.readSome(bytesNeeded, *this);
+    }
+    inbuffer += buffer.remove(bytesNeeded);
+  }
+
+  RTMPStream::rec_cnt += bytesNeeded;
+  inbuffer.erase(0, bytesNeeded); // strip the handshake part
   MEDIUM_MSG("Handshake skipped");
   return true;
 }
 
 bool AnalyserRTMP::parsePacket(){
-  // While we can't parse a packet,
-  while (!next.Parse(strbuf)){
-    // fill our internal buffer "strbuf" in (up to) 1024 byte chunks
-    if (!std::cin.good()){
-      strbuf.clear();
-      return false;
-    }
-    size_t charCount = 0;
-    std::string tmpbuffer;
-    tmpbuffer.reserve(1024);
-    while (std::cin.good() && charCount < 1024){
-      char newchar = std::cin.get();
-      if (std::cin.good()){
-        tmpbuffer += newchar;
-        ++read_in;
-        ++charCount;
+  unsigned int charCount = 0;
+  size_t bytesNeeded = 1024;
+  std::string tmpbuffer;
+
+
+  while (!next.Parse(strbuf)) {
+    while (!buffer.available(bytesNeeded)) {
+      if (uri.isEOF()) {
+        if (buffer.available(1)) {
+          bytesNeeded = buffer.bytes(0xffffffff);
+          break;
+        } else {
+          FAIL_MSG("End of file");
+          return false;
+        }
+      }else{
+        uri.readSome(bytesNeeded - buffer.bytes(bytesNeeded), *this);
       }
     }
+    tmpbuffer = buffer.remove(bytesNeeded);
+    read_in += bytesNeeded;
+    charCount += bytesNeeded;
     strbuf.append(tmpbuffer);
   }
 
@@ -80,7 +91,7 @@ bool AnalyserRTMP::parsePacket(){
     DETAIL_MED("CTRL: Set chunk size: %zu", RTMPStream::chunk_rec_max);
     break;
   case 2: // abort message - we ignore this one
-    DETAIL_MED("CTRL: Abort message: %" PRIu32, Bit::btohl(next.data.data()));
+    DETAIL_MED("CTRL: Abort message: %i", ntohl(*(int *)next.data.c_str()));
     // 4 bytes of stream id to drop
     break;
   case 3: // ack
@@ -88,46 +99,53 @@ bool AnalyserRTMP::parsePacket(){
     DETAIL_MED("CTRL: Acknowledgement: %zu", RTMPStream::snd_window_at);
     break;
   case 4:{
-    int16_t ucmtype = Bit::btohs(next.data.data());
+    short int ucmtype = ntohs(*(short int *)next.data.c_str());
     switch (ucmtype){
     case 0:
-      DETAIL_MED("CTRL: User control message: stream begin %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: stream begin %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 1:
-      DETAIL_MED("CTRL: User control message: stream EOF %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: stream EOF %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 2:
-      DETAIL_MED("CTRL: User control message: stream dry %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: stream dry %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 3:
-      DETAIL_MED("CTRL: User control message: setbufferlen %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: setbufferlen %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 4:
-      DETAIL_MED("CTRL: User control message: streamisrecorded %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: streamisrecorded %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 6:
-      DETAIL_MED("CTRL: User control message: pingrequest %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: pingrequest %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 7:
-      DETAIL_MED("CTRL: User control message: pingresponse %" PRIu32, Bit::btohl(next.data.data() + 2));
+      DETAIL_MED("CTRL: User control message: pingresponse %u",
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 31:
     case 32:
-      // don't know, but not interes ting anyway
+      // don't know, but not interesting anyway
       break;
     default:
-      DETAIL_LOW("CTRL: User control message: UNKNOWN %" PRId16 " - %" PRIu32, ucmtype,
-                 Bit::btohl(next.data.data() + 2));
+      DETAIL_LOW("CTRL: User control message: UNKNOWN %hu - %u", ucmtype,
+                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     }
   }break;
   case 5: // window size of other end
-    RTMPStream::rec_window_size = Bit::btohl(next.data.data());
+    RTMPStream::rec_window_size = ntohl(*(int *)next.data.c_str());
     RTMPStream::rec_window_at = RTMPStream::rec_cnt;
     DETAIL_MED("CTRL: Window size: %zu", RTMPStream::rec_window_size);
     break;
   case 6:
-    RTMPStream::snd_window_size = Bit::btohl(next.data.data());
+    RTMPStream::snd_window_size = ntohl(*(int *)next.data.c_str());
     // 4 bytes window size, 1 byte limit type (ignored)
     DETAIL_MED("CTRL: Set peer bandwidth: %zu", RTMPStream::snd_window_size);
     break;
@@ -136,7 +154,7 @@ bool AnalyserRTMP::parsePacket(){
     if (detail >= 4 || reconstruct.good() || validate){
       F.ChunkLoader(next);
       mediaTime = F.tagTime();
-      DETAIL_VHI("[%" PRIu64 "+%" PRId64 "] %s", F.tagTime(), F.offset(), F.tagType().c_str());
+      DETAIL_VHI("[%llu+%llu] %s", F.tagTime(), F.offset(), F.tagType().c_str());
       if (reconstruct.good()){reconstruct.write(F.data, F.len);}
     }
     break;
@@ -179,4 +197,9 @@ bool AnalyserRTMP::parsePacket(){
     break;
   }// switch for type of chunk
   return true;
+}
+
+void AnalyserRTMP::dataCallback(const char *ptr, size_t size) {
+//  INFO_MSG("got data: %llu", size);
+  buffer.append(ptr, size);
 }

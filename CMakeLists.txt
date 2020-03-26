@@ -403,6 +403,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
+makeAnalyser(WebRTC webrtc) #LTS
 
 #LTS_START
 ########################################
@@ -961,3 +962,5 @@ add_executable(streamstatustest test/status.cpp)
 target_link_libraries(streamstatustest mist)
 add_executable(websockettest test/websocket.cpp)
 target_link_libraries(websockettest mist)
+add_executable(MistLoadTest test/load.cpp generated/loadtest_html.h)
+target_link_libraries(MistLoadTest mist)

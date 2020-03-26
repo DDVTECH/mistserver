@@ -21,6 +21,8 @@ void AnalyserHLS::init(Util::Config &conf){
 }
 
 void AnalyserHLS::getParts(const std::string &body){
+//INFO_MSG("body: %s", body.c_str());
+Util::sleep(500);
   parts.clear();
   std::stringstream data(body);
   std::string line;
@@ -38,12 +40,17 @@ void AnalyserHLS::getParts(const std::string &body){
         refreshAt = Util::bootSecs();
         return;
       }
-      if (!parsedPart || no > parsedPart){
-        HTTP::URL newURL = root.link(line);
-        INFO_MSG("Discovered #%" PRIu64 ": %s", no, newURL.getUrl().c_str());
-        parts.push_back(HLSPart(newURL, no, durat));
+
+      if((line.find(".ts") != std::string::npos) || (line.find(".mp4") != std::string::npos) ){
+        if (!parsedPart || no > parsedPart) {
+          HTTP::URL newURL = root.link(line);
+          //INFO_MSG("Discovered #%llu: %s", no, newURL.getUrl().c_str());
+          // INFO_MSG("Discovered #%llu: %s", no, newURL.getUrl().c_str());
+          parts.push_back(HLSPart(newURL, no, durat));
+        }
+        ++no;
       }
-      ++no;
+
     }else{
       if (line.substr(0, 8) == "#EXTINF:"){durat = atof(line.c_str() + 8) * 1000;}
       if (line.substr(0, 22) == "#EXT-X-MEDIA-SEQUENCE:"){no = atoll(line.c_str() + 22);}
@@ -65,15 +72,6 @@ void AnalyserHLS::stop(){
   refreshAt = 0;
 }
 
-bool AnalyserHLS::open(const std::string &url){
-  root = HTTP::URL(url);
-  if (root.protocol != "http" && root.protocol != "https"){
-    FAIL_MSG("Only http(s) protocol is supported (%s not supported)", root.protocol.c_str());
-    return false;
-  }
-  return true;
-}
-
 AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
   if (conf.getString("reconstruct") != ""){
     reconstruct.open(conf.getString("reconstruct").c_str());
@@ -84,15 +82,77 @@ AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
   hlsTime = 0;
   parsedPart = 0;
   refreshAt = Util::bootSecs();
+  refreshPlaylist = true;
 }
+
+bool AnalyserHLS::open(const std::string & filename){
+  if (filename == "-") {
+    FAIL_MSG("input from stdin not supported");
+    return false;
+  }
+
+  //INFO_MSG("opening %s", filename.c_str());
+  root = HTTP::URL(filename);
+  root = uri.getURI().link(filename);
+
+  return Analyser::open(filename); 
+}
+
+bool AnalyserHLS::readPlaylist(std::string source){
+  char * data;
+  size_t s;
+
+  std::string pl = root.link(source).getUrl();
+
+  DONTEVEN_MSG("playlist open url: %s", pl.c_str());
+  uri.open(pl.c_str());
+  //uri.open(source);
+
+
+  uri.readAll(data,s);
+  //uri.readAll(*this);
+  
+//  INFO_MSG("read done, buf size: %llu", buffer.bytes(0xffffffff));
+  
+  std::string line;
+//  data = buffer.copy(buffer.bytes(0xffffffff)).c_str();
+//  line =  buffer.copy(buffer.bytes(0xffffffff));
+
+
+  std::stringstream body(data);
+  while (body.good()){
+    std::getline(body, line);
+    if (line.size() && *line.rbegin() == '\r'){line.resize(line.size() - 1);}
+    if (!line.size()){continue;}
+    if (line[0] != '#'){
+      if (line.find("m3u") != std::string::npos){
+        root = root.link(line);
+        root = uri.getURI().link(line);
+        MEDIUM_MSG("Found a sub-playlist, re-targeting %s", root.getUrl().c_str());
+        
+        //if subplaylist, read again
+        uri.open(root.getUrl());
+        uri.readAll(data,s);
+
+        break;
+      }
+    }
+  }
+
+  getParts(data);
+  return true;
+}
+
+
 
 bool AnalyserHLS::parsePacket(){
   while (isOpen()){
-    // If needed, refresh the playlist
+    char * pl;
+    size_t s;
+
+    std::string segmentUri;
     if (refreshAt && Util::bootSecs() >= refreshAt){
-      if (DL.get(root)){
-        getParts(DL.data());
-      }else{
+      if(!readPlaylist(uriSource.c_str())){
         FAIL_MSG("Could not refresh playlist!");
         return false;
       }
@@ -102,18 +162,18 @@ bool AnalyserHLS::parsePacket(){
     if (parts.size()){
       HLSPart part = *parts.begin();
       parts.pop_front();
-      if (!DL.get(part.uri)){return false;}
-      if (DL.getHeader("Content-Length") != ""){
-        if (DL.data().size() != atoi(DL.getHeader("Content-Length").c_str())){
-          FAIL_MSG("Expected %s bytes of data, but only received %zu.",
-                   DL.getHeader("Content-Length").c_str(), DL.data().size());
-          return false;
-        }
-      }
-      if (DL.data().size() % 188){
-        FAIL_MSG("Expected a multiple of 188 bytes, received %zu bytes", DL.data().size());
+
+      segmentUri = uri.getURI().link(part.uri.path).getUrl().c_str();
+      segmentUri = part.uri.getUrl().c_str();
+      uri.open(segmentUri);
+      uri.readAll(pl,s);
+      MEDIUM_MSG("reading file: %s, size: %d", segmentUri.c_str(), s);
+      
+      if(s % 188){
+        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes", DL.data().size());
         return false;
       }
+
       parsedPart = part.no;
       hlsTime += part.dur;
       mediaTime = (uint64_t)hlsTime;
@@ -131,4 +191,9 @@ bool AnalyserHLS::parsePacket(){
     // The non-live case is already handled in isOpen()
   }
   return false;
+}
+
+void AnalyserHLS::dataCallback(const char *ptr, size_t size) {
+  //INFO_MSG("hls callback, size: %d, totalbufsize: %llu", size, buffer.bytes(0xffffffff));
+  buffer.append(ptr, size);
 }

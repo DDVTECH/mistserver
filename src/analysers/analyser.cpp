@@ -1,31 +1,26 @@
 #include "analyser.h"
 #include <iostream>
 #include <mist/timing.h>
+#include <mist/http_parser.h>
+#include <mist/urireader.h>
+
 
 /// Reads configuration and opens a passed filename replacing standard input if needed.
 Analyser::Analyser(Util::Config &conf){
   validate = conf.getBool("validate");
   detail = conf.getInteger("detail");
-  timeOut = conf.getInteger("timeout");
+  timeOut = conf.getInteger("timeout") *1000;
   mediaTime = 0;
-  upTime = Util::bootSecs();
+  upTime = Util::bootMS();
   isActive = &conf.is_active;
+  firstMediaTime=0;
+  firstMediaBootTime=0;
 }
 
-/// Opens the filename. Supports stdin and plain files.
-bool Analyser::open(const std::string &filename){
-  if (filename.size() && filename != "-"){
-    int fp = ::open(filename.c_str(), O_RDONLY);
-    if (fp <= 0){
-      FAIL_MSG("Cannot open '%s': %s", filename.c_str(), strerror(errno));
-      return false;
-    }
-    dup2(fp, STDIN_FILENO);
-    close(fp);
-    INFO_MSG("Parsing %s...", filename.c_str());
-  }else{
-    INFO_MSG("Parsing standard input...");
-  }
+///Opens the filename. Supports stdin and plain files.
+bool Analyser::open(const std::string & filename){
+  uri.open(filename);
+  uriSource = filename;
   return true;
 }
 
@@ -38,7 +33,8 @@ void Analyser::stop(){
 /// Prints validation message if needed
 Analyser::~Analyser(){
   if (validate){
-    std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << std::endl;
+    finTime = Util::bootMS();
+    std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << ", " << firstMediaTime << ", " << firstMediaBootTime  << std::endl;
   }
 }
 
@@ -51,7 +47,8 @@ bool Analyser::isOpen(){
 int Analyser::run(Util::Config &conf){
   isActive = &conf.is_active;
   if (!open(conf.getString("filename"))){return 1;}
-  while (conf.is_active){
+
+  while (conf.is_active && isOpen()){
     if (!parsePacket()){
       if (isOpen()){
         FAIL_MSG("Could not parse packet!");
@@ -61,27 +58,47 @@ int Analyser::run(Util::Config &conf){
       return 0;
     }
     if (validate){
-      finTime = Util::bootSecs();
+      finTime = Util::bootMS();
+      if(firstMediaBootTime == 0){
+        firstMediaBootTime = finTime;
+        firstMediaTime = mediaTime;
+      }else{
+        // slow down to realtime + 10s
+        if (validate && ((finTime - firstMediaBootTime + 10000) < mediaTime - firstMediaTime)){
+          uint32_t sleepMs = (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime + 10000);
+          if ((finTime - firstMediaBootTime  + sleepMs / 1000) >= timeOut){
+            WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
+            return 3;
+          }
+          DONTEVEN_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
+          Util::sleep(sleepMs);
+          finTime = Util::bootMS();
+        }
 
-      // slow down to realtime + 10s
-      if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
-        uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
-        if ((finTime - upTime + sleepMs / 1000) >= timeOut){
-          WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
+        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 2000){
+          FAIL_MSG("Media time more than 2 seconds behind!");
+          FAIL_MSG("fintime: %" PRIu64 " , upTime: %" PRIu64 ", mediatime: %" PRIu64 ", fin-up: %" PRIu64 ", mediatime/1000: %" PRIu64 ", mediatime: %" PRIu64, finTime, upTime, mediaTime, (finTime - upTime), (mediaTime /1000) +2, mediaTime);
+          return 4;
+        }
+        // slow down to realtime + 10s
+        if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
+          uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
+          if ((finTime - upTime + sleepMs / 1000) >= timeOut){
+            WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
+            return 3;
+          }
+
+          if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 2000){
+            FAIL_MSG("Media time more than 2 seconds behind!");
+            //FAIL_MSG("fintime: %llu, upTime: %llu, mediatime: %llu, fin-up: %llu, mediatime/1000: %llu, mediatime: %llu", finTime, upTime, mediaTime, (finTime - upTime), (mediaTime /1000) +2, mediaTime);
+            return 4;
+
+          }
+        }
+        if ((finTime - firstMediaBootTime ) >= timeOut){
+          MEDIUM_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
           return 3;
         }
-        INFO_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
-        Util::sleep(sleepMs);
-        finTime = Util::bootSecs();
-      }
-
-      if ((finTime - upTime) > (mediaTime / 1000) + 2){
-        FAIL_MSG("Media time more than 2 seconds behind!");
-        return 4;
-      }
-      if ((finTime - upTime) >= timeOut){
-        WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
-        return 3;
       }
     }
   }

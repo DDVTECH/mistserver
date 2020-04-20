@@ -153,6 +153,12 @@ namespace Mist{
     capa["optional"]["jitterlog"]["short"] = "J";
     capa["optional"]["jitterlog"]["default"] = 0;
 
+    capa["optional"]["packetlog"]["name"] = "Write packet log";
+    capa["optional"]["packetlog"]["help"] = "Writes log of full packet contents to /tmp/ for each connection";
+    capa["optional"]["packetlog"]["option"] = "--packetlog";
+    capa["optional"]["packetlog"]["short"] = "P";
+    capa["optional"]["packetlog"]["default"] = 0;
+
     config->addOptionsFromCapabilities(capa);
   }
 
@@ -190,9 +196,17 @@ namespace Mist{
         return;
       }
 
+      if (config && config->hasOption("packetlog") && config->getBool("packetlog")){
+        std::string fileName = "/tmp/wrtcpackets_"+JSON::Value(getpid()).asString();
+        packetLog.open(fileName.c_str());
+      }
+
       // get video and supported video formats from offer.
       SDP::Session sdpParser;
       const std::string &offerStr = command["offer_sdp"].asStringRef();
+      if (packetLog.is_open()){
+        packetLog << "[" << Util::bootMS() << "]" << offerStr << std::endl << std::endl;
+      }
       if (!sdpParser.parseSDP(offerStr) || !sdpAnswer.parseOffer(offerStr)){
         sendSignalingError("offer_sdp", "Failed to parse the offered SDP");
         return;
@@ -792,12 +806,16 @@ namespace Mist{
       uint8_t fb = (uint8_t)udp.data[0];
 
       if (fb > 127 && fb < 192){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": RTP/RTCP" << std::endl;}
         handleReceivedRTPOrRTCPPacket();
       }else if (fb > 19 && fb < 64){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": DTLS" << std::endl;}
         handleReceivedDTLSPacket();
       }else if (fb < 2){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": STUN" << std::endl;}
         handleReceivedSTUNPacket();
       }else{
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Packet " << (int)fb << ": Unknown" << std::endl;}
         FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
       }
     }
@@ -855,6 +873,7 @@ namespace Mist{
     std::string remoteIP = "";
     uint32_t remotePort = 0;
     udp.GetDestination(remoteIP, remotePort);
+    if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "STUN: Bound to " << remoteIP << ":" << remotePort << std::endl;}
 
     // create the binding success response
     stun_msg.removeAttributes();
@@ -883,7 +902,10 @@ namespace Mist{
       return;
     }
 
-    if (!dtlsHandshake.hasKeyingMaterial()){return;}
+    if (!dtlsHandshake.hasKeyingMaterial()){
+      if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "DTLS: No keying material (yet)" << std::endl;}
+      return;
+    }
 
     if (srtpReader.init(dtlsHandshake.cipher, dtlsHandshake.remote_key, dtlsHandshake.remote_salt) != 0){
       FAIL_MSG("Failed to initialize the SRTP reader.");
@@ -894,6 +916,7 @@ namespace Mist{
       FAIL_MSG("Failed to initialize the SRTP writer.");
       return;
     }
+    if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "DTLS: Keying material success" << std::endl;}
   }
 
   void OutWebRTC::ackNACK(uint32_t pSSRC, uint16_t seq){
@@ -928,6 +951,7 @@ namespace Mist{
       }
 
       if (idx == INVALID_TRACK_ID || !webrtcTracks.count(idx)){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP payload type " << rtp_pkt.getPayloadType() << " not prepared, ignoring" << std::endl;}
         FAIL_MSG("Received an RTP packet for a track that we didn't prepare for. PayloadType is "
                  "%" PRIu32 ", idx %zu",
                  rtp_pkt.getPayloadType(), idx);
@@ -938,11 +962,15 @@ namespace Mist{
       WebRTCTrack &rtcTrack = webrtcTracks[idx];
 
       // Do not parse packets we don't care about
-      if (!rtcTrack.sorter.wantSeq(currSeqNum)){return;}
+      if (!rtcTrack.sorter.wantSeq(currSeqNum)){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sequence #" << currSeqNum << " not interesting, ignored" << std::endl;}
+        return;
+      }
 
       // Decrypt the SRTP to RTP
       int len = (int)udp.data_len;
       if (srtpReader.unprotectRtp((uint8_t *)udp.data, &len) != 0){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
         FAIL_MSG("Failed to unprotect a RTP packet.");
         return;
       }
@@ -954,6 +982,7 @@ namespace Mist{
       // algorithm should be used; this is used to trigger NACKs.
       if (rtcTrack.prevReceivedSequenceNumber != 0 && (rtcTrack.prevReceivedSequenceNumber + 1) != currSeqNum){
         while (rtcTrack.prevReceivedSequenceNumber < currSeqNum){
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sending NACK for sequence #" << rtcTrack.prevReceivedSequenceNumber << std::endl;}
           sendRTCPFeedbackNACK(rtcTrack, rtcTrack.prevReceivedSequenceNumber);
           rtcTrack.prevReceivedSequenceNumber++;
         }
@@ -962,9 +991,11 @@ namespace Mist{
       rtcTrack.prevReceivedSequenceNumber = currSeqNum;
 
       if (rtp_pkt.getPayloadType() == rtcTrack.REDPayloadType || rtp_pkt.getPayloadType() == rtcTrack.ULPFECPayloadType){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RED packet " << rtp_pkt.getPayloadType() << " #" << currSeqNum << std::endl;}
         rtcTrack.sorter.addREDPacket(udp.data, len, rtcTrack.payloadType, rtcTrack.REDPayloadType,
                                      rtcTrack.ULPFECPayloadType);
       }else{
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Basic packet " << rtp_pkt.getPayloadType() << " #" << currSeqNum << std::endl;}
         rtcTrack.sorter.addPacket(unprotPack);
       }
     }else if ((pt >= 64) && (pt < 96)){
@@ -972,6 +1003,7 @@ namespace Mist{
       if (pt == 77 || pt == 78 || pt == 65){
         int len = udp.data_len;
         if (srtpReader.unprotectRtcp((uint8_t *)udp.data, &len) != 0){
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
           FAIL_MSG("Failed to unprotect RTCP.");
           return;
         }
@@ -982,36 +1014,42 @@ namespace Mist{
             uint16_t seq = Bit::btohs(udp.data + 12);
             uint16_t bitmask = Bit::btohs(udp.data + 14);
             ackNACK(pSSRC, seq);
-            if (bitmask & 1){ackNACK(pSSRC, seq + 1);}
-            if (bitmask & 2){ackNACK(pSSRC, seq + 2);}
-            if (bitmask & 4){ackNACK(pSSRC, seq + 3);}
-            if (bitmask & 8){ackNACK(pSSRC, seq + 4);}
-            if (bitmask & 16){ackNACK(pSSRC, seq + 5);}
-            if (bitmask & 32){ackNACK(pSSRC, seq + 6);}
-            if (bitmask & 64){ackNACK(pSSRC, seq + 7);}
-            if (bitmask & 128){ackNACK(pSSRC, seq + 8);}
-            if (bitmask & 256){ackNACK(pSSRC, seq + 9);}
-            if (bitmask & 512){ackNACK(pSSRC, seq + 10);}
-            if (bitmask & 1024){ackNACK(pSSRC, seq + 11);}
-            if (bitmask & 2048){ackNACK(pSSRC, seq + 12);}
-            if (bitmask & 4096){ackNACK(pSSRC, seq + 13);}
-            if (bitmask & 8192){ackNACK(pSSRC, seq + 14);}
-            if (bitmask & 16384){ackNACK(pSSRC, seq + 15);}
-            if (bitmask & 32768){ackNACK(pSSRC, seq + 16);}
+            size_t missed = 1;
+            if (bitmask & 1){ackNACK(pSSRC, seq + 1); missed++;}
+            if (bitmask & 2){ackNACK(pSSRC, seq + 2); missed++;}
+            if (bitmask & 4){ackNACK(pSSRC, seq + 3); missed++;}
+            if (bitmask & 8){ackNACK(pSSRC, seq + 4); missed++;}
+            if (bitmask & 16){ackNACK(pSSRC, seq + 5); missed++;}
+            if (bitmask & 32){ackNACK(pSSRC, seq + 6); missed++;}
+            if (bitmask & 64){ackNACK(pSSRC, seq + 7); missed++;}
+            if (bitmask & 128){ackNACK(pSSRC, seq + 8); missed++;}
+            if (bitmask & 256){ackNACK(pSSRC, seq + 9); missed++;}
+            if (bitmask & 512){ackNACK(pSSRC, seq + 10); missed++;}
+            if (bitmask & 1024){ackNACK(pSSRC, seq + 11); missed++;}
+            if (bitmask & 2048){ackNACK(pSSRC, seq + 12); missed++;}
+            if (bitmask & 4096){ackNACK(pSSRC, seq + 13); missed++;}
+            if (bitmask & 8192){ackNACK(pSSRC, seq + 14); missed++;}
+            if (bitmask & 16384){ackNACK(pSSRC, seq + 15); missed++;}
+            if (bitmask & 32768){ackNACK(pSSRC, seq + 16); missed++;}
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "NACK: " << missed << " missed packet(s)" << std::endl;}
           }else{
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (type " << fmt << ")" << std::endl;}
             INFO_MSG("Received unimplemented RTP feedback message (%d)", fmt);
           }
         }
         if (pt == 78){
           if (fmt == 1){
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "PLI: Picture Loss Indication ( = keyframe request = ignored)" << std::endl;}
             DONTEVEN_MSG("Received picture loss indication");
           }else{
+            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (payload specific type " << fmt << ")" << std::endl;}
             INFO_MSG("Received unimplemented payload-specific feedback message (%d)", fmt);
           }
         }
       }
 
     }else{
+      if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
       FAIL_MSG("Unknown payload type: %u", pt);
     }
   }
@@ -1026,6 +1064,7 @@ namespace Mist{
 
   void OutWebRTC::onDTSCConverterHasPacket(const DTSC::Packet &pkt){
 
+
     // extract meta data (init data, width/height, etc);
     size_t idx = M.trackIDToIndex(pkt.getTrackId(), getpid());
     std::string codec = M.getCodec(idx);
@@ -1035,6 +1074,8 @@ namespace Mist{
         return;
       }
     }
+
+    if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << codec << " data: " << pkt.toSummary() << std::endl;}
 
     if (codec == "VP8" && pkt.getFlag("keyframe")){extractFrameSizeFromVP8KeyFrame(pkt);}
     if (codec == "VP9" && pkt.getFlag("keyframe")){extractFrameSizeFromVP8KeyFrame(pkt);}
@@ -1099,6 +1140,7 @@ namespace Mist{
       ERROR_MSG("Received a sorted RTP packet for payload %zu (idx %zu) but we don't manage this track.", trackId, idx);
       return;
     }
+    if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sorted packet type " << pkt.getPayloadType() << " #" << pkt.getSequence() << std::endl;}
     webrtcTracks[idx].rtpToDTSC.addRTP(pkt);
   }
 

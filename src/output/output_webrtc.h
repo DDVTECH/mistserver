@@ -146,6 +146,7 @@ namespace Mist{
   private:
     uint64_t lastPackMs;
     std::ofstream jitterLog;
+    std::ofstream packetLog;
     std::string externalAddr;
     void ackNACK(uint32_t SSRC, uint16_t seq);
     bool handleWebRTCInputOutput(); ///< Reads data from the UDP socket. Returns true when we read

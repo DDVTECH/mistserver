@@ -734,7 +734,7 @@ namespace RTP{
         fuaBuffer[4] |= 0x80;                        // set error bit
         handleHEVCSingle(msTime, fuaBuffer, fuaBuffer.size(),
                          h265::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-        fuaBuffer.size() = 0;
+        fuaBuffer.truncate(0);
         return;
       }
 
@@ -742,14 +742,14 @@ namespace RTP{
       if (!fuaBuffer.size()){len += 6;}// six extra bytes for the first packet
       if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
       if (!fuaBuffer.size()){
-        memcpy(fuaBuffer + 6, pl + 3, plSize - 3);
+        fuaBuffer.append("\000\000\000\000\000\000", 6);
+        fuaBuffer.append(pl + 3, plSize - 3);
         // reconstruct first byte
         fuaBuffer[4] = ((pl[2] & 0x3F) << 1) | (pl[0] & 0x81);
         fuaBuffer[5] = pl[1];
       }else{
-        memcpy(fuaBuffer + fuaBuffer.size(), pl + 3, plSize - 3);
+        fuaBuffer.append(pl+3, plSize-3);
       }
-      fuaBuffer.size() += len;
 
       if (pl[2] & 0x40){// last packet
         VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %lu",
@@ -758,7 +758,7 @@ namespace RTP{
         Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
         handleHEVCSingle(msTime, fuaBuffer, fuaBuffer.size(),
                          h265::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
-        fuaBuffer.size() = 0;
+        fuaBuffer.truncate(0);
       }
     }else if (nalType == 50){
       ERROR_MSG("PACI/TSCI not supported yet");
@@ -882,7 +882,7 @@ namespace RTP{
       if (fuaBuffer.size() && ((pl[1] & 0x80) || missed)){
         WARN_MSG("Ending unfinished FU-A");
         INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaBuffer.size());
-        fuaBuffer.size() = 0;
+        fuaBuffer.truncate(0);
         return;
       }
 
@@ -890,13 +890,13 @@ namespace RTP{
       if (!fuaBuffer.size()){len += 5;}// five extra bytes for the first packet
       if (!fuaBuffer.allocate(fuaBuffer.size() + len)){return;}
       if (!fuaBuffer.size()){
-        memcpy(fuaBuffer + 4, pl + 1, plSize - 1);
+        fuaBuffer.append("\000\000\000\000", 4);
+        fuaBuffer.append(pl + 1, plSize - 1);
         // reconstruct first byte
         fuaBuffer[4] = (fuaBuffer[4] & 0x1F) | (pl[0] & 0xE0);
       }else{
-        memcpy(fuaBuffer + fuaBuffer.size(), pl + 2, plSize - 2);
+        fuaBuffer.append(pl+2, plSize-2);
       }
-      fuaBuffer.size() += len;
 
       if (pl[1] & 0x40){// last packet
         INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F),
@@ -910,7 +910,7 @@ namespace RTP{
           handleH264Single(msTime, fuaBuffer, fuaBuffer.size(),
                            h264::isKeyframe(fuaBuffer + 4, fuaBuffer.size() - 4));
         }
-        fuaBuffer.size() = 0;
+        fuaBuffer.truncate(0);
       }
       return;
     }

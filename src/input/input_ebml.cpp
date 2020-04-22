@@ -108,7 +108,7 @@ namespace Mist{
   }
 
   bool InputEBML::readElement(){
-    ptr.size() = 0;
+    ptr.truncate(0);
     readingMinimal = true;
     uint32_t needed = EBML::Element::needBytes(ptr, ptr.size(), readingMinimal);
     while (ptr.size() < needed){
@@ -125,9 +125,9 @@ namespace Mist{
           }
           return false;
         }
+        ptr.append(0, toRead);
       }
       totalBytes += toRead;
-      ptr.size() = needed;
       needed = EBML::Element::needBytes(ptr, ptr.size(), readingMinimal);
       if (ptr.size() >= needed){
         // Make sure TrackEntry types are read whole

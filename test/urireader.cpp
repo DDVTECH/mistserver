@@ -3,18 +3,14 @@
 
 class URITest : public Util::DataCallback{
 public:
-  void dump(const char *ptr, size_t size);
-  void dataCallback(const char *ptr, size_t size);
+  void dump(const char *ptr, size_t size){
+    if (fwrite(ptr, sizeof(char), size, stdout) != size){INFO_MSG("error: %s", strerror(errno));}
+  }
+  void dataCallback(const char *ptr, size_t size){
+    dump(ptr, size);
+  }
   int main(int argc, char **argv);
 };
-
-void URITest::dataCallback(const char *ptr, size_t size){
-  dump(ptr, size);
-}
-
-void URITest::dump(const char *ptr, size_t size){
-  if (fwrite(ptr, sizeof(char), size, stdout) != size){INFO_MSG("error: %s", strerror(errno));}
-}
 
 int URITest::main(int argc, char **argv){
   Util::redirectLogsIfNeeded();

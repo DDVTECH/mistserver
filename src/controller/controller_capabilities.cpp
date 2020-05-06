@@ -109,6 +109,12 @@ namespace Controller{
     trgs["STREAM_BUFFER"]["response"] = "ignored";
     trgs["STREAM_BUFFER"]["response_action"] = "None.";
 
+    trgs["STREAM_END"]["when"] = "Every time a stream ends (no more viewers after a period of activity)";
+    trgs["STREAM_END"]["stream_specific"] = true;
+    trgs["STREAM_END"]["payload"] = "stream name (string)\ndownloaded bytes (integer)\nuploaded bytes (integer)\ntotal viewers (integer)\ntotal inputs (integer)\ntotal outputs (integer)\nviewer seconds (integer)";
+    trgs["STREAM_END"]["response"] = "ignored";
+    trgs["STREAM_END"]["response_action"] = "None.";
+
     trgs["RTMP_PUSH_REWRITE"]["when"] =
         "On incoming RTMP pushes, allows rewriting the RTMP URL to/from custom formatting";
     trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = false;

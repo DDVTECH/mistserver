@@ -598,26 +598,6 @@ namespace Mist{
     return end;
   }
 
-  /// Return the most live time stamp of the selected tracks, or 0 if unknown or non-live.
-  /// Returns the time stamp of the newest track if nothing is selected.
-  /// Returns zero if no tracks exist.
-  uint64_t Output::liveTime(){
-    if (M.getVod()){return 0;}
-    if (M.getValidTracks().size()){return 0;}
-    uint64_t end = 0;
-    if (userSelect.size()){
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (end < M.getLastms(it->first)){end = M.getLastms(it->first);}
-      }
-    }else{
-      std::set<size_t> validTracks = M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        if (end < M.getLastms(*it)){end = M.getLastms(*it);}
-      }
-    }
-    return end;
-  }
-
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   void Output::seekKeyframesIn(unsigned long long pos, unsigned long long maxDelta){
     sought = true;
@@ -803,7 +783,7 @@ namespace Mist{
     if (isRecordingToFile){
       if (M.getLive() &&
           (targetParams.count("recstartunix") || targetParams.count("recstopunix"))){
-        uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
+        uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
         if (targetParams.count("recstartunix")){
           uint64_t startUnix = atoll(targetParams["recstartunix"].c_str());
           if (startUnix < unixStreamBegin){
@@ -885,7 +865,7 @@ namespace Mist{
         targetParams["realtime"] = "1";
       }
       if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
-        int64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
+        uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
         if (targetParams.count("startunix")){
           int64_t startUnix = atoll(targetParams["startunix"].c_str());
           if (startUnix < 0){
@@ -893,7 +873,7 @@ namespace Mist{
             startUnix += Util::epoch();
             if (startUnix < unixStreamBegin){
               INFO_MSG("Waiting for stream to reach intended starting point");
-              while (startUnix < Util::epoch() - (liveTime() / 1000) && keepGoing()){
+              while (startUnix < Util::epoch() - (endTime() / 1000) && keepGoing()){
                 Util::wait(1000);
                 stats();
                 startUnix = origStartUnix + Util::epoch();

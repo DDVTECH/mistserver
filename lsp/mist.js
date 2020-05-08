@@ -6953,6 +6953,9 @@ $.fn.getval = function(){
   if ((opts) && ('type' in opts)) {
     var type = opts.type;
     switch (type) { //exceptions only
+      case 'int':
+        if (val != "") { val = Number(val); }
+        break;
       case 'span':
         val = $(this).html();
         break;

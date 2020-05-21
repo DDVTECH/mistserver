@@ -8,6 +8,19 @@
 #include "url.h"
 #include "util.h"
 
+//Dynamic types we hardcode:
+//96 = AAC
+//97 = H264
+//98 = VP8
+//99 = VP9
+//100 = AC3
+//101 = ALAW (non-standard properties)
+//102 = opus
+//103 = PCM (non-standard properties)
+//104 = HEVC
+//105 = ULAW (non-standard properties)
+//106+ = unused
+
 namespace SDP{
 
   static State *snglState = 0;
@@ -112,6 +125,22 @@ namespace SDP{
       }
       mediaDesc << "\r\na=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\na=control:track"
                 << tid << "\r\n";
+    }else if (codec == "VP8"){
+      mediaDesc << "m=video 0 RTP/AVP 98\r\n"
+                   "a=rtpmap:98 VP8/90000\r\n"
+                   "a=cliprect:0,0,"
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:98 "
+                << M.getWidth(tid) << '-' << M.getHeight(tid) << "\r\n"
+                << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
+                << "a=control:track" << tid << "\r\n";
+    }else if (codec == "VP9"){
+      mediaDesc << "m=video 0 RTP/AVP 99\r\n"
+                   "a=rtpmap:99 VP8/90000\r\n"
+                   "a=cliprect:0,0,"
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:99 "
+                << M.getWidth(tid) << '-' << M.getHeight(tid) << "\r\n"
+                << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
+                << "a=control:track" << tid << "\r\n";
     }else if (codec == "MPEG2"){
       mediaDesc << "m=video 0 RTP/AVP 32\r\n"
                    "a=cliprect:0,0,"
@@ -159,9 +188,9 @@ namespace SDP{
         mediaDesc << "m=audio 0 RTP/AVP 0"
                   << "\r\n";
       }else{
-        mediaDesc << "m=audio 0 RTP/AVP 104"
+        mediaDesc << "m=audio 0 RTP/AVP 105"
                   << "\r\n";
-        mediaDesc << "a=rtpmap:104 PCMU/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
+        mediaDesc << "a=rtpmap:105 PCMU/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
       mediaDesc << "a=control:track" << tid << "\r\n";
     }else if (codec == "PCM"){
@@ -226,6 +255,10 @@ namespace SDP{
       pack = RTP::Packet(97, 1, 0, mySSRC);
     }else if (codec == "HEVC"){
       pack = RTP::Packet(104, 1, 0, mySSRC);
+    }else if (codec == "VP8"){
+      pack = RTP::Packet(98, 1, 0, mySSRC);
+    }else if (codec == "VP9"){
+      pack = RTP::Packet(99, 1, 0, mySSRC);
     }else if (codec == "MPEG2"){
       pack = RTP::Packet(32, 1, 0, mySSRC);
     }else if (codec == "AAC"){
@@ -244,7 +277,7 @@ namespace SDP{
       if (M->getChannels(tid) == 1 && M->getRate(tid) == 8000){
         pack = RTP::Packet(0, 1, 0, mySSRC);
       }else{
-        pack = RTP::Packet(104, 1, 0, mySSRC);
+        pack = RTP::Packet(105, 1, 0, mySSRC);
       }
     }else if (codec == "PCM"){
       if (M->getSize(tid) == 16 && M->getChannels(tid) == 2 && M->getRate(tid) == 44100){

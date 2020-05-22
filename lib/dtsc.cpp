@@ -139,11 +139,11 @@ namespace DTSC{
         return;
       }
       if (!src.spool()){
-        if (sleepCount++ > 150){
+        if (sleepCount++ > 750){
           WARN_MSG("Waiting for packet on connection timed out");
           return;
         }
-        Util::wait(100);
+        Util::sleep(20);
       }
     }
   }

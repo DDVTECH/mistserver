@@ -969,6 +969,7 @@ namespace Mist{
     if (!maxSkipAhead){
       bool noReturn = false;
       uint64_t newSpeed = 1000;
+      if (extraKeepAway > 0){extraKeepAway--;}//Reduce extra latency if possible
       if (lMs - mKa - needsLookAhead - extraKeepAway > cTime + 50){
         // We need to speed up!
         uint64_t diff = (lMs - mKa - needsLookAhead - extraKeepAway) - cTime;
@@ -1169,9 +1170,9 @@ namespace Mist{
               uint8_t i = 6;
               while (--i && thisPacket.getTime() > ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime) &&
                      keepGoing()){
-                Util::sleep(std::min(thisPacket.getTime() -
-                                         ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime),
-                                     1000ul));
+                uint64_t amount = thisPacket.getTime() - ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime);
+                if (amount > 1000){amount = 1000;}
+                Util::sleep(amount);
                 //Make sure we stay responsive to requests and stats while waiting
                 if (wantRequest){requestHandler();}
                 stats();
@@ -1476,18 +1477,18 @@ namespace Mist{
         //Okay, there's no next page yet, and no next packet on this page either.
         //That means we're waiting for data to show up, somewhere.
         // after ~25 seconds, give up and drop the track.
-        if (++emptyCount >= 1000){
+        if (++emptyCount >= 2500){
           dropTrack(nxt.tid, "EOP: data wait timeout");
           return false;
         }
         //every ~1 second, check if the stream is not offline
-        if (emptyCount % 40 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+        if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
           Util::logExitReason("Stream source shut down");
           thisPacket.null();
           return true;
         }
         //every ~16 seconds, reconnect to metadata
-        if (emptyCount % 640 == 0){
+        if (emptyCount % 1600 == 0){
           reconnect();
           if (!meta){
             onFail("Could not connect to stream data", true);
@@ -1503,7 +1504,7 @@ namespace Mist{
           return false;//no sleep after reconnect
         }
         //Fine! We didn't want a packet, anyway. Let's try again later.
-        Util::sleep(25);
+        playbackSleep(10);
         return false;
       }
     }

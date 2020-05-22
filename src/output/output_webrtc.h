@@ -211,6 +211,8 @@ namespace Mist{
     bool firstKey;
     bool repeatInit;
     bool stayLive;
+    bool doDTLS;
+    bool volkswagenMode;
 
 #if defined(WEBRTC_PCAP)
     PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be

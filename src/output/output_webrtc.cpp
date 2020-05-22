@@ -54,6 +54,8 @@ namespace Mist{
     videoBitrate = 6 * 1000 * 1000;
     RTP::MAX_SEND = 1350 - 28;
     didReceiveKeyFrame = false;
+    doDTLS = true;
+    volkswagenMode = false;
 
     if (cert.init("NL", "webrtc", "webrtc") != 0){
       onFail("Failed to create the certificate.", true);
@@ -175,9 +177,25 @@ namespace Mist{
       HIGH_MSG("Ignoring non-text websocket frame");
       return;
     }
-
+    
     JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
     JSON::Value commandResult;
+
+
+    if(command.isMember("encrypt")){
+      doDTLS = false;
+      volkswagenMode = false;
+      if(command["encrypt"].asString() == "no" || command["encrypt"].asString() == "none"){
+        INFO_MSG("Disabling encryption");
+      }else if(command["encrypt"].asString() == "placebo" || command["encrypt"].asString() == "volkswagen"){
+        INFO_MSG("Entering volkswagen mode: encrypt data, but send plaintext for easier analysis");
+        srtpWriter.init("SRTP_AES128_CM_SHA1_80", "volkswagen modus", "volkswagenmode");
+        volkswagenMode = true;
+      }else{
+        doDTLS = true;
+      }
+    }
+
 
     // Check if there's a command type
     if (!command.isMember("type")){
@@ -209,6 +227,7 @@ namespace Mist{
       }
       if (!sdpParser.parseSDP(offerStr) || !sdpAnswer.parseOffer(offerStr)){
         sendSignalingError("offer_sdp", "Failed to parse the offered SDP");
+        WARN_MSG("offer parse failed");
         return;
       }
 
@@ -885,7 +904,7 @@ namespace Mist{
     stun_writer.writeMessageIntegrity(passwordLocal);
     stun_writer.writeFingerprint();
     stun_writer.end();
-
+    
     udp.SendNow((const char *)stun_writer.getBufferPtr(), stun_writer.getBufferSize());
     myConn.addUp(stun_writer.getBufferSize());
   }
@@ -1152,11 +1171,13 @@ namespace Mist{
     rtpOutBuffer.assign(data, nbytes);
 
     int protectedSize = nbytes;
-    if (srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize) != 0){
-      ERROR_MSG("Failed to protect the RTP message.");
-      return;
-    }
 
+    if (doDTLS){
+      if (srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize) != 0){
+        ERROR_MSG("Failed to protect the RTP message.");
+        return;
+      }
+    }
     udp.SendNow(rtpOutBuffer, (size_t)protectedSize);
 
     RTP::Packet tmpPkt(rtpOutBuffer, protectedSize);
@@ -1164,6 +1185,13 @@ namespace Mist{
     uint16_t seq = tmpPkt.getSequence();
     outBuffers[pSSRC].assign(seq, rtpOutBuffer, protectedSize);
     myConn.addUp(protectedSize);
+
+    if (volkswagenMode){
+      if (srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize) != 0){
+        ERROR_MSG("Failed to protect the RTP message.");
+        return;
+      }
+    }
   }
 
   void OutWebRTC::onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes){
@@ -1180,13 +1208,24 @@ namespace Mist{
     rtpOutBuffer.allocate(nbytes + 256);
     rtpOutBuffer.assign(data, nbytes);
     int rtcpPacketSize = nbytes;
-    if (srtpWriter.protectRtcp((uint8_t *)(void *)rtpOutBuffer, &rtcpPacketSize) != 0){
-      ERROR_MSG("Failed to protect the RTCP message.");
-      return;
+    
+    if (doDTLS){
+      if (srtpWriter.protectRtcp((uint8_t *)(void *)rtpOutBuffer, &rtcpPacketSize) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
     }
-
+    
     udp.SendNow(rtpOutBuffer, rtcpPacketSize);
     myConn.addUp(rtcpPacketSize);
+
+    if (volkswagenMode){
+      if (srtpWriter.protectRtcp((uint8_t *)(void *)rtpOutBuffer, &rtcpPacketSize) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
+    }
+    
   }
 
   // This function was implemented (it's virtual) to handle
@@ -1198,10 +1237,11 @@ namespace Mist{
   void OutWebRTC::sendHeader(){
 
     // first make sure that we complete the DTLS handshake.
-    while (keepGoing() && !dtlsHandshake.hasKeyingMaterial()){
-      if (!handleWebRTCInputOutput()){Util::sleep(10);}
+    if(doDTLS){
+      while (keepGoing() && !dtlsHandshake.hasKeyingMaterial()){
+        if (!handleWebRTCInputOutput()){Util::sleep(10);}
+      }
     }
-
     sentHeader = true;
   }
 
@@ -1396,13 +1436,22 @@ namespace Mist{
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
 
-    if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
-      ERROR_MSG("Failed to protect the RTCP message.");
-      return;
+    if (doDTLS){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
     }
-
+    
     udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
+
+    if (volkswagenMode){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
+    }
   }
 
   void OutWebRTC::sendRTCPFeedbackPLI(const WebRTCTrack &rtcTrack){
@@ -1427,13 +1476,23 @@ namespace Mist{
 
     // protect.
     int buffer_size_in_bytes = (int)buffer.size();
-    if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
-      ERROR_MSG("Failed to protect the RTCP message.");
-      return;
+
+    if (doDTLS){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
     }
 
     udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
+
+    if (volkswagenMode){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
+    }
   }
 
   // Notify sender that we lost a packet. See
@@ -1468,13 +1527,23 @@ namespace Mist{
 
     // protect.
     int buffer_size_in_bytes = (int)buffer.size();
-    if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
-      ERROR_MSG("Failed to protect the RTCP message.");
-      return;
-    }
 
+    if (doDTLS){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
+    }
+    
     udp.SendNow((const char *)&buffer[0], buffer_size_in_bytes);
     myConn.addUp(buffer_size_in_bytes);
+
+    if (volkswagenMode){
+      if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
+        ERROR_MSG("Failed to protect the RTCP message.");
+        return;
+      }
+    }
   }
 
   void OutWebRTC::sendRTCPFeedbackRR(WebRTCTrack &rtcTrack){

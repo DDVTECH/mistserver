@@ -325,34 +325,38 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
   }
   pid = fork();
   if (pid == 0){// child
+    int ch_stdin = 0, ch_stdout = 0, ch_stderr = 0;
     handler_set = false;
     if (!fdin){
-      dup2(devnull, 100);
+      ch_stdin = dup(devnull);
     }else if (*fdin == -1){
       close(pipein[1]); // close unused write end
-      dup2(pipein[0], 100);
+      ch_stdin = dup(pipein[0]);
       close(pipein[0]);
     }else{
-      dup2(*fdin, 100);
+      ch_stdin = dup(*fdin);
     }
+    while (ch_stdin < 3){ch_stdin = dup(ch_stdin);}
     if (!fdout){
-      dup2(devnull, 101);
+      ch_stdout = dup(devnull);
     }else if (*fdout == -1){
       close(pipeout[0]); // close unused read end
-      dup2(pipeout[1], 101);
+      ch_stdout = dup(pipeout[1]);
       close(pipeout[1]);
     }else{
-      dup2(*fdout, 101);
+      ch_stdout = dup(*fdout);
     }
+    while (ch_stdout < 3){ch_stdout = dup(ch_stdout);}
     if (!fderr){
-      dup2(devnull, 102);
+      ch_stderr = dup(devnull);
     }else if (*fderr == -1){
       close(pipeerr[0]); // close unused read end
-      dup2(pipeerr[1], 102);
+      ch_stderr = dup(pipeerr[1]);
       close(pipeerr[1]);
     }else{
-      dup2(*fderr, 102);
+      ch_stderr = dup(*fderr);
     }
+    while (ch_stderr < 3){ch_stderr = dup(ch_stderr);}
     if (fdin && *fdin != -1){close(*fdin);}
     if (fdout && *fdout != -1){close(*fdout);}
     if (fderr && *fderr != -1){close(*fderr);}
@@ -363,12 +367,12 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
       close(*it);
     }
     //Black magic to make sure if 0/1/2 are not what we think they are, we end up with them not mixed up and weird.
-    dup2(100, 0);
-    dup2(101, 1);
-    dup2(102, 2);
-    close(100);
-    close(101);
-    close(102);
+    dup2(ch_stdin, 0);
+    dup2(ch_stdout, 1);
+    dup2(ch_stderr, 2);
+    close(ch_stdout);
+    close(ch_stdin);
+    close(ch_stderr);
     //There! Now we normalized our stdio
     // Because execvp requires a char* const* and we have a const char* const*
     execvp(argv[0], (char *const *)argv);

@@ -1685,7 +1685,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   ss << port;
 
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = family;
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
   hints.ai_protocol = IPPROTO_UDP;

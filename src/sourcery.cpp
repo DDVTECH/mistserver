@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include "../lib/url.h"
 #include "../lib/url.cpp"
@@ -18,7 +19,7 @@ std::string getContents(const char * fileName){
   std::ifstream inFile(fileName);
   std::string fullText;
   if (inFile){
-    std::ostringstream contents;
+    std::stringstream contents;
     contents << inFile.rdbuf();
     inFile.close();
     return contents.str();

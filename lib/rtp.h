@@ -26,6 +26,8 @@ namespace SDP{
 namespace RTP{
 
   extern uint32_t MAX_SEND;
+  extern unsigned int PACKET_REORDER_WAIT;
+  extern unsigned int PACKET_DROP_TIMEOUT;
 
   /// This class is used to make RTP packets. Currently, H264, and AAC are supported. RTP
   /// mechanisms, like increasing sequence numbers and setting timestamps are all taken care of in
@@ -86,7 +88,6 @@ namespace RTP{
   class Sorter{
   public:
     Sorter(uint64_t trackId = 0, void (*callback)(const uint64_t track, const Packet &p) = 0);
-    bool wantSeq(uint16_t seq) const;
     void addPacket(const char *dat, unsigned int len);
     void addPacket(const Packet &pack);
     // By default, calls the callback function, if set.
@@ -95,9 +96,14 @@ namespace RTP{
     }
     void setCallback(uint64_t track, void (*callback)(const uint64_t track, const Packet &p));
     uint16_t rtpSeq;
+    uint16_t rtpWSeq;
+    bool first;
+    bool preBuffer;
     int32_t lostTotal, lostCurrent;
     uint32_t packTotal, packCurrent;
-
+    std::set<uint16_t> wantedSeqs;
+    uint32_t lastNTP; ///< Middle 32 bits of last Sender Report NTP timestamp
+    uint64_t lastBootMS; ///< bootMS time of last Sender Report
   private:
     uint64_t packTrack;
     std::map<uint16_t, Packet> packBuffer;

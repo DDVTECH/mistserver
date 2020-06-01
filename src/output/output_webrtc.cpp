@@ -25,13 +25,32 @@ namespace Mist{
 
   /* ------------------------------------------------ */
 
-  WebRTCTrack::WebRTCTrack()
-      : payloadType(0), SSRC(0), ULPFECPayloadType(0), REDPayloadType(0), RTXPayloadType(0),
-        prevReceivedSequenceNumber(0){}
+  WebRTCTrack::WebRTCTrack(){
+    payloadType = 0;
+    SSRC = 0;
+    ULPFECPayloadType = 0;
+    REDPayloadType = 0;
+    RTXPayloadType = 0;
+    lastTransit = 0;
+    jitter = 0;
+  }
+
+  void WebRTCTrack::gotPacket(uint32_t ts){
+    uint32_t arrival = Util::bootMS() * rtpToDTSC.multiplier;
+    int transit = arrival - ts;
+    int d = transit - lastTransit;
+    lastTransit = transit;
+    if (d < 0) d = -d;
+    jitter += (1. / 16.) * ((double)d - jitter);
+  }
 
   /* ------------------------------------------------ */
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
+    stats_jitter = 0;
+    stats_nacknum = 0;
+    stats_lossnum = 0;
+    stats_lossperc = 0;
     lastPackMs = 0;
     vidTrack = INVALID_TRACK_ID;
     prevVidTrack = INVALID_TRACK_ID;
@@ -52,6 +71,7 @@ namespace Mist{
     rtcpKeyFrameDelayInMillis = 2000;
     rtcpKeyFrameTimeoutInMillis = 0;
     videoBitrate = 6 * 1000 * 1000;
+    videoConstraint = videoBitrate;
     RTP::MAX_SEND = 1350 - 28;
     didReceiveKeyFrame = false;
     doDTLS = true;
@@ -114,7 +134,7 @@ namespace Mist{
         "Comma separated list of video codecs you want to support in preferred order. e.g. "
         "H264,VP8";
     capa["optional"]["preferredvideocodec"]["default"] = "H264,VP9,VP8";
-    capa["optional"]["preferredvideocodec"]["type"] = "string";
+    capa["optional"]["preferredvideocodec"]["type"] = "str";
     capa["optional"]["preferredvideocodec"]["option"] = "--webrtc-video-codecs";
     capa["optional"]["preferredvideocodec"]["short"] = "V";
 
@@ -123,7 +143,7 @@ namespace Mist{
         "Comma separated list of audio codecs you want to support in preferred order. e.g. "
         "opus,ALAW,ULAW";
     capa["optional"]["preferredaudiocodec"]["default"] = "opus,ALAW,ULAW";
-    capa["optional"]["preferredaudiocodec"]["type"] = "string";
+    capa["optional"]["preferredaudiocodec"]["type"] = "str";
     capa["optional"]["preferredaudiocodec"]["option"] = "--webrtc-audio-codecs";
     capa["optional"]["preferredaudiocodec"]["short"] = "A";
 
@@ -131,7 +151,7 @@ namespace Mist{
     capa["optional"]["bindhost"]["help"] = "Interface address or hostname to bind SRTP UDP socket "
                                            "to. Defaults to originating interface address.";
     capa["optional"]["bindhost"]["default"] = "";
-    capa["optional"]["bindhost"]["type"] = "string";
+    capa["optional"]["bindhost"]["type"] = "str";
     capa["optional"]["bindhost"]["option"] = "--bindhost";
     capa["optional"]["bindhost"]["short"] = "B";
 
@@ -161,12 +181,49 @@ namespace Mist{
     capa["optional"]["packetlog"]["short"] = "P";
     capa["optional"]["packetlog"]["default"] = 0;
 
+    capa["optional"]["nacktimeout"]["name"] = "RTP NACK timeout";
+    capa["optional"]["nacktimeout"]["help"] = "Amount of packets any track will wait for a packet to arrive before NACKing it";
+    capa["optional"]["nacktimeout"]["option"] = "--nacktimeout";
+    capa["optional"]["nacktimeout"]["short"] = "x";
+    capa["optional"]["nacktimeout"]["type"] = "uint";
+    capa["optional"]["nacktimeout"]["default"] = 5;
+
+    capa["optional"]["losttimeout"]["name"] = "RTP lost timeout";
+    capa["optional"]["losttimeout"]["help"] = "Amount of packets any track will wait for a packet to arrive before considering it lost";
+    capa["optional"]["losttimeout"]["option"] = "--losttimeout";
+    capa["optional"]["losttimeout"]["short"] = "l";
+    capa["optional"]["losttimeout"]["type"] = "uint";
+    capa["optional"]["losttimeout"]["default"] = 30;
+
+    capa["optional"]["nacktimeoutmobile"]["name"] = "RTP NACK timeout (mobile)";
+    capa["optional"]["nacktimeoutmobile"]["help"] = "Amount of packets any track will wait for a packet to arrive before NACKing it, on mobile connections";
+    capa["optional"]["nacktimeoutmobile"]["option"] = "--nacktimeoutmobile";
+    capa["optional"]["nacktimeoutmobile"]["short"] = "X";
+    capa["optional"]["nacktimeoutmobile"]["type"] = "uint";
+    capa["optional"]["nacktimeoutmobile"]["default"] = 15;
+
+    capa["optional"]["losttimeoutmobile"]["name"] = "RTP lost timeout (mobile)";
+    capa["optional"]["losttimeoutmobile"]["help"] = "Amount of packets any track will wait for a packet to arrive before considering it lost, on mobile connections";
+    capa["optional"]["losttimeoutmobile"]["option"] = "--losttimeoutmobile";
+    capa["optional"]["losttimeoutmobile"]["short"] = "L";
+    capa["optional"]["losttimeoutmobile"]["type"] = "uint";
+    capa["optional"]["losttimeoutmobile"]["default"] = 90;
+
     config->addOptionsFromCapabilities(capa);
   }
 
   void OutWebRTC::preWebsocketConnect(){
     HTTP::URL tmpUrl("http://" + H.GetHeader("Host"));
     externalAddr = tmpUrl.host;
+    if (UA.find("Mobi") != std::string::npos){
+      RTP::PACKET_REORDER_WAIT = config->getInteger("nacktimeoutmobile");
+      RTP::PACKET_DROP_TIMEOUT = config->getInteger("losttimeoutmobile");
+      INFO_MSG("Using mobile RTP configuration: NACK at %u, drop at %u", RTP::PACKET_REORDER_WAIT, RTP::PACKET_DROP_TIMEOUT);
+    }else{
+      RTP::PACKET_REORDER_WAIT = config->getInteger("nacktimeout");
+      RTP::PACKET_DROP_TIMEOUT = config->getInteger("losttimeout");
+      INFO_MSG("Using regular RTP configuration: NACK at %u, drop at %u", RTP::PACKET_REORDER_WAIT, RTP::PACKET_DROP_TIMEOUT);
+    }
   }
 
   // This function is executed when we receive a signaling data.
@@ -259,10 +316,29 @@ namespace Mist{
                            "Failed to handle the video bitrate change request.");
         return;
       }
+      videoConstraint = videoBitrate;
+      if (videoConstraint < 1024){videoConstraint = 1024;}
       JSON::Value commandResult;
       commandResult["type"] = "on_video_bitrate";
       commandResult["result"] = true;
       commandResult["video_bitrate"] = videoBitrate;
+      commandResult["video_bitrate_constraint"] = videoConstraint;
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
+    if (command["type"] == "rtp_props"){
+      if (command.isMember("nack")){
+        RTP::PACKET_REORDER_WAIT = command["nack"].asInt();
+      }
+      if (command.isMember("drop")){
+        RTP::PACKET_DROP_TIMEOUT = command["drop"].asInt();
+      }
+      JSON::Value commandResult;
+      commandResult["type"] = "on_rtp_props";
+      commandResult["result"] = true;
+      commandResult["nack"] = RTP::PACKET_REORDER_WAIT;
+      commandResult["drop"] = RTP::PACKET_DROP_TIMEOUT;
       webSock->sendFrame(commandResult.toString());
       return;
     }
@@ -544,6 +620,18 @@ namespace Mist{
         commandResult["tracks"].append(it->first);
       }
       webSock->sendFrame(commandResult.toString());
+    }else if (isPushing()){
+      JSON::Value commandResult;
+      commandResult["type"] = "on_media_receive";
+      commandResult["millis"] = endTime();
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        commandResult["tracks"].append(M.getCodec(it->first));
+      }
+      commandResult["stats"]["nack_num"] = stats_nacknum;
+      commandResult["stats"]["loss_num"] = stats_lossnum;
+      commandResult["stats"]["jitter_ms"] = stats_jitter;
+      commandResult["stats"]["loss_perc"] = stats_lossperc;
+      webSock->sendFrame(commandResult.toString());
     }
   }
 
@@ -743,6 +831,8 @@ namespace Mist{
     webRTCInputOutputThread = new tthread::thread(webRTCInputOutputThreadFunc, NULL);
     rtcpTimeoutInMillis = Util::bootMS() + 2000;
     rtcpKeyFrameTimeoutInMillis = Util::bootMS() + 2000;
+
+    idleInterval = 1000;
 
     return true;
   }
@@ -980,12 +1070,6 @@ namespace Mist{
       // Find the WebRTCTrack corresponding to the packet we received
       WebRTCTrack &rtcTrack = webrtcTracks[idx];
 
-      // Do not parse packets we don't care about
-      if (!rtcTrack.sorter.wantSeq(currSeqNum)){
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sequence #" << currSeqNum << " not interesting, ignored" << std::endl;}
-        return;
-      }
-
       // Decrypt the SRTP to RTP
       int len = (int)udp.data_len;
       if (srtpReader.unprotectRtp((uint8_t *)udp.data, &len) != 0){
@@ -996,18 +1080,7 @@ namespace Mist{
       RTP::Packet unprotPack(udp.data, len);
       DONTEVEN_MSG("%s", unprotPack.toString().c_str());
 
-      // Here follows a very rudimentary algo for requesting lost
-      // packets; I guess after some experimentation a better
-      // algorithm should be used; this is used to trigger NACKs.
-      if (rtcTrack.prevReceivedSequenceNumber != 0 && (rtcTrack.prevReceivedSequenceNumber + 1) != currSeqNum){
-        while (rtcTrack.prevReceivedSequenceNumber < currSeqNum){
-          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sending NACK for sequence #" << rtcTrack.prevReceivedSequenceNumber << std::endl;}
-          sendRTCPFeedbackNACK(rtcTrack, rtcTrack.prevReceivedSequenceNumber);
-          rtcTrack.prevReceivedSequenceNumber++;
-        }
-      }
-
-      rtcTrack.prevReceivedSequenceNumber = currSeqNum;
+      rtcTrack.gotPacket(unprotPack.getTimeStamp());
 
       if (rtp_pkt.getPayloadType() == rtcTrack.REDPayloadType || rtp_pkt.getPayloadType() == rtcTrack.ULPFECPayloadType){
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RED packet " << rtp_pkt.getPayloadType() << " #" << currSeqNum << std::endl;}
@@ -1017,59 +1090,84 @@ namespace Mist{
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Basic packet " << rtp_pkt.getPayloadType() << " #" << currSeqNum << std::endl;}
         rtcTrack.sorter.addPacket(unprotPack);
       }
-    }else if ((pt >= 64) && (pt < 96)){
 
-      if (pt == 77 || pt == 78 || pt == 65){
-        int len = udp.data_len;
-        if (srtpReader.unprotectRtcp((uint8_t *)udp.data, &len) != 0){
-          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
-          FAIL_MSG("Failed to unprotect RTCP.");
-          return;
-        }
-        uint8_t fmt = udp.data[0] & 0x1F;
-        if (pt == 77 || pt == 65){
-          if (fmt == 1){
-            uint32_t pSSRC = Bit::btohl(udp.data + 8);
-            uint16_t seq = Bit::btohs(udp.data + 12);
-            uint16_t bitmask = Bit::btohs(udp.data + 14);
-            ackNACK(pSSRC, seq);
-            size_t missed = 1;
-            if (bitmask & 1){ackNACK(pSSRC, seq + 1); missed++;}
-            if (bitmask & 2){ackNACK(pSSRC, seq + 2); missed++;}
-            if (bitmask & 4){ackNACK(pSSRC, seq + 3); missed++;}
-            if (bitmask & 8){ackNACK(pSSRC, seq + 4); missed++;}
-            if (bitmask & 16){ackNACK(pSSRC, seq + 5); missed++;}
-            if (bitmask & 32){ackNACK(pSSRC, seq + 6); missed++;}
-            if (bitmask & 64){ackNACK(pSSRC, seq + 7); missed++;}
-            if (bitmask & 128){ackNACK(pSSRC, seq + 8); missed++;}
-            if (bitmask & 256){ackNACK(pSSRC, seq + 9); missed++;}
-            if (bitmask & 512){ackNACK(pSSRC, seq + 10); missed++;}
-            if (bitmask & 1024){ackNACK(pSSRC, seq + 11); missed++;}
-            if (bitmask & 2048){ackNACK(pSSRC, seq + 12); missed++;}
-            if (bitmask & 4096){ackNACK(pSSRC, seq + 13); missed++;}
-            if (bitmask & 8192){ackNACK(pSSRC, seq + 14); missed++;}
-            if (bitmask & 16384){ackNACK(pSSRC, seq + 15); missed++;}
-            if (bitmask & 32768){ackNACK(pSSRC, seq + 16); missed++;}
-            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "NACK: " << missed << " missed packet(s)" << std::endl;}
-          }else{
-            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (type " << fmt << ")" << std::endl;}
-            INFO_MSG("Received unimplemented RTP feedback message (%d)", fmt);
-          }
-        }
-        if (pt == 78){
-          if (fmt == 1){
-            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "PLI: Picture Loss Indication ( = keyframe request = ignored)" << std::endl;}
-            DONTEVEN_MSG("Received picture loss indication");
-          }else{
-            if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (payload specific type " << fmt << ")" << std::endl;}
-            INFO_MSG("Received unimplemented payload-specific feedback message (%d)", fmt);
-          }
-        }
+      //Send NACKs for packets that we still need
+      while (rtcTrack.sorter.wantedSeqs.size()){
+        uint16_t sNum = *(rtcTrack.sorter.wantedSeqs.begin());
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sending NACK for sequence #" << sNum << std::endl;}
+        stats_nacknum++;
+        sendRTCPFeedbackNACK(rtcTrack, sNum);
+        rtcTrack.sorter.wantedSeqs.erase(sNum);
       }
 
     }else{
-      if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
-      FAIL_MSG("Unknown payload type: %u", pt);
+      //Decrypt feedback packet
+      int len = udp.data_len;
+      if (srtpReader.unprotectRtcp((uint8_t *)udp.data, &len) != 0){
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
+        FAIL_MSG("Failed to unprotect RTCP.");
+        return;
+      }
+      uint8_t fmt = udp.data[0] & 0x1F;
+      if (pt == 77 || pt == 65){
+        //77/65 = nack
+        if (fmt == 1){
+          uint32_t pSSRC = Bit::btohl(udp.data + 8);
+          uint16_t seq = Bit::btohs(udp.data + 12);
+          uint16_t bitmask = Bit::btohs(udp.data + 14);
+          ackNACK(pSSRC, seq);
+          size_t missed = 1;
+          if (bitmask & 1){ackNACK(pSSRC, seq + 1); missed++;}
+          if (bitmask & 2){ackNACK(pSSRC, seq + 2); missed++;}
+          if (bitmask & 4){ackNACK(pSSRC, seq + 3); missed++;}
+          if (bitmask & 8){ackNACK(pSSRC, seq + 4); missed++;}
+          if (bitmask & 16){ackNACK(pSSRC, seq + 5); missed++;}
+          if (bitmask & 32){ackNACK(pSSRC, seq + 6); missed++;}
+          if (bitmask & 64){ackNACK(pSSRC, seq + 7); missed++;}
+          if (bitmask & 128){ackNACK(pSSRC, seq + 8); missed++;}
+          if (bitmask & 256){ackNACK(pSSRC, seq + 9); missed++;}
+          if (bitmask & 512){ackNACK(pSSRC, seq + 10); missed++;}
+          if (bitmask & 1024){ackNACK(pSSRC, seq + 11); missed++;}
+          if (bitmask & 2048){ackNACK(pSSRC, seq + 12); missed++;}
+          if (bitmask & 4096){ackNACK(pSSRC, seq + 13); missed++;}
+          if (bitmask & 8192){ackNACK(pSSRC, seq + 14); missed++;}
+          if (bitmask & 16384){ackNACK(pSSRC, seq + 15); missed++;}
+          if (bitmask & 32768){ackNACK(pSSRC, seq + 16); missed++;}
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "NACK: " << missed << " missed packet(s)" << std::endl;}
+        }else{
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (type " << fmt << ")" << std::endl;}
+          INFO_MSG("Received unimplemented RTP feedback message (%d)", fmt);
+        }
+      }else if (pt == 78){
+        //78 = PLI
+        if (fmt == 1){
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "PLI: Picture Loss Indication ( = keyframe request = ignored)" << std::endl;}
+          DONTEVEN_MSG("Received picture loss indication");
+        }else{
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Feedback: Unimplemented (payload specific type " << fmt << ")" << std::endl;}
+          INFO_MSG("Received unimplemented payload-specific feedback message (%d)", fmt);
+        }
+      }else if (pt == 72){
+        //72 = sender report
+        uint32_t SSRC = Bit::btohl(udp.data + 4);
+        std::map<uint64_t, WebRTCTrack>::iterator it;
+        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
+          if (it->second.SSRC == SSRC){
+            it->second.sorter.lastBootMS = Util::bootMS();
+            it->second.sorter.lastNTP = Bit::btohl(udp.data+10);;
+            uint32_t packets = Bit::btohl(udp.data + 20);
+            uint32_t bytes = Bit::btohl(udp.data + 24);
+            HIGH_MSG("Received sender report for track %s (%" PRIu32 " pkts, %" PRIu32 "b)", it->second.rtpToDTSC.codec.c_str(), packets, bytes);
+            break;
+          }
+        }
+      }else if (pt == 73){
+        //73 = receiver report
+        // \TODO Implement, maybe?
+      }else{
+        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
+        WARN_MSG("Unknown RTP feedback payload type: %u", pt);
+      }
     }
   }
 
@@ -1386,15 +1484,9 @@ namespace Mist{
   }
 
   void OutWebRTC::sendRTCPFeedbackREMB(const WebRTCTrack &rtcTrack){
-
-    if (videoBitrate == 0){
-      FAIL_MSG("videoBitrate is 0, which is invalid. Resetting to our default value.");
-      videoBitrate = 6 * 1000 * 1000;
-    }
-
     // create the `BR Exp` and `BR Mantissa parts.
     uint32_t br_exponent = 0;
-    uint32_t br_mantissa = videoBitrate;
+    uint32_t br_mantissa = videoConstraint;
     while (br_mantissa > 0x3FFFF){
       br_mantissa >>= 1;
       ++br_exponent;
@@ -1501,7 +1593,7 @@ namespace Mist{
   // sequence numbers are lost it makes sense to implement this
   // too.
   void OutWebRTC::sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack, uint16_t lostSequenceNumber){
-    HIGH_MSG("Requesting missing sequence number %u", lostSequenceNumber);
+    INFO_MSG("Requesting missing sequence number %u", lostSequenceNumber);
 
     std::vector<uint8_t> buffer;
     buffer.push_back(0x80 | 0x01); // V=2 (0x80) | FMT=1 (0x01)
@@ -1547,8 +1639,30 @@ namespace Mist{
   }
 
   void OutWebRTC::sendRTCPFeedbackRR(WebRTCTrack &rtcTrack){
+    stats_lossperc = (double)(rtcTrack.sorter.lostCurrent * 100.) / (double)(rtcTrack.sorter.lostCurrent + rtcTrack.sorter.packCurrent);
+    stats_jitter = rtcTrack.jitter/rtcTrack.rtpToDTSC.multiplier;
+    stats_lossnum = rtcTrack.sorter.lostTotal;
+    //If we have > 5% loss, constrain video by 10%
+    if (stats_lossperc > 5){
+      videoConstraint *= 0.9;
+      if (videoConstraint < 1024){videoConstraint = 1024;}
+      JSON::Value commandResult;
+      commandResult["type"] = "on_video_bitrate";
+      commandResult["result"] = true;
+      commandResult["video_bitrate"] = videoBitrate;
+      commandResult["video_bitrate_constraint"] = videoConstraint;
+      webSock->sendFrame(commandResult.toString());
+    }
+    if (stats_lossperc > 1 || stats_jitter > 20){
+      INFO_MSG("Receiver Report (%s): %.2f%% loss, %" PRIu32 " total lost, %.2f ms jitter", rtcTrack.rtpToDTSC.codec.c_str(), stats_lossperc, rtcTrack.sorter.lostTotal, stats_jitter);
+    }else{
+      HIGH_MSG("Receiver Report (%s): %.2f%% loss, %" PRIu32 " total lost, %.2f ms jitter", rtcTrack.rtpToDTSC.codec.c_str(), stats_lossperc, rtcTrack.sorter.lostTotal, stats_jitter);
+    }
 
-    ((RTP::FECPacket *)&(rtcTrack.rtpPacketizer))->sendRTCP_RR(rtcTrack.sorter, SSRC, rtcTrack.SSRC, (void *)&udp, onRTPPacketizerHasRTCPDataCallback);
+    if (packetLog.is_open()){
+      packetLog << "[" << Util::bootMS() << "] Receiver Report (" << rtcTrack.rtpToDTSC.codec << "): " << stats_lossperc << " percent loss, " << rtcTrack.sorter.lostTotal << " total lost, " << stats_jitter << " ms jitter" << std::endl;
+    }
+    ((RTP::FECPacket *)&(rtcTrack.rtpPacketizer))->sendRTCP_RR(rtcTrack.sorter, SSRC, rtcTrack.SSRC, (void *)&udp, onRTPPacketizerHasRTCPDataCallback, (uint32_t)rtcTrack.jitter);
   }
 
   void OutWebRTC::sendSPSPPS(size_t dtscIdx, WebRTCTrack &rtcTrack){

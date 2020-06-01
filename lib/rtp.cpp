@@ -12,6 +12,8 @@
 namespace RTP{
   double Packet::startRTCP = 0;
   unsigned int MAX_SEND = 1500 - 28;
+  unsigned int PACKET_REORDER_WAIT = 5;
+  unsigned int PACKET_DROP_TIMEOUT = 30;
 
   unsigned int Packet::getHsize() const{
     unsigned int r = 12 + 4 * getContribCount();
@@ -474,15 +476,16 @@ namespace RTP{
   Sorter::Sorter(uint64_t trackId, void (*cb)(const uint64_t track, const Packet &p)){
     packTrack = trackId;
     rtpSeq = 0;
+    rtpWSeq = 0;
     lostTotal = 0;
     lostCurrent = 0;
     packTotal = 0;
     packCurrent = 0;
     callback = cb;
-  }
-
-  bool Sorter::wantSeq(uint16_t seq) const{
-    return !rtpSeq || !(seq < rtpSeq || seq > (rtpSeq + 500) || packBuffer.count(seq));
+    first = true;
+    preBuffer = true;
+    lastBootMS = 0;
+    lastNTP = 0;
   }
 
   void Sorter::setCallback(uint64_t track, void (*cb)(const uint64_t track, const Packet &p)){
@@ -497,57 +500,76 @@ namespace RTP{
   /// Automatically sorts them, waiting when packets come in slow or not at all.
   /// Calls the callback with packets in sorted order, whenever it becomes possible to do so.
   void Sorter::addPacket(const Packet &pack){
-    if (!rtpSeq){rtpSeq = pack.getSequence();}
-    // packet is very early - assume dropped after 150 packets
-    while ((int16_t)(rtpSeq - ((uint16_t)pack.getSequence())) < -150){
-      WARN_MSG("Giving up on packet %u", rtpSeq);
-      ++rtpSeq;
-      ++lostTotal;
-      ++lostCurrent;
-      ++packTotal;
-      ++packCurrent;
-      // send any buffered packets we may have
-      while (packBuffer.count(rtpSeq)){
-        outPacket(packTrack, packBuffer[rtpSeq]);
-        packBuffer.erase(rtpSeq);
-        INFO_MSG("Sent packet %u, now %zu in buffer", rtpSeq, packBuffer.size());
+    uint16_t pSNo = pack.getSequence();
+    if (first){
+      rtpWSeq = pSNo;
+      rtpSeq = pSNo - 5;
+      first = false;
+    }
+    if (preBuffer){
+      //If we've buffered the first 5 packets, assume we have the first one known
+      if (packBuffer.size() >= 5){
+        preBuffer = false;
+        rtpSeq = packBuffer.begin()->first;
+        rtpWSeq = rtpSeq;
+      }
+    }else{
+      // packet is very early - assume dropped after PACKET_DROP_TIMEOUT packets
+      while ((int16_t)(rtpSeq - pSNo) < -(int)PACKET_DROP_TIMEOUT){
+        WARN_MSG("Giving up on packet %u", rtpSeq);
         ++rtpSeq;
+        ++lostTotal;
+        ++lostCurrent;
         ++packTotal;
         ++packCurrent;
       }
     }
+    //Update wanted counter if we passed it (1 of 2)
+    if ((int16_t)(rtpWSeq - rtpSeq) < 0){rtpWSeq = rtpSeq;}
+    // packet is somewhat early - ask for packet after PACKET_REORDER_WAIT packets
+    while ((int16_t)(rtpWSeq - pSNo) < -(int)PACKET_REORDER_WAIT){
+      //Only wanted if we don't already have it
+      if (!packBuffer.count(rtpWSeq)){
+        wantedSeqs.insert(rtpWSeq);
+      }
+      ++rtpWSeq;
+    }
     // send any buffered packets we may have
+    uint16_t prertpSeq = rtpSeq;
     while (packBuffer.count(rtpSeq)){
       outPacket(packTrack, packBuffer[rtpSeq]);
       packBuffer.erase(rtpSeq);
-      INFO_MSG("Sent packet %u, now %zu in buffer", rtpSeq, packBuffer.size());
       ++rtpSeq;
       ++packTotal;
       ++packCurrent;
     }
+    if (prertpSeq != rtpSeq){
+      INFO_MSG("Sent packets %" PRIu16 "-%" PRIu16 ", now %zu in buffer", prertpSeq, rtpSeq, packBuffer.size());
+    }
     // packet is slightly early - buffer it
-    if ((int16_t)(rtpSeq - (uint16_t)pack.getSequence()) < 0){
+    if ((int16_t)(rtpSeq - pSNo) < 0){
       HIGH_MSG("Buffering early packet #%u->%u", rtpSeq, pack.getSequence());
       packBuffer[pack.getSequence()] = pack;
     }
     // packet is late
-    if ((int16_t)(rtpSeq - (uint16_t)pack.getSequence()) > 0){
+    if ((int16_t)(rtpSeq - pSNo) > 0){
       // negative difference?
-      --lostTotal;
-      --lostCurrent;
-      ++packTotal;
-      ++packCurrent;
-      WARN_MSG("Dropped a packet that arrived too late! (%d packets difference)",
-               (int16_t)(rtpSeq - (uint16_t)pack.getSequence()));
-      return;
+      //--lostTotal;
+      //--lostCurrent;
+      //++packTotal;
+      //++packCurrent;
+      //WARN_MSG("Dropped a packet that arrived too late! (%d packets difference)", (int16_t)(rtpSeq - pSNo));
+      //return;
     }
     // packet is in order
-    if (rtpSeq == pack.getSequence()){
+    if (rtpSeq == pSNo){
       outPacket(packTrack, pack);
       ++rtpSeq;
       ++packTotal;
       ++packCurrent;
     }
+    //Update wanted counter if we passed it (2 of 2)
+    if ((int16_t)(rtpWSeq - rtpSeq) < 0){rtpWSeq = rtpSeq;}
   }
 
   toDTSC::toDTSC(){

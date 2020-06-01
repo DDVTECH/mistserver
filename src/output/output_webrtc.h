@@ -115,8 +115,9 @@ namespace Mist{
                                ///< stream.
     uint8_t RTXPayloadType;    ///< The retransmission payload type when we use RTX (retransmission
                                ///< with separate SSRC/payload type)
-    uint16_t prevReceivedSequenceNumber; ///< The previously received sequence number. This is used
-                                         ///< to NACK packets when we loose one.
+    void gotPacket(uint32_t ts);
+    uint32_t lastTransit;
+    double jitter;
   };
 
   /* ------------------------------------------------ */
@@ -201,6 +202,7 @@ namespace Mist{
                                           ///< to the other peer. This gets protected.
     uint32_t videoBitrate; ///< The bitrate to use for incoming video streams. Can be configured via
                            ///< the signaling channel. Defaults to 6mbit.
+    uint32_t videoConstraint;
 
     size_t audTrack, vidTrack, prevVidTrack;
     double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
@@ -213,6 +215,11 @@ namespace Mist{
     bool stayLive;
     bool doDTLS;
     bool volkswagenMode;
+
+    double stats_jitter;
+    uint64_t stats_nacknum;
+    uint64_t stats_lossnum;
+    double stats_lossperc;
 
 #if defined(WEBRTC_PCAP)
     PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be

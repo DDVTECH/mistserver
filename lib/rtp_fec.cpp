@@ -531,7 +531,7 @@ namespace RTP{
   }
 
   void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
-                              void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel)){
+                              void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel), uint32_t jitter){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -547,9 +547,13 @@ namespace RTP{
     Bit::htob24(rtcpData + 13, sorter.lostTotal); // cumulative packets lost since start
     Bit::htobl(rtcpData + 16,
                sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
-    Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
-    Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
-    Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
+    Bit::htobl(rtcpData + 20, jitter); // jitter
+    Bit::htobl(rtcpData + 24, sorter.lastNTP); // last SR NTP time (middle 32 bits)
+    if (sorter.lastBootMS){
+      Bit::htobl(rtcpData + 28, (Util::bootMS() - sorter.lastBootMS) * 65.536); // delay since last SR in 1/65536th of a second
+    }else{
+      Bit::htobl(rtcpData + 28, 0); // no delay since last SR yet
+    }
     callBack(userData, rtcpData, 32, 0);
     sorter.lostCurrent = 0;
     sorter.packCurrent = 0;

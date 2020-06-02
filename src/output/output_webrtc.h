@@ -220,6 +220,7 @@ namespace Mist{
     uint64_t stats_nacknum;
     uint64_t stats_lossnum;
     double stats_lossperc;
+    std::deque<double> stats_loss_avg;
 
 #if defined(WEBRTC_PCAP)
     PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be

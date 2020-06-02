@@ -1642,22 +1642,51 @@ namespace Mist{
     stats_lossperc = (double)(rtcTrack.sorter.lostCurrent * 100.) / (double)(rtcTrack.sorter.lostCurrent + rtcTrack.sorter.packCurrent);
     stats_jitter = rtcTrack.jitter/rtcTrack.rtpToDTSC.multiplier;
     stats_lossnum = rtcTrack.sorter.lostTotal;
-    //If we have > 5% loss, constrain video by 10%
-    if (stats_lossperc > 5){
-      videoConstraint *= 0.9;
-      if (videoConstraint < 1024){videoConstraint = 1024;}
-      JSON::Value commandResult;
-      commandResult["type"] = "on_video_bitrate";
-      commandResult["result"] = true;
-      commandResult["video_bitrate"] = videoBitrate;
-      commandResult["video_bitrate_constraint"] = videoConstraint;
-      webSock->sendFrame(commandResult.toString());
-    }
+
+    //Print stats at appropriate log levels
     if (stats_lossperc > 1 || stats_jitter > 20){
       INFO_MSG("Receiver Report (%s): %.2f%% loss, %" PRIu32 " total lost, %.2f ms jitter", rtcTrack.rtpToDTSC.codec.c_str(), stats_lossperc, rtcTrack.sorter.lostTotal, stats_jitter);
     }else{
       HIGH_MSG("Receiver Report (%s): %.2f%% loss, %" PRIu32 " total lost, %.2f ms jitter", rtcTrack.rtpToDTSC.codec.c_str(), stats_lossperc, rtcTrack.sorter.lostTotal, stats_jitter);
     }
+
+    //Calculate loss percentage average over moving window
+    stats_loss_avg.push_back(stats_lossperc);
+    while (stats_loss_avg.size() > 5){stats_loss_avg.pop_front();}
+    if (stats_loss_avg.size()){
+      double curr_avg_loss = 0;
+      for (std::deque<double>::iterator it = stats_loss_avg.begin(); it != stats_loss_avg.end(); ++it){
+        curr_avg_loss += *it;
+      }
+      curr_avg_loss /= stats_loss_avg.size();
+
+      uint32_t preConstraint = videoConstraint;
+
+      if (curr_avg_loss > 50){
+        //If we have > 50% loss, constrain video by 9%
+        videoConstraint *= 0.91;
+      }else if (curr_avg_loss > 10){
+        //If we have > 10% loss, constrain video by 5%
+        videoConstraint *= 0.95;
+      }else if (curr_avg_loss > 5){
+        //If we have > 5% loss, constrain video by 1%
+        videoConstraint *= 0.99;
+      }
+
+      //Do not reduce under 32 kbps
+      if (videoConstraint < 1024*32){videoConstraint = 1024*32;}
+
+      if (videoConstraint != preConstraint){
+        INFO_MSG("Reduced video bandwidth maximum to %" PRIu32 " because average loss is %.2f", videoConstraint, curr_avg_loss);
+        JSON::Value commandResult;
+        commandResult["type"] = "on_video_bitrate";
+        commandResult["result"] = true;
+        commandResult["video_bitrate"] = videoBitrate;
+        commandResult["video_bitrate_constraint"] = videoConstraint;
+        webSock->sendFrame(commandResult.toString());
+      }
+    }
+
 
     if (packetLog.is_open()){
       packetLog << "[" << Util::bootMS() << "] Receiver Report (" << rtcTrack.rtpToDTSC.codec << "): " << stats_lossperc << " percent loss, " << rtcTrack.sorter.lostTotal << " total lost, " << stats_jitter << " ms jitter" << std::endl;

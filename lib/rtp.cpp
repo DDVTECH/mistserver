@@ -640,17 +640,18 @@ namespace RTP{
       INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME,
                PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));
     }else{
-      if (prevTime > pTime && pTime < 0x40000000lu && prevTime > 0x80000000lu){
-        ++wrapArounds;
-        recentWrap = true;
-      }
       if (recentWrap){
         if (pTime < 0x80000000lu && pTime > 0x40000000lu){recentWrap = false;}
-        if (pTime > 0x80000000lu){pTime -= 0xFFFFFFFFll;}
+        if (pTime > 0x80000000lu){pTime -= 0x100000000ll;}
+      }else{
+        if (prevTime > pTime && pTime < 0x40000000lu && prevTime > 0x80000000lu){
+          ++wrapArounds;
+          recentWrap = true;
+        }
       }
     }
     prevTime = pkt.getTimeStamp();
-    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0xFFFFFFFFull * wrapArounds) / multiplier;
+    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier;
     char *pl = (char *)pkt.getPayload();
     uint32_t plSize = pkt.getPayloadSize();
     bool missed = lastSeq != (pkt.getSequence() - 1);

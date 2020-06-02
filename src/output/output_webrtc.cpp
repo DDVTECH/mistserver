@@ -1401,10 +1401,7 @@ namespace Mist{
     }
 
     WebRTCTrack &rtcTrack = *trackPointer;
-
-    uint64_t timestamp = thisPacket.getTime();
-    uint64_t newTime = timestamp * SDP::getMultiplier(&M, thisIdx);
-    rtcTrack.rtpPacketizer.setTimestamp(newTime);
+    rtcTrack.rtpPacketizer.setTimestamp(thisPacket.getTime() * SDP::getMultiplier(&M, thisIdx));
 
     bool isKeyFrame = thisPacket.getFlag("keyframe");
     didReceiveKeyFrame = isKeyFrame;
@@ -1430,8 +1427,8 @@ namespace Mist{
     rtcTrack.rtpPacketizer.sendData(&udp, onRTPPacketizerHasDataCallback, dataPointer, dataLen,
                                     rtcTrack.payloadType, M.getCodec(thisIdx));
 
-    if (!lastSR.count(thisIdx) || lastSR[thisIdx] != Util::bootSecs()){
-      lastSR[thisIdx] = Util::bootSecs();
+    if (!lastSR.count(thisIdx) || lastSR[thisIdx] < Util::bootMS() + 250){
+      lastSR[thisIdx] = Util::bootMS();
       rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, onRTPPacketizerHasRTCPDataCallback);
     }
   }

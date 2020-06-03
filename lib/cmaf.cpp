@@ -1,6 +1,6 @@
 #include "cmaf.h"
 
-static uint64_t unixBootDiff = (Util::unixMS() - Util::bootMS());
+static uint64_t unixBootDiff = Util::unixMS();
 
 namespace CMAF{
   /// Function to determine the payload size of a CMAF fragment.

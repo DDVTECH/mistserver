@@ -103,6 +103,9 @@ namespace Mist{
         realTime = 0;
       }
     }
+    if (isRecording() && DTSC::trackValidMask == TRACK_VALID_EXT_HUMAN){
+      DTSC::trackValidMask = TRACK_VALID_EXT_PUSH;
+    }
     /*LTS-END*/
   }
 

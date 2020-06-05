@@ -58,6 +58,11 @@ namespace Mist{
     };
     virtual void initialSeek(){
       if (!meta){return;}
+      if (opt["masksource"].asBool()){
+        size_t mainTrack = getMainSelectedTrack();
+        INFO_MSG("Masking source track %zu", mainTrack);
+        meta.validateTrack(mainTrack, meta.trackValid(mainTrack) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+      }
       if (!meta.getLive() || opt["leastlive"].asBool()){
         INFO_MSG("Seeking to earliest point in stream");
         seek(0);
@@ -407,6 +412,7 @@ void sourceThread(void *){
 }
 
 int main(int argc, char *argv[]){
+  DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
   JSON::Value capa;
 
@@ -432,6 +438,11 @@ int main(int argc, char *argv[]){
 
     capa["name"] = "Livepeer";
     capa["desc"] = "Use livepeer to transcode video.";
+
+    capa["optional"]["masksource"]["name"] = "Make source track unavailable for users";
+    capa["optional"]["masksource"]["help"] = "If enabled, makes the source track internal-only, so that external users and pushes cannot access it.";
+    capa["optional"]["masksource"]["type"] = "boolean";
+    capa["optional"]["masksource"]["default"] = false;
 
     capa["optional"]["sink"]["name"] = "Target stream";
     capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "

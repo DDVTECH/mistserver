@@ -22,6 +22,11 @@
 #define DTSC_ARR 0x0A
 #define DTSC_CON 0xFF
 
+#define TRACK_VALID_EXT_HUMAN 1 //(assumed) humans connecting externally
+#define TRACK_VALID_EXT_PUSH 2 //(assumed) humans connecting externally
+#define TRACK_VALID_INT_PROCESS 4 //internal processes
+#define TRACK_VALID_ALL 0xFF //all of the above, default
+
 // Increase this value every time the DTSH file format changes in an incompatible way
 // Changelog:
 //  Version 0-2: Undocumented changes
@@ -32,6 +37,7 @@
 namespace DTSC{
 
   extern uint64_t veryUglyJitterOverride;
+  extern uint8_t trackValidMask;
 
   ///\brief This enum holds all possible datatypes for DTSC packets.
   enum datatype{
@@ -285,7 +291,7 @@ namespace DTSC{
     void minimalFrom(const Meta &src);
 
     bool trackLoaded(size_t idx) const;
-    bool trackValid(size_t idx) const;
+    uint8_t trackValid(size_t idx) const;
     size_t trackCount() const;
 
     size_t addCopy(size_t source);
@@ -411,7 +417,7 @@ namespace DTSC{
     std::set<size_t> getValidTracks(bool skipEmpty = false) const;
     std::set<size_t> getMySourceTracks(size_t pid) const;
 
-    void validateTrack(size_t trackIdx);
+    void validateTrack(size_t trackIdx, uint8_t validType = TRACK_VALID_ALL);
     void removeEmptyTracks();
     void removeTrack(size_t trackIdx);
     void removeFirstKey(size_t trackIdx);

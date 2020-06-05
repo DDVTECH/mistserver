@@ -41,6 +41,7 @@ void sourceThread(void *){
 }
 
 int main(int argc, char *argv[]){
+  DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
   JSON::Value capa;
 
@@ -84,6 +85,12 @@ int main(int argc, char *argv[]){
 
     capa["name"] = "MKVExec";
     capa["desc"] = "Pipe MKV in, expect MKV out. You choose the executable in between yourself.";
+
+    capa["optional"]["masksource"]["name"] = "Make source track(s) unavailable for users";
+    capa["optional"]["masksource"]["help"] = "If enabled, makes the source track(s) internal-only, so that external users and pushes cannot access them.";
+    capa["optional"]["masksource"]["type"] = "boolean";
+    capa["optional"]["masksource"]["default"] = false;
+
 
     capa["required"]["exec"]["name"] = "Executable";
     capa["required"]["exec"]["help"] = "What to executable to run on the stream data";

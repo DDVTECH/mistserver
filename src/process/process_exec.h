@@ -60,6 +60,13 @@ namespace Mist{
       realTime = 0;
     };
     void sendHeader(){
+      if (opt["masksource"].asBool()){
+        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+          if (ti->first == INVALID_TRACK_ID){continue;}
+          INFO_MSG("Masking source track %zu", ti->first);
+          meta.validateTrack(ti->first, meta.trackValid(ti->first) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+        }
+      }
       realTime = 0;
       OutEBML::sendHeader();
     };

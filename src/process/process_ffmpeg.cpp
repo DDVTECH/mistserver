@@ -69,6 +69,7 @@ void sourceThread(void *){
 }
 
 int main(int argc, char *argv[]){
+  DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
   JSON::Value capa;
 
@@ -95,6 +96,12 @@ int main(int argc, char *argv[]){
     capa["hrn"] = "Encoder: FFMPEG";                                     // human readable name
     capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
     capa["sort"] = "n"; // sort the parameters by this key
+
+    capa["optional"]["masksource"]["name"] = "Make source track unavailable for users";
+    capa["optional"]["masksource"]["help"] = "If enabled, makes the source track internal-only, so that external users and pushes cannot access it.";
+    capa["optional"]["masksource"]["type"] = "boolean";
+    capa["optional"]["masksource"]["default"] = false;
+
 
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
@@ -404,6 +411,10 @@ namespace Mist{
   void EncodeOutputEBML::sendHeader(){
     realTime = 0;
     size_t idx = getMainSelectedTrack();
+    if (opt["masksource"].asBool()){
+      INFO_MSG("Masking source track %zu", idx);
+      meta.validateTrack(idx, meta.trackValid(idx) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+    }
     res_x = M.getWidth(idx);
     res_y = M.getHeight(idx);
     Enc.setResolution(res_x, res_y);

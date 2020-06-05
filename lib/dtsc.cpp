@@ -17,8 +17,11 @@ namespace DTSC{
   char Magic_Packet2[] = "DTP2";
   char Magic_Command[] = "DTCM";
 
-  // If non-zero, this variable will override any live jitter value calculations with the set value
+  /// If non-zero, this variable will override any live jitter value calculations with the set value
   uint64_t veryUglyJitterOverride = 0;
+
+  /// The mask that the current process will use to check if a track is valid
+  uint8_t trackValidMask = TRACK_VALID_ALL;
 
   /// Default constructor for packets - sets a null pointer and invalid packet.
   Packet::Packet(){
@@ -1943,7 +1946,7 @@ namespace DTSC{
     uint64_t firstValid = trackList.getDeleted();
     uint64_t beyondLast = firstValid + trackList.getPresent();
     for (size_t i = firstValid; i < beyondLast; i++){
-      if (trackList.getInt(trackValidField, i) == 1){res.insert(i);}
+      if (trackList.getInt(trackValidField, i) & trackValidMask){res.insert(i);}
       if (trackList.getInt(trackSourceTidField, i) != INVALID_TRACK_ID &&
           std::string(trackList.getPointer(trackEncryptionField, i)) != ""){
         res.erase(trackList.getInt(trackSourceTidField, i));
@@ -1962,7 +1965,7 @@ namespace DTSC{
     uint64_t firstValid = trackList.getDeleted();
     uint64_t beyondLast = firstValid + trackList.getPresent();
     for (size_t i = firstValid; i < beyondLast; i++){
-      if (trackList.getInt(trackValidField, i) == 1 && trackList.getInt(trackPidField, i) == pid){
+      if (trackList.getInt(trackValidField, i) && trackList.getInt(trackPidField, i) == pid){
         res.insert(i);
       }
     }
@@ -1970,9 +1973,9 @@ namespace DTSC{
   }
 
   /// Sets the track valid field to 1, also calling markUpdated()
-  void Meta::validateTrack(size_t trackIdx){
+  void Meta::validateTrack(size_t trackIdx, uint8_t validType){
     markUpdated(trackIdx);
-    trackList.setInt(trackValidField, 1, trackIdx);
+    trackList.setInt(trackValidField, validType, trackIdx);
   }
 
   void Meta::removeEmptyTracks(){
@@ -2775,8 +2778,8 @@ namespace DTSC{
 
   /// Returns true if the given track index is marked as valid. For this the track does not have to
   /// be loaded as well
-  bool Meta::trackValid(size_t idx) const{
-    if (idx > trackList.getPresent()){return false;}
+  uint8_t Meta::trackValid(size_t idx) const{
+    if (idx > trackList.getPresent()){return 0;}
     return trackList.getInt(trackValidField, idx);
   }
 

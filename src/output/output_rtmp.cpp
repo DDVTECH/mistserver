@@ -965,6 +965,22 @@ namespace Mist{
       }
 
       initialize();
+      //Abort if stream could not be opened
+      if (!M){
+        INFO_MSG("Could not open stream, aborting");
+        // send a _result reply
+        AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
+        amfReply.addContent(AMF::Object("", "_error"));                           // result success
+        amfReply.addContent(amfData.getContent(1));                               // same transaction ID
+        amfReply.addContent(AMF::Object("", (double)0, AMF::AMF0_NULL)); // null - command info
+        amfReply.addContent(AMF::Object(""));                            // info
+        amfReply.getContentP(3)->addContent(AMF::Object("code", "NetStream.Play.Rejected"));
+        amfReply.getContentP(3)->addContent(
+            AMF::Object("description", "Play rejected: could not initialize stream"));
+        sendCommand(amfReply, messageType, streamId);
+        onFinish();
+        return;
+      }
 
       // send a status reply
       AMF::Object amfreply("container", AMF::AMF0_DDV_CONTAINER);

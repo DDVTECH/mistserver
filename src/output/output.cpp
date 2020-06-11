@@ -1428,7 +1428,10 @@ namespace Mist{
     if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
       loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
       nxt.offset = 0;
-      nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+      //Only read the next time if the page load succeeded and there is a packet to read from
+      if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
+        nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+      }
       buffer.erase(buffer.begin());
       buffer.insert(nxt);
       return false;

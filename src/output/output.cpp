@@ -1379,12 +1379,6 @@ namespace Mist{
   bool Output::prepareNext(){
     static size_t emptyCount = 0;
     if (!buffer.size()){
-      /// \TODO Do we really need this? Seems error-prone.
-      if (isRecording() && M.getLive()){
-        selectDefaultTracks();
-        initialSeek();
-        return false;
-      }
       thisPacket.null();
       INFO_MSG("Buffer completely played out");
       return true;

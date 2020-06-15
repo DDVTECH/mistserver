@@ -30,6 +30,7 @@ namespace Mist{
                           size_t packDataSize, uint64_t packBytePos, bool isKeyframe);
 
   protected:
+    void updateTrackFromKeyframe(uint32_t packTrack, const char *packData, size_t packDataSize);
     bool standAlone;
 
     DTSC::Packet thisPacket; // The current packet that is being parsed

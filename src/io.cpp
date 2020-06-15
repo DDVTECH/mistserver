@@ -7,6 +7,7 @@
 #include <mist/json.h>
 #include <mist/langcodes.h> //LTS
 #include <mist/stream.h>
+#include <mist/h264.h>
 
 namespace Mist{
   InOutBase::InOutBase() : M(meta){}
@@ -356,6 +357,7 @@ namespace Mist{
     // Determine if we need to open the next page
     uint32_t nextPageNum = INVALID_KEY_NUM;
     if (isKeyframe){
+      updateTrackFromKeyframe(packTrack, packData, packDataSize);
       uint64_t endPage = tPages.getEndPos();
 
       // If there is no page, create it
@@ -417,5 +419,53 @@ namespace Mist{
     // Buffer the packet
     bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe);
   }
+
+  ///Handles updating track metadata from a new keyframe, if applicable
+  void InOutBase::updateTrackFromKeyframe(uint32_t packTrack, const char *packData, size_t packDataSize){
+    if (meta.getCodec(packTrack) == "H264"){
+      //H264 packets are 4-byte size-prepended NAL units
+      size_t offset = 0;
+      while (offset+4 < packDataSize){
+        uint32_t nalLen = Bit::btohl(packData+offset);
+        if (nalLen+offset+4 > packDataSize){
+          FAIL_MSG("Corrupt H264 keyframe packet: NAL unit of size %" PRIu32 " at position %zu exceeds packet size of %zu", nalLen, offset, packDataSize);
+          return;
+        }
+        uint8_t nalType = (packData[offset+4] & 0x1F);
+        if (nalType == 7){//SPS, update width/height/FPS
+          h264::SPSMeta hMeta =  h264::sequenceParameterSet(packData+offset+4, nalLen).getCharacteristics();
+          meta.setWidth(packTrack, hMeta.width);
+          meta.setHeight(packTrack, hMeta.height);
+          meta.setFpks(packTrack, hMeta.fps*1000);
+        }
+        offset += nalLen+4;
+      }
+    }
+    if (meta.getCodec(packTrack) == "VP8"){
+      //VP8 packets have a simple header for keyframes
+      //Reference: https://www.rfc-editor.org/rfc/rfc6386.html#section-9.1
+      if (packData[3] == 0x9d && packData[4] == 0x01 && packData[5] == 0x2a){
+        //Probably a valid key frame
+        uint16_t pixWidth = Bit::btohs_le(packData+6);
+        uint16_t pixHeight = Bit::btohs_le(packData+8);
+        uint32_t w = pixWidth & 0x3fff;
+        uint32_t h = pixHeight & 0x3fff;
+        switch (pixWidth >> 14){
+          case 1: w *= 5/4; break;
+          case 2: w *= 5/3; break;
+          case 3: w *= 2; break;
+        }
+        switch (pixHeight >> 14){
+          case 1: h *= 5/4; break;
+          case 2: h *= 5/3; break;
+          case 3: h *= 2; break;
+        }
+        meta.setWidth(packTrack, w);
+        meta.setHeight(packTrack, h);
+      }
+    }
+  }
+
+
 
 }// namespace Mist

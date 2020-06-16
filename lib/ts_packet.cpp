@@ -584,6 +584,35 @@ namespace TS{
     }
     return tmpStr;
   }
+
+  /// Generates a PES Lead-in for a meta frame.
+  /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+  /// \param len The length of this frame.
+  /// \param PTS The timestamp of the frame.
+  std::string &Packet::getPESPS1LeadIn(unsigned int len, unsigned long long PTS, uint64_t bps){
+    if (bps >= 50){
+      len += 3;
+    }else{
+      bps = 0;
+    }
+    static std::string tmpStr;
+    tmpStr.clear();
+    tmpStr.reserve(20);
+    len += 8;
+    tmpStr.append("\000\000\001\275", 4);
+    tmpStr += (char)((len & 0xFF00) >> 8);     // PES PacketLength
+    tmpStr += (char)(len & 0x00FF);            // PES PacketLength (Cont)
+    tmpStr += (char)0x84;                      // isAligned
+    tmpStr += (char)(0x80 | (bps ? 0x10 : 0)); // PTS/DTS + Flags
+    tmpStr += (char)(5 + (bps ? 3 : 0));       // PESHeaderDataLength
+    encodePESTimestamp(tmpStr, 0x20, PTS);
+    if (bps){
+      char rate_buf[3];
+      Bit::htob24(rate_buf, (bps / 50) | 0x800001);
+      tmpStr.append(rate_buf, 3);
+    }
+    return tmpStr;
+  }
   // END PES FUNCTIONS
 
   /// Fills the free bytes of the Packet.
@@ -1081,11 +1110,70 @@ namespace TS{
     return "und";
   }
 
+  /// Returns the registration field, or an empty string if none present.
+  std::string ProgramDescriptors::getRegistration() const{
+    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
+      if (p_data[p] == 0x05){// registration
+        return std::string(p_data + p + 2, 4);
+      }
+    }
+    // No tag found! Empty string.
+    return "";
+  }
+
+  /// Returns the extension field, or an empty string if none present.
+  std::string ProgramDescriptors::getExtension() const{
+    for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
+      if (p_data[p] == 0x7F){// extension
+        return std::string(p_data + p + 2, p_data[p+1]);
+      }
+    }
+    // No tag found! Empty string.
+    return "";
+  }
+
   /// Prints all descriptors we understand in a readable format, the others in raw hex.
   std::string ProgramDescriptors::toPrettyString(size_t indent) const{
     std::stringstream output;
     for (uint32_t p = 0; p + 1 < p_len; p += p_data[p + 1] + 2){
       switch (p_data[p]){
+      case 0x05:{// registration descriptor
+        if ((p_data[p+2] >= 32 && p_data[p+2] <= 126) &&
+            (p_data[p+2] >= 32 && p_data[p+2] <= 126) &&
+            (p_data[p+2] >= 32 && p_data[p+2] <= 126) &&
+            (p_data[p+2] >= 32 && p_data[p+2] <= 126)){
+          //printable ASCII
+          output << std::string(indent, ' ') << "Registration: " << std::string(p_data + p + 2, 4);
+          //Extra binary data, if any
+          if (p_data[p+1] > 4){
+            output << " (";
+            for (uint32_t i = 6; i < p_data[p + 1] + 2; ++i){
+              output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase
+                     << (int)p_data[p + i] << std::dec;
+            }
+            output << ")";
+          }
+          output << std::endl;
+        }else{
+          output << std::string(indent, ' ') << "Registration (unprintable): ";
+          for (uint32_t i = 2; i < p_data[p + 1] + 2; ++i){
+            output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase
+                   << (int)p_data[p + i] << std::dec;
+          }
+          output << std::endl;
+        }
+      }break;
+      case 0x06:{// data alignment descriptor
+        output << std::string(indent, ' ') << "Data alignment: ";
+        switch (p_data[p+2]){
+          case 1: output << "Slice or Video Access Unit (1)"; break;
+          case 2: output << "Video Access Unit (2)"; break;
+          case 3: output << "GOP or SEQ (3)"; break;
+          case 4: output << "SEQ (4)"; break;
+          default: output << "Reserved (" << (int)(p_data[p+2]) << ")"; break;
+        }
+        output << std::endl;
+      }break;
       case 0x0A:{// ISO 639-2 language tag (ISO 13818-1)
         uint32_t offset = 0;
         while (offset < p_data[p + 1]){// single language
@@ -1146,6 +1234,22 @@ namespace TS{
           }
         }
       }break;
+      case 0x7F:{// extension descriptor
+        output << std::string(indent, ' ') << "Extension: ";
+        if (p_data[p+2] < 0x80){
+          output << "Unimplemented";
+        }else{
+          output << "User defined";
+        }
+        output << " (";
+        output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase << (int)p_data[p + 2] << std::dec;
+        output << ") - ";
+        for (uint32_t i = 3; i < p_data[p + 1] + 2; ++i){
+          output << std::hex << std::setw(2) << std::setfill('0') << std::uppercase
+                 << (int)p_data[p + i] << std::dec;
+        }
+        output << std::endl;
+      }break;
       case 0x52:{// DVB stream identifier
         output << std::string(indent, ' ') << "Stream identifier: Tag #" << (int)p_data[p + 2] << std::endl;
       }break;
@@ -1186,12 +1290,11 @@ namespace TS{
       std::string codec = M.getCodec(*it);
       sectionLen += 5;
       if (codec == "ID3" || codec == "RAW"){sectionLen += M.getInit(*it).size();}
-      if (codec == "AAC"){
-        sectionLen += 4; // aac descriptor
-        std::string lang = M.getLang(*it);
-        if (lang.size() == 3 && lang != "und"){
-          sectionLen += 6; // language descriptor
-        }
+      if (codec == "AAC"){sectionLen += 4;} // length of AAC descriptor
+      if (codec == "opus"){sectionLen += 10;} // 6 bytes registration desc, 4 bytes opus desc
+      std::string lang = M.getLang(*it);
+      if (lang.size() == 3 && lang != "und"){
+        sectionLen += 6; // language descriptor
       }
     }
     PMT.setSectionLength(0xB00D + sectionLen);
@@ -1215,7 +1318,7 @@ namespace TS{
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
       entry.setElementaryPid(getUniqTrackID(M, *it));
-      entry.setESInfo("");
+      std::string es_info;
       if (codec == "H264"){
         entry.setStreamType(0x1B);
       }else if (codec == "HEVC"){
@@ -1224,18 +1327,15 @@ namespace TS{
         entry.setStreamType(0x02);
       }else if (codec == "AAC"){
         entry.setStreamType(0x0F);
-        std::string aac_info("\174\002\121\000",
-                             4); // AAC descriptor: AAC Level 2. Hardcoded, because... what are AAC levels, anyway?
-        // language code ddescriptor
-        std::string lang = M.getLang(*it);
-        if (lang.size() == 3 && lang != "und"){
-          aac_info.append("\012\004", 2);
-          aac_info.append(lang);
-          aac_info.append("\000", 1);
-        }
-        entry.setESInfo(aac_info);
+        // AAC descriptor: AAC Level 2. Hardcoded, because... what are AAC levels, anyway?
+        es_info.append("\174\002\121\000", 4);
       }else if (codec == "MP3" || codec == "MP2"){
         entry.setStreamType(0x03);
+      }else if (codec == "opus"){
+        entry.setStreamType(0x06);
+        es_info.append("\005\004Opus", 6);//registration descriptor
+        es_info.append("\177\002\200", 3);//Opus descriptor
+        es_info.append(1, (char)M.getChannels(*it));
       }else if (codec == "AC3"){
         entry.setStreamType(0x81);
       }else if (codec == "ID3"){
@@ -1245,6 +1345,14 @@ namespace TS{
         entry.setStreamType(0x06);
         entry.setESInfo(M.getInit(*it));
       }
+      // language code descriptor
+      std::string lang = M.getLang(*it);
+      if (lang.size() == 3 && lang != "und"){
+        es_info.append("\012\004", 2);
+        es_info.append(lang);
+        es_info.append("\000", 1);
+      }
+      entry.setESInfo(es_info);
       entry.advance();
     }
     PMT.calcCRC();

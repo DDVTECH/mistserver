@@ -18,7 +18,8 @@ namespace TS{
     ID3 = 0x15,
     MPEG2 = 0x02,
     MP2 = 0x03,
-    META = 0x06
+    META = 0x06,
+    OPUS = 0x060001
   };
 
   class ADTSRemainder{

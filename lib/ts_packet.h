@@ -76,6 +76,7 @@ namespace TS{
                                           unsigned long long offset, bool isAligned, uint64_t bps = 0);
     static std::string &getPESAudioLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
     static std::string &getPESMetaLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
+    static std::string &getPESPS1LeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
 
     // Printers and writers
     std::string toPrettyString(size_t indent = 0, int detailLevel = 3) const;
@@ -111,6 +112,8 @@ namespace TS{
   public:
     ProgramDescriptors(const char *data, const uint32_t len);
     std::string getLanguage() const;
+    std::string getRegistration() const;
+    std::string getExtension() const;
     std::string toPrettyString(size_t indent) const;
 
   private:

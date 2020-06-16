@@ -94,6 +94,10 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
     res << " [Audio " << (int)(d[3] & 0x1F) << "]";
     known = true;
   }
+  if (!known && d[3] == 0xBD){
+    res << " [Private Stream 1]";
+    known = true;
+  }
   if (!known){res << " [Unknown stream ID: " << (int)d[3] << "]";}
   if (d[0] != 0 || d[1] != 0 || d[2] != 1){
     res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] << " ]";

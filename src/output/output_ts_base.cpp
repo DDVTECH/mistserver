@@ -164,11 +164,21 @@ namespace Mist{
           packTime = aacSamples * 90000 / freq;
         }
       }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, M.getBps(thisIdx));
-      fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-      if (codec == "AAC"){
-        bs = TS::getAudioHeader(dataLen, M.getInit(thisIdx));
+      if (codec == "opus"){
+        tempLen += 3 + (dataLen/255);
+        bs = TS::Packet::getPESPS1LeadIn(tempLen, packTime, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+        bs = "\177\340";
+        bs.append(dataLen/255, (char)255);
+        bs.append(1, (char)(dataLen-255*(dataLen/255)));
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+      }else{
+        bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, M.getBps(thisIdx));
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+        if (codec == "AAC"){
+          bs = TS::getAudioHeader(dataLen, M.getInit(thisIdx));
+          fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+        }
       }
       fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }else if (type == "meta"){

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include "tinythread.h"
+#include "opus.h"
 
 tthread::recursive_mutex tMutex;
 
@@ -206,12 +207,19 @@ namespace TS{
         case ID3:
         case MP2:
         case MPEG2:
-        case META:
+        case OPUS:
+        case META:{
           pidToCodec[pid] = sType;
-          if (sType == ID3 || sType == META){
-            metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
+          std::string & init = metaInit[pid];
+          init.assign(entry.getESInfo(), entry.getESInfoLength());
+          if (sType == META){
+            TS::ProgramDescriptors desc(init.data(), init.size());
+            std::string reg = desc.getRegistration();
+            if (reg == "Opus"){
+              pidToCodec[pid] = OPUS;
+            }
           }
-          break;
+        } break;
         default: break;
         }
         entry.advance();
@@ -547,7 +555,36 @@ namespace TS{
         mp2Hdr[tid] = std::string(pesPayload, realPayloadSize);
       }
     }
-
+    if (thisCodec == OPUS){
+      size_t offset = 0;
+      while (realPayloadSize > offset+1){
+        size_t headSize = 2;
+        size_t packSize = 0;
+        bool control_ext = false;
+        if (pesPayload[offset+1] & 0x10){headSize += 2;}//trim start
+        if (pesPayload[offset+1] & 0x08){headSize += 2;}//trim end
+        if (pesPayload[offset+1] & 0x04){control_ext = true;}//control extension
+        while (pesPayload[offset+2] == 255){
+          packSize += 255;
+          ++offset;
+        }
+        packSize += pesPayload[offset+2];
+        ++offset;
+        offset += headSize;
+        //Skip control extension, if present
+        if (control_ext){
+          offset += pesPayload[offset] + 1;
+        }
+        if (realPayloadSize < offset+packSize){
+          WARN_MSG("Encountered invalid Opus frame (%zu > %zu) - discarding!", offset+packSize, realPayloadSize);
+          break;
+        }
+        out.push_back(DTSC::Packet());
+        out.back().genericFill(timeStamp, timeOffset, tid, pesPayload+offset, packSize, bPos, 0);
+        timeStamp += Opus::Opus_getDuration(pesPayload+offset);
+        offset += packSize;
+      }
+    }
     if (thisCodec == H264 || thisCodec == H265){
       const char *nextPtr;
       const char *pesEnd = pesPayload + realPayloadSize;
@@ -915,6 +952,52 @@ namespace TS{
         codec = "AC3";
         size = 16;
       }break;
+      case OPUS:{
+        addNewTrack = true;
+        type = "audio";
+        codec = "opus";
+        size = 16;
+        init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\001", 19);
+        channels = 2;
+        std::string extData = TS::ProgramDescriptors(metaInit[it->first].data(), metaInit[it->first].size()).getExtension();
+        if (extData.size() > 1){
+          channels = extData[1];
+          uint8_t channel_map = extData[2];
+          if (channels > 8){
+            FAIL_MSG("Channel count %u not implemented", (int)channels);
+            if (channel_map == 1){channel_map = 255;}
+          }
+          if (channel_map > 1){
+            FAIL_MSG("Channel mapping table %u not implemented", (int)init[18]);
+            channel_map = 255;
+          }
+          if (channels > 2 && channels <= 8 && channel_map == 0){
+            WARN_MSG("Overriding channel mapping table from 0 to 1");
+            channel_map = 1;
+          }
+          init[9] = channels;
+          init[18] = channel_map;
+          if (channel_map == 1){
+            static const uint8_t opus_coupled_stream_cnt[9] = {1,0,1,1,2,2,2,3,3};
+            static const uint8_t opus_stream_cnt[9] = {1,1,1,2,2,3,4,4,5};
+            static const uint8_t opus_channel_map[8][8] = {
+                {0},
+                {0,1},
+                {0,2,1},
+                {0,1,2,3},
+                {0,4,1,2,3},
+                {0,4,1,2,3,5},
+                {0,4,1,2,3,5,6},
+                {0,6,1,2,3,4,5,7},
+            };
+            init += (char)opus_stream_cnt[channels];
+            init += (char)opus_coupled_stream_cnt[channels];
+            init += std::string("\000\000\000\000\000\000\000\000", channels);
+            memcpy((char*)init.data()+21, opus_channel_map[channels - 1], channels);
+          }
+        }
+        rate = 48000;
+      }break;
       case MP2:{
         addNewTrack = true;
         Mpeg::MP2Info info = Mpeg::parseMP2Header(mp2Hdr[it->first]);
@@ -996,6 +1079,7 @@ namespace TS{
             case ID3:
             case MP2:
             case MPEG2:
+            case OPUS:
             case META: result.insert(entry.getElementaryPid()); break;
             default: break;
             }

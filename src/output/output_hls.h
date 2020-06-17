@@ -19,6 +19,7 @@ namespace Mist{
     void preHTTP();
 
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
+    std::string origin;
     std::string liveIndex();
     std::string liveIndex(size_t tid, const std::string &sessId);
 

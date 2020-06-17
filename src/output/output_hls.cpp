@@ -48,10 +48,13 @@ namespace Mist{
         result << "\"\r\n" << it->first;
         if (audioId != INVALID_TRACK_ID){result << "_" << audioId;}
         if (hasSessionIDs()){
-          result << "/index.m3u8?sessId=" << sid << "\r\n";
+          result << "/index.m3u8?sessId=" << sid;
+          if (origin.size()){result << "&origin=" << origin;}
         }else{
-          result << "/index.m3u8\r\n";
+          result << "/index.m3u8";
+          if (origin.size()){result << "?origin=" << origin;}
         }
+        result << "\r\n";
       }else if (M.getCodec(it->first) == "subtitle"){
 
         if (M.getLang(it->first).empty()){meta.setLang(it->first, "und");}
@@ -66,7 +69,9 @@ namespace Mist{
       result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
       result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
       result << "\r\n";
-      result << audioId << "/index.m3u8\r\n";
+      result << audioId << "/index.m3u8";
+      if (origin.size()){result << "?origin=" << origin;}
+      result << "\r\n";
     }
     return result.str();
   }
@@ -111,12 +116,22 @@ namespace Mist{
         snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.webvtt?track=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
                  (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
       }else{
-        if (sessId.size()){
-          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s\r\n",
-                   floatDur, startTime, startTime + duration, sessId.c_str());
+        if (origin.size()){
+          if (sessId.size()){
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s&origin=%s\r\n",
+                     floatDur, startTime, startTime + duration, sessId.c_str(), origin.c_str());
+          }else{
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?origin=%s\r\n", floatDur,
+                     startTime, startTime + duration, origin.c_str());
+          }
         }else{
-          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts\r\n", floatDur,
-                   startTime, startTime + duration);
+          if (sessId.size()){
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s\r\n",
+                     floatDur, startTime, startTime + duration, sessId.c_str());
+          }else{
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts\r\n", floatDur,
+                     startTime, startTime + duration);
+          }
         }
       }
       totalDuration += duration;
@@ -235,6 +250,7 @@ namespace Mist{
 
   void OutHLS::onHTTP(){
     std::string method = H.method;
+    origin = H.GetVar("origin");
 
     if (H.url == "/crossdomain.xml"){
       H.SetHeader("Content-Type", "text/xml");

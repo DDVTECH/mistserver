@@ -1,31 +1,33 @@
 #!/bin/bash
 
+
+
 #starting with define of stream getter functions
 #for all funcions: $1 = stream, $2 = time to download
-function genericGetter {
-  echo filesize `curl -s -m $2 $1| wc -c` 1>&2
-}
-
 function flvGetter {
-  curl -s -m $2 $1 2> /dev/null | ../MistAnalyserFLV -m validate 2> /dev/null
+  curl -s -m $2 $1 2> /dev/null | MistAnalyserFLV -D 0 -g 0 -V -T $2 2> /dev/null
 }
 
 function hlsGetter {
-  ../MistAnalyserHLS -m validate -a $2 $1 2>/dev/null
+  MistAnalyserHLS -D 0 -g 0 -V -T $2 $1 2>/dev/null
 }
 
 function oggGetter {
-  curl -s -m $2 $1 | ../MistAnalyserOGG -m validate
+  curl -s -m $2 $1 | MistAnalyserOGG -D 0 -g 0 -V -T $2
 }
 
 function dashGetter {
-  ../MistAnalyserDASH -m validate -a $2 $1 2>/dev/null
+  MistAnalyserDASH -D 0 -g 0 -V -T $2 $1 2>/dev/null
+}
+
+function tsGetter {
+  curl -s -m $2 $1 2> /dev/null | MistAnalyserTS -D 0 -g 0 -T $2 -V - 2>/dev/null
 }
 
 function rtmpGetter {
   #$rtmpGetter ignores $2, because rtmpdump has no time setting
   #rtmpdump is ended with killall in parent function
-  rtmpdump -qRr $1 -o - 2> /dev/null | ../MistAnalyserFLV -m validate 2> /dev/null
+  rtmpdump -qRr $1 -o - 2> /dev/null | MistAnalyserFLV -g 0 -D 0 -V -T $2 2> /dev/null
 }
 
 function serverTest {
@@ -34,23 +36,19 @@ function serverTest {
   #$1 = number of stream batches
   #$2 = amount of streams per batch (amount of streams = $! * $2)
   #$3 = current stream test
-  #$4 = ssh access to server where our log file is located
-  #$5 = duration of test in seconds
-  #$6 = location of log file on server
-  #$7 = getter used for stream testing
-  #$8 = Extra comments added to .csv file
-  #$9 = Output basename
-  echo "Test variables:" > $9.info
-  echo "Start time: `date`" >> $9.info
-  echo "Client count: `echo "$1 * $2" | bc`" >> $9.info
-  echo "Batch Size: $2" >> $9.info
-  echo "Stream URL: $3"  >> $9.info
-  echo "Duration: $5 seconds" >> $9.info
+  #$4 = duration of test in seconds
+  #$5 = getter used for stream testing
+  #$6 = Output basename
+  echo "Test variables:" > $6.info
+  echo "Start time: `date`" >> $6.info
+  echo "Client count: `echo "$1 * $2" | bc`" >> $6.info
+  echo "Batch Size: $2" >> $6.info
+  echo "Stream URL: $3"  >> $6.info
+  echo "Duration: $4 seconds" >> $6.info
   val="none"
-  logdir="$6"
-  if [ -n "$7" ] ; then
-    echo "Validator: $7" >> $9.info
-    val="$7"
+  if [ -n "$5" ] ; then
+    echo "Validator: $5" >> $6.info
+    val="$5"
   fi
   
   getter="${val}Getter"
@@ -58,14 +56,14 @@ function serverTest {
   prefix="res"`date +%s`_
   for x in `seq 1 1 $1`; do
     for y in `seq 1 1 $2`; do
-      eval "$getter $3 $5" >& /tmp/$prefix`echo "$x * $2 + $y" | bc`.txt &
+      eval "$getter $3 $4" >& /tmp/$prefix`echo "$x * $2 + $y" | bc`.txt &
     done
     sleep 1
   done
   
   start=`date +%s`
   f=$(( `date +%s` - $start ))
-  while [ $f -lt $5 ]; do
+  while [ $f -lt $4 ]; do
     sleep 2
     f=$(( `date +%s` - $start ))
   done
@@ -79,33 +77,28 @@ function serverTest {
     sleep 2
     f=$(( `date +%s` - $start ))
   done
-  cat /tmp/$prefix* > $9.times
+  cat /tmp/$prefix* > $6.times
   wait
 }
 
 
 #setting default values
-server="localhost"
-comment=""
-logdir="`pwd`"
-freshBoot="y"
-product="mistserver"
 declare -a timegroup
 declare -a request
 declare -a stream
+
+if [ $# -eq 0 ] ; then
+  echo "Usage: $0 -t duration_in_seconds -b 'batchcount clients_per_batch' -m stream_url";
+  echo "Duration defaults to 60 seconds if not given";
+  echo "Batch defaults to '1 100' if not given (1 batch of 100 clients)";
+  echo "Stream URL is the only mandatory field"
+  exit 1;
+fi
 
 #parsing arguments
 red=1
 while [ $red -le $# ]; do
   case ${!red} in
-    "-s") #defines server
-      red=$(( $red + 1 ))
-      server=${!red}
-    ;;
-    "-l") #defines directory on the server with the capabilities log
-      red=$(( $red + 1 ))
-      logdir=${!red}
-    ;;
     "-t") #defines timelengths for tests
       red=$(( $red + 1 ))
       timegroup+=( ${!red} )
@@ -114,23 +107,11 @@ while [ $red -le $# ]; do
       red=$(( $red + 1 ))
       request+=( "${!red}" )
     ;;
-    "-c") #add a comment
-      red=$(( $red + 1 ))
-      comment=${!red}
-    ;;
     "-m") #defines a media stream and validator
       red=$(( $red + 1 ))
       stream+=( "${!red}" )
     ;;
-    "-p") #defines the product to be tested, default is mistserver
-      red=$(( $red + 1 ))
-      product=${!red}
-    ;;
-    "-fresh")
-      freshBoot="x"
-    ;;
     *)
-      comment=`echo $comment ${!red}`
   esac
   red=$(( $red + 1 ))
 done
@@ -139,6 +120,8 @@ done
 for (( i=0; i<${#stream[@]}; i++ )) ; do
   if [ "${stream[$i]:0:4}" == "rtmp" ]; then
     validator[$i]="rtmp"
+  elif [ "${stream[$i]:0:2}" == "ws" ]; then
+    validator[$i]="rtc"
   else
     tempFile=$(basename "${stream[$i]}")
     tempExt="${tempFile##*.}"
@@ -158,6 +141,12 @@ for (( i=0; i<${#stream[@]}; i++ )) ; do
     "mpd")
       validator[$i]="dash"
     ;;
+    "ts")
+      validator[$i]="ts"
+    ;;
+    "mkv")
+      validator[$i]="ebml"
+    ;;
     *)
       validator[$i]="generic"
     esac
@@ -165,7 +154,7 @@ for (( i=0; i<${#stream[@]}; i++ )) ; do
 done
 
 if [ ${#request[@]} == 0 ]; then
-  request=( "1 1000" )
+  request=( "1 100" )
 fi
 
 if [ ${#timegroup[@]} == 0 ]; then
@@ -173,7 +162,7 @@ if [ ${#timegroup[@]} == 0 ]; then
 fi
 
 #making directory for test
-temp="$product"`date +%y%m%d%H%M%S`
+temp="loadtest`date +%y%m%d%H%M%S`"
 mkdir $temp
 
 #starting test
@@ -190,11 +179,95 @@ for (( i=0; i<${#stream[@]}; i++ )) ; do
       fi
       amount=`echo ${request[$o]} | sed -e 's/ /*/g' | bc`
       name="${name}${tnr}_${amount}_${validator[$i]}_${timegroup[$p]}"
-      echo "$name ${request[$o]} ${stream[$i]} $server ${timegroup[$p]} ${validator[$i]}"
-      serverTest ${request[$o]} ${stream[$i]} $server ${timegroup[$p]} $logdir ${validator[$i]} "$comment" $name
+      echo "$name testing ${request[$o]} batches on ${stream[$i]} for ${timegroup[$p]} seconds using validator ${validator[$i]}"
+      serverTest ${request[$o]} ${stream[$i]} ${timegroup[$p]} ${validator[$i]} $name
     done
   done
 done
 
-./plotDieShit $temp
+FOLDER=$temp
+LABEL=$temp
+
+T="pngcairo size 1000,600 enhanced font \"LiberationSerif,20\""
+EXT=png
+#T="pdfcairo"
+#EXT=pdf
+
+function runplot {
+  for R in `seq -w 0 100`; do
+    FLDS=( $1 )
+    NAMS=( $2 )
+
+    FN=`ls ${FLDS[0]}/run${R}_*.times 2> /dev/null`
+    if [ -z $FN ] ; then
+      return
+    fi
+    FILE=`basename $FN`
+
+    FN=`ls ${FLDS[0]}/run${R}_*.times 2> /dev/null`
+    TIMES=`basename $FN`
+    VIEWERS=`echo $FILE | cut -d '_' -f 2`
+    TECH=`echo $FILE | cut -d '_' -f 3`
+    SECS=`echo $FILE | cut -d '.' -f 1 | cut -d '_' -f 4`
+    TIME=$(( $SECS / 60 ))m
+
+    FILES=()
+    TIME_FN=()
+
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      FN=`ls ${FLDS[$i]}/run${R}_*.times 2> /dev/null`
+      if [ -z $FN ] ; then
+        return
+      fi
+      FILES[$i]="${FLDS[$i]}/`basename $FN`"
+      FN=`ls ${FLDS[$i]}/run${R}_*.times 2> /dev/null`
+      TIME_FN[$i]="${FLDS[$i]}/`basename $FN`"
+    done
+
+    COMMON_DATA="${TIME}, ${VIEWERS} ${TECH}"
+    COMMON_FILENAME="${TECH}_${VIEWERS}_${TIME}"
+
+    PLOT5=""
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      if [ -n "${PLOT5}" ] ; then
+        PLOT5="${PLOT5}, "
+      fi
+      sort --field-separator=',' --key=4g < "${TIME_FN[$i]}" > "${TIME_FN[$i]}_sorted"
+      VC=`cut -f 4 -d ',' < "${TIME_FN[$i]}" | awk "(int(\\\$1) >= ${SECS}000-2000) {sum++} END{print sum}"`
+      SC=`cut -f 4 -d ',' < "${TIME_FN[$i]}" | awk "(int(\\\$1) >= ${SECS}000-10000) {sum++} END{print sum}"`
+      #and buffer times. Smoothing makes no sense here. Don't.
+      PLOT5="${PLOT5}'${TIME_FN[$i]}_sorted' using (\$4-${SECS}000)/1000 with linespoints lw 1 title '${VC} good, ${SC} acceptable'"
+    done
+
+    gnuplot << EOF
+set terminal ${T}
+set datafile separator ","
+set key on under center
+
+#set style fill solid 0.25 border -1
+#set style boxplot outliers pointtype 7
+#set style data boxplot
+#set boxwidth  0.5
+set pointsize 0.2
+set arrow from 0,-2 to ${VIEWERS}-1,-2 nohead
+
+set title "Available buffer time, ${COMMON_DATA} clients"
+set output '${FOLDER}/${COMMON_FILENAME}_buffers.${EXT}'
+set format y "%gs"
+set ylabel "Buffer (under black line = success)"
+set xlabel "Each point represents a single connection"
+unset xtics
+set yr [${SECS}:-5]
+plot ${PLOT5}
+
+
+EOF
+
+    for i in `seq $(( ${#FLDS[@]} - 1 )) -1 0`; do
+      rm -f "${FLDS[$i]}/${TIMES}_sorted"
+    done
+  done
+}
+
+runplot "$LABEL" "$FOLDER"
 

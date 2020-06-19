@@ -289,6 +289,11 @@ public:
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
     if (d.isMember("bwlimit") && d["bwlimit"].asInt()){availBandwidth = d["bwlimit"].asInt();}
+    if (d.isMember("loc")){
+      if (d["loc"]["lat"].asDouble() != servLati){servLati = d["loc"]["lat"].asDouble();}
+      if (d["loc"]["lon"].asDouble() != servLongi){servLongi = d["loc"]["lon"].asDouble();}
+      if (d["loc"]["name"].asStringRef() != servLoc){servLoc = d["loc"]["name"].asStringRef();}
+    }
     int64_t nRamMax = d["mem_total"].asInt();
     int64_t nRamCur = d["mem_used"].asInt();
     int64_t nShmMax = d["shm_total"].asInt();
@@ -664,31 +669,6 @@ void handleServer(void *hostEntryPointer){
   bool down = true;
 
   HTTP::Downloader DL;
-
-  if (DL.get(HTTP::URL("http://api.ipstack.com/" + url.host + "?access_key=05eb21db3983dec4cd6d22131ec0a40d&format=1")) &&
-      DL.isOk()){
-    JSON::Value &gDet = entry->details->geoDetails;
-    INFO_MSG("Location: %s", DL.data().c_str());
-    gDet = JSON::fromString(DL.data());
-    INFO_MSG("Location: %s", gDet.toString().c_str());
-    if (gDet && gDet.isMember("latitude") && gDet.isMember("longitude")){
-      entry->details->servLati = gDet["latitude"].asDouble();
-      entry->details->servLongi = gDet["longitude"].asDouble();
-      std::stringstream loc;
-      if (gDet.isMember("country_name")){
-        if (gDet.isMember("city") && gDet["city"].asString().size()){
-          entry->details->servLoc = gDet["city"].asString() + ", " + gDet["country_name"].asString();
-        }else{
-          entry->details->servLoc = gDet["country_name"].asString();
-        }
-        INFO_MSG("%s is in %s", url.host.c_str(), entry->details->servLoc.c_str());
-      }else{
-        INFO_MSG("%s is at %f, %f", url.host.c_str(), entry->details->servLati, entry->details->servLongi);
-      }
-    }
-  }else{
-    WARN_MSG("Could not reach location server for %s", url.host.c_str());
-  }
 
   while (cfg->is_active && (entry->state != STATE_GODOWN)){
     if (DL.get(url) && DL.isOk()){

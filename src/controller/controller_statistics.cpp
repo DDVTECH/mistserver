@@ -1729,6 +1729,13 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       resp["bw"].append(servUpBytes);
       resp["bw"].append(servDownBytes);
       resp["bwlimit"] = bwLimit;
+      if (Storage["config"].isMember("location") && Storage["config"]["location"].isMember("lat") && Storage["config"]["location"].isMember("lon")){
+        resp["loc"]["lat"] = Storage["config"]["location"]["lat"].asDouble();
+        resp["loc"]["lon"] = Storage["config"]["location"]["lon"].asDouble();
+        if (Storage["config"]["location"].isMember("name")){
+          resp["loc"]["name"] = Storage["config"]["location"]["name"].asStringRef();
+        }
+      }
       resp["obw"].append(servUpOtherBytes);
       resp["obw"].append(servDownOtherBytes);
 

@@ -551,6 +551,11 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       Controller::prometheus = out["prometheus"].asStringRef();
     }
     if (in.isMember("defaultStream")){out["defaultStream"] = in["defaultStream"];}
+    if (in.isMember("location") && in["location"].isObject()){
+      out["location"]["lat"] = in["location"]["lat"].asDouble();
+      out["location"]["lon"] = in["location"]["lon"].asDouble();
+      out["location"]["name"] = in["location"]["name"].asStringRef();
+    }
   }
   if (Request.isMember("bandwidth")){
     if (Request["bandwidth"].isObject()){

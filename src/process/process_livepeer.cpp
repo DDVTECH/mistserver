@@ -156,6 +156,8 @@ namespace Mist{
             retry = false;
             HTTP::URL target(currBroadAddr+"/live/"+lpID+"/"+JSON::Value(keyCount).asString()+".ts");
             upper.setHeader("Accept", "multipart/mixed");
+            uint64_t segDuration = thisPacket.getTime() - segTime;
+            upper.setHeader("Content-Duration", JSON::Value(segDuration).asString());
             if (upper.post(target, tsPck, tsPck.size())){
               if (upper.getStatusCode() == 200){
                 HIGH_MSG("Uploaded %zu bytes to %s", tsPck.size(), target.getUrl().c_str());

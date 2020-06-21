@@ -106,20 +106,14 @@ namespace Mist{
   }
 
   void OutDTSC::sendNext(){
-    // If there are now more selectable tracks, select the new track and do a seek to the current
-    // timestamp Set sentHeader to false to force it to send init data
-    if (userSelect.size() < 2){
-      static uint64_t lastMeta = 0;
-      if (Util::epoch() > lastMeta + 5){
-        lastMeta = Util::epoch();
-        std::set<size_t> validTracks = getSupportedTracks();
-        if (validTracks.size() > 1){
-          if (selectDefaultTracks()){
-            INFO_MSG("Track selection changed - resending headers and continuing");
-            sentHeader = false;
-            return;
-          }
-        }
+    // If selectable tracks changed, set sentHeader to false to force it to send init data
+    static uint64_t lastMeta = 0;
+    if (Util::epoch() > lastMeta + 5){
+      lastMeta = Util::epoch();
+      if (selectDefaultTracks()){
+        INFO_MSG("Track selection changed - resending headers and continuing");
+        sentHeader = false;
+        return;
       }
     }
     DTSC::Packet p(thisPacket, thisIdx + 1);

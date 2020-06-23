@@ -200,6 +200,7 @@ set(libHeaders
   lib/hls_support.h
   lib/http_parser.h
   lib/downloader.h
+  lib/id3.h
   lib/json.h
   lib/langcodes.h
   lib/mp4_adobe.h
@@ -268,6 +269,7 @@ add_library (mist
   lib/hls_support.cpp
   lib/http_parser.cpp
   lib/downloader.cpp
+  lib/id3.cpp
   lib/json.cpp
   lib/langcodes.cpp
   lib/mp4_adobe.cpp

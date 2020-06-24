@@ -124,7 +124,7 @@ namespace Mist{
 
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 
-    inline bool keepGoing(){return config->is_active && myConn;}
+    inline virtual bool keepGoing(){return config->is_active && myConn;}
 
     Comms::Statistics statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.

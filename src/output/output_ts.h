@@ -20,6 +20,11 @@ namespace Mist{
     Socket::UDPConnection pushSock;
     TS::Stream tsIn;
     std::string getStatsName();
+
+  protected:
+    inline virtual bool keepGoing(){
+      return config->is_active && (!listenMode() || myConn);
+    }
   };
 }// namespace Mist
 

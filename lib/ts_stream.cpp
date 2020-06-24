@@ -317,6 +317,7 @@ namespace TS{
     }
     if (psCache->size() <= 1){
       if (!finished){FAIL_MSG("No PES packets to parse");}
+      seenUnitStart[tid] = 0;
       return;
     }
     // Find number of packets before unit Start
@@ -336,6 +337,7 @@ namespace TS{
     }
     if (!finished && curPack == psCache->end()){
       FAIL_MSG("No PES packets to parse (%" PRIu32 ")", seenUnitStart[tid]);
+      seenUnitStart[tid] = 0;
       return;
     }
 

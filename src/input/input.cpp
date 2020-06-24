@@ -37,14 +37,11 @@ namespace Mist{
 
   void Input::reloadClientMeta(){
     if (M.getStreamName() != "" && M.getMaster()){return;}
-    if (M.getStreamName() != streamName){
-      meta.reInit(streamName, false);
-    }else{
-      meta.refresh();
-    }
+    meta.reInit(streamName, false);
   }
 
   bool Input::hasMeta() const{return M && M.getStreamName() != "" && M.getValidTracks().size();}
+  bool Input::trackLoaded(size_t idx) const{return (M && M.trackLoaded(idx));}
 
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;

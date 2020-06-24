@@ -31,6 +31,7 @@ namespace Mist{
     bool keepAlive();
     void reloadClientMeta();
     bool hasMeta() const;
+    bool trackLoaded(size_t idx) const;
     static Util::Config *config;
     virtual bool needsLock(){return !config->getBool("realtime");}
     virtual bool publishesTracks(){return true;}

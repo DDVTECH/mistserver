@@ -139,6 +139,7 @@ namespace RTP{
     void setCallbacks(void (*cbPack)(const DTSC::Packet &pkt),
                       void (*cbInit)(const uint64_t track, const std::string &initData));
     void addRTP(const RTP::Packet &rPkt);
+    void timeSync(uint32_t rtpTime, int64_t msDiff);
     virtual void outPacket(const DTSC::Packet &pkt){
       if (cbPack){cbPack(pkt);}
     }
@@ -148,6 +149,7 @@ namespace RTP{
 
   public:
     uint64_t trackId;
+    uint64_t bootMsOffset;
     double multiplier;    ///< Multiplier to convert from millis to RTP time
     std::string codec;    ///< Codec of this track
     std::string type;     ///< Type of this track
@@ -159,6 +161,7 @@ namespace RTP{
     bool recentWrap;      ///< True if a wraparound happened recently.
     uint32_t prevTime;
     uint64_t firstTime;
+    int32_t milliSync;
     void (*cbPack)(const DTSC::Packet &pkt);
     void (*cbInit)(const uint64_t track, const std::string &initData);
     // Codec-specific handlers

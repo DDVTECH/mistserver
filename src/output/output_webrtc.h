@@ -145,6 +145,7 @@ namespace Mist{
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
 
   private:
+    uint64_t lastRecv;
     uint64_t lastPackMs;
     std::ofstream jitterLog;
     std::ofstream packetLog;
@@ -234,6 +235,9 @@ namespace Mist{
                                                           ///< future.
     std::map<uint32_t, nackBuffer> outBuffers;
     std::map<size_t, uint64_t> lastSR;
+
+    int64_t ntpClockDifference;
+    bool syncedNTPClock;
   };
 }// namespace Mist
 

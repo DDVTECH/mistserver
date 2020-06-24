@@ -616,6 +616,7 @@ namespace RTP{
     if (M.getCodec(tid) == "opus"){
       m = 48.0;
     }
+    bootMsOffset = M.getBootMsOffset();
     setProperties(M.getID(tid), M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
   }
 
@@ -623,6 +624,24 @@ namespace RTP{
                             void (*cbI)(const uint64_t track, const std::string &initData)){
     cbPack = cbP;
     cbInit = cbI;
+  }
+
+  /// Improves A/V sync by providing an NTP time source
+  /// msDiff is the amount of millis our current NTP time is ahead of the sync moment NTP time
+  /// May be negative, if we're behind instead of ahead.
+  void toDTSC::timeSync(uint32_t rtpTime, int64_t msDiff){
+    if (!firstTime){return;}
+    uint64_t rtp64Time = rtpTime;
+    if (recentWrap){
+      if (rtpTime > 0x80000000lu){rtp64Time -= 0x100000000ll;}
+    }
+    uint64_t msTime = (rtp64Time - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier + milliSync;
+    int32_t rtpDiff = (bootMsOffset + msTime) - (Util::bootMS() - msDiff);
+    if (rtpDiff > 25 || rtpDiff < -25){
+      INFO_MSG("RTP difference (%s %s): %" PRId32 "ms, syncing...", type.c_str(), codec.c_str(), rtpDiff);
+      milliSync -= rtpDiff;
+    }
+
   }
 
   /// Adds an RTP packet to the converter, outputting DTSC packets and/or updating init data,
@@ -636,6 +655,7 @@ namespace RTP{
     // This part isn't codec-specific, so we do it before anything else.
     int64_t pTime = pkt.getTimeStamp();
     if (!firstTime){
+      milliSync = Util::bootMS() - bootMsOffset;
       firstTime = pTime + 1;
       INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME,
                PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));
@@ -651,7 +671,7 @@ namespace RTP{
       }
     }
     prevTime = pkt.getTimeStamp();
-    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier;
+    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier + milliSync;
     char *pl = (char *)pkt.getPayload();
     uint32_t plSize = pkt.getPayloadSize();
     bool missed = lastSeq != (pkt.getSequence() - 1);

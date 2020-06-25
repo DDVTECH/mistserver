@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "socket.h"
 #include "timing.h"
+#include "json.h"
 #include <cstdlib>
 #include <ifaddrs.h>
 #include <netdb.h>
@@ -114,7 +115,7 @@ bool Socket::isLocal(const std::string &remotehost){
 /// Helper function that matches two binary-format IPv6 addresses with prefix bits of prefix.
 bool Socket::matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix){
   if (!prefix){prefix = 128;}
-  if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
+  if (Util::printDebugLevel >= DLVL_MEDIUM){
     std::string Astr, Bstr;
     Socket::hostBytesToStr(A.data(), 16, Astr);
     Socket::hostBytesToStr(B.data(), 16, Bstr);
@@ -1572,16 +1573,55 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
-  if (sock == -1){FAIL_MSG("Could not create UDP socket: %s", strerror(errno));}
+  if (sock == -1){
+    FAIL_MSG("Could not create UDP socket: %s", strerror(errno));
+  }else{
+    if (nonblock){setBlocking(!nonblock);}
+    checkRecvBuf();
+  }
   up = 0;
   down = 0;
   destAddr = 0;
   destAddr_size = 0;
-  data = 0;
-  data_size = 0;
-  data_len = 0;
-  if (nonblock){setBlocking(!nonblock);}
+  data.allocate(2048);
 }// Socket::UDPConnection UDP Contructor
+
+///Checks if the UDP receive buffer is at least 1 mbyte, attempts to increase and warns user through log message on failure.
+void Socket::UDPConnection::checkRecvBuf(){
+  if (sock == -1){return;}
+  int recvbuf = 0;
+  int origbuf = 0;
+  socklen_t slen = sizeof(recvbuf);
+  getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+  origbuf = recvbuf;
+  if (recvbuf < 1024*1024){
+    recvbuf = 1024*1024;
+    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
+    slen = sizeof(recvbuf);
+    getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+    if (recvbuf < 1024*1024){
+      recvbuf = 1024*1024;
+      setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, (void*)&recvbuf, sizeof(recvbuf));
+      slen = sizeof(recvbuf);
+      getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+    }
+    if (recvbuf < 200*1024){
+      recvbuf = 200*1024;
+      setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
+      slen = sizeof(recvbuf);
+      getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+      if (recvbuf < 200*1024){
+        recvbuf = 200*1024;
+        setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, (void*)&recvbuf, sizeof(recvbuf));
+        slen = sizeof(recvbuf);
+        getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+      }
+    }
+    if (recvbuf < 200*1024){
+      WARN_MSG("Your UDP receive buffer is set < 200 kbyte (%db) and the kernel denied our request for an increase. It's recommended to set your net.core.rmem_max setting to at least 200 kbyte for best results.", origbuf);
+    }
+  }
+}
 
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
@@ -1594,6 +1634,7 @@ Socket::UDPConnection::UDPConnection(const UDPConnection &o){
     family = AF_INET;
   }
   if (sock == -1){FAIL_MSG("Could not create UDP socket: %s", strerror(errno));}
+  checkRecvBuf();
   up = 0;
   down = 0;
   if (o.destAddr && o.destAddr_size){
@@ -1604,13 +1645,7 @@ Socket::UDPConnection::UDPConnection(const UDPConnection &o){
     destAddr = 0;
     destAddr_size = 0;
   }
-  data = (char *)malloc(1024);
-  if (data){
-    data_size = 1024;
-  }else{
-    data_size = 0;
-  }
-  data_len = 0;
+  data.allocate(2048);
 }
 
 /// Close the UDP socket
@@ -1628,10 +1663,6 @@ Socket::UDPConnection::~UDPConnection(){
   if (destAddr){
     free(destAddr);
     destAddr = 0;
-  }
-  if (data){
-    free(data);
-    data = 0;
   }
 }
 
@@ -1674,6 +1705,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
       close();
       family = rp->ai_family;
       sock = socket(family, SOCK_DGRAM, 0);
+      checkRecvBuf();
       if (boundPort){
         INFO_MSG("Rebinding to %s:%d %s", boundAddr.c_str(), boundPort, boundMulti.c_str());
         bind(boundPort, boundAddr, boundMulti);
@@ -1815,6 +1847,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   for (rp = addr_result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
+    checkRecvBuf();
     char human_addr[INET6_ADDRSTRLEN];
     char human_port[16];
     getnameinfo(rp->ai_addr, rp->ai_addrlen, human_addr, INET6_ADDRSTRLEN, human_port, 16,
@@ -1964,36 +1997,23 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 bool Socket::UDPConnection::Receive(){
   if (sock == -1){return false;}
 #ifdef __CYGWIN__
-  if (data_size != SOCKETSIZE){
-    data = (char *)realloc(data, SOCKETSIZE);
-    data_size = SOCKETSIZE;
-  }
+    data.allocate((SOCKETSIZE);
 #endif
-  int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC | MSG_DONTWAIT, 0, 0);
+  data.truncate(0);
+  socklen_t destsize = destAddr_size;
+  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)destAddr, &destsize);
   if (r == -1){
     if (errno != EAGAIN){INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));}
-    data_len = 0;
     return false;
   }
-  if (data_size < (unsigned int)r){
-    char *tmp = (char *)realloc(data, r);
-    if (tmp){
-      data = tmp;
-      data_size = r;
-    }else{
-      FAIL_MSG("Could not resize socket buffer to %d bytes!", r);
-      return false;
-    }
+  data.append(0, r);
+  down += r;
+  //Handle UDP packets that are too large
+  if (data.rsize() < (unsigned int)r){
+    INFO_MSG("Doubling UDP socket buffer from %" PRIu32 " to %" PRIu32, data.rsize(), data.rsize()*2);
+    data.allocate(data.rsize()*2);
   }
-  socklen_t destsize = destAddr_size;
-  r = recvfrom(sock, data, data_size, 0, (sockaddr *)destAddr, &destsize);
-  if (r > 0){
-    down += r;
-    data_len = r;
-    return true;
-  }
-  data_len = 0;
-  return false;
+  return (r > 0);
 }
 
 int Socket::UDPConnection::getSock(){

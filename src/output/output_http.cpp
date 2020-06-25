@@ -397,7 +397,7 @@ namespace Mist{
     int argnum = 0;
     argarr[argnum++] = (char *)tmparg.c_str();
     std::string temphost = getConnectedHost();
-    std::string debuglevel = JSON::Value(Util::Config::printDebugLevel).asString();
+    std::string debuglevel = JSON::Value(Util::printDebugLevel).asString();
     argarr[argnum++] = (char *)"--ip";
     argarr[argnum++] = (char *)(temphost.c_str());
     argarr[argnum++] = (char *)"--stream";
@@ -405,7 +405,7 @@ namespace Mist{
     argarr[argnum++] = (char *)"--prequest";
     argarr[argnum++] = (char *)(tmpPrequest.c_str());
     // set the debug level if non-default
-    if (Util::Config::printDebugLevel != DEBUG){
+    if (Util::printDebugLevel != DEBUG){
       argarr[argnum++] = (char *)"--debug";
       argarr[argnum++] = (char *)(debuglevel.c_str());
     }

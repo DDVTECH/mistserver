@@ -485,8 +485,8 @@ namespace Mist{
           continue;
         }
         lastRecv = Util::bootSecs(); // prevent disconnect of idle TCP connection when using UDP
-        myConn.addDown(s.data_len);
-        RTP::Packet pack(s.data, s.data_len);
+        myConn.addDown(s.data.size());
+        RTP::Packet pack(s.data, s.data.size());
         if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }

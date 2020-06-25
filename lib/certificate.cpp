@@ -1,5 +1,7 @@
 #include "certificate.h"
 #include "defines.h"
+#include <string.h>
+
 
 Certificate::Certificate() : rsa_ctx(NULL){
   memset((void *)&cert, 0x00, sizeof(cert));

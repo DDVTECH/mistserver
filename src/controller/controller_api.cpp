@@ -443,8 +443,8 @@ void Controller::handleUDPAPI(void *np){
   uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
   while (Controller::conf.is_active){
     if (uSock.Receive()){
-      MEDIUM_MSG("UDP API: %s", uSock.data);
-      JSON::Value Request = JSON::fromString(uSock.data, uSock.data_len);
+      MEDIUM_MSG("UDP API: %s", (const char*)uSock.data);
+      JSON::Value Request = JSON::fromString(uSock.data, uSock.data.size());
       Request["minimal"] = true;
       JSON::Value Response;
       if (Request.isObject()){
@@ -454,7 +454,7 @@ void Controller::handleUDPAPI(void *np){
         Response.removeMember("authorize");
         uSock.SendNow(Response.toString());
       }else{
-        WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
+        WARN_MSG("Invalid API command received over UDP: %s", (const char*)uSock.data);
       }
     }else{
       Util::sleep(500);
@@ -515,9 +515,9 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     JSON::Value &out = Controller::Storage["config"];
     if (in.isMember("debug")){
       out["debug"] = in["debug"];
-      if (Util::Config::printDebugLevel != (out["debug"].isInt() ? out["debug"].asInt() : DEBUG)){
-        Util::Config::printDebugLevel = (out["debug"].isInt() ? out["debug"].asInt() : DEBUG);
-        INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
+      if (Util::printDebugLevel != (out["debug"].isInt() ? out["debug"].asInt() : DEBUG)){
+        Util::printDebugLevel = (out["debug"].isInt() ? out["debug"].asInt() : DEBUG);
+        INFO_MSG("Debug level set to %u", Util::printDebugLevel);
       }
     }
     if (in.isMember("protocols")){

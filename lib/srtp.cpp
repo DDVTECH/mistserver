@@ -1,6 +1,7 @@
 #include "defines.h"
 #include "srtp.h"
 #include <algorithm>
+#include <string.h>
 
 /* --------------------------------------- */
 

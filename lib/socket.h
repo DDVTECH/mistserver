@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "util.h"
 
 #ifdef SSL
 #include "mbedtls/ctr_drbg.h"
@@ -195,14 +196,13 @@ namespace Socket{
     unsigned int destAddr_size; ///< Size of the destination address pointer.
     unsigned int up;            ///< Amount of bytes transferred up.
     unsigned int down;          ///< Amount of bytes transferred down.
-    unsigned int data_size;     ///< The size in bytes of the allocated space in the data pointer.
     int family;                 ///< Current socket address family
     std::string boundAddr, boundMulti;
     int boundPort;
+    void checkRecvBuf();
 
   public:
-    char *data;            ///< Holds the last received packet.
-    unsigned int data_len; ///< The size in bytes of the last received packet.
+    Util::ResizeablePointer data;
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
     ~UDPConnection();

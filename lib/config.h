@@ -13,6 +13,8 @@
 
 /// Contains utility code, not directly related to streaming media
 namespace Util{
+  extern uint32_t printDebugLevel;
+  extern std::string streamName; ///< Used by debug messages to identify the stream name
   extern char exitReason[256];
   void logExitReason(const char * format, ...);
 
@@ -27,8 +29,6 @@ namespace Util{
     // variables
     static bool is_active;     ///< Set to true by activate(), set to false by the signal handler.
     static bool is_restarting; ///< Set to true when restarting, set to false on boot.
-    static uint32_t printDebugLevel;
-    static std::string streamName; ///< Used by debug messages to identify the stream name
     // functions
     Config();
     Config(std::string cmd);

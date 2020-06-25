@@ -407,8 +407,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
                     (char *)filename.c_str()};
   int argNum = 3;
   std::string debugLvl;
-  if (Util::Config::printDebugLevel != DEBUG && !str_args.count("--debug")){
-    debugLvl = JSON::Value(Util::Config::printDebugLevel).asString();
+  if (Util::printDebugLevel != DEBUG && !str_args.count("--debug")){
+    debugLvl = JSON::Value(Util::printDebugLevel).asString();
     argv[++argNum] = (char *)"--debug";
     argv[++argNum] = (char *)debugLvl.c_str();
   }
@@ -563,7 +563,7 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
   // Set original target string in environment
   setenv("MST_ORIG_TARGET", target.c_str(), 1);
   //If no debug level set, default to level of starting process
-  if (debugLvl < 0){debugLvl = Util::Config::printDebugLevel;}
+  if (debugLvl < 0){debugLvl = Util::printDebugLevel;}
 
   // The target can hold variables like current time etc
   streamVariables(target, streamname);
@@ -1285,7 +1285,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
     }
   }
 
-  if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
+  if (Util::printDebugLevel >= DLVL_MEDIUM){
     // print the selected tracks
     std::stringstream selected;
     for (std::set<size_t>::iterator it = result.begin(); it != result.end(); it++){

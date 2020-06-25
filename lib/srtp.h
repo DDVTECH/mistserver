@@ -3,6 +3,7 @@
 #include <srtp2/srtp.h>
 #include <stdint.h>
 #include <string>
+#include <vector>
 
 #define SRTP_PARSER_MASTER_KEY_LEN 16
 #define SRTP_PARSER_MASTER_SALT_LEN 14

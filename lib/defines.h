@@ -23,11 +23,18 @@
 
 #define APPIDENT APPNAME "/" PACKAGE_VERSION
 #define __STDC_FORMAT_MACROS 1
-#include "config.h"
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string>
+
+//Declare as extern so we don't have to include the whole config.h header
+namespace Util{
+  extern uint32_t printDebugLevel;
+  extern std::string streamName;
+}
+
 static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "INFO",    "MEDIUM",
                                      "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
 
@@ -44,29 +51,29 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 
 #if DEBUG >= DLVL_DEVEL
 #define DEBUG_MSG(lvl, msg, ...)                                                                     \
-  if (Util::Config::printDebugLevel >= lvl){\
+  if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, \
-            getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);          \
+            getpid(), __FILE__, __LINE__, Util::streamName.c_str(), ##__VA_ARGS__);          \
   }
 #else
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::Config::printDebugLevel >= lvl){\
+  if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name,    \
-            getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);                            \
+            getpid(), Util::streamName.c_str(), ##__VA_ARGS__);                            \
   }
 #endif
 #else
 #if DEBUG >= DLVL_DEVEL
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::Config::printDebugLevel >= lvl){\
+  if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|MistProcess|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, \
-            __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);                            \
+            __LINE__, Util::streamName.c_str(), ##__VA_ARGS__);                            \
   }
 #else
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
-  if (Util::Config::printDebugLevel >= lvl){\
+  if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|MistProcess|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(),                \
-            Util::Config::streamName.c_str(), ##__VA_ARGS__);                                      \
+            Util::streamName.c_str(), ##__VA_ARGS__);                                      \
   }
 #endif
 #endif

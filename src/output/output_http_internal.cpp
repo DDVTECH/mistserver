@@ -441,7 +441,7 @@ namespace Mist{
             INFO_MSG("Falling back to default stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
             origStreamName = streamName;
             streamName = newStrm;
-            Util::Config::streamName = streamName;
+            Util::streamName = streamName;
             reconnect();
             return getStatusJSON(reqHost, useragent);
           }

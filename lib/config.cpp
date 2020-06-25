@@ -38,8 +38,8 @@
 bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
-uint32_t Util::Config::printDebugLevel = DEBUG; //
-std::string Util::Config::streamName;
+uint32_t Util::printDebugLevel = DEBUG;
+std::string Util::streamName;
 char Util::exitReason[256] = {0};
 
 void Util::logExitReason(const char *format, ...){

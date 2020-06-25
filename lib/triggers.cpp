@@ -24,6 +24,7 @@
 #include "timing.h"
 #include "triggers.h"
 #include "util.h"
+#include "json.h"
 #include <string.h> //for strncmp
 
 namespace Triggers{

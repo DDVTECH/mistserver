@@ -306,7 +306,7 @@ namespace Mist{
   int Input::boot(int argc, char *argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
     streamName = config->getString("streamname");
-    Util::Config::streamName = streamName;
+    Util::streamName = streamName;
 
     if (config->getBool("json")){
       capa["version"] = PACKAGE_VERSION;

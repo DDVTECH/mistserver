@@ -13,6 +13,7 @@
 #include <wait.h>
 #endif
 #include "timing.h"
+#include "json.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <iostream>

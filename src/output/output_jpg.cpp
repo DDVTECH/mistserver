@@ -216,7 +216,7 @@ namespace Mist{
     char ffcmd[256];
     ffcmd[255] = 0; // ensure there is an ending null byte
     snprintf(ffcmd, 255, "ffmpeg %s -f h264 -i - %s -vframes 1 -f mjpeg -",
-             (Util::Config::printDebugLevel >= DLVL_MEDIUM ? "" : "-v quiet"),
+             (Util::printDebugLevel >= DLVL_MEDIUM ? "" : "-v quiet"),
              config->getString("ffopts").c_str());
 
     HIGH_MSG("Starting JPG command: %s", ffcmd);

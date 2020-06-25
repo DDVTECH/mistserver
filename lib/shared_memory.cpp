@@ -13,7 +13,6 @@
 #include <iostream>
 #include <sys/mman.h>
 #include <sys/sem.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #if defined(__CYGWIN__) || defined(_WIN32)

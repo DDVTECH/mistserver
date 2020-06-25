@@ -8,6 +8,7 @@
 #include "timing.h"
 #include "url.h"
 #include "util.h"
+#include "json.h"
 #include <iomanip>
 #include <strings.h>
 

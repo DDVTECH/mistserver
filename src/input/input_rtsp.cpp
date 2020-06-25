@@ -373,8 +373,8 @@ namespace Mist{
         //  // wrong sending port, ignore packet
         //  continue;
         //}
-        tcpCon.addDown(s.data_len);
-        RTP::Packet pack(s.data, s.data_len);
+        tcpCon.addDown(s.data.size());
+        RTP::Packet pack(s.data, s.data.size());
         if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }

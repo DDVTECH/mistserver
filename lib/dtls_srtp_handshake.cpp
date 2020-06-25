@@ -1,6 +1,7 @@
 #include "defines.h"
 #include "dtls_srtp_handshake.h"
 #include <algorithm>
+#include <string.h>
 
 /* Write mbedtls into a log file. */
 #define LOG_TO_FILE 0

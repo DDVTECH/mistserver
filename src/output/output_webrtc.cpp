@@ -910,7 +910,7 @@ namespace Mist{
     bool hadPack = false;
     while (udp.Receive()){
       hadPack = true;
-      myConn.addDown(udp.data_len);
+      myConn.addDown(udp.data.size());
 
       uint8_t fb = (uint8_t)udp.data[0];
 
@@ -936,7 +936,7 @@ namespace Mist{
 
     size_t nparsed = 0;
     StunMessage stun_msg;
-    if (stunReader.parse((uint8_t *)udp.data, udp.data_len, nparsed, stun_msg) != 0){
+    if (stunReader.parse((uint8_t *)(char*)udp.data, udp.data.size(), nparsed, stun_msg) != 0){
       FAIL_MSG("Failed to parse a stun message.");
       return;
     }
@@ -1006,7 +1006,7 @@ namespace Mist{
       return;
     }
 
-    if (dtlsHandshake.parse((const uint8_t *)udp.data, udp.data_len) != 0){
+    if (dtlsHandshake.parse((const uint8_t *)(const char*)udp.data, udp.data.size()) != 0){
       FAIL_MSG("Failed to parse a DTLS packet.");
       return;
     }
@@ -1049,7 +1049,7 @@ namespace Mist{
 
     if ((pt < 64) || (pt >= 96)){
 
-      RTP::Packet rtp_pkt((const char *)udp.data, (unsigned int)udp.data_len);
+      RTP::Packet rtp_pkt((const char *)udp.data, (unsigned int)udp.data.size());
       uint16_t currSeqNum = rtp_pkt.getSequence();
 
       size_t idx = M.trackIDToIndex(rtp_pkt.getPayloadType(), getpid());
@@ -1071,8 +1071,8 @@ namespace Mist{
       WebRTCTrack &rtcTrack = webrtcTracks[idx];
 
       // Decrypt the SRTP to RTP
-      int len = (int)udp.data_len;
-      if (srtpReader.unprotectRtp((uint8_t *)udp.data, &len) != 0){
+      int len = udp.data.size();
+      if (srtpReader.unprotectRtp((uint8_t *)(char*)udp.data, &len) != 0){
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
         FAIL_MSG("Failed to unprotect a RTP packet.");
         return;
@@ -1102,8 +1102,8 @@ namespace Mist{
 
     }else{
       //Decrypt feedback packet
-      int len = udp.data_len;
-      if (srtpReader.unprotectRtcp((uint8_t *)udp.data, &len) != 0){
+      int len = udp.data.size();
+      if (srtpReader.unprotectRtcp((uint8_t *)(char*)udp.data, &len) != 0){
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
         FAIL_MSG("Failed to unprotect RTCP.");
         return;

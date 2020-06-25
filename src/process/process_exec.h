@@ -46,7 +46,7 @@ namespace Mist{
       streamName = opt["sink"].asString();
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());
-      Util::Config::streamName = opt["source"].asString() + "→" + streamName;
+      Util::streamName = opt["source"].asString() + "→" + streamName;
     }
     bool needsLock(){return false;}
     bool isSingular(){return false;}

@@ -512,7 +512,7 @@ namespace Mist{
         std::string leftData;
         bool received = false;
         while (udpCon.Receive()){
-          downCounter += udpCon.data_len;
+          downCounter += udpCon.data.size();
           received = true;
           if (!gettingData){
             gettingData = true;
@@ -521,20 +521,20 @@ namespace Mist{
           size_t offset = 0;
           // Try to read full TS Packets
           // Watch out! We push here to a global, in order for threads to be able to access it.
-          while (offset < udpCon.data_len){
+          while (offset < udpCon.data.size()){
             if (udpCon.data[offset] == 0x47){// check for sync byte
-              if (offset + 188 <= udpCon.data_len){
+              if (offset + 188 <= udpCon.data.size()){
                 tsBuf.FromPointer(udpCon.data + offset);
                 liveStream.add(tsBuf);
                 if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
                 leftData.clear();
               }else{
-                leftData.append(udpCon.data + offset, udpCon.data_len - offset);
+                leftData.append(udpCon.data + offset, udpCon.data.size() - offset);
               }
               offset += 188;
             }else{
               uint32_t maxBytes =
-                  std::min((uint32_t)(188 - leftData.size()), (uint32_t)(udpCon.data_len - offset));
+                  std::min((uint32_t)(188 - leftData.size()), (uint32_t)(udpCon.data.size() - offset));
               uint32_t numBytes = maxBytes;
               VERYHIGH_MSG("%" PRIu32 " bytes of non-sync-byte data received", numBytes);
               if (leftData.size()){

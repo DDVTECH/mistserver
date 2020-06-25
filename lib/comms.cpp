@@ -5,6 +5,8 @@
 #include "encode.h"
 #include "procs.h"
 #include "timing.h"
+#include <string.h>
+#include <fcntl.h>
 
 namespace Comms{
   Comms::Comms(){

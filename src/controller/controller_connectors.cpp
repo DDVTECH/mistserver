@@ -116,9 +116,9 @@ namespace Controller{
           argarr[argnum++] = (char *)(p[it.key()].c_str());
         }else{
           if (it.key() == "debug"){
-            if (Util::Config::printDebugLevel != DEBUG){
+            if (Util::printDebugLevel != DEBUG){
               static std::string debugLvlStr;
-              debugLvlStr = JSON::Value(Util::Config::printDebugLevel).asString();
+              debugLvlStr = JSON::Value(Util::printDebugLevel).asString();
               argarr[argnum++] = (char *)((*it)["option"].asStringRef().c_str());
               argarr[argnum++] = (char *)debugLvlStr.c_str();
             }

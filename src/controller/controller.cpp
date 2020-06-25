@@ -265,7 +265,7 @@ int main_loop(int argc, char **argv){
   }
   if (Controller::Storage.isMember("config") && Controller::Storage["config"].isMember("debug") &&
       Controller::Storage["config"]["debug"].isInt()){
-    Util::Config::printDebugLevel = Controller::Storage["config"]["debug"].asInt();
+    Util::printDebugLevel = Controller::Storage["config"]["debug"].asInt();
   }
   // check for port, interface and username in arguments
   // if they are not there, take them from config file, if there

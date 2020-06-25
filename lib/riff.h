@@ -2,6 +2,7 @@
 #include "bitfields.h"
 #include "defines.h"
 #include <string>
+#include <ostream>
 
 namespace RIFF{
 

@@ -1,4 +1,5 @@
 #include "../lib/urireader.cpp"
+#include "../lib/config.cpp"
 #include <iostream>
 
 class URITest : public Util::DataCallback{

@@ -80,7 +80,7 @@ namespace Mist{
     // prepare bufferstring
     if (video){
       if (codec == "H264" || codec == "HEVC"){
-        unsigned int extraSize = 0;
+        uint32_t extraSize = 0;
         // dataPointer[4] & 0x1f is used to check if this should be done later:
         // fillPacket("\000\000\000\001\011\360", 6);
         if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){extraSize += 6;}
@@ -101,91 +101,45 @@ namespace Mist{
           /*LTS-END*/
         }
 
-        unsigned int watKunnenWeIn1Ding = 65490 - 13;
-        unsigned int splitCount = (dataLen + extraSize) / watKunnenWeIn1Ding;
-        unsigned int currPack = 0;
-        uint64_t ThisNaluSize = 0;
-        unsigned int i = 0;
-        unsigned int nalLead = 0;
+        const uint32_t MAX_PES_SIZE = 65490 - 13;
+        uint32_t ThisNaluSize = 0;
+        uint32_t i = 0;
         uint64_t offset = thisPacket.getInt("offset") * 90;
 
-        while (currPack <= splitCount){
-          unsigned int alreadySent = 0;
-          bs = TS::Packet::getPESVideoLeadIn(
-              (currPack != splitCount ? watKunnenWeIn1Ding : dataLen + extraSize - currPack * watKunnenWeIn1Ding),
-              packTime, offset, !currPack, M.getBps(thisIdx));
-          fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-          if (!currPack){
-            if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
-              // End of previous nal unit, if not already present
-              fillPacket("\000\000\000\001\011\360", 6, firstPack, video, keyframe, pkgPid, contPkg);
-              alreadySent += 6;
-            }
-            if (keyframe){
-              if (codec == "H264"){
-                MP4::AVCC avccbox;
-                avccbox.setPayload(M.getInit(thisIdx));
-                bs = avccbox.asAnnexB();
-                fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-                alreadySent += bs.size();
-              }
-              /*LTS-START*/
-              if (codec == "HEVC"){
-                MP4::HVCC hvccbox;
-                hvccbox.setPayload(M.getInit(thisIdx));
-                bs = hvccbox.asAnnexB();
-                fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-                alreadySent += bs.size();
-              }
-              /*LTS-END*/
-            }
+        bs = TS::Packet::getPESVideoLeadIn(
+            (((dataLen + extraSize) > MAX_PES_SIZE) ? 0 : dataLen + extraSize),
+            packTime, offset, true, M.getBps(thisIdx));
+        fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+        if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+          // End of previous nal unit, if not already present
+          fillPacket("\000\000\000\001\011\360", 6, firstPack, video, keyframe, pkgPid, contPkg);
+        }
+        if (keyframe){
+          if (codec == "H264"){
+            MP4::AVCC avccbox;
+            avccbox.setPayload(M.getInit(thisIdx));
+            bs = avccbox.asAnnexB();
+            fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
           }
-          while (i + 4 < (unsigned int)dataLen){
-            if (nalLead){
-              fillPacket(&"\000\000\000\001"[4 - nalLead], nalLead, firstPack, video, keyframe, pkgPid, contPkg);
-              i += nalLead;
-              alreadySent += nalLead;
-              nalLead = 0;
-            }
-            if (!ThisNaluSize){
-              ThisNaluSize = Bit::btohl(dataPointer + i);
-              if (ThisNaluSize + i + 4 > dataLen){
-                WARN_MSG("Too big NALU detected (%" PRIu64 " > %" PRIu64 ") - skipping!",
-                         ThisNaluSize + i + 4, dataLen);
-                break;
-              }
-              if (alreadySent + 4 > watKunnenWeIn1Ding){
-                nalLead = 4 - (watKunnenWeIn1Ding - alreadySent);
-                fillPacket("\000\000\000\001", watKunnenWeIn1Ding - alreadySent, firstPack, video,
-                           keyframe, pkgPid, contPkg);
-                i += watKunnenWeIn1Ding - alreadySent;
-                alreadySent += watKunnenWeIn1Ding - alreadySent;
-              }else{
-                fillPacket("\000\000\000\001", 4, firstPack, video, keyframe, pkgPid, contPkg);
-                alreadySent += 4;
-                i += 4;
-              }
-            }
-            if (alreadySent + ThisNaluSize > watKunnenWeIn1Ding){
-              fillPacket(dataPointer + i, watKunnenWeIn1Ding - alreadySent, firstPack, video,
-                         keyframe, pkgPid, contPkg);
-              i += watKunnenWeIn1Ding - alreadySent;
-              ThisNaluSize -= watKunnenWeIn1Ding - alreadySent;
-              alreadySent += watKunnenWeIn1Ding - alreadySent;
-            }else{
-              fillPacket(dataPointer + i, ThisNaluSize, firstPack, video, keyframe, pkgPid, contPkg);
-              alreadySent += ThisNaluSize;
-              i += ThisNaluSize;
-              ThisNaluSize = 0;
-            }
-            if (alreadySent == watKunnenWeIn1Ding){
-              packData.addStuffing();
-              fillPacket(0, 0, firstPack, video, keyframe, pkgPid, contPkg);
-              firstPack = true;
-              break;
-            }
+          /*LTS-START*/
+          if (codec == "HEVC"){
+            MP4::HVCC hvccbox;
+            hvccbox.setPayload(M.getInit(thisIdx));
+            bs = hvccbox.asAnnexB();
+            fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
           }
-          currPack++;
+          /*LTS-END*/
+        }
+        while (i + 4 < (unsigned int)dataLen){
+          ThisNaluSize = Bit::btohl(dataPointer + i);
+          if (ThisNaluSize + i + 4 > dataLen){
+            WARN_MSG("Too big NALU detected (%" PRIu32 " > %" PRIu64 ") - skipping!",
+                     ThisNaluSize + i + 4, dataLen);
+            break;
+          }
+          fillPacket("\000\000\000\001", 4, firstPack, video, keyframe, pkgPid, contPkg);
+          fillPacket(dataPointer + i + 4, ThisNaluSize, firstPack, video, keyframe, pkgPid, contPkg);
+          i += ThisNaluSize + 4;
         }
       }else{
         uint64_t offset = thisPacket.getInt("offset") * 90;

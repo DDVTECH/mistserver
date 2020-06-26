@@ -73,7 +73,7 @@ namespace Mist{
       setBlocking(false);
     }
 
-    maxSkipAhead = 1500;
+    maxSkipAhead = 0;
   }
 
   void OutRTMP::startPushOut(const char *args){
@@ -340,21 +340,18 @@ namespace Mist{
   }
 
   void OutRTMP::sendNext(){
-    // If there are now more selectable tracks, select the new track and do a seek to the current
-    // timestamp Set sentHeader to false to force it to send init data
-    if (M.getLive() && userSelect.size() < 2){
+    //Every 5s, check if the track selection should change in live streams, and do it.
+    if (M.getLive()){
       static uint64_t lastMeta = 0;
       if (Util::epoch() > lastMeta + 5){
         lastMeta = Util::epoch();
-        std::set<size_t> validTracks = getSupportedTracks();
-        if (validTracks.size() > 1){
-          if (selectDefaultTracks()){
-            INFO_MSG("Track selection changed - resending headers and continuing");
-            sentHeader = false;
-            return;
-          }
+        if (selectDefaultTracks()){
+          INFO_MSG("Track selection changed - resending headers and continuing");
+          sentHeader = false;
+          return;
         }
       }
+      if (liveSeek()){return;}
     }
 
     if (streamOut.size()){

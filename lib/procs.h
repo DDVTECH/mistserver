@@ -22,7 +22,6 @@ namespace Util{
     static void exit_handler();
     static char *const *dequeToArgv(std::deque<std::string> &argDeq);
     static void grim_reaper(void *n);
-
   public:
     static bool childRunning(pid_t p);
     static tthread::thread *reaper_thread;

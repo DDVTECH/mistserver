@@ -253,6 +253,7 @@ namespace Mist{
       if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
       if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
       if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
+      if (H.GetVar("buffer") != ""){targetParams["buffer"] = H.GetVar("buffer");}
       // allow setting of play back rate through buffer variable.
       // play back rate is set in MS per second, but the variable is a simple multiplier.
       if (H.GetVar("rate") != ""){

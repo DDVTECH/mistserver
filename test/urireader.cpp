@@ -4,7 +4,6 @@
 class URITest : public Util::DataCallback{
 public:
   void dump(const char *ptr, size_t size);
-  size_t wanted = 100000000;
   void dataCallback(const char *ptr, size_t size);
   int main(int argc, char ** argv);
 };

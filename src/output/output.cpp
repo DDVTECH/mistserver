@@ -1171,9 +1171,9 @@ namespace Mist{
             // slow down processing, if real time speed is wanted
             if (realTime){
               uint8_t i = 6;
-              while (--i && thisPacket.getTime() > ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime) &&
+              while (--i && thisPacket.getTime() > (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead) &&
                      keepGoing()){
-                uint64_t amount = thisPacket.getTime() - ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime);
+                uint64_t amount = thisPacket.getTime() - (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead);
                 if (amount > 1000){amount = 1000;}
                 Util::sleep(amount);
                 //Make sure we stay responsive to requests and stats while waiting

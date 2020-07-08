@@ -47,7 +47,7 @@ namespace Mist{
       capa["codecs"][0u][0u].append("+H264");
       capa["codecs"][0u][0u].append("+HEVC");
       capa["codecs"][0u][0u].append("+MPEG2");
-      realTime = 1000;
+      realTime = 0;
       wantRequest = false;
       parseData = true;
       upper.setHeader("Authorization", "Bearer "+opt["access_token"].asStringRef());
@@ -135,7 +135,7 @@ namespace Mist{
       }
     }
     void sendNext(){
-      if (thisPacket.getFlag("keyframe")){
+      if (thisPacket.getFlag("keyframe") && (thisPacket.getTime() - segTime) >= 1000){
         if (Mist::queueClear){
           //Request to clear the queue! Do so, and wait for a new broadcaster to be picked.
           {
@@ -487,6 +487,10 @@ int main(int argc, char *argv[]){
     grp["fps"]["help"] = "Framerate of the output";
     grp["fps"]["unit"] = "frames per second";
     grp["fps"]["type"] = "int";
+    grp["gop"]["name"] = "Keyframe interval / GOP size";
+    grp["gop"]["help"] = "Interval of keyframes / duration of GOPs for the transcode. Empty string means to match input (= the default), 'intra' means to send only key frames. Otherwise, fractional seconds between keyframes.";
+    grp["gop"]["unit"] = "seconds";
+    grp["gop"]["type"] = "str";
     grp["width"]["name"] = "Width";
     grp["width"]["help"] = "Width in pixels of the output";
     grp["width"]["unit"] = "px";

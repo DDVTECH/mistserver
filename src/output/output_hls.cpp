@@ -252,7 +252,7 @@ namespace Mist{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
       if (isTS && !hasSessionIDs()){
-        H.SetHeader("Cache-Control", "public, max-age=600, immutable");
+        H.SetHeader("Cache-Control", "public, max-age="+JSON::Value(M.getDuration(getMainSelectedTrack())/1000).asString()+", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
       }else{
@@ -323,7 +323,7 @@ namespace Mist{
       if (hasSessionIDs()){
         H.SetHeader("Cache-Control", "no-cache");
       }else{
-        H.SetHeader("Cache-Control", "public, max-age=600, immutable");
+        H.SetHeader("Cache-Control", "public, max-age="+JSON::Value(M.getDuration(getMainSelectedTrack())/1000).asString()+", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
       }

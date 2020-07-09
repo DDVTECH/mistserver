@@ -8,6 +8,7 @@
 #include <mist/langcodes.h> //LTS
 #include <mist/stream.h>
 #include <mist/h264.h>
+#include <mist/config.h>
 
 namespace Mist{
   InOutBase::InOutBase() : M(meta){}
@@ -403,6 +404,15 @@ namespace Mist{
       INFO_MSG("Track %" PRIu32 " not starting with a keyframe!", packTrack);
       return;
     }
+
+    if (curPage.count(packTrack) && !curPage[packTrack].exists()){
+      WARN_MSG("Data page was deleted - forcing source shutdown to prevent unstable state");
+      Util::logExitReason("data page was deleted, forcing shutdown to prevent unstable state");
+      bufferFinalize(packTrack);
+      kill(getpid(), SIGINT);
+      return;
+    }
+
 
     if (!curPageNum.count(packTrack) || nextPageNum != curPageNum[packTrack]){
       if (curPageNum.count(packTrack)){

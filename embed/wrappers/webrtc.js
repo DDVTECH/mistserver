@@ -40,6 +40,7 @@ p.prototype.build = function (MistVideo,callback) {
   }
   
   var video = document.createElement("video");
+  video.setAttribute("playsinline",""); //iphones. effin' iphones.
   
   //apply options
   var attrs = ["autoplay","loop","poster"];

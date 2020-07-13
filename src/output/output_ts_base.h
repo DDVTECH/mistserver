@@ -25,7 +25,6 @@ namespace Mist {
       int contSDT;
       unsigned int packCounter; ///\todo update constructors?
       TS::Packet packData;
-      bool appleCompat;
       uint64_t sendRepeatingHeaders; ///< Amount of ms between PAT/PMT. Zero means do not repeat.
       uint64_t lastHeaderTime; ///< Timestamp last PAT/PMT were sent.
       uint64_t ts_from; ///< Starting time to subtract from timestamps

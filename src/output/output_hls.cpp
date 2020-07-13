@@ -184,7 +184,6 @@ namespace Mist {
     }
     
 
-    appleCompat = (H.GetHeader("User-Agent").find("iPad") != std::string::npos) || (H.GetHeader("User-Agent").find("iPod") != std::string::npos)|| (H.GetHeader("User-Agent").find("iPhone") != std::string::npos);
     bool VLCworkaround = false;
     if (H.GetHeader("User-Agent").substr(0, 3) == "VLC"){
       std::string vlcver = H.GetHeader("User-Agent").substr(4);

@@ -462,6 +462,7 @@ namespace Mist {
         }
         if (prots.getIndice(i).hasMember("pubaddr") && prots.getIndice(i).getMember("pubaddr").getType() ==  DTSC_ARR){
           pubAddrs = prots.getIndice(i).getMember("pubaddr").asJSON();
+          if (!pubAddrs.size()){pubAddrs.append("");}
         }
         if (mistPath.size()){
           pubAddrs.null();

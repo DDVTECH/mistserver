@@ -591,7 +591,14 @@ namespace Mist{
       app_name = amfData.getContentP(2)->getContentP("tcUrl")->StrValue();
       reqUrl = app_name;//LTS
       app_name = app_name.substr(app_name.find('/', 7) + 1);
-      //send a _result reply
+
+      //If this user agent matches, we can safely guess it's librtmp, and this is not dangerous
+      if (UA == "FMLE/3.0 (compatible; FMSc/1.0)"){
+        //set max chunk size early, to work around OBS v25 bug
+        RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
+        myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
+      }
+      // send a _result reply
       AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
       amfReply.addContent(AMF::Object("", "_result")); //result success
       amfReply.addContent(amfData.getContent(1)); //same transaction ID

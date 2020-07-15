@@ -1,6 +1,7 @@
 #include <dirent.h> //for browse API call
 #include <sys/stat.h> //for browse API call
 #include <mist/http_parser.h>
+#include <mist/url.h>
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -368,6 +369,7 @@ void Controller::handleUDPAPI(void * np){
     return;
   }
   Util::Procs::socketList.insert(uSock.getSock());
+  uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
   while (Controller::conf.is_active){
     if (uSock.Receive()){
       MEDIUM_MSG("UDP API: %s", uSock.data);
@@ -377,6 +379,7 @@ void Controller::handleUDPAPI(void * np){
       if (Request.isObject()){
         tthread::lock_guard<tthread::mutex> guard(configMutex);
         handleAPICommands(Request, Response);
+        uSock.SendNow(Response.toString());
       }else{
         WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
       }
@@ -638,6 +641,15 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   }
   if (Request.isMember("stats_streams")){
     Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
+  }
+
+  if (Request.isMember("api_endpoint")){
+    HTTP::URL url("http://localhost:4242");
+    url.host = Util::listenInterface;
+    if (url.host == "::"){url.host = "::1";}
+    if (url.host == "0.0.0.0"){url.host = "127.0.0.1";}
+    url.port = JSON::Value(Util::listenPort).asString();
+    Response["api_endpoint"] = url.getUrl();
   }
           
   Controller::configChanged = true;

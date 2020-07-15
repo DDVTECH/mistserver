@@ -49,6 +49,11 @@ namespace Util{
     void addConnectorOptions(int port, JSON::Value &capabilities);
   };
 
+  /// The interface address the current serveSocket function is listening on
+  extern std::string listenInterface;
+  /// The port the current serveSocket function is listening on
+  extern uint32_t listenPort;
+
   /// Gets directory the current executable is stored in.
   std::string getMyPath();
 

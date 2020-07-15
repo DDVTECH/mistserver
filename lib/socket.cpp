@@ -270,6 +270,31 @@ std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, 
   return newaddr;
 }
 
+/// Gets bound host and port for a socket and returns them by reference.
+/// Returns true on success and false on failure.
+bool Socket::getSocketName(int fd, std::string & host, uint32_t & port){
+  struct sockaddr_in6 tmpaddr;
+  socklen_t len = sizeof(tmpaddr);
+  if (getsockname(fd, (sockaddr *)&tmpaddr, &len)){
+    return false;
+  }
+  static char addrconv[INET6_ADDRSTRLEN];
+  if (tmpaddr.sin6_family == AF_INET6){
+    host = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+    if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
+    port = ntohs(tmpaddr.sin6_port);
+    HIGH_MSG("Local IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    return true;
+  }
+  if (tmpaddr.sin6_family == AF_INET){
+    host = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+    port = ntohs(((sockaddr_in *)&tmpaddr)->sin_port);
+    HIGH_MSG("Local IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    return true;
+  }
+  return false;
+}
+
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
@@ -457,20 +482,8 @@ void Socket::Connection::setBoundAddr(){
     return;
   }
   //Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
-  struct sockaddr_in6 tmpaddr;
-  socklen_t len = sizeof(tmpaddr);
-  if (!getsockname(getSocket(), (sockaddr *)&tmpaddr, &len)){
-    static char addrconv[INET6_ADDRSTRLEN];
-    if (tmpaddr.sin6_family == AF_INET6){
-      boundaddr = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      if (boundaddr.substr(0, 7) == "::ffff:"){boundaddr = boundaddr.substr(7);}
-      HIGH_MSG("Local IPv6 addr [%s]", boundaddr.c_str());
-    }
-    if (tmpaddr.sin6_family == AF_INET){
-      boundaddr = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("Local IPv4 addr [%s]", boundaddr.c_str());
-    }
-  }
+  uint32_t boundport = 0;
+  getSocketName(getSocket(), boundaddr, boundport);
 }
 
 // Cleans up the socket by dropping the connection.
@@ -1741,21 +1754,9 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
 }
 
 std::string Socket::UDPConnection::getBoundAddress(){
-  struct sockaddr_in6 tmpaddr;
-  socklen_t len = sizeof(tmpaddr);
   std::string boundaddr;
-  if (!getsockname(sock, (sockaddr *)&tmpaddr, &len)){
-    static char addrconv[INET6_ADDRSTRLEN];
-    if (tmpaddr.sin6_family == AF_INET6){
-      boundaddr = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-      if (boundaddr.substr(0, 7) == "::ffff:"){boundaddr = boundaddr.substr(7);}
-      HIGH_MSG("Local IPv6 addr [%s]", boundaddr.c_str());
-    }
-    if (tmpaddr.sin6_family == AF_INET){
-      boundaddr = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-      HIGH_MSG("Local IPv4 addr [%s]", boundaddr.c_str());
-    }
-  }
+  uint32_t boundport;
+  Socket::getSocketName(sock, boundaddr, boundport);
   return boundaddr;
 }
 

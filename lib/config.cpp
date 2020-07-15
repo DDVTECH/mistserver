@@ -40,6 +40,9 @@ static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::Config::printDebugLevel = DEBUG; //
 std::string Util::Config::streamName;
 
+std::string Util::listenInterface;
+uint32_t Util::listenPort = 0;
+
 Util::Config::Config(){
   // global options here
   vals["debug"]["long"] = "debug";
@@ -370,6 +373,7 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
     DEVEL_MSG("Failure to open socket");
     return 1;
   }
+  Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
   serv_sock_pointer = &server_socket;
   activate();
   if (server_socket.getSocket()){
@@ -397,6 +401,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
     DEVEL_MSG("Failure to open socket");
     return 1;
   }
+  Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
   serv_sock_pointer = &server_socket;
   activate();
   if (server_socket.getSocket()){

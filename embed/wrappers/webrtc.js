@@ -229,13 +229,42 @@ p.prototype.build = function (MistVideo,callback) {
     };
     
     this.connect = function(callback){
-      thisWebRTCPlayer.isConnecting = true;
-      thisWebRTCPlayer.signaling = new WebRTCSignaling(thisWebRTCPlayer.on_event);
-      thisWebRTCPlayer.peerConn = new RTCPeerConnection();
-      thisWebRTCPlayer.peerConn.ontrack = function(ev) {
-        video.srcObject = ev.streams[0];
-        if (callback) { callback(); }
+      
+      //chrome on android has a bug where H264 is not available immediately after the tab is opened: https://bugs.chromium.org/p/webrtc/issues/detail?id=11620
+      //this workaround tries 5x with 100ms intervals before continuing
+      function checkH264(n){
+        var p = new Promise(function(resolve,reject){
+          function promise_body(n){
+            var r = RTCRtpReceiver.getCapabilities("video");
+            for (var i = 0; i < r.codecs.length; i++) {
+              if (r.codecs[i].mimeType == "video/H264") {
+                resolve("H264 found :)");
+                return;
+              }
+            }
+            if (n > 0) { setTimeout(function(){
+              promise_body(n-1);
+            },100) }
+            else {
+              reject("H264 not found :(");
+            }
+          }
+          promise_body(n);
+        });
+        
+        return p;
       };
+      checkH264(5).catch(function(){
+        MistVideo.log("Beware: this device does not seem to be able to play H264.");
+      }).finally(function(){
+        thisWebRTCPlayer.isConnecting = true;
+        thisWebRTCPlayer.signaling = new WebRTCSignaling(thisWebRTCPlayer.on_event);
+        thisWebRTCPlayer.peerConn = new RTCPeerConnection();
+        thisWebRTCPlayer.peerConn.ontrack = function(ev) {
+          video.srcObject = ev.streams[0];
+          if (callback) { callback(); }
+        };
+      });
     };
     
     this.play = function(){

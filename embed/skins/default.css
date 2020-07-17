@@ -109,12 +109,16 @@ svg.icon.timeout {
 .mistvideo[data-show-submenu] .mistvideo-submenu {
   right: 5px;
 }
+.mistvideo[data-hide-submenu] .mistvideo-submenu {
+  right: -1000px !important;
+}
 .mistvideo[data-show-submenu] .mistvideo-controls {
   bottom: 0;
 }
 .mistvideo-error[data-passive] {
   bottom: auto;
   left: auto;
+  height: auto;
   margin: 0.5em;
   padding: 0.5em;
 }

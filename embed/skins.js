@@ -306,6 +306,7 @@ MistSkins["default"] = {
         //also do something useful
         //show submenu
         MistVideo.container.setAttribute("data-show-submenu","");
+        MistVideo.container.removeAttribute("data-hide-submenu");
         MistVideo.container.removeAttribute("data-hidecursor");
         //onmouseout, hide submenu
         var f = function(){
@@ -1200,8 +1201,19 @@ MistSkins["default"] = {
       }
     },
     settings: function(){
+      var MistVideo = this;
+      
       var button = this.skin.icons.build("settings");
-      button.setAttribute("onclick","");
+      MistUtil.event.addListener(button,"click",function(){
+        if (MistVideo.container.hasAttribute("data-show-submenu")) {
+          MistVideo.container.setAttribute("data-hide-submenu",""); //don't show even when hovering
+          MistVideo.container.removeAttribute("data-show-submenu");
+        }
+        else {
+          MistVideo.container.setAttribute("data-show-submenu","");
+          MistVideo.container.removeAttribute("data-hide-submenu");
+        }
+      });
       return button;
     },
     loop: function(){

@@ -64,6 +64,7 @@ svg.icon.loading {
   cursor: default; /*cursor won't show up if it was hidden because the mousemove event can no longer reach the video element*/
   min-height: fit-content; /*overflow if needed*/
   min-width: fit-content;
+  height: 100%;
 }
 .mistvideo-error.show { display: flex; }
 .mistvideo-error .message { max-width: 80%; }

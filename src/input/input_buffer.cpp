@@ -200,7 +200,10 @@ namespace Mist{
         issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
       }
       if (shrtest_cnt < 6){
-        issues << "unstable connection (" << shrtest_cnt << " " << codec << " frames in key)! ";
+        issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
+      }
+      if (longest_key > shrtest_key*1.30){
+        issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
       }
       if (codec == "AAC"){hasAAC = true;}
       if (codec == "H264"){hasH264 = true;}
@@ -208,6 +211,11 @@ namespace Mist{
         track["width"] = M.getWidth(i);
         track["height"] = M.getHeight(i);
         track["fpks"] = M.getFpks(i);
+        track["bframes"] = M.hasBFrames(i);
+      }
+      if (type == "audio"){
+        track["rate"] = M.getRate(i);
+        track["channels"] = M.getChannels(i);
       }
     }
     if ((hasAAC || hasH264) && validTracks.size() > 1){

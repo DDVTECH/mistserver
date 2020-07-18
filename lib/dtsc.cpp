@@ -1522,6 +1522,11 @@ namespace DTSC{
       return -1;
     }
     trackLock.wait();
+    if (stream.isExit()){
+      trackLock.post();
+      FAIL_MSG("Not adding track: stream is shutting down");
+      return -1;
+    }
     size_t pageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE +
                       (TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount)) +
                       (TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount)) +
@@ -2334,6 +2339,10 @@ namespace DTSC{
       sizeMemBuf.clear();
     }
     if (isMaster){
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
+      IPC::semaphore trackLock(pageName, O_CREAT|O_RDWR, ACCESSPERMS, 1);
+      trackLock.tryWaitOneSecond();
       std::set<size_t> toRemove;
       for (std::map<size_t, IPC::sharedPage>::iterator it = tM.begin(); it != tM.end(); it++){
         if (!it->second.mapped){continue;}
@@ -2344,6 +2353,8 @@ namespace DTSC{
       }
       if (streamPage.mapped && stream.isReady()){stream.setExit();}
       streamPage.master = true;
+      //Wipe tracklist semaphore. This is not done anywhere else in the codebase.
+      trackLock.unlink();
     }
     stream = Util::RelAccX();
     trackList = Util::RelAccX();

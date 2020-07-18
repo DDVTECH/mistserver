@@ -4,7 +4,7 @@
 
 namespace Mist{
 
-#define PKT_COUNT 64
+#define PKT_COUNT 24
 
   class packetData{
   public:
@@ -29,119 +29,96 @@ namespace Mist{
   };
   class trackPredictor{
   public:
-    packetData pkts[PKT_COUNT];
-    uint64_t frameOffset;   /// The static average offset between transmit time and display time
-    bool frameOffsetKnown;  /// Whether the average frame offset is known
-    uint16_t smallestFrame; /// low-ball estimate of time per frame
-    uint64_t lastTime;      /// last send transmit timestamp
-    uint64_t ctr;           /// ingested frame count
-    uint64_t rem;           /// removed frame count
-    uint64_t maxOffset;     /// maximum offset for this track
-    uint64_t lowestTime;    /// First timestamp to enter the buffer
+    packetData pkts[PKT_COUNT]; /// Buffer for packet data
+    uint64_t times[PKT_COUNT];  /// Sorted timestamps of buffered packets
+    size_t maxDelay;            /// Maximum amount of bframes we expect
+    uint32_t timeOffset;        /// Milliseconds we need to subtract from times so that offsets are always > 0
+    uint64_t ctr;               /// ingested frame count
+    uint64_t rem;               /// removed frame count
+    bool initialized;
     trackPredictor(){
-      smallestFrame = 0xFFFF;
-      frameOffsetKnown = false;
-      frameOffset = 0;
-      maxOffset = 0;
+      initialized = false;
+      maxDelay = 0;
+      timeOffset = 0;
       flush();
     }
     bool hasPackets(bool finished = false){
-      if (finished || frameOffsetKnown){
+      if (finished){
         return (ctr - rem > 0);
       }else{
-        return (ctr - rem > 12);
+        return ((initialized || ctr > 16) && ctr - rem > maxDelay);
       }
     }
     /// Clears all internal values, for reuse as-new.
     void flush(){
-      lastTime = 0;
       ctr = 0;
       rem = 0;
-      lowestTime = 0;
     }
     packetData &getPacketData(bool mustCalcOffsets){
       // grab the next packet to output
       packetData &p = pkts[rem % PKT_COUNT];
-      if (!mustCalcOffsets){
-        frameOffsetKnown = true;
+      if (!mustCalcOffsets || !maxDelay){
         return p;
       }
-      if (rem && !p.key){
-        uint64_t dispTime = p.time;
-        if (p.time + frameOffset < lastTime + smallestFrame){
-          uint32_t shift =
-              (uint32_t)((((lastTime + smallestFrame) - (p.time + frameOffset)) + (smallestFrame - 1)) / smallestFrame) *
-              smallestFrame;
-          if (shift < smallestFrame){shift = smallestFrame;}
-          VERYHIGH_MSG("Offset negative, shifting original time forward by %" PRIu32, shift);
-          p.time += shift;
-        }
-        p.offset = p.time - (lastTime + smallestFrame) + frameOffset;
-        if (p.offset > maxOffset){
-          uint64_t diff = p.offset - maxOffset;
-          VERYHIGH_MSG("Shifting forward %" PRIu64 "ms (maxOffset reached: %" PRIu64 " > %" PRIu64 ")",
-                       diff, p.offset, maxOffset);
-          p.offset -= diff;
-          lastTime += diff;
-        }
-        p.time = (lastTime + smallestFrame);
-        // If we calculate an offset less than a frame away,
-        // we assume it's just time stamp drift due to lack of precision.
-        p.offset = ((uint32_t)((p.offset + (smallestFrame / 2)) / smallestFrame)) * smallestFrame;
-        // Shift the time forward if needed, but never backward
-        if (p.offset + p.time < dispTime){
-          VERYHIGH_MSG("Shifting forward %" PRIu64 "ms (time drift)", dispTime - (p.offset + p.time));
-          p.time += dispTime - (p.offset + p.time);
-        }
-      }else{
-        if (!frameOffsetKnown){
-          // Check the first few timestamps against each other, find the smallest distance.
-          for (uint64_t i = 1; i < ctr; ++i){
-            uint64_t t1 = pkts[i % PKT_COUNT].time;
-            for (uint64_t j = 0; j < ctr; ++j){
-              if (i == j){continue;}
-              uint64_t t2 = pkts[j % PKT_COUNT].time;
-              uint64_t tDiff = (t1 < t2) ? (t2 - t1) : (t1 - t2);
-              if (tDiff < smallestFrame){smallestFrame = tDiff;}
+      //Calculate the timeOffset when extracting the first frame
+      if (!initialized){
+        size_t buffLen = (ctr-rem-1) % PKT_COUNT;
+        for (size_t i = 0; i <= buffLen; ++i){
+          if (pkts[i].time < times[i]){
+            if (times[i] - pkts[i].time > timeOffset){
+              timeOffset = times[i] - pkts[i].time;
             }
           }
-          // Cool, now we're pretty sure we know the frame rate. Let's calculate some offsets.
-          for (uint64_t i = 1; i < ctr; ++i){
-            uint64_t timeDiff = pkts[i % PKT_COUNT].time - lowestTime;
-            uint64_t timeExpt = smallestFrame * i;
-            if (timeDiff > timeExpt && maxOffset < timeDiff - timeExpt){
-              maxOffset = timeDiff - timeExpt;
-            }
-            if (timeDiff < timeExpt && frameOffset < timeExpt - timeDiff){
-              frameOffset = timeExpt - timeDiff;
-            }
-          }
-          maxOffset += frameOffset;
-          // Print for debugging purposes, and consider them gospel from here on forward. Yay!
-          HIGH_MSG("smallestFrame=%" PRIu16 ", frameOffset=%" PRIu64 ", maxOffset=%" PRIu64,
-                   smallestFrame, frameOffset, maxOffset);
-          frameOffsetKnown = true;
+          DONTEVEN_MSG("Checking time offset against entry %zu/%zu: %" PRIu64 "-%" PRIu64 " = %" PRIu32, i, buffLen, times[i], pkts[i].time, timeOffset);
         }
-        p.offset = ((uint32_t)((frameOffset + (smallestFrame / 2)) / smallestFrame)) * smallestFrame;
+        MEDIUM_MSG("timeOffset calculated to be %" PRIu32 ", max frame delay %zu", timeOffset, maxDelay);
+        initialized = true;
       }
-      lastTime = p.time;
-      INSANE_MSG("Outputting%s %" PRIu64 "+%" PRIu64 " (#%" PRIu64 ", Max=%" PRIu64
-                 "), display at %" PRIu64,
-                 (p.key ? "KEY" : ""), p.time, p.offset, rem, maxOffset, p.time + p.offset);
+
+      uint64_t origTime = p.time;
+      //Set new timestamp to first time in sorted array
+      p.time = times[0];
+      //Subtract timeOffset if possible
+      if (p.time >= timeOffset){p.time -= timeOffset;}
+      //If possible, calculate offset based on original timestamp difference with new timestamp
+      if (origTime > p.time){p.offset = origTime-p.time;}
+      //Less than 3 milliseconds off? Assume we needed 0 and it's a rounding error in timestamps.
+      if (p.offset < 3){p.offset = 0;}
+      DONTEVEN_MSG("Outputting%s %" PRIu64 "+%" PRIu64 " (#%" PRIu64 "), display at %" PRIu64,
+                 (p.key ? " KEY" : ""), p.time, p.offset, rem, p.time + p.offset);
       return p;
     }
 
-    void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize,
+    void add(uint64_t packTime, uint64_t packTrack, uint64_t packDataSize,
              uint64_t packBytePos, bool isKeyframe, bool isVideo, void *dataPtr = 0){
-      if (!ctr){lowestTime = packTime;}
-      if (packTime > lowestTime && packTime - lowestTime < smallestFrame){
-        smallestFrame = packTime - lowestTime;
-      }
-      pkts[ctr % PKT_COUNT].set(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe, dataPtr);
+      pkts[ctr % PKT_COUNT].set(packTime, 0, packTrack, packDataSize, packBytePos, isKeyframe, dataPtr);
       ++ctr;
-      if (ctr == PKT_COUNT - 1){frameOffsetKnown = true;}
+      if (!isVideo){return;}
+      size_t buffLen = ctr-rem-1;
+      //Just in case somebody messed up, ensure we don't go out of our PKT_COUNT sized array
+      if (buffLen >= PKT_COUNT){buffLen = PKT_COUNT - 1;}
+      times[buffLen] = packTime;
+      if (buffLen){
+        //Swap the times while the previous is higher than the current
+        size_t i = buffLen;
+        while (i && times[i] < times[i-1]){
+          uint64_t tmp = times[i-1];
+          times[i-1] = times[i];
+          times[i] = tmp;
+          --i;
+          //Keep track of maximum delay
+          if (!initialized && buffLen - i + 1 > maxDelay){
+            maxDelay = buffLen - i + 1;
+          }
+        }
+      }
     }
-    void remove(){++rem;}
+    void remove(){
+      ++rem;
+      size_t buffLen = ctr-rem;
+      if (buffLen >= PKT_COUNT){buffLen = PKT_COUNT-1;}
+      for (size_t i = 0; i < buffLen; ++i){times[i] = times[i+1];}
+    }
   };
 
   class InputEBML : public Input{

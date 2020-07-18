@@ -170,6 +170,10 @@ namespace Mist{
     if (M.inputLocalVars.isMember("timescale")){
       timeScale = ((double)M.inputLocalVars["timescale"].asInt()) / 1000000.0;
     }
+    if (!M.inputLocalVars.isMember("version") || M.inputLocalVars["version"].asInt() < 2){
+      INFO_MSG("Header needs update, regenerating");
+      return false;
+    }
     return true;
   }
 
@@ -177,9 +181,15 @@ namespace Mist{
     if (!inFile){return false;}
     // Create header file from file
     uint64_t bench = Util::getMicros();
-    if (!meta){meta.reInit(streamName);}
+    if (!meta || (needsLock() && isSingular())){
+      meta.reInit(streamName);
+    }
 
     while (readElement()){
+      if (!config->is_active){
+        WARN_MSG("Aborting header generation due to shutdown: %s", Util::exitReason);
+        return false;
+      }
       EBML::Element E(ptr, readingMinimal);
       if (E.getID() == EBML::EID_TRACKENTRY){
         EBML::Element tmpElem = E.findChild(EBML::EID_TRACKNUMBER);
@@ -364,7 +374,7 @@ namespace Mist{
         if (isVideo && B.isKeyframe()){
           while (TP.hasPackets(true)){
             packetData &C = TP.getPacketData(true);
-            meta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
+            meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
             TP.remove();
           }
           TP.flush();
@@ -394,12 +404,12 @@ namespace Mist{
             frameSize = assStr.size();
           }
           if (frameSize){
-            TP.add(newTime * timeScale, 0, tNum, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
+            TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
           }
         }
         while (TP.hasPackets()){
           packetData &C = TP.getPacketData(isVideo);
-          meta.update(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.dsize, C.bpos, C.key);
+          meta.update(C.time, C.offset, idx, C.dsize, C.bpos, C.key);
           TP.remove();
         }
       }
@@ -417,6 +427,7 @@ namespace Mist{
       }
     }
 
+    meta.inputLocalVars["version"] = 2;
     bench = Util::getMicros(bench);
     INFO_MSG("Header generated in %" PRIu64 " ms", bench / 1000);
     clearPredictors();
@@ -473,6 +484,8 @@ namespace Mist{
   }
 
   void InputEBML::getNext(size_t idx){
+    bool singleTrack = (idx != INVALID_TRACK_ID);
+    size_t wantedID = singleTrack?M.getID(idx):0;
     // Make sure we empty our buffer first
     if (bufferedPacks && packBuf.size()){
       for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
@@ -483,6 +496,7 @@ namespace Mist{
           fillPacket(C);
           TP.remove();
           --bufferedPacks;
+          if (singleTrack && it->first != wantedID){getNext(idx);}
           return;
         }
       }
@@ -500,6 +514,7 @@ namespace Mist{
                 fillPacket(C);
                 TP.remove();
                 --bufferedPacks;
+                if (singleTrack && it->first != wantedID){getNext(idx);}
                 return;
               }
             }
@@ -510,7 +525,7 @@ namespace Mist{
         }
         B = EBML::Block(ptr);
       }while (!B || B.getType() != EBML::ELEM_BLOCK ||
-               (idx != INVALID_TRACK_ID && M.getID(idx) != B.getTrackNum()));
+               (singleTrack && wantedID != B.getTrackNum()));
     }else{
       B = EBML::Block(ptr);
     }
@@ -531,6 +546,7 @@ namespace Mist{
         fillPacket(C);
         TP.remove();
         --bufferedPacks;
+        if (singleTrack && trackIdx != idx){getNext(idx);}
         return;
       }
     }
@@ -563,7 +579,7 @@ namespace Mist{
           memcpy(ptr, assStr.data(), frameSize);
         }
         if (frameSize){
-          TP.add(newTime * timeScale, 0, tNum, frameSize, lastClusterBPos,
+          TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos,
                  B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
           ++bufferedPacks;
         }
@@ -574,6 +590,7 @@ namespace Mist{
       fillPacket(C);
       TP.remove();
       --bufferedPacks;
+      if (singleTrack && trackIdx != idx){getNext(idx);}
     }else{
       // We didn't set thisPacket yet. Read another.
       // Recursing is fine, this can only happen a few times in a row.

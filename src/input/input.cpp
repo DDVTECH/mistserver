@@ -1168,6 +1168,7 @@ namespace Mist{
   bool Input::bufferFrame(size_t idx, uint32_t keyNum){
     if (M.getLive()){return true;}
     HIGH_MSG("Buffering track %zu, key %" PRIu32, idx, keyNum);
+    bool isVideo = M.getType(idx) == "video";
     size_t sourceIdx = M.getSourceTrack(idx);
     if (sourceIdx == INVALID_TRACK_ID){sourceIdx = idx;}
 
@@ -1204,7 +1205,7 @@ namespace Mist{
     // Update keynum to point to the corresponding page
     uint64_t bufferTimer = Util::bootMS();
     keyNum = pageNumber;
-    if (!bufferStart(idx, keyNum)){
+    if (!bufferStart(idx, pageNumber)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
       return false;
     }
@@ -1227,12 +1228,12 @@ namespace Mist{
     HIGH_MSG("Playing from %" PRIu64 " to %" PRIu64, keyTime, stopTime);
     if (isSrt){
       getNextSrt();
-      // in case earlier seeking was inprecise, seek to the exact point
-      while (srtPack && srtPack.getTime() < keys.getTime(keyNum)){getNextSrt();}
+      // in case earlier seeking was imprecise, seek to the exact point
+      while (srtPack && srtPack.getTime() < keyTime){getNextSrt();}
     }else{
       getNext(sourceIdx);
-      // in case earlier seeking was inprecise, seek to the exact point
-      while (thisPacket && thisPacket.getTime() < keys.getTime(keyNum)){getNext(sourceIdx);}
+      // in case earlier seeking was imprecise, seek to the exact point
+      while (thisPacket && thisPacket.getTime() < keyTime){getNext(sourceIdx);}
     }
     uint64_t lastBuffered = 0;
     uint32_t packCounter = 0;
@@ -1253,6 +1254,10 @@ namespace Mist{
         getNextSrt();
       }
     }else{
+      size_t prevPos = 0;
+      size_t partNo = 0;
+      for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
+      DTSC::Parts parts(M.parts(idx));
       while (thisPacket && thisPacket.getTime() < stopTime){
         if (thisPacket.getTime() >= lastBuffered){
           if (sourceIdx != idx){
@@ -1277,9 +1282,27 @@ namespace Mist{
               thisPacket = DTSC::Packet(thisPacket, idx);
             }
           }
+          //Sanity check: are we matching the key's data size?
+          if (thisPacket.getFlag("keyframe")){
+            size_t currPos = tPages.getInt("avail", pageIdx);
+            if (currPos){
+              size_t keySize = keys.getSize(keyNum);
+              if (currPos-prevPos != keySize){
+                WARN_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+              }else{
+                VERYHIGH_MSG("Key %" PRIu32 " was %zu bytes", keyNum, currPos-prevPos);
+              }
+              ++keyNum;
+              prevPos = currPos;
+            }
+          }
           char *data;
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
+          if (dataLen != parts.getSize(partNo)){
+            WARN_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
+          }
+          ++partNo;
           bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), idx, data, dataLen,
                      thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"));
           ++packCounter;
@@ -1288,11 +1311,23 @@ namespace Mist{
         }
         getNext(sourceIdx);
       }
+      //Sanity check: are we matching the key's data size?
+      if (isVideo){
+        size_t currPos = tPages.getInt("avail", pageIdx);
+        if (currPos){
+          size_t keySize = keys.getSize(keyNum);
+          if (currPos-prevPos != keySize){
+            WARN_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+          }
+          ++keyNum;
+          prevPos = currPos;
+        }
+      }
     }
     bufferFinalize(idx);
     bufferTimer = Util::bootMS() - bufferTimer;
     INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
-             idx, keyNum, tPages.getInt("firsttime", pageIdx), thisPacket.getTime(), bufferTimer);
+             idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisPacket.getTime(), bufferTimer);
     INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
              tPages.getInt("parts", pageIdx), byteCounter);
     pageCounter[idx][keyNum] = 15;

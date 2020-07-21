@@ -5,6 +5,11 @@
 .mistvideo svg {
   margin: 2.5px;
 }
+.mistvideo-video { /* keep video centered if container is larger (when fillSpace:true) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .mistvideo-background { background-color: $background; }
 .mistvideo-totalTime:before {
   content: '/';

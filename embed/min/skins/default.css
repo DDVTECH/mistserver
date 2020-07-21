@@ -64,6 +64,7 @@ svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;trans
 .vjs-text-track-display{pointer-events:none}
 .mistvideo{line-height:1.2;font-size:14.5px}
 .mistvideo svg{margin:2.5px}
+.mistvideo-video{display:flex;align-items:center;justify-content:center}
 .mistvideo-background{background-color:$background}
 .mistvideo-totalTime:before{content:'/';margin:.2em}
 .mistvideo-progress{padding:10px 0;margin:-10px 0;z-index:2}

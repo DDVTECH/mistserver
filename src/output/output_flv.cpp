@@ -64,7 +64,7 @@ namespace Mist{
               if (M.getType(it->first) == "video" && tag.DTSCVideoInit(meta, it->first)){
                 myConn.SendNow(tag.data, tag.len);
               }
-              if (M.getType(it->first) == "audio" && tag.DTSCAudioInit(meta, it->first)){
+              if (M.getType(it->first) == "audio" && tag.DTSCAudioInit(meta.getCodec(it->first), meta.getRate(it->first), meta.getSize(it->first), meta.getChannels(it->first), meta.getInit(it->first))){
                 myConn.SendNow(tag.data, tag.len);
               }
             }
@@ -117,7 +117,7 @@ namespace Mist{
       if (M.getType(*it) == "video" && tag.DTSCVideoInit(meta, *it)){
         myConn.SendNow(tag.data, tag.len);
       }
-      if (M.getType(*it) == "audio" && tag.DTSCAudioInit(meta, *it)){
+      if (M.getType(*it) == "audio" && tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
         myConn.SendNow(tag.data, tag.len);
       }
     }

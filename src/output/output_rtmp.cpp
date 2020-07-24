@@ -13,6 +13,8 @@
 
 namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
+    lastSilence = 0;
+    hasSilence = false;
     lastAck = Util::bootSecs();
     lastOutTime = 0;
     setRtmpOffset = false;
@@ -256,6 +258,87 @@ namespace Mist{
                                                   "push out, when pushing out.\"}"));
   }
 
+  void OutRTMP::sendSilence(uint64_t timestamp){
+    const char * tmpData = "\257\001!\020\004`\214\034";
+    size_t data_len = 8;
+    
+    char rtmpheader[] ={0,              // byte 0 = cs_id | ch_type
+                         0,    0, 0,     // bytes 1-3 = timestamp
+                         0,    0, 0,     // bytes 4-6 = length
+                         0x08,           // byte 7 = msg_type_id
+                         1,    0, 0, 0,  // bytes 8-11 = msg_stream_id = 1
+                         0,    0, 0, 0}; // bytes 12-15 = extended timestamp
+    bool allow_short = RTMPStream::lastsend.count(4);
+    RTMPStream::Chunk &prev = RTMPStream::lastsend[4];
+    uint8_t chtype = 0x00;
+    size_t header_len = 12;
+    bool time_is_diff = false;
+    if (allow_short && (prev.cs_id == 4)){
+      if (prev.msg_stream_id == 1){
+        chtype = 0x40;
+        header_len = 8; // do not send msg_stream_id
+        if (data_len == prev.len && rtmpheader[7] == prev.msg_type_id){
+          chtype = 0x80;
+          header_len = 4; // do not send len and msg_type_id
+          if (timestamp == prev.timestamp){
+            chtype = 0xC0;
+            header_len = 1; // do not send timestamp
+          }
+        }
+        // override - we always sent type 0x00 if the timestamp has decreased since last chunk in this channel
+        if (timestamp < prev.timestamp){
+          chtype = 0x00;
+          header_len = 12;
+        }else{
+          // store the timestamp diff instead of the whole timestamp
+          timestamp -= prev.timestamp;
+          time_is_diff = true;
+        }
+      }
+    }
+
+    // update previous chunk variables
+    prev.cs_id = 4;
+    prev.msg_stream_id = 1;
+    prev.len = data_len;
+    prev.msg_type_id = 0x08;
+    if (time_is_diff){
+      prev.timestamp += timestamp;
+    }else{
+      prev.timestamp = timestamp;
+    }
+
+    // cs_id and ch_type
+    rtmpheader[0] = chtype | 4;
+    // data length, 3 bytes
+    rtmpheader[4] = (data_len >> 16) & 0xff;
+    rtmpheader[5] = (data_len >> 8) & 0xff;
+    rtmpheader[6] = data_len & 0xff;
+    // timestamp, 3 bytes
+    if (timestamp >= 0x00ffffff){
+      // send extended timestamp
+      rtmpheader[1] = 0xff;
+      rtmpheader[2] = 0xff;
+      rtmpheader[3] = 0xff;
+      rtmpheader[header_len++] = (timestamp >> 24) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 16) & 0xff;
+      rtmpheader[header_len++] = (timestamp >> 8) & 0xff;
+      rtmpheader[header_len++] = timestamp & 0xff;
+    }else{
+      // regular timestamp
+      rtmpheader[1] = (timestamp >> 16) & 0xff;
+      rtmpheader[2] = (timestamp >> 8) & 0xff;
+      rtmpheader[3] = timestamp & 0xff;
+    }
+
+    // send the packet
+    myConn.setBlocking(true);
+    myConn.SendNow(rtmpheader, header_len);
+    myConn.SendNow(tmpData, data_len);
+    RTMPStream::snd_cnt += header_len+data_len; // update the sent data counter
+    myConn.setBlocking(false);
+  }
+
   void OutRTMP::sendNext(){
     // If there are now more selectable tracks, select the new track and do a seek to the current
     // timestamp Set sentHeader to false to force it to send init data
@@ -282,6 +365,29 @@ namespace Mist{
         realTime = 800;
       }
       lastOutTime = thisPacket.getTime() - rtmpOffset;
+    }
+    uint64_t timestamp = thisPacket.getTime() - rtmpOffset;
+    // make sure we don't go negative
+    if (rtmpOffset > (int64_t)thisPacket.getTime()){
+      timestamp = 0;
+      rtmpOffset = (int64_t)thisPacket.getTime();
+    }
+
+    //Send silence packets if needed
+    if (hasSilence){
+      //If there's more than 15s of skip, skip audio as well
+      if (timestamp > 15000 && lastSilence < timestamp - 15000){
+        lastSilence = timestamp - 30;
+      }
+      //convert time to packet counter
+      uint64_t currSilence = ((lastSilence*44100+512000)/1024000)+1;
+      uint64_t silentTime = currSilence*1024000/44100;
+      //keep sending silent packets until we've caught up to the current timestamp
+      while (silentTime < timestamp){
+        sendSilence(silentTime);
+        lastSilence = silentTime;
+        silentTime = (++currSilence)*1024000/44100;
+      }
     }
 
     char rtmpheader[] ={0,              // byte 0 = cs_id | ch_type
@@ -360,13 +466,6 @@ namespace Mist{
       if (M.getChannels(thisIdx) > 1){dataheader[0] |= 0x01;}
     }
     data_len += dheader_len;
-
-    uint64_t timestamp = thisPacket.getTime() - rtmpOffset;
-    // make sure we don't go negative
-    if (rtmpOffset > (int64_t)thisPacket.getTime()){
-      timestamp = 0;
-      rtmpOffset = (int64_t)thisPacket.getTime();
-    }
 
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk &prev = RTMPStream::lastsend[4];
@@ -485,8 +584,14 @@ namespace Mist{
         if (tag.DTSCVideoInit(meta, *it)){myConn.SendNow(RTMPStream::SendMedia(tag));}
       }
       if (type == "audio"){
-        if (tag.DTSCAudioInit(meta, *it)){myConn.SendNow(RTMPStream::SendMedia(tag));}
+        if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){myConn.SendNow(RTMPStream::SendMedia(tag));}
       }
+    }
+    //Insert silent init data if audio set to silent
+    hasSilence = (targetParams.count("audio") && targetParams["audio"] == "silent");
+    if (hasSilence && tag.DTSCAudioInit("AAC", 44100, 32, 2, std::string("\022\020V\345\000", 5))){
+      INFO_MSG("Inserting silence track init data");
+      myConn.SendNow(RTMPStream::SendMedia(tag));
     }
     sentHeader = true;
   }

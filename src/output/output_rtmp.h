@@ -32,6 +32,9 @@ namespace Mist{
     uint64_t lastAck;
     HTTP::URL pushApp, pushUrl;
     uint8_t authAttempts;
+    void sendSilence(uint64_t currTime);
+    bool hasSilence;
+    uint64_t lastSilence;
   };
 }// namespace Mist
 

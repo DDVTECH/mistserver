@@ -464,28 +464,22 @@ bool FLV::Tag::DTSCVideoInit(DTSC::Meta &meta, uint32_t vTrack){
 }
 
 /// FLV Audio init data loader function from metadata.
-bool FLV::Tag::DTSCAudioInit(DTSC::Meta &meta, uint32_t aTrack){
+bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize, unsigned int channels, const std::string & initData){
   len = 0;
-  // Unknown? Assume AAC.
-  if (meta.getCodec(aTrack) == "?"){meta.setCodec(aTrack, "AAC");}
-  std::string initData = meta.getInit(aTrack);
-  if (meta.getCodec(aTrack) == "AAC"){len = initData.size() + 17;}
+  if (codec == "AAC"){len = initData.size() + 17;}
   if (len <= 0 || !checkBufferSize()){return false;}
   memcpy(data + 13, initData.c_str(), len - 17);
   data[12] = 0; // AAC sequence header
-  data[11] = 0;
-  if (meta.getCodec(aTrack) == "AAC"){data[11] += 0xA0;}
-  if (meta.getCodec(aTrack) == "MP3"){data[11] += 0x20;}
-  unsigned int datarate = meta.getRate(aTrack);
-  if (datarate >= 44100){
-    data[11] += 0x0C;
-  }else if (datarate >= 22050){
-    data[11] += 0x08;
-  }else if (datarate >= 11025){
-    data[11] += 0x04;
+  data[11] = 0xA0;
+  if (sampleRate >= 44100){
+    data[11] |= 0x0C;
+  }else if (sampleRate >= 22050){
+    data[11] |= 0x08;
+  }else if (sampleRate >= 11025){
+    data[11] |= 0x04;
   }
-  if (meta.getSize(aTrack) != 8){data[11] += 0x02;}
-  if (meta.getChannels(aTrack) > 1){data[11] += 0x01;}
+  if (sampleSize != 8){data[11] += 0x02;}
+  if (channels > 1){data[11] += 0x01;}
   setLen();
   data[0] = 0x08;
   data[1] = ((len - 15) >> 16) & 0xFF;

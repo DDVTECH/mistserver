@@ -281,7 +281,7 @@ namespace Mist{
       H.Chunkify("\000\000\000\000mdat", 8, myConn);
       // send init data, if needed.
       if (audioTrack != INVALID_TRACK_ID && M.getInit(audioTrack) != ""){
-        if (tag.DTSCAudioInit(meta, audioTrack)){
+        if (tag.DTSCAudioInit(meta.getCodec(audioTrack), meta.getRate(audioTrack), meta.getSize(audioTrack), meta.getChannels(audioTrack), meta.getInit(audioTrack))){
           tag.tagTime(mstime);
           H.Chunkify(tag.data, tag.len, myConn);
         }

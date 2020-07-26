@@ -679,12 +679,16 @@ namespace Mist{
       // if not shutting down, wait 1 second before looping
       if (config->is_active){Util::wait(INPUT_USER_INTERVAL);}
     }
-    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
-    config->is_active = false;
+    if (!isThread()){
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
+      config->is_active = false;
+    }
     finish();
     INFO_MSG("Input closing clean, reason: %s", Util::exitReason);
     userSelect.clear();
-    if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
+    if (!isThread()){
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
+    }
   }
 
   /// This function checks if an input in serve mode should keep running or not.
@@ -729,7 +733,6 @@ namespace Mist{
   /// - if there are tracks, register as a non-viewer on the user page of the buffer
   /// - call getNext() in a loop, buffering packets
   void Input::stream(){
-
     std::map<std::string, std::string> overrides;
     overrides["throughboot"] = "";
     if (config->getBool("realtime") ||
@@ -895,6 +898,7 @@ namespace Mist{
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           statComm.setHost(getConnectedBinHost());
+          handleLossyStats(statComm);
         }
 
         statTimer = Util::bootSecs();

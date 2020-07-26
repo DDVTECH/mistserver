@@ -32,6 +32,9 @@ namespace Controller{
     uint64_t lastSecond;
     uint64_t down;
     uint64_t up;
+    uint64_t pktCount;
+    uint64_t pktLost;
+    uint64_t pktRetransmit;
   };
 
   enum sessType{SESS_UNSET = 0, SESS_INPUT, SESS_OUTPUT, SESS_VIEWER};
@@ -74,6 +77,9 @@ namespace Controller{
     uint64_t lastSec;
     uint64_t wipedUp;
     uint64_t wipedDown;
+    uint64_t wipedPktCount;
+    uint64_t wipedPktLost;
+    uint64_t wipedPktRetransmit;
     std::deque<statStorage> oldConns;
     sessType sessionType;
     bool tracked;
@@ -104,6 +110,12 @@ namespace Controller{
     uint64_t getUp();
     uint64_t getDown();
     uint64_t getUp(uint64_t time);
+    uint64_t getPktCount();
+    uint64_t getPktCount(uint64_t time);
+    uint64_t getPktLost();
+    uint64_t getPktLost(uint64_t time);
+    uint64_t getPktRetransmit();
+    uint64_t getPktRetransmit(uint64_t time);
     uint64_t getBpsDown(uint64_t time);
     uint64_t getBpsUp(uint64_t time);
     uint64_t getBpsDown(uint64_t start, uint64_t end);

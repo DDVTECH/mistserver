@@ -124,6 +124,21 @@ namespace Comms{
     void setCRC(uint32_t _crc);
     void setCRC(uint32_t _crc, size_t idx);
 
+    uint64_t getPacketCount() const;
+    uint64_t getPacketCount(size_t idx) const;
+    void setPacketCount(uint64_t _count);
+    void setPacketCount(uint64_t _count, size_t idx);
+
+    uint64_t getPacketLostCount() const;
+    uint64_t getPacketLostCount(size_t idx) const;
+    void setPacketLostCount(uint64_t _lost);
+    void setPacketLostCount(uint64_t _lost, size_t idx);
+
+    uint64_t getPacketRetransmitCount() const;
+    uint64_t getPacketRetransmitCount(size_t idx) const;
+    void setPacketRetransmitCount(uint64_t _retransmit);
+    void setPacketRetransmitCount(uint64_t _retransmit, size_t idx);
+
     std::string getSessId() const;
     std::string getSessId(size_t index) const;
 
@@ -138,6 +153,9 @@ namespace Comms{
     Util::FieldAccX stream;
     Util::FieldAccX connector;
     Util::FieldAccX crc;
+    Util::FieldAccX pktcount;
+    Util::FieldAccX pktloss;
+    Util::FieldAccX pktretrans;
   };
 
   class Users : public Comms{

@@ -41,6 +41,7 @@ namespace Mist{
     virtual bool readHeader();
     virtual bool needHeader(){return !readExistingHeader();}
     virtual bool preRun(){return true;}
+    virtual bool isThread(){return false;}
     virtual bool isSingular(){return !config->getBool("realtime");}
     virtual bool readExistingHeader();
     virtual bool atKeyFrame();
@@ -68,6 +69,10 @@ namespace Mist{
     virtual void userOnActive(size_t id);
     virtual void userOnDisconnect(size_t id);
     virtual void userLeadOut();
+
+    virtual void handleLossyStats(Comms::Statistics & statComm){}
+
+    virtual bool preventBufferStart() {return false;}
 
     virtual void parseHeader();
     bool bufferFrame(size_t track, uint32_t keyNum);

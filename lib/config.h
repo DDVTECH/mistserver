@@ -8,6 +8,7 @@
 #endif
 
 #include "json.h"
+#include "socket_srt.h"
 #include <signal.h>
 #include <string>
 
@@ -16,7 +17,7 @@ namespace Util{
   extern uint32_t printDebugLevel;
   extern std::string streamName; ///< Used by debug messages to identify the stream name
   extern char exitReason[256];
-  void logExitReason(const char * format, ...);
+  void logExitReason(const char *format, ...);
 
   /// Deals with parsing configuration from commandline options.
   class Config{
@@ -41,6 +42,7 @@ namespace Util{
     int64_t getInteger(std::string optname);
     bool getBool(std::string optname);
     void activate();
+    void registerSRTSockPtr(Socket::SRTServer *ptr);
     int threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
     int forkServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &S));
     int serveThreadedSocket(int (*callback)(Socket::Connection &S));
@@ -49,6 +51,9 @@ namespace Util{
     void addOptionsFromCapabilities(const JSON::Value &capabilities);
     void addBasicConnectorOptions(JSON::Value &capabilities);
     void addConnectorOptions(int port, JSON::Value &capabilities);
+
+    int serveSRTSocket(int (*callback)(Socket::SRTConnection &S));
+    int SRTServer(Socket::SRTServer &server_socket, int (*callback)(Socket::SRTConnection &S));
   };
 
   /// The interface address the current serveSocket function is listening on

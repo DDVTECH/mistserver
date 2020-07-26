@@ -187,6 +187,7 @@ set(libHeaders
   lib/sdp_media.h
   lib/shared_memory.h
   lib/socket.h
+  lib/socket_srt.h
   lib/srtp.h
   lib/stream.h
   lib/stun.h
@@ -249,6 +250,7 @@ add_library (mist
   lib/sdp_media.cpp
   lib/shared_memory.cpp
   lib/socket.cpp
+  lib/socket_srt.cpp
   lib/srtp.cpp
   lib/stream.cpp
   lib/stun.cpp
@@ -274,6 +276,7 @@ endif()
 target_link_libraries(mist 
   -lpthread 
   ${LIBRT}
+  -lsrt
 )
 if (NOT DEFINED NOSSL )
   target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
@@ -436,6 +439,7 @@ makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
 
 makeInput(SRT srt)#LTS
+makeInput(TSSRT tssrt)#LTS
 
 ########################################
 # MistServer - Outputs                 #
@@ -443,11 +447,15 @@ makeInput(SRT srt)#LTS
 macro(makeOutput outputName format)
   #Parse all extra arguments, for http and ts flags
   SET (tsBaseClass Output)
+  SET (outBaseFile src/output/mist_out.cpp)
   if (";${ARGN};" MATCHES ";http;")
     SET(httpOutput src/output/output_http.cpp)
     if (";${ARGN};" MATCHES ";ts;")
       SET(tsBaseClass HTTPOutput)
     endif()
+  endif()
+  if (";${ARGN};" MATCHES ";srt;")
+    SET(outBaseFile src/output/mist_out_srt.cpp)
   endif()
   if (";${ARGN};" MATCHES ";ts;")
     SET(tsOutput src/output/output_ts_base.cpp)
@@ -456,7 +464,7 @@ macro(makeOutput outputName format)
     SET(tsOutput generated/noffmpeg.h generated/noh264.h)
   endif()
   add_executable(MistOut${outputName}
-    src/output/mist_out.cpp
+    ${outBaseFile}
     src/output/output.cpp
     src/output/output_${format}.cpp 
     src/io.cpp
@@ -493,6 +501,7 @@ if (DEFINED WITH_JPG )
 makeOutput(JPG jpg             http jpg)
 endif()
 makeOutput(TS ts                    ts)
+makeOutput(TSSRT tssrt              ts srt)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(CMAF cmaf           http)#LTS

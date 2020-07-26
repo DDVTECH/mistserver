@@ -1015,7 +1015,8 @@ namespace TS{
                   ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
         init[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) |
                   ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
-
+        // Wait with adding the track until we have init data
+        if (init[0] == 0 && init[1] == 0){addNewTrack = false;}
         type = "audio";
         codec = "AAC";
         size = 16;

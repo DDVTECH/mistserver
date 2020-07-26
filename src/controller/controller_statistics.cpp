@@ -32,6 +32,9 @@
 #define STAT_CLI_BPS_UP 256
 #define STAT_CLI_CRC 512
 #define STAT_CLI_SESSID 1024
+#define STAT_CLI_PKTCOUNT 2048
+#define STAT_CLI_PKTLOST 4096
+#define STAT_CLI_PKTRETRANSMIT 8192
 #define STAT_CLI_ALL 0xFFFF
 // These are used to store "totals" field requests in a bitfield for speedup.
 #define STAT_TOT_CLIENTS 1
@@ -713,6 +716,9 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
         if (it->log.size() == 1){
           wipedDown += it->log.begin()->second.down;
           wipedUp += it->log.begin()->second.up;
+          wipedPktCount += it->log.begin()->second.pktCount;
+          wipedPktLost += it->log.begin()->second.pktCount;
+          wipedPktRetransmit += it->log.begin()->second.pktRetransmit;
         }
         it->log.erase(it->log.begin());
       }
@@ -800,6 +806,9 @@ void Controller::statSession::dropSession(const Controller::sessIndex &index){
   lastSec = 0;
   wipedUp = 0;
   wipedDown = 0;
+  wipedPktCount = 0;
+  wipedPktLost = 0;
+  wipedPktRetransmit = 0;
   oldConns.clear();
   sessionType = SESS_UNSET;
 }
@@ -819,6 +828,9 @@ Controller::statSession::statSession(){
   sync = 1;
   wipedUp = 0;
   wipedDown = 0;
+  wipedPktCount = 0;
+  wipedPktLost = 0;
+  wipedPktRetransmit = 0;
   sessionType = SESS_UNSET;
   noBWCount = 0;
 }
@@ -1014,6 +1026,97 @@ uint64_t Controller::statSession::getUp(){
   return retVal;
 }
 
+uint64_t Controller::statSession::getPktCount(uint64_t t){
+  uint64_t retVal = wipedPktCount;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).pktCount;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).pktCount;}
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint64_t Controller::statSession::getPktCount(){
+  uint64_t retVal = wipedPktCount;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){retVal += it->log.rbegin()->second.pktCount;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){retVal += it->second.log.rbegin()->second.pktCount;}
+    }
+  }
+  return retVal;
+}
+uint64_t Controller::statSession::getPktLost(uint64_t t){
+  uint64_t retVal = wipedPktLost;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).pktLost;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).pktLost;}
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint64_t Controller::statSession::getPktLost(){
+  uint64_t retVal = wipedPktLost;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){retVal += it->log.rbegin()->second.pktLost;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){retVal += it->second.log.rbegin()->second.pktLost;}
+    }
+  }
+  return retVal;
+}
+uint64_t Controller::statSession::getPktRetransmit(uint64_t t){
+  uint64_t retVal = wipedPktRetransmit;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).pktRetransmit;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).pktRetransmit;}
+    }
+  }
+  return retVal;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint64_t Controller::statSession::getPktRetransmit(){
+  uint64_t retVal = wipedPktRetransmit;
+  if (oldConns.size()){
+    for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
+      if (it->log.size()){retVal += it->log.rbegin()->second.pktRetransmit;}
+    }
+  }
+  if (curConns.size()){
+    for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
+      if (it->second.log.size()){retVal += it->second.log.rbegin()->second.pktRetransmit;}
+    }
+  }
+  return retVal;
+}
+
 /// Returns the cumulative downloaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsDown(uint64_t t){
   uint64_t aTime = t - 5;
@@ -1048,6 +1151,9 @@ Controller::statLog &Controller::statStorage::getDataFor(unsigned long long t){
     empty.lastSecond = 0;
     empty.down = 0;
     empty.up = 0;
+    empty.pktCount = 0;
+    empty.pktLost = 0;
+    empty.pktRetransmit = 0;
     return empty;
   }
   std::map<unsigned long long, statLog>::iterator it = log.upper_bound(t);
@@ -1063,6 +1169,9 @@ void Controller::statStorage::update(Comms::Statistics &statComm, size_t index){
   tmp.lastSecond = statComm.getLastSecond(index);
   tmp.down = statComm.getDown(index);
   tmp.up = statComm.getUp(index);
+  tmp.pktCount = statComm.getPacketCount(index);
+  tmp.pktLost = statComm.getPacketLostCount(index);
+  tmp.pktRetransmit = statComm.getPacketRetransmitCount(index);
   log[statComm.getNow(index)] = tmp;
   // wipe data older than approx. STAT_CUTOFF seconds
   /// \todo Remove least interesting data first.
@@ -1132,7 +1241,7 @@ bool Controller::hasViewers(std::string streamName){
 ///   //array of protocols to accumulate. Empty means all.
 ///   "protocols": ["HLS", "HSS"],
 ///   //list of requested data fields. Empty means all.
-///   "fields": ["host", "stream", "protocol", "conntime", "position", "down", "up", "downbps", "upbps"],
+///   "fields": ["host", "stream", "protocol", "conntime", "position", "down", "up", "downbps", "upbps","pktcount","pktlost","pktretransmit"],
 ///   //unix timestamp of measuring moment. Negative means X seconds ago. Empty means now.
 ///   "time": 1234567
 ///}
@@ -1186,6 +1295,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if ((*it).asStringRef() == "downbps"){fields |= STAT_CLI_BPS_DOWN;}
       if ((*it).asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
       if ((*it).asStringRef() == "sessid"){fields |= STAT_CLI_SESSID;}
+      if ((*it).asStringRef() == "pktcount"){fields |= STAT_CLI_PKTCOUNT;}
+      if ((*it).asStringRef() == "pktlost"){fields |= STAT_CLI_PKTLOST;}
+      if ((*it).asStringRef() == "pktretransmit"){fields |= STAT_CLI_PKTRETRANSMIT;}
     }
   }
   // select all, if none selected
@@ -1213,6 +1325,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   if (fields & STAT_CLI_BPS_UP){rep["fields"].append("upbps");}
   if (fields & STAT_CLI_CRC){rep["fields"].append("crc");}
   if (fields & STAT_CLI_SESSID){rep["fields"].append("sessid");}
+  if (fields & STAT_CLI_PKTCOUNT){rep["fields"].append("pktcount");}
+  if (fields & STAT_CLI_PKTLOST){rep["fields"].append("pktlost");}
+  if (fields & STAT_CLI_PKTRETRANSMIT){rep["fields"].append("pktretransmit");}
   // output the data itself
   rep["data"].null();
   // loop over all sessions
@@ -1237,6 +1352,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
           if (fields & STAT_CLI_BPS_UP){d.append(it->second.getBpsUp(time));}
           if (fields & STAT_CLI_CRC){d.append(it->first.crc);}
           if (fields & STAT_CLI_SESSID){d.append(it->first.ID);}
+          if (fields & STAT_CLI_PKTCOUNT){d.append(it->second.getPktCount(time));}
+          if (fields & STAT_CLI_PKTLOST){d.append(it->second.getPktLost(time));}
+          if (fields & STAT_CLI_PKTRETRANSMIT){d.append(it->second.getPktRetransmit(time));}
           rep["data"].append(d);
         }
       }

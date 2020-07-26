@@ -5,8 +5,8 @@
 #include "encode.h"
 #include "procs.h"
 #include "timing.h"
-#include <string.h>
 #include <fcntl.h>
+#include <string.h>
 
 namespace Comms{
   Comms::Comms(){
@@ -166,6 +166,9 @@ namespace Comms{
     dataAccX.addField("stream", RAX_STRING, 100);
     dataAccX.addField("connector", RAX_STRING, 20);
     dataAccX.addField("crc", RAX_32UINT);
+    dataAccX.addField("pktcount", RAX_64UINT);
+    dataAccX.addField("pktloss", RAX_64UINT);
+    dataAccX.addField("pktretrans", RAX_64UINT);
   }
 
   void Statistics::nullFields(){
@@ -180,6 +183,9 @@ namespace Comms{
     setTime(0);
     setNow(0);
     setSync(0);
+    setPacketCount(0);
+    setPacketLostCount(0);
+    setPacketRetransmitCount(0);
   }
 
   void Statistics::fieldAccess(){
@@ -194,6 +200,9 @@ namespace Comms{
     stream = dataAccX.getFieldAccX("stream");
     connector = dataAccX.getFieldAccX("connector");
     crc = dataAccX.getFieldAccX("crc");
+    pktcount = dataAccX.getFieldAccX("pktcount");
+    pktloss = dataAccX.getFieldAccX("pktloss");
+    pktretrans = dataAccX.getFieldAccX("pktretrans");
   }
 
   uint8_t Statistics::getSync() const{return sync.uint(index);}
@@ -246,9 +255,7 @@ namespace Comms{
     up.set(_up, idx);
   }
 
-  std::string Statistics::getHost() const{
-    return std::string(host.ptr(index), 16);
-  }
+  std::string Statistics::getHost() const{return std::string(host.ptr(index), 16);}
   std::string Statistics::getHost(size_t idx) const{
     if (!master){return std::string((size_t)16, (char)'\000');}
     return std::string(host.ptr(idx), 16);
@@ -283,6 +290,36 @@ namespace Comms{
   void Statistics::setCRC(uint32_t _crc, size_t idx){
     if (!master){return;}
     crc.set(_crc, idx);
+  }
+
+  uint64_t Statistics::getPacketCount() const{return pktcount.uint(index);}
+  uint64_t Statistics::getPacketCount(size_t idx) const{
+    return (master ? pktcount.uint(idx) : 0);
+  }
+  void Statistics::setPacketCount(uint64_t _count){pktcount.set(_count, index);}
+  void Statistics::setPacketCount(uint64_t _count, size_t idx){
+    if (!master){return;}
+    pktcount.set(_count, idx);
+  }
+
+  uint64_t Statistics::getPacketLostCount() const{return pktloss.uint(index);}
+  uint64_t Statistics::getPacketLostCount(size_t idx) const{
+    return (master ? pktloss.uint(idx) : 0);
+  }
+  void Statistics::setPacketLostCount(uint64_t _lost){pktloss.set(_lost, index);}
+  void Statistics::setPacketLostCount(uint64_t _lost, size_t idx){
+    if (!master){return;}
+    pktloss.set(_lost, idx);
+  }
+
+  uint64_t Statistics::getPacketRetransmitCount() const{return pktretrans.uint(index);}
+  uint64_t Statistics::getPacketRetransmitCount(size_t idx) const{
+    return (master ? pktretrans.uint(idx) : 0);
+  }
+  void Statistics::setPacketRetransmitCount(uint64_t _retrans){pktretrans.set(_retrans, index);}
+  void Statistics::setPacketRetransmitCount(uint64_t _retrans, size_t idx){
+    if (!master){return;}
+    pktretrans.set(_retrans, idx);
   }
 
   std::string Statistics::getSessId() const{return getSessId(index);}

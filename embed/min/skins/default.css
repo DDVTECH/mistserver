@@ -84,6 +84,7 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mistvideo-secondaryVideo{z-index:1;position:absolute;right:0;top:0;width:50%;height:50%;max-width:fit-content;max-height:fit-content}
 .mistvideo-polling{display:inline-block;position:relative;width:25px;height:25px}
 .mistvideo-polling svg.icon.loading{z-index:0;opacity:1}
+.mistvideo:not([data-hide-submenu]) .mistvideo-hoverWindow:hover>svg.icon.settings .fill,.mistvideo[data-fullscreen] svg.icon.fullscreen .fill,.mistvideo[data-show-submenu] svg.icon.settings .fill{fill:$accent}
 .mistvideo[data-show-submenu] .mistvideo-submenu{right:5px}
 .mistvideo[data-hide-submenu] .mistvideo-submenu{right:-1000px!important}
 .mistvideo[data-show-submenu] .mistvideo-controls{bottom:0}

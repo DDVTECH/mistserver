@@ -677,6 +677,8 @@ MistSkins["default"] = {
       var MistVideo = this;
       
       var button = this.skin.icons.build("fullscreen",16);
+      MistUtil.class.remove(button,"fullscreen");
+      MistUtil.class.add(button,"draggable-icon");
       container.appendChild(button);
       button.style.alignSelf = "flex-end";
       button.style.position = "absolute";
@@ -1204,9 +1206,14 @@ MistSkins["default"] = {
       var MistVideo = this;
       
       var button = this.skin.icons.build("settings");
+      
+      var touchmode = (typeof document.ontouchstart != "undefined");
+      
       MistUtil.event.addListener(button,"click",function(){
         if (MistVideo.container.hasAttribute("data-show-submenu")) {
-          MistVideo.container.setAttribute("data-hide-submenu",""); //don't show even when hovering
+          if (touchmode) {
+            MistVideo.container.setAttribute("data-hide-submenu",""); //don't show even when hovering
+          }
           MistVideo.container.removeAttribute("data-show-submenu");
         }
         else {

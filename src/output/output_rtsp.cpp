@@ -88,19 +88,19 @@ namespace Mist{
     capa["deps"] = "";
     capa["url_rel"] = "/$";
     capa["incoming_push_url"] = "rtsp://$host:$port/$stream?pass=$password";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][0u].append("VP8");
-    capa["codecs"][0u][0u].append("VP9");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("ALAW");
-    capa["codecs"][0u][1u].append("ULAW");
-    capa["codecs"][0u][1u].append("PCM");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][1u].append("+HEVC");
+    capa["codecs"][0u][2u].append("+MPEG2");
+    capa["codecs"][0u][3u].append("+VP8");
+    capa["codecs"][0u][4u].append("+VP9");
+    capa["codecs"][0u][5u].append("+AAC");
+    capa["codecs"][0u][6u].append("+MP3");
+    capa["codecs"][0u][7u].append("+AC3");
+    capa["codecs"][0u][8u].append("+ALAW");
+    capa["codecs"][0u][9u].append("+ULAW");
+    capa["codecs"][0u][10u].append("+PCM");
+    capa["codecs"][0u][11u].append("+opus");
+    capa["codecs"][0u][12u].append("+MP2");
 
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
@@ -236,6 +236,16 @@ namespace Mist{
         onFail("Invalid RTSP Data", true);
         break;
       }
+
+      if (HTTP_R.GetVar("audio") != ""){targetParams["audio"] = HTTP_R.GetVar("audio");}
+      if (HTTP_R.GetVar("video") != ""){targetParams["video"] = HTTP_R.GetVar("video");}
+      if (HTTP_R.GetVar("subtitle") != ""){targetParams["subtitle"] = HTTP_R.GetVar("subtitle");}
+      if (HTTP_R.GetVar("start") != ""){targetParams["start"] = HTTP_R.GetVar("start");}
+      if (HTTP_R.GetVar("stop") != ""){targetParams["stop"] = HTTP_R.GetVar("stop");}
+      if (HTTP_R.GetVar("startunix") != ""){targetParams["startunix"] = HTTP_R.GetVar("startunix");}
+      if (HTTP_R.GetVar("stopunix") != ""){targetParams["stopunix"] = HTTP_R.GetVar("stopunix");}
+      if (HTTP_R.hasHeader("User-Agent")){UA = HTTP_R.GetHeader("User-Agent");}
+
       HTTP_S.Clean();
       HTTP_S.protocol = "RTSP/1.0";
 
@@ -333,7 +343,7 @@ namespace Mist{
                         << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
                         << ((double)endTime()) / 1000.0 << "\r\n";
 
-        std::set<size_t> validTracks = M.getValidTracks();
+        std::set<size_t> validTracks = Util::wouldSelect(M, targetParams, capa, UA);
         for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
           transportString << SDP::mediaDescription(&M, *it);
         }

@@ -1,5 +1,6 @@
 #include <algorithm> //for std::find
 #include <fstream>
+#include <mist/timing.h>
 #include "process_livepeer.h"
 #include <mist/procs.h>
 #include <mist/util.h>
@@ -11,9 +12,25 @@
 #include <unistd.h>    //for stat
 
 tthread::mutex segMutex;
+tthread::mutex broadcasterMutex;
+
+//Stat related stuff
+JSON::Value pStat;
+JSON::Value & pData = pStat["proc_status_update"]["status"];
+tthread::mutex statsMutex;
+uint64_t statSwitches = 0;
+uint64_t statFailN200 = 0;
+uint64_t statFailTimeout = 0;
+uint64_t statFailParse = 0;
+uint64_t statFailOther = 0;
+uint64_t statSinkMs = 0;
+uint64_t statSourceMs = 0;
 
 Util::Config co;
 Util::Config conf;
+
+size_t insertTurn = 0;
+bool isStuck = false;
 
 namespace Mist{
 
@@ -39,29 +56,62 @@ namespace Mist{
   //Source process, takes data from input stream and sends to livepeer
   class ProcessSource : public TSOutput{
   public:
-    HTTP::Downloader upper;
-    uint64_t segTime;
     bool isRecording(){return false;}
+    bool isReadyForPlay(){
+      if (!TSOutput::isReadyForPlay()){return false;}
+      size_t mTrk = getMainSelectedTrack();
+      if (mTrk == INVALID_TRACK_ID || M.getType(mTrk) != "video"){
+        HIGH_MSG("NOT READY (non-video main track)");
+        return false;
+      }
+      return true;
+    }
     ProcessSource(Socket::Connection &c) : TSOutput(c){
       capa["name"] = "Livepeer";
       capa["codecs"][0u][0u].append("+H264");
       capa["codecs"][0u][0u].append("+HEVC");
       capa["codecs"][0u][0u].append("+MPEG2");
+      capa["codecs"][0u][1u].append("+AAC");
       realTime = 0;
       wantRequest = false;
       parseData = true;
-      upper.setHeader("Authorization", "Bearer "+opt["access_token"].asStringRef());
+      currPreSeg = 0;
     };
-    Util::ResizeablePointer tsPck;
+    virtual bool onFinish(){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        if (userSelect.size()){
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            INFO_MSG("Unmasking source track %zu" PRIu64, it->first);
+            meta.validateTrack(it->first, TRACK_VALID_ALL);
+          }
+        }
+      }
+      return TSOutput::onFinish();
+    }
+    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        INFO_MSG("Unmasking source track %zu" PRIu64, trackId);
+        meta.validateTrack(trackId, TRACK_VALID_ALL);
+      }
+      TSOutput::dropTrack(trackId, reason, probablyBad);
+    }
+    size_t currPreSeg;
     void sendTS(const char *tsData, size_t len = 188){
-      tsPck.append(tsData, len);
+      if (!presegs[currPreSeg].data.size()){
+        presegs[currPreSeg].time = thisPacket.getTime();
+      }
+      presegs[currPreSeg].data.append(tsData, len);
     };
     virtual void initialSeek(){
       if (!meta){return;}
-      if (opt["masksource"].asBool()){
-        size_t mainTrack = getMainSelectedTrack();
-        INFO_MSG("Masking source track %zu", mainTrack);
-        meta.validateTrack(mainTrack, meta.trackValid(mainTrack) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+      if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
+        uint64_t sourceMask = opt["source_mask"].asInt();
+        if (userSelect.size()){
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            INFO_MSG("Masking source track %zu to %" PRIu64, it->first, sourceMask);
+            meta.validateTrack(it->first, sourceMask);
+          }
+        }
       }
       if (!meta.getLive() || opt["leastlive"].asBool()){
         INFO_MSG("Seeking to earliest point in stream");
@@ -70,148 +120,33 @@ namespace Mist{
       }
       Output::initialSeek();
     }
-    ///Inserts a part into the queue of parts to parse
-    void insertPart(const std::string & rendition, void * ptr, size_t len){
-      while (conf.is_active){
-        {
-          tthread::lock_guard<tthread::mutex> guard(segMutex);
-          if (segs[rendition].fullyRead){
-            HIGH_MSG("Inserting %zi bytes of %s", len, rendition.c_str());
-            segs[rendition].set(segTime, ptr, len);
-            return;
-          }
-        }
-        INFO_MSG("Waiting for %s to finish parsing current part...", rendition.c_str());
-        Util::sleep(500);
-      }
-    }
-    ///Parses a multipart response
-    void parseMultipart(){
-      std::string cType = upper.getHeader("Content-Type");
-      std::string bound;
-      if (cType.find("boundary=") != std::string::npos){
-        bound = "--"+cType.substr(cType.find("boundary=")+9);
-      }
-      if (!bound.size()){
-        FAIL_MSG("Could not parse boundary string from Content-Type header!");
-        return;
-      }
-      const std::string & d = upper.const_data();
-      size_t startPos = 0;
-      size_t nextPos = d.find(bound, startPos);
-      //While there is at least one boundary to be found
-      while (nextPos != std::string::npos){
-        startPos = nextPos+bound.size()+2;
-        nextPos = d.find(bound, startPos);
-        if (nextPos != std::string::npos){
-          //We have a start and end position, looking good so far...
-          size_t headEnd = d.find("\r\n\r\n", startPos);
-          if (headEnd == std::string::npos || headEnd > nextPos){
-            FAIL_MSG("Could not find end of headers for multi-part part; skipping to next part");
-            continue;
-          }
-          //Alright, we know where our headers and data are. Parse the headers
-          std::map<std::string, std::string> partHeaders;
-          size_t headPtr = startPos;
-          size_t nextNL = d.find("\r\n", headPtr);
-          while (nextNL != std::string::npos && nextNL <= headEnd){
-            size_t col = d.find(":", headPtr);
-            if (col != std::string::npos && col < nextNL){
-              partHeaders[d.substr(headPtr, col-headPtr)] = d.substr(col+2, nextNL-col-2);
-            }
-            headPtr = nextNL+2;
-            nextNL = d.find("\r\n", headPtr);
-          }
-          for (std::map<std::string, std::string>::iterator it = partHeaders.begin(); it != partHeaders.end(); ++it){
-            VERYHIGH_MSG("Header %s = %s", it->first.c_str(), it->second.c_str());
-          }
-          VERYHIGH_MSG("Body has length %zi", nextPos-headEnd-6);
-          std::string preType = partHeaders["Content-Type"].substr(0, 10);
-          Util::stringToLower(preType);
-          if (preType == "video/mp2t"){
-            insertPart(partHeaders["Rendition-Name"], (void*)(d.data()+headEnd+4), nextPos-headEnd-6);
-          }
-        }
-      }
-    }
     void sendNext(){
-      if (thisPacket.getFlag("keyframe") && (thisPacket.getTime() - segTime) >= 1000){
-        if (Mist::queueClear){
-          //Request to clear the queue! Do so, and wait for a new broadcaster to be picked.
-          {
-            tthread::lock_guard<tthread::mutex> guard(segMutex);
-            segs.clear();
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        if (pData["source_tracks"].size() != userSelect.size()){
+          pData["source_tracks"].null();
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            pData["source_tracks"].append(it->first);
           }
-          doingSetup = false;
-          //Sleep while we're still being asked to clear
-          while (queueClear && conf.is_active){
-            Util::sleep(100);
-          }
-          if (!conf.is_active){return;}
         }
-        if (tsPck.size() > 187){
-          size_t attempts = 0;
-          bool retry = false;
-          do{
-            retry = false;
-            HTTP::URL target(currBroadAddr+"/live/"+lpID+"/"+JSON::Value(keyCount).asString()+".ts");
-            upper.setHeader("Accept", "multipart/mixed");
-            uint64_t segDuration = thisPacket.getTime() - segTime;
-            upper.setHeader("Content-Duration", JSON::Value(segDuration).asString());
-            if (upper.post(target, tsPck, tsPck.size())){
-              if (upper.getStatusCode() == 200){
-                HIGH_MSG("Uploaded %zu bytes to %s", tsPck.size(), target.getUrl().c_str());
-                if (upper.getHeader("Content-Type").substr(0, 10) == "multipart/"){
-                  parseMultipart();
-                }else{
-                  FAIL_MSG("Non-multipart response received - this version only works with multipart!");
-                }
-              }else{
-                attempts++;
-                WARN_MSG("Failed to upload %zu bytes to %s: %" PRIu32 " %s", tsPck.size(), target.getUrl().c_str(), upper.getStatusCode(), upper.getStatusText().c_str());
-                if ((attempts % 3) == 3){
-                  Util::sleep(250);
-                  retry = true;
-                }else{
-                  if (attempts > 12){
-                    Util::logExitReason("too many upload failures");
-                    conf.is_active = false;
-                    return;
-                  }
-                  if (!conf.is_active){return;}
-                  FAIL_MSG("Failed to upload segment %s several times, picking new broadcaster", target.getUrl().c_str());
-                  pickRandomBroadcaster();
-                  if (!currBroadAddr.size()){
-                    Util::logExitReason("no Livepeer broadcasters available");
-                    conf.is_active = false;
-                    return;
-                  }else{
-                    WARN_MSG("Switched to broadcaster: %s", currBroadAddr.c_str());
-                    retry = true;
-                  }
-                }
-              }
-            }else{
-              if (!conf.is_active){return;}
-              FAIL_MSG("Failed to upload segment %s, picking new broadcaster", target.getUrl().c_str());
-              pickRandomBroadcaster();
-              if (!currBroadAddr.size()){
-                Util::logExitReason("no Livepeer broadcasters available");
-                conf.is_active = false;
-                return;
-              }else{
-                WARN_MSG("Switched to broadcaster: %s", currBroadAddr.c_str());
-                retry = true;
-              }
-            }
-          }while(retry);
+      }
+      if (thisTime > statSourceMs){statSourceMs = thisTime;}
+      if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video" && (thisTime - presegs[currPreSeg].time) >= 1000){
+        if (presegs[currPreSeg].data.size() > 187){
+          presegs[currPreSeg].keyNo = keyCount;
+          presegs[currPreSeg].width = M.getWidth(thisIdx);
+          presegs[currPreSeg].height = M.getHeight(thisIdx);
+          presegs[currPreSeg].segDuration = thisTime - presegs[currPreSeg].time;
+          presegs[currPreSeg].fullyRead = false;
+          presegs[currPreSeg].fullyWritten = true;
+          currPreSeg = (currPreSeg+1) % PRESEG_COUNT;
         }
-        tsPck.assign(0, 0);
+        while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
+        presegs[currPreSeg].data.assign(0, 0);
         extraKeepAway = 0;
         needsLookAhead = 0;
         maxSkipAhead = 0;
         packCounter = 0;
-        segTime = thisPacket.getTime();
         ++keyCount;
         sendFirst = true;
       }
@@ -227,7 +162,15 @@ namespace Mist{
       streamName = opt["sink"].asString();
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        pStat["proc_status_update"]["sink"] = streamName;
+        pStat["proc_status_update"]["source"] = opt["source"];
+      }
       Util::setStreamName(opt["source"].asString() + "→" + streamName);
+      if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
+        DTSC::trackValidDefault = opt["target_mask"].asInt();
+      }
       preRun();
     };
     virtual bool needsLock(){return false;}
@@ -239,35 +182,53 @@ namespace Mist{
       thisPacket.null();
       int64_t timeOffset = 0;
       uint64_t trackId = 0;
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        if (pData["sink_tracks"].size() != userSelect.size()){
+          pData["sink_tracks"].null();
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            pData["sink_tracks"].append(it->first);
+          }
+        }
+      }
       while (!thisPacket && conf.is_active){
         {
           tthread::lock_guard<tthread::mutex> guard(segMutex);
           std::string oRend;
-          uint64_t lastPacket = segs.begin()->second.lastPacket;
+          uint64_t lastPacket = 0xFFFFFFFFFFFFFFFFull;
           for (segIt = segs.begin(); segIt != segs.end(); ++segIt){
-            if (segIt->second.lastPacket > lastPacket){continue;}
+            if (isStuck){
+              WARN_MSG("Considering %s: T%" PRIu64 ", fullyWritten: %s, fullyRead: %s", segIt->first.c_str(), segIt->second.lastPacket, segIt->second.fullyWritten?"Y":"N", segIt->second.fullyRead?"Y":"N");
+            }
             if (!segIt->second.fullyWritten){continue;}
-            if (segIt->second.byteOffset >= segIt->second.data.size()){continue;}
+            if (segIt->second.lastPacket > lastPacket){continue;}
             oRend = segIt->first;
             lastPacket = segIt->second.lastPacket;
           }
           if (oRend.size()){
+            if (isStuck){WARN_MSG("Picked %s!", oRend.c_str());}
             readySegment & S = segs[oRend];
             while (!S.S.hasPacket() && S.byteOffset <= S.data.size() - 188){
               S.S.parse(S.data + S.byteOffset, 0);
               S.byteOffset += 188;
+              if (S.byteOffset > S.data.size() - 188){S.S.finish();}
             }
             if (S.S.hasPacket()){
               S.S.getEarliestPacket(thisPacket);
               if (!S.offsetCalcd){
                 S.timeOffset = S.time - thisPacket.getTime();
+                HIGH_MSG("First timestamp of %s at time %" PRIu64 " is %" PRIu64 ", adjusting by %" PRId64, oRend.c_str(), S.time, thisPacket.getTime(), S.timeOffset);
                 S.offsetCalcd = true;
               }
               timeOffset = S.timeOffset;
+              if (thisPacket){
+                S.lastPacket = thisPacket.getTime() + timeOffset;
+                if (S.lastPacket >= statSinkMs){statSinkMs = S.lastPacket;}
+              }
               trackId = (S.ID << 16) + thisPacket.getTrackId();
               size_t idx = M.trackIDToIndex(trackId, getpid());
               if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
-                INFO_MSG("Initializing track %zi (index %zi) as %" PRIu64 " for playlist %" PRIu64, thisPacket.getTrackId(), idx, trackId, S.ID);
+                INFO_MSG("Initializing track %zi as %" PRIu64 " for playlist %" PRIu64, thisPacket.getTrackId(), trackId, S.ID);
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
               }
             }
@@ -277,7 +238,13 @@ namespace Mist{
             }
           }
         }
-        if (!thisPacket){Util::sleep(25);}
+        if (!thisPacket){
+          Util::sleep(25);
+          if (userSelect.size() && userSelect.begin()->second.getStatus() == COMM_STATUS_REQDISCONNECT){
+            Util::logExitReason("buffer requested shutdown");
+            return;
+          }
+        }
       }
 
       if (thisPacket){
@@ -332,16 +299,19 @@ namespace Mist{
       Util::logExitReason("No Livepeer broadcasters available");
       return;
     }
-    pickRandomBroadcaster();
-    if (!currBroadAddr.size()){
-      Util::logExitReason("No Livepeer broadcasters available");
-      return;
+    {
+      tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+      pickRandomBroadcaster();
+      if (!currBroadAddr.size()){
+        Util::logExitReason("No Livepeer broadcasters available");
+        return;
+      }
+      INFO_MSG("Using broadcaster: %s", currBroadAddr.c_str());
     }
-    INFO_MSG("Using broadcaster: %s", currBroadAddr.c_str());
 
     //make transcode request
     JSON::Value pl;
-    pl["name"] = "Mist Transcode";
+    pl["name"] = opt["source"];
     pl["profiles"] = opt["target_profiles"];
     dl.setHeader("Content-Type", "application/json");
     dl.setHeader("Authorization", "Bearer "+opt["access_token"].asStringRef());
@@ -362,7 +332,36 @@ namespace Mist{
 
     INFO_MSG("Livepeer transcode ID: %s", lpID.c_str());
     doingSetup = false;
-    while (conf.is_active && co.is_active){Util::sleep(200);}
+    uint64_t lastProcUpdate = Util::bootSecs();
+    {
+      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      pStat["proc_status_update"]["id"] = getpid();
+      pStat["proc_status_update"]["proc"] = "Livepeer";
+      pData["ainfo"]["lp_id"] = lpID;
+    }
+    uint64_t startTime = Util::bootSecs();
+    while (conf.is_active && co.is_active){
+      Util::sleep(200);
+      if (lastProcUpdate + 5 <= Util::bootSecs()){
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        pData["active_seconds"] = (Util::bootSecs() - startTime);
+        pData["ainfo"]["switches"] = statSwitches;
+        pData["ainfo"]["fail_non200"] = statFailN200;
+        pData["ainfo"]["fail_timeout"] = statFailTimeout;
+        pData["ainfo"]["fail_parse"] = statFailParse;
+        pData["ainfo"]["fail_other"] = statFailOther;
+        pData["ainfo"]["sourceTime"] = statSourceMs;
+        pData["ainfo"]["sinkTime"] = statSinkMs;
+        {
+          tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+          pData["ainfo"]["bc"] = Mist::currBroadAddr;
+        }
+        Socket::UDPConnection uSock;
+        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+        uSock.SendNow(pStat.toString());
+        lastProcUpdate = Util::bootSecs();
+      }
+    }
     INFO_MSG("Closing process clean");
   }
 }// namespace Mist
@@ -389,12 +388,19 @@ void sourceThread(void *){
   opt["default"] = "";
   opt["arg_num"] = 1;
   opt["help"] = "Target filename to store EBML file as, or - for stdout.";
+  //Check for audio selection, default to none
+  std::string audio_select = "none";
+  if (Mist::opt.isMember("audio_select") && Mist::opt["audio_select"].isString() && Mist::opt["audio_select"]){
+    audio_select = Mist::opt["audio_select"].asStringRef();
+  }
+  //Check for source track selection, default to maxbps
+  std::string video_select = "maxbps";
+  if (Mist::opt.isMember("source_track") && Mist::opt["source_track"].isString() && Mist::opt["source_track"]){
+    video_select = Mist::opt["source_track"].asStringRef();
+  }
   conf.addOption("target", opt);
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
-  conf.getOption("target", true).append("-?audio=none&video=maxbps");
-  if (Mist::opt.isMember("source_track")){
-    conf.getOption("target", true).append("-?audio=none&video=" + Mist::opt["source_track"].asString());
-  }
+  conf.getOption("target", true).append("-?audio="+audio_select+"&video="+video_select);
   Mist::ProcessSource::init(&conf);
   conf.is_active = true;
   int devnull = open("/dev/null", O_RDWR);
@@ -411,6 +417,156 @@ void sourceThread(void *){
   conf.is_active = false;
   co.is_active = false;
   close(devnull);
+}
+
+///Inserts a part into the queue of parts to parse
+void insertPart(const Mist::preparedSegment & mySeg, const std::string & rendition, void * ptr, size_t len){
+  uint64_t waitTime = Util::bootMS();
+  uint64_t lastAlert = waitTime;
+  while (conf.is_active){
+    {
+      tthread::lock_guard<tthread::mutex> guard(segMutex);
+      if (Mist::segs[rendition].fullyRead){
+        HIGH_MSG("Inserting %zi bytes of %s, originally for time %" PRIu64, len, rendition.c_str(), mySeg.time);
+        Mist::segs[rendition].set(mySeg.time, ptr, len);
+        return;
+      }
+    }
+    uint64_t currMs = Util::bootMS();
+    isStuck = false;
+    if (currMs-waitTime > 5000 && currMs-lastAlert > 1000){
+      lastAlert = currMs;
+      INFO_MSG("Waiting for %s to finish parsing current part (%" PRIu64 "ms)...", rendition.c_str(), currMs-waitTime);
+      isStuck = true;
+    }
+    Util::sleep(100);
+  }
+}
+
+///Parses a multipart response
+void parseMultipart(const Mist::preparedSegment & mySeg, const std::string & cType, const std::string & d){
+  std::string bound;
+  if (cType.find("boundary=") != std::string::npos){
+    bound = "--"+cType.substr(cType.find("boundary=")+9);
+  }
+  if (!bound.size()){
+    FAIL_MSG("Could not parse boundary string from Content-Type header!");
+    return;
+  }
+  size_t startPos = 0;
+  size_t nextPos = d.find(bound, startPos);
+  //While there is at least one boundary to be found
+  while (nextPos != std::string::npos){
+    startPos = nextPos+bound.size()+2;
+    nextPos = d.find(bound, startPos);
+    if (nextPos != std::string::npos){
+      //We have a start and end position, looking good so far...
+      size_t headEnd = d.find("\r\n\r\n", startPos);
+      if (headEnd == std::string::npos || headEnd > nextPos){
+        FAIL_MSG("Could not find end of headers for multi-part part; skipping to next part");
+        continue;
+      }
+      //Alright, we know where our headers and data are. Parse the headers
+      std::map<std::string, std::string> partHeaders;
+      size_t headPtr = startPos;
+      size_t nextNL = d.find("\r\n", headPtr);
+      while (nextNL != std::string::npos && nextNL <= headEnd){
+        size_t col = d.find(":", headPtr);
+        if (col != std::string::npos && col < nextNL){
+          partHeaders[d.substr(headPtr, col-headPtr)] = d.substr(col+2, nextNL-col-2);
+        }
+        headPtr = nextNL+2;
+        nextNL = d.find("\r\n", headPtr);
+      }
+      for (std::map<std::string, std::string>::iterator it = partHeaders.begin(); it != partHeaders.end(); ++it){
+        VERYHIGH_MSG("Header %s = %s", it->first.c_str(), it->second.c_str());
+      }
+      VERYHIGH_MSG("Body has length %zi", nextPos-headEnd-6);
+      std::string preType = partHeaders["Content-Type"].substr(0, 10);
+      Util::stringToLower(preType);
+      if (preType == "video/mp2t"){
+        insertPart(mySeg, partHeaders["Rendition-Name"], (void*)(d.data()+headEnd+4), nextPos-headEnd-6);
+      }
+    }
+  }
+}
+
+void uploadThread(void * num){
+  size_t myNum = (size_t)num;
+  Mist::preparedSegment & mySeg = Mist::presegs[myNum];
+  HTTP::Downloader upper;
+  while (conf.is_active){
+    while (conf.is_active && !mySeg.fullyWritten){Util::sleep(100);}
+    if (!conf.is_active){return;}//Exit early on shutdown
+    size_t attempts = 0;
+    do{
+      HTTP::URL target;
+      {
+        tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+        target = HTTP::URL(Mist::currBroadAddr+"/live/"+Mist::lpID+"/"+JSON::Value(mySeg.keyNo).asString()+".ts");
+      }
+      upper.dataTimeout = mySeg.segDuration/1000 + 2;
+      upper.retryCount = 2;
+      upper.setHeader("Accept", "multipart/mixed");
+      upper.setHeader("Content-Duration", JSON::Value(mySeg.segDuration).asString());
+      upper.setHeader("Content-Resolution", JSON::Value(mySeg.width).asString()+"x"+JSON::Value(mySeg.height).asString());
+      uint64_t uplTime = Util::getMicros();
+      if (upper.post(target, mySeg.data, mySeg.data.size())){
+        uplTime = Util::getMicros(uplTime);
+        if (upper.getStatusCode() == 200){
+          MEDIUM_MSG("Uploaded %zu bytes (time %" PRIu64 "-%" PRIu64 " = %" PRIu64 " ms) to %s in %.2f ms", mySeg.data.size(), mySeg.time, mySeg.time+mySeg.segDuration, mySeg.segDuration, target.getUrl().c_str(), uplTime/1000.0);
+          mySeg.fullyWritten = false;
+          mySeg.fullyRead = true;
+          //Wait your turn
+          while (myNum != insertTurn && conf.is_active){Util::sleep(100);}
+          if (!conf.is_active){return;}//Exit early on shutdown
+          if (upper.getHeader("Content-Type").substr(0, 10) == "multipart/"){
+            parseMultipart(mySeg, upper.getHeader("Content-Type"), upper.const_data());
+          }else{
+            ++statFailParse;
+            FAIL_MSG("Non-multipart response received - this version only works with multipart!");
+          }
+          insertTurn = (insertTurn + 1) % PRESEG_COUNT;
+          break;//Success: no need to retry
+        }else{
+          //Failure due to non-200 status code
+          ++statFailN200;
+          WARN_MSG("Failed to upload %zu bytes to %s in %.2f ms: %" PRIu32 " %s", mySeg.data.size(), target.getUrl().c_str(), uplTime/1000.0, upper.getStatusCode(), upper.getStatusText().c_str());
+        }
+      }else{
+        //other failures and aborted uploads
+        if (!conf.is_active){return;}//Exit early on shutdown
+        uplTime = Util::getMicros(uplTime);
+        ++statFailTimeout;
+        WARN_MSG("Failed to upload %zu bytes to %s in %.2f ms", mySeg.data.size(), target.getUrl().c_str(), uplTime/1000.0);
+      }
+      //Error handling
+      attempts++;
+      Util::sleep(100);//Rate-limit retries
+      if (attempts > 4){
+        Util::logExitReason("too many upload failures");
+        conf.is_active = false;
+        return;
+      }
+      {
+        tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
+        std::string prevBroadAddr = Mist::currBroadAddr;
+        Mist::pickRandomBroadcaster();
+        if (!Mist::currBroadAddr.size()){
+          FAIL_MSG("Cannot switch to new broadcaster: none available");
+          Util::logExitReason("no Livepeer broadcasters available");
+          conf.is_active = false;
+          return;
+        }
+        if (Mist::currBroadAddr != prevBroadAddr){
+          ++statSwitches;
+          WARN_MSG("Switched to new broadcaster: %s", Mist::currBroadAddr.c_str());
+        }else{
+          WARN_MSG("Cannot switch broadcaster; only a single option is available");
+        }
+      }
+    }while(conf.is_active);
+  }
 }
 
 int main(int argc, char *argv[]){
@@ -441,10 +597,47 @@ int main(int argc, char *argv[]){
     capa["name"] = "Livepeer";
     capa["desc"] = "Use livepeer to transcode video.";
 
-    capa["optional"]["masksource"]["name"] = "Make source track unavailable for users";
-    capa["optional"]["masksource"]["help"] = "If enabled, makes the source track internal-only, so that external users and pushes cannot access it.";
-    capa["optional"]["masksource"]["type"] = "boolean";
-    capa["optional"]["masksource"]["default"] = false;
+    capa["optional"]["source_mask"]["name"] = "Source track mask";
+    capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
+    capa["optional"]["source_mask"]["type"] = "select";
+    capa["optional"]["source_mask"]["select"][0u][0u] = "";
+    capa["optional"]["source_mask"]["select"][0u][1u] = "Keep original value";
+    capa["optional"]["source_mask"]["select"][1u][0u] = 255;
+    capa["optional"]["source_mask"]["select"][1u][1u] = "Everything";
+    capa["optional"]["source_mask"]["select"][2u][0u] = 4;
+    capa["optional"]["source_mask"]["select"][2u][1u] = "Processing tasks (not viewers, not pushes)";
+    capa["optional"]["source_mask"]["select"][3u][0u] = 6;
+    capa["optional"]["source_mask"]["select"][3u][1u] = "Processing and pushing tasks (not viewers)";
+    capa["optional"]["source_mask"]["select"][4u][0u] = 5;
+    capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
+    capa["optional"]["source_mask"]["default"] = "";
+
+    capa["optional"]["target_mask"]["name"] = "Output track mask";
+    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the ouput track(s)";
+    capa["optional"]["target_mask"]["type"] = "select";
+    capa["optional"]["target_mask"]["select"][0u][0u] = "";
+    capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";
+    capa["optional"]["target_mask"]["select"][1u][0u] = 255;
+    capa["optional"]["target_mask"]["select"][1u][1u] = "Everything";
+    capa["optional"]["target_mask"]["select"][2u][0u] = 1;
+    capa["optional"]["target_mask"]["select"][2u][1u] = "Viewer tasks (not processing, not pushes)";
+    capa["optional"]["target_mask"]["select"][3u][0u] = 2;
+    capa["optional"]["target_mask"]["select"][3u][1u] = "Pushing tasks (not processing, not viewers)";
+    capa["optional"]["target_mask"]["select"][4u][0u] = 4;
+    capa["optional"]["target_mask"]["select"][4u][1u] = "Processing tasks (not pushes, not viewers)";
+    capa["optional"]["target_mask"]["select"][5u][0u] = 3;
+    capa["optional"]["target_mask"]["select"][5u][1u] = "Viewer and pushing tasks (not processing)";
+    capa["optional"]["target_mask"]["select"][6u][0u] = 5;
+    capa["optional"]["target_mask"]["select"][6u][1u] = "Viewer and processing tasks (not pushes)";
+    capa["optional"]["target_mask"]["select"][7u][0u] = 6;
+    capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
+    capa["optional"]["target_mask"]["select"][8u][0u] = 0;
+    capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
+    capa["optional"]["target_mask"]["default"] = "";
+
+    capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
+    capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
+    capa["optional"]["exit_unmask"]["default"] = false;
 
     capa["optional"]["sink"]["name"] = "Target stream";
     capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults "
@@ -454,10 +647,16 @@ int main(int argc, char *argv[]){
 
     capa["optional"]["source_track"]["name"] = "Input selection";
     capa["optional"]["source_track"]["help"] =
-        "Track ID, codec or language of the source stream to encode.";
+        "Track selector(s) of the video portion of the source stream. Defaults to highest bit rate video track.";
     capa["optional"]["source_track"]["type"] = "track_selector_parameter";
     capa["optional"]["source_track"]["n"] = 1;
-    capa["optional"]["source_track"]["default"] = "automatic";
+    capa["optional"]["source_track"]["default"] = "maxbps";
+
+    capa["optional"]["audio_select"]["name"] = "Audio streams";
+    capa["optional"]["audio_select"]["help"] =
+        "Track selector(s) for the audio portion of the source stream. Defaults to 'none' so no audio is passed at all.";
+    capa["optional"]["audio_select"]["type"] = "track_selector_parameter";
+    capa["optional"]["audio_select"]["default"] = "none";
 
     capa["required"]["access_token"]["name"] = "Access token";
     capa["required"]["access_token"]["help"] = "Your livepeer access token";
@@ -479,30 +678,40 @@ int main(int argc, char *argv[]){
     capa["required"]["target_profiles"]["type"] = "sublist";
     capa["required"]["target_profiles"]["itemLabel"] = "profile";
     capa["required"]["target_profiles"]["help"] = "Tracks to transcode the source into";
-    JSON::Value &grp = capa["required"]["target_profiles"]["required"];
-    grp["name"]["name"] = "Name";
-    grp["name"]["help"] = "Name for the profle. Must be unique within this transcode.";
-    grp["name"]["type"] = "str";
-    grp["fps"]["name"] = "Framerate";
-    grp["fps"]["help"] = "Framerate of the output";
-    grp["fps"]["unit"] = "frames per second";
-    grp["fps"]["type"] = "int";
-    grp["gop"]["name"] = "Keyframe interval / GOP size";
-    grp["gop"]["help"] = "Interval of keyframes / duration of GOPs for the transcode. Empty string means to match input (= the default), 'intra' means to send only key frames. Otherwise, fractional seconds between keyframes.";
-    grp["gop"]["unit"] = "seconds";
-    grp["gop"]["type"] = "str";
-    grp["width"]["name"] = "Width";
-    grp["width"]["help"] = "Width in pixels of the output";
-    grp["width"]["unit"] = "px";
-    grp["width"]["type"] = "int";
-    grp["height"]["name"] = "Height";
-    grp["height"]["help"] = "Height in pixels of the output";
-    grp["height"]["unit"] = "px";
-    grp["height"]["type"] = "int";
-    grp["bitrate"]["name"] = "Bitrate";
-    grp["bitrate"]["help"] = "Target bit rate of the output";
-    grp["bitrate"]["unit"] = "bits per second";
-    grp["bitrate"]["type"] = "int";
+    {
+      JSON::Value &grp = capa["required"]["target_profiles"]["required"];
+      grp["name"]["name"] = "Name";
+      grp["name"]["help"] = "Name for the profile. Must be unique within this transcode.";
+      grp["name"]["type"] = "str";
+      grp["name"]["n"] = 0;
+      grp["bitrate"]["name"] = "Bitrate";
+      grp["bitrate"]["help"] = "Target bit rate of the output";
+      grp["bitrate"]["unit"] = "bits per second";
+      grp["bitrate"]["type"] = "int";
+      grp["bitrate"]["n"] = 1;
+      grp["width"]["name"] = "Width";
+      grp["width"]["help"] = "Width in pixels of the output";
+      grp["width"]["unit"] = "px";
+      grp["width"]["type"] = "int";
+      grp["width"]["n"] = 2;
+      grp["height"]["name"] = "Height";
+      grp["height"]["help"] = "Height in pixels of the output";
+      grp["height"]["unit"] = "px";
+      grp["height"]["type"] = "int";
+      grp["height"]["n"] = 3;
+    }{
+      JSON::Value &grp = capa["required"]["target_profiles"]["optional"];
+      grp["fps"]["name"] = "Framerate";
+      grp["fps"]["help"] = "Framerate of the output";
+      grp["fps"]["unit"] = "frames per second";
+      grp["fps"]["type"] = "int";
+      grp["fps"]["n"] = 4;
+      grp["gop"]["name"] = "Keyframe interval / GOP size";
+      grp["gop"]["help"] = "Interval of keyframes / duration of GOPs for the transcode. Empty string means to match input (= the default), 'intra' means to send only key frames. Otherwise, fractional seconds between keyframes.";
+      grp["gop"]["unit"] = "seconds";
+      grp["gop"]["type"] = "str";
+      grp["gop"]["n"] = 5;
+    }
 
     capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
     capa["optional"]["track_inhibit"]["help"] =
@@ -511,6 +720,21 @@ int main(int argc, char *argv[]){
     capa["optional"]["track_inhibit"]["type"] = "string";
     capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
     capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
+
+    capa["optional"]["debug"]["name"] = "Debug level";
+    capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
+    capa["optional"]["debug"]["type"] = "debug";
+
+    capa["ainfo"]["lp_id"]["name"] = "Livepeer transcode ID";
+    capa["ainfo"]["switches"]["name"] = "Broadcaster switches since start";
+    capa["ainfo"]["fail_non200"]["name"] = "Failures due to non-200 response codes";
+    capa["ainfo"]["fail_timeout"]["name"] = "Failures due to timeout";
+    capa["ainfo"]["fail_parse"]["name"] = "Failures due to parse errors in TS response data";
+    capa["ainfo"]["fail_other"]["name"] = "Failures due to other reasons";
+    capa["ainfo"]["bc"]["name"] = "Currently used broadcaster";
+    capa["ainfo"]["sinkTime"]["name"] = "Sink timestamp";
+    capa["ainfo"]["sourceTime"]["name"] = "Source timestamp";
+
 
     std::cout << capa.toString() << std::endl;
     return -1;
@@ -535,12 +759,24 @@ int main(int argc, char *argv[]){
     return 1;
   }
 
+  {
+    //Ensure stream name is set in all threads
+    std::string streamName = Mist::opt["sink"].asString();
+    if (!streamName.size()){streamName = Mist::opt["source"].asString();}
+    Util::streamVariables(streamName, Mist::opt["source"].asString());
+    Util::setStreamName(Mist::opt["source"].asString() + "→" + streamName);
+  }
+
   // stream which connects to input
   tthread::thread source(sourceThread, 0);
   Util::sleep(500);
 
   // needs to pass through encoder to outputEBML
   tthread::thread sink(sinkThread, 0);
+  // uploads prepared segments
+  tthread::thread uploader0(uploadThread, (void*)0);
+  tthread::thread uploader1(uploadThread, (void*)1);
+
 
   co.is_active = true;
 
@@ -552,6 +788,8 @@ int main(int argc, char *argv[]){
 
   sink.join();
   source.join();
+  uploader0.join();
+  uploader1.join();
 
   INFO_MSG("Livepeer transcode shutting down: %s", Util::exitReason);
   return 0;

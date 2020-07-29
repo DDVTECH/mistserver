@@ -51,6 +51,8 @@ namespace Mist{
 
   class EncodeOutputEBML : public OutEBML{
   public:
+    virtual bool onFinish();
+    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     EncodeOutputEBML(Socket::Connection &c) : OutEBML(c){}; // realTime = 0;};
     bool isRecording(){return false;}
     void setVideoTrack(std::string tid);

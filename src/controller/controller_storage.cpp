@@ -55,6 +55,7 @@ namespace Controller{
       Storage["log"].append(m);
       Storage["log"].shrink(100); // limit to 100 log messages
       if (isPushActive(progPid)){pushLogMessage(progPid, m);} //LTS
+      if (isProcActive(progPid)){procLogMessage(progPid, m);} //LTS
       logCounter++;
       if (rlxLogs && rlxLogs->isReady()){
         if (!firstLog){firstLog = logCounter;}

@@ -27,6 +27,9 @@
 
 namespace Mist{
   inputBuffer::inputBuffer(Util::Config *cfg) : Input(cfg){
+    firstProcTime = 0;
+    lastProcTime = 0;
+    allProcsRunning = false;
 
     capa["optional"].removeMember("realtime");
 
@@ -506,6 +509,29 @@ namespace Mist{
     /*LTS-START*/
     // Reload the configuration to make sure we stay up to date with changes through the api
     if (Util::epoch() - lastReTime > 4){preRun();}
+    size_t procInterval = 5000;
+    if (!firstProcTime || Util::bootMS() - firstProcTime < 30000){
+      if (!firstProcTime){firstProcTime = Util::bootMS();}
+      if (Util::bootMS() - firstProcTime < 10000){
+        procInterval = 200;
+      }else{
+        procInterval = 1000;
+      }
+    }
+    if (Util::bootMS() - lastProcTime > procInterval){
+      lastProcTime = Util::bootMS();
+      std::string strName = config->getString("streamname");
+      Util::sanitizeName(strName);
+      strName = strName.substr(0, (strName.find_first_of("+ ")));
+      char tmpBuf[NAME_BUFFER_SIZE];
+      snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, strName.c_str());
+      Util::DTSCShmReader rStrmConf(tmpBuf);
+      DTSC::Scan streamCfg = rStrmConf.getScan();
+      if (streamCfg){
+        JSON::Value configuredProcesses = streamCfg.getMember("processes").asJSON();
+        checkProcesses(configuredProcesses);
+      }
+    }
     /*LTS-END*/
     connectedUsers = 0;
 
@@ -537,7 +563,9 @@ namespace Mist{
     }
   }
   void inputBuffer::userLeadOut(){
-    if (config->is_active && streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
+    if (config->is_active && streamStatus){
+      streamStatus.mapped[0] = (hasPush && allProcsRunning) ? STRMSTAT_READY : STRMSTAT_WAIT;
+    }
     if (hasPush){everHadPush = true;}
     if (!hasPush && everHadPush && !resumeMode && config->is_active){
       Util::logExitReason("source disconnected for non-resumable stream");
@@ -583,10 +611,6 @@ namespace Mist{
     snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, strName.c_str());
     Util::DTSCShmReader rStrmConf(tmpBuf);
     DTSC::Scan streamCfg = rStrmConf.getScan();
-    if (streamCfg){
-      JSON::Value configuredProcesses = streamCfg.getMember("processes").asJSON();
-      checkProcesses(configuredProcesses);
-    }
 
     //Check if bufferTime setting is correct
     uint64_t tmpNum = retrieveSetting(streamCfg, "DVR", "bufferTime");
@@ -682,6 +706,7 @@ namespace Mist{
   /*LTS-START*/
   /// Checks if all processes are running, starts them if needed, stops them if needed
   void inputBuffer::checkProcesses(const JSON::Value &procs){
+    allProcsRunning = true;
     if (!M.getValidTracks().size()){return;}
     std::set<std::string> newProcs;
 
@@ -762,6 +787,7 @@ namespace Mist{
           argarr[3] = (char*)debugLvl.c_str();;
           argarr[4] = 0;
         }
+        allProcsRunning = false;
         INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
         runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
       }

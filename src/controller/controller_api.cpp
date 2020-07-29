@@ -520,6 +520,12 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       setPushStatus(statUp["id"].asInt(), statUp["status"]);
     }
   }
+  if (Request.isMember("proc_status_update")){
+    JSON::Value &statUp = Request["proc_status_update"];
+    if (statUp.isMember("id") && statUp.isMember("status") && statUp.isMember("source") && statUp.isMember("proc") && statUp.isMember("sink")){
+      setProcStatus(statUp["id"].asInt(), statUp["proc"].asStringRef(), statUp["source"].asStringRef(), statUp["sink"].asStringRef(), statUp["status"]);
+    }
+  }
   /*LTS-END*/
 
   if (Request.isMember("config_backup")){
@@ -1074,6 +1080,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
         }
       }
     }
+  }
+
+  if (Request.isMember("proc_list")){
+    getProcsForStream(Request["proc_list"].asStringRef(), Response["proc_list"]);
   }
 
   if (Request.isMember("push_list")){Controller::listPush(Response["push_list"]);}

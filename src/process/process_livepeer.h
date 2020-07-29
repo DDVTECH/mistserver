@@ -8,7 +8,6 @@ namespace Mist{
   bool getFirst = false;
   bool sendFirst = false;
   bool doingSetup = true;
-  bool queueClear = false;
 
   uint64_t packetTimeDiff;
   uint64_t sendPacketTime;
@@ -43,14 +42,33 @@ namespace Mist{
         time = t;
         data.assign(ptr, len);
         fullyRead = false;
-        fullyWritten = true;
         offsetCalcd = false;
         byteOffset = 0;
+        fullyWritten = true;
       }
   };
-
-
   std::map<std::string, readySegment> segs;
+
+#define PRESEG_COUNT 2
+  class preparedSegment{
+    public:
+      uint64_t time;
+      uint64_t segDuration;
+      uint64_t keyNo;
+      uint64_t width;
+      uint64_t height;
+      bool fullyRead;
+      bool fullyWritten;
+      Util::ResizeablePointer data;
+      preparedSegment(){
+        time = 0;
+        keyNo = 0;
+        segDuration = 0;
+        fullyRead = true;
+        fullyWritten = false;
+      };
+  };
+  preparedSegment presegs[PRESEG_COUNT];
 
   JSON::Value lpEnc;
   JSON::Value lpBroad;

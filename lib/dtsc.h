@@ -38,6 +38,7 @@ namespace DTSC{
 
   extern uint64_t veryUglyJitterOverride;
   extern uint8_t trackValidMask;
+  extern uint8_t trackValidDefault;
 
   ///\brief This enum holds all possible datatypes for DTSC packets.
   enum datatype{

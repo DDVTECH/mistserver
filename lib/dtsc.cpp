@@ -24,6 +24,8 @@ namespace DTSC{
 
   /// The mask that the current process will use to check if a track is valid
   uint8_t trackValidMask = TRACK_VALID_ALL;
+  /// The mask that will be set by the current process for new tracks
+  uint8_t trackValidDefault = TRACK_VALID_ALL;
 
   /// Default constructor for packets - sets a null pointer and invalid packet.
   Packet::Packet(){
@@ -1701,7 +1703,7 @@ namespace DTSC{
     trackList.setInt(trackPidField, getpid(), tNumber);
     trackList.setInt(trackSourceTidField, INVALID_TRACK_ID, tNumber);
     trackList.addRecords(1);
-    if (setValid){validateTrack(tNumber);}
+    if (setValid){validateTrack(tNumber, trackValidDefault);}
     if (!isMemBuf){trackLock.post();}
     return tNumber;
   }

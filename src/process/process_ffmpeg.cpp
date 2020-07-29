@@ -97,11 +97,47 @@ int main(int argc, char *argv[]){
     capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
     capa["sort"] = "n"; // sort the parameters by this key
 
-    capa["optional"]["masksource"]["name"] = "Make source track unavailable for users";
-    capa["optional"]["masksource"]["help"] = "If enabled, makes the source track internal-only, so that external users and pushes cannot access it.";
-    capa["optional"]["masksource"]["type"] = "boolean";
-    capa["optional"]["masksource"]["default"] = false;
+    capa["optional"]["source_mask"]["name"] = "Source track mask";
+    capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
+    capa["optional"]["source_mask"]["type"] = "select";
+    capa["optional"]["source_mask"]["select"][0u][0u] = "";
+    capa["optional"]["source_mask"]["select"][0u][1u] = "Keep original value";
+    capa["optional"]["source_mask"]["select"][1u][0u] = 255;
+    capa["optional"]["source_mask"]["select"][1u][1u] = "Everything";
+    capa["optional"]["source_mask"]["select"][2u][0u] = 4;
+    capa["optional"]["source_mask"]["select"][2u][1u] = "Processing tasks (not viewers, not pushes)";
+    capa["optional"]["source_mask"]["select"][3u][0u] = 6;
+    capa["optional"]["source_mask"]["select"][3u][1u] = "Processing and pushing tasks (not viewers)";
+    capa["optional"]["source_mask"]["select"][4u][0u] = 5;
+    capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
+    capa["optional"]["source_mask"]["default"] = "";
 
+    capa["optional"]["target_mask"]["name"] = "Output track mask";
+    capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the ouput track(s)";
+    capa["optional"]["target_mask"]["type"] = "select";
+    capa["optional"]["target_mask"]["select"][0u][0u] = "";
+    capa["optional"]["target_mask"]["select"][0u][1u] = "Keep original value";
+    capa["optional"]["target_mask"]["select"][1u][0u] = 255;
+    capa["optional"]["target_mask"]["select"][1u][1u] = "Everything";
+    capa["optional"]["target_mask"]["select"][2u][0u] = 1;
+    capa["optional"]["target_mask"]["select"][2u][1u] = "Viewer tasks (not processing, not pushes)";
+    capa["optional"]["target_mask"]["select"][3u][0u] = 2;
+    capa["optional"]["target_mask"]["select"][3u][1u] = "Pushing tasks (not processing, not viewers)";
+    capa["optional"]["target_mask"]["select"][4u][0u] = 4;
+    capa["optional"]["target_mask"]["select"][4u][1u] = "Processing tasks (not pushes, not viewers)";
+    capa["optional"]["target_mask"]["select"][5u][0u] = 3;
+    capa["optional"]["target_mask"]["select"][5u][1u] = "Viewer and pushing tasks (not processing)";
+    capa["optional"]["target_mask"]["select"][6u][0u] = 5;
+    capa["optional"]["target_mask"]["select"][6u][1u] = "Viewer and processing tasks (not pushes)";
+    capa["optional"]["target_mask"]["select"][7u][0u] = 6;
+    capa["optional"]["target_mask"]["select"][7u][1u] = "Pushing and processing tasks (not viewers)";
+    capa["optional"]["target_mask"]["select"][8u][0u] = 0;
+    capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
+    capa["optional"]["target_mask"]["default"] = "";
+
+    capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
+    capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
+    capa["optional"]["exit_unmask"]["default"] = false;
 
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
@@ -354,6 +390,27 @@ int main(int argc, char *argv[]){
 
 namespace Mist{
 
+
+    bool EncodeOutputEBML::onFinish(){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        if (userSelect.size()){
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            INFO_MSG("Unmasking source track %zu" PRIu64, it->first);
+            meta.validateTrack(it->first, TRACK_VALID_ALL);
+          }
+        }
+      }
+      return OutEBML::onFinish();
+    }
+    void EncodeOutputEBML::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        INFO_MSG("Unmasking source track %zu" PRIu64, trackId);
+        meta.validateTrack(trackId, TRACK_VALID_ALL);
+      }
+      OutEBML::dropTrack(trackId, reason, probablyBad);
+    }
+
+
   void EncodeInputEBML::getNext(size_t idx){
     static bool recurse = false;
 
@@ -390,6 +447,9 @@ namespace Mist{
     if (!streamName.size()){streamName = opt["source"].asString();}
     Util::streamVariables(streamName, opt["source"].asString());
     Util::setStreamName(opt["source"].asString() + "→" + streamName);
+    if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
+      DTSC::trackValidDefault = opt["target_mask"].asInt();
+    }
   }
 
   std::string EncodeOutputEBML::getTrackType(int tid){return M.getType(tid);}
@@ -411,9 +471,10 @@ namespace Mist{
   void EncodeOutputEBML::sendHeader(){
     realTime = 0;
     size_t idx = getMainSelectedTrack();
-    if (opt["masksource"].asBool()){
-      INFO_MSG("Masking source track %zu", idx);
-      meta.validateTrack(idx, meta.trackValid(idx) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+    if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
+      uint64_t sourceMask = opt["source_mask"].asInt();
+      INFO_MSG("Masking source track %zu to %" PRIu64, idx, sourceMask);
+      meta.validateTrack(idx, sourceMask);
     }
     res_x = M.getWidth(idx);
     res_y = M.getHeight(idx);

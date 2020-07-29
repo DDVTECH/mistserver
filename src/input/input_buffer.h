@@ -16,9 +16,12 @@ namespace Mist{
     uint64_t cutTime;
     size_t segmentSize;  /*LTS*/
     uint64_t lastReTime; /*LTS*/
+    uint64_t lastProcTime; /*LTS*/
+    uint64_t firstProcTime; /*LTS*/
     uint64_t finalMillis;
     bool hasPush;//Is a push currently being received?
     bool everHadPush;//Was there ever a push received?
+    bool allProcsRunning;
     bool resumeMode;
     uint64_t maxKeepAway;
     IPC::semaphore *liveMeta;

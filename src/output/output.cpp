@@ -112,6 +112,7 @@ namespace Mist{
     }
     if (isRecording() && DTSC::trackValidMask == TRACK_VALID_EXT_HUMAN){
       DTSC::trackValidMask = TRACK_VALID_EXT_PUSH;
+      if (targetParams.count("unmask")){DTSC::trackValidMask = TRACK_VALID_ALL;}
     }
     /*LTS-END*/
   }
@@ -1721,7 +1722,7 @@ namespace Mist{
       std::string APIcall =
           "{\"tag_sessid\":{\"" + statComm.getSessId() + "\":" + JSON::string_escape("UA:" + UA) + "}}";
       Socket::UDPConnection uSock;
-      uSock.SetDestination("localhost", 4242);
+      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
       uSock.SendNow(APIcall);
       newUA = false;
     }

@@ -3,6 +3,7 @@
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
+#include <mist/timing.h>
 #include <map>
 #include <mist/config.h>
 #include <mist/defines.h>
@@ -17,6 +18,62 @@
 ///\brief Holds everything unique to the controller.
 namespace Controller{
   std::map<std::string, pid_t> inputProcesses;
+
+  /// Internal list of currently active processes
+  class procInfo{
+    public:
+    JSON::Value stats;
+    std::string source;
+    std::string proc;
+    std::string sink;
+    uint64_t lastupdate;
+    JSON::Value logs;
+  };
+  std::map<pid_t, procInfo> activeProcs;
+
+  void procLogMessage(uint64_t id, const JSON::Value & msg){
+    JSON::Value &log = activeProcs[id].logs;
+    log.append(msg);
+    log.shrink(25);
+  }
+
+  bool isProcActive(uint64_t id){
+    return activeProcs.count(id);
+  }
+
+
+  void getProcsForStream(const std::string & stream, JSON::Value & returnedProcList){
+    std::set<pid_t> wipeList;
+    for (std::map<pid_t, procInfo>::iterator it = activeProcs.begin(); it != activeProcs.end(); ++it){
+      if (!stream.size() || stream == it->second.sink || stream == it->second.source){
+        JSON::Value & thisProc = returnedProcList[JSON::Value(it->first).asString()];
+        thisProc = it->second.stats;
+        thisProc["source"] = it->second.source;
+        thisProc["sink"] = it->second.sink;
+        thisProc["process"] = it->second.proc;
+        thisProc["logs"] = it->second.logs;
+        if (!Util::Procs::isRunning(it->first)){
+          thisProc["terminated"] = true;
+          wipeList.insert(it->first);
+        }
+      }
+    }
+    while (wipeList.size()){
+      activeProcs.erase(*wipeList.begin());
+      wipeList.erase(wipeList.begin());
+    }
+  }
+
+  void setProcStatus(uint64_t id, const std::string & proc, const std::string & source, const std::string & sink, const JSON::Value & status){
+    procInfo & prc = activeProcs[id];
+    prc.lastupdate = Util::bootSecs();
+    prc.stats.extend(status);
+    if (!prc.proc.size() && sink.size() && source.size() && proc.size()){
+      prc.sink = sink;
+      prc.source = source;
+      prc.proc = proc;
+    }
+  }
 
   ///\brief Checks whether two streams are equal.
   ///\param one The first stream for the comparison.

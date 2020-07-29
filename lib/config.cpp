@@ -200,6 +200,14 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
                    "names."
                 << std::endl;
 #endif
+#ifdef STAT_CUTOFF
+      if (STAT_CUTOFF != 600){
+        std::cout << "- Setting: Stats cutoff point " << STAT_CUTOFF << " seconds. Statistics and session cache are only kept for this long, as opposed to the default of 600 seconds." << std::endl;
+      }
+#endif
+#ifndef SSL
+      std::cout << "- Flag: SSL support disabled. HTTPS/RTMPS are unavailable." << std::endl;
+#endif
 /*LTS-START*/
 #ifndef UPDATER
       std::cout << "- Flag: Updater disabled. Server will not call back home and attempt to search "
@@ -213,7 +221,7 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
 #endif
 #ifdef KILLONEXIT
       std::cout << "- Flag: Kill on exit. All binaries will forcibly shut down all their children "
-                   "on exit. This disabled rolling restart support."
+                   "on exit. Rolling restart support is disabled."
                 << std::endl;
 #endif
 #ifdef STATS_DELAY
@@ -226,6 +234,9 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
           std::cout << "This makes them less accurate." << std::endl;
         }
       }
+#endif
+#ifndef LICENSING
+      std::cout << "- Flag: Licensing system disabled. No checks for validity will occur." << std::endl;
 #endif
       /*LTS-END*/
       std::cout << "Built on " __DATE__ ", " __TIME__ << std::endl;

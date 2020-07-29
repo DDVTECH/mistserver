@@ -11,7 +11,9 @@
 #include <string>
 
 /// The STAT_CUTOFF define sets how many seconds of statistics history is kept.
+#ifndef STAT_CUTOFF
 #define STAT_CUTOFF 600
+#endif
 
 namespace Controller{
 

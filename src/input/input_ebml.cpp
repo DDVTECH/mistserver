@@ -602,7 +602,7 @@ namespace Mist{
     wantBlocks = true;
     clearPredictors();
     bufferedPacks = 0;
-    uint64_t mainTrack = getMainSelectedTrack();
+    uint64_t mainTrack = M.mainTrack();
 
     DTSC::Keys keys(M.keys(mainTrack));
     DTSC::Parts parts(M.parts(mainTrack));

@@ -23,7 +23,7 @@
       }\
       if ((comm.getTimer(id) & 0x7F) <= 124){\
         if ((comm.getTimer(id) & 0x7F) == 124){\
-          HIGH_MSG("Timeout occured for entry %zu, ignoring further timeout", id);                 \
+          HIGH_MSG("Timeout occurred for entry %zu, ignoring further timeout", id);                 \
         }\
         comm.setTimer(comm.getTimer(id) + 1, id);                                                  \
       }\

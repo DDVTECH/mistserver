@@ -1211,7 +1211,6 @@ namespace Mist{
     }
 
     uint64_t keyTime = keys.getTime(keyNum);
-    userSelect[idx].reload(streamName, idx);
 
     bool isSrt = (hasSrt && idx == srtTrack);
     if (isSrt){

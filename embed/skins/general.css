@@ -227,3 +227,16 @@ svg.icon.spin, svg.icon .spin {
 .vjs-text-track-display {
   pointer-events: none;
 }
+.vjs-controls-disabled .vjs-control-bar,
+.vjs-using-native-controls .vjs-control-bar,
+.vjs-error .vjs-control-bar,
+.vjs-hidden {
+  display: none !important;
+}
+.vjs-controls-disabled .vjs-loading-spinner,
+.vjs-controls-disabled .vjs-big-play-button,
+.vjs-has-started .vjs-big-play-button,
+.vjs-using-native-controls .vjs-big-play-button,
+.vjs-error .vjs-big-play-button {
+  display: none;
+}

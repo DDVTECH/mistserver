@@ -1902,6 +1902,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
 
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+      // add tags, if any
+      if (Storage.isMember("tags") && Storage["tags"].isArray() && Storage["tags"].size()){resp["tags"] = Storage["tags"];}
       // Loop over connectors
       const JSON::Value &caps = capabilities["connectors"];
       jsonForEachConst(Storage["config"]["protocols"], prtcl){

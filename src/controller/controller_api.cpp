@@ -746,6 +746,85 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
+  // Tag handling
+  if (Request.isMember("tags") && Request["tags"].isArray()){
+    //Set entire tag list to new given list, sorted and de-duplicated
+    Controller::Storage["tags"].shrink(0);
+    std::set<std::string> newTags;
+    jsonForEach(Request["tags"], tag){
+      std::string val = tag->asString();
+      if (val.size()){newTags.insert(val);}
+    }
+    //Set new tags
+    for (std::set<std::string>::iterator it = newTags.begin(); it != newTags.end(); ++it){
+      Controller::Storage["tags"].append(*it);
+    }
+  }
+  if (Request.isMember("add_tag")){
+    //Add given tag(s) to existing list
+    std::set<std::string> newTags;
+    //Get current tags
+    if (Controller::Storage.isMember("tags") && Controller::Storage["tags"].isArray() && Controller::Storage["tags"].size()){
+      jsonForEach(Controller::Storage["tags"], tag){
+        std::string val = tag->asString();
+        if (val.size()){newTags.insert(val);}
+      }
+    }
+    Controller::Storage["tags"].shrink(0);
+    if (Request["add_tag"].isString()){
+      newTags.insert(Request["add_tag"].asStringRef());
+    }else if (Request["add_tag"].isArray()){
+      jsonForEach(Request["add_tag"], tag){
+        std::string val = tag->asString();
+        if (val.size()){newTags.insert(val);}
+      }
+    }else if (Request["add_tag"].isObject()){
+      jsonForEach(Request["add_tag"], tag){
+        std::string val = tag.key();
+        if (val.size()){newTags.insert(val);}
+      }
+    }
+    //Set new tags
+    for (std::set<std::string>::iterator it = newTags.begin(); it != newTags.end(); ++it){
+      Controller::Storage["tags"].append(*it);
+    }
+  }
+  if (Request.isMember("remove_tag")){
+    //Remove given tag(s) from existing list
+    std::set<std::string> newTags;
+    //Get current tags
+    if (Controller::Storage.isMember("tags") && Controller::Storage["tags"].isArray() && Controller::Storage["tags"].size()){
+      jsonForEach(Controller::Storage["tags"], tag){
+        std::string val = tag->asString();
+        if (val.size()){newTags.insert(val);}
+      }
+    }
+    Controller::Storage["tags"].shrink(0);
+    if (Request["remove_tag"].isString()){
+      newTags.erase(Request["remove_tag"].asStringRef());
+    }else if (Request["remove_tag"].isArray()){
+      jsonForEach(Request["remove_tag"], tag){
+        newTags.erase(tag->asString());
+      }
+    }else if (Request["remove_tag"].isObject()){
+      jsonForEach(Request["remove_tag"], tag){
+        newTags.erase(tag.key());
+      }
+    }
+    //Set new tags
+    for (std::set<std::string>::iterator it = newTags.begin(); it != newTags.end(); ++it){
+      Controller::Storage["tags"].append(*it);
+    }
+  }
+  if (Request.isMember("tags") || Request.isMember("add_tag") || Request.isMember("remove_tag")){
+    if (Controller::Storage.isMember("tags") && Controller::Storage["tags"].isArray()){
+      Response["tags"] = Controller::Storage["tags"];
+    }else{
+      Response["tags"].append("");
+      Response["tags"].shrink(0);
+    }
+  }
+
   if (Request.isMember("capabilities")){
     Controller::checkCapable(capabilities);
     Response["capabilities"] = capabilities;

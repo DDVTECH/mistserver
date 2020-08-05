@@ -4024,7 +4024,7 @@ var UI = {
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            if (protocol.pubaddr) {
+            if (protocol.pubaddr && protocol.pubaddr.length) {
               if (typeof protocol.pubaddr == "string") {
                 embedbase = protocol.pubaddr.replace(/\/$/,'')+"/";
               }
@@ -4453,7 +4453,7 @@ var UI = {
               other_split.https = parseURL(other_split.https,{hostname:otherhost.host}).full;
             }
           }
-          otherbase = (otherhost.https ? other_split.http : other_split.https);
+          otherbase = (otherhost.https ? other_split.https : other_split.http);
         }
         var done = false;
         var defaultembedoptions = {

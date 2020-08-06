@@ -1859,6 +1859,7 @@ MistSkins["default"] = {
         else {
           container.removeAttribute("data-passive");
         }
+        if (showingError) { container.clear(); } //stop any countdowns still running
         
         showingError = (options.passive ? "passive" : true);
         since = (new Date()).getTime();

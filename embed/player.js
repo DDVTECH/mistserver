@@ -900,7 +900,7 @@ function MistVideo(streamName,options) {
     });
   }
   
-  if (false) { //if ("WebSocket" in window) {
+  if ("WebSocket" in window) {
     function openSocket() {
       MistVideo.log("Opening stream status stream..");
       var url = MistVideo.options.host.replace(/^http/i,"ws");

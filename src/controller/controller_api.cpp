@@ -257,6 +257,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
   //set up defaults
   unsigned int logins = 0;
   bool authorized = false;
+  bool isLocal = false;
   HTTP::Parser H;
   //while connected and not past login attempt limit
   while (conn && logins < 4){
@@ -264,6 +265,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       //Are we local and not forwarded? Instant-authorized.
       if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
         MEDIUM_MSG("Local API access automatically authorized");
+        isLocal = true;
         authorized = true;
       }
       #ifdef NOAUTH
@@ -329,6 +331,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         //if already authorized, do not re-check for authorization
         if (authorized && Storage["account"]){
           Response["authorize"]["status"] = "OK";
+          if (isLocal){Response["authorize"]["local"] = true;}
         }else{
           authorized |= authorize(Request, Response, conn);
         }
@@ -378,7 +381,9 @@ void Controller::handleUDPAPI(void * np){
       JSON::Value Response;
       if (Request.isObject()){
         tthread::lock_guard<tthread::mutex> guard(configMutex);
+        Response["authorize"]["local"] = true;
         handleAPICommands(Request, Response);
+        Response.removeMember("authorize");
         uSock.SendNow(Response.toString());
       }else{
         WARN_MSG("Invalid API command received over UDP: %s", uSock.data);
@@ -650,6 +655,22 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     if (url.host == "0.0.0.0"){url.host = "127.0.0.1";}
     url.port = JSON::Value(Util::listenPort).asString();
     Response["api_endpoint"] = url.getUrl();
+  }
+
+  if (Request.isMember("shutdown")){
+    if (Response.isMember("authorize") && Response["authorize"].isMember("local")){
+      std::string reason;
+      if (Request["shutdown"].isObject() || Request["shutdown"].isArray()){
+        reason = Request["shutdown"].toString();
+      }else{
+        reason = Request["shutdown"].asString();
+      }
+      WARN_MSG("Shutdown requested through local API: %s", reason.c_str());
+      Controller::conf.is_active = false;
+      Response["shutdown"] = "Shutting down";
+    }else{
+      Response["shutdown"] = "Ignored - only local users may request shutdown";
+    }
   }
           
   Controller::configChanged = true;

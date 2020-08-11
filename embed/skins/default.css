@@ -5,6 +5,11 @@
 .mistvideo svg {
   margin: 2.5px;
 }
+.mistvideo-video { /* keep video centered if container is larger (when fillSpace:true) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .mistvideo-background { background-color: $background; }
 .mistvideo-totalTime:before {
   content: '/';
@@ -106,8 +111,17 @@ svg.icon.timeout {
   z-index: 0;
   opacity: 1;
 }
+.mistvideo:not([data-hide-submenu]) .mistvideo-hoverWindow:hover >svg.icon.settings .fill,
+.mistvideo[data-show-submenu] svg.icon.settings .fill,
+
+.mistvideo[data-fullscreen] svg.icon.fullscreen .fill {
+  fill: $accent;
+}
 .mistvideo[data-show-submenu] .mistvideo-submenu {
   right: 5px;
+}
+.mistvideo[data-hide-submenu] .mistvideo-submenu {
+  right: -1000px !important;
 }
 .mistvideo[data-show-submenu] .mistvideo-controls {
   bottom: 0;
@@ -115,6 +129,7 @@ svg.icon.timeout {
 .mistvideo-error[data-passive] {
   bottom: auto;
   left: auto;
+  height: auto;
   margin: 0.5em;
   padding: 0.5em;
 }

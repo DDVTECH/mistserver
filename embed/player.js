@@ -402,7 +402,7 @@ function MistVideo(streamName,options) {
             averagingSteps: 20,           //the amount of measurements that are saved.
             threshold: function(){        //returns the score threshold below which the "action" should be taken
               if (this.MistVideo.source.type == "webrtc") {
-                return 0.97;
+                return 0.95;
               }
               return 0.75;
             },

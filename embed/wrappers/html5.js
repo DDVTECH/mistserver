@@ -108,6 +108,8 @@ p.prototype.build = function (MistVideo,callback) {
   //TODO verify: not required if player is loaded from same domain as it should always be when not in dev mode?
   video.setAttribute("crossorigin","anonymous");//required for subs, breaks ogg?
   
+  video.setAttribute("playsinline",""); //iphones. effin' iphones.
+  
   var source = document.createElement("source");
   source.setAttribute("src",MistVideo.source.url);
   video.source = source;

@@ -561,18 +561,18 @@ namespace DTSC{
     if (getType() != DTSC_OBJ && getType() != DTSC_CON){return;}
     char * i = p + 1;
     //object, scan contents
-    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
-      if (i + 2 >= p + len) {
+    while (i[0] + i[1] != 0 && i < p + len){//while not encountering 0x0000 (we assume 0x0000EE)
+      if (i + 2 >= p + len){
         return;//out of packet!
       }
       uint16_t strlen = Bit::btohs(i);
       i += 2;
-      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0){
         memset(i, 0, strlen);
         return;
       }
       i = skipDTSC(i + strlen, p + len);
-      if (!i) {return;}
+      if (!i){return;}
     }
     return;
   }
@@ -1514,19 +1514,22 @@ namespace DTSC{
   /// To be called from the various inputs/outputs whenever they want to add a track.
   size_t Meta::addTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, bool setValid){
     char pageName[NAME_BUFFER_SIZE];
+    IPC::semaphore trackLock;
+    if (!isMemBuf){
+      snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
+      trackLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!trackLock){
+        FAIL_MSG("Could not open semaphore to add track!");
+        return -1;
+      }
+      trackLock.wait();
+      if (stream.isExit()){
+        trackLock.post();
+        FAIL_MSG("Not adding track: stream is shutting down");
+        return -1;
+      }
+    }
 
-    snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
-    IPC::semaphore trackLock(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
-    if (!trackLock){
-      FAIL_MSG("Could not open semaphore to add track!");
-      return -1;
-    }
-    trackLock.wait();
-    if (stream.isExit()){
-      trackLock.post();
-      FAIL_MSG("Not adding track: stream is shutting down");
-      return -1;
-    }
     size_t pageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE +
                       (TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount)) +
                       (TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount)) +
@@ -1557,7 +1560,7 @@ namespace DTSC{
     trackList.setInt(trackPidField, getpid(), tNumber);
     trackList.setInt(trackSourceTidField, INVALID_TRACK_ID, tNumber);
     if (setValid){validateTrack(tNumber);}
-    trackLock.post();
+    if (!isMemBuf){trackLock.post();}
     return tNumber;
   }
 
@@ -2337,8 +2340,7 @@ namespace DTSC{
       }
       tMemBuf.clear();
       sizeMemBuf.clear();
-    }
-    if (isMaster){
+    }else if (isMaster){
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
       IPC::semaphore trackLock(pageName, O_CREAT|O_RDWR, ACCESSPERMS, 1);

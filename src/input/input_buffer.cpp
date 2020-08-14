@@ -476,7 +476,7 @@ namespace Mist {
   }
 
   /// \triggers
-  /// The `"STREAM_TRACK_REMOVE"` trigger is stream-specific, and is ran whenever a track is fully removed from a live strean buffer. It cannot be cancelled. Its payload is:
+  /// The `"STREAM_TRACK_REMOVE"` trigger is stream-specific, and is ran whenever a track is fully removed from a live stream buffer. It cannot be cancelled. Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// streamname
   /// trackID

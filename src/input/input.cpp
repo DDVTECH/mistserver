@@ -639,7 +639,7 @@ namespace Mist {
 
       static char liveSemName[NAME_BUFFER_SIZE];
       snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-      IPC::semaphore * liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 1, !myMeta.live);
+      IPC::semaphore * liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 8, !myMeta.live);
       if (*liveSem){
         liveSem->wait();
       }else{

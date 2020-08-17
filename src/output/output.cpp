@@ -1385,6 +1385,7 @@ namespace Mist{
     }
     // check if we have a next seek point for every track that is selected
     if (buffer.size() != userSelect.size()){
+      INFO_MSG("Buffer/select mismatch: %zu/%zu - correcting", buffer.size(), userSelect.size());
       std::set<size_t> dropTracks;
       if (buffer.size() < userSelect.size()){
         // prepare to drop any selectedTrack without buffer entry
@@ -1399,10 +1400,24 @@ namespace Mist{
           if (!found){dropTracks.insert(it->first);}
         }
       }else{
+        std::set<size_t> seen;
         // prepare to drop any buffer entry without selectedTrack
         for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
           if (!userSelect.count(bi->tid)){dropTracks.insert(bi->tid);}
+          if (seen.count(bi->tid)){
+            INFO_MSG("Dropping duplicate buffer entry for track %zu", bi->tid);
+            buffer.erase(bi);
+            return false;
+          }
+          seen.insert(bi->tid);
         }
+      }
+      if (!dropTracks.size()){
+        FAIL_MSG("Could not equalize tracks! This is very very very bad and I am now going to shut down to prevent worse.");
+        Util::logExitReason("Could not equalize tracks");
+        parseData = false;
+        config->is_active = false;
+        return false;
       }
       // actually drop what we found.
       // if both of the above cases occur, the next prepareNext iteration will take care of that

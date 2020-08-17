@@ -1269,7 +1269,11 @@ namespace Mist{
     }
     if (!config->is_active){Util::logExitReason("set inactive");}
     if (!myConn){Util::logExitReason("connection closed");}
-    INFO_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
+    if (strncmp(Util::exitReason, "connection closed", 17) == 0){
+      MEDIUM_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
+    }else{
+      INFO_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
+    }
     onFinish();
 
     /*LTS-START*/

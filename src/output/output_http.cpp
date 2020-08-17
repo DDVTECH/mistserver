@@ -203,8 +203,11 @@ namespace Mist{
 
     while (H.Read(myConn)){
       std::string handler = getHandler();
-      INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(),
-               H.GetVar("stream").c_str());
+      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
+        INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
+      }else{
+        MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
+      }
       if (!handler.size()){
         H.Clean();
         H.SetHeader("Server", APPIDENT);

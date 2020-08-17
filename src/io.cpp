@@ -136,9 +136,9 @@ namespace Mist{
     std::string pageName(pageId);
     IPC::sharedPage toErase;
 #ifdef __CYGWIN__
-    toErase.init(pageName, 26 * 1024 * 1024, false);
+    toErase.init(pageName, 26 * 1024 * 1024, false, false);
 #else
-    toErase.init(pageName, tPages.getInt("size", pageIdx), false);
+    toErase.init(pageName, tPages.getInt("size", pageIdx), false, false);
 #endif
     // Set the master flag so that the page will be destroyed once it leaves scope
 #if defined(__CYGWIN__) || defined(_WIN32)

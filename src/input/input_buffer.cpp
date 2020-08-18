@@ -686,7 +686,7 @@ namespace Mist{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[3];
+    char *argarr[5];
 
     // Convert to strings
     jsonForEachConst(procs, it){
@@ -740,15 +740,27 @@ namespace Mist{
       }
     }
 
+    std::string debugLvl;
     // start up new/changed connectors
     while (newProcs.size() && config->is_active){
-      std::string config = (*newProcs.begin());
+      const std::string & config = (*newProcs.begin());
+      JSON::Value args = JSON::fromString(config);
       if (!runningProcs.count(config) || !Util::Procs::isActive(runningProcs[config])){
         std::string procname =
             Util::getMyPath() + "MistProc" + JSON::fromString(config)["process"].asString();
         argarr[0] = (char *)procname.c_str();
         argarr[1] = (char *)config.c_str();
         argarr[2] = 0;
+        if (Util::Config::printDebugLevel != DEBUG || args.isMember("debug")){
+          if (args.isMember("debug")){
+            debugLvl = args["debug"].asString();
+          }else{
+            debugLvl = JSON::Value(Util::Config::printDebugLevel).asString();
+          }
+          argarr[2] = (char*)"--debug";
+          argarr[3] = (char*)debugLvl.c_str();;
+          argarr[4] = 0;
+        }
         INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
         runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
       }

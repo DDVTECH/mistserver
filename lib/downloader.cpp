@@ -429,6 +429,7 @@ namespace HTTP{
       }
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s", link.getUrl().c_str());
+        getSocket().close();
         return false;
       }
       Util::sleep(500); // wait a bit before retrying

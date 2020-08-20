@@ -1478,10 +1478,10 @@ namespace Mist{
     size_t thisKey = keys.getNumForTime(nxt.time);
 
     // Check if we have a next valid packet
-    if (memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
+    if (curPage[nxt.tid].len > nxt.offset+preLoad.getDataLen()+20 && memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
       nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
       if (!nextTime){
-        WARN_MSG("Next packet is available, but has no time. Please warn the developers if you see this message!");
+        WARN_MSG("Next packet is available (offset %" PRIu64 " / %" PRIu64 " on %s), but has no time. Please warn the developers if you see this message!", nxt.offset, curPage[nxt.tid].len, curPage[nxt.tid].name.c_str());
         dropTrack(nxt.tid, "EOP: invalid next packet");
         return false;
       }

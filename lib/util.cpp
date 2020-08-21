@@ -17,16 +17,16 @@
 #endif
 #include <stdlib.h>
 
-#define RECORD_POINTER p + getOffset() + (getRecordPosition(recordNo) * getRSize()) + fd.offset
 #define RAXHDR_FIELDOFFSET p[1]
-#define RAXHDR_RECORDCNT *(uint32_t *)(p + 2)
-#define RAXHDR_RECORDSIZE *(uint32_t *)(p + 6)
-#define RAXHDR_STARTPOS *(uint32_t *)(p + 10)
-#define RAXHDR_DELETED *(uint64_t *)(p + 14)
-#define RAXHDR_PRESENT *(uint32_t *)(p + 22)
-#define RAXHDR_OFFSET *(uint16_t *)(p + 26)
-#define RAXHDR_ENDPOS *(uint64_t *)(p + 28)
 #define RAX_REQDFIELDS_LEN 36
+
+// Converts the given record number into an offset of records after getOffset()'s offset.
+// Does no bounds checking whatsoever, allowing access to not-yet-created or already-deleted
+// records.
+// This access method is stable with changing start/end positions and present record counts,
+// because it only
+// depends on the record count, which may not change for ring buffers.
+#define RECORD_POINTER p + *hdrOffset + (((*hdrRecordCnt)?(recordNo % *hdrRecordCnt) : recordNo) * *hdrRecordSize) + fd.offset
 
 namespace Util{
   Util::DataCallback defaultDataCallback;
@@ -410,6 +410,13 @@ namespace Util{
       return;
     }
     p = data;
+    hdrRecordCnt = (uint32_t*)(p+2);
+    hdrRecordSize = (uint32_t*)(p+6);
+    hdrStartPos = (uint32_t*)(p+10);
+    hdrDeleted = (uint64_t*)(p+14);
+    hdrPresent = (uint32_t*)(p+22);
+    hdrOffset = (uint16_t*)(p+26);
+    hdrEndPos = (uint64_t*)(p+28);
     if (waitReady){
       while (!isReady()){Util::sleep(50);}
     }
@@ -459,28 +466,28 @@ namespace Util{
   }
 
   /// Gets the amount of records present in the structure.
-  uint32_t RelAccX::getRCount() const{return RAXHDR_RECORDCNT;}
+  uint32_t RelAccX::getRCount() const{return *hdrRecordCnt;}
 
   /// Gets the size in bytes of a single record in the structure.
-  uint32_t RelAccX::getRSize() const{return RAXHDR_RECORDSIZE;}
+  uint32_t RelAccX::getRSize() const{return *hdrRecordSize;}
 
   /// Gets the position in the records where the entries start
-  uint32_t RelAccX::getStartPos() const{return RAXHDR_STARTPOS;}
+  uint32_t RelAccX::getStartPos() const{return *hdrStartPos;}
 
   /// Gets the number of deleted records
-  uint64_t RelAccX::getDeleted() const{return RAXHDR_DELETED;}
+  uint64_t RelAccX::getDeleted() const{return *hdrDeleted;}
 
   /// Gets the number of records present
-  size_t RelAccX::getPresent() const{return RAXHDR_PRESENT;}
+  size_t RelAccX::getPresent() const{return *hdrPresent;}
 
   /// Gets the number of the last valid index
-  uint64_t RelAccX::getEndPos() const{return RAXHDR_ENDPOS;}
+  uint64_t RelAccX::getEndPos() const{return *hdrEndPos;}
 
   /// Gets the number of fields per recrd
   uint32_t RelAccX::getFieldCount() const{return fields.size();}
 
   /// Gets the offset from the structure start where records begin.
-  uint16_t RelAccX::getOffset() const{return *(uint16_t *)(p + 26);}
+  uint16_t RelAccX::getOffset() const{return *hdrOffset;}
 
   /// Returns true if the structure is ready for read operations.
   bool RelAccX::isReady() const{return p && (p[0] & 1);}
@@ -498,20 +505,6 @@ namespace Util{
     // Check if the record hasn't been created yet
     if (recordNo >= getEndPos()){return false;}
     return true;
-  }
-
-  /// Converts the given record number into an offset of records after getOffset()'s offset.
-  /// Does no bounds checking whatsoever, allowing access to not-yet-created or already-deleted
-  /// records.
-  /// This access method is stable with changing start/end positions and present record counts,
-  /// because it only
-  /// depends on the record count, which may not change for ring buffers.
-  uint32_t RelAccX::getRecordPosition(uint64_t recordNo) const{
-    if (getRCount()){
-      return recordNo % getRCount();
-    }else{
-      return recordNo;
-    }
   }
 
   /// Returns the (max) size of the given field.
@@ -693,13 +686,11 @@ namespace Util{
     }
     // We now know for sure fLen is set
     // Get current offset and record size
-    uint16_t &offset = RAXHDR_OFFSET;
-    uint32_t &recSize = RAXHDR_RECORDSIZE;
     // The first field initializes the offset and record size.
     if (!fields.size()){
-      recSize = 0;                 // Nothing yet, this is the first data field.
-      offset = RAX_REQDFIELDS_LEN; // All mandatory fields are first - so we start there.
-      RAXHDR_FIELDOFFSET = offset; // store the field_offset
+      *hdrRecordSize = 0;                 // Nothing yet, this is the first data field.
+      *hdrOffset = RAX_REQDFIELDS_LEN; // All mandatory fields are first - so we start there.
+      RAXHDR_FIELDOFFSET = *hdrOffset; // store the field_offset
     }
     uint8_t typeLen = 1;
     // Check if fLen is a non-default value
@@ -711,36 +702,36 @@ namespace Util{
     }
     // store the details for internal use
     // recSize is the field offset, since we haven't updated it yet
-    fields[name] = RelAccXFieldData(fType, fLen, recSize);
+    fields[name] = RelAccXFieldData(fType, fLen, *hdrRecordSize);
 
     // write the data to memory
-    p[offset] = (name.size() << 3) | (typeLen & 0x7);
-    memcpy(p + offset + 1, name.data(), name.size());
-    p[offset + 1 + name.size()] = fType;
-    if (typeLen == 2){*(uint8_t *)(p + offset + 2 + name.size()) = fLen;}
-    if (typeLen == 3){*(uint16_t *)(p + offset + 2 + name.size()) = fLen;}
-    if (typeLen == 5){*(uint32_t *)(p + offset + 2 + name.size()) = fLen;}
+    p[*hdrOffset] = (name.size() << 3) | (typeLen & 0x7);
+    memcpy(p + (*hdrOffset) + 1, name.data(), name.size());
+    p[(*hdrOffset) + 1 + name.size()] = fType;
+    if (typeLen == 2){*(uint8_t *)(p + (*hdrOffset) + 2 + name.size()) = fLen;}
+    if (typeLen == 3){*(uint16_t *)(p + (*hdrOffset) + 2 + name.size()) = fLen;}
+    if (typeLen == 5){*(uint32_t *)(p + (*hdrOffset) + 2 + name.size()) = fLen;}
 
     // Calculate new offset and record size
-    offset += 1 + name.size() + typeLen;
-    recSize += fLen;
+    *hdrOffset += 1 + name.size() + typeLen;
+    *hdrRecordSize += fLen;
   }
 
   /// Sets the record counter to the given value.
-  void RelAccX::setRCount(uint32_t count){RAXHDR_RECORDCNT = count;}
+  void RelAccX::setRCount(uint32_t count){*hdrRecordCnt = count;}
 
   /// Sets the position in the records where the entries start
-  void RelAccX::setStartPos(uint32_t n){RAXHDR_STARTPOS = n;}
+  void RelAccX::setStartPos(uint32_t n){*hdrStartPos = n;}
 
   /// Sets the number of deleted records
-  void RelAccX::setDeleted(uint64_t n){RAXHDR_DELETED = n;}
+  void RelAccX::setDeleted(uint64_t n){*hdrDeleted = n;}
 
   /// Sets the number of records present
   /// Defaults to the record count if set to zero.
-  void RelAccX::setPresent(uint32_t n){RAXHDR_PRESENT = n;}
+  void RelAccX::setPresent(uint32_t n){*hdrPresent = n;}
 
   /// Sets the number of the last valid index
-  void RelAccX::setEndPos(uint64_t n){RAXHDR_ENDPOS = n;}
+  void RelAccX::setEndPos(uint64_t n){*hdrEndPos = n;}
 
   /// Sets the ready flag.
   /// After calling this function, addField() may no longer be called.
@@ -836,33 +827,27 @@ namespace Util{
   /// Updates the deleted record counter, the start position and the present record counter,
   /// shifting the ring buffer start position forward without moving the ring buffer end position.
   void RelAccX::deleteRecords(uint32_t amount){
-    uint32_t &startPos = RAXHDR_STARTPOS;
-    uint64_t &deletedRecs = RAXHDR_DELETED;
-    uint32_t &recsPresent = RAXHDR_PRESENT;
-    startPos += amount;    // update start position
-    deletedRecs += amount; // update deleted record counter
-    if (recsPresent >= amount){
-      recsPresent -= amount; // decrease records present
+    *hdrStartPos += amount;    // update start position
+    *hdrDeleted += amount; // update deleted record counter
+    if (*hdrPresent >= amount){
+      *hdrPresent -= amount; // decrease records present
     }else{
       WARN_MSG("Depleting recordCount!");
-      recsPresent = 0;
+      *hdrPresent = 0;
     }
   }
 
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
   void RelAccX::addRecords(uint32_t amount){
-    uint32_t &recsPresent = RAXHDR_PRESENT;
-    uint32_t &recordsCount = RAXHDR_RECORDCNT;
-    uint64_t &recordEndPos = RAXHDR_ENDPOS;
-    if (recsPresent + amount > recordsCount){
+    if ((*hdrPresent) + amount > *hdrRecordCnt){
       BACKTRACE;
-      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", recsPresent + amount, recsPresent, amount, recordsCount);
-      recsPresent = 0;
+      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", (*hdrPresent) + amount, *hdrPresent, amount, *hdrRecordCnt);
+      *hdrPresent = 0;
     }else{
-      recsPresent += amount;
+      *hdrPresent += amount;
     }
-    recordEndPos += amount;
+    *hdrEndPos += amount;
   }
 
   void RelAccX::minimalFrom(const RelAccX &src){

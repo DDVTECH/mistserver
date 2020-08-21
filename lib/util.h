@@ -145,7 +145,6 @@ namespace Util{
     bool isExit() const;
     bool isReload() const;
     bool isRecordAvailable(uint64_t recordNo) const;
-    uint32_t getRecordPosition(uint64_t recordNo) const;
     uint32_t getSize(const std::string &name, uint64_t recordNo = 0) const;
 
     char *getPointer(const std::string &name, uint64_t recordNo = 0) const;
@@ -186,6 +185,13 @@ namespace Util{
     std::map<std::string, RelAccXFieldData> fields;
 
   private:
+    uint32_t * hdrRecordCnt;
+    uint32_t * hdrRecordSize;
+    uint32_t * hdrStartPos;
+    uint64_t * hdrDeleted;
+    uint32_t * hdrPresent;
+    uint16_t * hdrOffset;
+    uint64_t * hdrEndPos;
     char *p;
   };
 

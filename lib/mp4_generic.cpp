@@ -2359,14 +2359,9 @@ namespace MP4{
   uint32_t CTTS::getEntryCount(){return getInt32(4);}
 
   void CTTS::setCTTSEntry(CTTSEntry newCTTSEntry, uint32_t no){
-    if (no + 1 > getEntryCount()){
-      for (unsigned int i = getEntryCount(); i < no; i++){
-        setInt64(0, 8 + (i * 8)); // filling up undefined entries of 64 bits
-      }
-      setEntryCount(no + 1);
-    }
-    setInt32(newCTTSEntry.sampleCount, 8 + no * 8);
+    if (no + 1 > getEntryCount()){setEntryCount(no + 1);}
     setInt32(*(reinterpret_cast<uint32_t *>(&newCTTSEntry.sampleOffset)), 8 + (no * 8) + 4);
+    setInt32(newCTTSEntry.sampleCount, 8 + no * 8);
   }
 
   CTTSEntry CTTS::getCTTSEntry(uint32_t no){

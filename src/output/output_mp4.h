@@ -17,6 +17,63 @@ namespace Mist{
     uint64_t index;
   };
 
+  class SortSet{
+  private:
+    Util::ResizeablePointer ptr;
+    Util::ResizeablePointer avail;
+    size_t entries;
+    size_t currBegin;
+    void findBegin();
+    bool hasBegin;
+  public:
+    SortSet();
+    const keyPart & begin();
+    void erase();
+    bool empty();
+    void insert(const keyPart & part);
+  };
+
+  /// Class that implements a tiny subset of std::map, optimized for speed for our type of usage.
+  template <class T> class QuickMap{
+  private:
+    Util::ResizeablePointer ptr;
+    size_t entries;
+  public:
+    QuickMap(){
+      entries = 0;
+    }
+    ~QuickMap(){
+      size_t len = 8 + sizeof(T*);
+      for (size_t i = 0; i < entries; ++i){
+        delete *(T**)(void*)(ptr+len*i+8);
+      }
+    }
+    T & get(uint64_t idx){
+      static T blank;
+      size_t len = 8 + sizeof(T*);
+      for (size_t i = 0; i < entries; ++i){
+        if (*((uint64_t*)(void*)(ptr+len*i)) == idx){
+          return **(T**)(void*)(ptr+len*i+8);
+        }
+      }
+      return blank;
+    }
+    void insert(uint64_t idx, T elem){
+      size_t i = 0;
+      size_t len = 8 + sizeof(T*);
+      for (i = 0; i < entries; ++i){
+        if (*((uint64_t*)(void*)(ptr+len*i)) == idx){
+          *(T**)(void*)(ptr+len*i+8) = new T(elem);
+          return;
+        }
+      }
+      entries = i+1;
+      ptr.allocate(len*entries);
+      *(T**)(void*)(ptr+len*i+8) = new T(elem);
+      *((uint64_t*)(void*)(ptr+len*i)) = idx;
+    }
+  };
+
   struct fragSet{
     uint64_t firstPart;
     uint64_t lastPart;
@@ -31,7 +88,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
 
     uint64_t mp4HeaderSize(uint64_t &fileSize, int fragmented = 0) const;
-    std::string mp4Header(uint64_t &size, int fragmented = 0);
+    bool mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented = 0);
 
     uint64_t mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize) const;
     virtual void sendFragmentHeaderTime(uint64_t startFragmentTime,

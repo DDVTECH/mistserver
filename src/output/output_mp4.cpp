@@ -20,6 +20,70 @@ namespace Mist{
     return result.str();
   }
 
+  SortSet::SortSet(){
+    entries = 0;
+    currBegin = 0;
+    hasBegin = false;
+  }
+
+  /// Finds the current beginning of the SortSet
+  void SortSet::findBegin(){
+    if (!entries){return;}
+    currBegin = 0;
+    hasBegin = false;
+    for (size_t i = 0; i < entries; ++i){
+      if (!hasBegin && avail[i]){
+        currBegin = i;
+        hasBegin = true;
+        continue;
+      }
+      if (avail[i] && ((keyPart*)(void*)ptr)[i] < ((keyPart*)(void*)ptr)[currBegin]){
+        currBegin = i;
+      }
+    }
+  }
+
+  /// Returns a reference to the current beginning of the SortSet
+  const keyPart & SortSet::begin(){
+    static const keyPart blank = {0, 0, 0, 0};
+    if (!hasBegin){return blank;}
+    return ((keyPart*)(void*)ptr)[currBegin];
+  }
+
+  /// Marks the current beginning of the SortSet as erased
+  void SortSet::erase(){
+    if (!hasBegin){return;}
+    avail[currBegin] = 0;
+    findBegin();
+  }
+
+  bool SortSet::empty(){return !hasBegin;}
+
+  void SortSet::insert(const keyPart & part){
+    size_t i = 0;
+    for (i = 0; i < entries; ++i){
+      if (!avail[i] || ((keyPart*)(void*)ptr)[i].trackID == part.trackID){
+        ((keyPart*)(void*)ptr)[i] = part;
+        avail[i] = 1;
+        if (!hasBegin || part < begin()){
+          currBegin = i;
+          hasBegin = true;
+        }
+        return;
+      }
+    }
+    entries = i+1;
+    ptr.allocate(sizeof(keyPart)*entries);
+    ((keyPart*)(void*)ptr)[i] = part;
+    avail.append("\001", 1);
+    if (!hasBegin || part < begin()){
+      currBegin = i;
+      hasBegin = true;
+    }
+  }
+
+
+
   std::string OutMP4::protectionHeader(size_t idx){
     std::string tmp = toUTF16(M.getPlayReady(idx));
     tmp.erase(0, 2); // remove first 2 characters
@@ -152,6 +216,7 @@ namespace Mist{
       firstms = std::min(firstms, M.getFirstms(it->first));
     }
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      const std::string tType = M.getType(it->first);
       uint64_t tmpRes = 0;
       DTSC::Parts parts(M.parts(it->first));
       uint64_t partCount = parts.getValidCount();
@@ -173,7 +238,7 @@ namespace Mist{
       tmpRes += 16 + (fragmented ? 0 : (1 * 12)); // STSC <-- Currently 1 entry, but might become more complex in near future
 
       // Type-specific boxes
-      if (M.getType(it->first) == "video"){
+      if (tType == "video"){
         tmpRes += 20                                 // VMHD Box
                   + 16                               // STSD
                   + 86                               // AVC1
@@ -184,7 +249,7 @@ namespace Mist{
           tmpRes += 16 + (keys.getValidCount() * 4); // STSS
         }
       }
-      if (M.getType(it->first) == "audio"){
+      if (tType == "audio"){
         tmpRes += 16   // SMHD Box
                   + 16 // STSD
                   + 36 // MP4A
@@ -194,7 +259,7 @@ namespace Mist{
         }
       }
 
-      if (M.getType(it->first) == "meta"){
+      if (tType == "meta"){
         tmpRes += 12    // NMHD Box
                   + 16  // STSD
                   + 64; // tx3g Box
@@ -208,10 +273,11 @@ namespace Mist{
         uint64_t prevOffset = parts.getOffset(0);
         uint64_t cttsCount = 1;
         fileSize += parts.getSize(0);
+        bool isMeta = (tType == "meta");
         for (unsigned int part = 1; part < partCount; ++part){
           uint64_t partDur = parts.getDuration(part);
           uint64_t partOffset = parts.getOffset(part);
-          uint64_t partSize = parts.getSize(part);
+          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
           if (prevDur != partDur){
             prevDur = partDur;
             ++sttsCount;
@@ -245,22 +311,39 @@ namespace Mist{
     return res;
   }
 
-  ///\todo This function does not indicate errors anywhere... maybe fix this...
-  std::string OutMP4::mp4Header(uint64_t &size, int fragmented){
+  class trackLookup{
+    public:
+      trackLookup(){
+        parts = 0;
+      }
+      ~trackLookup(){
+        if (parts){delete parts;}
+      }
+      void init(const Util::RelAccX & relParts, MP4::STCO box){
+        parts = new DTSC::Parts(relParts);
+        stcoBox = box;
+      }
+      void init(const Util::RelAccX & relParts, MP4::CO64 box){
+        parts = new DTSC::Parts(relParts);
+        co64Box = box;
+      }
+      DTSC::Parts * parts;
+      MP4::STCO stcoBox;
+      MP4::CO64 co64Box;
+  };
+
+
+  bool OutMP4::mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented){
     uint32_t mainTrack = M.mainTrack();
-    if (mainTrack == INVALID_TRACK_ID){return "";}
+    if (mainTrack == INVALID_TRACK_ID){return false;}
     if (M.getLive()){needsLookAhead = 100;}
-    // Make sure we have a proper being value for the size...
+    // Clear size if it was set before the function was called, just in case
     size = 0;
-    // Stores the result of the function
-    std::stringstream header;
     // Determines whether the outputfile is larger than 4GB, in which case we need to use 64-bit
     // boxes for offsets
     bool useLargeBoxes = !fragmented && (estimateFileSize() > 0xFFFFFFFFull);
     // Keeps track of the total size of the mdat box
     uint64_t mdatSize = 0;
-
-    // Start actually creating the header
 
     // MP4 Files always start with an FTYP box. Constructor sets default values
     MP4::FTYP ftypBox;
@@ -268,8 +351,7 @@ namespace Mist{
       ftypBox.setMajorBrand("3gp6");
       ftypBox.setCompatibleBrands("3gp6", 3);
     }
-
-    header.write(ftypBox.asBox(), ftypBox.boxedSize());
+    headOut.append(ftypBox.asBox(), ftypBox.boxedSize());
 
     // Start building the moov box. This is the metadata box for an mp4 file, and will contain all
     // metadata.
@@ -422,55 +504,84 @@ namespace Mist{
         MP4::CTTS cttsBox;
         cttsBox.setVersion(0);
 
+        size_t totalEntries = 0;
         MP4::CTTSEntry tmpEntry;
         tmpEntry.sampleCount = 0;
         tmpEntry.sampleOffset = parts.getOffset(0);
 
-        std::deque<std::pair<size_t, size_t> > sttsCounter;
-        stszBox.setEntrySize(0, partCount - 1); // Speed up allocation
-        size_t totalEntries = 0;
+        size_t sttsCounter = 0;
+        MP4::STTSEntry sttsEntry;
+        sttsEntry.sampleCount = 0;
+        sttsEntry.sampleDelta = parts.getSize(0);;
 
+        //Calculate amount of entries for CTTS/STTS boxes so we can set the last entry first
+        //Our MP4 box implementations dynamically reallocate to fit the data you put inside them,
+        //Which means setting the last entry first prevents constant reallocs and slowness.
         for (size_t part = 0; part < partCount; ++part){
-          stats();
-
-          uint64_t partDur = parts.getDuration(part);
-          uint64_t partSize = parts.getSize(part);
           uint64_t partOffset = parts.getOffset(part);
-
-          // Create a new entry with current duration if EITHER there is no entry yet, or this parts
-          // duration differs from the previous
-          if (!sttsCounter.size() || sttsCounter.rbegin()->second != partDur){
-            sttsCounter.push_back(std::pair<size_t, size_t>(0, partDur));
-          }
-          // Update the counter
-          sttsCounter.rbegin()->first++;
-
-          if (M.getType(it->first) == "meta"){partSize += 2;}
-
-          stszBox.setEntrySize(partSize, part);
-          size += partSize;
-
           if (partOffset != tmpEntry.sampleOffset){
-            // If the offset of this and previous part differ, write current values and reset
-            cttsBox.setCTTSEntry(tmpEntry,
-                                 totalEntries++); // Rewrite for sanity. index FIRST, value SECOND
-            tmpEntry.sampleCount = 0;
+            ++totalEntries;
             tmpEntry.sampleOffset = partOffset;
           }
-          tmpEntry.sampleCount++;
+          uint64_t partDur = parts.getDuration(part);
+          if (partDur != sttsEntry.sampleDelta){
+            ++sttsCounter;
+            sttsEntry.sampleDelta = partDur;
+          }
         }
 
-        MP4::STTSEntry sttsEntry;
-        sttsBox.setSTTSEntry(sttsEntry, sttsCounter.size() - 1);
-        size_t sttsIdx = 0;
-        for (std::deque<std::pair<size_t, size_t> >::iterator it2 = sttsCounter.begin();
-             it2 != sttsCounter.end(); it2++){
-          sttsEntry.sampleCount = it2->first;
-          sttsEntry.sampleDelta = it2->second;
-          sttsBox.setSTTSEntry(sttsEntry, sttsIdx++);
+        //Set temporary last entry for CTTS box
+        bool hasCTTS = (totalEntries || tmpEntry.sampleOffset);
+        if (hasCTTS){
+          cttsBox.setCTTSEntry(tmpEntry, totalEntries);
         }
-        if (totalEntries || tmpEntry.sampleOffset){
-          cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
+        //Set temporary last entry for STTS box
+        sttsBox.setSTTSEntry(sttsEntry, sttsCounter-1);
+        //Set temporary last entry for STSZ box
+        stszBox.setEntrySize(0, partCount - 1);
+
+        //All set! Now we can do everything for real.
+        //Reset the values we just used, first.
+        totalEntries = 0;
+        tmpEntry.sampleCount = 0;
+        tmpEntry.sampleOffset = parts.getOffset(0);
+        sttsCounter = 0;
+        sttsEntry.sampleCount = 0;
+        sttsEntry.sampleDelta = parts.getDuration(0);
+        
+        bool isMeta = (tType == "meta");
+        for (size_t part = 0; part < partCount; ++part){
+          uint64_t partDur = parts.getDuration(part);
+          if (sttsEntry.sampleDelta != partDur){
+            // If the duration of this and previous part differ, write current values and reset
+            sttsBox.setSTTSEntry(sttsEntry, sttsCounter++);
+            sttsEntry.sampleCount = 0;
+            sttsEntry.sampleDelta = partDur;
+          }
+          sttsEntry.sampleCount++;
+
+          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
+          stszBox.setEntrySize(partSize, part);
+          size += partSize;
+          
+          if (hasCTTS){
+            uint64_t partOffset = parts.getOffset(part);
+            if (partOffset != tmpEntry.sampleOffset){
+              // If the offset of this and previous part differ, write current values and reset
+              cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
+              tmpEntry.sampleCount = 0;
+              tmpEntry.sampleOffset = partOffset;
+            }
+            tmpEntry.sampleCount++;
+          }
+        }
+        //Write last entry for STTS
+        sttsBox.setSTTSEntry(sttsEntry, sttsCounter);
+
+        //Only add the CTTS box to the STBL box if we had any entries in it
+        if (hasCTTS){
+          //Write last entry for CTTS
+          cttsBox.setCTTSEntry(tmpEntry, totalEntries);
           stblBox.setContent(cttsBox, stblOffset++);
         }
       }
@@ -485,7 +596,7 @@ namespace Mist{
         uint32_t firstKey = keys.getFirstValid();
         uint32_t endKey = keys.getEndValid();
         for (size_t i = firstKey; i < endKey; ++i){
-          stssBox.setSampleNumber(tmpCount + 1, i); /// rewrite this for sanity.... SHOULD be: index FIRST, value SECOND
+          stssBox.setSampleNumber(tmpCount + 1, i);
           tmpCount += keys.getParts(i);
         }
         stblBox.setContent(stssBox, stblOffset++);
@@ -557,17 +668,18 @@ namespace Mist{
       // initial offset length ftyp, length moov + 8
       uint64_t dataOffset = ftypBox.boxedSize() + moovBox.boxedSize() + 8;
 
-      std::map<size_t, MP4::STCO> checkStcoBoxes;
-      std::map<size_t, MP4::CO64> checkCO64Boxes;
+
+      QuickMap<trackLookup> trackMap;
 
       std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
       for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
         size_t idx = trakIt->getChild<MP4::TKHD>().getTrackID() - 1;
         MP4::STBL stblBox = trakIt->getChild<MP4::MDIA>().getChild<MP4::MINF>().getChild<MP4::STBL>();
+        trackMap.insert(idx, trackLookup());
         if (useLargeBoxes){
-          checkCO64Boxes.insert(std::pair<size_t, MP4::CO64>(idx, stblBox.getChild<MP4::CO64>()));
+          trackMap.get(idx).init(M.parts(idx), stblBox.getChild<MP4::CO64>());
         }else{
-          checkStcoBoxes.insert(std::pair<size_t, MP4::STCO>(idx, stblBox.getChild<MP4::STCO>()));
+          trackMap.get(idx).init(M.parts(idx), stblBox.getChild<MP4::STCO>());
         }
       }
 
@@ -576,27 +688,27 @@ namespace Mist{
       // Keep track of the current size of the data within the mdat
       uint64_t dataSize = 0;
       // Current values are actual byte offset without header-sized offset
-      std::set<keyPart> sortSet; // filling sortset for interleaving parts
+      SortSet sortSet; // filling sortset for interleaving parts
       for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
            subIt != userSelect.end(); subIt++){
         keyPart temp;
         temp.trackID = subIt->first;
         temp.time = M.getFirstms(subIt->first);
         temp.index = 0;
-        INFO_MSG("adding to sortSet: tid %zu time %" PRIu64, subIt->first, temp.time);
         sortSet.insert(temp);
       }
       while (!sortSet.empty()){
         stats();
-        keyPart temp = *sortSet.begin();
-        sortSet.erase(sortSet.begin());
+        keyPart temp = sortSet.begin();
+        trackLookup & tL = trackMap.get(temp.trackID);
+        sortSet.erase();
 
-        DTSC::Parts parts(M.parts(temp.trackID));
+        DTSC::Parts & parts = *tL.parts;
         // setting the right STCO size in the STCO box
         if (useLargeBoxes){// Re-using the previously defined boolean for speedup
-          checkCO64Boxes[temp.trackID].setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.co64Box.setChunkOffset(dataOffset + dataSize, temp.index);
         }else{
-          checkStcoBoxes[temp.trackID].setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.stcoBox.setChunkOffset(dataOffset + dataSize, temp.index);
         }
         dataSize += parts.getSize(temp.index);
 
@@ -613,17 +725,17 @@ namespace Mist{
       ///\todo Update for when mdat box exceeds 4GB
       mdatSize = dataSize + 8; //+8 for mp4 header
     }
-    header << std::string(moovBox.asBox(), moovBox.boxedSize());
+    headOut.append(moovBox.asBox(), moovBox.boxedSize());
 
     if (!fragmented){// if we are making a non fragmented MP4 and there are parts
       char mdatHeader[8] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
 
       if (mdatSize < 0xFFFFFFFF){Bit::htobl(mdatHeader, mdatSize);}
-      header.write(mdatHeader, 8);
+      headOut.append(mdatHeader, 8);
     }
-    size += header.str().size();
-    if (fragmented){realBaseOffset = header.str().size();}
-    return header.str();
+    size += headOut.size();
+    if (fragmented){realBaseOffset = headOut.size();}
+    return true;
   }
 
   /// Calculate a seekPoint, based on byteStart, metadata, tracks and headerSize.
@@ -970,10 +1082,14 @@ namespace Mist{
         if (rangeType == 'p'){
           H.SetBody("Starsystem not in communications range");
           H.SendResponse("416", "Starsystem not in communications range", myConn);
+          parseData = false;
+          wantRequest = true;
           return;
         }else{
           H.SetBody("Requested Range Not Satisfiable");
           H.SendResponse("416", "Requested Range Not Satisfiable", myConn);
+          parseData = false;
+          wantRequest = true;
           return;
         }
       }else{
@@ -992,10 +1108,15 @@ namespace Mist{
     if (byteStart < headerSize){
       // For storing the header.
       if ((!startTime && endTime == 0xffffffffffffffffull) || (endTime == 0)){
-        std::string headerData = mp4Header(fileSize, M.getLive());
+        Util::ResizeablePointer headerData;
+        if (!mp4Header(headerData, fileSize, M.getLive())){
+          FAIL_MSG("Could not generate MP4 header!");
+          H.SetBody("Error while generating MP4 header");
+          H.SendResponse("500", "Error generating MP4 header", myConn);
+          return;
+        }
         INFO_MSG("Have %zu bytes, sending %zu bytes", headerData.size(), std::min(headerSize, byteEnd) - byteStart);
-        H.Chunkify(headerData.data() + byteStart, std::min(headerSize, byteEnd) - byteStart,
-                   myConn); // send MP4 header
+        H.Chunkify(headerData + byteStart, std::min(headerSize, byteEnd) - byteStart, myConn);
         leftOver -= std::min(headerSize, byteEnd) - byteStart;
       }
     }
@@ -1097,9 +1218,6 @@ namespace Mist{
     if (!sortSet.empty()){
       keyPart temp = *sortSet.begin();
       sortSet.erase(sortSet.begin());
-
-      DTSC::Parts parts(M.parts(temp.trackID));
-
       currPos += parts.getSize(temp.index);
       if (temp.index + 1 < parts.getEndValid()){// only insert when there are parts left
         temp.time += parts.getDuration(temp.index);

@@ -1482,24 +1482,23 @@ namespace Mist{
       return false;
     }
 
-    if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
-      loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
-      nxt.offset = 0;
-      //Only read the next time if the page load succeeded and there is a packet to read from
-      if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
-        nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
-      }
-      buffer.erase(buffer.begin());
-      buffer.insert(nxt);
-      return false;
-    }
-
     // if we're going to read past the end of the data page, load the next page
     // this only happens for VoD
     if (nxt.offset >= curPage[nxt.tid].len ||
         (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
       if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
         dropTrack(nxt.tid, "end of VoD track reached", false);
+        return false;
+      }
+      if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+        loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
+        nxt.offset = 0;
+        //Only read the next time if the page load succeeded and there is a packet to read from
+        if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
+          nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+        }
+        buffer.erase(buffer.begin());
+        buffer.insert(nxt);
         return false;
       }
       dropTrack(nxt.tid, "VoD page load failure");
@@ -1510,9 +1509,6 @@ namespace Mist{
     DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
 
     uint64_t nextTime = 0;
-
-    DTSC::Keys keys(M.keys(nxt.tid));
-    size_t thisKey = keys.getNumForTime(nxt.time);
 
     // Check if we have a next valid packet
     if (curPage[nxt.tid].len > nxt.offset+preLoad.getDataLen()+20 && memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
@@ -1531,6 +1527,8 @@ namespace Mist{
         dropTrack(nxt.tid, "end of VoD track reached", false);
         return true;
       }
+      DTSC::Keys keys(M.keys(nxt.tid));
+      size_t thisKey = keys.getNumForTime(nxt.time);
       //Check if there exists a different page for the next key
       size_t nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
@@ -1594,12 +1592,18 @@ namespace Mist{
       return false;
     }
 
+    //Update keynum only when the second flips over in the timestamp
+    //We do this because DTSC::Keys is pretty CPU-heavy
+    if (nxt.time / 1000 < nextTime/1000){
+      DTSC::Keys keys(M.keys(nxt.tid));
+      size_t thisKey = keys.getNumForTime(nxt.time);
+      userSelect[nxt.tid].setKeyNum(thisKey);
+    }
+
     // we assume the next packet is the next on this same page
     nxt.offset += thisPacket.getDataLen();
     nxt.time = nextTime;
     ++nxt.partIndex;
-
-    userSelect[nxt.tid].setKeyNum(thisKey);
 
     // exchange the current packet in the buffer for the next one
     buffer.erase(buffer.begin());

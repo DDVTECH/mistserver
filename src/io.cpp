@@ -207,8 +207,10 @@ namespace Mist{
 
     Util::RelAccX &tPages = meta.pages(packTrack);
     size_t pageIdx = 0;
+    size_t currPagNum = curPageNum[packTrack];
+    Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
-      if (tPages.getInt("firstkey", i) == curPageNum[packTrack]){
+      if (tPages.getInt(firstkey, i) == currPagNum){
         pageIdx = i;
         break;
       }
@@ -219,7 +221,7 @@ namespace Mist{
     // Do nothing when there is not enough free space on the page to add the packet.
     if (pageSize - pageOffset < packDataLen){
       FAIL_MSG("Track %" PRIu32 "p%zu : Pack %" PRIu64 "ms of %" PRIu64 "b exceeds size %" PRIu64 " @ bpos %" PRIu64,
-               packTrack, curPageNum[packTrack], packTime, packDataLen, pageSize, pageOffset);
+               packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
       return;
     }
 

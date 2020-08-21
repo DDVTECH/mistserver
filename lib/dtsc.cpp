@@ -2964,10 +2964,13 @@ namespace DTSC{
   /// If the timestamp is not available, returns the closest page number that is.
   size_t Meta::getPageNumberForTime(uint32_t idx, uint64_t time) const{
     const Util::RelAccX &pages = tracks.at(idx).pages;
-    size_t res = pages.getStartPos();
-    for (size_t i = pages.getStartPos(); i < pages.getEndPos(); ++i){
-      if (pages.getInt("avail", i) == 0){continue;}
-      if (pages.getInt("firsttime", i) > time){break;}
+    Util::RelAccXFieldData avail = pages.getFieldData("avail");
+    Util::RelAccXFieldData firsttime = pages.getFieldData("firsttime");
+    uint32_t res = pages.getStartPos();
+    uint64_t endPos = pages.getEndPos();
+    for (uint64_t i = res; i < endPos; ++i){
+      if (pages.getInt(avail, i) == 0){continue;}
+      if (pages.getInt(firsttime, i) > time){break;}
       res = i;
     }
     return pages.getInt("firstkey", res);

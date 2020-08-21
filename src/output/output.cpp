@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <fcntl.h>
 #include <iterator> //std::distance
 #include <semaphore.h>
@@ -421,21 +422,51 @@ namespace Mist{
       }
     }
 
-    // First, back up and wipe the existing selections, if any.
-    std::map<size_t, Comms::Users> oldSelect = userSelect;
-    userSelect.clear();
+    std::set<size_t> oldSelects;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+      oldSelects.insert(it->first);
+    }
+    //No changes? Abort and return false;
+    if (oldSelects == newSelects){return false;}
 
-    // Select tracks here!
-    for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
-      userSelect[*it].reload(streamName, *it);
+    //Temp set holding the differences between old and new track selections
+    std::set<size_t> diffs;
+
+    //Find elements in old selection but not in new selection
+    std::set_difference(oldSelects.begin(), oldSelects.end(), newSelects.begin(), newSelects.end(), std::inserter(diffs, diffs.end()));
+    if (diffs.size()){MEDIUM_MSG("Dropping %zu tracks", diffs.size());}
+    for (std::set<size_t>::iterator it = diffs.begin(); it != diffs.end(); it++){
+      HIGH_MSG("Dropping track %zu", *it);
+      userSelect.erase(*it);
     }
 
-    bool madeChange = (oldSelect != userSelect);
-    if (autoSeek && madeChange){
+    //Find elements in new selection but not in old selection
+    std::set_difference(newSelects.begin(), newSelects.end(), oldSelects.begin(), oldSelects.end(), std::inserter(diffs, diffs.end()));
+    if (diffs.size()){MEDIUM_MSG("Adding %zu tracks", diffs.size());}
+    for (std::set<size_t>::iterator it = diffs.begin(); it != diffs.end(); it++){
+      HIGH_MSG("Adding track %zu", *it);
+      userSelect[*it].reload(streamName, *it);
+      if (!userSelect[*it]){
+        WARN_MSG("Could not select track %zu, dropping track", *it);
+        newSelects.erase(*it);
+        userSelect.erase(*it);
+      }
+    }
+
+    newSelects.clear();
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+      newSelects.insert(it->first);
+    }
+
+    //After attempting to add/remove tracks, now no changes? Abort and return false;
+    if (oldSelects == newSelects){return false;}
+
+
+    if (autoSeek){
       INFO_MSG("Automatically seeking to position %" PRIu64 " to resume playback", seekTarget);
       seek(seekTarget);
     }
-    return madeChange;
+    return true;
   }
 
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.
@@ -497,25 +528,21 @@ namespace Mist{
       currentPage.erase(trackId);
       return;
     }
+    uint64_t micros = Util::getMicros();
     VERYHIGH_MSG("Loading track %zu, containing key %zu", trackId, keyNum);
     uint32_t timeout = 0;
     uint64_t pageNum = pageNumForKey(trackId, keyNum);
     while (keepGoing() && pageNum == INVALID_PAGE_NUM){
       if (!timeout){HIGH_MSG("Requesting page with key %zu:%zu", trackId, keyNum);}
       ++timeout;
-      // if we've been waiting for this page for 3 seconds, reconnect to the stream - something might be going wrong...
-      if (timeout == 30){
-        DEVEL_MSG("Loading is taking longer than usual, reconnecting to stream %s...", streamName.c_str());
-        reconnect();
-        if (!meta){return;}
-      }
-      if (timeout > 100){
+      //Time out after 15 seconds
+      if (timeout > 300){
         FAIL_MSG("Timeout while waiting for requested page %zu for track %zu. Aborting.", pageNum, trackId);
         curPage.erase(trackId);
         currentPage.erase(trackId);
         return;
       }
-      if (!userSelect.count(trackId)){
+      if (!userSelect.count(trackId) || !userSelect[trackId]){
         WARN_MSG("Loading page for non-selected track %zu", trackId);
       }else{
         userSelect[trackId].setKeyNum(keyNum);
@@ -531,7 +558,7 @@ namespace Mist{
       return;
     }
 
-    if (!userSelect.count(trackId)){
+    if (!userSelect.count(trackId) || !userSelect[trackId]){
       WARN_MSG("Loading page for non-selected track %zu", trackId);
     }else{
       userSelect[trackId].setKeyNum(keyNum);
@@ -551,7 +578,12 @@ namespace Mist{
       return;
     }
     currentPage[trackId] = pageNum;
-    VERYHIGH_MSG("Page %s loaded for %s", id, streamName.c_str());
+    micros = Util::getMicros(micros);
+    if (micros > 2000000){
+      INFO_MSG("Page %s loaded for %s in %.2fms", id, streamName.c_str(), micros/1000.0);
+    }else{
+      VERYHIGH_MSG("Page %s loaded for %s in %.2fms", id, streamName.c_str(), micros/1000.0);
+    }
   }
 
   /// Return the current time of the media buffer, or 0 if no buffer available.
@@ -660,6 +692,11 @@ namespace Mist{
       return false;
     }
     if (!M.trackLoaded(tid)){meta.refresh();}
+    if (!userSelect.count(tid) || !userSelect[tid]){
+      WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: user select failure (%s)", pos, tid, userSelect.count(tid)?"not connected":"not selected");
+      userSelect.erase(tid);
+      return false;
+    }
 
     HIGH_MSG("Seeking for pos %" PRIu64, pos);
     if (meta.getLive() && meta.getLastms(tid) < pos){

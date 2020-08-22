@@ -2351,10 +2351,13 @@ namespace DTSC{
       tMemBuf.clear();
       sizeMemBuf.clear();
     }else if (isMaster){
-      char pageName[NAME_BUFFER_SIZE];
-      snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
-      IPC::semaphore trackLock(pageName, O_CREAT|O_RDWR, ACCESSPERMS, 1);
-      trackLock.tryWaitOneSecond();
+      IPC::semaphore trackLock;
+      if (streamName.size()){
+        char pageName[NAME_BUFFER_SIZE];
+        snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
+        trackLock.open(pageName, O_CREAT|O_RDWR, ACCESSPERMS, 1);
+        trackLock.tryWaitOneSecond();
+      }
       std::set<size_t> toRemove;
       for (std::map<size_t, IPC::sharedPage>::iterator it = tM.begin(); it != tM.end(); it++){
         if (!it->second.mapped){continue;}
@@ -2365,8 +2368,10 @@ namespace DTSC{
       }
       if (streamPage.mapped && stream.isReady()){stream.setExit();}
       streamPage.master = true;
-      //Wipe tracklist semaphore. This is not done anywhere else in the codebase.
-      trackLock.unlink();
+      if (streamName.size()){
+        //Wipe tracklist semaphore. This is not done anywhere else in the codebase.
+        trackLock.unlink();
+      }
     }
     stream = Util::RelAccX();
     trackList = Util::RelAccX();

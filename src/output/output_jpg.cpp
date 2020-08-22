@@ -77,9 +77,21 @@ namespace Mist{
     }
 
     uint64_t seekPos = M.getFirstms(mainTrack) + (M.getLastms(mainTrack) - M.getFirstms(mainTrack)) / 2;
-    MEDIUM_MSG("VoD seek to %" PRIu64 "ms", seekPos);
-    uint32_t targetKey = M.getKeyIndexForTime(mainTrack, seekPos);
-    seek(M.getTimeForKeyIndex(mainTrack, targetKey));
+    bool didSeek = false;
+    size_t retries = 10;
+    while (!didSeek && --retries){
+      MEDIUM_MSG("VoD seek to %" PRIu64 "ms", seekPos);
+      uint32_t targetKey = M.getKeyIndexForTime(mainTrack, seekPos);
+      didSeek = seek(M.getTimeForKeyIndex(mainTrack, targetKey));
+      if (!didSeek){
+        selectDefaultTracks();
+        mainTrack = getMainSelectedTrack();
+      }
+      seekPos = M.getFirstms(mainTrack) + (M.getLastms(mainTrack) - M.getFirstms(mainTrack)) * (((double)retries)/10.0);
+    }
+    if (!didSeek){
+      onFail("Could not seek to location for image");
+    }
   }
 
   void OutJPG::init(Util::Config *cfg){
@@ -209,6 +221,11 @@ namespace Mist{
     }
 
     initialSeek();
+    size_t mainTrack = getMainSelectedTrack();
+    if (mainTrack == INVALID_TRACK_ID){
+      FAIL_MSG("Could not select valid track");
+      return;
+    }
 
     int fin = -1, fout = -1, ferr = 2;
     pid_t ffmpeg = -1;
@@ -253,7 +270,7 @@ namespace Mist{
 
     // Send H264 init data in Annex B format
     MP4::AVCC avccbox;
-    avccbox.setPayload(M.getInit(getMainSelectedTrack()));
+    avccbox.setPayload(M.getInit(mainTrack));
     ffconn.SendNow(avccbox.asAnnexB());
     INSANE_MSG("Sent init data to ffmpeg...");
 

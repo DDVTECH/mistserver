@@ -477,9 +477,22 @@ namespace Mist{
 
   ///Returns the timestamp of the next upcoming keyframe after thisPacket, or 0 if that cannot be determined (yet).
   uint64_t Output::nextKeyTime(){
-    DTSC::Keys keys(M.keys(getMainSelectedTrack()));
+    size_t trk = thisPacket.getTrackId();
+    //If this is a video packet, we assume this is the main track and we don't look anything up
+    if (M.getType(trk) != "video"){
+      //For non-video packets, we get the main selected track
+      trk = getMainSelectedTrack();
+      //Unless that gives us an invalid track ID, then we fall back to the current track
+      if (trk == INVALID_TRACK_ID){trk = thisPacket.getTrackId();}
+    }
+    //Abort if the track is not loaded
+    if (!M.trackLoaded(trk)){return 0;}
+    DTSC::Keys keys(M.keys(trk));
+    //Abort if there are no keys
     if (!keys.getValidCount()){return 0;}
+    //Get the key for the current time
     size_t keyNum = keys.getNumForTime(lastPacketTime);
+    //Return the next key
     return keys.getTime(keyNum+1);
   }
   
@@ -537,7 +550,7 @@ namespace Mist{
       ++timeout;
       //Time out after 15 seconds
       if (timeout > 300){
-        FAIL_MSG("Timeout while waiting for requested page %zu for track %zu. Aborting.", pageNum, trackId);
+        FAIL_MSG("Timeout while waiting for requested key %zu for track %zu. Aborting.", keyNum, trackId);
         curPage.erase(trackId);
         currentPage.erase(trackId);
         return;
@@ -656,7 +669,7 @@ namespace Mist{
 
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
   /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
-  void Output::seek(uint64_t pos, bool toKey){
+  bool Output::seek(uint64_t pos, bool toKey){
     sought = true;
     if (!isInitialized){initialize();}
     buffer.clear();
@@ -665,8 +678,7 @@ namespace Mist{
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack == INVALID_TRACK_ID){
         WARN_MSG("Sync-seeking impossible (main track invalid); performing regular seek instead");
-        seek(pos);
-        return;
+        return seek(pos);
       }
       if (M.getType(mainTrack) == "video"){
         DTSC::Keys keys(M.keys(mainTrack));
@@ -679,10 +691,12 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       seekTracks.insert(it->first);
     }
+    bool ret = seekTracks.size();
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
-      seek(*it, pos, false);
+      ret &= seek(*it, pos, false);
     }
     firstTime = Util::bootMS() - (currentTime() * realTime / 1000);
+    return ret;
   }
 
   bool Output::seek(size_t tid, uint64_t pos, bool getNextKey){

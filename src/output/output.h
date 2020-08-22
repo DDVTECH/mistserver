@@ -46,7 +46,7 @@ namespace Mist{
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
-    void seek(uint64_t pos, bool toKey = false);
+    bool seek(uint64_t pos, bool toKey = false);
     bool seek(size_t tid, uint64_t pos, bool getNextKey);
     void seekKeyframesIn(unsigned long long pos, unsigned long long maxDelta);
     void stop();

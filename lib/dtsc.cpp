@@ -1132,6 +1132,7 @@ namespace DTSC{
       stream.addField("live", RAX_UINT);
       stream.addField("tracks", RAX_NESTED, META_TRACK_OFFSET + (trackCount * META_TRACK_RECORDSIZE));
       stream.addField("source", RAX_STRING, 512);
+      stream.addField("maxkeepaway", RAX_16UINT);
       stream.addField("bufferwindow", RAX_64UINT);
       stream.addField("bootmsoffset", RAX_64INT);
       stream.addField("minfragduration", RAX_64UINT);
@@ -1163,6 +1164,7 @@ namespace DTSC{
     streamVodField = stream.getFieldData("vod");
     streamLiveField = stream.getFieldData("live");
     streamSourceField = stream.getFieldData("source");
+    streamMaxKeepAwayField = stream.getFieldData("maxkeepaway");
     streamBufferWindowField = stream.getFieldData("bufferwindow");
     streamBootMsOffsetField = stream.getFieldData("bootmsoffset");
     streamMinimumFragmentDurationField = stream.getFieldData("minfragduration");
@@ -1853,11 +1855,19 @@ namespace DTSC{
   }
 
   void Meta::setMinKeepAway(size_t trackIdx, uint64_t minKeepAway){
-    trackList.setInt(trackMinKeepAwayField, minKeepAway);
+    trackList.setInt(trackMinKeepAwayField, minKeepAway, trackIdx);
   }
 
   uint64_t Meta::getMinKeepAway(size_t trackIdx) const{
-    return trackList.getInt(trackMinKeepAwayField);
+    return trackList.getInt(trackMinKeepAwayField, trackIdx);
+  }
+
+  void Meta::setMaxKeepAway(uint64_t maxKeepAway){
+    stream.setInt(streamMaxKeepAwayField, maxKeepAway);
+  }
+
+  uint64_t Meta::getMaxKeepAway() const{
+    return stream.getInt(streamMaxKeepAwayField);
   }
 
   void Meta::setEncryption(size_t trackIdx, const std::string &encryption){
@@ -2602,19 +2612,11 @@ namespace DTSC{
   /// Converts the current Meta object to JSON format
   void Meta::toJSON(JSON::Value &res, bool skipDynamic, bool tracksOnly) const{
     res.null();
-    if (getLive()){
-      res["live"] = 1u;
-    }else{
-      res["vod"] = 1u;
-    }
-    res["version"] = DTSH_VERSION;
-    if (getBufferWindow()){res["buffer_window"] = getBufferWindow();}
-    if (getSource() != ""){res["source"] = getSource();}
-
     if (!skipDynamic){
       WARN_MSG("Skipping dynamic stuff even though skipDynamic is set to false");
     }
-
+    uint64_t jitter = 0;
+    bool bframes = false;
     std::set<size_t> validTracks = getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       JSON::Value &trackJSON = res["tracks"][getTrackIdentifier(*it, true)];
@@ -2631,7 +2633,11 @@ namespace DTSC{
       trackJSON["maxbps"] = getMaxBps(*it);
       if (!skipDynamic && getLive()){
         if (getMissedFragments(*it)){trackJSON["missed_frags"] = getMissedFragments(*it);}
-        if (getMinKeepAway(*it)){trackJSON["keepaway"] = getMinKeepAway(*it);}
+      }
+      uint64_t trkJitter = getMinKeepAway(*it);
+      if (trkJitter){
+        trackJSON["jitter"] = trkJitter;
+        if (trkJitter > jitter){jitter = trkJitter;}
       }
 
       if (getLang(*it) != "" && getLang(*it) != "und"){trackJSON["lang"] = getLang(*it);}
@@ -2643,12 +2649,28 @@ namespace DTSC{
         trackJSON["width"] = getWidth(*it);
         trackJSON["height"] = getHeight(*it);
         trackJSON["fpks"] = getFpks(*it);
+        if (hasBFrames(*it)){
+          bframes = true;
+          trackJSON["bframes"] = 1;
+        }
       }
     }
     if (tracksOnly){
       JSON::Value v = res["tracks"];
       res = v;
+      return;
     }
+    if (jitter){res["jitter"] = jitter;}
+    res["bframes"] = bframes?1:0;
+    if (getMaxKeepAway()){res["maxkeepaway"] = getMaxKeepAway();}
+    if (getLive()){
+      res["live"] = 1u;
+    }else{
+      res["vod"] = 1u;
+    }
+    res["version"] = DTSH_VERSION;
+    if (getBufferWindow()){res["buffer_window"] = getBufferWindow();}
+    if (getSource() != ""){res["source"] = getSource();}
   }
 
   /// Sends the current Meta object through a socket in DTSH format

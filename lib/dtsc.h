@@ -377,6 +377,9 @@ namespace DTSC{
     void setMinKeepAway(size_t trackIdx, uint64_t minKeepAway);
     uint64_t getMinKeepAway(size_t trackIdx) const;
 
+    void setMaxKeepAway(uint64_t maxKeepAway);
+    uint64_t getMaxKeepAway() const;
+
     /*LTS-START*/
     void setSourceTrack(size_t trackIdx, size_t sourceTrack);
     uint64_t getSourceTrack(size_t trackIdx) const;
@@ -486,6 +489,7 @@ namespace DTSC{
     Util::RelAccXFieldData streamVodField;
     Util::RelAccXFieldData streamLiveField;
     Util::RelAccXFieldData streamSourceField;
+    Util::RelAccXFieldData streamMaxKeepAwayField;
     Util::RelAccXFieldData streamBufferWindowField;
     Util::RelAccXFieldData streamBootMsOffsetField;
     Util::RelAccXFieldData streamMinimumFragmentDurationField;

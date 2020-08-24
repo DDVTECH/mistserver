@@ -20,6 +20,7 @@ namespace Mist{
     bool hasPush;//Is a push currently being received?
     bool everHadPush;//Was there ever a push received?
     bool resumeMode;
+    uint64_t maxKeepAway;
     IPC::semaphore *liveMeta;
 
   protected:

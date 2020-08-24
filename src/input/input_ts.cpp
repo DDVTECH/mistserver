@@ -207,21 +207,24 @@ namespace Mist{
       }
     }
 
-    JSON::Value option;
-    option["arg"] = "integer";
-    option["long"] = "buffer";
-    option["short"] = "b";
-    option["help"] = "DVR buffer time in ms";
-    option["value"].append(50000);
-    config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] =
         "The target available buffer time for this live stream, in milliseconds. This is the time "
         "available to seek around in, and will automatically be extended to fit whole keyframes as "
         "well as the minimum duration needed for stable playback.";
-    capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000;
+
+    capa["optional"]["maxkeepaway"]["name"] = "Maximum live keep-away distance";
+    capa["optional"]["maxkeepaway"]["help"] = "Maximum distance in milliseconds to fall behind the live point for stable playback.";
+    capa["optional"]["maxkeepaway"]["type"] = "uint";
+    capa["optional"]["maxkeepaway"]["default"] = 45000;
+
+    capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
+    capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
+    capa["optional"]["segmentsize"]["type"] = "uint";
+    capa["optional"]["segmentsize"]["default"] = 1900;
+
   }
 
   inputTS::~inputTS(){

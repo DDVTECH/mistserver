@@ -953,6 +953,13 @@ namespace Mist{
       if (ti->first == INVALID_TRACK_ID){continue;}
       if (M.getMinKeepAway(ti->first) > r){r = M.getMinKeepAway(ti->first);}
     }
+    //Limit the value to the maxKeepAway setting
+    //Also lowers extraKeepAway if needed
+    uint64_t maxKeepAway = M.getMaxKeepAway();
+    if (maxKeepAway){
+      if (r > maxKeepAway){r = maxKeepAway;}
+      if (r+extraKeepAway > maxKeepAway){extraKeepAway = maxKeepAway - r;}
+    }
     return r;
   }
 

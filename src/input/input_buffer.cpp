@@ -85,6 +85,20 @@ namespace Mist{
     option.null();
 
     option["arg"] = "integer";
+    option["long"] = "maxkeepaway";
+    option["short"] = "M";
+    option["help"] = "Maximum distance in milliseconds to fall behind the live point for stable playback.";
+    option["value"].append(45000);
+    config->addOption("maxkeepaway", option);
+    capa["optional"]["maxkeepaway"]["name"] = "Maximum live keep-away distance";
+    capa["optional"]["maxkeepaway"]["help"] = "Maximum distance in milliseconds to fall behind the live point for stable playback.";
+    capa["optional"]["maxkeepaway"]["option"] = "--resume";
+    capa["optional"]["maxkeepaway"]["type"] = "uint";
+    capa["optional"]["maxkeepaway"]["default"] = 45000;
+    maxKeepAway = 45000;
+    option.null();
+
+    option["arg"] = "integer";
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
@@ -163,9 +177,13 @@ namespace Mist{
     bool hasAAC = false;
     std::stringstream issues;
     std::set<size_t> validTracks = M.getValidTracks();
+    uint64_t jitter = 0;
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       size_t i = *it;
       JSON::Value &track = details[M.getTrackIdentifier(i)];
+      uint64_t minKeep = M.getMinKeepAway(*it);
+      track["jitter"] = minKeep;
+      if (jitter < minKeep){jitter = minKeep;}
       std::string codec = M.getCodec(i);
       std::string type = M.getType(i);
       track["kbits"] = M.getBps(i) * 8 / 1024;
@@ -217,6 +235,13 @@ namespace Mist{
         track["rate"] = M.getRate(i);
         track["channels"] = M.getChannels(i);
       }
+    }
+    if (jitter > 500){
+      issues << "High jitter (" << jitter << "ms)! ";
+    }
+    details["jitter"] = jitter;
+    if (M.getMaxKeepAway()){
+      details["maxkeepaway"] = M.getMaxKeepAway();
     }
     if ((hasAAC || hasH264) && validTracks.size() > 1){
       if (!hasAAC){issues << "HLS no audio!";}
@@ -598,6 +623,13 @@ namespace Mist{
       INFO_MSG("Setting segmentSize from %" PRIu64 " to new value of %" PRIu64, segmentSize, tmpNum);
       segmentSize = tmpNum;
       meta.setMinimumFragmentDuration(segmentSize);
+    }
+
+    //Check if segmentsize setting is correct
+    tmpNum = retrieveSetting(streamCfg, "maxkeepaway");
+    if (M.getMaxKeepAway() != tmpNum){
+      INFO_MSG("Setting maxKeepAway from %" PRIu64 " to new value of %" PRIu64, M.getMaxKeepAway(), tmpNum);
+      meta.setMaxKeepAway(tmpNum);
     }
 
     /*LTS-END*/

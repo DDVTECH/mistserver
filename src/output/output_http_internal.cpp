@@ -485,10 +485,8 @@ namespace Mist{
       if (it->isMember("lang")){
         (*it)["language"] = Encodings::ISO639::decode((*it)["lang"].asStringRef());
       }
-      if (M.hasBFrames((*it)["idx"].asInt())){(*it)["bframes"] = 1;}
     }
     json_resp["meta"].removeMember("source");
-    json_resp["meta"]["bframes"] = (M.hasBFrames() ? 1 : 0);
 
     // Get sources/protocols information
     Util::DTSCShmReader rCapa(SHM_CAPA);

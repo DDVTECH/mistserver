@@ -12,6 +12,7 @@ namespace Mist{
     infoSize = 0;
     cuesSize = 0;
     seekheadSize = 0;
+    seekSize = 0;
     doctype = "matroska";
     if (config->getString("target").size()){
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}

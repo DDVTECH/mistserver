@@ -28,6 +28,7 @@ void AnalyserTS::init(Util::Config &conf){
                 "= TS stream pkts, 32 = raw PES packet bytes, 64 = raw TS packet bytes";
   conf.addOption("detail", opt);
   opt.null();
+
   opt["long"] = "pid";
   opt["short"] = "P";
   opt["arg"] = "num";
@@ -35,10 +36,21 @@ void AnalyserTS::init(Util::Config &conf){
   opt["help"] = "Only use the given PID, ignore others";
   conf.addOption("pid", opt);
   opt.null();
+
+  opt["long"] = "raw";
+  opt["short"] = "R";
+  opt["arg"] = "str";
+  opt["default"] = "";
+  opt["help"] = "Write raw PES payloads to given file";
+  conf.addOption("raw", opt);
+  opt.null();
 }
 
 AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
   pidOnly = conf.getInteger("pid");
+  if (conf.getString("raw").size()){
+    outFile.open(conf.getString("raw").c_str());
+  }
   bytes = 0;
 }
 
@@ -172,6 +184,9 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
   }
   res << std::endl;
 
+  if (outFile){
+    outFile.write(d.data() + 9 + headSize + padding, d.size()-(9 + headSize + padding));
+  }
   if (detail & 32){
     size_t counter = 0;
     for (size_t i = 9 + headSize + padding; i < d.size(); ++i){

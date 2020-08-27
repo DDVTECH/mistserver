@@ -64,7 +64,7 @@ namespace Mist{
     /// This function is called whenever a packet is ready for sending.
     /// Inside it, thisPacket is guaranteed to contain a valid packet.
     virtual void sendNext(){}// REQUIRED! Others are optional.
-    virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
+    virtual bool dropPushTrack(uint32_t trackId, const std::string &dropReason);
     bool getKeyFrame();
     bool prepareNext();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
@@ -103,10 +103,10 @@ namespace Mist{
     uint64_t lastStats; ///< Time of last sending of stats.
 
     std::set<sortedPageInfo> buffer; ///< A sorted list of next-to-be-loaded packets.
-    bool sought; ///< If a seek has been done, this is set to true. Used for seeking on
-                 ///< prepareNext().
+    bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
+                          ///< prepareNext().
     std::string prevHost; ///< Old value for getConnectedBinHost, for caching
-  protected:     // these are to be messed with by child classes
+  protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
     }///< True if the output is capable of restarting mid-stream. This is used for swapping recording files
@@ -121,6 +121,8 @@ namespace Mist{
     virtual std::string getConnectedBinHost();
     virtual std::string getStatsName();
     virtual bool hasSessionIDs(){return false;}
+
+    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
 
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 

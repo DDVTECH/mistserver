@@ -77,6 +77,7 @@ namespace Mist{
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");
 
+#ifndef WITH_SRT
     {
       pid_t srt_tx = -1;
       const char *args[] ={"srt-live-transmit", 0};
@@ -84,13 +85,14 @@ namespace Mist{
       if (srt_tx > 1){
         capa["push_urls"].append("srt://*");
         capa["desc"] = capa["desc"].asStringRef() +
-                       ". SRT push output support (srt://*) is installed and available.";
+                       ". Non-native SRT push output support (srt://*) is installed and available.";
       }else{
         capa["desc"] =
             capa["desc"].asStringRef() +
-            ". To enable SRT push output support, please install the srt-live-transmit binary.";
+            ". To enable non-native SRT push output support, please install the srt-live-transmit binary.";
       }
     }
+#endif
 
     JSON::Value opt;
     opt["arg"] = "string";

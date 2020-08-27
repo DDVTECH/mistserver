@@ -15,6 +15,51 @@ tthread::recursive_mutex tMutex;
 
 namespace TS{
 
+  bool Assembler::assemble(Stream & TSStrm, char * ptr, size_t len){
+    bool ret = false;
+    size_t offset = 0;
+    size_t amount = 188-leftData.size();
+    if (leftData.size() && len >= amount){
+      //Attempt to re-assemble a packet from the leftovers of last time + current head
+      if (len == amount || ptr[amount] == 0x47){
+        VERYHIGH_MSG("Assembled scrap packet");
+        //Success!
+        leftData.append(ptr, amount);
+        tsBuf.FromPointer(leftData);
+        TSStrm.add(tsBuf);
+        ret = true;
+        if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
+        offset = amount;
+        leftData.assign(0,0);
+      }
+      //On failure, hope we might live to succeed another day
+    }
+    // Try to read full TS Packets
+    // Watch out! We push here to a global, in order for threads to be able to access it.
+    size_t junk = 0;
+    while (offset < len){
+      if (ptr[offset] == 0x47 && (offset+188 >= len || ptr[offset+188] == 0x47)){// check for sync byte
+        if (junk){
+          INFO_MSG("%zu bytes of non-sync-byte data received", junk);
+          junk = 0;
+        }
+        if (offset + 188 <= len){
+          tsBuf.FromPointer(ptr + offset);
+          TSStrm.add(tsBuf);
+          if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
+          ret = true;
+        }else{
+          leftData.assign(ptr + offset, len - offset);
+        }
+        offset += 188;
+      }else{
+        ++junk;
+        ++offset;
+      }
+    }
+    return ret;
+  }
+
   void ADTSRemainder::setRemainder(const aac::adts &p, const void *source, uint32_t avail, uint64_t bPos){
     if (!p.getCompleteSize()){return;}
 

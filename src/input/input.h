@@ -69,11 +69,7 @@ namespace Mist{
     virtual void userOnActive(size_t id);
     virtual void userOnDisconnect(size_t id);
     virtual void userLeadOut();
-
-    virtual void handleLossyStats(Comms::Statistics & statComm){}
-
-    virtual bool preventBufferStart() {return false;}
-
+    virtual void connStats(Comms::Statistics & statComm);
     virtual void parseHeader();
     bool bufferFrame(size_t track, uint32_t keyNum);
 

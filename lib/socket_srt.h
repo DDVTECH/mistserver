@@ -1,11 +1,8 @@
 #pragma once
-
 #include "socket.h"
 #include "url.h"
-
 #include <map>
 #include <string>
-
 #include <srt/srt.h>
 
 typedef std::map<std::string, int> SockOptVals;
@@ -13,15 +10,6 @@ typedef std::map<std::string, std::string> paramList;
 
 namespace Socket{
   std::string interpretSRTMode(const HTTP::URL &u);
-
-  inline bool isFalseString(const std::string &_val){
-    return _val == "0" || _val == "no" || _val == "off" || _val == "false";
-  }
-
-  inline bool isTrueString(const std::string &_val){
-    return _val == "1" || _val == "yes" || _val == "on" || _val == "true";
-  }
-
   sockaddr_in createInetAddr(const std::string &_host, int _port);
 
   namespace SRT{
@@ -39,7 +27,7 @@ namespace Socket{
   class SRTConnection{
   public:
     SRTConnection();
-    SRTConnection(SRTSOCKET alreadyConnected){sock = alreadyConnected;}
+    SRTConnection(SRTSOCKET alreadyConnected);
     SRTConnection(const std::string &_host, int _port, const std::string &_direction = "input",
                   const paramList &_params = paramList());
 
@@ -52,7 +40,10 @@ namespace Socket{
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
 
-    std::string RecvNow();
+    size_t RecvNow();
+    size_t Recv();
+    char recvbuf[5000]; ///< Buffer where received data is stored in
+
     void SendNow(const std::string &data);
     void SendNow(const char *data, size_t len);
 
@@ -73,7 +64,7 @@ namespace Socket{
 
     struct sockaddr_in6 remoteaddr;
     std::string remotehost;
-
+    std::string getBinHost();
   private:
     SRTSOCKET sock;
     CBytePerfMon performanceMonitor;
@@ -81,10 +72,11 @@ namespace Socket{
     std::string host;
     int outgoing_port;
     int32_t prev_pktseq;
+    uint64_t lastGood;
 
     uint32_t chunkTransmitSize;
 
-    // From paramaeter parsing
+    // From parameter parsing
     std::string adapter;
     std::string modeName;
     int timeout;
@@ -100,7 +92,7 @@ namespace Socket{
     bool blocking;
   };
 
-  /// This class is for easily setting up listening socket, either TCP or Unix.
+  /// This class is for easily setting up a listening SRT socket
   class SRTServer{
   public:
     SRTServer();
@@ -130,7 +122,6 @@ namespace Socket{
 
   class SocketOption{
   public:
-    //{"enforcedencryption", 0, SRTO_ENFORCEDENCRYPTION, SRT::SockOpt::PRE, SRT::SockOpt::BOOL, nullptr},
     SocketOption(const std::string &_name, int _protocol, int _symbol, SRT::SockOpt::Binding _binding,
                  SRT::SockOpt::Type _type, const SockOptVals &_values = SockOptVals())
         : name(_name), protocol(_protocol), symbol(_symbol), binding(_binding), type(_type),
@@ -142,11 +133,8 @@ namespace Socket{
     SRT::SockOpt::Binding binding;
     SRT::SockOpt::Type type;
     SockOptVals valmap;
-
     bool apply(int socket, const std::string &value, bool isSrtOpt = true);
-
     static int setSo(int socket, int protocol, int symbol, const void *data, size_t size, bool isSrtOpt = true);
-
     bool extract(const std::string &v, OptionValue &val, SRT::SockOpt::Type asType);
   };
 

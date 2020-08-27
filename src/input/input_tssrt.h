@@ -8,13 +8,17 @@
 #include <string>
 
 namespace Mist{
-  /// This class contains all functions needed to implement TS Input
+
   class inputTSSRT : public Input{
   public:
     inputTSSRT(Util::Config *cfg, SRTSOCKET s = -1);
     ~inputTSSRT();
     void setSingular(bool newSingular);
     virtual bool needsLock();
+    virtual std::string getConnectedBinHost(){
+      if (srtConn){return srtConn.getBinHost();}
+      return Input::getConnectedBinHost();
+    }
 
   protected:
     // Private Functions
@@ -22,7 +26,6 @@ namespace Mist{
     bool preRun();
     virtual void getNext(size_t idx = INVALID_TRACK_ID);
     virtual bool needHeader(){return false;}
-    virtual bool preventBufferStart(){return srtConn.getSocket() == -1;}
     virtual bool isSingular(){return singularFlag;}
     virtual bool isThread(){return !singularFlag;}
 
@@ -31,17 +34,14 @@ namespace Mist{
     void streamMainLoop();
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
     TS::Packet tsBuf;
-    std::string leftBuffer;
+    TS::Assembler assembler;
+    int64_t timeStampOffset;
     uint64_t lastTimeStamp;
 
-    Socket::SRTServer sSock;
     Socket::SRTConnection srtConn;
     bool singularFlag;
     size_t tmpIdx;
-    virtual size_t streamByteCount(){
-      return srtConn.dataDown();
-    }; // For live streams: to update the stats with correct values.
-    virtual void handleLossyStats(Comms::Statistics &statComm);
+    virtual void connStats(Comms::Statistics &statComm);
   };
 }// namespace Mist
 

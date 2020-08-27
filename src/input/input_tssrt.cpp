@@ -24,9 +24,17 @@
 
 Util::Config *cfgPointer = NULL;
 std::string baseStreamName;
+Socket::SRTServer sSock;
 
-/// Global, so that all tracks stay in sync
-int64_t timeStampOffset = 0;
+void (*oldSignal)(int, siginfo_t *,void *) = 0;
+
+void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
+  sSock.close();
+  if (oldSignal){
+    oldSignal(signum, sigInfo, ignore);
+  }
+}
+
 
 // We use threads here for multiple input pushes, because of the internals of the SRT Library
 static void callThreadCallbackSRT(void *socknum){
@@ -54,8 +62,10 @@ namespace Mist{
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"][0u][1u].append("opus");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -64,6 +74,7 @@ namespace Mist{
     option["help"] = "DVR buffer time in ms";
     option["value"].append(50000);
     config->addOption("bufferTime", option);
+    option.null();
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] =
         "The target available buffer time for this live stream, in milliseconds. This is the time "
@@ -73,13 +84,44 @@ namespace Mist{
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000;
 
+    option["arg"] = "integer";
+    option["long"] = "acceptable";
+    option["short"] = "T";
+    option["help"] = "Acceptable pushed streamids (0 = use streamid as wildcard, 1 = ignore all streamids, 2 = disallow non-matching streamids)";
+    option["value"].append(0);
+    config->addOption("acceptable", option);
+    capa["optional"]["acceptable"]["name"] = "Acceptable pushed streamids";
+    capa["optional"]["acceptable"]["help"] = "What to do with the streamids for incoming pushes, if this is a listener SRT connection";
+    capa["optional"]["acceptable"]["option"] = "--acceptable";
+    capa["optional"]["acceptable"]["short"] = "T";
+    capa["optional"]["acceptable"]["default"] = 0;
+    capa["optional"]["acceptable"]["type"] = "select";
+    capa["optional"]["acceptable"]["select"][0u][0u] = 0;
+    capa["optional"]["acceptable"]["select"][0u][1u] = "Set streamid as wildcard";
+    capa["optional"]["acceptable"]["select"][1u][0u] = 1;
+    capa["optional"]["acceptable"]["select"][1u][1u] = "Ignore all streamids";
+    capa["optional"]["acceptable"]["select"][2u][0u] = 2;
+    capa["optional"]["acceptable"]["select"][2u][1u] = "Disallow non-matching streamid";
+
+
     // Setup if we are called form with a thread for push-based input.
     if (s != -1){
       srtConn = Socket::SRTConnection(s);
       streamName = baseStreamName;
-      if (srtConn.getStreamName() != ""){streamName += "+" + srtConn.getStreamName();}
+      std::string streamid = srtConn.getStreamName();
+      int64_t acc = config->getInteger("acceptable");
+      if (acc == 0){
+        if (streamid.size()){streamName += "+" + streamid;}
+      }else if(acc == 2){
+        if (streamName != streamid){
+          FAIL_MSG("Stream ID '%s' does not match stream name, push blocked", streamid.c_str());
+          srtConn.close();
+        }
+      }
+      Util::setStreamName(streamName);
     }
     lastTimeStamp = 0;
+    timeStampOffset = 0;
     singularFlag = true;
   }
 
@@ -96,9 +138,27 @@ namespace Mist{
       INFO_MSG("Parsed url: %s", u.getUrl().c_str());
       if (Socket::interpretSRTMode(u) == "listener"){
         sSock = Socket::SRTServer(u.getPort(), u.host, false);
-        config->registerSRTSockPtr(&sSock);
+        struct sigaction new_action;
+        struct sigaction cur_action;
+        new_action.sa_sigaction = signal_handler;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = SA_SIGINFO;
+        sigaction(SIGINT, &new_action, &cur_action);
+        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+          oldSignal = cur_action.sa_sigaction;
+        }
+        sigaction(SIGHUP, &new_action, &cur_action);
+        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+          oldSignal = cur_action.sa_sigaction;
+        }
+        sigaction(SIGTERM, &new_action, &cur_action);
+        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+          oldSignal = cur_action.sa_sigaction;
+        }
       }else{
-        INFO_MSG("A");
         std::map<std::string, std::string> arguments;
         HTTP::parseVars(u.args, arguments);
         size_t connectCnt = 0;
@@ -117,34 +177,12 @@ namespace Mist{
   void inputTSSRT::getNext(size_t idx){
     thisPacket.null();
     bool hasPacket = tsStream.hasPacket();
-    bool firstloop = true;
-    while (!hasPacket && srtConn.connected() && config->is_active){
-      firstloop = false;
-      // Receive data from the socket. SRT Sockets handle some internal timing as well, based on the provided settings.
-      leftBuffer.append(srtConn.RecvNow());
-      if (leftBuffer.size()){
-        size_t offset = 0;
-        size_t garbage = 0;
-        while ((offset + 188) < leftBuffer.size()){
-          if (leftBuffer[offset] != 0x47){
-            ++garbage;
-            if (garbage % 100 == 0){INFO_MSG("Accumulated %zu bytes of garbage", garbage);}
-            ++offset;
-            continue;
-          }
-          if (garbage != 0){
-            WARN_MSG("Thrown away %zu bytes of garbage data", garbage);
-            garbage = 0;
-          }
-          if (offset + 188 <= leftBuffer.size()){
-            tsBuf.FromPointer(leftBuffer.data() + offset);
-            tsStream.parse(tsBuf, 0);
-            offset += 188;
-          }
-        }
-        leftBuffer.erase(0, offset);
-        hasPacket = tsStream.hasPacket();
-      }else if (srtConn.connected()){
+    while (!hasPacket && srtConn && config->is_active){
+
+      size_t recvSize = srtConn.RecvNow();
+      if (recvSize){
+        if (assembler.assemble(tsStream, srtConn.recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
+      }else if (srtConn){
         // This should not happen as the SRT socket is read blocking and won't return until there is
         // data. But if it does, wait before retry
         Util::sleep(10);
@@ -153,7 +191,12 @@ namespace Mist{
     if (hasPacket){tsStream.getEarliestPacket(thisPacket);}
 
     if (!thisPacket){
-      INFO_MSG("Could not getNext TS packet!");
+      if (srtConn){
+        INFO_MSG("Could not getNext TS packet!");
+        Util::logExitReason("internal TS parser error");
+      }else{
+        Util::logExitReason("SRT connection close");
+      }
       return;
     }
 
@@ -208,7 +251,10 @@ namespace Mist{
 
   void inputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
-  void inputTSSRT::handleLossyStats(Comms::Statistics &statComm){
+  void inputTSSRT::connStats(Comms::Statistics &statComm){
+    statComm.setUp(srtConn.dataUp());
+    statComm.setDown(srtConn.dataDown());
+    statComm.setHost(getConnectedBinHost());
     statComm.setPacketCount(srtConn.packetCount());
     statComm.setPacketLostCount(srtConn.packetLostCount());
     statComm.setPacketRetransmitCount(srtConn.packetRetransmitCount());

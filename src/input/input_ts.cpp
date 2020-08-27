@@ -191,6 +191,7 @@ namespace Mist{
     inputProcess = 0;
     isFinished = false;
 
+#ifndef WITH_SRT
     {
       pid_t srt_tx = -1;
       const char *args[] ={"srt-live-transmit", 0};
@@ -199,12 +200,13 @@ namespace Mist{
         capa["source_match"].append("srt://*");
         capa["always_match"].append("srt://*");
         capa["desc"] =
-            capa["desc"].asStringRef() + " SRT support (srt://*) is installed and available.";
+            capa["desc"].asStringRef() + " Non-native SRT support (srt://*) is installed and available.";
       }else{
         capa["desc"] = capa["desc"].asStringRef() +
-                       " To enable SRT support, please install the srt-live-transmit binary.";
+                       " To enable non-native SRT support, please install the srt-live-transmit binary.";
       }
     }
+#endif
 
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
     capa["optional"]["DVR"]["help"] =
@@ -534,43 +536,7 @@ namespace Mist{
             gettingData = true;
             INFO_MSG("Now receiving UDP data...");
           }
-          size_t offset = 0;
-          size_t amount = 188-leftData.size();
-          if (leftData.size() && udpCon.data.size() >= amount){
-            //Attempt to re-assemble a packet from the leftovers of last time + current head
-            if (udpCon.data.size() == amount || udpCon.data[amount] == 0x47){
-              VERYHIGH_MSG("Assembled scrap packet");
-              //Success!
-              leftData.append(udpCon.data, amount);
-              liveStream.add(leftData);
-              if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
-              offset = amount;
-              leftData.assign(0,0);
-            }
-            //On failure, hope we might live to succeed another day
-          }
-          // Try to read full TS Packets
-          // Watch out! We push here to a global, in order for threads to be able to access it.
-          size_t junk = 0;
-          while (offset < udpCon.data.size()){
-            if (udpCon.data[offset] == 0x47 && (offset+188 >= udpCon.data.size() || udpCon.data[offset+188] == 0x47)){// check for sync byte
-              if (junk){
-                INFO_MSG("%zu bytes of non-sync-byte data received", junk);
-                junk = 0;
-              }
-              if (offset + 188 <= udpCon.data.size()){
-                tsBuf.FromPointer(udpCon.data + offset);
-                liveStream.add(tsBuf);
-                if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
-              }else{
-                leftData.assign(udpCon.data + offset, udpCon.data.size() - offset);
-              }
-              offset += 188;
-            }else{
-              ++junk;
-              ++offset;
-            }
-          }
+          assembler.assemble(liveStream, udpCon.data, udpCon.data.size());
         }
         if (!received){
           Util::sleep(100);

@@ -106,4 +106,13 @@ namespace TS{
 
     void parsePES(size_t tid, bool finished = false);
   };
+
+  class Assembler{
+  public:
+    bool assemble(Stream & TSStrm, char * ptr, size_t len);
+  private:
+    Util::ResizeablePointer leftData;
+    TS::Packet tsBuf;
+  };
+
 }// namespace TS

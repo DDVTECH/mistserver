@@ -893,17 +893,20 @@ namespace Mist{
           statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
-          statComm.setUp(0);
-          statComm.setDown(streamByteCount());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
-          handleLossyStats(statComm);
+          connStats(statComm);
         }
 
         statTimer = Util::bootSecs();
       }
     }
+  }
+  
+  void Input::connStats(Comms::Statistics &statComm){
+    statComm.setUp(0);
+    statComm.setDown(streamByteCount());
+    statComm.setHost(getConnectedBinHost());
   }
 
   void Input::realtimeMainLoop(){

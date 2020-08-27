@@ -3,7 +3,6 @@
 
 #include "config.h"
 #include "defines.h"
-#include "lib/socket_srt.h"
 #include "stream.h"
 #include "timing.h"
 #include "tinythread.h"
@@ -39,7 +38,6 @@
 bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
-static Socket::SRTServer *serv_srt_sock_pointer = 0; ///< Holds a pointer to SRT Server, if it is connected
 uint32_t Util::printDebugLevel = DEBUG;
 std::string Util::streamName;
 char Util::exitReason[256] ={0};
@@ -54,13 +52,6 @@ void Util::logExitReason(const char *format, ...){
 
 std::string Util::listenInterface;
 uint32_t Util::listenPort = 0;
-
-// Sets pointer to the SRT Server, for proper cleanup later.
-//
-// Currently used for TSSRT Input only, as this doesn't use the config library to setup a listener
-void Util::Config::registerSRTSockPtr(Socket::SRTServer *ptr){
-  serv_srt_sock_pointer = ptr;
-}
 
 Util::Config::Config(){
   // global options here
@@ -331,23 +322,6 @@ struct callbackData{
   int (*cb)(Socket::Connection &);
 };
 
-// As above, but using an SRT Connection
-struct callbackSRTData{
-  Socket::SRTConnection *sock;
-  int (*cb)(Socket::SRTConnection &);
-};
-
-// Callback for SRT-serving threads
-static void callThreadCallbackSRT(void *cDataArg){
-  INSANE_MSG("Thread for %p started", cDataArg);
-  callbackSRTData *cData = (callbackSRTData *)cDataArg;
-  cData->cb(*(cData->sock));
-  cData->sock->close();
-  delete cData->sock;
-  delete cData;
-  INSANE_MSG("Thread for %p ended", cDataArg);
-}
-
 static void callThreadCallback(void *cDataArg){
   INSANE_MSG("Thread for %p started", cDataArg);
   callbackData *cData = (callbackData *)cDataArg;
@@ -430,53 +404,6 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
   return r;
 }
 
-// This is a THREADED server!! Fork does not work as the SRT library itself already starts up a
-// thread, and forking after thread creation messes up all control flow internal to the library.
-int Util::Config::serveSRTSocket(int (*callback)(Socket::SRTConnection &S)){
-  Socket::SRTServer server_socket;
-  if (vals.isMember("port") && vals.isMember("interface")){
-    server_socket = Socket::SRTServer(getInteger("port"), getString("interface"), false, "output");
-  }
-  if (!server_socket.connected()){
-    DEVEL_MSG("Failure to open socket");
-    return 1;
-  }
-  serv_srt_sock_pointer = &server_socket;
-  activate();
-  if (server_socket.getSocket()){
-    int oldSock = server_socket.getSocket();
-    if (!dup2(oldSock, 0)){
-      server_socket = Socket::SRTServer(0);
-      close(oldSock);
-    }
-  }
-  int r = SRTServer(server_socket, callback);
-  serv_srt_sock_pointer = 0;
-  return r;
-}
-
-int Util::Config::SRTServer(Socket::SRTServer &server_socket, int (*callback)(Socket::SRTConnection &)){
-  Util::Procs::socketList.insert(server_socket.getSocket());
-  while (is_active && server_socket.connected()){
-    Socket::SRTConnection S = server_socket.accept(false, "output");
-    if (S.connected()){// check if the new connection is valid
-      callbackSRTData *cData = new callbackSRTData;
-      cData->sock = new Socket::SRTConnection(S);
-      cData->cb = callback;
-      // spawn a new thread for this connection
-      tthread::thread T(callThreadCallbackSRT, (void *)cData);
-      // detach it, no need to keep track of it anymore
-      T.detach();
-      HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
-    }else{
-      Util::sleep(10); // sleep 10ms
-    }
-  }
-  Util::Procs::socketList.erase(server_socket.getSocket());
-  if (!is_restarting){server_socket.close();}
-  return 0;
-}
-
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
   Socket::Server server_socket;
   if (Socket::checkTrueSocket(0)){
@@ -541,8 +468,6 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   case SIGHUP:
   case SIGTERM:
     if (serv_sock_pointer){serv_sock_pointer->close();}
-    // Close the srt server as well, if set
-    if (serv_srt_sock_pointer){serv_srt_sock_pointer->close();}
 #if DEBUG >= DLVL_DEVEL
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}

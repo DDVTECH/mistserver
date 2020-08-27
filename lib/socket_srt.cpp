@@ -1,6 +1,8 @@
 #include "defines.h"
 #include "lib/http_parser.h"
 #include "socket_srt.h"
+#include "json.h"
+#include "timing.h"
 
 #include <cstdlib>
 #include <sstream>
@@ -69,11 +71,18 @@ namespace Socket{
     return interpretSRTMode(params.count("mode") ? params.at("mode") : "default", u.host, "");
   }
 
-  SRTConnection::SRTConnection(){initializeEmpty();}
+  SRTConnection::SRTConnection(){
+    initializeEmpty();
+    lastGood = Util::bootMS();
+  }
 
   SRTConnection::SRTConnection(const std::string &_host, int _port, const std::string &_direction,
                                const std::map<std::string, std::string> &_params){
     connect(_host, _port, _direction, _params);
+  }
+
+  SRTConnection::SRTConnection(SRTSOCKET alreadyConnected){
+    sock = alreadyConnected;
   }
 
   std::string SRTConnection::getStreamName(){
@@ -84,29 +93,89 @@ namespace Socket{
     return "";
   }
 
-  /// Updates the downbuffer internal variable.
-  /// Returns true if new data was received, false otherwise.
-  std::string SRTConnection::RecvNow(){
-    char recvbuf[5000];
+  std::string SRTConnection::getBinHost(){
+    char tmpBuffer[17] = "\000\000\000\000\000\000\000\000\000\000\377\377\000\000\000\000";
+    switch (remoteaddr.sin6_family){
+    case AF_INET:
+      memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in *>(&remoteaddr)->sin_addr.s_addr), 4);
+      break;
+    case AF_INET6: memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16); break;
+    default: return ""; break;
+    }
+    return std::string(tmpBuffer, 16);
+  }
+
+  size_t SRTConnection::RecvNow(){
 
     bool blockState = blocking;
-    setBlocking(true);
+    if (!blockState){setBlocking(true);}
 
     SRT_MSGCTRL mc = srt_msgctrl_default;
     int32_t receivedBytes = srt_recvmsg2(sock, recvbuf, 5000, &mc);
 
-    if (prev_pktseq != 0 && (mc.pktseq - prev_pktseq > 1)){WARN_MSG("Packet lost");}
+    //if (prev_pktseq != 0 && (mc.pktseq - prev_pktseq > 1)){WARN_MSG("Packet lost");}
     prev_pktseq = mc.pktseq;
 
-    setBlocking(blockState);
+    if (!blockState){setBlocking(blockState);}
     if (receivedBytes == -1){
+      int err = srt_getlasterror(0);
+      if (err == SRT_ECONNLOST){
+        close();
+        return 0;
+      }
+      if (err == SRT_ENOCONN){
+        if (Util::bootMS() > lastGood + 5000){
+          ERROR_MSG("SRT connection timed out - closing");
+          close();
+        }
+        return 0;
+      }
       ERROR_MSG("Unable to receive data over socket: %s", srt_getlasterror_str());
       if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
-      return "";
+      return 0;
+    }
+    if (receivedBytes == 0){
+      close();
+    }else{
+      lastGood = Util::bootMS();
     }
 
     srt_bstats(sock, &performanceMonitor, false);
-    return std::string(recvbuf, receivedBytes);
+    return receivedBytes;
+  }
+
+  ///Attempts a read, obeying the current blocking setting.
+  ///May result in socket being disconnected when connection was lost during read.
+  ///Returns amount of bytes actually read
+  size_t SRTConnection::Recv(){
+    SRT_MSGCTRL mc = srt_msgctrl_default;
+    int32_t receivedBytes = srt_recvmsg2(sock, recvbuf, 5000, &mc);
+    prev_pktseq = mc.pktseq;
+    if (receivedBytes == -1){
+      int err = srt_getlasterror(0);
+      if (err == SRT_EASYNCRCV){return 0;}
+      if (err == SRT_ECONNLOST){
+        close();
+        return 0;
+      }
+      if (err == SRT_ENOCONN){
+        if (Util::bootMS() > lastGood + 5000){
+          ERROR_MSG("SRT connection timed out - closing");
+          close();
+        }
+        return 0;
+      }
+      ERROR_MSG("Unable to receive data over socket: %s", srt_getlasterror_str());
+      if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
+      return 0;
+    }
+    if (receivedBytes == 0){
+      close();
+    }else{
+      lastGood = Util::bootMS();
+    }
+    srt_bstats(sock, &performanceMonitor, false);
+    return receivedBytes;
   }
 
   void SRTConnection::connect(const std::string &_host, int _port, const std::string &_direction,
@@ -143,6 +212,7 @@ namespace Socket{
       HIGH_MSG("Going to connect sock %d", sock);
       if (srt_connect(sock, psa, sizeof sa) == SRT_ERROR){
         srt_close(sock);
+        sock = -1;
         ERROR_MSG("Can't connect SRT Socket");
         return;
       }
@@ -153,6 +223,7 @@ namespace Socket{
         return;
       }
       INFO_MSG("Caller SRT socket %" PRId32 " success targetting %s:%u", sock, _host.c_str(), _port);
+      lastGood = Util::bootMS();
       return;
     }
     if (modeName == "listener"){
@@ -163,14 +234,17 @@ namespace Socket{
 
       if (srt_bind(sock, psa, sizeof sa) == SRT_ERROR){
         srt_close(sock);
-        ERROR_MSG("Can't connect SRT Socket");
+        sock = -1;
+        ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
         return;
       }
       if (srt_listen(sock, 1) == SRT_ERROR){
         srt_close(sock);
+        sock = -1;
         ERROR_MSG("Can not listen on Socket");
       }
       INFO_MSG("Listener SRT socket sucess @ %s:%u", _host.c_str(), _port);
+      lastGood = Util::bootMS();
       return;
     }
     if (modeName == "rendezvous"){
@@ -182,6 +256,7 @@ namespace Socket{
 
       if (srt_bind(sock, psa, sizeof sa) == SRT_ERROR){
         srt_close(sock);
+        sock = -1;
         ERROR_MSG("Can't connect SRT Socket");
         return;
       }
@@ -191,6 +266,7 @@ namespace Socket{
 
       if (srt_connect(sock, psb, sizeof sb) == SRT_ERROR){
         srt_close(sock);
+        sock = -1;
         ERROR_MSG("Can't connect SRT Socket");
         return;
       }
@@ -200,6 +276,7 @@ namespace Socket{
         return;
       }
       INFO_MSG("Rendezvous SRT socket sucess @ %s:%u", _host.c_str(), _port);
+      lastGood = Util::bootMS();
       return;
     }
     ERROR_MSG("Invalid mode parameter. Use 'client' or 'server'");
@@ -220,8 +297,23 @@ namespace Socket{
     int res = srt_sendmsg2(sock, data, len, NULL);
 
     if (res == SRT_ERROR){
+      int err = srt_getlasterror(0);
+      //Do not report normal connection lost errors
+      if (err == SRT_ECONNLOST){
+        close();
+        return;
+      }
+      if (err == SRT_ENOCONN){
+        if (Util::bootMS() > lastGood + 5000){
+          ERROR_MSG("SRT connection timed out - closing");
+          close();
+        }
+        return;
+      }
       ERROR_MSG("Unable to send data over socket %" PRId32 ": %s", sock, srt_getlasterror_str());
       if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
+    }else{
+      lastGood = Util::bootMS();
     }
     srt_bstats(sock, &performanceMonitor, false);
   }
@@ -236,16 +328,16 @@ namespace Socket{
   uint64_t SRTConnection::dataDown(){return performanceMonitor.byteRecvTotal;}
 
   uint64_t SRTConnection::packetCount(){
-    return (direction == "input" ? performanceMonitor.pktRecvTotal : performanceMonitor.pktSentTotal);
+    return (direction == "output" ? performanceMonitor.pktSentTotal : performanceMonitor.pktRecvTotal);
   }
 
   uint64_t SRTConnection::packetLostCount(){
-    return (direction == "input" ? performanceMonitor.pktRcvLossTotal : performanceMonitor.pktSndLossTotal);
+    return (direction == "output" ? performanceMonitor.pktSndLossTotal : performanceMonitor.pktRcvLossTotal);
   }
 
   uint64_t SRTConnection::packetRetransmitCount(){
     //\todo This should be updated with pktRcvRetransTotal on the retrieving end once srt has implemented this.
-    return (direction == "input" ? 0 : performanceMonitor.pktRetransTotal);
+    return (direction == "output" ? performanceMonitor.pktRetransTotal : 0);
   }
 
   void SRTConnection::initializeEmpty(){
@@ -259,10 +351,8 @@ namespace Socket{
   void SRTConnection::setBlocking(bool _blocking){
     if (_blocking == blocking){return;}
     // If we have an error setting the new blocking state, the state is unchanged so we return early.
-    if (srt_setsockopt(sock, 0, (direction == "output" ? SRTO_SNDSYN : SRTO_RCVSYN), &_blocking,
-                       sizeof _blocking) == -1){
-      return;
-    }
+    if (srt_setsockopt(sock, 0, SRTO_SNDSYN, &_blocking, sizeof _blocking) == -1){return;}
+    if (srt_setsockopt(sock, 0, SRTO_RCVSYN, &_blocking, sizeof _blocking) == -1){return;}
     blocking = _blocking;
   }
 
@@ -289,7 +379,7 @@ namespace Socket{
 
     if (adapter == "" && modeName == "listener"){adapter = _host;}
 
-    tsbpdMode = ((params.count("tsbpd") && isFalseString(params.at("tsbpd"))) ? false : true);
+    tsbpdMode = (params.count("tsbpd") && JSON::Value(params.at("tsbpd")).asBool());
 
     outgoing_port = (params.count("port") ? strtol(params.at("port").c_str(), 0, 0) : 0);
 
@@ -332,14 +422,11 @@ namespace Socket{
 
   int SRTConnection::postConfigureSocket(){
     bool no = false;
-    if (srt_setsockopt(sock, 0, (direction == "output" ? SRTO_SNDSYN : SRTO_RCVSYN), &no, sizeof no) == -1){
-      return -1;
-    }
+    if (srt_setsockopt(sock, 0, SRTO_SNDSYN, &no, sizeof no) == -1){return -1;}
+    if (srt_setsockopt(sock, 0, SRTO_RCVSYN, &no, sizeof no) == -1){return -1;}
     if (timeout){
-      if (srt_setsockopt(sock, 0, (direction == "output" ? SRTO_SNDTIMEO : SRTO_RCVTIMEO), &timeout,
-                         sizeof timeout) == -1){
-        return -1;
-      }
+      if (srt_setsockopt(sock, 0, SRTO_SNDTIMEO, &timeout, sizeof timeout) == -1){return -1;}
+      if (srt_setsockopt(sock, 0, SRTO_RCVTIMEO, &timeout, sizeof timeout) == -1){return -1;}
     }
     std::string errMsg = configureSocketLoop(SRT::SockOpt::POST);
     if (errMsg.size()){
@@ -455,15 +542,7 @@ namespace Socket{
       }
     }break;
     case SRT::SockOpt::BOOL:{
-      bool tmp;
-      if (isFalseString(v)){
-        tmp = true;
-      }else if (isTrueString(v)){
-        tmp = true;
-      }else{
-        return false;
-      }
-      val.b = tmp;
+      val.b = JSON::Value(v).asBool();
       val.value = &val.b;
       val.size = sizeof val.b;
     }break;

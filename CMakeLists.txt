@@ -17,6 +17,8 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #For YCM support
 include_directories(${SOURCE_DIR})
 include_directories(${BINARY_DIR} ${BINARY_DIR}/generated)
 
+option(BUILD_SHARED_LIBS "Build the libraries as shared (default = static)")
+
 ########################################
 # Testing - Enable Tests               #
 ########################################
@@ -59,80 +61,88 @@ string(STRIP "${PACKAGE_VERSION_RAW}" PACKAGE_VERSION)
 set(PACKAGE_VERSION \"${PACKAGE_VERSION}\" ) 
 
 ########################################
-# Build Variables - Debug              #
+# Build Variables - Everything else    #
 ########################################
 if (NOT DEBUG)
   set(DEBUG 4)
 endif()
 
-########################################
-# Build Variables - Shared Memory      #
-########################################
-if (NOT DEFINED NOSHM )
+option(NOSHM "Disabled shared memory (falling back to shared temporary files)")
+if (NOT NOSHM)
   add_definitions(-DSHM_ENABLED=1)
+else()
+  message("Shared memory use is turned OFF")
 endif()
-
 
 if (NOT DEFINED FILLER_DATA OR NOT DEFINED SHARED_SECRET OR NOT DEFINED SUPER_SECRET)#LTS
   message(WARNING "Not all LTS variables have been set and this is an LTS build - are you sure about this?")#LTS
 endif()#LTS
 add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
-if (DEFINED GEOIP )
+
+option(GEOIP "Enable GeoIP capabilities (deprecated)")
+if (GEOIP)
   add_definitions(-DGEOIP=1)
+  message("GeoIP is turned ON")
 endif()
-if (DEFINED BIGMETA )
-  add_definitions(-DBIGMETA=1)
-endif()
-if (NOT DEFINED NOSSL )
+
+option(NOSSL "Disable SSL/TLS support")
+if (NOT NOSSL)
   add_definitions(-DSSL=1)
+else()
+  message("SSL/TLS support is turned OFF")
 endif()
+
 if (DEFINED DATASIZE )
   add_definitions(-DSHM_DATASIZE=${DATASIZE})
 endif()
+
 if (DEFINED STAT_CUTOFF )
   add_definitions(-DSTAT_CUTOFF=${STAT_CUTOFF})
 endif()
-if (NOT DEFINED NOUPDATE )
+
+option(NOUPDATE "Disable the updater")
+if (NOT NOUPDATE)
   add_definitions(-DUPDATER=1)
 endif()
-if (NOT DEFINED PERPETUAL )
+
+option(PERPETUAL "Disable the licensing system")
+if (NOT PERPETUAL)
   add_definitions(-DLICENSING=1)
 endif()
-if (DEFINED NOAUTH )
+
+option(NOAUTH "Disable API authentication entirely (insecure!)")
+if (NOAUTH)
   add_definitions(-DNOAUTH=1)
 endif()
-if (DEFINED KILLONEXIT )
+
+option(KILLONEXIT "Kill all processes on exit, ensuring nothing is running anymore (disables rolling restart/update support)")
+if (KILLONEXIT)
   add_definitions(-DKILLONEXIT=true)
 endif()
+
 if (DEFINED UDP_API_HOST )
   add_definitions(-DUDP_API_HOST=${UDP_API_HOST})
 endif()
+
 if (DEFINED UDP_API_PORT )
   add_definitions(-DUDP_API_PORT=${UDP_API_PORT})
 endif()
-if (NOT DEFINED APPNAME )
-  set(APPNAME "MistServer")
-endif()
+
+set(APPNAME "MistServer" CACHE STRING "Name of the application, as used in user agent strings and the like")
 add_definitions(-DAPPNAME="${APPNAME}")
 
-########################################
-# Build Variables - Thread Names       #
-########################################
-if (DEFINED WITH_THREADNAMES )
+option(WITH_THREADNAMES "Enable fancy names for threads (not supported on all platforms)")
+if (WITH_THREADNAMES)
   add_definitions(-DWITH_THREADNAMES=1)
 endif()
 
-########################################
-# Build Variables - No Crash Check     #
-########################################
-if (DEFINED NOCRASHCHECK )
+option(NOCRASHCHECK "Disables the crash check in the controller stats and input userpages. Prevents killing processes that are stalled/stuck.")
+if (NOCRASHCHECK)
   add_definitions(-DNOCRASHCHECK=1)
 endif()
 
-########################################
-# Build Variables - Stats delay overrid#
-########################################
-if (DEFINED STATS_DELAY )
+
+if (DEFINED STATS_DELAY)
   add_definitions(-DSTATS_DELAY=${STATS_DELAY})
 endif()
 
@@ -142,6 +152,20 @@ endif()
 message("Builing release ${RELEASE} for version ${PACKAGE_VERSION} @ debug level ${DEBUG}")
 add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -DDEBUG=${DEBUG} -DPACKAGE_VERSION=${PACKAGE_VERSION} -DRELEASE=${RELEASE})
 add_definitions(-Wall -Wno-sign-compare -Wparentheses)
+
+option(NOSRT "Disable building native SRT support, regardless of library being present (by default SRT is enabled if libraries are installed)")
+if (NOT NOSRT)
+  find_library(SRT_LIB srt)
+  if(SRT_LIB)
+    add_definitions(-DWITH_SRT=1)
+    message("Building with SRT")
+  else()
+    message("Building without native SRT support")
+  endif()
+else()
+  message("Building without native SRT support")
+endif()
+
 
 ########################################
 # MistLib - Header Files               #
@@ -187,7 +211,6 @@ set(libHeaders
   lib/sdp_media.h
   lib/shared_memory.h
   lib/socket.h
-  lib/socket_srt.h
   lib/srtp.h
   lib/stream.h
   lib/stun.h
@@ -207,6 +230,10 @@ set(libHeaders
   lib/url.h
   lib/urireader.h
 )
+
+if(SRT_LIB)
+  list(APPEND libHeaders lib/socket_srt.h)
+endif()
 
 ########################################
 # MistLib - Build                      #
@@ -250,7 +277,6 @@ add_library (mist
   lib/sdp_media.cpp
   lib/shared_memory.cpp
   lib/socket.cpp
-  lib/socket_srt.cpp
   lib/srtp.cpp
   lib/stream.cpp
   lib/stun.cpp
@@ -276,9 +302,8 @@ endif()
 target_link_libraries(mist 
   -lpthread 
   ${LIBRT}
-  -lsrt
 )
-if (NOT DEFINED NOSSL )
+if (NOT NOSSL)
   target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
 endif()
 install(
@@ -289,6 +314,16 @@ install(
   TARGETS mist
   DESTINATION lib
 )
+
+
+if(SRT_LIB)
+  add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
+  target_link_libraries(mist_srt mist srt)
+  install(
+    TARGETS mist_srt
+    DESTINATION lib
+  )
+endif()
 
 ########################################
 # MistLib - Local Header Install       #
@@ -376,7 +411,8 @@ makeUtil(RAX rax)
 makeUtil(AMF amf)
 makeUtil(Certbot certbot)
 makeUtil(Nuke nuke)
-if (DEFINED LOAD_BALANCE )
+option(LOAD_BALANCE "Build the load balancer")
+if (LOAD_BALANCE)
   makeUtil(Load load)
 endif()
 #LTS_END
@@ -400,6 +436,9 @@ macro(makeInput inputName format)
     src/io.cpp
     ${BINARY_DIR}/mist/.headers
   )
+  if (";${ARGN};" MATCHES ";with_srt;")
+    target_link_libraries(MistIn${inputName} mist_srt )
+  endif()
 
   #Set compile definitions
   unset(my_definitions)
@@ -409,9 +448,7 @@ macro(makeInput inputName format)
     PROPERTIES COMPILE_DEFINITIONS "${my_definitions}"
   )
 
-  target_link_libraries(MistIn${inputName} 
-    mist 
-  )
+  target_link_libraries(MistIn${inputName} mist)
   install(
     TARGETS MistIn${inputName} 
     DESTINATION bin
@@ -422,7 +459,8 @@ makeInput(HLS hls)
 makeInput(DTSC dtsc)
 makeInput(MP3 mp3)
 makeInput(FLV flv)
-if (DEFINED WITH_AV )
+option(WITH_AV "Build a generic libav-based input (not distributable!)")
+if (WITH_AV)
   makeInput(AV av)
   target_link_libraries(MistInAV avformat avcodec avutil)
 endif()
@@ -437,9 +475,11 @@ makeInput(Folder folder)#LTS
 makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
-
 makeInput(SRT srt)#LTS
-makeInput(TSSRT tssrt)#LTS
+
+if(SRT_LIB)
+  makeInput(TSSRT tssrt with_srt)#LTS
+endif()
 
 ########################################
 # MistServer - Outputs                 #
@@ -454,7 +494,7 @@ macro(makeOutput outputName format)
       SET(tsBaseClass HTTPOutput)
     endif()
   endif()
-  if (";${ARGN};" MATCHES ";srt;")
+  if (";${ARGN};" MATCHES ";with_srt;")
     SET(outBaseFile src/output/mist_out_srt.cpp)
   endif()
   if (";${ARGN};" MATCHES ";ts;")
@@ -476,9 +516,10 @@ macro(makeOutput outputName format)
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
   )
-  target_link_libraries(MistOut${outputName} 
-    mist 
-  )
+  if (";${ARGN};" MATCHES ";with_srt;")
+    target_link_libraries(MistOut${outputName} mist_srt)
+  endif()
+  target_link_libraries(MistOut${outputName} mist )
   install( 
     TARGETS MistOut${outputName}
     DESTINATION bin
@@ -497,18 +538,20 @@ makeOutput(H264 h264           http)
 makeOutput(HDS hds             http)
 makeOutput(SRT srt             http)
 makeOutput(JSON json           http)
-if (DEFINED WITH_JPG )
-makeOutput(JPG jpg             http jpg)
+option(WITH_JPG "Build JPG thumbnailer output support")
+if (WITH_JPG)
+  makeOutput(JPG jpg             http jpg)
 endif()
 makeOutput(TS ts                    ts)
-makeOutput(TSSRT tssrt              ts srt)
+if(SRT_LIB)
+  makeOutput(TSSRT tssrt              ts with_srt)
+endif()
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
 makeOutput(CMAF cmaf           http)#LTS
 makeOutput(EBML ebml)
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
-makeOutput(WebRTC webrtc http)#LTS
 
 add_executable(MistProcFFMPEG
   ${BINARY_DIR}/mist/.headers
@@ -545,11 +588,13 @@ add_executable(MistProcLivepeer
 )
 target_link_libraries(MistProcLivepeer mist)
 
-if (NOT DEFINED NOSSL )
+if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS
+  makeOutput(WebRTC webrtc http)#LTS
 endif()
 
-if (DEFINED WITH_SANITY )
+option(WITH_SANITY "Enable MistOutSanityCheck output for testing purposes")
+if (WITH_SANITY)
   makeOutput(SanityCheck sanitycheck)#LTS
 endif()
 
@@ -739,7 +784,8 @@ set(lspSOURCES
 )
 
 
-if (NOT DEFINED NOGA )
+option(NOGA "Disables Google Analytics entirely in the LSP")
+if (NOT NOGA)
   list(APPEND lspSOURCES ${SOURCE_DIR}/lsp/analytics.js)
 endif()
 

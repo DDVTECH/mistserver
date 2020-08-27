@@ -33,7 +33,7 @@ namespace Mist{
     void streamMainLoop();
     void finish();
     FILE *inFile;        ///< The input file with ts data
-    Util::ResizeablePointer leftData;
+    TS::Assembler assembler;
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
     Socket::UDPConnection udpCon;
     Socket::Connection tcpCon;

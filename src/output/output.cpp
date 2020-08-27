@@ -1686,9 +1686,7 @@ namespace Mist{
     statComm.setCRC(crc);
     statComm.setStream(streamName);
     statComm.setConnector(getStatsName());
-    statComm.setUp(myConn.dataUp());
-    statComm.setDown(myConn.dataDown());
-    statComm.setTime(now - myConn.connTime());
+    connStats(now, statComm);
     statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
     statComm.setPid(getpid());
 
@@ -1720,6 +1718,12 @@ namespace Mist{
         //}
       }
     }
+  }
+
+  void Output::connStats(uint64_t now, Comms::Statistics &statComm){
+    statComm.setUp(myConn.dataUp());
+    statComm.setDown(myConn.dataDown());
+    statComm.setTime(now - myConn.connTime());
   }
 
   bool Output::dropPushTrack(uint32_t trackId, const std::string & dropReason){

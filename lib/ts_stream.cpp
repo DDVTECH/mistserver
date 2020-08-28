@@ -15,7 +15,7 @@ tthread::recursive_mutex tMutex;
 
 namespace TS{
 
-  bool Assembler::assemble(Stream & TSStrm, char * ptr, size_t len){
+  bool Assembler::assemble(Stream & TSStrm, char * ptr, size_t len, bool parse){
     bool ret = false;
     size_t offset = 0;
     size_t amount = 188-leftData.size();
@@ -26,9 +26,13 @@ namespace TS{
         //Success!
         leftData.append(ptr, amount);
         tsBuf.FromPointer(leftData);
-        TSStrm.add(tsBuf);
-        ret = true;
-        if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
+        if (!ret && tsBuf.getUnitStart()){ret = true;}
+        if (parse){
+          TSStrm.parse(tsBuf, 0);
+        }else{
+          TSStrm.add(tsBuf);
+          if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
+        }
         offset = amount;
         leftData.assign(0,0);
       }
@@ -45,9 +49,13 @@ namespace TS{
         }
         if (offset + 188 <= len){
           tsBuf.FromPointer(ptr + offset);
-          TSStrm.add(tsBuf);
-          if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
-          ret = true;
+          if (!ret && tsBuf.getUnitStart()){ret = true;}
+          if (parse){
+            TSStrm.parse(tsBuf, 0);
+          }else{
+            TSStrm.add(tsBuf);
+            if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
+          }
         }else{
           leftData.assign(ptr + offset, len - offset);
         }
@@ -182,7 +190,7 @@ namespace TS{
     uint32_t tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
     static uint32_t wantPrev = 0;
-    bool wantTrack = ((wantPrev == tid) || (tid == 0 || newPack.isPMT() || pidToCodec.count(tid)));
+    bool wantTrack = ((wantPrev == tid) || (tid == 0 || newPack.isPMT(pmtTracks) || pidToCodec.count(tid)));
     if (!wantTrack){return;}
     if (psCacheTid != tid || !psCache){
       psCache = &(pesStreams[tid]);
@@ -217,14 +225,9 @@ namespace TS{
     // Handle PAT packets
     if (tid == 0){
       ///\todo Keep track of updates in PAT instead of keeping only the last PAT as a reference
-
       associationTable = psCache->back();
-      associationTable.parsePIDs();
       lastPAT = Util::bootSecs();
-
-      size_t pmtCount = associationTable.getProgramCount();
-      for (size_t i = 0; i < pmtCount; i++){pmtTracks.insert(associationTable.getProgramPID(i));}
-
+      associationTable.parsePIDs(pmtTracks);
       pesStreams.erase(0);
       psCacheTid = 0;
       psCache = 0;
@@ -285,7 +288,8 @@ namespace TS{
 
   void Stream::parse(Packet &newPack, uint64_t bytePos){
     add(newPack, bytePos);
-    if (newPack.getUnitStart()){parse(newPack.getPID());}
+    unsigned int pid = newPack.getPID();
+    if (!pid || newPack.getUnitStart()){parse(pid);}
   }
 
   bool Stream::hasPacketOnEachTrack() const{
@@ -335,7 +339,9 @@ namespace TS{
     }
 
     for (std::map<size_t, uint32_t>::const_iterator i = seenUnitStart.begin(); i != seenUnitStart.end(); i++){
-      if (pidToCodec.count(i->first) && i->second > 1){return true;}
+      if (pidToCodec.count(i->first) && i->second > 1){
+        return true;
+      }
     }
 
     return false;
@@ -907,7 +913,21 @@ namespace TS{
       }
     }
 
-    if (packTrack){getPacket(packTrack, pack);}
+    if (packTrack){
+      getPacket(packTrack, pack);
+      return;
+    }
+
+    //Nothing yet...? Let's see if we can parse something.
+    for (std::map<size_t, uint32_t>::const_iterator i = seenUnitStart.begin(); i != seenUnitStart.end(); i++){
+      if (pidToCodec.count(i->first) && i->second > 1){
+        parse(i->first);
+        if (hasPacket(i->first)){
+          getPacket(packTrack, pack);
+          return;
+        }
+      }
+    }
   }
 
   void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){

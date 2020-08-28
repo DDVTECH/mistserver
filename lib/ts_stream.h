@@ -45,7 +45,10 @@ namespace TS{
     void clear();
   };
 
+  class Assembler;
+
   class Stream{
+  friend class Assembler;
   public:
     Stream();
     ~Stream();
@@ -78,6 +81,8 @@ namespace TS{
     ProgramAssociationTable associationTable;
     std::map<size_t, ADTSRemainder> remainders;
 
+    std::set<unsigned int> pmtTracks;
+
     std::map<size_t, uint64_t> lastPMT;
     std::map<size_t, ProgramMappingTable> mappingTable;
 
@@ -102,14 +107,12 @@ namespace TS{
     std::map<size_t, size_t> rolloverCount;
     std::map<size_t, unsigned long long> lastms;
 
-    std::set<size_t> pmtTracks;
-
     void parsePES(size_t tid, bool finished = false);
   };
 
   class Assembler{
   public:
-    bool assemble(Stream & TSStrm, char * ptr, size_t len);
+    bool assemble(Stream & TSStrm, char * ptr, size_t len, bool parse = false);
   private:
     Util::ResizeablePointer leftData;
     TS::Packet tsBuf;

@@ -17,6 +17,8 @@
 /// Holds all TS processing related code.
 namespace TS{
 
+  extern std::map<unsigned int, std::string> stream_pids;
+
   /// Class for reading and writing TS Streams. The class is capable of analyzing a packet of 188
   /// bytes and calculating key values
   class Packet{
@@ -60,7 +62,7 @@ namespace TS{
 
     // Helper functions
     operator bool() const;
-    bool isPMT() const;
+    bool isPMT(const std::set<unsigned int> & pidList) const;
     bool isStream() const;
     void clear();
     void setDefaultPAT();
@@ -82,7 +84,7 @@ namespace TS{
     static std::string &getPESPS1LeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
 
     // Printers and writers
-    std::string toPrettyString(size_t indent = 0, int detailLevel = 3) const;
+    std::string toPrettyString(const std::set<unsigned int> & pidlist, size_t indent = 0, int detailLevel = 3) const;
     const char *getPayload() const;
     int getPayloadLength() const;
     const char *checkAndGetBuffer() const;
@@ -107,7 +109,7 @@ namespace TS{
     short getProgramNumber(short index) const;
     short getProgramPID(short index) const;
     int getCRC() const;
-    void parsePIDs();
+    void parsePIDs(std::set<unsigned int> & pidlist);
     std::string toPrettyString(size_t indent) const;
   };
 

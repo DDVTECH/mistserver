@@ -17,6 +17,9 @@
 #include <string>
 #include <unistd.h>
 
+
+std::set<unsigned int> pmtTracks;
+
 void AnalyserTS::init(Util::Config &conf){
   Analyser::init(conf);
   JSON::Value opt;
@@ -68,13 +71,13 @@ bool AnalyserTS::parsePacket(){
       }
       payloads.erase(packet.getPID());
     }
-    if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs();}
-    if (packet.isPMT()){((TS::ProgramMappingTable *)&packet)->parseStreams();}
+    if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
+    if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
     if ((((detail & 2) && !packet.isStream()) || ((detail & 4) && packet.isStream())) &&
         (!pidOnly || packet.getPID() == pidOnly)){
-      std::cout << packet.toPrettyString(0, detail);
+      std::cout << packet.toPrettyString(pmtTracks, 0, detail);
     }
-    if (packet.getPID() >= 0x10 && !packet.isPMT() && packet.getPID() != 17 &&
+    if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 &&
         (payloads[packet.getPID()].size() || packet.getUnitStart())){
       payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
     }

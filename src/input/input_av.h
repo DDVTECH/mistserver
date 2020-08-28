@@ -23,9 +23,8 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    void getNext();
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
 
   private:
     AVFormatContext *pFormatCtx;

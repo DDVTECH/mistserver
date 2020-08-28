@@ -19,7 +19,7 @@ namespace Mist{
         "redistributed, but it is a great tool for testing the other file-based inputs against.";
     capa["source_match"] = "/*";
     capa["source_file"] = "$source";
-    capa["priority"] = 1ll;
+    capa["priority"] = 1;
     capa["codecs"][0u][0u].null();
     capa["codecs"][0u][1u].null();
     capa["codecs"][0u][2u].null();
@@ -88,52 +88,52 @@ namespace Mist{
   }
 
   bool inputAV::readHeader(){
-    myMeta.tracks.clear();
     for (unsigned int i = 0; i < pFormatCtx->nb_streams;){
       AVStream *strm = pFormatCtx->streams[i++];
-      myMeta.tracks[i].trackID = i;
+      size_t idx = meta.addTrack();
+      meta.setID(idx, i);
       switch (strm->codecpar->codec_id){
-      case AV_CODEC_ID_HEVC: myMeta.tracks[i].codec = "HEVC"; break;
+      case AV_CODEC_ID_HEVC: meta.setCodec(idx, "HEVC"); break;
       case AV_CODEC_ID_MPEG1VIDEO:
-      case AV_CODEC_ID_MPEG2VIDEO: myMeta.tracks[i].codec = "MPEG2"; break;
-      case AV_CODEC_ID_MP2: myMeta.tracks[i].codec = "MP2"; break;
-      case AV_CODEC_ID_H264: myMeta.tracks[i].codec = "H264"; break;
-      case AV_CODEC_ID_THEORA: myMeta.tracks[i].codec = "theora"; break;
-      case AV_CODEC_ID_VORBIS: myMeta.tracks[i].codec = "vorbis"; break;
-      case AV_CODEC_ID_OPUS: myMeta.tracks[i].codec = "opus"; break;
-      case AV_CODEC_ID_VP8: myMeta.tracks[i].codec = "VP8"; break;
-      case AV_CODEC_ID_VP9: myMeta.tracks[i].codec = "VP9"; break;
-      case AV_CODEC_ID_AAC: myMeta.tracks[i].codec = "AAC"; break;
-      case AV_CODEC_ID_MP3: myMeta.tracks[i].codec = "MP3"; break;
+      case AV_CODEC_ID_MPEG2VIDEO: meta.setCodec(idx, "MPEG2"); break;
+      case AV_CODEC_ID_MP2: meta.setCodec(idx, "MP2"); break;
+      case AV_CODEC_ID_H264: meta.setCodec(idx, "H264"); break;
+      case AV_CODEC_ID_THEORA: meta.setCodec(idx, "theora"); break;
+      case AV_CODEC_ID_VORBIS: meta.setCodec(idx, "vorbis"); break;
+      case AV_CODEC_ID_OPUS: meta.setCodec(idx, "opus"); break;
+      case AV_CODEC_ID_VP8: meta.setCodec(idx, "VP8"); break;
+      case AV_CODEC_ID_VP9: meta.setCodec(idx, "VP9"); break;
+      case AV_CODEC_ID_AAC: meta.setCodec(idx, "AAC"); break;
+      case AV_CODEC_ID_MP3: meta.setCodec(idx, "MP3"); break;
       case AV_CODEC_ID_AC3:
-      case AV_CODEC_ID_EAC3: myMeta.tracks[i].codec = "AC3"; break;
+      case AV_CODEC_ID_EAC3: meta.setCodec(idx, "AC3"); break;
       default:
         const AVCodecDescriptor *desc = avcodec_descriptor_get(strm->codecpar->codec_id);
         if (desc && desc->name){
-          myMeta.tracks[i].codec = desc->name;
+          meta.setCodec(idx, desc->name);
         }else{
-          myMeta.tracks[i].codec = "?";
+          meta.setCodec(idx, "?");
         }
         break;
       }
       if (strm->codecpar->extradata_size){
-        myMeta.tracks[i].init = std::string((char *)strm->codecpar->extradata, strm->codecpar->extradata_size);
+        meta.setInit(idx, std::string((char *)strm->codecpar->extradata, strm->codecpar->extradata_size));
       }
       if (strm->codecpar->codec_type == AVMEDIA_TYPE_VIDEO){
-        myMeta.tracks[i].type = "video";
+        meta.setType(idx, "video");
         if (strm->avg_frame_rate.den && strm->avg_frame_rate.num){
-          myMeta.tracks[i].fpks = (strm->avg_frame_rate.num * 1000) / strm->avg_frame_rate.den;
+          meta.setFpks(idx, (strm->avg_frame_rate.num * 1000) / strm->avg_frame_rate.den);
         }else{
-          myMeta.tracks[i].fpks = 0;
+          meta.setFpks(idx, 0);
         }
-        myMeta.tracks[i].width = strm->codecpar->width;
-        myMeta.tracks[i].height = strm->codecpar->height;
+        meta.setWidth(idx, strm->codecpar->width);
+        meta.setHeight(idx, strm->codecpar->height);
       }
       if (strm->codecpar->codec_type == AVMEDIA_TYPE_AUDIO){
-        myMeta.tracks[i].type = "audio";
-        myMeta.tracks[i].rate = strm->codecpar->sample_rate;
-        myMeta.tracks[i].size = strm->codecpar->frame_size;
-        myMeta.tracks[i].channels = strm->codecpar->channels;
+        meta.setType(idx, "audio");
+        meta.setRate(idx, strm->codecpar->sample_rate);
+        meta.setSize(idx, strm->codecpar->frame_size);
+        meta.setChannels(idx, strm->codecpar->channels);
       }
     }
 
@@ -144,27 +144,27 @@ namespace Mist{
       long long packOffset = 0;
       bool isKey = false;
       if (packTime < 0){packTime = 0;}
-      if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
+      size_t idx = meta.trackIDToIndex(packet.stream_index + 1);
+      if (packet.flags & AV_PKT_FLAG_KEY && M.getType(idx) != "audio"){
         isKey = true;
       }
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
         packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
-      myMeta.update(packTime, packOffset, packet.stream_index + 1, packet.size, packet.pos, isKey);
+      meta.update(packTime, packOffset, packet.stream_index + 1, packet.size, packet.pos, isKey);
       av_packet_unref(&packet);
     }
-
-    myMeta.toFile(config->getString("input") + ".dtsh");
-
-    seek(0);
     return true;
   }
 
-  void inputAV::getNext(){
+  void inputAV::getNext(size_t wantIdx){
     AVPacket packet;
     while (av_read_frame(pFormatCtx, &packet) >= 0){
       // filter tracks we don't care about
-      if (!selectedTracks.count(packet.stream_index + 1)){
+      size_t idx = meta.trackIDToIndex(packet.stream_index + 1);
+      if (idx == INVALID_TRACK_ID){continue;}
+      if (wantIdx != INVALID_TRACK_ID && idx != wantIdx){continue;}
+      if (!userSelect.count(idx)){
         HIGH_MSG("Track %u not selected", packet.stream_index + 1);
         continue;
       }
@@ -173,7 +173,7 @@ namespace Mist{
       long long packOffset = 0;
       bool isKey = false;
       if (packTime < 0){packTime = 0;}
-      if (packet.flags & AV_PKT_FLAG_KEY && myMeta.tracks[(long long)packet.stream_index + 1].type != "audio"){
+      if (packet.flags & AV_PKT_FLAG_KEY && M.getType(idx) != "audio"){
         isKey = true;
       }
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
@@ -190,7 +190,7 @@ namespace Mist{
     FAIL_MSG("getNext failed");
   }
 
-  void inputAV::seek(int seekTime){
+  void inputAV::seek(uint64_t seekTime, size_t idx){
     int stream_index = av_find_default_stream_index(pFormatCtx);
     // Convert ts to frame
     unsigned long long reseekTime =
@@ -206,18 +206,4 @@ namespace Mist{
     if (ret < 0){ret = av_seek_frame(pFormatCtx, stream_index, reseekTime, AVSEEK_FLAG_ANY);}
   }
 
-  void inputAV::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    long long unsigned int index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
-    }
-    // inFile.selectTracks(selectedTracks);
-  }
 }// namespace Mist

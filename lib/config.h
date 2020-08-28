@@ -14,8 +14,9 @@
 /// Contains utility code, not directly related to streaming media
 namespace Util{
   extern uint32_t printDebugLevel;
-  extern std::string streamName; ///< Used by debug messages to identify the stream name
-  extern char exitReason[256];
+  extern __thread char streamName[256]; ///< Used by debug messages to identify the stream name
+  void setStreamName(const std::string & sn);
+  extern __thread char exitReason[256];
   void logExitReason(const char *format, ...);
 
   /// Deals with parsing configuration from commandline options.

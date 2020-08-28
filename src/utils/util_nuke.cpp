@@ -4,6 +4,7 @@
 #include <mist/stream.h>
 #include <mist/procs.h>
 #include <mist/comms.h>
+#include <mist/config.h>
 
 const char * getStateString(uint8_t state){
   switch (state){
@@ -21,7 +22,7 @@ const char * getStateString(uint8_t state){
 /// Gets a PID from a shared memory page, if it exists
 uint64_t getPidFromPage(const char * pagePattern){
   char pageName[NAME_BUFFER_SIZE];
-  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName.c_str());
+  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName);
   IPC::sharedPage pidPage(pageName, 8, false, false);
   if (pidPage){
     return *(uint64_t*)(pidPage.mapped);
@@ -32,7 +33,7 @@ uint64_t getPidFromPage(const char * pagePattern){
 /// Deletes a shared memory page, if it exists
 void nukePage(const char * pagePattern){
   char pageName[NAME_BUFFER_SIZE];
-  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName.c_str());
+  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName);
   IPC::sharedPage page(pageName, 0, false, false);
   page.master = true;
 }
@@ -40,7 +41,7 @@ void nukePage(const char * pagePattern){
 /// Deletes a semaphore, if it exists
 void nukeSem(const char * pagePattern){
   char pageName[NAME_BUFFER_SIZE];
-  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName.c_str());
+  snprintf(pageName, NAME_BUFFER_SIZE, pagePattern, Util::streamName);
   IPC::semaphore sem(pageName, O_RDWR, ACCESSPERMS, 0, true);
   if (sem){sem.unlink();}
 }
@@ -51,7 +52,7 @@ int main(int argc, char **argv){
     FAIL_MSG("Usage: %s STREAM_NAME", argv[0]);
     return 1;
   }
-  Util::streamName = argv[1];
+  Util::setStreamName(argv[1]);
   uint8_t state = Util::getStreamStatus(Util::streamName);
   INFO_MSG("Current stream status: %s", getStateString(state));
   size_t loops = 0;
@@ -73,7 +74,7 @@ int main(int argc, char **argv){
   // Scoping to clear up metadata and track providers
   {
     char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, Util::streamName.c_str());
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, Util::streamName);
     IPC::sharedPage streamPage(pageName, 0, false, false);
     if (streamPage.mapped){
       streamPage.master = true;
@@ -98,7 +99,7 @@ int main(int argc, char **argv){
                   for (uint64_t j = pages.getDeleted(); j < pages.getEndPos(); j++){
                     char thisPageName[NAME_BUFFER_SIZE];
                     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA,
-                             Util::streamName.c_str(), i, pages.getInt("firstkey", j));
+                             Util::streamName, i, pages.getInt("firstkey", j));
                     IPC::sharedPage p(thisPageName, 0);
                     p.master = true;
                   }

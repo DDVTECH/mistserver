@@ -30,6 +30,7 @@
 #include <iostream>
 #include <pwd.h>
 #include <signal.h>
+#include <string.h>
 #include <stdarg.h> // for va_list
 #include <stdlib.h>
 #include <sys/types.h>
@@ -39,8 +40,13 @@ bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::printDebugLevel = DEBUG;
-std::string Util::streamName;
-char Util::exitReason[256] ={0};
+__thread char Util::streamName[256] = {0};
+__thread char Util::exitReason[256] ={0};
+
+
+void Util::setStreamName(const std::string & sn){
+  strncpy(Util::streamName, sn.c_str(), 256);
+}
 
 void Util::logExitReason(const char *format, ...){
   if (exitReason[0]){return;}

@@ -828,11 +828,11 @@ namespace Mist{
         if (streamName.find('?') != std::string::npos){
           std::string tmpVars = streamName.substr(streamName.find('?') + 1);
           streamName = streamName.substr(0, streamName.find('?'));
-          Util::streamName = streamName;
+          Util::setStreamName(streamName);
           HTTP::parseVars(tmpVars, targetParams);
         }
 
-        Util::streamName = streamName;
+        Util::setStreamName(streamName);
         reqUrl += "/" + streamName; // LTS
 
         /*LTS-START*/
@@ -850,17 +850,17 @@ namespace Mist{
           size_t lSlash = newUrl.rfind('/');
           if (lSlash != std::string::npos){
             streamName = newUrl.substr(lSlash + 1);
-            Util::streamName = streamName;
+            Util::setStreamName(streamName);
           }else{
             streamName = newUrl;
-            Util::streamName = streamName;
+            Util::setStreamName(streamName);
           }
         }
         /*LTS-END*/
 
         if (streamName.find('/')){
           streamName = streamName.substr(0, streamName.find('/'));
-          Util::streamName = streamName;
+          Util::setStreamName(streamName);
         }
 
         size_t colonPos = streamName.find(':');
@@ -871,7 +871,7 @@ namespace Mist{
           }else{
             streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
           }
-          Util::streamName = streamName;
+          Util::setStreamName(streamName);
         }
 
         Util::sanitizeName(streamName);
@@ -941,14 +941,14 @@ namespace Mist{
       int8_t playMessageType = messageType;
       int32_t playStreamId = streamId;
       streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
-      Util::streamName = streamName;
+      Util::setStreamName(streamName);
       reqUrl += "/" + streamName; // LTS
 
       // handle variables
       if (streamName.find('?') != std::string::npos){
         std::string tmpVars = streamName.substr(streamName.find('?') + 1);
         streamName = streamName.substr(0, streamName.find('?'));
-        Util::streamName = streamName;
+        Util::setStreamName(streamName);
         HTTP::parseVars(tmpVars, targetParams);
       }
 
@@ -960,7 +960,7 @@ namespace Mist{
         }else{
           streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
         }
-        Util::streamName = streamName;
+        Util::setStreamName(streamName);
       }
       Util::sanitizeName(streamName);
 

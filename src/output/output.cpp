@@ -87,7 +87,7 @@ namespace Mist{
     // If we have a streamname option, set internal streamname to that option
     if (!streamName.size() && config->hasOption("streamname")){
       streamName = config->getString("streamname");
-      Util::streamName = streamName;
+      Util::setStreamName(streamName);
     }
 
     /*LTS-START*/
@@ -327,7 +327,7 @@ namespace Mist{
         JSON::Value strCnf = Util::getStreamConfig(streamName);
         if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
           streamName = strCnf["fallback_stream"].asStringRef();
-          Util::streamName = streamName;
+          Util::setStreamName(streamName);
           INFO_MSG("Switching to configured fallback stream '%s'", streamName.c_str());
           reconnect();
           return;
@@ -358,7 +358,7 @@ namespace Mist{
                  newStrm.c_str());
         std::string origStream = streamName;
         streamName = newStrm;
-        Util::streamName = streamName;
+        Util::setStreamName(streamName);
         if (!Util::startInput(streamName, "", true, isPushing())){
           onFail("Stream open failed (fallback stream for '" + origStream + "')", true);
           return;

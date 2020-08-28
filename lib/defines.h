@@ -32,7 +32,7 @@
 //Declare as extern so we don't have to include the whole config.h header
 namespace Util{
   extern uint32_t printDebugLevel;
-  extern std::string streamName;
+  extern __thread char streamName[256];
 }
 
 static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "INFO",    "MEDIUM",
@@ -53,13 +53,13 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #define DEBUG_MSG(lvl, msg, ...)                                                                     \
   if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, \
-            getpid(), __FILE__, __LINE__, Util::streamName.c_str(), ##__VA_ARGS__);          \
+            getpid(), __FILE__, __LINE__, Util::streamName, ##__VA_ARGS__);          \
   }
 #else
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
   if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name,    \
-            getpid(), Util::streamName.c_str(), ##__VA_ARGS__);                            \
+            getpid(), Util::streamName, ##__VA_ARGS__);                            \
   }
 #endif
 #else
@@ -67,13 +67,13 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
   if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|MistProcess|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, \
-            __LINE__, Util::streamName.c_str(), ##__VA_ARGS__);                            \
+            __LINE__, Util::streamName, ##__VA_ARGS__);                            \
   }
 #else
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
   if (Util::printDebugLevel >= lvl){\
     fprintf(stderr, "%s|MistProcess|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(),                \
-            Util::streamName.c_str(), ##__VA_ARGS__);                                      \
+            Util::streamName, ##__VA_ARGS__);                                      \
   }
 #endif
 #endif

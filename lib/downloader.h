@@ -67,6 +67,7 @@ namespace HTTP{
     HTTP::URL nbLink;
     uint8_t nbMaxRecursiveDepth;
     uint64_t nbReqTime;
+    uint64_t nbLastOff;
   };
 
 }// namespace HTTP

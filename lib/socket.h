@@ -88,9 +88,7 @@ namespace Socket{
     long long int conntime;
     Buffer downbuffer;                                ///< Stores temporary data coming in.
     int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
-    unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
     bool iread(Buffer &buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
-    bool iwrite(std::string &buffer); ///< Write call that is compatible with std::string.
     void setBoundAddr();
 
   protected:
@@ -151,6 +149,9 @@ namespace Socket{
                  size_t len); ///< Will not buffer anything but always send right away. Blocks.
     void skipBytes(uint32_t byteCount);
     uint32_t skipCount;
+    // unbuffered i/o methods
+    unsigned int iwrite(const void *buffer, int len); ///< Incremental write call.
+    bool iwrite(std::string &buffer); ///< Write call that is compatible with std::string.
     // stats related methods
     unsigned int connTime(); ///< Returns the time this socket has been connected.
     uint64_t dataUp();       ///< Returns total amount of bytes sent.

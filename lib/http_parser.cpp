@@ -186,7 +186,7 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
     }
     builder += "\r\n";
     if (reqbodyLen){
-      builder += std::string((char *)reqbody, reqbodyLen);
+      if (reqbody){builder += std::string((char *)reqbody, reqbodyLen);}
     }else{
       builder += body;
     }
@@ -206,7 +206,7 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
   }
   conn.SendNow("\r\n", 2);
   if (reqbodyLen){
-    conn.SendNow((char *)reqbody, reqbodyLen);
+    if (reqbody){conn.SendNow((char *)reqbody, reqbodyLen);}
   }else{
     conn.SendNow(body);
   }

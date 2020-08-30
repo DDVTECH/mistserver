@@ -969,6 +969,7 @@ namespace DTSC{
     streamInit();
 
     setVod(src.hasMember("vod") && src.getMember("vod").asInt());
+    setLive(src.hasMember("live") && src.getMember("live").asInt());
 
     version = src.getMember("version").asInt();
 
@@ -978,98 +979,108 @@ namespace DTSC{
 
     size_t tNum = src.getMember("tracks").getSize();
     for (int i = 0; i < tNum; i++){
-      DTSC::Scan trak = src.getMember("tracks").getIndice(i);
+      addTrackFrom(src.getMember("tracks").getIndice(i));
+    }
+  }
 
-      char *fragStor;
-      char *keyStor;
-      char *partStor;
-      char *keySizeStor;
-      size_t fragLen;
-      size_t keyLen;
-      size_t partLen;
-      size_t keySizeLen;
+  void Meta::addTrackFrom(const DTSC::Scan &trak){
+    char *fragStor = 0;
+    char *keyStor = 0;
+    char *partStor = 0;
+    char *keySizeStor = 0;
+    size_t fragLen = 0;
+    size_t keyLen = 0;
+    size_t partLen = 0;
+    size_t keySizeLen = 0;
+    uint32_t fragCount = DEFAULT_FRAGMENT_COUNT;
+    uint32_t keyCount  = DEFAULT_KEY_COUNT;
+    uint32_t partCount = DEFAULT_PART_COUNT;
+
+    if (trak.hasMember("fragments") && trak.hasMember("keys") && trak.hasMember("parts") && trak.hasMember("keysizes")){
       trak.getMember("fragments").getString(fragStor, fragLen);
       trak.getMember("keys").getString(keyStor, keyLen);
       trak.getMember("parts").getString(partStor, partLen);
       trak.getMember("keysizes").getString(keySizeStor, keySizeLen);
-      uint32_t fragCount = fragLen / DTSH_FRAGMENT_SIZE;
-      uint32_t keyCount = keyLen / DTSH_KEY_SIZE;
-      uint32_t partCount = partLen / DTSH_PART_SIZE;
-      size_t tIdx = addTrack(fragCount ? fragCount : DEFAULT_FRAGMENT_COUNT, keyCount ? keyCount : DEFAULT_KEY_COUNT,
-                             partCount ? partCount : DEFAULT_PART_COUNT);
-
-      setType(tIdx, trak.getMember("type").asString());
-      setCodec(tIdx, trak.getMember("codec").asString());
-      setInit(tIdx, trak.getMember("init").asString());
-      setID(tIdx, trak.getMember("trackid").asInt());
-      setFirstms(tIdx, trak.getMember("firstms").asInt());
-      setLastms(tIdx, trak.getMember("lastms").asInt());
-      setBps(tIdx, trak.getMember("bps").asInt());
-      setMaxBps(tIdx, trak.getMember("maxbps").asInt());
-      setSourceTrack(tIdx, INVALID_TRACK_ID);
-      if (trak.getMember("type").asString() == "video"){
-        setWidth(tIdx, trak.getMember("width").asInt());
-        setHeight(tIdx, trak.getMember("height").asInt());
-        setFpks(tIdx, trak.getMember("fpks").asInt());
-
-      }else if (trak.getMember("type").asString() == "audio"){
-        // rate channels size
-        setRate(tIdx, trak.getMember("rate").asInt());
-        setChannels(tIdx, trak.getMember("channels").asInt());
-        setSize(tIdx, trak.getMember("size").asInt());
-      }
-
-      Track &s = tracks[tIdx];
-
-      s.fragments.addRecords(fragCount);
-      uint64_t *vals = (uint64_t *)malloc(4 * fragCount * sizeof(uint64_t));
-      for (int i = 0; i < fragCount; i++){
-        char *ptr = fragStor + (i * DTSH_FRAGMENT_SIZE);
-        vals[i] = Bit::btohl(ptr);
-        vals[fragCount + i] = ptr[4];
-        vals[(2 * fragCount) + i] = Bit::btohl(ptr + 5) - 1;
-        vals[(3 * fragCount) + i] = Bit::btohl(ptr + 9);
-      }
-      s.fragments.setInts("duration", vals, fragCount);
-      s.fragments.setInts("keys", vals + fragCount, fragCount);
-      s.fragments.setInts("firstkey", vals + (2 * fragCount), fragCount);
-      s.fragments.setInts("size", vals + (3 * fragCount), fragCount);
-
-      vals = (uint64_t *)realloc(vals, 7 * keyCount * sizeof(uint64_t));
-      s.keys.addRecords(keyCount);
-      uint64_t totalPartCount = 0;
-      for (int i = 0; i < keyCount; i++){
-        char *ptr = keyStor + (i * DTSH_KEY_SIZE);
-        vals[i] = Bit::btohll(ptr);
-        vals[keyCount + i] = Bit::btoh24(ptr + 8);
-        vals[(2 * keyCount) + i] = Bit::btohl(ptr + 11);
-        vals[(3 * keyCount) + i] = Bit::btohs(ptr + 15);
-        vals[(4 * keyCount) + i] = Bit::btohll(ptr + 17);
-        vals[(5 * keyCount) + i] = Bit::btohl(keySizeStor + (i * 4)); // NOT WITH ptr!!
-        vals[(6 * keyCount) + i] = totalPartCount;
-        totalPartCount += vals[(3 * keyCount) + i];
-      }
-      s.keys.setInts("bpos", vals, keyCount);
-      s.keys.setInts("duration", vals + keyCount, keyCount);
-      s.keys.setInts("number", vals + (2 * keyCount), keyCount);
-      s.keys.setInts("parts", vals + (3 * keyCount), keyCount);
-      s.keys.setInts("time", vals + (4 * keyCount), keyCount);
-      s.keys.setInts("size", vals + (5 * keyCount), keyCount);
-      s.keys.setInts("firstpart", vals + (6 * keyCount), keyCount);
-
-      vals = (uint64_t *)realloc(vals, 3 * partCount * sizeof(uint64_t));
-      s.parts.addRecords(partCount);
-      for (int i = 0; i < partCount; i++){
-        char *ptr = partStor + (i * DTSH_PART_SIZE);
-        vals[i] = Bit::btoh24(ptr);
-        vals[partCount + i] = Bit::btoh24(ptr + 3);
-        vals[(2 * partCount) + i] = Bit::btoh24(ptr + 6);
-      }
-      s.parts.setInts("size", vals, partCount);
-      s.parts.setInts("duration", vals + partCount, partCount);
-      s.parts.setInts("offset", vals + (2 * partCount), partCount);
-      free(vals);
+      fragCount = fragLen / DTSH_FRAGMENT_SIZE;
+      keyCount = keyLen / DTSH_KEY_SIZE;
+      partCount = partLen / DTSH_PART_SIZE;
     }
+    size_t tIdx = addTrack(fragCount, keyCount, partCount);
+
+    setType(tIdx, trak.getMember("type").asString());
+    setCodec(tIdx, trak.getMember("codec").asString());
+    setInit(tIdx, trak.getMember("init").asString());
+    setID(tIdx, trak.getMember("trackid").asInt());
+    setFirstms(tIdx, trak.getMember("firstms").asInt());
+    setLastms(tIdx, trak.getMember("lastms").asInt());
+    setBps(tIdx, trak.getMember("bps").asInt());
+    setMaxBps(tIdx, trak.getMember("maxbps").asInt());
+    setSourceTrack(tIdx, INVALID_TRACK_ID);
+    if (trak.getMember("type").asString() == "video"){
+      setWidth(tIdx, trak.getMember("width").asInt());
+      setHeight(tIdx, trak.getMember("height").asInt());
+      setFpks(tIdx, trak.getMember("fpks").asInt());
+
+    }else if (trak.getMember("type").asString() == "audio"){
+      // rate channels size
+      setRate(tIdx, trak.getMember("rate").asInt());
+      setChannels(tIdx, trak.getMember("channels").asInt());
+      setSize(tIdx, trak.getMember("size").asInt());
+    }
+
+    //Do not parse any of the more complex data, if any of it is missing.
+    if (!fragLen || !keyLen || !partLen || !keySizeLen){return;}
+
+    //Ok, we have data, let's parse it, too.
+    Track &s = tracks[tIdx];
+    s.fragments.addRecords(fragCount);
+    uint64_t *vals = (uint64_t *)malloc(4 * fragCount * sizeof(uint64_t));
+    for (int i = 0; i < fragCount; i++){
+      char *ptr = fragStor + (i * DTSH_FRAGMENT_SIZE);
+      vals[i] = Bit::btohl(ptr);
+      vals[fragCount + i] = ptr[4];
+      vals[(2 * fragCount) + i] = Bit::btohl(ptr + 5) - 1;
+      vals[(3 * fragCount) + i] = Bit::btohl(ptr + 9);
+    }
+    s.fragments.setInts("duration", vals, fragCount);
+    s.fragments.setInts("keys", vals + fragCount, fragCount);
+    s.fragments.setInts("firstkey", vals + (2 * fragCount), fragCount);
+    s.fragments.setInts("size", vals + (3 * fragCount), fragCount);
+
+    vals = (uint64_t *)realloc(vals, 7 * keyCount * sizeof(uint64_t));
+    s.keys.addRecords(keyCount);
+    uint64_t totalPartCount = 0;
+    for (int i = 0; i < keyCount; i++){
+      char *ptr = keyStor + (i * DTSH_KEY_SIZE);
+      vals[i] = Bit::btohll(ptr);
+      vals[keyCount + i] = Bit::btoh24(ptr + 8);
+      vals[(2 * keyCount) + i] = Bit::btohl(ptr + 11);
+      vals[(3 * keyCount) + i] = Bit::btohs(ptr + 15);
+      vals[(4 * keyCount) + i] = Bit::btohll(ptr + 17);
+      vals[(5 * keyCount) + i] = Bit::btohl(keySizeStor + (i * 4)); // NOT WITH ptr!!
+      vals[(6 * keyCount) + i] = totalPartCount;
+      totalPartCount += vals[(3 * keyCount) + i];
+    }
+    s.keys.setInts("bpos", vals, keyCount);
+    s.keys.setInts("duration", vals + keyCount, keyCount);
+    s.keys.setInts("number", vals + (2 * keyCount), keyCount);
+    s.keys.setInts("parts", vals + (3 * keyCount), keyCount);
+    s.keys.setInts("time", vals + (4 * keyCount), keyCount);
+    s.keys.setInts("size", vals + (5 * keyCount), keyCount);
+    s.keys.setInts("firstpart", vals + (6 * keyCount), keyCount);
+
+    vals = (uint64_t *)realloc(vals, 3 * partCount * sizeof(uint64_t));
+    s.parts.addRecords(partCount);
+    for (int i = 0; i < partCount; i++){
+      char *ptr = partStor + (i * DTSH_PART_SIZE);
+      vals[i] = Bit::btoh24(ptr);
+      vals[partCount + i] = Bit::btoh24(ptr + 3);
+      vals[(2 * partCount) + i] = Bit::btoh24(ptr + 6);
+    }
+    s.parts.setInts("size", vals, partCount);
+    s.parts.setInts("duration", vals + partCount, partCount);
+    s.parts.setInts("offset", vals + (2 * partCount), partCount);
+    free(vals);
   }
 
   /// Simply calls clear()
@@ -2428,7 +2439,9 @@ namespace DTSC{
 
   ///\brief Determines the "packed" size of a Meta object
   uint64_t Meta::getSendLen(bool skipDynamic, std::set<size_t> selectedTracks) const{
-    uint64_t dataLen = 48; // + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
+    uint64_t dataLen = 34; // + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
+    if (getVod()){dataLen += 14;}
+    if (getLive()){dataLen += 15;}
     for (std::map<size_t, Track>::const_iterator it = tracks.begin(); it != tracks.end(); it++){
       if (!it->second.parts.getPresent()){continue;}
       if (!selectedTracks.size() || selectedTracks.count(it->first)){
@@ -2500,7 +2513,8 @@ namespace DTSC{
     oFile.write(DTSC::Magic_Header, 4);
     oFile.write(c32(lVarSize + getSendLen() - 8), 4);
     oFile.write("\340", 1);
-    oFile.write("\000\003vod\001\000\000\000\000\000\000\000\001", 14);
+    if (getVod()){oFile.write("\000\003vod\001\000\000\000\000\000\000\000\001", 14);}
+    if (getLive()){oFile.write("\000\004live\001\000\000\000\000\000\000\000\001", 15);}
     oFile.write("\000\007version\001", 10);
     oFile.write(c64(DTSH_VERSION), 8);
     if (lVarSize){
@@ -2683,7 +2697,8 @@ namespace DTSC{
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(c32(getSendLen(skipDynamic, selectedTracks) - 8), 4);
     conn.SendNow("\340", 1);
-    conn.SendNow("\000\003vod\001\000\000\000\000\000\000\000\001", 14);
+    if (getVod()){conn.SendNow("\000\003vod\001\000\000\000\000\000\000\000\001", 14);}
+    if (getLive()){conn.SendNow("\000\004live\001\000\000\000\000\000\000\000\001", 15);}
     conn.SendNow("\000\007version\001", 10);
     conn.SendNow(c64(DTSH_VERSION), 8);
     conn.SendNow("\000\006tracks\340", 9);

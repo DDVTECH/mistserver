@@ -1,4 +1,5 @@
 #include "output.h"
+#include <mist/url.h>
 
 namespace Mist{
 
@@ -11,6 +12,7 @@ namespace Mist{
     void sendNext();
     void sendHeader();
     void initialSeek();
+    static bool listenMode(){return !(config->getString("target").size());}
     void onFail(const std::string &msg, bool critical = false);
     void stats(bool force = false);
     void sendCmd(const JSON::Value &data);
@@ -20,6 +22,7 @@ namespace Mist{
     unsigned int lastActive; ///< Time of last sending of data.
     std::string getStatsName();
     std::string salt;
+    HTTP::URL pushUrl;
     void handlePush(DTSC::Scan &dScan);
     void handlePlay(DTSC::Scan &dScan);
   };

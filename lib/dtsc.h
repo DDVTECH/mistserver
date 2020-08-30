@@ -278,6 +278,7 @@ namespace DTSC{
     void reInit(const std::string &_streamName, bool master = true);
     void reInit(const std::string &_streamName, const std::string &fileName);
     void reInit(const std::string &_streamName, const DTSC::Scan &src);
+    void addTrackFrom(const DTSC::Scan &src);
 
     void refresh();
 

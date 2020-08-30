@@ -6,12 +6,49 @@
 #include <mist/defines.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/http_parser.h>
 #include <sys/stat.h>
 
 namespace Mist{
   OutDTSC::OutDTSC(Socket::Connection &conn) : Output(conn){
-    setBlocking(true);
     JSON::Value prep;
+    if (config->getString("target").size()){
+      streamName = config->getString("streamname");
+      pushUrl = HTTP::URL(config->getString("target"));
+      if (pushUrl.protocol != "dtsc"){
+        onFail("Target must start with dtsc://", true);
+        return;
+      }
+
+      if (!pushUrl.path.size()){pushUrl.path = streamName;}
+      INFO_MSG("About to push stream %s out. Host: %s, port: %d, target stream: %s", streamName.c_str(),
+               pushUrl.host.c_str(), pushUrl.getPort(), pushUrl.path.c_str());
+      myConn.close();
+      myConn.Received().clear();
+      myConn.open(pushUrl.host, pushUrl.getPort(), true);
+      initialize();
+      initialSeek();
+      if (!myConn){
+        onFail("Could not start push, aborting", true);
+        return;
+      }
+      prep["cmd"] = "push";
+      prep["version"] = APPIDENT;
+      prep["stream"] = pushUrl.path;
+      std::map<std::string, std::string> args;
+      HTTP::parseVars(pushUrl.args, args);
+      if (args.count("pass")){prep["password"] = args["pass"];}
+      if (args.count("pw")){prep["password"] = args["pw"];}
+      if (args.count("password")){prep["password"] = args["password"];}
+      if (pushUrl.pass.size()){prep["password"] = pushUrl.pass;}
+      sendCmd(prep);
+      wantRequest = true;
+      parseData = true;
+      return;
+    }
+
+
+    setBlocking(true);
     prep["cmd"] = "hi";
     prep["version"] = APPIDENT;
     prep["pack_method"] = 2;
@@ -58,6 +95,19 @@ namespace Mist{
     capa["desc"] = "Real time streaming over DTSC (proprietary protocol for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
+    capa["push_urls"].append("dtsc://*");
+    capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1;
+    opt["help"] = "Target DTSC URL to push out towards.";
+    cfg->addOption("target", opt);
+    cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":"
+                                                  "\"stream\",\"help\":\"The name of the stream to "
+                                                  "push out, when pushing out.\"}"));
+
     cfg->addConnectorOptions(4200, capa);
     config = cfg;
   }
@@ -123,14 +173,9 @@ namespace Mist{
 
   void OutDTSC::sendHeader(){
     sentHeader = true;
-    userSelect.clear();
-    std::set<size_t> validTracks = M.getValidTracks();
     std::set<size_t> selectedTracks;
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-      if (M.getType(*it) == "video" || M.getType(*it) == "audio"){
-        userSelect[*it].reload(streamName, *it);
-        selectedTracks.insert(*it);
-      }
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      selectedTracks.insert(it->first);
     }
     M.send(myConn, true, selectedTracks, true);
     if (M.getLive()){realTime = 0;}
@@ -154,7 +199,7 @@ namespace Mist{
         myConn.Received().remove(8);
         std::string dataPacket = myConn.Received().remove(rSize);
         DTSC::Scan dScan((char *)dataPacket.data(), rSize);
-        INFO_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
+        HIGH_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
         if (dScan.getMember("cmd").asString() == "push"){
           handlePush(dScan);
           continue;
@@ -171,12 +216,16 @@ namespace Mist{
           INFO_MSG("Ok: %s", dScan.getMember("msg").asString().c_str());
           continue;
         }
+        if (dScan.getMember("cmd").asString() == "hi"){
+          INFO_MSG("Connected to server running version %s", dScan.getMember("version").asString().c_str());
+          continue;
+        }
         if (dScan.getMember("cmd").asString() == "error"){
           ERROR_MSG("%s", dScan.getMember("msg").asString().c_str());
           continue;
         }
         if (dScan.getMember("cmd").asString() == "reset"){
-          meta.reInit(streamName);
+          userSelect.clear();
           sendOk("Internal state reset");
           continue;
         }
@@ -192,9 +241,24 @@ namespace Mist{
         if (!myConn.Received().available(8 + rSize)){return;}// abort - not enough data yet
         std::string dataPacket = myConn.Received().remove(8 + rSize);
         DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
-        meta.reInit(streamName, metaPack.getScan());
+        DTSC::Scan metaScan = metaPack.getScan();
+        meta.refresh();
+        size_t prevTracks = meta.getValidTracks().size();
+
+        size_t tNum = metaScan.getMember("tracks").getSize();
+        for (int i = 0; i < tNum; i++){
+          DTSC::Scan trk = metaScan.getMember("tracks").getIndice(i);
+          size_t trackID = trk.getMember("trackid").asInt();
+          if (meta.trackIDToIndex(trackID, getpid()) == INVALID_TRACK_ID){
+            MEDIUM_MSG("Adding track: %s", trk.asJSON().toString().c_str());
+            meta.addTrackFrom(trk);
+          }else{
+            HIGH_MSG("Already had track: %s", trk.asJSON().toString().c_str());
+          }
+        }
+        meta.refresh();
         std::stringstream rep;
-        rep << "DTSC_HEAD received with " << M.getValidTracks().size() << " tracks. Bring on those data packets!";
+        rep << "DTSC_HEAD parsed, we went from " << prevTracks << " to " << meta.getValidTracks().size() << " tracks. Bring on those data packets!";
         sendOk(rep.str());
       }else if (myConn.Received().copy(4) == "DTP2"){
         if (!isPushing()){
@@ -207,11 +271,19 @@ namespace Mist{
         if (!myConn.Received().available(8 + rSize)){return;}// abort - not enough data yet
         std::string dataPacket = myConn.Received().remove(8 + rSize);
         DTSC::Packet inPack(dataPacket.data(), dataPacket.size(), true);
-        if (M.trackIDToIndex(inPack.getTrackId(), getpid()) == INVALID_TRACK_ID){
-          onFail("DTSC_V2 received for a track that was not announced in the DTSC_HEAD!", true);
+        size_t tid = M.trackIDToIndex(inPack.getTrackId(), getpid());
+        if (tid == INVALID_TRACK_ID){
+          //WARN_MSG("Received data for unknown track: %zu", inPack.getTrackId());
+          onFail("DTSC_V2 received for a track that was not announced in a header!", true);
           return;
         }
-        bufferLivePacket(inPack);
+        if (!userSelect.count(tid)){
+          userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE);
+        }
+        char *data;
+        size_t dataLen;
+        inPack.getString("data", data, dataLen);
+        bufferLivePacket(inPack.getTime(), inPack.getInt("offset"), tid, data, dataLen, inPack.getInt("bpos"), inPack.getFlag("keyframe"));
       }else{
         // Invalid
         onFail("Invalid packet header received. Aborting.", true);

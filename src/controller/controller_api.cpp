@@ -968,6 +968,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       }
       WARN_MSG("Shutdown requested through local API: %s", reason.c_str());
       Controller::conf.is_active = false;
+      kill(getpid(), SIGINT);
       Response["shutdown"] = "Shutting down";
     }else{
       Response["shutdown"] = "Ignored - only local users may request shutdown";

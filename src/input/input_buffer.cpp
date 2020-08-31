@@ -751,11 +751,11 @@ namespace Mist{
         argarr[0] = (char *)procname.c_str();
         argarr[1] = (char *)config.c_str();
         argarr[2] = 0;
-        if (Util::Config::printDebugLevel != DEBUG || args.isMember("debug")){
+        if (Util::printDebugLevel != DEBUG || args.isMember("debug")){
           if (args.isMember("debug")){
             debugLvl = args["debug"].asString();
           }else{
-            debugLvl = JSON::Value(Util::Config::printDebugLevel).asString();
+            debugLvl = JSON::Value(Util::printDebugLevel).asString();
           }
           argarr[2] = (char*)"--debug";
           argarr[3] = (char*)debugLvl.c_str();;

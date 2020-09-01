@@ -45,6 +45,7 @@ namespace HTTP{
     Parser &getHTTP();
     Socket::Connection &getSocket();
     const Socket::Connection &getSocket() const;
+    void setSocket(Socket::Connection * socketPtr);
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
     const HTTP::URL &lastURL();
@@ -56,6 +57,7 @@ namespace HTTP{
     uint32_t connectedPort;                          ///< Currently connected port number
     Parser H;                                        ///< HTTP parser for downloader
     Socket::Connection S;                            ///< TCP socket for downloader
+    Socket::Connection * sPtr;                       ///< TCP socket override, when wanting to use an external socket
     bool ssl;                                        ///< True if ssl is currently in use.
     std::string authStr;      ///< Most recently seen WWW-Authenticate request
     std::string proxyAuthStr; ///< Most recently seen Proxy-Authenticate request

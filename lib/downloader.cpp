@@ -12,6 +12,7 @@ namespace HTTP{
     retryCount = 5;
     ssl = false;
     proxied = false;
+    sPtr = 0;
     char *p = getenv("http_proxy");
     if (p){
       proxyUrl = HTTP::URL(p);
@@ -59,16 +60,28 @@ namespace HTTP{
   /// Returns a reference to the internal HTTP class instance.
   Parser &Downloader::getHTTP(){return H;}
 
-  /// Returns a reference to the internal Socket::Connection class instance.
-  Socket::Connection &Downloader::getSocket(){return S;}
-  const Socket::Connection &Downloader::getSocket() const{return S;}
+  /// Returns a reference to the internal Socket::Connection class instance, or the override, if in use.
+  Socket::Connection &Downloader::getSocket(){
+    if (sPtr){return *sPtr;}
+    return S;
+  }
+
+  const Socket::Connection &Downloader::getSocket() const{
+    if (sPtr){return *sPtr;}
+    return S;
+  }
+
+  ///Sets an override to use the given socket
+  void Downloader::setSocket(Socket::Connection * socketPtr){
+    sPtr = socketPtr;
+  }
 
   Downloader::~Downloader(){S.close();}
 
   /// Prepares a request for the given URL, does not send anything
   void Downloader::prepareRequest(const HTTP::URL &link, const std::string &method){
     if (!canRequest(link)){return;}
-    bool needSSL = (link.protocol == "https");
+    bool needSSL = (link.protocol == "https" || link.protocol == "wss");
     H.Clean();
     // Reconnect if needed
     if (!proxied || needSSL){
@@ -78,12 +91,12 @@ namespace HTTP{
         connectedPort = link.getPort();
 #ifdef SSL
         if (needSSL){
-          S.open(connectedHost, connectedPort, true, true);
+          getSocket().open(connectedHost, connectedPort, true, true);
         }else{
-          S.open(connectedHost, connectedPort, true);
+          getSocket().open(connectedHost, connectedPort, true);
         }
 #else
-        S.open(connectedHost, connectedPort, true);
+        getSocket().open(connectedHost, connectedPort, true);
 #endif
       }
     }else{
@@ -91,12 +104,12 @@ namespace HTTP{
         getSocket().close();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
-        S.open(connectedHost, connectedPort, true);
+        getSocket().open(connectedHost, connectedPort, true);
       }
     }
     ssl = needSSL;
     if (!getSocket()){
-      H.method = S.getError();
+      H.method = getSocket().getError();
       return; // socket is closed
     }
     if (proxied && !ssl){
@@ -440,12 +453,12 @@ namespace HTTP{
 
   bool Downloader::canRequest(const HTTP::URL &link){
     if (!link.host.size()){return false;}
-    if (link.protocol != "http" && link.protocol != "https"){
+    if (link.protocol != "http" && link.protocol != "https" && link.protocol != "ws" && link.protocol != "wss"){
       FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
       return false;
     }
 #ifndef SSL
-    if (link.protocol == "https"){
+    if (link.protocol == "https" || link.protocol == "wss"){
       FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
       return false;
     }

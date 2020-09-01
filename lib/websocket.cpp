@@ -3,56 +3,117 @@
 #include "encode.h"
 #include "timing.h"
 #include "websocket.h"
+#include "downloader.h"
 #ifdef SSL
 #include "mbedtls/sha1.h"
 #endif
 
+// Takes the data from a Sec-WebSocket-Key header, and returns the corresponding data for a Sec-WebSocket-Accept header
+static std::string calculateKeyAccept(std::string client_key){
+  client_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  mbedtls_sha1_context ctx;
+  unsigned char outdata[20];
+  mbedtls_sha1_starts(&ctx);
+  mbedtls_sha1_update(&ctx, (const unsigned char *)client_key.data(), client_key.size());
+  mbedtls_sha1_finish(&ctx, outdata);
+  return Encodings::Base64::encode(std::string((const char *)outdata, 20));
+}
+
 namespace HTTP{
 
-  Websocket::Websocket(Socket::Connection &c, HTTP::Parser &h) : C(c), H(h){
+  /// Uses the referenced Socket::Connection to make use of an already connected Websocket.
+  Websocket::Websocket(Socket::Connection &c, bool client) : C(c){
+    maskOut = client;
+  }
+
+  /// Uses the referenced Socket::Connection to make a new Websocket by connecting to the given URL.
+  Websocket::Websocket(Socket::Connection &c, const HTTP::URL & url, std::map<std::string, std::string> * headers) : C(c){
+    HTTP::Downloader d;
+
+    //Ensure our passed socket gets used by the downloader class
+    d.setSocket(&C);
+    
+    //Generate a random nonce based on the current process ID
+    //Note: This is not cryptographically secure, nor intended to be.
+    //It does make it possible to trace which stream came from which PID, if needed.
+    char nonce[16];
+    unsigned int state = getpid();
+    for (size_t i = 0; i < 16; ++i){nonce[i] = rand_r(&state) % 255;}
+    std::string handshakeKey = Encodings::Base64::encode(std::string(nonce, 16));
+
+    //Prepare the headers
+    d.setHeader("Connection", "Upgrade");
+    d.setHeader("Upgrade", "websocket");
+    d.setHeader("Sec-WebSocket-Version", "13");
+    d.setHeader("Sec-WebSocket-Key", handshakeKey);
+    if (headers && headers->size()){
+      for (std::map<std::string, std::string>::iterator it = headers->begin(); it != headers->end(); ++it){
+        d.setHeader(it->first, it->second);
+      }
+    }
+    if (!d.get(url) || d.getStatusCode() != 101 || !d.getHeader("Sec-WebSocket-Accept").size()){
+      FAIL_MSG("Could not connect websocket to %s", url.getUrl().c_str());
+      d.getSocket().close();
+      C = d.getSocket();
+      return;
+    }
+
+#ifdef SSL
+    std::string handshakeAccept = calculateKeyAccept(handshakeKey);
+    if (d.getHeader("Sec-WebSocket-Accept") != handshakeAccept){
+      FAIL_MSG("WebSocket handshake failure: expected accept parameter %s but received %s", handshakeAccept.c_str(), d.getHeader("Sec-WebSocket-Accept").c_str());
+      d.getSocket().close();
+      C = d.getSocket();
+      return;
+    }
+#endif
+   
+    MEDIUM_MSG("Connected to websocket %s", url.getUrl().c_str());
+    maskOut = true;
+  }
+
+  /// Takes an incoming HTTP::Parser request for a Websocket, and turns it into one.
+  Websocket::Websocket(Socket::Connection &c, HTTP::Parser &h) : C(c){
     frameType = 0;
-    std::string connHeader = H.GetHeader("Connection");
+    maskOut = false;
+    std::string connHeader = h.GetHeader("Connection");
     Util::stringToLower(connHeader);
     if (connHeader.find("upgrade") == std::string::npos){
       FAIL_MSG("Could not negotiate websocket, connection header incorrect (%s).", connHeader.c_str());
       C.close();
       return;
     }
-    std::string upgradeHeader = H.GetHeader("Upgrade");
+    std::string upgradeHeader = h.GetHeader("Upgrade");
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){
       FAIL_MSG("Could not negotiate websocket, upgrade header incorrect (%s).", upgradeHeader.c_str());
       C.close();
       return;
     }
-    if (H.GetHeader("Sec-WebSocket-Version") != "13"){
+    if (h.GetHeader("Sec-WebSocket-Version") != "13"){
       FAIL_MSG("Could not negotiate websocket, version incorrect (%s).",
-               H.GetHeader("Sec-WebSocket-Version").c_str());
+               h.GetHeader("Sec-WebSocket-Version").c_str());
       C.close();
       return;
     }
-    std::string client_key = H.GetHeader("Sec-WebSocket-Key");
+#ifdef SSL
+    std::string client_key = h.GetHeader("Sec-WebSocket-Key");
     if (!client_key.size()){
       FAIL_MSG("Could not negotiate websocket, missing key!");
       C.close();
       return;
     }
-    client_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+#endif
 
-    H.Clean();
-    H.setCORSHeaders();
-    H.SetHeader("Upgrade", "websocket");
-    H.SetHeader("Connection", "Upgrade");
+    h.Clean();
+    h.setCORSHeaders();
+    h.SetHeader("Upgrade", "websocket");
+    h.SetHeader("Connection", "Upgrade");
 #ifdef SSL
-    mbedtls_sha1_context ctx;
-    unsigned char outdata[20];
-    mbedtls_sha1_starts(&ctx);
-    mbedtls_sha1_update(&ctx, (const unsigned char *)client_key.data(), client_key.size());
-    mbedtls_sha1_finish(&ctx, outdata);
-    H.SetHeader("Sec-WebSocket-Accept", Encodings::Base64::encode(std::string((const char *)outdata, 20)));
+    h.SetHeader("Sec-WebSocket-Accept", calculateKeyAccept(client_key));
 #endif
     // H.SetHeader("Sec-WebSocket-Protocol", "json");
-    H.SendResponse("101", "Websocket away!", C);
+    h.SendResponse("101", "Websocket away!", C);
   }
 
   /// Loops calling readFrame until the connection is closed, sleeping in between reads if needed.
@@ -138,27 +199,47 @@ namespace HTTP{
     }
   }
 
-  void Websocket::sendFrame(const char *data, unsigned int len, unsigned int frameType){
-    char header[10];
+  void Websocket::sendFrameHead(unsigned int len, unsigned int frameType){
     header[0] = 0x80 + frameType; // FIN + frameType
+    headLen = 2;
     if (len < 126){
       header[1] = len;
-      C.SendNow(header, 2);
     }else{
       if (len <= 0xFFFF){
         header[1] = 126;
         Bit::htobs(header + 2, len);
-        C.SendNow(header, 4);
+        headLen = 4;
       }else{
         header[1] = 127;
         Bit::htobll(header + 2, len);
-        C.SendNow(header, 10);
+        headLen = 10;
       }
     }
-    C.SendNow(data, len);
+    if (maskOut){
+      header[1] |= 128;
+      header[headLen++] = 0;
+      header[headLen++] = 0;
+      header[headLen++] = 0;
+      header[headLen++] = 0;
+    }
+    C.SendNow(header, headLen);
+    dataCtr = 0;
   }
 
-  void Websocket::sendFrame(const std::string &data){sendFrame(data.data(), data.size());}
+  void Websocket::sendFrameData(const char *data, unsigned int len){
+    C.SendNow(data, len);
+    dataCtr += len;
+  }
+
+  void Websocket::sendFrame(const char *data, unsigned int len, unsigned int frameType){
+    sendFrameHead(len, frameType);
+    sendFrameData(data, len);
+  }
+
+  void Websocket::sendFrame(const std::string &data){
+    sendFrameHead(data.size());
+    sendFrameData(data.data(), data.size());
+  }
 
   Websocket::operator bool() const{return C;}
 

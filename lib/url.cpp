@@ -147,10 +147,13 @@ uint32_t HTTP::URL::getPort() const{
 uint32_t HTTP::URL::getDefaultPort() const{
   if (protocol == "http"){return 80;}
   if (protocol == "https"){return 443;}
+  if (protocol == "ws"){return 80;}
+  if (protocol == "wss"){return 443;}
   if (protocol == "rtmp"){return 1935;}
   if (protocol == "rtmps"){return 443;}
   if (protocol == "dtsc"){return 4200;}
   if (protocol == "rtsp"){return 554;}
+  if (protocol == "srt"){return 8889;}
   return 0;
 }
 

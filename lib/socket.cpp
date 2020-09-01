@@ -795,15 +795,19 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     int ret = 0;
     if ((ret = mbedtls_net_connect(server_fd, host.c_str(), JSON::Value(port).asString().c_str(),
                                    MBEDTLS_NET_PROTO_TCP)) != 0){
-      lastErr = "mbedtls_net_connect failed";
-      FAIL_MSG(" failed\n  ! mbedtls_net_connect returned %d\n\n", ret);
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      lastErr = estr;
+      FAIL_MSG("SSL connect failed: %d: %s", ret, lastErr.c_str());
       close();
       return;
     }
     if ((ret = mbedtls_ssl_config_defaults(conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                            MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
-      lastErr = "mbedtls_ssl_config_defaults failed";
-      FAIL_MSG(" failed\n  ! mbedtls_ssl_config_defaults returned %d\n\n", ret);
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      lastErr = estr;
+      FAIL_MSG("SSL config failed: %d: %s", ret, lastErr.c_str());
       close();
       return;
     }
@@ -819,7 +823,10 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
       return;
     }
     if ((ret = mbedtls_ssl_set_hostname(ssl, host.c_str())) != 0){
-      FAIL_MSG(" failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret);
+      char estr[200];
+      mbedtls_strerror(ret, estr, 200);
+      lastErr = estr;
+      FAIL_MSG("SSL setup error %d: %s", ret, lastErr.c_str());
       close();
       return;
     }

@@ -629,6 +629,11 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
     }
     if (seenHeaders){
       if (headerOnly){return true;}
+      //Check if we have a response code that may never have a body
+      if (url.size() && url[0] >= '0' && url[0] <= '9'){
+        unsigned int code = atoi(url.data());
+        if ((code >= 100 && code < 200) || code == 204 || code == 304){return true;}
+      }
       if (length > 0 && !getChunks){
         unsigned int toappend = length - body.length();
 

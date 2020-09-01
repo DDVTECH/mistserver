@@ -824,4 +824,6 @@ target_link_libraries(bitwritertest mist)
 add_test(BitWriterTest COMMAND bitwritertest)
 add_executable(streamstatustest test/status.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(streamstatustest mist)
+add_executable(websockettest test/websocket.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(websockettest mist)
 

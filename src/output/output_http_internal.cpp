@@ -63,6 +63,10 @@ namespace Mist{
   bool OutHTTP::listenMode(){return !(config->getString("ip").size());}
 
   void OutHTTP::onFail(const std::string &msg, bool critical){
+    if (responded){
+      HTTPOutput::onFail(msg, critical);
+      return;
+    }
     std::string method = H.method;
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
@@ -92,10 +96,12 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
       H.SendResponse("200", "Stream not found", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -379,6 +385,7 @@ namespace Mist{
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -406,10 +413,12 @@ namespace Mist{
           uAgent.find("OS 15") == std::string::npos && uAgent.find("OS 16") == std::string::npos){
         H.SetHeader("Location", hlsUrl);
         H.SendResponse("307", "HLS redirect", myConn);
+        responded = true;
         return;
       }
     }
     H.SendResponse("200", "OK", myConn);
+    responded = true;
   }
 
   JSON::Value OutHTTP::getStatusJSON(std::string &reqHost, const std::string &useragent){
@@ -601,6 +610,7 @@ namespace Mist{
           H.setCORSHeaders();
           H.SetBody(it->asStringRef().substr(cbToken.size() + 1));
           H.SendResponse("200", "OK", myConn);
+          responded = true;
           H.Clean();
           return;
         }
@@ -611,6 +621,7 @@ namespace Mist{
       H.setCORSHeaders();
       H.SetBody("No matching validation found for token '" + cbToken + "'");
       H.SendResponse("404", "Not found", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -622,6 +633,7 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -630,6 +642,7 @@ namespace Mist{
                 "cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" "
                 "/><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }// crossdomain.xml
@@ -641,6 +654,7 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -651,6 +665,7 @@ namespace Mist{
           "uri=\"*\"/></allow-from><grant-to><resource path=\"/\" "
           "include-subpaths=\"true\"/></grant-to></policy></cross-domain-access></access-policy>");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }// clientaccesspolicy.xml
@@ -661,6 +676,7 @@ namespace Mist{
       H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_101_swf, FlashMediaPlayback_101_swf_len);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }
     if (H.url == "/oldflashplayer.swf"){
@@ -669,6 +685,7 @@ namespace Mist{
       H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_swf, FlashMediaPlayback_swf_len);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }
     // send logo icon
@@ -725,12 +742,14 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
       H.SetBody("<smil>\n  <head>\n    <meta base='rtmp://" + reqHost + ":" + port + url_rel +
                 "' />\n  </head>\n  <body>\n    <switch>\n" + trackSources + "    </switch>\n  </body>\n</smil>");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -754,6 +773,7 @@ namespace Mist{
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -766,6 +786,7 @@ namespace Mist{
       }
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }// embed code generator
@@ -790,6 +811,7 @@ namespace Mist{
       H.SetHeader("Content-Type", "application/javascript; charset=utf-8");
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -850,6 +872,7 @@ namespace Mist{
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -863,6 +886,7 @@ namespace Mist{
       H.SetHeader("Content-Type", "text/css");
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -879,12 +903,14 @@ namespace Mist{
       }else{
         H.SetBody("Unknown stylesheet: " + url);
         H.SendResponse("404", "Unknown stylesheet", myConn);
+        responded = true;
         H.Clean();
         return;
       }
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -896,6 +922,7 @@ namespace Mist{
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -905,6 +932,7 @@ namespace Mist{
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -916,6 +944,7 @@ namespace Mist{
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -927,6 +956,7 @@ namespace Mist{
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -938,6 +968,7 @@ namespace Mist{
       H.SetHeader("Content-Type", "application/javascript");
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
@@ -947,6 +978,7 @@ namespace Mist{
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -981,11 +1013,13 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         H.Clean();
         return;
       }
       H.SetBody("Yup");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
@@ -998,10 +1032,12 @@ namespace Mist{
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       H.Clean();
       return;
     }
     H.SendResponse("200", "OK", myConn);
+    responded = true;
     myConn.SendNow((const char *)icon_data, icon_len);
     H.Clean();
   }

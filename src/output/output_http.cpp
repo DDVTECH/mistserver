@@ -55,12 +55,13 @@ namespace Mist{
 
   void HTTPOutput::onFail(const std::string &msg, bool critical){
     INFO_MSG("Failing '%s': %s", H.url.c_str(), msg.c_str());
-    if (!webSock && !isRecording()){
+    if (!webSock && !isRecording() && !responded){
       H.Clean(); // make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetBody("Could not retrieve stream: " + msg);
       H.SendResponse("404", "Error opening stream", myConn);
+      responded = true;
     }
     Output::onFail(msg, critical);
   }
@@ -292,6 +293,7 @@ namespace Mist{
         H.Clean();
         return;
       }
+      responded = false;
       preHTTP();
       onHTTP();
       idleLast = Util::bootMS();

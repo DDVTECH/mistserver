@@ -27,6 +27,7 @@ namespace Mist{
 
   protected:
     bool firstRun;
+    bool responded;
     HTTP::Parser H;
     HTTP::Websocket *webSock;
     uint32_t idleInterval;

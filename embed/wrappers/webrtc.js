@@ -100,10 +100,11 @@ p.prototype.build = function (MistVideo,callback) {
         If MistOutWebRTC crashes, we receive an on_stop and then an on_disconnect
       */
       if (!hasended) {
-        MistVideo.showError("Connection to media server ended unexpectedly.");
+        //MistVideo.showError("Connection to media server ended unexpectedly.");
         video.pause();
       }
       
+      //this.webrtc.signaling.ws.close();
     },
     on_answer_sdp: function (ev) {
       if (!ev.result) {
@@ -201,7 +202,6 @@ p.prototype.build = function (MistVideo,callback) {
     var thisWebRTCPlayer = this;
     
     this.on_event = function(ev) {
-      //if (ev.type != "on_time") { console.log(ev); }
       switch (ev.type) {
         case "on_connected": {
           thisWebRTCPlayer.isConnected = true;
@@ -229,6 +229,7 @@ p.prototype.build = function (MistVideo,callback) {
     };
     
     this.connect = function(callback){
+      thisWebRTCPlayer.isConnecting = true;
       
       //chrome on android has a bug where H264 is not available immediately after the tab is opened: https://bugs.chromium.org/p/webrtc/issues/detail?id=11620
       //this workaround tries 5x with 100ms intervals before continuing
@@ -257,7 +258,6 @@ p.prototype.build = function (MistVideo,callback) {
       checkH264(5).catch(function(){
         MistVideo.log("Beware: this device does not seem to be able to play H264.");
       }).finally(function(){
-        thisWebRTCPlayer.isConnecting = true;
         thisWebRTCPlayer.signaling = new WebRTCSignaling(thisWebRTCPlayer.on_event);
         thisWebRTCPlayer.peerConn = new RTCPeerConnection();
         thisWebRTCPlayer.peerConn.ontrack = function(ev) {
@@ -373,6 +373,8 @@ p.prototype.build = function (MistVideo,callback) {
     
     this.ws = new WebSocket(MistVideo.source.url.replace(/^http/,"ws"));
     
+    var ignoreopen = false;
+    
     this.ws.onopen = function() {
       onEvent({type: "on_connected"});
     };
@@ -390,8 +392,11 @@ p.prototype.build = function (MistVideo,callback) {
     /* See http://tools.ietf.org/html/rfc6455#section-7.4.1 */
     this.ws.onclose = function(ev) {
       switch (ev.code) {
+        case 1006: {
+          //MistVideo.showError("WebRTC websocket closed unexpectedly");
+        }
         default: {
-          onEvent({type: "on_disconnected"});
+          onEvent({type: "on_disconnected", code: ev.code});
           break;
         }
       }
@@ -407,7 +412,6 @@ p.prototype.build = function (MistVideo,callback) {
       this.ws.send(JSON.stringify(cmd));
     }
   };
-  
   this.webrtc = new WebRTCPlayer();
   
   this.api = {};
@@ -594,7 +598,9 @@ p.prototype.build = function (MistVideo,callback) {
   //loop
   MistUtil.event.addListener(video,"ended",function(){
     if (me.api.loop) {
-      me.webrtc.connect();
+      if (MistVideo.state == "Stream is online") {
+        me.webrtc.connect();
+      }
     }
   });
   
@@ -625,6 +631,7 @@ p.prototype.build = function (MistVideo,callback) {
   me.api.unload = function(){
     try {
       me.webrtc.stop();
+      me.webrtc.signaling.ws.close();
     } catch (e) {}
   };
   

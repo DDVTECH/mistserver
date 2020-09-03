@@ -91,6 +91,7 @@ function MistVideo(streamName,options) {
     }
   }
   this.errorListeners = [];
+  this.resumeTime = false;
   
   this.urlappend = function(url){
     if (this.options.urlappend) {
@@ -280,6 +281,11 @@ function MistVideo(streamName,options) {
   
   function onStreamInfo(d) {
     
+    if ((MistVideo.player) && (MistVideo.player.api) && (MistVideo.player.api.unload)) {
+      MistVideo.log("Received new stream info while a player was already loaded: unloading player");
+      MistVideo.player.api.unload();
+    }
+    
     MistVideo.info = d;
     MistVideo.info.updated = new Date();
     MistUtil.event.send("haveStreamInfo",d,MistVideo.options.target);
@@ -373,7 +379,21 @@ function MistVideo(streamName,options) {
       }
       d.lastms = maxms;
     }
-    
+    else {
+      //If this is VoD and was already playing, return to the previous time
+      //this is triggered when the MistInput is killed/crashes during playback
+      
+      var time = MistVideo.resumeTime;
+      if (time) {
+        var f = function(){
+          if (MistVideo.player && MistVideo.player.api) {
+            MistVideo.player.api.currentTime = time;
+          }
+          this.removeEventListener("initialized",f);
+        };
+        MistUtil.event.addListener(MistVideo.options.target,"initialized",f);
+      }
+    }
     
     
     if (MistVideo.choosePlayer()) {
@@ -946,6 +966,9 @@ function MistVideo(streamName,options) {
           switch (data.error) {
             case "Stream is offline":
               MistVideo.info = false;
+              if (MistVideo.player && MistVideo.player.api && MistVideo.player.api.currentTime) {
+                MistVideo.resumeTime = MistVideo.player.api.currentTime;
+              }
             case "Stream is initializing":
             case "Stream is booting":
             case "Stream is waiting for data":

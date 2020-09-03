@@ -532,6 +532,46 @@ p.prototype.build = function (MistVideo,callback) {
     }
   };
   
+  me.api.getStats = function(){
+    if (me.webrtc && me.webrtc.isConnected) {
+      return new Promise(function(resolve,reject) {
+        me.webrtc.peerConn.getStats().then((a) => {
+          var r = {
+            audio: null,
+            video: null
+          };
+          for (let dictionary of a.values()) {
+            if (dictionary.type == "track") {
+              //average jitter buffer in seconds
+              r[dictionary.kind] = dictionary;
+            }
+          }
+          resolve(r);
+        })
+      });
+    }
+  };
+  me.api.getLatency = function() {
+    var p = MistVideo.player.api.getStats();
+    if (p) {
+      return new Promise(function(resolve,reject){
+        p.then(function(first){
+          setTimeout(function(){
+            var p = me.api.getStats();
+            if (!p) { reject(); return; }
+            p.then(function(last){
+              var r = {};
+              for (var i in first) {
+                r[i] = first[i] && last[i] ? (last[i].jitterBufferDelay - first[i].jitterBufferDelay) / (last[i].jitterBufferEmittedCount - first[i].jitterBufferEmittedCount) : null;
+              }
+              resolve(r);
+            },reject);
+          },1e3);
+        },reject);
+      });
+    }
+  }
+  
   //redirect pause
   me.api.pause = function(){
     video.pause();

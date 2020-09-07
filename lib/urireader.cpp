@@ -10,6 +10,8 @@ namespace HTTP{
 
 
   void URIReader::init(){
+    handle = -1;
+    mapped = 0;
     char workDir[512];
     getcwd(workDir, 512);
     myURI = HTTP::URL(std::string("file://") + workDir + "/");
@@ -22,6 +24,8 @@ namespace HTTP{
     totalSize = std::string::npos;
     stateType = HTTP::Closed;
     clearPointer = true;
+    curPos = 0;
+    bufPos = 0;
   }
 
   URIReader::URIReader(){
@@ -42,13 +46,15 @@ namespace HTTP{
 
   /// Internal callback function, used to buffer data.
   void URIReader::dataCallback(const char *ptr, size_t size){
-    std::string t = std::string(ptr, size);
-    allData.append(t.c_str(), size);
+    allData.append(ptr, size);
   }
 
   bool URIReader::open(const HTTP::URL &uri){
+    close();
     myURI = uri;
     curPos = 0;
+    allData.truncate(0);
+    bufPos = 0;
 
     if (!myURI.protocol.size() || myURI.protocol == "file"){
       if (!myURI.path.size() || myURI.path == "-"){
@@ -65,7 +71,7 @@ namespace HTTP{
         }
         return true;
       }else{
-        int handle = ::open(myURI.getFilePath().c_str(), O_RDONLY);
+        handle = ::open(myURI.getFilePath().c_str(), O_RDONLY);
         if (handle == -1){
           FAIL_MSG("Opening file '%s' failed: %s", myURI.getFilePath().c_str(), strerror(errno));
           stateType = HTTP::Closed;
@@ -101,6 +107,7 @@ namespace HTTP{
       stateType = HTTP::HTTP;
 
       // Send HEAD request to determine range request is supported, and get total length
+      downer.clearHeaders();
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(), downer.getStatusCode(), downer.getStatusText().c_str());
         if (!downer.isOk()){
@@ -141,6 +148,8 @@ namespace HTTP{
   // seek to pos, return true if succeeded.
   bool URIReader::seek(const uint64_t pos){
     if (isSeekable()){
+      allData.truncate(0);
+      bufPos = 0;
       if (stateType == HTTP::File){
         curPos = pos;
         return true;
@@ -166,16 +175,8 @@ namespace HTTP{
 
   /// Read all blocking function, which internally uses the Nonblocking function.
   void URIReader::readAll(char *&dataPtr, size_t &dataLen){
-    size_t s = 0;
-    char *tmp = 0;
-    std::string t;
-
-    allData.allocate(68401307);
-
-    while (!isEOF()){
-      readSome(10046, *this);
-      // readSome(1048576, *this);
-    }
+    if (getSize() != std::string::npos){allData.allocate(getSize());}
+    while (!isEOF()){readSome(10046, *this);}
     dataPtr = allData;
     dataLen = allData.size();
   }
@@ -210,22 +211,8 @@ namespace HTTP{
       curPos += dataLen;
 
     }else if (stateType == HTTP::HTTP){
-
       bool res = downer.continueNonBlocking(cb);
-
-      if (res){
-        if (downer.completed()){
-          MEDIUM_MSG("completed");
-        }else{
-          if (supportRangeRequest){
-            MEDIUM_MSG("do new range request, previous request not completed yet!, curpos: %zu, "
-                       "length: %zu",
-                       curPos, getSize());
-          }
-        }
-      }else{
-        Util::sleep(10);
-      }
+      curPos = downer.const_data().size();
     }else{// streaming mode
       int s;
       static int totaal = 0;
@@ -241,88 +228,41 @@ namespace HTTP{
 
   /// Readsome blocking function.
   void URIReader::readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen){
-    if (stateType == HTTP::File){
-
-      dataPtr = mapped + curPos;
-
-      if (wantedLen < totalSize){
-        if ((wantedLen + curPos) > totalSize){
-          dataLen = totalSize - curPos; // restant
-        }else{
-          dataLen = wantedLen;
-        }
-      }else{
-        dataLen = totalSize;
-      }
-
-      curPos += dataLen;
-    }else if (stateType == HTTP::HTTP){
-
-      dataLen = downer.data().size();
-      curPos += dataLen;
-      dataPtr = (char *)downer.data().data();
-    }else{
-      if (clearPointer){
-        rPtr.assign(0, 0);
-        clearPointer = false;
-        dataLen = 0;
-        rPtr.allocate(wantedLen);
-      }
-
-      int s;
-      bool run = true;
-      while (downer.getSocket() && run){
-        if (downer.getSocket().spool()){
-
-          if (wantedLen < 8000){
-            s = downer.getSocket().Received().bytes(wantedLen);
-          }else{
-            s = downer.getSocket().Received().bytes(8000);
-          }
-
-          std::string buf = downer.getSocket().Received().remove(s);
-          rPtr.append(buf.c_str(), s);
-
-          dataLen += s;
-          curPos += s;
-
-          if (rPtr.size() >= wantedLen){
-            dataLen = rPtr.size();
-            dataPtr = rPtr;
-            //            INFO_MSG("laatste stukje, datalen: %llu, wanted: %llu", dataLen,
-            //            wantedLen); dataCallback(ptr, len);
-            clearPointer = true;
-            run = false;
-          }
-          //}
-        }else{
-          //                  INFO_MSG("data not yet available!");
-          return;
-        }
-      }
-
-      // if (!downer.getSocket()){
-      totalSize = curPos;
-      dataLen = rPtr.size();
-      //}
-      // INFO_MSG("size: %llu, datalen: %llu", totalSize, rPtr.size());
-      dataPtr = rPtr;
+    //Clear the buffer if we're finished with it
+    if (allData.size() && bufPos == allData.size()){
+      allData.truncate(0);
+      bufPos = 0;
     }
+    //Read more data if needed
+    while (allData.size() < wantedLen + bufPos && *this){
+      readSome(wantedLen - (allData.size() - bufPos), *this);
+    }
+    //Return wantedLen bytes if we have them
+    if (allData.size() >= wantedLen + bufPos){
+      dataPtr = allData + bufPos;
+      dataLen = wantedLen;
+      bufPos += wantedLen;
+      return;
+    }
+    //Ok, we have a short count. Return the amount we actually got.
+    dataPtr = allData + bufPos;
+    dataLen = allData.size() - bufPos;
+    bufPos = allData.size();
   }
 
   void URIReader::close(){
-    if (stateType == HTTP::File){
-      if (mapped){
-        munmap(mapped, totalSize);
-        mapped = 0;
-        totalSize = 0;
-      }
-    }else if (stateType == HTTP::Stream){
-      downer.getSocket().close();
-    }else if (stateType == HTTP::HTTP){
-      downer.getSocket().close();
-    }else{
-      // INFO_MSG("already closed");
+    //Close downloader socket if open
+    downer.getSocket().close();
+    //Unmap file if mapped
+    if (mapped){
+      munmap(mapped, totalSize);
+      mapped = 0;
+      totalSize = 0;
+    }
+    //Close file handle if open
+    if (handle != -1){
+      ::close(handle);
+      handle = -1;
     }
   }
 
@@ -335,45 +275,31 @@ namespace HTTP{
     maxLen = newMaxLen;
   }
 
-  bool URIReader::isSeekable(){
+  bool URIReader::isSeekable() const{
     if (stateType == HTTP::HTTP){
-
       if (supportRangeRequest && totalSize != std::string::npos){return true;}
     }
-
     return (stateType == HTTP::File);
   }
 
-  bool URIReader::isEOF(){
+  bool URIReader::isEOF() const{
     if (stateType == HTTP::File){
       return (curPos >= totalSize);
     }else if (stateType == HTTP::Stream){
-      if (!downer.getSocket()){return true;}
-
-      // if ((totalSize > 0) && (curPos >= totalSize)){return true;}
+      if (!downer.getSocket() && !downer.getSocket().Received().available(1)){return true;}
+      return false;
     }else if (stateType == HTTP::HTTP){
-      // INFO_MSG("iseof, C: %s, seekable: %s", C?"connected":"disconnected", isSeekable()?"yes":"no");
       if (!downer.getSocket() && !downer.getSocket().Received().available(1) && !isSeekable()){
+        if (allData.size() && bufPos < allData.size()){return false;}
         return true;
       }
-      if ((totalSize > 0) && (curPos >= totalSize)){return true;}
-
-      // mark as complete if downer reports download is completed, or when socket connection is closed when totalsize is not known.
-      if (downer.completed() || (!totalSize && !downer.getSocket())){
-        // INFO_MSG("complete totalsize: %llu, %s", totalSize, downer.getSocket() ? "Connected" : "disconnected");
+      if ((totalSize > 0 && curPos >= totalSize) || downer.completed() || (!totalSize && !downer.getSocket())){
+        if (allData.size() && bufPos < allData.size()){return false;}
         return true;
       }
-
-    }else{
-      return true;
+      return false;
     }
-
-    return false;
-  }
-
-  bool URIReader::isGood() const{
     return true;
-    /// TODO: Implement
   }
 
   uint64_t URIReader::getPos(){return curPos;}

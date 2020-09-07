@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 //#include <stdint.h>
-#include <mist/downloader.h>
 #include <mist/http_parser.h>
+#include <mist/urireader.h>
 
 #define BUFFERTIME 10
 
@@ -39,10 +39,19 @@ namespace Mist{
   class SegmentDownloader{
   public:
     SegmentDownloader();
-    HTTP::Downloader segDL;
-    const char *packetPtr;
+    HTTP::URIReader segDL;
+    char *packetPtr;
     bool loadSegment(const playListEntries &entry);
+    bool readNext();
+    void close();
     bool atEnd() const;
+
+  private:
+    bool encrypted;
+    Util::ResizeablePointer outData;
+    size_t encOffset;
+    unsigned char tmpIvec[16];
+    mbedtls_aes_context aes;
   };
 
   class Playlist{

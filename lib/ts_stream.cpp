@@ -250,7 +250,7 @@ namespace TS{
     uint64_t firstTime = 0xffffffffffffffffull, lastTime = 0;
     for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
          it != pidToCodec.end(); it++){
-      if (!hasPacket(it->first)){
+      if (!hasPacket(it->first) || !outPackets.count(it->first) || !outPackets.at(it->first).size()){
         missing++;
       }else{
         if (outPackets.at(it->first).front().getTime() < firstTime){

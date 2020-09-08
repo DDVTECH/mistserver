@@ -37,10 +37,16 @@ namespace Util{
       ResizeablePointer();
       ~ResizeablePointer();
       inline size_t& size(){return currSize;}
+      inline const size_t size() const{return currSize;}
       bool assign(const void * p, uint32_t l);
+      bool assign(const std::string & str);
       bool append(const void * p, uint32_t l);
+      bool append(const std::string & str);
       bool allocate(uint32_t l);
+      uint32_t rsize();
+      void truncate(const size_t newLen);
       inline operator char*(){return (char*)ptr;}
+      inline operator const char *() const{return (const char *)ptr;}
       inline operator void*(){return ptr;}
     private:
       void * ptr;

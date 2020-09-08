@@ -184,11 +184,30 @@ namespace Util{
     return true;
   }
 
+  bool ResizeablePointer::assign(const std::string & str){
+    return assign(str.data(), str.length());
+  }
+
+
   bool ResizeablePointer::append(const void * p, uint32_t l){
+    //We're writing to ourselves or from null pointer - assume outside write (e.g. fread or socket operation) and update the size
+    if (!p || p == ((char*)ptr)+currSize){
+      if (currSize+l > maxSize){
+        FAIL_MSG("Pointer write went beyond allocated size! Memory corruption likely.");
+        BACKTRACE;
+        return false;
+      }
+      currSize += l;
+      return true;
+    }
     if (!allocate(l+currSize)){return false;}
     memcpy(((char*)ptr)+currSize, p, l);
     currSize += l;
     return true;
+  }
+
+  bool ResizeablePointer::append(const std::string & str){
+    return append(str.data(), str.length());
   }
 
   bool ResizeablePointer::allocate(uint32_t l){
@@ -204,6 +223,15 @@ namespace Util{
     return true;
   }
 
+  /// Returns amount of space currently reserved for this pointer
+  uint32_t ResizeablePointer::rsize(){
+    return maxSize;
+  }
+
+
+  void ResizeablePointer::truncate(const size_t newLen){
+    if (currSize > newLen){currSize = newLen;}
+  }
 
   /// Redirects stderr to log parser, writes log parser to the old stderr.
   /// Does nothing if the MIST_CONTROL environment variable is set.

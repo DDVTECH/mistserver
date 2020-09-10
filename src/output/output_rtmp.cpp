@@ -833,17 +833,19 @@ namespace Mist{
       }
       if (amfData.getContentP(3)){
         streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
+        reqUrl += "/" + streamName; // LTS
 
         // handle variables
         if (streamName.find('?') != std::string::npos){
           std::string tmpVars = streamName.substr(streamName.find('?') + 1);
           streamName = streamName.substr(0, streamName.find('?'));
-          Util::setStreamName(streamName);
           HTTP::parseVars(tmpVars, targetParams);
         }
-
+        //Remove anything before the last slash
+        if (streamName.find('/')){
+          streamName = streamName.substr(0, streamName.find('/'));
+        }
         Util::setStreamName(streamName);
-        reqUrl += "/" + streamName; // LTS
 
         /*LTS-START*/
         if (Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
@@ -860,18 +862,18 @@ namespace Mist{
           size_t lSlash = newUrl.rfind('/');
           if (lSlash != std::string::npos){
             streamName = newUrl.substr(lSlash + 1);
-            Util::setStreamName(streamName);
           }else{
             streamName = newUrl;
-            Util::setStreamName(streamName);
           }
-        }
-        /*LTS-END*/
-
-        if (streamName.find('/')){
-          streamName = streamName.substr(0, streamName.find('/'));
+          // handle variables
+          if (streamName.find('?') != std::string::npos){
+            std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+            streamName = streamName.substr(0, streamName.find('?'));
+            HTTP::parseVars(tmpVars, targetParams);
+          }
           Util::setStreamName(streamName);
         }
+        /*LTS-END*/
 
         size_t colonPos = streamName.find(':');
         if (colonPos != std::string::npos && colonPos < 6){
@@ -900,6 +902,12 @@ namespace Mist{
             return;
           }else{
             streamName = newStream;
+            // handle variables
+            if (streamName.find('?') != std::string::npos){
+              std::string tmpVars = streamName.substr(streamName.find('?') + 1);
+              streamName = streamName.substr(0, streamName.find('?'));
+              HTTP::parseVars(tmpVars, targetParams);
+            }
             Util::sanitizeName(streamName);
             Util::setStreamName(streamName);
           }
@@ -951,14 +959,12 @@ namespace Mist{
       int8_t playMessageType = messageType;
       int32_t playStreamId = streamId;
       streamName = Encodings::URL::decode(amfData.getContentP(3)->StrValue());
-      Util::setStreamName(streamName);
       reqUrl += "/" + streamName; // LTS
 
       // handle variables
       if (streamName.find('?') != std::string::npos){
         std::string tmpVars = streamName.substr(streamName.find('?') + 1);
         streamName = streamName.substr(0, streamName.find('?'));
-        Util::setStreamName(streamName);
         HTTP::parseVars(tmpVars, targetParams);
       }
 
@@ -970,9 +976,9 @@ namespace Mist{
         }else{
           streamName = oldName.substr(colonPos + 1) + std::string(".") + oldName.substr(0, colonPos);
         }
-        Util::setStreamName(streamName);
       }
       Util::sanitizeName(streamName);
+      Util::setStreamName(streamName);
 
       if (config->getInteger("acceptable") == 2){// Only allow incoming ( = 2)? Abort!
         AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

@@ -411,6 +411,16 @@ bool Socket::Buffer::available(unsigned int count){
   return false;
 }
 
+/// Returns true if at least count bytes are available in this buffer.
+bool Socket::Buffer::available(unsigned int count) const{
+  unsigned int i = 0;
+  for (std::deque<std::string>::const_iterator it = data.begin(); it != data.end(); ++it){
+    i += (*it).size();
+    if (i >= count){return true;}
+  }
+  return false;
+}
+
 /// Removes count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::remove(unsigned int count){
@@ -858,7 +868,7 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
     sSend = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sSend < 0){continue;}
     if (connect(sSend, rp->ai_addr, rp->ai_addrlen) == 0){
-      remoteaddr = *((sockaddr_in6 *)rp->ai_addr);
+      memcpy(&remoteaddr, rp->ai_addr, rp->ai_addrlen);
       break;
     }
     lastErr += strerror(errno);
@@ -928,6 +938,11 @@ bool Socket::Connection::peek(){
 
 /// Returns a reference to the download buffer.
 Socket::Buffer &Socket::Connection::Received(){
+  return downbuffer;
+}
+
+/// Returns a reference to the download buffer.
+const Socket::Buffer &Socket::Connection::Received() const{
   return downbuffer;
 }
 
@@ -1169,7 +1184,9 @@ void Socket::Connection::setHost(std::string host){
   hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), 0, &hints, &result);
   if (s != 0){return;}
-  if (result){remoteaddr = *((sockaddr_in6 *)result->ai_addr);}
+  if (result){
+    memcpy(&remoteaddr, result->ai_addr, result->ai_addrlen);
+  }
   freeaddrinfo(result);
 }
 

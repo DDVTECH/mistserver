@@ -61,6 +61,7 @@ namespace HTTP{
 
   /// Returns a reference to the internal Socket::Connection class instance.
   Socket::Connection &Downloader::getSocket(){return S;}
+  const Socket::Connection &Downloader::getSocket() const{return S;}
 
   Downloader::~Downloader(){S.close();}
 
@@ -280,7 +281,7 @@ namespace HTTP{
     return nbLink;
   }
 
-  // continue handling a request, origininally set up by the getNonBlocking() function
+  // continue handling a request, originally set up by the getNonBlocking() function
   // returns true if the request is complete
   bool Downloader::continueNonBlocking(Util::DataCallback &cb){
     while (true){

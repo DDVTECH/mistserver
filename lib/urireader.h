@@ -45,40 +45,42 @@ namespace HTTP{
     void close();
 
     // Configuration setters
+
     /// Progress callback, called whenever transfer stalls. Not called if unset.
     void onProgress(bool (*progressCallback)(uint8_t));
     /// Sets minimum and maximum buffer size for read calls that use callbacks
     void setBounds(size_t minLen = 0, size_t maxLen = 0);
 
     // Static getters
-    bool isSeekable();   /// Returns true if seeking is possible in this URI.
-    bool isEOF();        /// Returns true if the end of the URI has been reached.
-    bool isGood() const; /// Returns true if more data can still be read.
-    uint64_t getPos();   /// Returns the current byte position in the URI.
-    const HTTP::URL &getURI() const; /// Returns the most recently open URI, or the current working directory if not set.
-    size_t getSize() const; /// Returns the size of the currently open URI, if known. Returns std::string::npos if unknown size.
+    bool isSeekable() const;   ///< Returns true if seeking is possible in this URI.
+    bool isEOF() const;        ///< Returns true if the end of the URI has been reached.
+    operator bool() const {return !isEOF();} ///< Returns !isEOF()
+    uint64_t getPos();   ///< Returns the current byte position in the URI.
+    const HTTP::URL &getURI() const; ///< Returns the most recently open URI, or the current working directory if not set.
+    size_t getSize() const; ///< Returns the size of the currently open URI, if known. Returns std::string::npos if unknown size.
 
     void (*httpBodyCallback)(const char *ptr, size_t size);
     void dataCallback(const char *ptr, size_t size);
 
   private:
     // Internal state variables
-    bool (*cbProgress)(uint8_t); /// The progress callback, if any. Not called if set to a null pointer.
-    HTTP::URL myURI; /// The most recently open URI, or the current working directory if nothing has been opened yet.
-    size_t minLen;   /// Minimum buffer size for dataCallback.
-    size_t maxLen;   /// Maximum buffer size for dataCallback.
-    size_t startPos; /// Start position for byte offsets.
-    size_t endPos;   /// End position for byte offsets.
-    size_t totalSize; /// Total size in bytes of the current URI. May be incomplete before read finished.
-    size_t curPos;
-    char *mapped;
+    bool (*cbProgress)(uint8_t); ///< The progress callback, if any. Not called if set to a null pointer.
+    HTTP::URL myURI; ///< The most recently open URI, or the current working directory if nothing has been opened yet.
+    size_t minLen;   ///< Minimum buffer size for dataCallback.
+    size_t maxLen;   ///< Maximum buffer size for dataCallback.
+    size_t startPos; ///< Start position for byte offsets.
+    size_t endPos;   ///< End position for byte offsets.
+    size_t totalSize; ///< Total size in bytes of the current URI. May be incomplete before read finished.
+    size_t curPos; ///< Current read position in source
+    size_t bufPos; ///< Current read position in buffer
+    int handle; ///< Open file handle, if file-based.
+    char *mapped; ///< Memory-map of open file handle, if file-based.
     bool supportRangeRequest;
     Util::ResizeablePointer rPtr;
     Util::ResizeablePointer allData;
     bool clearPointer;
-    URIType stateType;     /// Holds the type of URI this is, for internal processing purposes.
-    std::ifstream fReader; /// For file-based URIs, the ifstream used for the file.
-    HTTP::Downloader downer; /// For HTTP(S)-based URIs, the Downloader instance used for the download.
+    URIType stateType;     ///< Holds the type of URI this is, for internal processing purposes.
+    HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
   };
 }// namespace HTTP

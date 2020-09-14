@@ -63,6 +63,7 @@ namespace Socket{
     void prepend(const char *newdata, const unsigned int newdatasize);
     std::string &get();
     bool available(unsigned int count);
+    bool available(unsigned int count) const;
     std::string remove(unsigned int count);
     std::string copy(unsigned int count);
     void clear();
@@ -141,6 +142,7 @@ namespace Socket{
     bool spool();                          ///< Updates the downbufferinternal variables.
     bool peek();                           ///< Clears the downbuffer and fills it with peek
     Buffer &Received();                    ///< Returns a reference to the download buffer.
+    const Buffer &Received() const;                    ///< Returns a reference to the download buffer.
     void SendNow(const std::string &data); ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data); ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data,

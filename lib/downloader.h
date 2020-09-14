@@ -39,9 +39,10 @@ namespace HTTP{
     void setHeader(const std::string &name, const std::string &val);
     void clearHeaders();
     bool canRequest(const HTTP::URL &link);
-    bool completed(){return isComplete;}
+    bool completed() const{return isComplete;}
     Parser &getHTTP();
     Socket::Connection &getSocket();
+    const Socket::Connection &getSocket() const;
     uint32_t retryCount, dataTimeout;
     bool isProxied() const;
     const HTTP::URL & lastURL();

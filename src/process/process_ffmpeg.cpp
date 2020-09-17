@@ -586,7 +586,7 @@ namespace Mist{
 
     if (!preset.empty()){options.append(" -preset " + preset);}
 
-    snprintf(ffcmd, 10240, "ffmpeg-fflags nobuffer -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -force_key_frames source -f matroska - ",
+    snprintf(ffcmd, 10240, "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -force_key_frames source -f matroska - ",
              res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(),
              getBitrateSetting().c_str(), flags.c_str());
 

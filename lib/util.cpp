@@ -16,6 +16,7 @@
 #include <direct.h> // _mkdir
 #endif
 #include <stdlib.h>
+#include <sys/resource.h>
 
 #define RAXHDR_FIELDOFFSET p[1]
 #define RAX_REQDFIELDS_LEN 36
@@ -969,4 +970,23 @@ namespace Util{
     if (!fields.count(fName)){return RelAccXFieldData();}
     return fields.at(fName);
   }
+
+  bool sysSetNrOpenFiles(int n){
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+      FAIL_MSG("Could not get open file limit: %s", strerror(errno));
+      return false;
+    }
+    int currLimit = limit.rlim_cur;
+    if(limit.rlim_cur < n){
+      limit.rlim_cur = n;
+      if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
+        FAIL_MSG("Could not set open file limit from %d to %d: %s", currLimit, n, strerror(errno));
+        return false;
+      }
+      HIGH_MSG("Open file limit increased from %d to %d", currLimit, n)
+    }
+    return true;
+  }
+
 }// namespace Util

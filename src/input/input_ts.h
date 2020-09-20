@@ -41,6 +41,11 @@ namespace Mist{
     pid_t inputProcess;
     size_t tmpIdx;
     bool isFinished;
+
+    bool rawMode;
+    Util::ResizeablePointer rawBuffer;
+    size_t rawIdx;
+    uint64_t lastRawPacket;
   };
 }// namespace Mist
 

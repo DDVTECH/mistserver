@@ -75,6 +75,11 @@ namespace Mist{
     size_t dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen); // data
 
+    if (codec == "rawts"){
+      for (size_t i = 0; i+188 <= dataLen; i+=188){sendTS(dataPointer+i, 188);}
+      return;
+    }
+
     packTime *= 90;
     std::string bs;
     // prepare bufferstring

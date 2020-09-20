@@ -202,6 +202,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][1u][0u].append("rawts");
 
     capa["optional"]["profile"]["name"] = "RIST profile";
     capa["optional"]["profile"]["help"] = "RIST profile to use";

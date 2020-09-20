@@ -33,6 +33,12 @@ namespace Mist{
     virtual void connStats(Comms::Statistics &statComm);
 
     struct rist_ctx *receiver_ctx;
+
+    bool rawMode;
+    Util::ResizeablePointer rawBuffer;
+    size_t rawIdx;
+    uint64_t lastRawPacket;
+    bool hasRaw;
   };
 }// namespace Mist
 

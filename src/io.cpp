@@ -294,6 +294,13 @@ namespace Mist{
 
   /// Wraps up the buffering of a shared memory data page
   /// \param idx The track index of the page to finalize
+  void InOutBase::liveFinalize(size_t idx){
+    if (!livePage.count(idx)){return;}
+    bufferFinalize(idx, livePage[idx]);
+  }
+
+  /// Wraps up the buffering of a shared memory data page
+  /// \param idx The track index of the page to finalize
   void InOutBase::bufferFinalize(size_t idx, IPC::sharedPage & page){
     // If no page is open, do nothing
     if (!page){

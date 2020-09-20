@@ -134,6 +134,13 @@ void parseThread(void *mistIn){
       }
     }
   }
+
+  //On shutdown, make sure to clean up stream buffer
+  if (idx != INVALID_TRACK_ID){
+    tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+    input->liveFinalize(idx);
+  }
+
   std::string reason = "unknown reason";
   if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){reason = "thread timeout";}
   if (!cfgPointer->is_active){reason = "input shutting down";}
@@ -155,6 +162,9 @@ namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
   inputTS::inputTS(Util::Config *cfg) : Input(cfg){
+    rawMode = false;
+    rawIdx = INVALID_TRACK_ID;
+    lastRawPacket = 0;
     capa["name"] = "TS";
     capa["desc"] =
         "This input allows you to stream MPEG2-TS data from static files (/*.ts), streamed files "
@@ -188,6 +198,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP2");
     capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][1u][0u].append("rawts");
     inFile = NULL;
     inputProcess = 0;
     isFinished = false;
@@ -232,6 +243,16 @@ namespace Mist{
         "Alternative stream to load for playback when there is no active broadcast";
     capa["optional"]["fallback_stream"]["type"] = "str";
     capa["optional"]["fallback_stream"]["default"] = "";
+
+    capa["optional"]["raw"]["name"] = "Raw input mode";
+    capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
+    capa["optional"]["raw"]["option"] = "--raw";
+
+    JSON::Value option;
+    option["long"] = "raw";
+    option["short"] = "R";
+    option["help"] = "Enable raw MPEG-TS passthrough mode";
+    config->addOption("raw", option);
   }
 
   inputTS::~inputTS(){
@@ -257,6 +278,10 @@ namespace Mist{
   /// Live Setup of TS Input
   bool inputTS::preRun(){
     INFO_MSG("Prerun: %s", config->getString("input").c_str());
+
+    rawMode = config->getBool("raw");
+    if (rawMode){INFO_MSG("Entering raw mode");}
+
     // streamed standard input
     if (config->getString("input") == "-"){
       standAlone = false;
@@ -520,9 +545,28 @@ namespace Mist{
             }
             if (tcpCon.Received().available(188) && tcpCon.Received().get()[0] == 0x47){
               std::string newData = tcpCon.Received().remove(188);
-              tsBuf.FromPointer(newData.data());
-              liveStream.add(tsBuf);
-              if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
+              if (rawMode){
+                keepAlive();
+                rawBuffer.append(newData);
+                if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+                  if (rawIdx == INVALID_TRACK_ID){
+                    rawIdx = meta.addTrack();
+                    meta.setType(rawIdx, "meta");
+                    meta.setCodec(rawIdx, "rawts");
+                    meta.setID(rawIdx, 1);
+                    userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+                  }
+                  uint64_t packetTime = Util::bootMS();
+                  thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+                  bufferLivePacket(thisPacket);
+                  lastRawPacket = packetTime;
+                  rawBuffer.truncate(0);
+                }
+              }else {
+                tsBuf.FromPointer(newData.data());
+                liveStream.add(tsBuf);
+                if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
+              }
             }
           }
           noDataSince = Util::bootSecs();
@@ -543,7 +587,26 @@ namespace Mist{
             gettingData = true;
             INFO_MSG("Now receiving UDP data...");
           }
-          assembler.assemble(liveStream, udpCon.data, udpCon.data.size());
+          if (rawMode){
+            keepAlive();
+            rawBuffer.append(udpCon.data, udpCon.data.size());
+            if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+              if (rawIdx == INVALID_TRACK_ID){
+                rawIdx = meta.addTrack();
+                meta.setType(rawIdx, "meta");
+                meta.setCodec(rawIdx, "rawts");
+                meta.setID(rawIdx, 1);
+                userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+              }
+              uint64_t packetTime = Util::bootMS();
+              thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+              bufferLivePacket(thisPacket);
+              lastRawPacket = packetTime;
+              rawBuffer.truncate(0);
+            }
+          }else{
+            assembler.assemble(liveStream, udpCon.data, udpCon.data.size());
+          }
         }
         if (!received){
           Util::sleep(100);
@@ -578,7 +641,7 @@ namespace Mist{
         }
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();
-        {
+        if (!rawMode){
           tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){

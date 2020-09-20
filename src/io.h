@@ -21,6 +21,7 @@ namespace Mist{
 
     bool bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page, DTSC::Meta & aMeta);
     void bufferFinalize(size_t idx, IPC::sharedPage & page);
+    void liveFinalize(size_t idx);
     bool isCurrentLivePage(size_t idx, uint32_t pageNumber);
     void bufferRemove(size_t idx, uint32_t pageNumber);
     void bufferLivePacket(const DTSC::Packet &packet);

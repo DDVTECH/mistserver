@@ -179,6 +179,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
     capa["push_urls"].append("tsudp://*");

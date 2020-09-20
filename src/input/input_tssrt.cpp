@@ -25,6 +25,7 @@
 Util::Config *cfgPointer = NULL;
 std::string baseStreamName;
 Socket::SRTServer sSock;
+bool rawMode = false;
 
 void (*oldSignal)(int, siginfo_t *,void *) = 0;
 
@@ -49,6 +50,8 @@ namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
   inputTSSRT::inputTSSRT(Util::Config *cfg, SRTSOCKET s) : Input(cfg){
+    rawIdx = INVALID_TRACK_ID;
+    lastRawPacket = 0;
     capa["name"] = "TSSRT";
     capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams. Use mode=listener "
                    "for push input.";
@@ -66,6 +69,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP2");
     capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][1u][0u].append("rawts");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -103,7 +107,16 @@ namespace Mist{
     capa["optional"]["acceptable"]["select"][2u][0u] = 2;
     capa["optional"]["acceptable"]["select"][2u][1u] = "Disallow non-matching streamid";
 
+    capa["optional"]["raw"]["name"] = "Raw input mode";
+    capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
+    capa["optional"]["raw"]["option"] = "--raw";
 
+    option.null();
+    option["long"] = "raw";
+    option["short"] = "R";
+    option["help"] = "Enable raw MPEG-TS passthrough mode";
+    config->addOption("raw", option);
+    
     // Setup if we are called form with a thread for push-based input.
     if (s != -1){
       srtConn = Socket::SRTConnection(s);
@@ -131,6 +144,8 @@ namespace Mist{
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool inputTSSRT::preRun(){
+    rawMode = config->getBool("raw");
+    if (rawMode){INFO_MSG("Entering raw mode");}
     if (srtConn.getSocket() == -1){
       std::string source = config->getString("input");
       standAlone = false;
@@ -183,6 +198,26 @@ namespace Mist{
 
       size_t recvSize = srtConn.RecvNow();
       if (recvSize){
+        if (rawMode){
+          keepAlive();
+          rawBuffer.append(srtConn.recvbuf, recvSize);
+          if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+            if (rawIdx == INVALID_TRACK_ID){
+              rawIdx = meta.addTrack();
+              meta.setType(rawIdx, "meta");
+              meta.setCodec(rawIdx, "rawts");
+              meta.setID(rawIdx, 1);
+              userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+            }
+            uint64_t packetTime = Util::bootMS();
+            thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+            bufferLivePacket(thisPacket);
+            lastRawPacket = packetTime;
+            rawBuffer.truncate(0);
+            return;
+          }
+          continue;
+        }
         if (assembler.assemble(tsStream, srtConn.recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
       }else if (srtConn){
         // This should not happen as the SRT socket is read blocking and won't return until there is

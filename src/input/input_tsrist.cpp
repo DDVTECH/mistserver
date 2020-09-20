@@ -66,6 +66,10 @@ namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
   inputTSRIST::inputTSRIST(Util::Config *cfg) : Input(cfg){
+    rawMode = false;
+    rawIdx = INVALID_TRACK_ID;
+    lastRawPacket = 0;
+    hasRaw = false;
     connPtr = this;
     cnfPtr = config;
 
@@ -96,6 +100,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AC3");
     capa["codecs"][0u][1u].append("MP2");
     capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][1u][0u].append("rawts");
 
     JSON::Value option;
     option["arg"] = "integer";
@@ -132,6 +137,15 @@ namespace Mist{
     capa["optional"]["profile"]["type"] = "select";
     capa["optional"]["profile"]["option"] = "--profile";
 
+    capa["optional"]["raw"]["name"] = "Raw input mode";
+    capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
+    capa["optional"]["raw"]["option"] = "--raw";
+
+    option["long"] = "raw";
+    option["short"] = "R";
+    option["help"] = "Enable raw MPEG-TS passthrough mode";
+    config->addOption("raw", option);
+
     lastTimeStamp = 0;
     timeStampOffset = 0;
     receiver_ctx = 0;
@@ -146,6 +160,9 @@ namespace Mist{
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool inputTSRIST::preRun(){
+    rawMode = config->getBool("raw");
+    if (rawMode){INFO_MSG("Entering raw mode");}
+
     std::string source = config->getString("input");
     standAlone = false;
     HTTP::URL u(source);
@@ -161,6 +178,20 @@ namespace Mist{
   // Retrieve the next packet to be played from the srt connection.
   void inputTSRIST::getNext(size_t idx){
     thisPacket.null();
+    if (rawMode){
+      //Set to false so the other thread knows its safe to fill
+      hasRaw = false;
+      while (!hasRaw && config->is_active){
+        Util::sleep(50);
+        if (!bufferActive()){
+          Util::logExitReason("Buffer shut down");
+          return;
+        }
+      }
+      //if hasRaw, thisPacket has been filled by the other thread
+      return;
+    }
+
     while (!thisPacket && config->is_active){
       if (tsStream.hasPacket()){
         tsStream.getEarliestPacket(thisPacket);
@@ -228,8 +259,27 @@ namespace Mist{
   }
 
   void inputTSRIST::addData(const char * ptr, size_t len){
-    for (size_t o = 0; o <= len-188; o += 188){
-      tsStream.parse((char*)ptr+o, 0);
+    for (size_t o = 0; o+188 <= len; o += 188){
+      if (rawMode){
+        rawBuffer.append(ptr+o, 188);
+        if (!hasRaw && rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
+          if (rawIdx == INVALID_TRACK_ID){
+            rawIdx = meta.addTrack();
+            meta.setType(rawIdx, "meta");
+            meta.setCodec(rawIdx, "rawts");
+            meta.setID(rawIdx, 1);
+            userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+          }
+          thisTime = Util::bootMS();
+          thisIdx = rawIdx;
+          thisPacket.genericFill(thisTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
+          lastRawPacket = thisTime;
+          rawBuffer.truncate(0);
+          hasRaw = true;
+        }
+      }else{
+        tsStream.parse((char*)ptr+o, 0);
+      }
     }
   }
 

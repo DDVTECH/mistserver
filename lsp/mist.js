@@ -4028,7 +4028,7 @@ var UI = {
               if (typeof protocol.pubaddr == "string") {
                 embedbase = protocol.pubaddr.replace(/\/$/,'')+"/";
               }
-              else {
+              else if (protocol.pubaddr.length) {
                 embedbase = protocol.pubaddr[0].replace(/\/$/,'')+"/";
               }
             }
@@ -4403,11 +4403,11 @@ var UI = {
         for (var i in mist.data.config.protocols) {
           var protocol = mist.data.config.protocols[i];
           if ((protocol.connector == 'HTTP') || (protocol.connector == 'HTTP.exe')) {
-            if (protocol.pubaddr && protocol.pubaddr.length) {
+            if (protocol.pubaddr) {
               if (typeof protocol.pubaddr == "string") {
                 embedbase.http = protocol.pubaddr.replace(/\/$/,'')+"/";
               }
-              else {
+              else if (protocol.pubaddr.length) {
                 embedbase.http = protocol.pubaddr[0].replace(/\/$/,'')+"/";
               }
               puburls.http = protocol.pubaddr;
@@ -4422,7 +4422,7 @@ var UI = {
               if (typeof protocol.pubaddr == "string") {
                 embedbase.https = protocol.pubaddr.replace(/\/$/,'')+"/";
               }
-              else {
+              else if (protocol.pubaddr.length) {
                 embedbase.https = protocol.pubaddr[0].replace(/\/$/,'')+"/";
               }
               puburls.https = protocol.pubaddr;

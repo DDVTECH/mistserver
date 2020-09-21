@@ -4179,7 +4179,11 @@ var UI = {
           $main.append(script);
           script.src = embedbase+'player.js';
           script.onerror = function(){
-            $video.html('Failed to load player.js').append(
+            $video.html(
+              $("<p>").append('Failed to load <a href="'+embedbase+'player.js">'+embedbase+'player.js</a>.')
+            ).append(
+              $("<p>").append("Please check if you've activated the HTTP protocol, if your http port is blocked, or if you're trying to load HTTPS on an HTTP page.")
+            ).append(
               $('<button>').text('Reload').css('display','block').click(function(){
                 loadplayer();
               })

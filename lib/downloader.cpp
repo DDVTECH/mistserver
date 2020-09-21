@@ -331,7 +331,7 @@ namespace HTTP{
       }
 
       // No data? Wait for a second or so.
-      if (!getSocket().spool()){
+      if (!getSocket().spool() && getSocket()){
         if (progressCallback != 0){
           if (!progressCallback()){
             WARN_MSG("Download aborted by callback");

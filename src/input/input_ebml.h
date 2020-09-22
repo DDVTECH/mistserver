@@ -58,6 +58,7 @@ namespace Mist{
       // grab the next packet to output
       packetData &p = pkts[rem % PKT_COUNT];
       if (!mustCalcOffsets || !maxDelay){
+        initialized = true;
         return p;
       }
       //Calculate the timeOffset when extracting the first frame

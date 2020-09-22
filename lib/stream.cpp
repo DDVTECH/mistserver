@@ -694,7 +694,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
   }
   {
     size_t trackNo = JSON::Value(trackVal).asInt();
-    if (trackVal == JSON::Value(trackNo).asString()){
+    if (trackVal == JSON::Value((uint64_t)trackNo).asString()){
       //It's an integer number
       if (!M.tracks.count(trackNo)){
         INFO_MSG("Track %zd does not exist in stream, cannot select", trackNo);

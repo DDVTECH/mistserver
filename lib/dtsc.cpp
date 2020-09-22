@@ -2286,7 +2286,7 @@ namespace DTSC{
         //  INFO_MSG("Jitter = %" PRId64 " ms (max: %" PRIu64 ")", jitter, maxJitter);
         //}
       }else{
-        // Postive jitter = packets arriving too late.
+        // Positive jitter = packets arriving too late.
         // We need to delay playback at least by this amount to account for it.
         if ((uint64_t)jitter > maxJitter){
           if (jitter - maxJitter > 420){

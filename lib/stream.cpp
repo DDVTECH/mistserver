@@ -560,7 +560,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
 pid_t Util::startPush(const std::string &streamname, std::string &target){
   if (Triggers::shouldTrigger("PUSH_OUT_START", streamname)){
     std::string payload = streamname + "\n" + target;
-    std::string filepath_response;
+    std::string filepath_response = target;
     Triggers::doTrigger("PUSH_OUT_START", payload, streamname.c_str(), false, filepath_response);
     target = filepath_response;
   }

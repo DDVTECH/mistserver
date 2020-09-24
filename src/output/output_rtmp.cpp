@@ -740,7 +740,7 @@ namespace Mist{
         /*LTS-START*/
         if(Triggers::shouldTrigger("RTMP_PUSH_REWRITE")){
           std::string payload = reqUrl+"\n" + getConnectedHost();
-          std::string newUrl = "";
+          std::string newUrl = reqUrl;
           Triggers::doTrigger("RTMP_PUSH_REWRITE", payload, "", false, newUrl);
           if (!newUrl.size()){
             FAIL_MSG("Push from %s to URL %s rejected - RTMP_PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(), reqUrl.c_str());

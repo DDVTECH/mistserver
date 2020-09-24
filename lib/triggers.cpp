@@ -209,7 +209,7 @@ namespace Triggers{
       if (!defaultResponse.size()){defaultResponse = "true";}
 
       if (isHandled){
-        INFO_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
+        VERYHIGH_MSG("%s trigger handled by %s", type.c_str(), uri.c_str());
         if (dryRun){return true;}
         if (sync){
           response = handleTrigger(type, uri, payload, sync, defaultResponse); // do it.

@@ -1570,8 +1570,6 @@ int Socket::Server::getSocket(){
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
   boundPort = 0;
-  boundAddr = "";
-  boundMulti = "";
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1){
@@ -1592,6 +1590,7 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection &o){
+  boundPort = 0;
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
   if (sock == -1){
@@ -1675,7 +1674,7 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
     if (!destAddr){return;}
     memcpy(destAddr, rp->ai_addr, rp->ai_addrlen);
     if (family != rp->ai_family){
-      INFO_MSG("Socket is wrong type (%s), re-opening as %s", addrFam(family), addrFam(rp->ai_family));
+      INFO_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(rp->ai_family));
       close();
       family = rp->ai_family;
       sock = socket(family, SOCK_DGRAM, 0);

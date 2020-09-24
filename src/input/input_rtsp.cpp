@@ -102,7 +102,7 @@ namespace Mist{
       }
     }
     sndH.SendRequest(tcpCon, "", true);
-    parsePacket();
+    parsePacket(true);
 
     if (reAuth && needAuth && authRequest.size() && (username.size() || password.size()) && tcpCon){
       INFO_MSG("Authenticating %s...", cmd.c_str());
@@ -150,17 +150,30 @@ namespace Mist{
       return;
     }
     if (sdpState.tracks.size()){
+      bool atLeastOne = false;
       for (std::map<uint32_t, SDP::Track>::iterator it = sdpState.tracks.begin();
            it != sdpState.tracks.end(); ++it){
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
         sendCommand("SETUP", HTTP::URL(url.getUrl()+"/").link(it->second.control).getUrl(), "", &extraHeaders);
-        if (!tcpCon || !transportSet){
-          FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
-          tcpCon.close();
-          return;
+        if (tcpCon && transportSet){
+          atLeastOne = true;
+          continue;
         }
+        if (!atLeastOne && tcpCon){
+          INFO_MSG("Failed to set up transport for track %s, switching transports...", myMeta.tracks[it->first].getIdentifier().c_str());
+          TCPmode = !TCPmode;
+          extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
+          sendCommand("SETUP", HTTP::URL(url.getUrl()+"/").link(it->second.control).getUrl(), "", &extraHeaders);
+        }
+        if (tcpCon && transportSet){
+          atLeastOne = true;
+          continue;
+        }
+        FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
+        tcpCon.close();
+        return;
       }
     }
     INFO_MSG("Setup complete");
@@ -224,7 +237,7 @@ namespace Mist{
     return "Unknown";
   }
 
-  bool InputRTSP::parsePacket(){
+  bool InputRTSP::parsePacket(bool mustHave){
     uint32_t waitTime = 500;
     if (!TCPmode){waitTime = 50;}
     do{
@@ -233,7 +246,7 @@ namespace Mist{
         if (!tcpCon.spool() && tcpCon && config->is_active && nProxy.userClient.isAlive()){
           nProxy.userClient.keepAlive();
           Util::sleep(waitTime);
-          if (!TCPmode){return true;}
+          if (!mustHave){return tcpCon;}
         }
         continue;
       }

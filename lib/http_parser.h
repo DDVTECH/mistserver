@@ -68,6 +68,7 @@ namespace HTTP{
     bool seenHeaders;
     bool seenReq;
     bool getChunks;
+    bool possiblyComplete;
     unsigned int doingChunk;
     bool parse(std::string &HTTPbuffer, Util::DataCallback &cb = Util::defaultDataCallback);
     std::string builder;

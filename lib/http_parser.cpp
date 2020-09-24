@@ -708,6 +708,9 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           }
           return false;
         }else{
+          if (protocol.substr(0, 4) == "RTSP" || method.substr(0,4) == "RTSP"){
+            return true;
+          }
           unsigned int toappend = HTTPbuffer.size();
           bool shouldAppend = true;
           if (bodyCallback){

@@ -143,10 +143,14 @@ namespace Mist{
     void onDTSCConverterHasInitData(const size_t trackID, const std::string &initData);
     void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
+    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
 
   private:
     uint64_t lastRecv;
     uint64_t lastPackMs;
+    uint64_t totalPkts;
+    uint64_t totalLoss;
+    uint64_t totalRetrans;
     std::ofstream jitterLog;
     std::ofstream packetLog;
     std::string externalAddr;
@@ -209,6 +213,7 @@ namespace Mist{
     double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
 
     bool didReceiveKeyFrame; /* TODO burst delay */
+    bool setPacketOffset;
     int64_t packetOffset;    ///< For timestamp rewrite with BMO
     uint64_t lastTimeSync;
     bool firstKey;

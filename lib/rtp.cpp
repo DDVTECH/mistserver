@@ -516,7 +516,7 @@ namespace RTP{
     }else{
       // packet is very early - assume dropped after PACKET_DROP_TIMEOUT packets
       while ((int16_t)(rtpSeq - pSNo) < -(int)PACKET_DROP_TIMEOUT){
-        WARN_MSG("Giving up on packet %u", rtpSeq);
+        VERYHIGH_MSG("Giving up on track %" PRIu64 " packet %u", packTrack, rtpSeq);
         ++rtpSeq;
         ++lostTotal;
         ++lostCurrent;
@@ -548,7 +548,7 @@ namespace RTP{
     }
     // packet is slightly early - buffer it
     if ((int16_t)(rtpSeq - pSNo) < 0){
-      HIGH_MSG("Buffering early packet #%u->%u", rtpSeq, pack.getSequence());
+      VERYHIGH_MSG("Buffering early packet #%u->%u", rtpSeq, pack.getSequence());
       packBuffer[pack.getSequence()] = pack;
     }
     // packet is late
@@ -616,7 +616,6 @@ namespace RTP{
     if (M.getCodec(tid) == "opus"){
       m = 48.0;
     }
-    bootMsOffset = M.getBootMsOffset();
     setProperties(M.getID(tid), M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
   }
 
@@ -636,7 +635,7 @@ namespace RTP{
       if (rtpTime > 0x80000000lu){rtp64Time -= 0x100000000ll;}
     }
     uint64_t msTime = (rtp64Time - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier + milliSync;
-    int32_t rtpDiff = (bootMsOffset + msTime) - (Util::bootMS() - msDiff);
+    int32_t rtpDiff = msTime - (Util::bootMS() - msDiff);
     if (rtpDiff > 25 || rtpDiff < -25){
       INFO_MSG("RTP difference (%s %s): %" PRId32 "ms, syncing...", type.c_str(), codec.c_str(), rtpDiff);
       milliSync -= rtpDiff;
@@ -655,7 +654,7 @@ namespace RTP{
     // This part isn't codec-specific, so we do it before anything else.
     int64_t pTime = pkt.getTimeStamp();
     if (!firstTime){
-      milliSync = Util::bootMS() - bootMsOffset;
+      milliSync = Util::bootMS();
       firstTime = pTime + 1;
       INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME,
                PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));

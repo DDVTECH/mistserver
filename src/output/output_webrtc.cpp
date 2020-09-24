@@ -50,11 +50,16 @@ namespace Mist{
   /* ------------------------------------------------ */
 
   OutWebRTC::OutWebRTC(Socket::Connection &myConn) : HTTPOutput(myConn){
+    totalPkts = 0;
+    totalLoss = 0;
+    totalRetrans = 0;
+    setPacketOffset = false;
+    packetOffset = 0;
     lastRecv = Util::bootMS();
     stats_jitter = 0;
     stats_nacknum = 0;
     stats_lossnum = 0;
-    stats_lossperc = 0;
+    stats_lossperc = 100.0;
     lastPackMs = 0;
     vidTrack = INVALID_TRACK_ID;
     prevVidTrack = INVALID_TRACK_ID;
@@ -65,7 +70,6 @@ namespace Mist{
     repeatInit = true;
 
     lastTimeSync = 0;
-    packetOffset = 0;
     maxSkipAhead = 0;
     needsLookAhead = 0;
     webRTCInputOutputThread = NULL;
@@ -994,6 +998,15 @@ namespace Mist{
     }
   }
 
+  void OutWebRTC::connStats(uint64_t now, Comms::Statistics &statComm){
+    statComm.setUp(myConn.dataUp());
+    statComm.setDown(myConn.dataDown());
+    statComm.setPacketCount(totalPkts);
+    statComm.setPacketLostCount(totalLoss);
+    statComm.setPacketRetransmitCount(totalRetrans);
+    statComm.setTime(now - myConn.connTime());
+  }
+
   // Checks if there is data on our UDP socket. The data can be
   // STUN, DTLS, SRTP or SRTCP. When we're receiving media from
   // the browser (e.g. from webcam) this function is called from
@@ -1022,6 +1035,33 @@ namespace Mist{
         FAIL_MSG("Unhandled WebRTC data. Type: %02X", fb);
       }
     }
+
+    //If this is an incoming push, handle receiver reports and keyframe interval
+    if (isPushing()){
+      uint64_t now = Util::bootMS();
+      
+      //Receiver reports and packet loss calculations
+      if (now >= rtcpTimeoutInMillis){
+        std::map<uint64_t, WebRTCTrack>::iterator it;
+        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
+          if (M.getType(it->first) != "video"){continue;}//Video-only, at least for now
+          sendRTCPFeedbackREMB(it->second);
+          sendRTCPFeedbackRR(it->second);
+        }
+        rtcpTimeoutInMillis = now + 1000; /* was 5000, lowered for FEC */
+      }
+
+      //Keyframe requests
+      if (now >= rtcpKeyFrameTimeoutInMillis){
+        std::map<uint64_t, WebRTCTrack>::iterator it;
+        for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
+          if (M.getType(it->first) != "video"){continue;}//Video-only
+          sendRTCPFeedbackPLI(it->second);
+        }
+        rtcpKeyFrameTimeoutInMillis = now + rtcpKeyFrameDelayInMillis;
+      }
+    }
+
     if (udp.getSock() == -1){onFail("UDP socket closed", true);}
     return hadPack;
   }
@@ -1125,6 +1165,7 @@ namespace Mist{
   }
 
   void OutWebRTC::ackNACK(uint32_t pSSRC, uint16_t seq){
+    totalRetrans++;
     if (!outBuffers.count(pSSRC)){
       WARN_MSG("Could not answer NACK for %" PRIu32 ": we don't know this track", pSSRC);
       return;
@@ -1193,6 +1234,7 @@ namespace Mist{
         uint16_t sNum = *(rtcTrack.sorter.wantedSeqs.begin());
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Sending NACK for sequence #" << sNum << std::endl;}
         stats_nacknum++;
+        totalRetrans++;
         sendRTCPFeedbackNACK(rtcTrack, sNum);
         rtcTrack.sorter.wantedSeqs.erase(sNum);
       }
@@ -1259,6 +1301,7 @@ namespace Mist{
             uint64_t ntpTime = Bit::btohll(udp.data + 8);
             uint32_t rtpTime = Bit::btohl(udp.data + 16);
             uint32_t packets = Bit::btohl(udp.data + 20);
+            totalPkts += packets;
             uint32_t bytes = Bit::btohl(udp.data + 24);
             HIGH_MSG("Received sender report for track %s (%" PRIu32 " pkts, %" PRIu32 "b) time: %" PRIu32 " RTP = %" PRIu64 " NTP", it->second.rtpToDTSC.codec.c_str(), packets, bytes, rtpTime, ntpTime);
             if (rtpTime && ntpTime){
@@ -1277,7 +1320,8 @@ namespace Mist{
         }
       }else if (pt == 73){
         //73 = receiver report
-        // \TODO Implement, maybe?
+        uint32_t packets = Bit::btoh24(udp.data + 13);
+        totalLoss = packets;
       }else{
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
         WARN_MSG("Unknown RTP feedback payload type: %u", pt);
@@ -1294,7 +1338,14 @@ namespace Mist{
   }
 
   void OutWebRTC::onDTSCConverterHasPacket(const DTSC::Packet &pkt){
-
+    if (!M.getBootMsOffset()){
+      meta.setBootMsOffset(Util::bootMS() - pkt.getTime());
+      packetOffset = 0;
+      setPacketOffset = true;
+    }else if (!setPacketOffset){
+      packetOffset = (Util::bootMS() - pkt.getTime()) - M.getBootMsOffset();
+      setPacketOffset = true;
+    }
 
     // extract meta data (init data, width/height, etc);
     size_t idx = M.trackIDToIndex(pkt.getTrackId(), getpid());
@@ -1311,30 +1362,16 @@ namespace Mist{
     if (codec == "VP8" && pkt.getFlag("keyframe")){extractFrameSizeFromVP8KeyFrame(pkt);}
     if (codec == "VP9" && pkt.getFlag("keyframe")){extractFrameSizeFromVP8KeyFrame(pkt);}
 
-    // create rtcp packet (set bitrate and request keyframe).
-    if (codec == "H264" || codec == "VP8" || codec == "VP9"){
-      uint64_t now = Util::bootMS();
-
-      if (now >= rtcpTimeoutInMillis){
-        WebRTCTrack &rtcTrack = webrtcTracks[idx];
-        sendRTCPFeedbackREMB(rtcTrack);
-        sendRTCPFeedbackRR(rtcTrack);
-        rtcpTimeoutInMillis = now + 1000; /* was 5000, lowered for FEC */
-      }
-
-      if (now >= rtcpKeyFrameTimeoutInMillis){
-        WebRTCTrack &rtcTrack = webrtcTracks[idx];
-        sendRTCPFeedbackPLI(rtcTrack);
-        rtcpKeyFrameTimeoutInMillis = now + rtcpKeyFrameDelayInMillis;
-      }
-    }
-
     if (!M.trackValid(idx)){
       INFO_MSG("Validated track %zu in meta", idx);
       meta.validateTrack(idx);
     }
     DONTEVEN_MSG("DTSC: %s", pkt.toSummary().c_str());
-    bufferLivePacket(pkt);
+    char *pktData;
+    size_t pktDataLen;
+    pkt.getString("data", pktData, pktDataLen);
+    bufferLivePacket(pkt.getTime() + packetOffset, pkt.getInt("offset"), idx, pktData,
+                     pktDataLen, 0, pkt.getFlag("keyframe"));
   }
 
   void OutWebRTC::onDTSCConverterHasInitData(size_t trackId, const std::string &initData){
@@ -1397,6 +1434,7 @@ namespace Mist{
     uint16_t seq = tmpPkt.getSequence();
     outBuffers[pSSRC].assign(seq, rtpOutBuffer, protectedSize);
     myConn.addUp(protectedSize);
+    totalPkts++;
 
     if (volkswagenMode){
       if (srtpWriter.protectRtp((uint8_t *)(void *)rtpOutBuffer, &protectedSize) != 0){
@@ -1721,7 +1759,7 @@ namespace Mist{
   // sequence numbers are lost it makes sense to implement this
   // too.
   void OutWebRTC::sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack, uint16_t lostSequenceNumber){
-    INFO_MSG("Requesting missing sequence number %u", lostSequenceNumber);
+    VERYHIGH_MSG("Requesting missing sequence number %u", lostSequenceNumber);
 
     std::vector<uint8_t> buffer;
     buffer.push_back(0x80 | 0x01); // V=2 (0x80) | FMT=1 (0x01)
@@ -1767,9 +1805,14 @@ namespace Mist{
   }
 
   void OutWebRTC::sendRTCPFeedbackRR(WebRTCTrack &rtcTrack){
-    stats_lossperc = (double)(rtcTrack.sorter.lostCurrent * 100.) / (double)(rtcTrack.sorter.lostCurrent + rtcTrack.sorter.packCurrent);
+    if ((rtcTrack.sorter.lostCurrent + rtcTrack.sorter.packCurrent) < 1){
+      stats_lossperc = 100.0;
+    }else{
+      stats_lossperc = (double)(rtcTrack.sorter.lostCurrent * 100.) / (double)(rtcTrack.sorter.lostCurrent + rtcTrack.sorter.packCurrent);
+    }
     stats_jitter = rtcTrack.jitter/rtcTrack.rtpToDTSC.multiplier;
     stats_lossnum = rtcTrack.sorter.lostTotal;
+    totalLoss = stats_lossnum;
 
     //Print stats at appropriate log levels
     if (stats_lossperc > 1 || stats_jitter > 20){

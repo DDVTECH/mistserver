@@ -225,7 +225,7 @@ namespace SDP{
       // We simply request interleaved delivery over a trackNo-based identifier.
       // No need to set any internal state, parseTransport will handle it all.
       std::stringstream tStr;
-      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-" << ((trackNo - 1) * 2 + 1);
+      tStr << "RTP/AVP/TCP;unicast;interleaved=" << (trackNo * 2) << "-" << (trackNo * 2 + 1);
       return tStr.str();
     }else{
       // A little more tricky: we need to find free ports and remember them.

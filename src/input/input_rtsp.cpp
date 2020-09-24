@@ -169,8 +169,7 @@ namespace Mist{
           continue;
         }
         if (!atLeastOne && tcpCon){
-          INFO_MSG("Failed to set up transport for track %s, switching transports...",
-                   M.getTrackIdentifier(it->first).c_str());
+          INFO_MSG("Failed to set up transport for track %s, switching transports...", M.getTrackIdentifier(it->first).c_str());
           TCPmode = !TCPmode;
           extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
           sendCommand("SETUP", lastRequestedSetup, "", &extraHeaders);
@@ -339,19 +338,16 @@ namespace Mist{
       size_t trackNo = sdpState.getTrackNoForChannel(chan);
       EXTREME_MSG("Received %ub RTP packet #%u on channel %u, time %" PRIu32, len,
                   pkt.getSequence(), chan, pkt.getTimeStamp());
-      if ((trackNo == INVALID_TRACK_ID) && (chan % 2) != 1){
-        WARN_MSG("Received packet for unknown track number on channel %u", chan);
-      }
-      if (trackNo != INVALID_TRACK_ID){
-        sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
+      if (trackNo == INVALID_TRACK_ID){
+        if ((chan % 2) != 1){
+          WARN_MSG("Received packet for unknown track number on channel %u", chan);
+        }
+        return true;
       }
 
-      if (trackNo != INVALID_TRACK_ID){
-        if (!userSelect.count(trackNo)){
-          userSelect[trackNo].reload(streamName, trackNo, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
-        }
-        sdpState.handleIncomingRTP(trackNo, pkt);
-      }
+      //We override the rtpSeq number because in TCP mode packet loss is not a thing.
+      sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
+      sdpState.handleIncomingRTP(trackNo, pkt);
 
       return true;
 
@@ -399,7 +395,22 @@ namespace Mist{
     char *pktData;
     size_t pktDataLen;
     pkt.getString("data", pktData, pktDataLen);
-    bufferLivePacket(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData,
+    size_t idx = M.trackIDToIndex(pkt.getTrackId(), getpid());
+
+    if (idx == INVALID_TRACK_ID){
+      INFO_MSG("Invalid index for track number %zu", pkt.getTrackId());
+    }else{
+      if (!userSelect.count(idx)){
+        WARN_MSG("Reloading track %zu, index %zu", pkt.getTrackId(), idx);
+        userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      }
+      if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
+        Util::logExitReason("buffer requested shutdown");
+        tcpCon.close();
+      }
+    }
+
+    bufferLivePacket(pkt.getTime() + packetOffset, pkt.getInt("offset"), idx, pktData,
                      pktDataLen, 0, pkt.getFlag("keyframe"));
   }
 

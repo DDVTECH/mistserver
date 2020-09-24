@@ -624,8 +624,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
       }
     }
     if (seenHeaders){
+      if (headerOnly){return true;}
       if (length > 0){
-        if (headerOnly){return true;}
         unsigned int toappend = length - body.length();
 
         // limit the amount of bytes that will be appended to the amount there
@@ -661,11 +661,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         }
       }else{
         if (getChunks){
-
-          // toappend
           currentLength += HTTPbuffer.size();
-
-          if (headerOnly){return true;}
           if (doingChunk){
             unsigned int toappend = HTTPbuffer.size();
             if (toappend > doingChunk){toappend = doingChunk;}

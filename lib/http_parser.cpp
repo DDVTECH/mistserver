@@ -34,6 +34,7 @@ void HTTP::Parser::Clean(){
 void HTTP::Parser::CleanPreserveHeaders(){
   seenHeaders = false;
   seenReq = false;
+  possiblyComplete = false;
   getChunks = false;
   doingChunk = 0;
   bufferChunks = false;
@@ -498,6 +499,10 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// returned. If not, as much as can be interpreted is removed and false returned. \param conn The
 /// socket to read from. \return True if a whole request or response was read, false otherwise.
 bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
+  //In this case, we might have a broken connection and need to check if we're done
+  if (!conn.Received().size()){
+    return (parse(conn.Received().get(), cb) && (!possiblyComplete || !conn || !JSON::Value(url).asInt()));
+  }
   while (conn.Received().size()){
     // Make sure the received data ends in a newline (\n).
     while ((!seenHeaders || (getChunks && !doingChunk)) && conn.Received().get().size() &&
@@ -516,8 +521,7 @@ bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
     }
 
     // return true if a parse succeeds, and is not a request
-    if (parse(conn.Received().get(), cb) && (!JSON::Value(url).isInt() || headerOnly || length ||
-                                             getChunks || (!conn && !conn.Received().size()))){
+    if (parse(conn.Received().get(), cb) && (!possiblyComplete || !conn || !JSON::Value(url).asInt())){
       return true;
     }
   }
@@ -625,7 +629,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
     }
     if (seenHeaders){
       if (headerOnly){return true;}
-      if (length > 0){
+      if (length > 0 && !getChunks){
         unsigned int toappend = length - body.length();
 
         // limit the amount of bytes that will be appended to the amount there
@@ -723,12 +727,13 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           HTTPbuffer.erase(0, toappend);
 
           // return true if there is no body, otherwise we only stop when the connection is dropped
+          possiblyComplete = true;  
           return true;
         }
       }
     }
   }
-  return false; // empty input
+  return possiblyComplete; // empty input
 }// HTTPReader::parse
 
 /// HTTP variable parser to std::map<std::string, std::string> structure.

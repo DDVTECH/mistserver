@@ -1319,7 +1319,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
           if (streamIndex.mapped){
             static char liveSemName[NAME_BUFFER_SIZE];
             snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, it->c_str());
-            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 1);
+            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 8);
             metaLocker.wait();
             DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
             uint64_t lms = 0;

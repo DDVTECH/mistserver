@@ -47,7 +47,7 @@ namespace IPC {
 #else
     mySem = SEM_FAILED;
 #endif
-    isLocked = false;
+    isLocked = 0;
   }
 
   ///\brief Constructs a named semaphore
@@ -61,7 +61,7 @@ namespace IPC {
 #else
     mySem = SEM_FAILED;
 #endif
-    isLocked = false;
+    isLocked = 0;
     open(name, oflag, mode, value, noWait);
   }
 
@@ -168,13 +168,18 @@ namespace IPC {
 #endif
       return;
     }
-    if (*this) {
 #if defined(__CYGWIN__) || defined(_WIN32)
-      ReleaseMutex(mySem);
+    ReleaseMutex(mySem);
 #else
-      sem_post(mySem);
+    sem_post(mySem);
 #endif
-      isLocked = false;
+    --isLocked;
+    if (!isLocked){
+      uint64_t micros = Util::getMicros(lockTime);
+      if (micros > 500){
+        INFO_MSG("Semaphore %s was locked for %.3f ms", myName.c_str(), (double)micros/1000.0);
+        BACKTRACE;
+      }
     }
   }
 
@@ -189,7 +194,8 @@ namespace IPC {
         tmp = sem_wait(mySem);
       } while (tmp == -1 && errno == EINTR);
 #endif
-      isLocked = true;
+      lockTime = Util::getMicros();
+      ++isLocked;
     }
   }
 
@@ -208,7 +214,9 @@ namespace IPC {
       result = sem_trywait(mySem);
     } while (result == -1 && errno == EINTR);
 #endif
-    return isLocked = (result == 0);
+    isLocked += (result == 0?1:0);
+    if (isLocked == 1){lockTime = Util::getMicros();}
+    return isLocked;
   }
 
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false otherwise
@@ -225,28 +233,27 @@ namespace IPC {
     /// \todo (roxlu) test tryWaitOneSecond, shared_memory.cpp
     uint64_t now = Util::getMicros();
     uint64_t timeout = now + 1e6;
-    while (now < timeout) {
-      if (0 == sem_trywait(mySem)) {
-        isLocked = true;
-        return true;
-      }
+    result = 1;
+    while (result && now < timeout) {
+      result = sem_trywait(mySem);
       usleep(100e3);
       now = Util::getMicros();
     }
-    return false;
 #else
     struct timespec wt;
     wt.tv_sec = 1;
     wt.tv_nsec = 0;
     result = sem_timedwait(mySem, &wt);
 #endif
-    return isLocked = (result == 0);
+    isLocked += (result == 0?1:0);
+    if (isLocked == 1){lockTime = Util::getMicros();}
+    return isLocked;
   }
 
   ///\brief Closes the currently opened semaphore
   void semaphore::close() {
     if (*this) {
-      if (isLocked){post();}
+      while (isLocked){post();}
 #if defined(__CYGWIN__) || defined(_WIN32)
       CloseHandle(mySem);
       mySem = 0;
@@ -276,7 +283,7 @@ namespace IPC {
   /// Unlinks the previously opened semaphore, closing it (if open) in the process.
   void semaphore::unlink() {
 #if defined(__CYGWIN__) || defined(_WIN32)
-    if (isLocked){post();}
+    while (isLocked){post();}
 #endif
 #if !defined(__CYGWIN__) && !defined(_WIN32)
     if (myName.size()){sem_unlink(myName.c_str());}

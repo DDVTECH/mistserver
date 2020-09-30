@@ -341,8 +341,15 @@ namespace Mist {
     if (!liveMeta){
       static char liveSemName[NAME_BUFFER_SIZE];
       snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-      liveMeta = new IPC::semaphore(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      liveMeta = new IPC::semaphore(liveSemName, O_CREAT | O_RDWR, ACCESSPERMS, 8);
     }
+    liveMeta->wait();
+    liveMeta->wait();
+    liveMeta->wait();
+    liveMeta->wait();
+    liveMeta->wait();
+    liveMeta->wait();
+    liveMeta->wait();
     liveMeta->wait();
 
     if (!nProxy.metaPages.count(0) || !nProxy.metaPages[0].mapped) {
@@ -353,6 +360,13 @@ namespace Mist {
     }
     myMeta.writeTo(nProxy.metaPages[0].mapped);
     memset(nProxy.metaPages[0].mapped + myMeta.getSendLen(), 0, (nProxy.metaPages[0].len > myMeta.getSendLen() ? std::min((size_t)(nProxy.metaPages[0].len - myMeta.getSendLen()), (size_t)4) : 0));
+    liveMeta->post();
+    liveMeta->post();
+    liveMeta->post();
+    liveMeta->post();
+    liveMeta->post();
+    liveMeta->post();
+    liveMeta->post();
     liveMeta->post();
   }
 
@@ -722,12 +736,12 @@ namespace Mist {
             updateTrackMeta(finalMap);
             hasPush = true;
           }
+          //Update the metadata to reflect all changes
+          updateMeta();
           //Write the final mapped track number and keyframe number to the user page element
           //This is used to resume pushing as well as pushing new tracks
           userConn.setTrackId(index, finalMap);
           userConn.setKeynum(index, myMeta.tracks[finalMap].keys.size());
-          //Update the metadata to reflect all changes
-          updateMeta();
           continue;
         }
         //Set the temporary track id for this item, and increase the temporary value for use with the next track
@@ -859,6 +873,8 @@ namespace Mist {
           myMeta.tracks[finalMap].lastms = 0;
           myMeta.tracks[finalMap].trackID = finalMap;
         }
+        //Update the metadata to reflect all changes
+        updateMeta();
         //Write the final mapped track number and keyframe number to the user page element
         //This is used to resume pushing as well as pushing new tracks
         userConn.setTrackId(index, finalMap);
@@ -867,8 +883,6 @@ namespace Mist {
         }else{
           userConn.setKeynum(index, 0);
         }
-        //Update the metadata to reflect all changes
-        updateMeta();
       }
       //If the track is active, and this is the element responsible for pushing it
       if (activeTracks.count(value) && pushLocation[value] == data) {
@@ -914,7 +928,6 @@ namespace Mist {
     for (std::map<unsigned long, DTSCPageData>::iterator pageIt = locations.begin(); pageIt != locations.end(); pageIt++) {
       updateMetaFromPage(tNum, pageIt->first);
     }
-    updateMeta();
   }
 
   void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum) {

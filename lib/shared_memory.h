@@ -85,7 +85,8 @@ namespace IPC {
 #else
       sem_t * mySem;
 #endif
-      bool isLocked;
+      unsigned int isLocked;
+      uint64_t lockTime;
       std::string myName;
   };
 

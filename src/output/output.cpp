@@ -1564,6 +1564,7 @@ namespace Mist{
         }
         //every ~16 seconds, reconnect to metadata
         if (emptyCount % 1600 == 0){
+          INFO_MSG("Reconnecting to input; track %" PRIu64 " key %zu is on page %zu and we're currently serving %zu from %zu", nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
           reconnect();
           if (!meta){
             onFail("Could not connect to stream data", true);

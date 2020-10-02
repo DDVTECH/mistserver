@@ -27,10 +27,17 @@ namespace Mist{
       WARN_MSG("Player is inside invalid track: %zu", track);
       return;
     }
+    //This is a bit tricky:
+    //We want to make sure the next page is buffered before we need it, during playback.
+    //To do so, we grab the current key's time and make sure current key and everything 20 seconds after it, is loaded.
     size_t key = users.getKeyNum(id);
     uint64_t time = M.getTimeForKeyIndex(track, key);
     size_t endKey = M.getKeyIndexForTime(track, time + 20000);
+    //But! What if our current key is 20+ seconds long? HAVE YOU THOUGHT OF THAT?!
+    //Exactly! I thought not! So, if the end key number == the first, we increase by one.
+    if (endKey == key){++endKey;}
     for (size_t i = key; i <= endKey; i++){bufferFrame(track, i);}
+    //Now, we can rest assured that the next ~20 seconds or so is pre-buffered in RAM.
   }
   void Input::userOnDisconnect(size_t id){}
   void Input::userLeadOut(){}

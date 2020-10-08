@@ -175,9 +175,8 @@ namespace IPC {
     --isLocked;
     if (!isLocked){
       uint64_t micros = Util::getMicros(lockTime);
-      if (micros > 500){
+      if (micros > 10000){
         INFO_MSG("Semaphore %s was locked for %.3f ms", myName.c_str(), (double)micros/1000.0);
-        BACKTRACE;
       }
     }
   }

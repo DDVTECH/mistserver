@@ -8,6 +8,7 @@
 #include "rtmpchunks.h"
 #include "timing.h"
 #include "util.h"
+#include "adts.h"
 #include <fcntl.h> //for Tag::FileLoader
 #include <sstream>
 #include <stdio.h>  //for Tag::FileLoader
@@ -878,9 +879,9 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
       }else{
         meta.setInit(reTrack, data + 12, len - 16);
       }
-      if (metadata.tracks[reTrack].codec == "AAC"){
-        metadata.tracks[reTrack].rate = aac::AudSpecConf::rate(metadata.tracks[reTrack].init);
-        metadata.tracks[reTrack].channels = aac::AudSpecConf::channels(metadata.tracks[reTrack].init);
+      if (meta.getCodec(reTrack) == "AAC"){
+        meta.setRate(reTrack, aac::AudSpecConf::rate(meta.getInit(reTrack)));
+        meta.setChannels(reTrack, aac::AudSpecConf::channels(meta.getInit(reTrack)));
       }
     }
   }

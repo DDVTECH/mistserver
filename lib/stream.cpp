@@ -825,14 +825,13 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
   }
-  // audio channel matching
+  //audio channel matching
   if (!trackType.size() || trackType == "audio"){
     if (trackLow == "surround"){
-      std::set<size_t> validTracks = getSupportedTracks(M, capa);
+      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        const DTSC::Track &Trk = M.tracks.at(*it);
-        if (!trackType.size() || Trk.type == trackType || Trk.codec == trackType){
-          if (Trk.channels > 2){result.insert(*it);}
+        if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+          if (M.getChannels(*it) > 2){result.insert(*it);}
         }
       }
       return result;
@@ -842,15 +841,12 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (trackLow == "mono"){targetChannel = 1;}
     if (trackLow == "stereo"){targetChannel = 2;}
     if (trackLow == "stereo"){targetChannel = 2;}
-    if (trackLow.find("ch") != std::string::npos && sscanf(trackLow.c_str(), "%uch", &channelVal) == 1){
-      targetChannel = channelVal;
-    }
+    if (trackLow.find("ch") != std::string::npos && sscanf(trackLow.c_str(), "%uch", &channelVal) == 1){targetChannel = channelVal;}
     if (targetChannel){
-      std::set<size_t> validTracks = getSupportedTracks(M, capa);
+      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        const DTSC::Track &Trk = M.tracks.at(*it);
-        if (!trackType.size() || Trk.type == trackType || Trk.codec == trackType){
-          if (Trk.channels == targetChannel){result.insert(*it);}
+        if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+          if (M.getChannels(*it) == targetChannel){result.insert(*it);}
         }
       }
       return result;

@@ -320,8 +320,10 @@ namespace Mist{
           }
         }
         if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          if (!url.protocol.size() && it->isMember("handler")){
-            url.protocol = (*it)["handler"].asStringRef();
+          bool isSSL = false;
+          if (url.protocol == "https" || url.protocol == "wss"){isSSL = true;}
+          if (it->isMember("handler")){
+            url.protocol = (*it)["handler"].asStringRef() + (isSSL?"s":"");
           }
           addSource(relurl, sources, url, *it, most_simul, total_matches);
         }

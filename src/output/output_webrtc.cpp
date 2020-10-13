@@ -167,7 +167,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("opus");
     capa["codecs"][0u][1u].append("ALAW");
     capa["codecs"][0u][1u].append("ULAW");
-    capa["methods"][0u]["handler"] = "webrtc";
+    capa["methods"][0u]["handler"] = "ws";
     capa["methods"][0u]["type"] = "webrtc";
     capa["methods"][0u]["priority"] = 2;
     capa["methods"][0u]["nobframes"] = 1;

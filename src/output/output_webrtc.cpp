@@ -1610,12 +1610,12 @@ namespace Mist{
     buffer.push_back((rtcTrack.SSRC >> 8) & 0xFF);  // ssrc of receiver
     buffer.push_back((rtcTrack.SSRC) & 0xFF);       // ssrc of receiver
 
+    // protect.
+    int buffer_size_in_bytes = (int)buffer.size();
+
     // space for protection
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
-
-    // protect.
-    int buffer_size_in_bytes = (int)buffer.size();
 
     if (doDTLS){
       if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){
@@ -1661,12 +1661,12 @@ namespace Mist{
     buffer.push_back(0x00); // BLP: Bitmask of following losses. (not implemented atm).
     buffer.push_back(0x00); // BLP: Bitmask of following losses. (not implemented atm).
 
+    // protect.
+    int buffer_size_in_bytes = (int)buffer.size();
+
     // space for protection
     size_t trailer_space = SRTP_MAX_TRAILER_LEN + 4;
     for (size_t i = 0; i < trailer_space; ++i){buffer.push_back(0x00);}
-
-    // protect.
-    int buffer_size_in_bytes = (int)buffer.size();
 
     if (doDTLS){
       if (srtpWriter.protectRtcp(&buffer[0], &buffer_size_in_bytes) != 0){

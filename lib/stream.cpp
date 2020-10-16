@@ -1288,11 +1288,11 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
       if (it != result.begin()){selected << ", ";}
       selected << *it;
     }
-    MEDIUM_MSG("Selected tracks: %s (%zu)", selected.str().c_str(), result.size());
+    MEDIUM_MSG("Would select tracks: %s (%zu)", selected.str().c_str(), result.size());
   }
 
   if (!result.size() && validTracks.size() && capa["codecs"][bestSoFar].size()){
-    WARN_MSG("No tracks selected (%zu total) for stream!", validTracks.size());
+    WARN_MSG("Would select no tracks (%zu total) for stream!", validTracks.size());
   }
   return result;
 }

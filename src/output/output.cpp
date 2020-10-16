@@ -445,6 +445,7 @@ namespace Mist{
     }
 
     //Find elements in new selection but not in old selection
+    diffs.clear();
     std::set_difference(newSelects.begin(), newSelects.end(), oldSelects.begin(), oldSelects.end(), std::inserter(diffs, diffs.end()));
     if (diffs.size()){MEDIUM_MSG("Adding %zu tracks", diffs.size());}
     for (std::set<size_t>::iterator it = diffs.begin(); it != diffs.end(); it++){
@@ -1236,7 +1237,10 @@ namespace Mist{
                 if (amount > 1000){amount = 1000;}
                 Util::sleep(amount);
                 //Make sure we stay responsive to requests and stats while waiting
-                if (wantRequest){requestHandler();}
+                if (wantRequest){
+                  requestHandler();
+                  if (!realTime){break;}
+                }
                 stats();
               }
             }

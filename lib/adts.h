@@ -53,26 +53,36 @@ namespace aac {
           default: return 0;
         }
       }
-      static inline uint16_t channels(const std::string & conf){
+      static inline uint16_t channels(const std::string &conf){
         Utils::bitstream bs;
         bs.append(conf.data(), conf.size());
-        if (bs.get(5) == 31){bs.skip(6);}//skip object type
-        if (bs.get(4) == 15){bs.skip(24);}//frequency index
-        return bs.get(4);//channel configuration
+        if (bs.get(5) == 31){bs.skip(6);}// skip object type
+        if (bs.get(4) == 15){bs.skip(24);}// frequency index
+        uint8_t chanConfig = bs.get(4);
+        if (chanConfig == 0){
+          WARN_MSG("Unimplemented AAC AOT Specific Config parsing");
+          return 8;
+        }
+        if (chanConfig > 7){
+          WARN_MSG("Unimplemented AAC channel configuration %" PRIu8, chanConfig);
+          return 8;
+        }
+        if (chanConfig == 7){return 8;}
+        return chanConfig;
       }
-      static inline uint8_t objtype(const std::string & conf){
+      static inline uint8_t objtype(const std::string &conf){
         Utils::bitstream bs;
         bs.append(conf.data(), conf.size());
         uint8_t ot = bs.get(5);
-        if (ot == 31){return bs.get(6)+32;}
+        if (ot == 31){return bs.get(6) + 32;}
         return ot;
       }
-      static inline uint16_t samples(const std::string & conf){
+      static inline uint16_t samples(const std::string &conf){
         Utils::bitstream bs;
         bs.append(conf.data(), conf.size());
-        if (bs.get(5) == 31){bs.skip(6);}//skip object type
-        if (bs.get(4) == 15){bs.skip(24);}//frequency index
-        bs.skip(4);//channel configuration
+        if (bs.get(5) == 31){bs.skip(6);}// skip object type
+        if (bs.get(4) == 15){bs.skip(24);}// frequency index
+        bs.skip(4);                           // channel configuration
         if (bs.get(1)){
           return 960;
         }else{

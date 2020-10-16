@@ -190,13 +190,15 @@ namespace Mist {
         tempLen += 7;
         //Make sure TS timestamp is sample-aligned, if possible
         uint32_t freq = Trk.rate;
-        uint64_t aacSamples = (packTime/90) * freq / 1000;
-        //round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
-        aacSamples += 512;
-        aacSamples /= 1024;
-        aacSamples *= 1024;
-        //Get closest 90kHz clock time to perfect sample alignment
-        packTime = aacSamples * 90000 / freq;
+        if (freq){
+          uint64_t aacSamples = (packTime/90) * freq / 1000;
+          //round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
+          aacSamples += 512;
+          aacSamples /= 1024;
+          aacSamples *= 1024;
+          //Get closest 90kHz clock time to perfect sample alignment
+          packTime = aacSamples * 90000 / freq;
+        }
       }
       bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, Trk.bps);
       fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);

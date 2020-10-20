@@ -1307,7 +1307,7 @@ namespace Mist{
             }
             sendNext();
           }else{
-            Util::logExitReason("end of stream");
+            parseData = false;
             /*LTS-START*/
             if (Triggers::shouldTrigger("CONN_STOP", streamName)){
               std::string payload =
@@ -1315,7 +1315,10 @@ namespace Mist{
               Triggers::doTrigger("CONN_STOP", payload, streamName);
             }
             /*LTS-END*/
-            if (!onFinish()){break;}
+            if (!onFinish()){
+              Util::logExitReason("end of stream");
+              break;
+            }
           }
         }
         if (!meta){

@@ -99,6 +99,7 @@ namespace Mist{
     void onHTTP();
     void sendNext();
     void sendHeader();
+    virtual bool onFinish();
 
   protected:
     uint64_t fileSize;

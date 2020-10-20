@@ -37,6 +37,7 @@ void HTTP::Parser::CleanPreserveHeaders(){
   seenReq = false;
   possiblyComplete = false;
   getChunks = false;
+  sendingChunks = false;
   doingChunk = 0;
   bufferChunks = false;
   method = "GET";

@@ -942,6 +942,12 @@ namespace Mist{
     H.Chunkify(mdatHeader, 8, myConn);
   }
 
+  bool OutMP4::onFinish(){
+    H.Chunkify(0, 0, myConn);
+    wantRequest = true;
+    return true;
+  }
+
   void OutMP4::onHTTP(){
     std::string dl;
     if (H.GetVar("dl").size()){
@@ -1226,11 +1232,6 @@ namespace Mist{
       }
     }
 
-    if (leftOver < 1){
-      // stop playback, wait for new request
-      stop();
-      wantRequest = true;
-    }
   }
 
   void OutMP4::sendHeader(){

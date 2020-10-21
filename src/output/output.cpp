@@ -1664,10 +1664,25 @@ namespace Mist{
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append(it->first);
         }
-        pData["bytes"] = myConn.dataUp();
-        pData["active_seconds"] = (now - myConn.connTime());
+        pData["bytes"] = statComm.getUp();
+        uint64_t pktCntNow = statComm.getPacketCount();
+        if (pktCntNow){
+          uint64_t pktLosNow = statComm.getPacketLostCount();
+          static uint64_t prevPktCount = pktCntNow;
+          static uint64_t prevLosCount = pktLosNow;
+          uint64_t pktCntDiff = pktCntNow-prevPktCount;
+          uint64_t pktLosDiff = pktLosNow-prevLosCount;
+          if (pktCntDiff){
+            pData["pkt_loss_perc"] = (pktLosDiff*100) / pktCntDiff;
+          }
+          pData["pkt_loss_count"] = pktLosNow;
+          pData["pkt_retrans_count"] = statComm.getPacketRetransmitCount();
+          prevPktCount = pktCntNow;
+          prevLosCount = pktLosNow;
+        }
+        pData["active_seconds"] = statComm.getTime();
         Socket::UDPConnection uSock;
-        uSock.SetDestination("localhost", 4242);
+        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
         uSock.SendNow(pStat.toString());
         lastPushUpdate = now;
       }

@@ -42,6 +42,8 @@
 #define STAT_TOT_BPS_UP 4
 #define STAT_TOT_INPUTS 8
 #define STAT_TOT_OUTPUTS 16
+#define STAT_TOT_PERCLOST 32
+#define STAT_TOT_PERCRETRANS 64
 #define STAT_TOT_ALL 0xFF
 
 #define COUNTABLE_BYTES 128 * 1024
@@ -615,7 +617,6 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
   curConns[index].update(statComm, index);
   // store timestamp of first received data, if older
   if (firstSec > statComm.getNow(index)){firstSec = statComm.getNow(index);}
-  uint64_t prevLastSec = lastSec;
   uint64_t secIncr = 0;
   // store timestamp of last received data, if newer
   if (statComm.getNow(index) > lastSec){
@@ -717,7 +718,7 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
           wipedDown += it->log.begin()->second.down;
           wipedUp += it->log.begin()->second.up;
           wipedPktCount += it->log.begin()->second.pktCount;
-          wipedPktLost += it->log.begin()->second.pktCount;
+          wipedPktLost += it->log.begin()->second.pktLost;
           wipedPktRetransmit += it->log.begin()->second.pktRetransmit;
         }
         it->log.erase(it->log.begin());
@@ -1268,18 +1269,19 @@ bool Controller::hasViewers(std::string streamName){
 void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   // first, figure out the timestamp wanted
-  uint64_t reqTime = 0;
+  int64_t reqTime = 0;
+  uint64_t epoch = Util::epoch();
+  uint64_t bSecs = Util::bootSecs();
   if (req.isMember("time")){reqTime = req["time"].asInt();}
   // to make sure no nasty timing business takes place, we store the case "now" as a bool.
   bool now = (reqTime == 0);
+  //if greater than current bootsecs, assume unix time and subtract epoch from it
+  if (reqTime > (int64_t)epoch - STAT_CUTOFF){reqTime -= (epoch-bSecs);}
   // add the current time, if negative or zero.
-  if (reqTime <= 0){
-    reqTime += Util::bootSecs();
-  }else{
-    reqTime -= (Util::epoch() - Util::bootSecs());
-  }
-  // at this point, reqTime is the absolute timestamp.
-  rep["time"] = reqTime; // fill the absolute timestamp
+  if (reqTime < 0){reqTime += bSecs;}
+  if (reqTime == 0){reqTime = bSecs - STAT_CUTOFF;}
+  // at this point, we have the absolute timestamp in bootsecs.
+  rep["time"] = reqTime + (epoch-bSecs); // fill the absolute timestamp
 
   unsigned int fields = 0;
   // next, figure out the fields wanted
@@ -1461,8 +1463,11 @@ public:
     outputs = 0;
     downbps = 0;
     upbps = 0;
+    pktCount = 0;
+    pktLost = 0;
+    pktRetransmit = 0;
   }
-  void add(uint64_t down, uint64_t up, Controller::sessType sT){
+  void add(uint64_t down, uint64_t up, Controller::sessType sT, uint64_t pCount, uint64_t pLost, uint64_t pRetransmit){
     switch (sT){
     case Controller::SESS_VIEWER: clients++; break;
     case Controller::SESS_INPUT: inputs++; break;
@@ -1471,27 +1476,40 @@ public:
     }
     downbps += down;
     upbps += up;
+    pktCount += pCount;
+    pktLost += pLost;
+    pktRetransmit += pRetransmit;
   }
   uint64_t clients;
   uint64_t inputs;
   uint64_t outputs;
   uint64_t downbps;
   uint64_t upbps;
+  uint64_t pktCount;
+  uint64_t pktLost;
+  uint64_t pktRetransmit;
 };
 
 /// This takes a "totals" request, and fills in the response data.
 void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   // first, figure out the timestamps wanted
-  long long int reqStart = 0;
-  long long int reqEnd = 0;
+  int64_t reqStart = 0;
+  int64_t reqEnd = 0;
+  uint64_t epoch = Util::epoch();
+  uint64_t bSecs = Util::bootSecs();
   if (req.isMember("start")){reqStart = req["start"].asInt();}
   if (req.isMember("end")){reqEnd = req["end"].asInt();}
+  //if the reqStart or reqEnd is greater than current bootsecs, assume unix time and subtract epoch from it
+  if (reqStart > (int64_t)epoch - STAT_CUTOFF){reqStart -= (epoch-bSecs);}
+  if (reqEnd > (int64_t)epoch - STAT_CUTOFF){reqEnd -= (epoch-bSecs);}
   // add the current time, if negative or zero.
-  if (reqStart < 0){reqStart += Util::bootSecs();}
-  if (reqStart == 0){reqStart = Util::bootSecs() - STAT_CUTOFF;}
-  if (reqEnd <= 0){reqEnd += Util::bootSecs();}
-  // at this point, reqStart and reqEnd are the absolute timestamp.
+  if (reqStart < 0){reqStart += bSecs;}
+  if (reqStart == 0){reqStart = bSecs - STAT_CUTOFF;}
+  if (reqEnd <= 0){reqEnd += bSecs;}
+  // at this point, reqStart and reqEnd are the absolute timestamp in bootsecs.
+  if (reqEnd < reqStart){reqEnd = reqStart;}
+  if (reqEnd > bSecs){reqEnd = bSecs;}
 
   unsigned int fields = 0;
   // next, figure out the fields wanted
@@ -1502,6 +1520,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       if ((*it).asStringRef() == "outputs"){fields |= STAT_TOT_OUTPUTS;}
       if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
+      if ((*it).asStringRef() == "perc_lost"){fields |= STAT_TOT_PERCLOST;}
+      if ((*it).asStringRef() == "perc_retrans"){fields |= STAT_TOT_PERCRETRANS;}
     }
   }
   // select all, if none selected
@@ -1523,6 +1543,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   if (fields & STAT_TOT_OUTPUTS){rep["fields"].append("outputs");}
   if (fields & STAT_TOT_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
+  if (fields & STAT_TOT_PERCLOST){rep["fields"].append("perc_lost");}
+  if (fields & STAT_TOT_PERCRETRANS){rep["fields"].append("perc_retrans");}
   // start data collection
   std::map<uint64_t, totalsData> totalsCount;
   // loop over all sessions
@@ -1536,7 +1558,7 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
           (!protos.size() || protos.count(it->first.connector))){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
-            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType());
+            totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType(), it->second.getPktCount(), it->second.getPktLost(), it->second.getPktRetransmit());
           }
         }
       }
@@ -1552,8 +1574,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
     return;
   }
   // yay! We have data!
-  rep["start"] = totalsCount.begin()->first;
-  rep["end"] = totalsCount.rbegin()->first;
+  rep["start"] = totalsCount.begin()->first + (epoch-bSecs);
+  rep["end"] = totalsCount.rbegin()->first + (epoch-bSecs);
   rep["data"].null();
   rep["interval"].null();
   uint64_t prevT = 0;
@@ -1565,6 +1587,20 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
     if (fields & STAT_TOT_OUTPUTS){d.append(it->second.outputs);}
     if (fields & STAT_TOT_BPS_DOWN){d.append(it->second.downbps);}
     if (fields & STAT_TOT_BPS_UP){d.append(it->second.upbps);}
+    if (fields & STAT_TOT_PERCLOST){
+      if (it->second.pktCount > 0){
+        d.append((it->second.pktLost*100)/it->second.pktCount);
+      }else{
+        d.append(0);
+      }
+    }
+    if (fields & STAT_TOT_PERCRETRANS){
+      if (it->second.pktCount > 0){
+        d.append((it->second.pktRetransmit*100)/it->second.pktCount);
+      }else{
+        d.append(0);
+      }
+    }
     rep["data"].append(d);
     if (prevT){
       if (i.size() < 2){

@@ -25,56 +25,6 @@ namespace MP4{
 
   TRAF::TRAF(){memcpy(data + 4, "traf", 4);}
 
-  uint32_t TRAF::getContentCount(){
-    int res = 0;
-    unsigned int tempLoc = 0;
-    while (tempLoc < boxedSize() - 8){
-      res++;
-      tempLoc += getBoxLen(tempLoc);
-    }
-    return res;
-  }
-
-  void TRAF::setContent(Box &newContent, uint32_t no){
-    int tempLoc = 0;
-    unsigned int contentCount = getContentCount();
-    for (unsigned int i = 0; i < no; i++){
-      if (i < contentCount){
-        tempLoc += getBoxLen(tempLoc);
-      }else{
-        if (!reserve(tempLoc, 0, (no - contentCount) * 8)){return;};
-        memset(data + tempLoc, 0, (no - contentCount) * 8);
-        tempLoc += (no - contentCount) * 8;
-        break;
-      }
-    }
-    setBox(newContent, tempLoc);
-  }
-
-  /// Gets a reference to the given box number. If unsafe, doesn't check boundaries (getContentCount check skipped).
-  Box &TRAF::getContent(uint32_t no, bool unsafe){
-    static Box ret = Box((char *)"\000\000\000\010erro", false);
-    if (!unsafe && no > getContentCount()){return ret;}
-    unsigned int i = 0;
-    int tempLoc = 0;
-    while (i < no){
-      tempLoc += getBoxLen(tempLoc);
-      i++;
-    }
-    return getBox(tempLoc);
-  }
-
-  std::string TRAF::toPrettyString(uint32_t indent){
-    std::stringstream r;
-    r << std::string(indent, ' ') << "[traf] Track Fragment Box (" << boxedSize() << ")" << std::endl;
-    int contentCount = getContentCount();
-    for (int i = 0; i < contentCount; i++){
-      Box curBox = Box(getContent(i).asBox(), false);
-      r << curBox.toPrettyString(indent + 1);
-    }
-    return r.str();
-  }
-
   BTRT::BTRT() {
     memcpy(data + 4, "btrt", 4);
   }

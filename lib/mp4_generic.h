@@ -21,13 +21,9 @@ namespace MP4{
   };
   // MOOF Box
 
-  class TRAF : public Box{
+  class TRAF : public containerBox{
   public:
     TRAF();
-    uint32_t getContentCount();
-    void setContent(Box &newContent, uint32_t no);
-    Box &getContent(uint32_t no, bool unsafe = false);
-    std::string toPrettyString(uint32_t indent = 0);
   };
   // TRAF Box
 

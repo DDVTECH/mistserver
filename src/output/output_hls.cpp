@@ -72,9 +72,14 @@ namespace Mist{
   }
 
   std::string OutHLS::liveIndex(size_t tid, const std::string &sessId){
+    //Timing track is current track, unless non-video, then time by video track
+    size_t timingTid = tid;
+    if (M.getType(timingTid) != "video"){timingTid = M.mainTrack();}
+    if (timingTid == INVALID_TRACK_ID){timingTid = tid;}
+
     std::stringstream result;
     // parse single track
-    uint32_t targetDuration = (M.biggestFragment(tid) / 1000) + 1;
+    uint32_t targetDuration = (M.biggestFragment(timingTid) / 1000) + 1;
     result << "#EXTM3U\r\n#EXT-X-VERSION:";
 
     result << (M.getEncryption(tid) == "" ? "3" : "5");
@@ -90,20 +95,20 @@ namespace Mist{
     std::deque<std::string> lines;
     std::deque<uint16_t> durations;
     uint32_t totalDuration = 0;
-    DTSC::Keys keys(M.keys(tid));
-    DTSC::Fragments fragments(M.fragments(tid));
+    DTSC::Keys keys(M.keys(timingTid));
+    DTSC::Fragments fragments(M.fragments(timingTid));
     uint32_t firstFragment = fragments.getFirstValid();
     uint32_t endFragment = fragments.getEndValid();
     for (int i = firstFragment; i < endFragment; i++){
       uint64_t duration = fragments.getDuration(i);
       size_t keyNumber = fragments.getFirstKey(i);
       uint64_t startTime = keys.getTime(keyNumber);
-      if (!duration){duration = M.getLastms(tid) - startTime;}
+      if (!duration){duration = M.getLastms(timingTid) - startTime;}
       double floatDur = (double)duration / 1000;
       char lineBuf[400];
 
       if (M.getCodec(tid) == "subtitle"){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.vtt?track=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.webvtt?track=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
                  (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
       }else{
         if (sessId.size()){
@@ -146,7 +151,7 @@ namespace Mist{
       /*LTS-END*/
     }
 
-    result << "#EXT-X-MEDIA-SEQUENCE:" << M.getMissedFragments(tid) + skippedLines << "\r\n";
+    result << "#EXT-X-MEDIA-SEQUENCE:" << M.getMissedFragments(timingTid) + skippedLines << "\r\n";
 
     for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); it++){
       result << *it;
@@ -179,6 +184,7 @@ namespace Mist{
     capa["codecs"][0u][4u].append("+MP3");
     capa["codecs"][0u][5u].append("+AC3");
     capa["codecs"][0u][6u].append("+MP2");
+    capa["codecs"][0u][6u].append("+subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
     capa["methods"][0u]["priority"] = 9;

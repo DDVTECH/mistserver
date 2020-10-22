@@ -15,6 +15,7 @@ namespace Mist{
     capa["desc"] = "Pseudostreaming in SubRip Text (SRT) and WebVTT formats over HTTP";
     capa["url_match"].append("/$.srt");
     capa["url_match"].append("/$.vtt");
+    capa["url_match"].append("/$.webvtt");
     capa["codecs"][0u][0u].append("subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/plain";
@@ -23,7 +24,7 @@ namespace Mist{
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "html5/text/vtt";
     capa["methods"][1u]["priority"] = 9;
-    capa["methods"][1u]["url_rel"] = "/$.vtt";
+    capa["methods"][1u]["url_rel"] = "/$.webvtt";
   }
 
   void OutSRT::sendNext(){
@@ -78,7 +79,7 @@ namespace Mist{
 
   void OutSRT::onHTTP(){
     std::string method = H.method;
-    webVTT = (H.url.find(".vtt") != std::string::npos);
+    webVTT = (H.url.find(".vtt") != std::string::npos) || (H.url.find(".webvtt") != std::string::npos);
     if (H.GetVar("track") != ""){
       size_t tid = atoll(H.GetVar("track").c_str());
       if (M.getValidTracks().count(tid)){
@@ -93,6 +94,7 @@ namespace Mist{
 
     if (H.GetVar("from") != ""){filter_from = JSON::Value(H.GetVar("from")).asInt();}
     if (H.GetVar("to") != ""){filter_to = JSON::Value(H.GetVar("to")).asInt();}
+    if (filter_to){realTime = 0;}
 
     H.Clean();
     H.setCORSHeaders();

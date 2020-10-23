@@ -282,6 +282,7 @@ namespace Mist{
 
 /// \TODO META Re-Implement for Cygwin/Win32!
 #if defined(__CYGWIN__) || defined(_WIN32)
+    /*
     static int wipedAlready = 0;
     if (lowest && lowest > wipedAlready + 1){
       for (int curr = wipedAlready + 1; curr < lowest; ++curr){
@@ -292,6 +293,7 @@ namespace Mist{
     }
     // Print a message about registering the page or not.
     if (inserted){IPC::preservePage(curPage[idx].name);}
+    */
 #endif
     // Close our link to the page. This will NOT destroy the shared page, as we've set master to
     // false upon construction Note: if there was a registering failure above, this WILL destroy the

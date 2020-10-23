@@ -1583,7 +1583,11 @@ Socket::UDPConnection::UDPConnection(bool nonblock){
   down = 0;
   destAddr = 0;
   destAddr_size = 0;
+#ifdef __CYGWIN__
+  data.allocate(SOCKETSIZE);
+#else
   data.allocate(2048);
+#endif
 }// Socket::UDPConnection UDP Contructor
 
 ///Checks if the UDP receive buffer is at least 1 mbyte, attempts to increase and warns user through log message on failure.
@@ -1599,23 +1603,27 @@ void Socket::UDPConnection::checkRecvBuf(){
     setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
     slen = sizeof(recvbuf);
     getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifndef __CYGWIN__
     if (recvbuf < 1024*1024){
       recvbuf = 1024*1024;
       setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, (void*)&recvbuf, sizeof(recvbuf));
       slen = sizeof(recvbuf);
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
     }
+#endif
     if (recvbuf < 200*1024){
       recvbuf = 200*1024;
       setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
       slen = sizeof(recvbuf);
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifndef __CYGWIN__
       if (recvbuf < 200*1024){
         recvbuf = 200*1024;
         setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, (void*)&recvbuf, sizeof(recvbuf));
         slen = sizeof(recvbuf);
         getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
       }
+#endif
     }
     if (recvbuf < 200*1024){
       WARN_MSG("Your UDP receive buffer is set < 200 kbyte (%db) and the kernel denied our request for an increase. It's recommended to set your net.core.rmem_max setting to at least 200 kbyte for best results.", origbuf);
@@ -1996,9 +2004,6 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 /// \return True if a packet was received, false otherwise.
 bool Socket::UDPConnection::Receive(){
   if (sock == -1){return false;}
-#ifdef __CYGWIN__
-    data.allocate((SOCKETSIZE);
-#endif
   data.truncate(0);
   socklen_t destsize = destAddr_size;
   int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)destAddr, &destsize);

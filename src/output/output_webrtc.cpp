@@ -1122,11 +1122,14 @@ namespace Mist{
     }else{
       //Decrypt feedback packet
       int len = udp.data.size();
-      if (srtpReader.unprotectRtcp((uint8_t *)(char*)udp.data, &len) != 0){
-        if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
-        FAIL_MSG("Failed to unprotect RTCP.");
-        return;
+      if (doDTLS){
+        if (srtpReader.unprotectRtcp((uint8_t *)(char*)udp.data, &len) != 0){
+          if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
+          FAIL_MSG("Failed to unprotect RTCP.");
+          return;
+        }
       }
+
       lastRecv = Util::bootMS();
       uint8_t fmt = udp.data[0] & 0x1F;
       if (pt == 77 || pt == 65){

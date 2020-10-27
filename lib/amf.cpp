@@ -458,6 +458,7 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   }break;
   }
   ERROR_MSG("Error: Unimplemented AMF type %hhx - returning.", data[i]);
+  i = len;
   return AMF::Object("error", AMF::AMF0_DDV_CONTAINER);
 }// parseOne
 
@@ -1043,6 +1044,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsig
   }break;
   }
   ERROR_MSG("Error: Unimplemented AMF3 type %hhx - returning.", data[i]);
+  i = len;
   return AMF::Object3("error", AMF::AMF3_DDV_CONTAINER);
 }// parseOne
 

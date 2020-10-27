@@ -31,7 +31,6 @@ private:
   uint64_t parsedPart;
   uint64_t refreshAt;
   std::ofstream reconstruct;
-  HTTP::Downloader DL;
   Socket::Buffer buffer;
   bool refreshPlaylist;
 };

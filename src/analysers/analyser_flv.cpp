@@ -29,6 +29,9 @@ bool AnalyserFLV::parsePacket() {
         return false;
       }
       uri.readSome(bytesNeeded - buffer.bytes(bytesNeeded), *this);
+      if (!buffer.available(bytesNeeded)) {
+        Util::sleep(50);
+      }
     }
     tmp = buffer.copy(bytesNeeded);
 //    WARN_MSG("copying %llu bytes", bytesNeeded);
@@ -45,7 +48,7 @@ bool AnalyserFLV::parsePacket() {
   //ugly, but memloader needs to be called twice
   if (flvData.MemLoader(tmp.data(), tmp.size(), pos) || flvData.MemLoader(tmp.data(), tmp.size(), pos)) {
     if ((!filter || filter == flvData.data[0]) && !validate) {
-      DETAIL_MED("[%llu+%llu] %s", flvData.tagTime(), flvData.offset(),flvData.tagType().c_str());
+      DETAIL_MED("[%" PRIu64 "+%" PRIu64 "] %s", flvData.tagTime(), flvData.offset(),flvData.tagType().c_str());
     }
     mediaTime = flvData.tagTime();
   }

@@ -17,30 +17,6 @@ std::string jsonUrl;
 JSON::Value promLogs;
 bool thread_handler = false;
 
-std::string getFileExt(const std::string& s) {
-  if(s.substr(0,4) == "rtmp" ){
-    return "rtmp";
-  }
-
-  size_t i = s.rfind('.', s.length());
-  if (i != std::string::npos) {
-    return(s.substr(i+1, s.length() - i));
-  }
-
-  return("");
-}
-
-std::string exec(const char* cmd) {
-    char buffer[128];
-    std::string result = "";
-    FILE* pipe = popen(cmd, "r");
-        while (fgets(buffer, sizeof buffer, pipe) != NULL) {
-            result += buffer;
-        }
-    pclose(pipe);
-    return result;
-}
-
 /// Holds the PID and stdout integer for a running viewer process
 class Process{
 public:
@@ -77,11 +53,10 @@ public:
 };
 
 /// Starts a process to view the given URL.
-// \TODO Protocol detection should probably use Mist's capabilities system instead
 Process newViewer(int time, HTTP::URL url, const std::string &protocol){
   std::deque<std::string> args;
   
-  args.push_back("./MistAnalyser" + protocol);
+  args.push_back(Util::getMyPath() + "MistAnalyser" + protocol);
   args.push_back(url.getUrl());
   args.push_back("-T");
   args.push_back(JSON::Value((uint64_t)time).asString());
@@ -95,32 +70,31 @@ Process newViewer(int time, HTTP::URL url, const std::string &protocol){
   return Process(proc, fout);
 }
 
-
 /// Downloads prometheus data at most once per second and lots it into promLogs global variable
 void prom_fetch(void * n){
   HTTP::Downloader d;
+  int total_time = *((int*)n);
+  uint64_t started = Util::bootSecs();
   d.dataTimeout = 15;
-
   while (thread_handler){
     if(d.get(jsonUrl)){
-      JSON::Value jsonData;
       JSON::Value J = JSON::fromString(d.data());
-      jsonData["bootMS"] = Util::bootMS();
-      jsonData["bootSecs"] = Util::bootMS();
-      jsonData["timestamp"] = Util::getMS(); 
-      jsonData["data"] = J;
-      
-      promLogs.append(jsonData);
-      INFO_MSG("CPU: %" PRIu64 ", mem: %" PRIu64, J["cpu"].asInt(), J["mem_used"].asInt());
-    }else{
-      FAIL_MSG("cannot get prom url: %s", jsonUrl.c_str());
+      if (J.isMember("cpu") && J.isMember("mem_total") && J["mem_total"].asInt()){
+        int t = (Util::bootSecs()-started);
+        if (total_time > t){t = total_time - t;}else{t = 0;}
+        INFO_MSG("%#3.1f%% CPU, %#3.1f%% RAM; %um%us left", J["cpu"].asInt() / 10.0, (J["mem_used"].asInt()*100)/(double)J["mem_total"].asInt(), ((int)(t) % 3600) / 60, (int)(t) % 60);
+        JSON::Value jsonData;
+        jsonData["bootMS"] = Util::bootMS();
+        jsonData["timestamp"] = Util::getMS(); 
+        jsonData["data"] = J;
+        promLogs.append(jsonData);
+      }else{
+        WARN_MSG("Invalid system statistics JSON read from %s", jsonUrl.c_str());
+      }
     }
-
     Util::sleep(1000);
   }
 }
-
-
 
 int main(int argc, char *argv[]){
   Util::redirectLogsIfNeeded();
@@ -137,8 +111,9 @@ int main(int argc, char *argv[]){
   option = JSON::Value();
   option["arg"] = "string";
   option["short"] = "I";
+  option["default"] = "";
   option["long"] = "streaminfo";
-  option["help"] = "info_STREAM.js URL for stream to test";
+  option["help"] = "json_STREAM.js URL for stream to test";
   config.addOption("streaminfo", option);
   option.null();
 
@@ -180,10 +155,11 @@ int main(int argc, char *argv[]){
   
   std::list<Process> processes;
 
-  //check wich analyser is needed
+  //check which analyser is needed
   std::string ext = url.getExt();
   std::string protocol;
 
+  // \TODO Protocol detection should probably use Mist's capabilities system instead
   if (url.protocol == "rtmp"){
     protocol = "RTMP";
   }else if(ext == "flv"){
@@ -194,7 +170,7 @@ int main(int argc, char *argv[]){
     protocol = "HLS";
   }else if(ext == "ts"){
     protocol = "TS";
-  }else if(ext == "webm"){
+  }else if(ext == "webm" || ext == "mkv"){
     protocol = "EBML";
   }else if(url.path.find("webrtc/") != std::string::npos){
     protocol = "WebRTC";
@@ -205,7 +181,7 @@ int main(int argc, char *argv[]){
 
   // start prometheus collection thread
   thread_handler = true;
-  tthread::thread prom(prom_fetch, 0);
+  tthread::thread prom(prom_fetch, &total_time);
 
   for(int i = 0; i < total; i++){
 /* burst
@@ -217,9 +193,8 @@ int main(int argc, char *argv[]){
   }
 
 
-  WARN_MSG("All processes started");
+  WARN_MSG("All analysers started");
   size_t successful = 0;
-  size_t zeroes = 0;
 
   JSON::Value allStats;
   JSON::Value &viewer_output = allStats["viewer_output"];
@@ -233,7 +208,6 @@ int main(int argc, char *argv[]){
         if (it->done()){
           JSON::Value data = it->getData();
           if ((data[3].asInt() - data[4].asInt()) > (total_time - 5) * 1000){successful++;}
-          if (!data[5].asInt()){zeroes++;}
           viewer_output.append(data);
           processes.erase(it);
           changed = true;
@@ -241,7 +215,7 @@ int main(int argc, char *argv[]){
         }
       }
     }
-    if (processes.size() != total){INFO_MSG("processes running: %zu", processes.size());}
+    if (processes.size() != total){INFO_MSG("Analysers running: %zu", processes.size());}
     Util::wait(1000);
   }
 
@@ -264,39 +238,33 @@ int main(int argc, char *argv[]){
     allStats["streamInfo"] = JSON::fromString(d.data());
   }
 
+  
+  std::stringstream outFile;
+  {
+    // Generate filename for outputs
+    time_t rawtime;
+    struct tm * timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    char buffer[16];
+    strftime(buffer,sizeof(buffer),"%Y%m%d_",timeinfo);
+    outFile << "loadtest_" << buffer << protocol << "_" << total << "x_" << total_time << "s_";
+    strftime(buffer,sizeof(buffer),"%H%M%S",timeinfo);
+    outFile << buffer;
+  }
   {
     // Write raw JSON
-    std::ofstream fPromOut("stats.json");
+    std::string fName = outFile.str()+".json";
+    std::ofstream fPromOut(fName.c_str());
     fPromOut << allStats.toString() << std::endl;
   }
   {
     // Write HTML page
-    std::string outputFile;
-
-    time_t rawtime;
-    struct tm * timeinfo;
-    char buffer[80];
-
-    time (&rawtime);
-    timeinfo = localtime(&rawtime);
-
-    strftime(buffer,sizeof(buffer),"%d%m%Y_",timeinfo);
-    outputFile.append("loadtest_");
-    outputFile.append(std::string(buffer));
-    outputFile.append(protocol);
-    sprintf(buffer, "_%d_", total);
-    outputFile.append(std::string(buffer));
-    sprintf(buffer, "%d_", total_time);
-    outputFile.append(std::string(buffer));
-    strftime(buffer,sizeof(buffer),"%H%M%S",timeinfo);
-    outputFile.append(std::string(buffer));
-    outputFile.append(".html");
-    
-    std::ofstream fHtmlOut(outputFile.c_str());
+    std::string fName = outFile.str()+".html";
+    std::ofstream fHtmlOut(fName.c_str());
     fHtmlOut << loadtest_html_prefix << allStats.toString() << loadtest_html_suffix << std::endl;
   }
   // Write result to stdout
-  std::cout << "Successful connections: " << successful << std::endl;
-  std::cout << "No data: " << zeroes << std::endl;
-
+  std::cout << "Successful connections: " << successful << " / " << total << std::endl;
+  return 0;
 }

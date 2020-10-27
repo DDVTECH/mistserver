@@ -10,10 +10,14 @@ public:
 
 private:
   uint64_t neededBytes();
-  std::string mp4Buffer;
+  Util::ResizeablePointer mp4Buffer;
   Socket::Buffer buffer;
   MP4::Box mp4Data;
   uint64_t curPos;
   uint64_t prePos;
+
+  uint32_t timescaleGlobal;
+  std::map<uint32_t, uint32_t> timescaleTrack;
+  std::map<uint32_t, uint64_t> trackTime;
 
 };

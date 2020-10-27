@@ -884,7 +884,7 @@ add_custom_command(OUTPUT generated/server.html.h
 #########
 add_custom_command(OUTPUT generated/loadtest_html.h
   COMMAND ./sourcery ${SOURCE_DIR}/lsp/loadtest/index.html loadtest_html generated/loadtest_html.h '"stats.json"'
-  DEPENDS sourcery ${SOURCE_DIR}/lsp/loadtest/index.html ${SOURCE_DIR}/lsp/plugins/d3.v5.min.js ${SOURCE_DIR}/lsp/loadtest/loadtest.js
+  DEPENDS sourcery ${SOURCE_DIR}/lsp/loadtest/index.html ${SOURCE_DIR}/lsp/loadtest/loadtest.js ${SOURCE_DIR}/lsp/loadtest/graphs.css ${SOURCE_DIR}/lsp/plugins/drawgraph.js 
 )
 
 ########################################

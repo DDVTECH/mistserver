@@ -1020,7 +1020,7 @@ int StunWriter::convertIp4StringToInt(const std::string &ip, uint32_t &result){
 
   in_addr addr;
   if (1 != inet_pton(AF_INET, ip.c_str(), &addr)){
-    FAIL_MSG("inet_pton() failed, cannot convert ip4 string into uint32_t.");
+    FAIL_MSG("inet_pton() failed, cannot convert IPv4 string '%s' into uint32_t.", ip.c_str());
     return -2;
   }
 

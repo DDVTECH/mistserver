@@ -5346,10 +5346,12 @@ var UI = {
           
           //retrieve a list of valid targets
           var target_match = [];
+          var connector2target_match = {};
           for (var i in mist.data.capabilities.connectors) {
             var conn = mist.data.capabilities.connectors[i];
             if ('push_urls' in conn) {
               target_match = target_match.concat(conn.push_urls);
+              connector2target_match[i] = conn.push_urls;
             }
           }
           
@@ -5357,12 +5359,28 @@ var UI = {
             $main.find('h2').text('Add automatic push');
           }
           
-          var saveas = {};
+          //FOR NOW, ASSUME PROTOCOL SETTINGS BUILDSETTINGS ARE USED
+          
+          var saveas = {params:{}};
           if ((other == "auto") && (typeof edit != "undefined")) {
             saveas = {
               "stream": edit[0],
-              "target": edit[1]
+              "target": edit[1],
+              "params": {}
             };
+            
+            var parts = saveas.target.split("?");
+            if (parts.length > 1) {
+              params = parts.pop(); //contains the part that comes after the ?, eg recstartunix=123&scheduletime=456
+              saveas.target = parts.join("?"); //the rest of the url string can go back into the target
+              params = params.split("&");
+              for (var i in params) {
+                var param = params[i].split("=");
+                saveas.params[param.shift()] = param.join("=");
+              }
+            }
+            
+            /*
             if (edit.length >= 3) { saveas.scheduletime = edit[2]; }
             if (edit.length >= 4) { saveas.completetime = edit[3]; }
             if (saveas.target.indexOf("recstartunix=") > -1) {
@@ -5375,8 +5393,9 @@ var UI = {
               saveas.target = saveas.target.replace("recstartunix="+saveas.recstartunix,"").replace("?&","?").replace("&&","&");
               if (saveas.target[saveas.target.length-1] == "?") { saveas.target = saveas.target.slice(0,-1); }
               
-            }
+            }*/
           }
+          var $additional_params = $("<div>").css("margin","1em 0");
           var build = [{
             label: 'Stream name',
             type: 'str',
@@ -5443,9 +5462,38 @@ var UI = {
                 classes: ['red']
               }
             }],
+            "function": function(){
+              //find what kind of target this is
+              var match = false;
+              for (connector in connector2target_match) {
+                for (var i in connector2target_match[connector]) {
+                  if (mist.inputMatch(connector2target_match[connector][i],$(this).getval())) {
+                    match = connector;
+                    break;
+                  }
+                }
+              }
+              if (!match) {
+                $additional_params.html(
+                  $("<h4>").addClass("red").text("Unrecognized target.")
+                ).append(
+                  $("<span>").text("Please edit the push target.")
+                );
+                return;
+              }
+              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly));
+              var capa = {
+                desc: mist.data.capabilities.connectors[match].desc,
+                optional: mist.data.capabilities.connectors[match].push_parameters
+              };
+              $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
+            },
             LTSonly: 1
-          }];
+          },$additional_params];
           
+          
+          
+          /*
           if (other == "auto") { //options only for automatic pushes
             
             build.push($("<h4>").text("Optional parameters"),{
@@ -5477,7 +5525,7 @@ var UI = {
               }
             });
             
-          }
+          }*/
           
           build.push({
             type: 'buttons',
@@ -5491,15 +5539,20 @@ var UI = {
               type: 'save',
               label: 'Save',
               'function': function(){
-                var params = {};
-                if (saveas.recstartunix) {
+                var params = saveas.params;
+                for (var i in params) {
+                  if (params[i] === null) {
+                    delete params[i];
+                  }
+                }
+                /*if (saveas.recstartunix) {
                   //append recstartunix to target
                   params["recstartunix"] = "recstartunix="+saveas.recstartunix;
                 }
                 else if (saveas.scheduletime) {
                   params["recstartunix"] = "recstartunix="+saveas.scheduletime;
                 }
-                delete saveas.recstartunix;
+                delete saveas.recstartunix;*/
                 if (Object.keys(params).length) {
                   var append = "?";
                   var curparams = saveas.target.split("?");
@@ -5513,7 +5566,11 @@ var UI = {
                     }
                   }
                   if (Object.keys(params).length) {
-                    append += Object.values(params).join("&");
+                    var str = [];
+                    for (var i in params) {
+                      str.push(i+"="+params[i]);
+                    }
+                    append += str.join("&");
                     saveas.target += append;
                   }
                 }

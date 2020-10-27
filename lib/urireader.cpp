@@ -103,6 +103,7 @@ namespace HTTP{
 
       // Send HEAD request to determine range request is supported, and get total length
       downer.clearHeaders();
+      if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());
@@ -170,7 +171,10 @@ namespace HTTP{
   /// Read all blocking function, which internally uses the Nonblocking function.
   void URIReader::readAll(char *&dataPtr, size_t &dataLen){
     if (getSize() != std::string::npos){allData.allocate(getSize());}
-    while (!isEOF()){readSome(10046, *this);}
+    while (!isEOF()){
+      readSome(10046, *this);
+      bufPos = allData.size();
+    }
     dataPtr = allData;
     dataLen = allData.size();
   }
@@ -205,7 +209,7 @@ namespace HTTP{
       curPos += dataLen;
 
     }else if (stateType == HTTP::HTTP){
-      bool res = downer.continueNonBlocking(cb);
+      downer.continueNonBlocking(cb);
       curPos = downer.const_data().size();
     }else{// streaming mode
       int s;

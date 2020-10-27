@@ -62,6 +62,8 @@ namespace HTTP{
     void (*httpBodyCallback)(const char *ptr, size_t size);
     void dataCallback(const char *ptr, size_t size);
 
+    std::string userAgentOverride;
+
   private:
     // Internal state variables
     bool (*cbProgress)(uint8_t); ///< The progress callback, if any. Not called if set to a null pointer.

@@ -19,15 +19,14 @@ Analyser::Analyser(Util::Config &conf){
 
 ///Opens the filename. Supports stdin and plain files.
 bool Analyser::open(const std::string & filename){
+  uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
   uri.open(filename);
-  uriSource = filename;
   return true;
 }
 
 /// Stops analysis by closing the standard input
 void Analyser::stop(){
-  close(STDIN_FILENO);
-  std::cin.setstate(std::ios_base::eofbit);
+  uri.close();
 }
 
 /// Prints validation message if needed
@@ -40,7 +39,7 @@ Analyser::~Analyser(){
 
 /// Checks if standard input is still valid.
 bool Analyser::isOpen(){
-  return (*isActive) && std::cin.good();
+  return (*isActive) && !uri.isEOF();
 }
 
 /// Main loop for all analysers. Reads packets while not interrupted, parsing and/or printing them.
@@ -54,51 +53,35 @@ int Analyser::run(Util::Config &conf){
         FAIL_MSG("Could not parse packet!");
         return 1;
       }
-      INFO_MSG("Reached end of file");
+      MEDIUM_MSG("Reached end of file/stream");
       return 0;
     }
     if (validate){
       finTime = Util::bootMS();
-      if(firstMediaBootTime == 0){
+      if(mediaTime && !firstMediaBootTime){
         firstMediaBootTime = finTime;
         firstMediaTime = mediaTime;
-      }else{
-        // slow down to realtime + 10s
-        if (validate && ((finTime - firstMediaBootTime + 10000) < mediaTime - firstMediaTime)){
+      }
+      if (firstMediaBootTime && finTime - upTime < timeOut){
+        // slow down to no faster than real-time speed + 10s
+        if ((finTime - firstMediaBootTime + 10000) < mediaTime - firstMediaTime){
           uint32_t sleepMs = (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime + 10000);
-          if ((finTime - firstMediaBootTime  + sleepMs / 1000) >= timeOut){
-            WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
-            return 3;
+          if (finTime - upTime + sleepMs > timeOut){
+            sleepMs = timeOut - (finTime - upTime);
           }
           DONTEVEN_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
           Util::sleep(sleepMs);
-          finTime = Util::bootMS();
         }
-
-        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 2000){
-          FAIL_MSG("Media time more than 2 seconds behind!");
-          FAIL_MSG("fintime: %" PRIu64 " , upTime: %" PRIu64 ", mediatime: %" PRIu64 ", fin-up: %" PRIu64 ", mediatime/1000: %" PRIu64 ", mediatime: %" PRIu64, finTime, upTime, mediaTime, (finTime - upTime), (mediaTime /1000) +2, mediaTime);
+        //Stop analysing when too far behind real-time speed
+        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 7500){
+          FAIL_MSG("Media time %" PRIu64 " ms behind!", (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime));
           return 4;
         }
-        // slow down to realtime + 10s
-        if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
-          uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
-          if ((finTime - upTime + sleepMs / 1000) >= timeOut){
-            WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
-            return 3;
-          }
+      }
 
-          if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 2000){
-            FAIL_MSG("Media time more than 2 seconds behind!");
-            //FAIL_MSG("fintime: %llu, upTime: %llu, mediatime: %llu, fin-up: %llu, mediatime/1000: %llu, mediatime: %llu", finTime, upTime, mediaTime, (finTime - upTime), (mediaTime /1000) +2, mediaTime);
-            return 4;
-
-          }
-        }
-        if ((finTime - firstMediaBootTime ) >= timeOut){
-          MEDIUM_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
-          return 3;
-        }
+      if ((finTime - upTime ) >= timeOut){
+        MEDIUM_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
+        break;
       }
     }
   }
@@ -126,7 +109,7 @@ void Analyser::init(Util::Config &conf){
   opt["long"] = "timeout";
   opt["short"] = "T";
   opt["arg"] = "num";
-  opt["default"] = 0;
+  opt["default"] = 30;
   opt["help"] = "Time out after X seconds of processing/retrieving";
   conf.addOption("timeout", opt);
   opt.null();

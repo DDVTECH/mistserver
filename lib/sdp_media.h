@@ -14,6 +14,18 @@
 
 namespace SDP{
 
+  /// Stores a single connection candidate for a single media
+  class MediaCandidate{
+    public:
+      std::string foundation;
+      std::string componentId;
+      std::string transport;
+      std::string priority;
+      std::string address;
+      std::string port;
+      std::string type;
+  };
+
   /// A MediaFormat stores the infomation that is specific for an
   /// encoding.  With RTSP there is often just one media format
   /// per media line. Though with WebRTC, where an SDP is used to
@@ -88,6 +100,7 @@ namespace SDP{
     bool parseFrameRateLine(const std::string &sdpLine);        ///< Parses `a=framerate:`
     bool parseFormatParametersLine(const std::string &sdpLine); ///< Parses `a=fmtp:<payload-type>`.
     bool parseRtcpFeedbackLine(const std::string &sdpLine); ///< Parses `a=rtcp-fb:<payload-type>`. See RFC4584
+    bool parseCandidateLine(const std::string &sdpLine); ///< Parses `a=candidate:`. See RFC4566
     bool parseFingerprintLine(const std::string &sdpLine); ///< Parses `a=fingerprint:<hash-func> <value>`. See
                                                            ///< https://tools.ietf.org/html/rfc8122#section-5, used with WebRTC
     bool parseSSRCLine(const std::string &sdpLine); ///< Parses `a=ssrc:<ssrc>`.
@@ -135,6 +148,7 @@ namespace SDP{
     std::string payloadTypes; ///< From `m=` line, all the payload types as string, separated by space.
     std::map<uint64_t, MediaFormat> formats; ///< Formats indexed by payload type. Payload type is the number in the <fmt>
                                              ///< field(s) from the `m=` line.
+    std::deque<MediaCandidate> candidates; ///< Formats indexed by payload type. Payload type is the number in the <fmt>
   };
 
   class Session{

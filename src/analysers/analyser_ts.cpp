@@ -58,22 +58,22 @@ AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
 }
 
 bool AnalyserTS::parsePacket(){
-  static char packetPtr[188];
-  const size_t needed = 188;
-
-  while (!buffer.available(needed)) {
+  while (buffer.size() < 188) {
     if (uri.isEOF()) {
       FAIL_MSG("End of file");
       return false;
     }
-    uri.readSome(needed, *this);
+    uri.readSome(188-buffer.size(), *this);
+    if (buffer.size() < 188){
+      Util::sleep(50);
+    }
   }
 
-  memcpy(packetPtr, buffer.remove(needed).c_str(), needed);
-
-  DONTEVEN_MSG("Reading from position %llu", bytes);
+  DONTEVEN_MSG("Reading from position %" PRIu64, bytes);
   bytes += 188;
-  if (!packet.FromPointer(packetPtr)){return false;}
+  if (!packet.FromPointer(buffer)){return false;}
+  if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
+  if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
   if (detail && !validate){
     if (packet.getUnitStart() && payloads.count(packet.getPID()) &&
         payloads[packet.getPID()] != ""){
@@ -82,8 +82,6 @@ bool AnalyserTS::parsePacket(){
       }
       payloads.erase(packet.getPID());
     }
-    if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
-    if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
     if ((((detail & 2) && !packet.isStream()) || ((detail & 4) && packet.isStream())) &&
         (!pidOnly || packet.getPID() == pidOnly)){
       std::cout << packet.toPrettyString(pmtTracks, 0, detail);
@@ -93,8 +91,16 @@ bool AnalyserTS::parsePacket(){
       payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
     }
   }
-  if (packet && packet.getAdaptationField() > 1 && packet.hasPCR()){
+  if (packet.getPID() >= 0x10 && !packet.isPMT() && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
     mediaTime = packet.getPCR() / 27000;
+  }
+  //If the data buffer is exactly one packet, simply wipe it
+  if (buffer.size() == 188){
+    buffer.truncate(0);
+  }else{
+    //Otherwise, remove the first 188 bytes and move everything else forward
+    memmove(buffer, buffer+188, buffer.size()-188);
+    buffer.truncate(buffer.size()-188);
   }
   return true;
 }

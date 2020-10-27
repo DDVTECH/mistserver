@@ -24,18 +24,21 @@ public:
   void sendSDPOffer();
   void sendFinish();
   
-  void parseAnswer(std::string &ans);
+  void parseAnswer(const std::string &ans);
+  void doFeedback();
 
-  void onAnswerSDP(const std::string &value);
   void onTime(const std::string &value);
   bool handleReceivedSTUNPacket();
   bool handleReceivedRTPOrRTCPPacket();
   void sendDTLS();
 
+  bool isOpen();
+
 private:
-  uint16_t udpPort; 
+  uint16_t udpPort;
   Socket::Connection conn;
   HTTP::Parser P;
+  std::string ice_ufrag, ice_pwd;
    
   std::string remoteHost;
   Socket::UDPConnection udp;
@@ -43,17 +46,6 @@ private:
   SRTPReader srtpReader; 
   DTLSSRTPHandshake dtlsHandshake; 
   StunReader stunReader;
-  uint64_t firstPacketNr;
   uint64_t lastFeedback;
-  size_t packetCount;
- 
-  std::deque<uint16_t> packetsSince;
-  std::deque<uint16_t> totalPackets;
-  uint16_t highestSeqNumber;
-
-
-  size_t currTime;
-  size_t packetLoss;
-  uint64_t firstMediaTime;
 
 };

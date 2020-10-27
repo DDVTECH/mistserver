@@ -41,6 +41,5 @@ protected:
   uint64_t firstMediaBootTime;
   bool *isActive;     ///< Pointer to is_active bool from config
   HTTP::URIReader uri;
-  std::string  uriSource;
 };
 

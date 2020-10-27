@@ -11,6 +11,7 @@ AnalyserEBML::AnalyserEBML(Util::Config &conf) : Analyser(conf){
   curPos = prePos = 0;
   lastSeekId = 0;
   lastSeekPos = 0;
+  lastClusterTime = 0;
 }
 
 bool AnalyserEBML::parsePacket(){
@@ -30,11 +31,14 @@ bool AnalyserEBML::parsePacket(){
         return false;
       }
       uri.readSome(needed - buffer.bytes(needed), *this);
+      if (!buffer.available(needed)) {
+        Util::sleep(50);
+      }
     }
 
     uint64_t appending = needed - dataBuffer.size();
-  dataBuffer.append(buffer.remove(appending));
-  curPos += appending; 
+    dataBuffer.append(buffer.remove(appending));
+    curPos += appending; 
   }
 
   if (dataBuffer.size() < neededBytes()){return false;}
@@ -71,6 +75,14 @@ bool AnalyserEBML::parsePacket(){
       }
     }
   }break;
+  case EBML::EID_TIMECODE:
+    lastClusterTime = E.getValUInt();
+    break;
+  }
+  if (E.getType() == EBML::ELEM_BLOCK){
+    EBML::Block B(dataBuffer.data());
+    /// \TODO Apply timescale
+    mediaTime = lastClusterTime + B.getTimecode();
   }
   if (depthStash.size()){depthStash.front() -= E.getOuterLen();}
   if (E.getType() == EBML::ELEM_MASTER){depthStash.push_front(E.getPayloadLen());}
@@ -99,7 +111,6 @@ bool AnalyserEBML::parsePacket(){
       lastSeekPos = 0;
     }
   }
-  ///\TODO update mediaTime with the current timestamp
   dataBuffer.erase(0, E.getOuterLen());
   return true;
 }

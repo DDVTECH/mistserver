@@ -430,6 +430,77 @@ namespace SDP{
 
     return true;
   }
+
+  bool Media::parseCandidateLine(const std::string &line){
+    MediaCandidate newCand;
+    size_t start = line.find(":")+1;
+    size_t end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse foundation from candidate");
+      return false;
+    }
+    newCand.foundation = line.substr(start, end-start);
+    start = end+1;
+
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse component-id from candidate");
+      return false;
+    }
+    newCand.componentId = line.substr(start, end-start);
+    start = end+1;
+
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse transport from candidate");
+      return false;
+    }
+    newCand.transport = line.substr(start, end-start);
+    start = end+1;
+
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse priority from candidate");
+      return false;
+    }
+    newCand.priority = line.substr(start, end-start);
+    start = end+1;
+
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse address from candidate");
+      return false;
+    }
+    newCand.address = line.substr(start, end-start);
+    start = end+1;
+
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      FAIL_MSG("Could not parse port from candidate");
+      return false;
+    }
+    newCand.port = line.substr(start, end-start);
+    start = end+1;
+
+    start = line.find("typ ", start);
+    if (start == std::string::npos){
+      FAIL_MSG("Could not parse type from candidate");
+      return false;
+    }
+    start += 4;
+    end = line.find(" ", start);
+    if (end == std::string::npos){
+      newCand.type = line.substr(start);
+    }else{
+      newCand.type = line.substr(start, end-start);
+    }
+    start = end+1;
+
+    candidates.push_back(newCand);
+    return true;
+  }
+
+
   /// Extracts the fingerpint hash and value, from a line like:
   /// a=fingerprint:sha-256
   /// C7:98:6F:A9:55:75:C0:73:F2:EB:CF:14:B8:6E:58:FE:A5:F1:B0:C7:41:B7:BA:D3:4A:CF:7E:5C:69:8B:FA:F4
@@ -640,8 +711,10 @@ namespace SDP{
         currMedia->parseFrameRateLine(line);
       }else if (line.substr(0, 7) == "a=fmtp:"){
         currMedia->parseFormatParametersLine(line);
-      }else if (line.substr(0, 11) == "a=rtcp-fb:"){
+      }else if (line.substr(0, 10) == "a=rtcp-fb:"){
         currMedia->parseRtcpFeedbackLine(line);
+      }else if (line.substr(0, 12) == "a=candidate:"){
+        currMedia->parseCandidateLine(line);
       }else if (line.substr(0, 10) == "a=sendonly"){
         currMedia->direction = "sendonly";
       }else if (line.substr(0, 10) == "a=sendrecv"){

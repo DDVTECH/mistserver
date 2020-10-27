@@ -18,6 +18,6 @@ private:
   uint32_t pidOnly;
   TS::Packet packet;
   uint64_t bytes;
-  Socket::Buffer buffer;
+  Util::ResizeablePointer buffer;
 };
 

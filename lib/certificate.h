@@ -23,12 +23,13 @@
 class Certificate{
 public:
   Certificate();
+  bool loadCert(const std::string & certFile);
+  bool loadKey(const std::string & certFile);
   int init(const std::string &countryName, const std::string &organization, const std::string &commonName);
-  int shutdown();
-  std::string getFingerprintSha256();
+  ~Certificate();
+  std::string getFingerprintSha256() const;
 
 public:
   mbedtls_x509_crt cert;
   mbedtls_pk_context key;       /* key context, stores private and public key. */
-  mbedtls_rsa_context *rsa_ctx; /* rsa context, stored in key_ctx */
 };

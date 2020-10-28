@@ -5,6 +5,7 @@
 #include <mist/timing.h>
 #include <mist/url.h>
 #include <netdb.h> // ifaddr, listing ip addresses.
+#include <mist/stream.h>
 
 namespace Mist{
 
@@ -79,16 +80,55 @@ namespace Mist{
     volkswagenMode = false;
     syncedNTPClock = false;
 
-    if (cert.init("NL", "webrtc", "webrtc") != 0){
-      onFail("Failed to create the certificate.", true);
-      return;
+   
+    JSON::Value & certOpt = config->getOption("cert", true);
+    JSON::Value & keyOpt = config->getOption("key", true);
+
+    //Attempt to read certificate config from other connectors
+    if (certOpt.size() < 2 || keyOpt.size() < 2){
+      Util::DTSCShmReader rProto(SHM_PROTO);
+      DTSC::Scan prtcls = rProto.getScan();
+      unsigned int pro_cnt = prtcls.getSize();
+      for (unsigned int i = 0; i < pro_cnt; ++i){
+        if (prtcls.getIndice(i).hasMember("key") && prtcls.getIndice(i).hasMember("cert")){
+          std::string conn = prtcls.getIndice(i).getMember("connector").asString();
+          INFO_MSG("No cert/key configured for WebRTC explicitly, reading from %s connector config", conn.c_str());
+          JSON::Value newCert = prtcls.getIndice(i).getMember("cert").asJSON();
+          certOpt.shrink(0);
+          jsonForEach(newCert, k){certOpt.append(*k);}
+          keyOpt.shrink(0);
+          keyOpt.append(prtcls.getIndice(i).getMember("key").asJSON());
+          break;
+        }
+      }
     }
+
+    if (certOpt.size() < 2 || keyOpt.size() < 2){
+      if (cert.init("NL", "webrtc", "webrtc") != 0){
+        onFail("Failed to create the certificate.", true);
+        return;
+      }
+    }else{
+      // Read certificate chain(s)
+      jsonForEach(certOpt, it){
+        if (!cert.loadCert(it->asStringRef())){
+          WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
+        }
+      }
+
+      // Read key
+      if (!cert.loadKey(config->getString("key"))){
+        FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
+        return;
+      }
+    }
+
     if (dtlsHandshake.init(&cert.cert, &cert.key, onDTLSHandshakeWantsToWriteCallback) != 0){
       onFail("Failed to initialize the dtls-srtp handshake helper.", true);
       return;
     }
-
     sdpAnswer.setFingerprint(cert.getFingerprintSha256());
+
     classPointer = this;
 
     setBlocking(false);
@@ -107,7 +147,6 @@ namespace Mist{
     if (dtlsHandshake.shutdown() != 0){
       FAIL_MSG("Failed to cleanly shutdown the dtls handshake.");
     }
-    if (cert.shutdown() != 0){FAIL_MSG("Failed to cleanly shutdown the certificate.");}
   }
 
   // Initialize the WebRTC output. This is where we define what
@@ -217,6 +256,19 @@ namespace Mist{
     capa["optional"]["losttimeoutmobile"]["short"] = "L";
     capa["optional"]["losttimeoutmobile"]["type"] = "uint";
     capa["optional"]["losttimeoutmobile"]["default"] = 90;
+
+    capa["optional"]["cert"]["name"] = "Certificate";
+    capa["optional"]["cert"]["help"] = "(Root) certificate(s) file(s) to append to chain";
+    capa["optional"]["cert"]["option"] = "--cert";
+    capa["optional"]["cert"]["short"] = "C";
+    capa["optional"]["cert"]["default"] = "";
+    capa["optional"]["cert"]["type"] = "str";
+    capa["optional"]["key"]["name"] = "Key";
+    capa["optional"]["key"]["help"] = "Private key for SSL";
+    capa["optional"]["key"]["option"] = "--key";
+    capa["optional"]["key"]["short"] = "K";
+    capa["optional"]["key"]["default"] = "";
+    capa["optional"]["key"]["type"] = "str";
 
     config->addOptionsFromCapabilities(capa);
   }

@@ -3,9 +3,9 @@
 #include <string.h>
 
 
-Certificate::Certificate() : rsa_ctx(NULL){
-  memset((void *)&cert, 0x00, sizeof(cert));
-  memset((void *)&key, 0x00, sizeof(key));
+Certificate::Certificate(){
+  mbedtls_pk_init(&key);
+  mbedtls_x509_crt_init(&cert);
 }
 
 int Certificate::init(const std::string &countryName, const std::string &organization,
@@ -14,6 +14,7 @@ int Certificate::init(const std::string &countryName, const std::string &organiz
   mbedtls_ctr_drbg_context rand_ctx ={};
   mbedtls_entropy_context entropy_ctx ={};
   mbedtls_x509write_cert write_cert ={};
+  mbedtls_rsa_context *rsa_ctx;
 
   const char *personalisation = "mbedtls-self-signed-key";
   std::string subject_name = "C=" + countryName + ",O=" + organization + ",CN=" + commonName;
@@ -58,7 +59,6 @@ int Certificate::init(const std::string &countryName, const std::string &organiz
   }
 
   // initialize the public key context
-  mbedtls_pk_init(&key);
   r = mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
   if (0 != r){
     FAIL_MSG("Faild to initialize the PK context.");
@@ -66,6 +66,8 @@ int Certificate::init(const std::string &countryName, const std::string &organiz
     goto error;
   }
 
+  //This call returns a reference to the existing RSA context inside the key.
+  //Hence, it does not need to be cleaned up later.
   rsa_ctx = mbedtls_pk_rsa(key);
   if (NULL == rsa_ctx){
     FAIL_MSG("Failed to get the RSA context from from the public key context (key).");
@@ -181,8 +183,6 @@ int Certificate::init(const std::string &countryName, const std::string &organiz
   // char.  @todo there must be a way to convert the write
   // struct into a `mbedtls_x509_cert` w/o calling this parse
   // function.
-  mbedtls_x509_crt_init(&cert);
-
   r = mbedtls_x509_crt_parse(&cert, (const unsigned char *)buf, strlen((char *)buf) + 1);
   if (0 != r){
     mbedtls_strerror(r, (char *)buf, sizeof(buf));
@@ -198,24 +198,31 @@ error:
   mbedtls_entropy_free(&entropy_ctx);
   mbedtls_x509write_crt_free(&write_cert);
   mbedtls_mpi_free(&serial_mpi);
-
-  if (r < 0){shutdown();}
-
   return r;
 }
 
-int Certificate::shutdown(){
-  rsa_ctx = NULL;
+Certificate::~Certificate(){
   mbedtls_pk_free(&key);
   mbedtls_x509_crt_free(&cert);
-  return 0;
 }
 
-std::string Certificate::getFingerprintSha256(){
+/// Loads a single file into the certificate. Returns true on success.
+bool Certificate::loadCert(const std::string & certFile){
+  if (!certFile.size()){return true;}
+  return mbedtls_x509_crt_parse_file(&cert, certFile.c_str()) == 0;
+}
 
+/// Loads a single key. Returns true on success.
+bool Certificate::loadKey(const std::string & keyFile){
+  if (!keyFile.size()){return true;}
+  return  mbedtls_pk_parse_keyfile(&key, keyFile.c_str(), 0) == 0;
+}
+
+/// Calculates SHA256 fingerprint over the loaded certificate(s)
+/// Returns the fingerprint as hex-string.
+std::string Certificate::getFingerprintSha256() const{
   uint8_t fingerprint_raw[32] ={};
   uint8_t fingerprint_hex[128] ={};
-
   mbedtls_sha256(cert.raw.p, cert.raw.len, fingerprint_raw, 0);
 
   for (int i = 0; i < 32; ++i){
@@ -223,7 +230,6 @@ std::string Certificate::getFingerprintSha256(){
   }
 
   fingerprint_hex[32 * 3] = '\0';
-
   std::string result = std::string((char *)fingerprint_hex + 1, (32 * 3) - 1);
   return result;
 }

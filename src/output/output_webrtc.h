@@ -140,7 +140,7 @@ namespace Mist{
     int onDTLSHandshakeWantsToWrite(const uint8_t *data, int *nbytes);
     void onRTPSorterHasPacket(size_t tid, const RTP::Packet &pkt);
     void onDTSCConverterHasPacket(const DTSC::Packet &pkt);
-    void onDTSCConverterHasInitData(const uint64_t trackID, const std::string &initData);
+    void onDTSCConverterHasInitData(const size_t trackID, const std::string &initData);
     void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
 

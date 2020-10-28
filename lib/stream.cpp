@@ -191,7 +191,7 @@ void Util::sanitizeName(std::string &streamname){
       streamname.erase(i, streamname.end());
       break;
     }
-    if (!isalpha(*i) && !isdigit(*i) && *i != '_' && *i != '.'){
+    if (!isalpha(*i) && !isdigit(*i) && *i != '_' && *i != '.' && *i != '-'){
       streamname.erase(i);
     }else{
       *i = tolower(*i);

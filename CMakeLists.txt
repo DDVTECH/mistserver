@@ -511,6 +511,8 @@ if(RIST_LIB)
   makeInput(TSRIST tsrist with_rist)#LTS
 endif()
 
+makeInput(AAC aac)
+
 ########################################
 # MistServer - Outputs                 #
 ########################################

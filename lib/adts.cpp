@@ -133,6 +133,18 @@ namespace aac{
 
     return res.str();
   }
+  // Returns Init info used to init DTSC audio track
+  std::string adts::getInit() const{
+    std::string init;
+    init.resize(2);
+
+    init[0] = ((getAACProfile() & 0x1F) << 3) |
+              ((getFrequencyIndex() & 0x0E) >> 1);
+    init[1] = ((getFrequencyIndex() & 0x01) << 7) |
+              ((getChannelConfig() & 0x0F) << 3); 
+    
+    return init;
+  }
   adts::operator bool() const{
     return hasSync() && len && len >= getHeaderSize() && getFrequency() && getChannelCount() &&
            getSampleCount();

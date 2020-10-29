@@ -32,6 +32,8 @@ namespace IPC{
     int getVal() const;
     void post();
     void wait();
+    void post(size_t count);
+    void wait(size_t count);
     bool tryWait();
     bool tryWait(uint64_t ms);
     bool tryWaitOneSecond();

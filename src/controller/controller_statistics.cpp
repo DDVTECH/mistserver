@@ -190,7 +190,6 @@ void Controller::sessions_invalidate(const std::string &streamname){
     FAIL_MSG("In shutdown procedure - cannot invalidate sessions.");
     return;
   }
-  if (cacheLock){cacheLock->wait();}
   unsigned int invalidated = 0;
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -201,7 +200,6 @@ void Controller::sessions_invalidate(const std::string &streamname){
     }
   }
   Controller::writeSessionCache();
-  if (cacheLock){cacheLock->post();}
   INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount,
            streamname.c_str());
 }
@@ -227,7 +225,6 @@ void Controller::sessId_shutdown(const std::string &sessId){
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
   }
-  if (cacheLock){cacheLock->wait();}
   unsigned int murdered = 0;
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -239,7 +236,6 @@ void Controller::sessId_shutdown(const std::string &sessId){
     }
   }
   Controller::writeSessionCache();
-  if (cacheLock){cacheLock->post();}
   INFO_MSG("Shut down %u connections in %u session(s) for ID %s", murdered, sessCount, sessId.c_str());
 }
 
@@ -268,7 +264,6 @@ void Controller::tag_shutdown(const std::string &tag){
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
   }
-  if (cacheLock){cacheLock->wait();}
   unsigned int murdered = 0;
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -279,7 +274,6 @@ void Controller::tag_shutdown(const std::string &tag){
     }
   }
   Controller::writeSessionCache();
-  if (cacheLock){cacheLock->post();}
   INFO_MSG("Shut down %u connections in %u session(s) for tag %s", murdered, sessCount, tag.c_str());
 }
 
@@ -290,7 +284,6 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
   }
-  if (cacheLock){cacheLock->wait();}
   unsigned int murdered = 0;
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
@@ -302,7 +295,6 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
     }
   }
   Controller::writeSessionCache();
-  if (cacheLock){cacheLock->post();}
   INFO_MSG("Shut down %u connections in %u sessions for stream %s/%s", murdered, sessCount,
            streamname.c_str(), protocol.c_str());
 }
@@ -314,6 +306,7 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
 void Controller::writeSessionCache(){
   uint32_t shmOffset = 0;
   if (shmSessions && shmSessions->mapped){
+    if (cacheLock){cacheLock->wait(16);}
     if (sessions.size()){
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
         if (it->second.hasData()){
@@ -331,6 +324,7 @@ void Controller::writeSessionCache(){
     }
     // set a final shmSessions entry to all zeroes
     memset(shmSessions->mapped + shmOffset, 0, SHM_SESSIONS_ITEM);
+    if (cacheLock){cacheLock->post(16);}
   }
 }
 
@@ -346,9 +340,9 @@ void Controller::SharedMemStats(void *config){
     if (shmSessions){delete shmSessions;}
     shmSessions = new IPC::sharedPage(SHM_SESSIONS, SHM_SESSIONS_SIZE, true);
   }
-  cacheLock = new IPC::semaphore(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  cacheLock = new IPC::semaphore(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 16);
   cacheLock->unlink();
-  cacheLock->open(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+  cacheLock->open(SEM_SESSCACHE, O_CREAT | O_RDWR, ACCESSPERMS, 16);
   std::set<std::string> inactiveStreams;
   Controller::initState();
   bool shiftWrites = true;
@@ -379,7 +373,6 @@ void Controller::SharedMemStats(void *config){
 
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       tthread::lock_guard<tthread::mutex> guard2(statsMutex);
-      cacheLock->wait(); /*LTS*/
       // parse current users
       statLeadIn();
       COMM_LOOP(statComm, statOnActive(id), statOnDisconnect(id));
@@ -485,7 +478,6 @@ void Controller::SharedMemStats(void *config){
       /*LTS-START*/
       Controller::writeSessionCache();
       Controller::checkServerLimits();
-      cacheLock->post();
       /*LTS-END*/
     }
     Util::wait(1000);

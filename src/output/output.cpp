@@ -184,7 +184,7 @@ namespace Mist{
         char initialSync = 0;
         // attempt to load sync status from session cache in shm
         {
-          IPC::semaphore cacheLock(SEM_SESSCACHE, O_RDWR, ACCESSPERMS, 1);
+          IPC::semaphore cacheLock(SEM_SESSCACHE, O_RDWR, ACCESSPERMS, 16);
           if (cacheLock){cacheLock.wait();}
           IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, false, false);
           if (shmSessions.mapped){
@@ -196,7 +196,7 @@ namespace Mist{
             const std::string &cName = capa["name"].asStringRef();
             while (shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
               // compare crc
-              if (Bit::btohl(shmSessions.mapped + shmOffset) == statComm.getCRC()){
+              if (*(uint32_t*)(shmSessions.mapped + shmOffset) == crc){
                 // compare stream name
                 if (strncmp(shmSessions.mapped + shmOffset + 4, streamName.c_str(), 100) == 0){
                   // compare connector
@@ -204,7 +204,7 @@ namespace Mist{
                     // compare host
                     if (strncmp(shmSessions.mapped + shmOffset + 124, host.c_str(), 40) == 0){
                       initialSync = shmSessions.mapped[shmOffset + 164];
-                      INFO_MSG("Instant-sync from session cache to %u", (unsigned int)initialSync);
+                      HIGH_MSG("Instant-sync from session cache to %u", (unsigned int)initialSync);
                       break;
                     }
                   }

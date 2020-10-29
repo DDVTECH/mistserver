@@ -159,27 +159,48 @@ namespace IPC{
     sem_post(mySem);
 #endif
     --isLocked;
+#if DEBUG >= DLVL_DEVEL
     if (!isLocked){
       uint64_t micros = Util::getMicros(lockTime);
       if (micros > 10000){
         INFO_MSG("Semaphore %s was locked for %.3f ms", myName.c_str(), (double)micros / 1000.0);
       }
     }
+#endif
+  }
+
+  ///\brief Posts to the semaphore, increases its value by count
+  void semaphore::post(size_t count){
+    for (size_t i = 0; i < count; ++i){post();}
   }
 
   ///\brief Waits for the semaphore, decreases its value by one
   void semaphore::wait(){
     if (*this){
+#if DEBUG >= DLVL_DEVEL
+      uint64_t preLockTime = Util::getMicros();
+#endif
 #if defined(__CYGWIN__) || defined(_WIN32)
       WaitForSingleObject(mySem, INFINITE);
 #else
       int tmp;
       do{tmp = sem_wait(mySem);}while (tmp == -1 && errno == EINTR);
 #endif
+#if DEBUG >= DLVL_DEVEL
       lockTime = Util::getMicros();
+      if (lockTime - preLockTime > 50000){
+        INFO_MSG("Semaphore %s took %.3f ms to lock", myName.c_str(), (double)(lockTime-preLockTime) / 1000.0);
+      }
+#endif
       ++isLocked;
     }
   }
+
+  ///\brief Waits for the semaphore, decreases its value by count
+  void semaphore::wait(size_t count){
+    for (size_t i = 0; i < count; ++i){wait();}
+  }
+
 
   ///\brief Tries to wait for the semaphore, returns true if successful, false otherwise
   bool semaphore::tryWait(){
@@ -229,7 +250,7 @@ namespace IPC{
     wt.tv_nsec = ms % 1000;
     result = sem_timedwait(mySem, &wt);
 #endif
-    return isLocked = (result == 0);
+    return (isLocked = (result == 0));
   }
 
   ///\brief Tries to wait for the semaphore for a single second, returns true if successful, false

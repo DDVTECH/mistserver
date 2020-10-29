@@ -1471,7 +1471,6 @@ namespace Mist{
             break;
           }
           offset += 4 + nalLen;
-          INFO_MSG("Offset now %zu", offset);
         }
         firstKey = false;
       }

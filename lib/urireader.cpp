@@ -210,6 +210,9 @@ namespace HTTP{
 
     }else if (stateType == HTTP::HTTP){
       downer.continueNonBlocking(cb);
+      if (curPos == downer.const_data().size()){
+        Util::sleep(50);
+      }
       curPos = downer.const_data().size();
     }else{// streaming mode
       int s;
@@ -220,6 +223,8 @@ namespace HTTP{
 
         cb.dataCallback(buf.data(), s);
         totaal += s;
+      }else{
+        Util::sleep(50);
       }
     }
   }

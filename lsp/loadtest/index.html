@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>MistServer Load Tester</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <script src="../plugins/d3.v5.min.js"></script>
+    <link rel="stylesheet" href="graphs.css">
+    <style>
+      body {
+        --background: #fff;
+        --text: #000;
+        --muted: #444;
+        --dark: #666;
+        
+        background-color: var(--background);
+        color: var(--text);
+        font: 14px sans-serif;
+        text-align: center;
+        margin: 0;
+      }
+      html {
+        padding: 0;
+        margin: 0;
+      }
+      td,th {
+        text-align: left;
+      }
+      .error {
+        border: 1px solid red;
+        padding: 0.5em;
+        margin: 0.5em;
+        display: inline-block;
+      }
+      a {
+        color: var(--muted);
+      }
+      .graphs {
+        display: flex;
+        flex-flow: row wrap;
+        justify-content: center;
+      }
+      .graphs > div {
+        margin-top: 1em;
+        font-size: 1.5em;
+      }
+      .chart:first-child {
+        width: 300px;
+        height: 300px;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          --background: #333;
+          --text: #ddd;
+          --muted: #666;
+          --dark: #444;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="../plugins/drawgraph.js"></script>
+    <script src="loadtest.js"></script>
+  </body>
+</html>

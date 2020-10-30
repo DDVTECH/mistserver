@@ -811,12 +811,7 @@ namespace Mist{
       }
       Util::wait(100);
       //Make sure we don't accidentally timeout while waiting - runs approximately every second.
-      if (i % 10 == 0){
-        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
-          it->second.keepAlive();
-          stats();
-        }
-      }
+      if (i % 10 == 0){stats();}
     }
     return (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) > M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey+1));
   }

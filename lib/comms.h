@@ -7,25 +7,21 @@
 #define COMM_STATUS_SOURCE 0x80
 #define COMM_STATUS_REQDISCONNECT 0xFD
 #define COMM_STATUS_DISCONNECT 0xFE
-#define COMM_STATUS_INVALID 0xFF
+#define COMM_STATUS_INVALID 0x0
+#define COMM_STATUS_ACTIVE 0x1
 
-#define COMM_LOOP(comm, onActive, onDisconnect)                                                    \
+
+#define COMM_LOOP(comm, onActive, onDisconnect) \
   {\
-    for (size_t id = comm.firstValid(); id != comm.endValid(); id++){\
+    for (size_t id = 0; id < comm.recordCount(); id++){\
       if (comm.getStatus(id) == COMM_STATUS_INVALID){continue;}\
-      onActive;                                                                                    \
       if (!Util::Procs::isRunning(comm.getPid(id))){\
-        comm.setStatus(COMM_STATUS_DISCONNECT, id);                                                \
+        comm.setStatus(COMM_STATUS_DISCONNECT, id);\
       }\
-      if ((comm.getTimer(id) & 0x7F) >= 126 || comm.getStatus(id) == COMM_STATUS_DISCONNECT){\
-        onDisconnect;                                                                              \
-        comm.setStatus(COMM_STATUS_INVALID, id);                                                   \
-      }\
-      if ((comm.getTimer(id) & 0x7F) <= 124){\
-        if ((comm.getTimer(id) & 0x7F) == 124){\
-          HIGH_MSG("Timeout occurred for entry %zu, ignoring further timeout", id);                 \
-        }\
-        comm.setTimer(comm.getTimer(id) + 1, id);                                                  \
+      onActive;\
+      if (comm.getStatus(id) == COMM_STATUS_DISCONNECT){\
+        onDisconnect;\
+        comm.setStatus(COMM_STATUS_INVALID, id);\
       }\
     }\
   }
@@ -35,63 +31,37 @@ namespace Comms{
   public:
     Comms();
     ~Comms();
-
-    operator bool() const{return dataPage.mapped;}
-
-    void addCommonFields();
-    void commonFieldAccess();
-
-    size_t firstValid() const;
-    size_t endValid() const;
-    void deleteFirst();
-
+    operator bool() const;
+    void reload(const std::string & prefix, size_t baseSize, bool _master = false, bool reIssue = false);
+    virtual void addFields();
+    virtual void nullFields();
+    virtual void fieldAccess();
+    size_t recordCount() const;
     uint8_t getStatus() const;
     uint8_t getStatus(size_t idx) const;
     void setStatus(uint8_t _status);
     void setStatus(uint8_t _status, size_t idx);
-
     uint64_t getCommand() const;
     uint64_t getCommand(size_t idx) const;
     void setCommand(uint64_t _cmd);
     void setCommand(uint64_t _cmd, size_t idx);
-
-    uint8_t getTimer() const;
-    uint8_t getTimer(size_t idx) const;
-    void setTimer(uint8_t _timer);
-    void setTimer(uint8_t _timer, size_t idx);
-
     uint32_t getPid() const;
     uint32_t getPid(size_t idx) const;
     void setPid(uint32_t _pid);
     void setPid(uint32_t _pid, size_t idx);
-
-    void kill(size_t idx, bool force = false);
-
     void finishAll();
-
-    void keepAlive();
-    bool isAlive() const;
-
     void setMaster(bool _master);
-
     const std::string &pageName() const{return dataPage.name;}
 
   protected:
     bool master;
     size_t index;
-
     size_t currentSize;
-
     IPC::semaphore sem;
-
     IPC::sharedPage dataPage;
     Util::RelAccX dataAccX;
-
     Util::FieldAccX status;
-    Util::FieldAccX command;
-    Util::FieldAccX timer;
     Util::FieldAccX pid;
-    Util::FieldAccX killTime;
   };
 
   class Statistics : public Comms{
@@ -100,6 +70,9 @@ namespace Comms{
     operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
     void unload();
     void reload(bool _master = false, bool reIssue = false);
+    virtual void addFields();
+    virtual void nullFields();
+    virtual void fieldAccess();
 
     uint8_t getSync() const;
     uint8_t getSync(size_t idx) const;
@@ -172,7 +145,10 @@ namespace Comms{
     Users();
     Users(const Users &rhs);
     void reload(const std::string &_streamName = "", bool _master = false, bool reIssue = false);
-    void reload(const std::string &_streamName, size_t track, uint8_t initialState = 0x00);
+    void reload(const std::string &_streamName, size_t track, uint8_t initialState = COMM_STATUS_ACTIVE);
+    virtual void addFields();
+    virtual void nullFields();
+    virtual void fieldAccess();
 
     operator bool() const{return dataPage.mapped;}
 

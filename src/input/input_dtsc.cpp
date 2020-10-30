@@ -169,7 +169,7 @@ namespace Mist{
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       userSelect.clear();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        userSelect[*it].reload(streamName, *it, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[*it].reload(streamName, *it, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       break;
     }

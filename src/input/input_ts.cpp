@@ -58,8 +58,7 @@ void parseThread(void *mistIn){
     threadTimer[tid] = Util::bootSecs();
   }
   while (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active &&
-         (!dataTrack || (userConn ? userConn.isAlive() : true))){
-    if (dataTrack){userConn.keepAlive();}
+         (!dataTrack || (userConn ? userConn : true))){
     liveStream.parse(tid);
     if (!liveStream.hasPacket(tid)){
       Util::sleep(100);
@@ -95,7 +94,7 @@ void parseThread(void *mistIn){
       idx = meta.trackIDToIndex(tid, getpid());
       if (idx != INVALID_TRACK_ID){
         //Successfully assigned a track index! Inform the buffer we're pushing
-        userConn.reload(globalStreamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userConn.reload(globalStreamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       //Any kind of failure? Retry later.
       if (idx == INVALID_TRACK_ID || !meta.trackValid(idx)){
@@ -137,7 +136,7 @@ void parseThread(void *mistIn){
   std::string reason = "unknown reason";
   if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){reason = "thread timeout";}
   if (!cfgPointer->is_active){reason = "input shutting down";}
-  if (!(!liveStream.isDataTrack(tid) || userConn.isAlive())){
+  if (!(!liveStream.isDataTrack(tid) || userConn)){
     reason = "buffer disconnect";
     cfgPointer->is_active = false;
   }
@@ -588,7 +587,7 @@ namespace Mist{
         // Connect to stats for INPUT detection
         statComm.reload();
         if (statComm){
-          if (!statComm.isAlive()){
+          if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
             return;
@@ -603,7 +602,6 @@ namespace Mist{
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           statComm.setHost(getConnectedBinHost());
-          statComm.keepAlive();
         }
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();

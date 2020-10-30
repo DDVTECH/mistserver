@@ -1406,7 +1406,7 @@ namespace Mist{
           }
           uint64_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){
-            userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE);
+            userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
           }
           if (M.getCodec(idx) == "PCM" && M.getSize(idx) == 16){
             char *ptr = F.getData();

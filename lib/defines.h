@@ -198,7 +198,7 @@ static inline void show_stackframe(){}
 #define COMMS_STATISTICS_INITSIZE 8 * 1024 * 1024
 
 #define COMMS_USERS "MstUser%s" //%s stream name
-#define COMMS_USERS_INITSIZE 8 * 1024 * 1024
+#define COMMS_USERS_INITSIZE 512 * 1024
 
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name

@@ -812,7 +812,7 @@ namespace Mist{
       videoTrack.rtpToDTSC.setCallbacks(onDTSCConverterHasPacketCallback, onDTSCConverterHasInitDataCallback);
       videoTrack.sorter.setCallback(M.getID(vIdx), onRTPSorterHasPacketCallback);
 
-      userSelect[vIdx].reload(streamName, vIdx, COMM_STATUS_SOURCE);
+      userSelect[vIdx].reload(streamName, vIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       INFO_MSG("Video push received on track %zu", vIdx);
     }
 
@@ -834,7 +834,7 @@ namespace Mist{
       audioTrack.rtpToDTSC.setCallbacks(onDTSCConverterHasPacketCallback, onDTSCConverterHasInitDataCallback);
       audioTrack.sorter.setCallback(M.getID(aIdx), onRTPSorterHasPacketCallback);
 
-      userSelect[aIdx].reload(streamName, aIdx, COMM_STATUS_SOURCE);
+      userSelect[aIdx].reload(streamName, aIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
       INFO_MSG("Audio push received on track %zu", aIdx);
     }
 

@@ -1605,7 +1605,7 @@ namespace Mist{
     }
     emptyCount = 0; // valid packet - reset empty counter
 
-    if (!userSelect[nxt.tid].isAlive()){
+    if (!userSelect[nxt.tid]){
       INFO_MSG("Track %zu is not alive!", nxt.tid);
       return false;
     }
@@ -1691,7 +1691,6 @@ namespace Mist{
     statComm.setTime(now - myConn.connTime());
     statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
     statComm.setPid(getpid());
-    statComm.keepAlive();
 
     /*LTS-START*/
     // Tag the session with the user agent
@@ -1710,20 +1709,15 @@ namespace Mist{
 
     if (isPushing()){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        it->second.keepAlive();
         if (it->second.getStatus() == COMM_STATUS_REQDISCONNECT){
           if (dropPushTrack(it->second.getTrack(), "disconnect request from buffer")){break;}
         }
-        if (!it->second.isAlive()){
+        if (!it->second){
           if (dropPushTrack(it->second.getTrack(), "track mapping no longer valid")){break;}
         }
         //if (Util::bootSecs() - M.getLastUpdated(it->first) > 5){
         //  if (dropPushTrack(it->second.getTrack(), "track updates being ignored by buffer")){break;}
         //}
-      }
-    }else{
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        it->second.keepAlive();
       }
     }
   }

@@ -857,15 +857,14 @@ namespace Mist{
     tid = thisPacket.getTrackId();
     idx = M.trackIDToIndex(tid, getpid());
     if (thisPacket && !userSelect.count(idx)){
-      userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
-    while (thisPacket && config->is_active && userSelect[idx].isAlive()){
+    while (thisPacket && config->is_active && userSelect[idx]){
       if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
         Util::logExitReason("buffer requested shutdown");
         break;
       }
       bufferLivePacket(thisPacket);
-      userSelect[idx].keepAlive();
       getNext();
       if (!thisPacket){
         Util::logExitReason("invalid packet from getNext");
@@ -874,14 +873,14 @@ namespace Mist{
       tid = thisPacket.getTrackId();
       idx = M.trackIDToIndex(tid, getpid());
       if (thisPacket && !userSelect.count(idx)){
-        userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload();}
         if (statComm){
-          if (!statComm.isAlive()){
+          if (!statComm){
             config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
             return;
@@ -896,7 +895,6 @@ namespace Mist{
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           statComm.setHost(getConnectedBinHost());
-          statComm.keepAlive();
         }
 
         statTimer = Util::bootSecs();
@@ -911,33 +909,31 @@ namespace Mist{
     getNext();
     if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
       size_t tid = thisPacket.getTrackId();
-      userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      userSelect[tid].reload(streamName, tid, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
-    while (thisPacket && config->is_active && userSelect[thisPacket.getTrackId()].isAlive()){
+    while (thisPacket && config->is_active && userSelect[thisPacket.getTrackId()]){
       thisPacket.nullMember("bpos");
-      while (config->is_active && userSelect[thisPacket.getTrackId()].isAlive() &&
+      while (config->is_active && userSelect[thisPacket.getTrackId()] &&
              Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset) + simStartTime){
         Util::sleep(std::min(((thisPacket.getTime() + timeOffset) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER),
                              (uint64_t)1000));
-        userSelect[thisPacket.getTrackId()].keepAlive();
       }
       uint64_t originalTime = thisPacket.getTime();
       thisPacket.setTime(originalTime + timeOffset);
       bufferLivePacket(thisPacket);
       thisPacket.setTime(originalTime);
 
-      userSelect[thisPacket.getTrackId()].keepAlive();
       getNext();
       if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
         size_t tid = thisPacket.getTrackId();
-        userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[tid].reload(streamName, tid, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload();}
         if (statComm){
-          if (!statComm.isAlive()){
+          if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
             return;
@@ -952,7 +948,6 @@ namespace Mist{
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           statComm.setHost(getConnectedBinHost());
-          statComm.keepAlive();
         }
 
         statTimer = Util::bootSecs();
@@ -961,7 +956,7 @@ namespace Mist{
     if (!thisPacket){
       Util::logExitReason("invalid packet from getNext");
     }
-    if (thisPacket && !userSelect[thisPacket.getTrackId()].isAlive()){
+    if (thisPacket && !userSelect[thisPacket.getTrackId()]){
       Util::logExitReason("buffer shutdown");
     }
   }
@@ -1411,8 +1406,7 @@ namespace Mist{
 
     bool isAlive = false;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      if (it->second.isAlive()){isAlive = true;}
-      it->second.keepAlive();
+      if (it->second){isAlive = true;}
     }
     return isAlive && config->is_active;
   }

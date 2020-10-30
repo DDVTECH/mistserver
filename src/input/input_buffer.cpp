@@ -155,9 +155,7 @@ namespace Mist{
     {
       Comms::Users cleanUsers;
       cleanUsers.reload(streamName);
-      for (size_t i = cleanUsers.firstValid(); i < cleanUsers.endValid(); ++i){
-        cleanUsers.setStatus(COMM_STATUS_INVALID, i);
-      }
+      cleanUsers.finishAll();
       cleanUsers.setMaster(true);
     }
     // Delete the live stream semaphore, if any.
@@ -389,8 +387,8 @@ namespace Mist{
   }
 
   void inputBuffer::removeTrack(size_t tid){
-    size_t lastUser = users.endValid();
-    for (size_t i = users.firstValid(); i < lastUser; ++i){
+    size_t lastUser = users.recordCount();
+    for (size_t i = 0; i < lastUser; ++i){
       if (users.getStatus(i) == COMM_STATUS_INVALID){continue;}
       if (!(users.getStatus(i) & COMM_STATUS_SOURCE)){continue;}
       if (users.getTrack(i) != tid){continue;}

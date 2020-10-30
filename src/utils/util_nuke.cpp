@@ -135,10 +135,10 @@ int main(int argc, char **argv){
     Comms::Users cleanUsers;
     cleanUsers.reload(Util::streamName, true);
     std::set<pid_t> checkPids;
-    for (size_t i = cleanUsers.firstValid(); i < cleanUsers.endValid(); ++i){
+    for (size_t i = 0; i < cleanUsers.recordCount(); ++i){
       uint8_t status = cleanUsers.getStatus(i);
       cleanUsers.setStatus(COMM_STATUS_INVALID, i);
-      if (status != COMM_STATUS_INVALID && status != COMM_STATUS_DISCONNECT && cleanUsers.getTimer(i) < 126){
+      if (status != COMM_STATUS_INVALID && status != COMM_STATUS_DISCONNECT){
         pid_t pid = cleanUsers.getPid(i);
         if (pid > 1){
           Util::Procs::Stop(pid);

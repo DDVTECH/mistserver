@@ -490,10 +490,7 @@ void Controller::SharedMemStats(void *config){
   }else{/*LTS-START*/
     if (Controller::killOnExit){
       WARN_MSG("Killing all connected clients to force full shutdown");
-      for (uint32_t id = statComm.firstValid(); id != statComm.endValid(); id++){
-        if (statComm.getStatus(id) == COMM_STATUS_INVALID){continue;}
-        statComm.kill(id, true);
-      }
+      statComm.finishAll();
     }
     /*LTS-END*/
   }

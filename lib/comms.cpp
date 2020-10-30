@@ -27,35 +27,23 @@ namespace Comms{
     sem.close();
   }
 
-  void Comms::addCommonFields(){
+  void Comms::addFields(){
     dataAccX.addField("status", RAX_UINT);
-    dataAccX.addField("command", RAX_64UINT);
-    dataAccX.addField("timer", RAX_UINT);
-    dataAccX.addField("pid", RAX_32UINT);
-    dataAccX.addField("killtime", RAX_64UINT);
+    dataAccX.addField("pid", RAX_64UINT);
   }
 
-  void Comms::commonFieldAccess(){
+  void Comms::nullFields(){
+    setPid(getpid());
+  }
+
+  void Comms::fieldAccess(){
     status = dataAccX.getFieldAccX("status");
-    command = dataAccX.getFieldAccX("command");
-    timer = dataAccX.getFieldAccX("timer");
     pid = dataAccX.getFieldAccX("pid");
-    killTime = dataAccX.getFieldAccX("killtime");
   }
 
-  size_t Comms::firstValid() const{
-    if (!master){return index;}
-    return dataAccX.getStartPos();
-  }
-
-  size_t Comms::endValid() const{
+  size_t Comms::recordCount() const{
     if (!master){return index + 1;}
-    return dataAccX.getEndPos();
-  }
-
-  void Comms::deleteFirst(){
-    if (!master){return;}
-    dataAccX.deleteRecords(1);
+    return dataAccX.getRCount();
   }
 
   uint8_t Comms::getStatus() const{return status.uint(index);}
@@ -66,22 +54,6 @@ namespace Comms{
     status.set(_status, idx);
   }
 
-  uint64_t Comms::getCommand() const{return command.uint(index);}
-  uint64_t Comms::getCommand(size_t idx) const{return (master ? command.uint(idx) : 0);}
-  void Comms::setCommand(uint64_t _cmd){command.set(_cmd, index);}
-  void Comms::setCommand(uint64_t _cmd, size_t idx){
-    if (!master){return;}
-    command.set(_cmd, idx);
-  }
-
-  uint8_t Comms::getTimer() const{return timer.uint(index);}
-  uint8_t Comms::getTimer(size_t idx) const{return (master ? timer.uint(idx) : 0);}
-  void Comms::setTimer(uint8_t _timer){timer.set(_timer, index);}
-  void Comms::setTimer(uint8_t _timer, size_t idx){
-    if (!master){return;}
-    timer.set(_timer, idx);
-  }
-
   uint32_t Comms::getPid() const{return pid.uint(index);}
   uint32_t Comms::getPid(size_t idx) const{return (master ? pid.uint(idx) : 0);}
   void Comms::setPid(uint32_t _pid){pid.set(_pid, index);}
@@ -90,53 +62,81 @@ namespace Comms{
     pid.set(_pid, idx);
   }
 
-  void Comms::kill(size_t idx, bool force){
-    if (!master){return;}
-    if (force){
-      Util::Procs::Murder(pid.uint(idx)); // hard kill
-      status.set(COMM_STATUS_INVALID, idx);
-      return;
-    }
-    uint64_t kTime = killTime.uint(idx);
-    uint64_t now = Util::bootSecs();
-    if (!kTime){
-      kTime = now;
-      killTime.set(kTime, idx);
-    }
-    if (now - kTime > 30){
-      Util::Procs::Murder(pid.uint(idx)); // hard kill
-      status.set(COMM_STATUS_INVALID, idx);
-    }else{
-      Util::Procs::Stop(pid.uint(idx)); // soft kill
-    }
-  }
-
   void Comms::finishAll(){
     if (!master){return;}
     size_t c = 0;
+    bool keepGoing = true;
     do{
-      for (size_t i = firstValid(); i < endValid(); i++){
-        if (getStatus(i) == COMM_STATUS_INVALID){continue;}
+      keepGoing = false;
+      for (size_t i = 0; i < recordCount(); i++){
+        if (getStatus(i) == COMM_STATUS_INVALID || getStatus(i) == COMM_STATUS_DISCONNECT){continue;}
+        uint64_t cPid = getPid(i);
+        if (cPid > 1){
+          Util::Procs::Stop(cPid); // soft kill
+          keepGoing = true;
+        }
         setStatus(COMM_STATUS_REQDISCONNECT, i);
       }
-      while (getStatus(firstValid()) == COMM_STATUS_INVALID){deleteFirst();}
-    }while (firstValid() < endValid() && ++c < 10);
+      if (keepGoing){Util::sleep(250);}
+    }while (keepGoing && ++c < 8);
   }
 
-  void Comms::keepAlive(){
-    if (isAlive()){setTimer(0);}
-  }
-
-  bool Comms::isAlive() const{
-    if (!*this){return false;}
-    if (getStatus() == COMM_STATUS_INVALID){return false;}
-    if (getStatus() == COMM_STATUS_DISCONNECT){return false;}
-    return getTimer() < 126;
+  Comms::operator bool() const{
+    if (master){return dataPage;}
+    return dataPage && (getStatus() != COMM_STATUS_INVALID) && (getStatus() != COMM_STATUS_DISCONNECT);
   }
 
   void Comms::setMaster(bool _master){
     master = _master;
     dataPage.master = _master;
+  }
+
+  void Comms::reload(const std::string & prefix, size_t baseSize, bool _master, bool reIssue){
+    master = _master;
+    if (!currentSize){currentSize = baseSize;}
+
+    if (master){
+      dataPage.init(prefix, currentSize, false, false);
+      if (dataPage){
+        dataPage.master = true;
+        dataAccX = Util::RelAccX(dataPage.mapped);
+        fieldAccess();
+      }else{
+        dataPage.init(prefix, currentSize, true);
+        dataAccX = Util::RelAccX(dataPage.mapped, false);
+        addFields();
+        fieldAccess();
+        size_t reqCount = (currentSize - dataAccX.getOffset()) / dataAccX.getRSize();
+        dataAccX.setRCount(reqCount);
+        dataAccX.setPresent(reqCount);
+        dataAccX.setReady();
+      }
+      return;
+    }
+
+    dataPage.init(prefix, currentSize, false);
+    if (!dataPage){
+      WARN_MSG("Unable to open page %s", prefix.c_str());
+      return;
+    }
+    dataAccX = Util::RelAccX(dataPage.mapped);
+    fieldAccess();
+    if (index == INVALID_RECORD_INDEX || reIssue){
+      size_t reqCount = dataAccX.getRCount();
+      for (index = 0; index < reqCount; ++index){
+        if (getStatus() == COMM_STATUS_INVALID){
+          IPC::semGuard G(&sem);
+          if (getStatus() != COMM_STATUS_INVALID){continue;}
+          nullFields();
+          setStatus(COMM_STATUS_ACTIVE);
+          break;
+        }
+      }
+      if (index >= reqCount){
+        FAIL_MSG("Could not register entry on comm page!");
+        dataPage.close();
+      }
+    }
   }
 
   Statistics::Statistics() : Comms(){sem.open(SEM_STATISTICS, O_CREAT | O_RDWR, ACCESSPERMS, 1);}
@@ -147,76 +147,39 @@ namespace Comms{
   }
 
   void Statistics::reload(bool _master, bool reIssue){
-    master = _master;
-    bool setFields = true;
+    Comms::reload(COMMS_STATISTICS, COMMS_STATISTICS_INITSIZE, _master, reIssue);
+  }
 
-    if (!currentSize){currentSize = COMMS_STATISTICS_INITSIZE;}
-    dataPage.init(COMMS_STATISTICS, currentSize, false, false);
-    if (master){
-      if (dataPage.mapped){
-        setFields = false;
-        dataPage.master = true;
-      }else{
-        dataPage.init(COMMS_STATISTICS, currentSize, true);
-      }
-    }
-    if (!dataPage.mapped){
-      FAIL_MSG("Unable to open page " COMMS_STATISTICS);
-      return;
-    }
+  void Statistics::addFields(){
+    Comms::addFields();
+    dataAccX.addField("sync", RAX_UINT);
+    dataAccX.addField("now", RAX_64UINT);
+    dataAccX.addField("time", RAX_64UINT);
+    dataAccX.addField("lastsecond", RAX_64UINT);
+    dataAccX.addField("down", RAX_64UINT);
+    dataAccX.addField("up", RAX_64UINT);
+    dataAccX.addField("host", RAX_RAW, 16);
+    dataAccX.addField("stream", RAX_STRING, 100);
+    dataAccX.addField("connector", RAX_STRING, 20);
+    dataAccX.addField("crc", RAX_32UINT);
+  }
 
-    if (master){
-      dataAccX = Util::RelAccX(dataPage.mapped, false);
-      if (setFields){
-        addCommonFields();
+  void Statistics::nullFields(){
+    Comms::nullFields();
+    setCRC(0);
+    setConnector("");
+    setStream("");
+    setHost("");
+    setUp(0);
+    setDown(0);
+    setLastSecond(0);
+    setTime(0);
+    setNow(0);
+    setSync(0);
+  }
 
-        dataAccX.addField("sync", RAX_UINT);
-        dataAccX.addField("now", RAX_64UINT);
-        dataAccX.addField("time", RAX_64UINT);
-        dataAccX.addField("lastsecond", RAX_64UINT);
-        dataAccX.addField("down", RAX_64UINT);
-        dataAccX.addField("up", RAX_64UINT);
-        dataAccX.addField("host", RAX_RAW, 16);
-        dataAccX.addField("stream", RAX_STRING, 100);
-        dataAccX.addField("connector", RAX_STRING, 20);
-        dataAccX.addField("crc", RAX_32UINT);
-
-        dataAccX.setRCount((currentSize - dataAccX.getOffset()) / dataAccX.getRSize());
-        dataAccX.setReady();
-      }
-
-    }else{
-      dataAccX = Util::RelAccX(dataPage.mapped);
-      if (index == INVALID_RECORD_INDEX || reIssue){
-        sem.wait();
-        for (index = 0; index < dataAccX.getEndPos(); ++index){
-          if (dataAccX.getInt("status", index) == COMM_STATUS_INVALID){
-            // Reverse! clear entry and claim it.
-            dataAccX.setInt("crc", 0, index);
-            dataAccX.setString("connector", "", index);
-            dataAccX.setString("stream", "", index);
-            dataAccX.setString("host", "", index);
-            dataAccX.setInt("up", 0, index);
-            dataAccX.setInt("down", 0, index);
-            dataAccX.setInt("lastsecond", 0, index);
-            dataAccX.setInt("time", 0, index);
-            dataAccX.setInt("now", 0, index);
-            dataAccX.setInt("sync", 0, index);
-            dataAccX.setInt("killtime", 0, index);
-            dataAccX.setInt("pid", 0, index);
-            dataAccX.setInt("timer", 0, index);
-            dataAccX.setInt("command", 0, index);
-            dataAccX.setInt("status", 0, index);
-            break;
-          }
-        }
-        if (index == dataAccX.getEndPos()){dataAccX.addRecords(1);}
-        sem.post();
-      }
-    }
-
-    commonFieldAccess();
-
+  void Statistics::fieldAccess(){
+    Comms::fieldAccess();
     sync = dataAccX.getFieldAccX("sync");
     now = dataAccX.getFieldAccX("now");
     time = dataAccX.getFieldAccX("time");
@@ -336,7 +299,7 @@ namespace Comms{
   Users::Users() : Comms(){}
 
   Users::Users(const Users &rhs) : Comms(){
-    if (rhs && rhs.isAlive()){
+    if (rhs){
       reload(rhs.streamName, (size_t)rhs.getTrack());
       if (*this){
         setKeyNum(rhs.getKeyNum());
@@ -352,79 +315,35 @@ namespace Comms{
     snprintf(semName, NAME_BUFFER_SIZE, SEM_USERS, streamName.c_str());
     sem.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
 
-    master = _master;
-
-    if (!currentSize){currentSize = COMMS_USERS_INITSIZE;}
-
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_USERS, streamName.c_str());
 
-    bool newPage = false;
-    if (master){
-      dataPage.init(userPageName, currentSize, false, false);
-      if (dataPage){
-        dataPage.master = true;
-      }else{
-        dataPage.init(userPageName, currentSize, true);
-        newPage = true;
-      }
-    }else{
-      dataPage.init(userPageName, currentSize, false);
-    }
-    if (!dataPage.mapped){
-      HIGH_MSG("Unable to open page %s", userPageName);
-      return;
-    }
+    Comms::reload(userPageName, COMMS_USERS_INITSIZE, _master, reIssue);
+  }
+  
+  void Users::addFields(){
+    Comms::addFields();
+    dataAccX.addField("track", RAX_64UINT);
+    dataAccX.addField("keynum", RAX_64UINT);
+  }
 
-    if (master){
-      if (newPage){
-        dataAccX = Util::RelAccX(dataPage.mapped, false);
-        addCommonFields();
+  void Users::nullFields(){
+    Comms::nullFields();
+    setTrack(0);
+    setKeyNum(0);
+  }
 
-        dataAccX.addField("track", RAX_32UINT);
-        dataAccX.addField("keynum", RAX_32UINT);
-
-        dataAccX.setRCount((currentSize - dataAccX.getOffset()) / dataAccX.getRSize());
-        dataAccX.setReady();
-      }else{
-        dataAccX = Util::RelAccX(dataPage.mapped);
-      }
-
-    }else{
-      dataAccX = Util::RelAccX(dataPage.mapped);
-      if (index == INVALID_RECORD_INDEX || reIssue){
-        sem.wait();
-
-        for (index = 0; index < dataAccX.getEndPos(); ++index){
-          if (dataAccX.getInt("status", index) == COMM_STATUS_INVALID){
-            // Reverse! clear entry and claim it.
-            dataAccX.setInt("keynum", 0, index);
-            dataAccX.setInt("track", 0, index);
-            dataAccX.setInt("killtime", 0, index);
-            dataAccX.setInt("pid", 0, index);
-            dataAccX.setInt("timer", 0, index);
-            dataAccX.setInt("command", 0, index);
-            dataAccX.setInt("status", 0, index);
-            break;
-          }
-        }
-        if (index == dataAccX.getEndPos()){dataAccX.addRecords(1);}
-        sem.post();
-      }
-    }
-
-    commonFieldAccess();
-
+  void Users::fieldAccess(){
+    Comms::fieldAccess();
     track = dataAccX.getFieldAccX("track");
     keyNum = dataAccX.getFieldAccX("keynum");
-
-    setPid(getpid());
   }
 
   void Users::reload(const std::string &_streamName, size_t idx, uint8_t initialState){
     reload(_streamName);
-    if (dataPage.mapped){
+    if (dataPage){
       setTrack(idx);
+      setKeyNum(0);
       setStatus(initialState);
     }
   }

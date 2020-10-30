@@ -2198,7 +2198,7 @@ namespace DTSC{
   void Meta::removeTrack(size_t trackIdx){
     if (!getValidTracks().count(trackIdx)){return;}
     Track &t = tracks[trackIdx];
-    for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
+    for (size_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
       if (t.pages.getInt("avail", i) == 0){continue;}
       char thisPageName[NAME_BUFFER_SIZE];
       snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
@@ -3396,6 +3396,20 @@ namespace DTSC{
     timeField = cKeys.getFieldData("time");
     sizeField = cKeys.getFieldData("size");
   }
+
+  KeysTimer::KeysTimer(const Util::RelAccX &_keys):cKeys(_keys){
+    timeField = cKeys.getFieldData("time");
+  }
+
+  uint64_t KeysTimer::getTime(size_t idx) const{return cKeys.getInt(timeField, idx);}
+   size_t KeysTimer::getNumForTime(uint64_t time) const{
+      size_t res = cKeys.getDeleted();
+      for (size_t i = cKeys.getDeleted(); i < cKeys.getEndPos(); i++){
+        if (getTime(i) > time){break;}
+        res = i;
+      }
+      return res;
+    }
 
   size_t Keys::getFirstValid() const{return cKeys.getDeleted();}
   size_t Keys::getEndValid() const{return cKeys.getEndPos();}

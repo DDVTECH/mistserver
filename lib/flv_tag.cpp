@@ -49,7 +49,7 @@ bool FLV::check_header(char *header){
 
 /// Checks the first 3 bytes for the string "FLV". Implementing a basic FLV header check,
 /// returning true if it is, false if not.
-bool FLV::is_header(char *header){
+bool FLV::is_header(const char *header){
   if (header[0] != 'F') return false;
   if (header[1] != 'L') return false;
   if (header[2] != 'V') return false;
@@ -638,7 +638,7 @@ bool FLV::Tag::ChunkLoader(const RTMPStream::Chunk &O){
 /// \param S The size of the data buffer.
 /// \param P The current position in the data buffer. Will be updated to reflect new position.
 /// \return True if count bytes are read succesfully, false otherwise.
-bool FLV::Tag::MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, char *D,
+bool FLV::Tag::MemReadUntil(char *buffer, unsigned int count, unsigned int &sofar, const char *D,
                             unsigned int S, unsigned int &P){
   if (sofar >= count){return true;}
   int r = 0;
@@ -660,7 +660,7 @@ bool FLV::Tag::MemReadUntil(char *buffer, unsigned int count, unsigned int &sofa
 /// location of the data buffer. \param S The size of the data buffer. \param P The current position
 /// in the data buffer. Will be updated to reflect new position. \return True if a whole tag is
 /// succesfully read, false otherwise.
-bool FLV::Tag::MemLoader(char *D, unsigned int S, unsigned int &P){
+bool FLV::Tag::MemLoader(const char *D, unsigned int S, unsigned int &P){
   if (len < 15){len = 15;}
   if (!checkBufferSize()){return false;}
   if (done){

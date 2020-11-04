@@ -59,6 +59,122 @@ void Util::logExitReason(const char *format, ...){
 std::string Util::listenInterface;
 uint32_t Util::listenPort = 0;
 
+#ifdef DISKSERIAL
+
+#ifdef __CYGWIN__
+static bool checkSerial(const std::string &ser, const std::string & directory = "/proc/registry/HKEY_LOCAL_MACHINE/HARDWARE/DEVICEMAP"){
+  bool ret = false;
+  struct stat statbuf;
+  char serial[512];
+  DIR *d = opendir(directory.c_str());
+  if (!d){return false;}
+  struct dirent *dp;
+  do{
+    errno = 0;
+    if ((dp = readdir(d))){
+      std::string newFile = directory + "/" + dp->d_name;
+      if (dp->d_type == DT_DIR){
+        ret |= checkSerial(ser, newFile);
+        if (ret){break;}
+        continue;
+      }
+      if (strncmp(dp->d_name, "SerialNumber", 12) == 0){
+        if (!stat(newFile.c_str(), &statbuf)){
+          FILE * fd = fopen(newFile.c_str(), "r");
+          int len = fread(serial, 1, 512, fd);
+          std::string currSer(serial, len);
+          while (currSer.size() && (currSer[0] == ' ' || currSer[0] == 0)){currSer.erase(0, 1);}
+          while (currSer.size() && (currSer[currSer.size()-1] == ' ' || currSer[currSer.size()-1] == 0)){currSer.erase(currSer.size()-1);}
+          if (currSer == ser){ret = true;}
+          fclose(fd);
+        }
+      }
+      if (ret){break;}
+    }
+  }while (dp != NULL);
+  closedir(d);
+  return ret;
+}
+#else
+static bool checkSerial(const std::string &ser){
+  //INFO_MSG("Checking serial: %s", ser.c_str());
+  bool ret = false;
+  char serFile[300];
+  struct stat statbuf;
+  char serial[300];
+  DIR *d = opendir("/sys/block");
+  struct dirent *dp;
+  if (d){
+    do{
+      errno = 0;
+      if ((dp = readdir(d))){
+        if (strncmp(dp->d_name, "loop", 4) != 0 && dp->d_name[0] != '.'){
+          snprintf(serFile, 300, "/sys/block/%s/device/serial", dp->d_name);
+          if (!stat(serFile, &statbuf)){
+            FILE * fd = fopen(serFile, "r");
+            int len = fread(serial, 1, 300, fd);
+            if (len && len >= ser.size()){
+              //INFO_MSG("Comparing with: %.*s", len, serial);
+              if (!strncmp(ser.data(), serial, ser.size())){
+                ret = true;
+                fclose(fd);
+                break;
+              }
+            }
+            fclose(fd);
+          }
+          snprintf(serFile, 300, "/sys/block/%s/device/wwid", dp->d_name);
+          if (!stat(serFile, &statbuf)){
+            FILE * fd = fopen(serFile, "r");
+            int len = fread(serial, 1, 300, fd);
+            if (len && len >= ser.size()){
+              std::string fullLine(serial, len);
+              while (fullLine.size() && fullLine[fullLine.size()-1] < 33){fullLine.erase(fullLine.size()-1);}
+              size_t lSpace = fullLine.rfind(' ');
+              if (lSpace != std::string::npos){
+                std::string curSer = fullLine.substr(lSpace+1);
+                if (curSer.size() > ser.size()){curSer = curSer.substr(0, ser.size());}
+                //INFO_MSG("Comparing with: %s", curSer.c_str());
+                if (ser == curSer){
+                  ret = true;
+                  fclose(fd);
+                  break;
+                }
+              }else{
+                if (ser == fullLine){
+                  ret = true;
+                  fclose(fd);
+                  break;
+                }
+              }
+            }
+            fclose(fd);
+          }
+        }
+      }
+    }while (dp != NULL);
+    closedir(d);
+  }
+  if (ret){return true;}
+  d = opendir("/dev/disk/by-id");
+  if (d){
+    do{
+      errno = 0;
+      if ((dp = readdir(d))){
+        std::string fn = dp->d_name;
+        if (fn.size() >= ser.size() && fn.substr(fn.size() - ser.size()) == ser){
+          ret = true;
+          break;
+        }
+      }
+    }while (dp != NULL);
+    closedir(d);
+  }
+  return ret;
+}
+#endif
+#endif
+
 Util::Config::Config(){
   // global options here
   vals["debug"]["long"] = "debug";
@@ -443,6 +559,13 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
 /// - Set is_active to true.
 /// - Set up a signal handler to set is_active to false for the SIGINT, SIGHUP and SIGTERM signals.
 void Util::Config::activate(){
+#ifdef DISKSERIAL
+  if (!checkSerial(DISKSERIAL)){
+    ERROR_MSG("Not licensed");
+    exit(1);
+    return;
+  }
+#endif
   if (vals.isMember("username")){
     setUser(getString("username"));
     vals.removeMember("username");

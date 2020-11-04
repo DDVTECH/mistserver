@@ -131,6 +131,11 @@ endif()
 set(APPNAME "MistServer" CACHE STRING "Name of the application, as used in user agent strings and the like")
 add_definitions(-DAPPNAME="${APPNAME}")
 
+set(DISKSERIAL "" CACHE STRING "Lock application to given disk serial number")
+if (DISKSERIAL)
+  add_definitions(-DDISKSERIAL="${DISKSERIAL}")
+endif()
+
 option(WITH_THREADNAMES "Enable fancy names for threads (not supported on all platforms)")
 if (WITH_THREADNAMES)
   add_definitions(-DWITH_THREADNAMES=1)

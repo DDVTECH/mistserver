@@ -1014,6 +1014,7 @@ namespace DTSC{
     setType(tIdx, trak.getMember("type").asString());
     setCodec(tIdx, trak.getMember("codec").asString());
     setInit(tIdx, trak.getMember("init").asString());
+    setLang(tIdx, trak.getMember("lang").asString());
     setID(tIdx, trak.getMember("trackid").asInt());
     setFirstms(tIdx, trak.getMember("firstms").asInt());
     setLastms(tIdx, trak.getMember("lastms").asInt());

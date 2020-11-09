@@ -1201,6 +1201,37 @@ namespace TS{
         len = p_data[offset];
         output << ", Service: " << std::string(p_data + offset + 1, len) << std::endl;
       }break;
+      case 0x56:{// DVB teletext descriptor
+        output << std::string(indent, ' ') << "DVB teletext:" << std::endl;
+        uint32_t len = p_data[p+1];
+        uint32_t offset = p + 2;
+        while (offset < p+2+len){
+          output << std::string(indent+2, ' ') << "Language: " << std::string(p_data + offset, 3) << ", ";
+          switch ((p_data[offset+3] & 0x78) >> 3){
+          case 0x01: output << "initial, "; break;
+          case 0x02: output << "subtitle, "; break;
+          case 0x03: output << "additional info, "; break;
+          case 0x04: output << "programme schedule, "; break;
+          case 0x05: output << "hearing impaired subtitle, "; break;
+          default: output << "reserved, "; break;
+          }
+          output << "magazine " << (int)(p_data[offset+3] & 0x7) << ", ";
+          output << "page " << (int)p_data[offset+4] << std::endl;
+          offset += 5;
+        }
+      }break;
+      case 0x59:{// DVB subtitling descriptor
+        output << std::string(indent, ' ') << "DVB subtitle:" << std::endl;
+        uint32_t len = p_data[p+1];
+        uint32_t offset = p + 2;
+        while (offset < p+2+len){
+          output << std::string(indent+2, ' ') << "Language: " << std::string(p_data + offset, 3) << ", ";
+          output << "type " << (int)p_data[offset+3] << ", ";
+          output << "composition " << Bit::btohs(p_data+offset+4) << ", ";
+          output << "ancillary " << Bit::btohs(p_data+offset+6) << std::endl;
+          offset += 8;
+        }
+      }break;
       case 0x7C:{// AAC descriptor (EN 300 468)
         if (p_data[p + 1] < 2 || p + 2 + p_data[p + 1] > p_len){continue;}// skip broken data
         output << std::string(indent, ' ') << "AAC profile: ";

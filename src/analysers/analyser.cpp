@@ -29,11 +29,30 @@ void Analyser::stop(){
   uri.close();
 }
 
+
+void Analyser::stopReason(const std::string & reason){
+  if (!reasonForStop.size()){reasonForStop = reason;}
+}
+
 /// Prints validation message if needed
 Analyser::~Analyser(){
   if (validate){
     finTime = Util::bootMS();
-    std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << ", " << firstMediaTime << ", " << firstMediaBootTime  << std::endl;
+    JSON::Value out;
+    out["system_start"] = upTime;
+    out["system_stop"] = finTime;
+    out["system_firstmedia"] = firstMediaBootTime;
+    out["media_start"] = firstMediaTime;
+    out["media_stop"] = mediaTime;
+    if (reasonForStop.size()){out["error"] = reasonForStop;}
+    for (std::map<uint64_t, uint64_t>::iterator it = mediaTimes.begin(); it != mediaTimes.end(); ++it){
+      JSON::Value val;
+      val.append(it->first);
+      val.append(it->second);
+      out["media"].append(val);
+
+    }
+    std::cout << out.toString() << std::endl;
   }
 }
 
@@ -50,14 +69,19 @@ int Analyser::run(Util::Config &conf){
   while (conf.is_active && isOpen()){
     if (!parsePacket()){
       if (isOpen()){
+        stopReason("media parse error");
         FAIL_MSG("Could not parse packet!");
         return 1;
       }
+      stopReason("reached end of file/stream");
       MEDIUM_MSG("Reached end of file/stream");
       return 0;
     }
     if (validate){
       finTime = Util::bootMS();
+      if (mediaTime){
+        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + 1000){mediaTimes[finTime] = mediaTime;}
+      }
       if(mediaTime && !firstMediaBootTime){
         firstMediaBootTime = finTime;
         firstMediaTime = mediaTime;
@@ -74,6 +98,7 @@ int Analyser::run(Util::Config &conf){
         }
         //Stop analysing when too far behind real-time speed
         if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 7500){
+          stopReason("fell too far behind");
           FAIL_MSG("Media time %" PRIu64 " ms behind!", (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime));
           return 4;
         }

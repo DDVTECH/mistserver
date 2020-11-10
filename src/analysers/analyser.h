@@ -28,6 +28,7 @@ public:
   // These should be provided by analysers
   static void init(Util::Config &conf);
   virtual bool parsePacket(){return false;}
+  void stopReason(const std::string & reason);
 
 protected:
   // These hold the current state and/or config
@@ -41,5 +42,8 @@ protected:
   uint64_t firstMediaBootTime;
   bool *isActive;     ///< Pointer to is_active bool from config
   HTTP::URIReader uri;
+  std::string reasonForStop;
+private:
+   std::map<uint64_t, uint64_t> mediaTimes;
 };
 

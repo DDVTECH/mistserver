@@ -44,24 +44,29 @@ void AnalyserWebRTC::sendSDPOffer(){
 void AnalyserWebRTC::parseAnswer(const std::string &ans){
   parser.parseSDP(ans);
   if (!parser.medias.size()){
+    stopReason("could not parse any media lines in SDP");
     FAIL_MSG("Could not parse any media lines!");
     return;
   }
-  SDP::Media & m = *parser.medias.begin();
-  ice_pwd = m.icePwd;
-  ice_ufrag = m.iceUFrag;
-  if (!m.candidates.size()){
-    FAIL_MSG("No valid candidates to connect to!");
+  for (std::vector<SDP::Media>::iterator it = parser.medias.begin(); it != parser.medias.end(); ++it){
+    SDP::Media & m = *it;
+    ice_pwd = m.icePwd;
+    ice_ufrag = m.iceUFrag;
+    if (!m.candidates.size()){
+      continue;
+    }
+
+    std::string addr = m.candidates.begin()->address;
+    uint16_t port = JSON::Value(m.candidates.begin()->port).asInt();
+    
+    udpPort = udp.bind(0, "0.0.0.0");
+    MEDIUM_MSG("Setting destination to: %s, port: %" PRIu16, addr.c_str(), port);
+    udp.SetDestination(addr, port);
+    uSocket = &udp;
     return;
   }
-
-  std::string addr = m.candidates.begin()->address;
-  uint16_t port = JSON::Value(m.candidates.begin()->port).asInt();
-  
-  udpPort = udp.bind(0, "0.0.0.0");
-  MEDIUM_MSG("Setting destination to: %s, port: %" PRIu16, addr.c_str(), port);
-  udp.SetDestination(addr, port);
-  uSocket = &udp;
+  stopReason("no valid candidates in SDP to connect to");
+  FAIL_MSG("No valid candidates to connect to!");
 }
 
 bool AnalyserWebRTC::open(const std::string &url){
@@ -237,6 +242,7 @@ bool AnalyserWebRTC::handleReceivedRTPOrRTCPPacket(){
     }
 
     if(trackers[payloadType].packLoss > packetLoss){
+      stopReason("packet loss: "+JSON::Value(trackers[payloadType].packLoss).asString()+"%");
       FAIL_MSG("Packet loss %zu > %zu!", trackers[payloadType].packLoss, packetLoss);
       stop(); 
       return false;

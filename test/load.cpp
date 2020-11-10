@@ -23,33 +23,27 @@ public:
   Process(pid_t p, int o){
     myPid = p;
     output = o;
-    for (int i = 0; i < 6; ++i){data[i] = 0;}
   }
   /// Checks if the process has finished, and attempts to parse its output
   bool done(){
     // Still running? We're not done yet.
     if (Util::Procs::childRunning(myPid)){return false;}
 
-    char dataString[512];
-    ssize_t bytes = read(output, dataString, 512);
+    char dataString[1024*10];
+    ssize_t bytes = read(output, dataString, 1024*10);
     close(output);
     if (bytes == -1){
       FAIL_MSG("Could not read response from fd %d: %s", output, strerror(errno));
     }
     DONTEVEN_MSG("Received %zd bytes of data from process %zu: %s", bytes, (size_t)myPid, dataString);
-    sscanf(dataString, "%" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64,
-           &data[0], &data[1], &data[2], &data[3], &data[4], &data[5]);
+    out = JSON::fromString(dataString, bytes);
     return true;
   }
   /// Creates a JSON::Value array of the output values logged for this process
-  JSON::Value getData(){
-    JSON::Value tmp;
-    for (int i = 0; i < 6; ++i){tmp.append(data[i]);}
-    return tmp;
-  }
+  JSON::Value & getData(){return out;}
   pid_t myPid;
   int output;
-  uint64_t data[6];
+  JSON::Value out;
 };
 
 /// Starts a process to view the given URL.
@@ -206,8 +200,8 @@ int main(int argc, char *argv[]){
       it = processes.begin();
       for (it = processes.begin(); it != processes.end(); ++it){
         if (it->done()){
-          JSON::Value data = it->getData();
-          if ((data[3].asInt() - data[4].asInt()) > (total_time - 5) * 1000){successful++;}
+          JSON::Value & data = it->getData();
+          if ((data["media_stop"].asInt() - data["media_start"].asInt()) > (total_time - 5) * 1000){successful++;}
           viewer_output.append(data);
           processes.erase(it);
           changed = true;

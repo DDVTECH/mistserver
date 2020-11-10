@@ -70,6 +70,7 @@ namespace RTP{
                   unsigned int payloadlen, unsigned int channel, std::string codec);
     void sendRTCP_SR(void *socket, void callBack(void *, const char *, size_t, uint8_t));
     void sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t));
+    void sendRTCP_RR(uint32_t mySSRC, uint32_t theirSSRC, uint8_t fractionLoss, uint32_t totalLoss, uint32_t maxSequence, uint32_t jitter, uint32_t lastSR, uint32_t SRdelay, void* cbPtr, void callBack(void *, const char *, size_t, uint8_t));
 
     Packet();
     Packet(uint32_t pt, uint32_t seq, uint64_t ts, uint32_t ssr, uint32_t csrcCount = 0);

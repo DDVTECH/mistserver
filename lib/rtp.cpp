@@ -317,28 +317,35 @@ namespace RTP{
     free(rtcpData);
   }
 
-  void Packet::sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t)){
+  /// Generic Receiver Report sender, which expects all variables to be passed as arguments.
+  /// All the other sendRTCP_RR functions call this one internally to do the actual sending.
+  void Packet::sendRTCP_RR(uint32_t mySSRC, uint32_t theirSSRC, uint8_t fractionLoss, uint32_t totalLoss, uint32_t maxSequence, uint32_t jitter, uint32_t lastSR, uint32_t SRdelay, void* cbPtr, void callBack(void *, const char *, size_t, uint8_t)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
       return;
     }
-    if (!(sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent)){sTrk.sorter.packCurrent++;}
     rtcpData[0] = 0x81;                       // version 2, no padding, one receiver report
     rtcpData[1] = 201;                        // receiver report
     Bit::htobs(rtcpData + 2, 7);              // 7 4-byte words follow the header
-    Bit::htobl(rtcpData + 4, sTrk.mySSRC);    // set receiver identifier
-    Bit::htobl(rtcpData + 8, sTrk.theirSSRC); // set source identifier
-    rtcpData[12] = (sTrk.sorter.lostCurrent * 255) / (sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent); // fraction lost since prev RR
-    Bit::htob24(rtcpData + 13, sTrk.sorter.lostTotal); // cumulative packets lost since start
-    Bit::htobl(rtcpData + 16, sTrk.sorter.rtpSeq | (sTrk.sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
-    Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
-    Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
-    Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
-    callBack(&(sTrk.rtcp), rtcpData, 32, 0);
+    Bit::htobl(rtcpData + 4, mySSRC);    // set receiver identifier
+    Bit::htobl(rtcpData + 8, theirSSRC); // set source identifier
+    rtcpData[12] = fractionLoss; // fraction lost since prev RR
+    Bit::htob24(rtcpData + 13, totalLoss); // cumulative packets lost since start
+    Bit::htobl(rtcpData + 16, maxSequence); // highest sequence received
+    Bit::htobl(rtcpData + 20, jitter); /// jitter (diff in timestamp vs packet arrival)
+    Bit::htobl(rtcpData + 24, lastSR); /// last SR (middle 32 bits of last SR or zero)
+    Bit::htobl(rtcpData + 28, SRdelay); /// delay since last SR in 2b seconds + 2b fraction
+    callBack(cbPtr, rtcpData, 32, 0);
+    free(rtcpData);
+  }
+
+  void Packet::sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t)){
+    if (!(sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent)){sTrk.sorter.packCurrent++;}
+    /// \TODO Implement jitter, lastSR and SRdelay
+    sendRTCP_RR(sTrk.mySSRC, sTrk.theirSSRC, (sTrk.sorter.lostCurrent * 255) / (sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent), sTrk.sorter.lostTotal, sTrk.sorter.rtpSeq | (sTrk.sorter.packTotal & 0xFFFF0000ul), 0, 0, 0, &(sTrk.rtcp), callBack);
     sTrk.sorter.lostCurrent = 0;
     sTrk.sorter.packCurrent = 0;
-    free(rtcpData);
   }
 
   Packet::Packet(){

@@ -311,15 +311,15 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
     devnull = open("/dev/null", O_RDWR);
     if (devnull == -1){
       ERROR_MSG("Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
-      if (*fdin == -1){
+      if (fdin && *fdin == -1){
         close(pipein[0]);
         close(pipein[1]);
       }
-      if (*fdout == -1){
+      if (fdout && *fdout == -1){
         close(pipeout[0]);
         close(pipeout[1]);
       }
-      if (*fderr == -1){
+      if (fderr && *fderr == -1){
         close(pipeerr[0]);
         close(pipeerr[1]);
       }

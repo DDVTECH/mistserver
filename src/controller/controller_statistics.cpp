@@ -112,6 +112,9 @@ struct streamTotals{
   uint64_t currViews;
   uint8_t status;
   uint64_t viewSeconds;
+  uint64_t packSent;
+  uint64_t packLoss;
+  uint64_t packRetrans;
 };
 static std::map<std::string, struct streamTotals> streamStats;
 static uint64_t servUpBytes = 0;
@@ -122,6 +125,9 @@ static uint64_t servInputs = 0;
 static uint64_t servOutputs = 0;
 static uint64_t servViewers = 0;
 static uint64_t servSeconds = 0;
+static uint64_t servPackSent = 0;
+static uint64_t servPackLoss = 0;
+static uint64_t servPackRetrans = 0;
 
 Controller::sessIndex::sessIndex(){
   crc = 0;
@@ -390,11 +396,17 @@ void Controller::SharedMemStats(void *config){
         servUpBytes = 0;
         servDownBytes = 0;
         servSeconds = 0;
+        servPackSent = 0;
+        servPackLoss = 0;
+        servPackRetrans = 0;
         for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
              it != streamStats.end(); ++it){
           it->second.upBytes = 0;
           it->second.downBytes = 0;
           it->second.viewSeconds = 0;
+          it->second.packSent = 0;
+          it->second.packLoss = 0;
+          it->second.packRetrans = 0;
         }
       }
       // wipe old statistics
@@ -614,6 +626,9 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
   }
   long long prevDown = getDown();
   long long prevUp = getUp();
+  uint64_t prevPktSent = getPktCount();
+  uint64_t prevPktLost = getPktLost();
+  uint64_t prevPktRetrans = getPktRetransmit();
   curConns[index].update(statComm, index);
   // store timestamp of first received data, if older
   if (firstSec > statComm.getNow(index)){firstSec = statComm.getNow(index);}
@@ -631,6 +646,9 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
   }
   long long currDown = getDown();
   long long currUp = getUp();
+  uint64_t currPktSent = getPktCount();
+  uint64_t currPktLost = getPktLost();
+  uint64_t currPktRetrans = getPktRetransmit();
   if (currUp - prevUp < 0 || currDown - prevDown < 0){
     INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp - prevUp,
              currDown - prevDown, prevUp, currUp, myStream.c_str(), myConnector.c_str(), index);
@@ -658,6 +676,9 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
     }else{
       servUpBytes += currUp - prevUp;
       servDownBytes += currDown - prevDown;
+      servPackSent += currPktSent - prevPktSent;
+      servPackLoss += currPktLost - prevPktLost;
+      servPackRetrans += currPktRetrans - prevPktRetrans;
     }
   }
   if (currDown + currUp >= COUNTABLE_BYTES){
@@ -688,6 +709,9 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
         }else{
           streamStats[myStream].upBytes += currUp;
           streamStats[myStream].downBytes += currDown;
+          streamStats[myStream].packSent += currPktSent;
+          streamStats[myStream].packLoss += currPktLost;
+          streamStats[myStream].packRetrans += currPktRetrans;
           if (sessionType == SESS_VIEWER){streamStats[myStream].viewSeconds += lastSec - firstSec;}
         }
       }else{
@@ -696,6 +720,9 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
         }else{
           streamStats[myStream].upBytes += currUp - prevUp;
           streamStats[myStream].downBytes += currDown - prevDown;
+          streamStats[myStream].packSent += currPktSent - prevPktSent;
+          streamStats[myStream].packLoss += currPktLost - prevPktLost;
+          streamStats[myStream].packRetrans += currPktRetrans - prevPktRetrans;
           if (sessionType == SESS_VIEWER){streamStats[myStream].viewSeconds += secIncr;}
         }
       }
@@ -1789,6 +1816,12 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       response << "mist_bw_other{direction=\"down\"}" << servDownOtherBytes << "\n\n";
       response << "mist_bw_limit " << bwLimit << "\n\n";
 
+      response << "# HELP mist_packets_total Total number of packets sent/received/lost over lossy protocols, server-wide.\n";
+      response << "# TYPE mist_packets_total counter\n";
+      response << "mist_packets_total{pkttype=\"sent\"}" << servPackSent << "\n";
+      response << "mist_packets_total{pkttype=\"lost\"}" << servPackLoss << "\n";
+      response << "mist_packets_total{pkttype=\"retrans\"}" << servPackRetrans << "\n";
+
       response << "\n# HELP mist_viewers Number of sessions by type and stream active right now.\n";
       response << "# TYPE mist_viewers gauge\n";
       response << "# HELP mist_viewcount Count of unique viewer sessions since stream start, per "
@@ -1798,6 +1831,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       response << "# TYPE mist_bw counter\n";
       response << "# HELP mist_viewseconds Number of seconds any media was received by a viewer.\n";
       response << "# TYPE mist_viewseconds counter\n";
+      response << "# HELP mist_packets Total number of packets sent/received/lost over lossy protocols.\n";
+      response << "# TYPE mist_packets counter\n";
       response << "mist_viewseconds_total " << servSeconds << "\n";
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
            it != streamStats.end(); ++it){
@@ -1811,6 +1846,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         response << "mist_viewseconds{stream=\"" << it->first << "\"} " << it->second.viewSeconds << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"}" << it->second.upBytes << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"}" << it->second.downBytes << "\n";
+        response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"sent\"}" << it->second.packSent << "\n";
+        response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"lost\"}" << it->second.packLoss << "\n";
+        response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"retrans\"}" << it->second.packRetrans << "\n";
       }
     }
     H.Chunkify(response.str(), conn);
@@ -1871,6 +1909,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       resp["st"].append(bw_down_total);
       resp["bw"].append(servUpBytes);
       resp["bw"].append(servDownBytes);
+      resp["pkts"].append(servPackSent);
+      resp["pkts"].append(servPackLoss);
+      resp["pkts"].append(servPackRetrans);
       resp["bwlimit"] = bwLimit;
       if (Storage["config"].isMember("location") && Storage["config"]["location"].isMember("lat") && Storage["config"]["location"].isMember("lon")){
         resp["loc"]["lat"] = Storage["config"]["location"]["lat"].asDouble();
@@ -1892,6 +1933,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         resp["streams"][it->first]["curr"].append(it->second.currViews);
         resp["streams"][it->first]["curr"].append(it->second.currIns);
         resp["streams"][it->first]["curr"].append(it->second.currOuts);
+        resp["streams"][it->first]["pkts"].append(it->second.packSent);
+        resp["streams"][it->first]["pkts"].append(it->second.packLoss);
+        resp["streams"][it->first]["pkts"].append(it->second.packRetrans);
       }
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
         resp["output_counts"][it->first] = it->second;

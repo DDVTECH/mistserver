@@ -10,6 +10,68 @@ void callback(void * cb, const char * data, size_t s, uint8_t t){
   uSocket->SendNow(data, s);
 }
 
+class PTTracker{
+public:
+  uint64_t firstPacketNr;
+  size_t packetCount;
+  std::deque<uint16_t> packetsSince;
+  std::deque<uint16_t> totalPackets;
+  uint16_t highestSeqNumber;
+  uint64_t rate;
+  uint32_t SSRC;
+  size_t currTime;
+  size_t packLoss;
+  uint32_t totalLoss;
+
+  PTTracker(){
+    packetCount       = 0;
+    firstPacketNr     = 0;
+    currTime          = 0;
+    highestSeqNumber  = 0;
+    packLoss = 0;
+    rate = 0;
+    totalLoss = 0;
+    SSRC = 0;
+  }
+  void addPacket(const RTP::Packet &rtp_pkt){
+    uint16_t currSeqNum = rtp_pkt.getSequence();
+    SSRC = rtp_pkt.getSSRC();
+
+    if(!firstPacketNr){
+      firstPacketNr = currSeqNum;
+      highestSeqNumber = currSeqNum;
+    }
+
+    if((uint16_t)(currSeqNum - highestSeqNumber) < 0x8000){
+      highestSeqNumber = currSeqNum;
+    }
+
+    if(Util::bootSecs() > currTime){
+      currTime = Util::bootSecs();
+
+      packetsSince.push_back(highestSeqNumber);
+      totalPackets.push_back(packetCount);
+
+      if(packetsSince.size() > 5){
+        uint16_t tmpPsince = packetsSince.front();
+        uint16_t tmpTotalP = totalPackets.front();
+        packetsSince.pop_front();
+        totalPackets.pop_front();
+        
+        packLoss = 100- (uint16_t)(packetCount - tmpTotalP) *100  / (uint16_t)(highestSeqNumber - tmpPsince);
+        uint16_t packPLoss = (highestSeqNumber  - tmpPsince) -(packetCount - tmpTotalP);
+        totalLoss += packPLoss;
+
+        if(packLoss>0){
+          INFO_MSG("Packet loss: %lu%% (%" PRIu16 "), packetCount: %lu", packLoss, packPLoss, packetCount);
+        }
+
+      }
+    }
+    packetCount++;
+  }
+};
+std::map<uint32_t, PTTracker> trackers;
 
 void AnalyserWebRTC::init(Util::Config &conf){
   Analyser::init(conf);
@@ -114,9 +176,12 @@ bool AnalyserWebRTC::open(const std::string &url){
 void AnalyserWebRTC::doFeedback(){
   if(lastFeedback != Util::bootSecs()){
     lastFeedback = Util::bootSecs(); 
-    SDP::Track track;
     RTP::Packet p;
-    p.sendRTCP_RR(track, callback);
+    uint32_t mySSRC = getpid();
+    for (std::map<uint32_t, PTTracker>::iterator it = trackers.begin(); it != trackers.end(); ++it){
+      //mySSRC, theirSSRC, fractionLoss, totalLoss, maxSequence, jitter, lastSR, SRdelay, nullPtr
+      p.sendRTCP_RR(mySSRC, it->second.SSRC, 2.55*it->second.packLoss, it->second.totalLoss, it->second.highestSeqNumber, 0, 0, 0, 0, callback);
+    }
     if (*ws){
       ws->sendFrame("{\"type\":\"rtp_props\"}");
     }
@@ -158,63 +223,6 @@ bool AnalyserWebRTC::parsePacket(){
 void AnalyserWebRTC::sendDTLS(){
   INFO_MSG("send dtls");
 }
-
-class PTTracker{
-public:
-  uint64_t firstPacketNr;
-  size_t packetCount;
-  std::deque<uint16_t> packetsSince;
-  std::deque<uint16_t> totalPackets;
-  uint16_t highestSeqNumber;
-  uint64_t rate;
-  size_t currTime;
-  size_t packLoss;
-
-  PTTracker(){
-    packetCount       = 0;
-    firstPacketNr     = 0;
-    currTime          = 0;
-    highestSeqNumber  = 0;
-    packLoss = 0;
-    rate = 0;
-  }
-  void addPacket(const RTP::Packet &rtp_pkt){
-    uint16_t currSeqNum = rtp_pkt.getSequence();
-
-    if(!firstPacketNr){
-      firstPacketNr = currSeqNum;
-      highestSeqNumber = currSeqNum;
-    }
-
-    if((uint16_t)(currSeqNum - highestSeqNumber) < 0x8000){
-      highestSeqNumber = currSeqNum;
-    }
-
-    if(Util::bootSecs() > currTime){
-      currTime = Util::bootSecs();
-
-      packetsSince.push_back(highestSeqNumber);
-      totalPackets.push_back(packetCount);
-
-      if(packetsSince.size() > 5){
-        uint16_t tmpPsince = packetsSince.front();
-        uint16_t tmpTotalP = totalPackets.front();
-        packetsSince.pop_front();
-        totalPackets.pop_front();
-        
-        packLoss = 100- (uint16_t)(packetCount - tmpTotalP) *100  / (uint16_t)(highestSeqNumber - tmpPsince);
-        uint16_t packPLoss = (highestSeqNumber  - tmpPsince) -(packetCount - tmpTotalP);
-
-        if(packLoss>0){
-          INFO_MSG("Packet loss: %lu%% (%" PRIu16 "), packetCount: %lu", packLoss, packPLoss, packetCount);
-        }
-
-      }
-    }
-    packetCount++;
-  }
-};
-std::map<uint32_t, PTTracker> trackers;
 
 bool AnalyserWebRTC::handleReceivedRTPOrRTCPPacket(){
   RTP::Packet rtp_pkt((const char *)udp.data, (unsigned int)udp.data.size());

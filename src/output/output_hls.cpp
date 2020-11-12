@@ -336,9 +336,9 @@ namespace Mist{
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
       // we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
-      contPAT = M.getMissedFragments(vidTrack) + fragIndice; // PAT continuity counter
-      contPMT = M.getMissedFragments(vidTrack) + fragIndice; // PMT continuity counter
-      contSDT = M.getMissedFragments(vidTrack) + fragIndice; // SDT continuity counter
+      contPAT = fragIndice; // PAT continuity counter
+      contPMT = fragIndice; // PMT continuity counter
+      contSDT = fragIndice; // SDT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;

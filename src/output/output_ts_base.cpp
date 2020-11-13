@@ -155,12 +155,10 @@ namespace Mist{
         // Make sure TS timestamp is sample-aligned, if possible
         uint32_t freq = M.getRate(thisIdx);
         if (freq){
-          uint64_t aacSamples = (packTime / 90) * freq / 1000;
-          // round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
-          aacSamples += 512;
-          aacSamples /= 1024;
-          aacSamples *= 1024;
-          // Get closest 90kHz clock time to perfect sample alignment
+          uint64_t aacSamples = packTime * freq / 90000;
+          //round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
+          aacSamples &= ~0x3FF;
+          //Get closest 90kHz clock time to perfect sample alignment
           packTime = aacSamples * 90000 / freq;
         }
       }

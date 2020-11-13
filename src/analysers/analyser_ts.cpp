@@ -165,7 +165,8 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
       time |= ((uint32_t)d[10] << 7) | ((d[11] >> 1) & 0x7F);
       time <<= 15;
       time |= ((uint32_t)d[12] << 7) | ((d[13] >> 1) & 0x7F);
-      res << " [PTS " << ((double)time / 90000) << "s]";
+      res.precision(3);
+      res << " [PTS " << std::fixed << (time / 90000.0) << "s]";
     }
     if (timeFlags & 0x01){
       uint64_t time = ((d[14] >> 1) & 0x07);
@@ -173,7 +174,8 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
       time |= ((uint32_t)d[15] << 7) | (d[16] >> 1);
       time <<= 15;
       time |= ((uint32_t)d[17] << 7) | (d[18] >> 1);
-      res << " [DTS " << ((double)time / 90000) << "s]";
+      res.precision(3);
+      res << " [DTS " << std::fixed << (time / 90000.0) << "s]";
     }
   }
   if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){

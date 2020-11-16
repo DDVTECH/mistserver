@@ -471,7 +471,8 @@ bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate,
   if (len <= 0 || !checkBufferSize()){return false;}
   memcpy(data + 13, initData.c_str(), len - 17);
   data[12] = 0; // AAC sequence header
-  data[11] = 0xA0;
+  // Contains: SoundFormat = AAC = 1010(4b), SoundRate (2b), SoundSize (1b), SoundType(1b) = 1010 0000
+  data[11] = 0xA0; 
   if (sampleRate >= 44100){
     data[11] |= 0x0C;
   }else if (sampleRate >= 22050){

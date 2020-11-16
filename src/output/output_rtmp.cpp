@@ -774,7 +774,7 @@ namespace Mist{
     // Used to read a custom AAC file 
     HTTP::URIReader inAAC;
     char *tempBuffer;
-    size_t bytesRead;
+    uint64_t bytesRead;
     
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
@@ -849,6 +849,7 @@ namespace Mist{
       tag.tagTime(currentTime());
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
+<<<<<<< HEAD
     if (hasCustomAudio){
       // Get first frame in order to init the audio track correctly
       // Confirm syncword (= FFF)
@@ -886,6 +887,46 @@ namespace Mist{
       }
     }
 
+||||||| parent of 7b4c6bd21 (RTMP custom audio loop support for streams containing copyrighted audio)
+=======
+    if (hasCustomAudio){
+      // Get first frame in order to init the audio track correctly
+      // Confirm syncword (= FFF)
+      if (customAudioFile[customAudioIterator] != 0xFF || ( customAudioFile[customAudioIterator + 1] & 0xF0) != 0xF0 ){
+        WARN_MSG("Invalid sync word at start of header. Invalid input file!");
+        return;
+      }
+      // Calculate the starting position of the next frame
+      uint64_t frameSize = (((customAudioFile[customAudioIterator + 3] & 0x03) << 11) | ( customAudioFile[customAudioIterator + 4] << 3) | (( customAudioFile[customAudioIterator + 5] >> 5) & 0x07));
+    
+      // Create ADTS object of frame
+      aac::adts adtsPack(customAudioFile + customAudioIterator, frameSize);
+      if (!adtsPack){
+        WARN_MSG("Could not parse ADTS package. Invalid input file!");
+        return;
+      }
+      currentFrameInfo = adtsPack;
+      char *tempInitData = (char*)malloc(2);
+      /* 
+       * Create AudioSpecificConfig
+       * DTSCAudioInit already includes the sequence header at pos 12
+       * We need:
+       *  objectType       = getAACProfile (5 bits) (probably 00001 AAC Main or 00010 AACLC)
+       *  Sampling Rate    = 44100    = 0100
+       *  Channels         = 2        = 0010
+       *  + 000
+       */
+      tempInitData[0] = 0x02 + (currentFrameInfo.getAACProfile() << 3);
+      tempInitData[1] = 0x10;
+      const std::string initData = std::string(tempInitData, 2);
+      
+      if (tag.DTSCAudioInit("AAC", currentFrameInfo.getFrequency(), currentFrameInfo.getSampleCount(), currentFrameInfo.getChannelCount(), initData)){
+        INFO_MSG("Loaded a %li byte custom audio file as audio loop", customAudioSize);
+        myConn.SendNow(RTMPStream::SendMedia(tag));
+      }
+    }
+
+>>>>>>> 7b4c6bd21 (RTMP custom audio loop support for streams containing copyrighted audio)
     sentHeader = true;
   }
 

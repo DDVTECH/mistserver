@@ -4,6 +4,8 @@
 #include <mist/http_parser.h>
 #include <mist/rtmpchunks.h>
 #include <mist/url.h>
+#include <mist/urireader.h>
+#include <mist/adts.h>
 
 namespace Mist{
 
@@ -35,6 +37,21 @@ namespace Mist{
     void sendSilence(uint64_t currTime);
     bool hasSilence;
     uint64_t lastSilence;
+    // Indicates whether the track should loop a custom audio file instead of normal audio
+    bool hasCustomAudio;
+    // Last timestamp we inserted custom audio / silence
+    uint64_t lastAudioInserted;
+    // Info on AAC file (including headers and such)
+    uint64_t customAudioSize;
+    uint64_t customAudioIterator;
+    char *customAudioFile;
+    // Info on current ADTS frame
+    aac::adts currentFrameInfo;
+    uint64_t currentFrameTimestamp;
+    // Loops .AAC file contents until untilTimestamp is reached
+    void sendLoopedAudio(uint64_t untilTimestamp);
+    // Gets the next ADTS frame in AAC file. Loops if EOF reached
+    void calcNextFrameInfo();
   };
 }// namespace Mist
 

@@ -129,7 +129,7 @@ namespace TS{
   bool Packet::FromPointer(const char *data){
     memcpy((void *)strBuf, (void *)data, 188);
     pos = 188;
-    return true;
+    return strBuf[0] == 0x47;
   }
 
   /// The deconstructor deletes all space that may be occupied by a Packet.
@@ -496,6 +496,39 @@ namespace TS{
   /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
   /// \param len The length of this frame.
   /// \param PTS The timestamp of the frame.
+  void Packet::getPESVideoLeadIn(std::string &outData, unsigned int len, unsigned long long PTS,
+                                         unsigned long long offset, bool isAligned, uint64_t bps){
+    if (len){len += (offset ? 13 : 8);}
+    if (bps >= 50){
+      if (len){len += 3;}
+    }else{
+      bps = 0;
+    }
+
+    outData.append("\000\000\001\340", 4);
+    outData += (char)((len >> 8) & 0xFF);
+    outData += (char)(len & 0xFF);
+    if (isAligned){
+      outData.append("\204", 1);
+    }else{
+      outData.append("\200", 1);
+    }
+    outData += (char)((offset ? 0xC0 : 0x80) | (bps ? 0x10 : 0)); // PTS/DTS + Flags
+    outData += (char)((offset ? 10 : 5) + (bps ? 3 : 0));         // PESHeaderDataLength
+    encodePESTimestamp(outData, (offset ? 0x30 : 0x20), PTS + offset);
+    if (offset){encodePESTimestamp(outData, 0x10, PTS);}
+    if (bps){
+      char rate_buf[3];
+      Bit::htob24(rate_buf, (bps / 50) | 0x800001);
+      outData.append(rate_buf, 3);
+    }
+  }
+
+
+  /// Generates a PES Lead-in for a video frame.
+  /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+  /// \param len The length of this frame.
+  /// \param PTS The timestamp of the frame.
   std::string &Packet::getPESVideoLeadIn(unsigned int len, unsigned long long PTS,
                                          unsigned long long offset, bool isAligned, uint64_t bps){
     if (len){len += (offset ? 13 : 8);}
@@ -525,6 +558,32 @@ namespace TS{
       tmpStr.append(rate_buf, 3);
     }
     return tmpStr;
+  }
+
+  /// Generates a PES Lead-in for an audio frame.
+  /// Prepends the lead-in to variable toSend, assumes toSend's length is all other data.
+  /// \param len The length of this frame.
+  /// \param PTS The timestamp of the frame.
+  void Packet::getPESAudioLeadIn(std::string & outData, unsigned int len, unsigned long long PTS, uint64_t bps){
+    if (bps >= 50){
+      len += 3;
+    }else{
+      bps = 0;
+    }
+
+    len += 8;
+    outData.append("\000\000\001\300", 4);
+    outData += (char)((len & 0xFF00) >> 8);     // PES PacketLength
+    outData += (char)(len & 0x00FF);            // PES PacketLength (Cont)
+    outData += (char)0x84;                      // isAligned
+    outData += (char)(0x80 | (bps ? 0x10 : 0)); // PTS/DTS + Flags
+    outData += (char)(5 + (bps ? 3 : 0));       // PESHeaderDataLength
+    encodePESTimestamp(outData, 0x20, PTS);
+    if (bps){
+      char rate_buf[3];
+      Bit::htob24(rate_buf, (bps / 50) | 0x800001);
+      outData.append(rate_buf, 3);
+    }
   }
 
   /// Generates a PES Lead-in for an audio frame.

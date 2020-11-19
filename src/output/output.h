@@ -106,6 +106,12 @@ namespace Mist{
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
                           ///< prepareNext().
     std::string prevHost; ///< Old value for getConnectedBinHost, for caching
+    size_t emptyCount;
+    bool recursingSync;
+    uint32_t seekCount;
+    bool firstData;
+    uint64_t lastPushUpdate;
+    bool newUA;
   protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;

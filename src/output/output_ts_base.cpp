@@ -106,7 +106,8 @@ namespace Mist{
         uint32_t i = 0;
         uint64_t offset = thisPacket.getInt("offset") * 90;
 
-        bs = TS::Packet::getPESVideoLeadIn(
+        bs.clear();
+        TS::Packet::getPESVideoLeadIn(bs,
             (((dataLen + extraSize) > MAX_PES_SIZE) ? 0 : dataLen + extraSize),
             packTime, offset, true, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
@@ -143,7 +144,8 @@ namespace Mist{
         }
       }else{
         uint64_t offset = thisPacket.getInt("offset") * 90;
-        bs = TS::Packet::getPESVideoLeadIn(0, packTime, offset, true, M.getBps(thisIdx));
+        bs.clear();
+        TS::Packet::getPESVideoLeadIn(bs, 0, packTime, offset, true, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
 
         fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
@@ -171,7 +173,8 @@ namespace Mist{
         bs.append(1, (char)(dataLen-255*(dataLen/255)));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       }else{
-        bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, M.getBps(thisIdx));
+        bs.clear();
+        TS::Packet::getPESAudioLeadIn(bs, tempLen, packTime, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
         if (codec == "AAC"){
           bs = TS::getAudioHeader(dataLen, M.getInit(thisIdx));

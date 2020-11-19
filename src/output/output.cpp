@@ -65,6 +65,12 @@ namespace Mist{
     maxSkipAhead = 7500;
     uaDelay = 10;
     realTime = 1000;
+    emptyCount = 0;
+    seekCount = 2;
+    firstData = true;
+    newUA = true;
+    lastPushUpdate = 0;
+
     lastRecv = Util::bootSecs();
     if (myConn){
       setBlocking(true);
@@ -174,10 +180,9 @@ namespace Mist{
   /// May be called recursively because it calls stats() which calls this function.
   /// If this happens, the extra calls to the function return instantly.
   void Output::doSync(bool force){
-    static bool recursing = false;
     if (!statComm){return;}
-    if (recursing){return;}
-    recursing = true;
+    if (recursingSync){return;}
+    recursingSync = true;
     if (statComm.getSync() == 2 || force){
       if (getStatsName() == capa["name"].asStringRef() && Triggers::shouldTrigger("USER_NEW", streamName)){
         // sync byte 0 = no sync yet, wait for sync from controller...
@@ -252,7 +257,7 @@ namespace Mist{
         statComm.setSync(10); // auto-accept if no trigger
       }
     }
-    recursing = false;
+    recursingSync = false;
   }
 
   std::string Output::getConnectedHost(){return myConn.getHost();}
@@ -1019,7 +1024,6 @@ namespace Mist{
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(){
     if (!realTime){return false;}//Makes no sense when playing in turbo mode
-    static uint32_t seekCount = 2;
     uint64_t seekPos = 0;
     if (!meta.getLive()){return false;}
     size_t mainTrack = getMainSelectedTrack();
@@ -1093,7 +1097,6 @@ namespace Mist{
   }
 
   void Output::requestHandler(){
-    static bool firstData = true; // only the first time, we call onRequest if there's data buffered already.
     if ((firstData && myConn.Received().size()) || myConn.spool()){
       firstData = false;
       DONTEVEN_MSG("onRequest");
@@ -1442,7 +1445,6 @@ namespace Mist{
   /// \returns true if thisPacket was filled with the next packet.
   /// \returns false if we could not reliably determine the next packet yet.
   bool Output::prepareNext(){
-    static size_t emptyCount = 0;
     if (!buffer.size()){
       thisPacket.null();
       INFO_MSG("Buffer completely played out");
@@ -1650,7 +1652,10 @@ namespace Mist{
     if (now == lastStats && !force){return;}
 
     if (isRecording()){
-      static uint64_t lastPushUpdate = now;
+      if(lastPushUpdate == 0){
+        lastPushUpdate = now;
+      }
+
       if (lastPushUpdate + 5 <= now){
         JSON::Value pStat;
         pStat["push_status_update"]["id"] = getpid();
@@ -1692,7 +1697,6 @@ namespace Mist{
 
     /*LTS-START*/
     // Tag the session with the user agent
-    static bool newUA = true; // we only do this once per connection
     if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
       std::string APIcall =
           "{\"tag_sessid\":{\"" + statComm.getSessId() + "\":" + JSON::string_escape("UA:" + UA) + "}}";

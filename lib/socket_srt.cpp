@@ -82,6 +82,7 @@ namespace Socket{
   }
 
   SRTConnection::SRTConnection(SRTSOCKET alreadyConnected){
+    initializeEmpty();
     sock = alreadyConnected;
   }
 
@@ -238,7 +239,7 @@ namespace Socket{
         ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
         return;
       }
-      if (srt_listen(sock, 1) == SRT_ERROR){
+      if (srt_listen(sock, 100) == SRT_ERROR){
         srt_close(sock);
         sock = -1;
         ERROR_MSG("Can not listen on Socket");
@@ -310,7 +311,7 @@ namespace Socket{
         }
         return;
       }
-      ERROR_MSG("Unable to send data over socket %" PRId32 ": %s", sock, srt_getlasterror_str());
+//      ERROR_MSG("Unable to send data over socket %" PRId32 ": %s", sock, srt_getlasterror_str());
       if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
     }else{
       lastGood = Util::bootMS();
@@ -346,6 +347,7 @@ namespace Socket{
     outgoing_port = 0;
     chunkTransmitSize = 1316;
     blocking = false;
+    timeout = 0;
   }
 
   void SRTConnection::setBlocking(bool _blocking){

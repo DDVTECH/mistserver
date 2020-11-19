@@ -148,6 +148,14 @@ namespace Mist{
     capa["optional"]["streamname"]["short"] = "s";
     capa["optional"]["streamname"]["default"] = "";
 
+    capa["optional"]["filelimit"]["name"] = "Open file descriptor limit";
+    capa["optional"]["filelimit"]["help"] = "Increase open file descriptor to this value if current system value is lower. A higher value may be needed for handling many concurrent SRT connections.";
+
+    capa["optional"]["filelimit"]["type"] = "int";
+    capa["optional"]["filelimit"]["option"] = "--filelimit";
+    capa["optional"]["filelimit"]["short"] = "l";
+    capa["optional"]["filelimit"]["default"] = "1024";
+
     capa["optional"]["acceptable"]["name"] = "Acceptable connection types";
     capa["optional"]["acceptable"]["help"] =
         "Whether to allow only incoming pushes (2), only outgoing pulls (1), or both (0, default)";

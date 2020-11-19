@@ -72,8 +72,11 @@ namespace TS{
     void updPos(unsigned int newPos);
 
     // PES helpers
+    static void getPESVideoLeadIn(std::string & outData, unsigned int len, unsigned long long PTS,
+                                          unsigned long long offset, bool isAligned, uint64_t bps = 0);
     static std::string &getPESVideoLeadIn(unsigned int len, unsigned long long PTS,
                                           unsigned long long offset, bool isAligned, uint64_t bps = 0);
+    static void getPESAudioLeadIn(std::string & outData, unsigned int len, unsigned long long PTS, uint64_t bps);
     static std::string &getPESAudioLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
     static std::string &getPESMetaLeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);
     static std::string &getPESPS1LeadIn(unsigned int len, unsigned long long PTS, uint64_t bps = 0);

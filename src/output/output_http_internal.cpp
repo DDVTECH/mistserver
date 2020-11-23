@@ -121,6 +121,7 @@ namespace Mist {
     capa["url_match"].append("/videojs.js");
     capa["url_match"].append("/dashjs.js");
     capa["url_match"].append("/webrtc.js");
+    capa["url_match"].append("/flv.js");
     capa["url_match"].append("/skins/default.css");
     capa["url_match"].append("/skins/dev.css");
     capa["url_match"].append("/skins/videojs.css");
@@ -137,6 +138,7 @@ namespace Mist {
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
     capa["optional"]["wrappers"]["allowed"].append("webrtc");
     capa["optional"]["wrappers"]["allowed"].append("mews");
+    capa["optional"]["wrappers"]["allowed"].append("flv");
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
@@ -755,6 +757,11 @@ namespace Mist {
           response.append((char*)mews_js, (size_t)mews_js_len);
           used = true;
         }
+        if (it->asStringRef() == "flv"){
+#include "flv.js.h"
+          response.append((char *)flv_js, (size_t)flv_js_len);
+          used = true;
+        }
         if (!used){WARN_MSG("Unknown player type: %s", it->asStringRef().c_str());}
       }
       
@@ -862,6 +869,26 @@ namespace Mist {
       
       #include "player_webrtc.js.h"
       response.append((char*)player_webrtc_js, (size_t)player_webrtc_js_len);
+      
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (H.url == "/flv.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      
+      #include "player_flv.js.h"
+      response.append((char *)player_flv_js, (size_t)player_flv_js_len);
       
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);

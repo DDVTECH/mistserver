@@ -187,7 +187,6 @@ p.prototype.build = function (MistVideo,callback) {
     this.onDashLoad();
   }
   else {
-    
     var scripttag = MistUtil.scripts.insert(MistVideo.urlappend(mistplayers.dashjs.scriptsrc(MistVideo.options.host)),{
       onerror: function(e){
         var msg = "Failed to load dashjs.js";

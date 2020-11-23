@@ -341,7 +341,7 @@ MistSkins["default"] = {
       if (MistVideo.options.autoplay) {
         //because Mist doesn't send data instantly (but real time), it can take a little while before canplaythrough is fired. Rather than wait, we can just start playing at the canplay event
         MistUtil.event.addListener(MistVideo.video,"canplay",function(){
-          if (MistVideo.player.api.paused) {
+          if (MistVideo.player.api && MistVideo.player.api.paused) {
             var promise = MistVideo.player.api.play();
             if (promise) {
               promise.catch(function(e){

@@ -811,7 +811,7 @@ function MistVideo(streamName,options) {
                 //restore video position
                 if (MistVideo.info.type != "live") {
                   var f = function(){
-                    this.currentTime = time;
+                    MistVideo.player.api.currentTime = time;
                     this.removeEventListener("loadedmetadata",f);
                   };
                   MistUtil.event.addListener(MistVideo.video,"loadedmetadata",f);

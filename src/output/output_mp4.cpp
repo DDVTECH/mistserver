@@ -7,8 +7,13 @@
 #include <mist/mp4_dash.h>
 #include <mist/mp4_encryption.h>
 #include <mist/mp4_generic.h>
-
+#include <mist/stream.h> /* for `Util::codecString()` when streaming mp4 over websockets and playback using media source extensions. */
+#include <mist/nal.h>
 #include <inttypes.h>
+#include <fstream>
+
+std::set<std::string> supportedAudio;
+std::set<std::string> supportedVideo;
 
 namespace Mist{
   std::string toUTF16(const std::string &original){
@@ -101,10 +106,14 @@ namespace Mist{
   }
 
   OutMP4::OutMP4(Socket::Connection &conn) : HTTPOutput(conn){
+    prevVidTrack = INVALID_TRACK_ID;
     nextHeaderTime = 0xffffffffffffffffull;
     startTime = 0;
     endTime = 0xffffffffffffffffull;
     realBaseOffset = 1;
+    stayLive = true;
+    target_rate = 0.0;
+    forwardTo = 0;
   }
   OutMP4::~OutMP4(){}
 
@@ -113,7 +122,6 @@ namespace Mist{
     capa["name"] = "MP4";
     capa["friendly"] = "MP4 over HTTP";
     capa["desc"] = "Pseudostreaming in MP4 format over HTTP";
-    capa["url_rel"] = "/$.mp4";
     capa["url_match"][0u] = "/$.mp4";
     capa["url_match"][1u] = "/$.3gp";
     capa["url_match"][2u] = "/$.fmp4";
@@ -122,9 +130,16 @@ namespace Mist{
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
+    jsonForEach(capa["codecs"][0u][0u], i){supportedVideo.insert(i->asStringRef());}
+    jsonForEach(capa["codecs"][0u][1u], i){supportedAudio.insert(i->asStringRef());}
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
-    capa["methods"][0u]["priority"] = 10u;
+    capa["methods"][0u]["priority"] = 9;
+    capa["methods"][0u]["url_rel"] = "/$.mp4";
+    capa["methods"][1u]["handler"] = "ws";
+    capa["methods"][1u]["type"] = "ws/video/mp4";
+    capa["methods"][1u]["priority"] = 10;
+    capa["methods"][1u]["url_rel"] = "/$.mp4";
     // MP4 live is broken on Apple
     capa["exceptions"]["live"] =
         JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], "
@@ -336,7 +351,8 @@ namespace Mist{
   bool OutMP4::mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented){
     uint32_t mainTrack = M.mainTrack();
     if (mainTrack == INVALID_TRACK_ID){return false;}
-    if (M.getLive()){needsLookAhead = 100;}
+    if (M.getLive()){needsLookAhead = 5000;}
+    if (webSock){needsLookAhead = 0;} 
     // Clear size if it was set before the function was called, just in case
     size = 0;
     // Determines whether the outputfile is larger than 4GB, in which case we need to use 64-bit
@@ -368,6 +384,7 @@ namespace Mist{
       uint64_t lastms = 0;
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
+        if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
         lastms = std::max(lastms, M.getLastms(it->first));
         firstms = std::min(firstms, M.getFirstms(it->first));
       }
@@ -378,6 +395,7 @@ namespace Mist{
     moovBox.setContent(mvhdBox, moovOffset++);
 
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
       DTSC::Parts parts(M.parts(it->first));
       size_t partCount = parts.getValidCount();
       uint64_t tDuration = M.getLastms(it->first) - M.getFirstms(it->first);
@@ -646,6 +664,7 @@ namespace Mist{
       mvexBox.setContent(mehdBox, curBox++);
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
+        if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
         MP4::TREX trexBox(it->first + 1);
         trexBox.setDefaultSampleDuration(1000);
         mvexBox.setContent(trexBox, curBox++);
@@ -653,6 +672,7 @@ namespace Mist{
       moovBox.setContent(mvexBox, moovOffset++);
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
+        if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
         if (M.getEncryption(it->first) != ""){
           MP4::PSSH psshBox;
           psshBox.setSystemIDHex(Encodings::Hex::decode("9a04f07998404286ab92e65be0885f95"));
@@ -691,6 +711,7 @@ namespace Mist{
       SortSet sortSet; // filling sortset for interleaving parts
       for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
            subIt != userSelect.end(); subIt++){
+        if (prevVidTrack != INVALID_TRACK_ID && subIt->first == prevVidTrack){continue;}
         keyPart temp;
         temp.trackID = subIt->first;
         temp.time = M.getFirstms(subIt->first);
@@ -784,6 +805,103 @@ namespace Mist{
     // That's technically legal, of course.
   }
 
+  // ------------------------------------------------------------
+
+  size_t OutMP4::fragmentHeaderSize(std::deque<size_t>& sortedTracks, std::set<keyPart>& trunOrder, uint64_t startFragmentTime, uint64_t endFragmentTime) {
+    /*
+      8 = moof (once)
+      16 = mfhd (once)
+      
+      per track:
+      32 = tfhd + first 8 bytes of traf
+      20 = tfdt
+      24 = 24 * ... 
+     */
+    size_t ret = (8 + 16) + ((32 + 20 + 24) * sortedTracks.size()) + 12 * trunOrder.size();
+    return ret;
+  }
+
+  // this function was created to add support for streaming mp4
+  // over websockets. each time `sendNext()` is called we will
+  // wrap the data into a `moof` packet and send it to the
+  // webocket client.
+  void OutMP4::appendSinglePacketMoof(Util::ResizeablePointer& moofOut, size_t extraBytes){
+
+    /* 
+       roxlu: I've added this check as this resulted in a
+       segfault while working on the websocket api. This
+       shouldn't be necessary as `sendNext()` should not be
+       called when `thisPacket` is invalid. Though, having this
+       here won't hurt and prevents us from running into
+       segfaults.
+    */
+    if (!thisPacket.getData()) {
+      FAIL_MSG("Current packet has no data, lookahead: %lu.", needsLookAhead);
+      return;
+    }
+    
+    //INFO_MSG("-- thisPacket.getDataStrignLen(): %u", thisPacket.getDataStringLen());
+    //INFO_MSG("-- appendSinglePacketMoof");
+
+    MP4::MOOF moofBox;
+    MP4::MFHD mfhdBox(fragSeqNum++);
+    moofBox.setContent(mfhdBox, 0);
+
+    MP4::TRAF trafBox;
+    MP4::TFHD tfhdBox;
+    size_t track = thisIdx;
+
+    tfhdBox.setFlags(MP4::tfhdSampleFlag | MP4::tfhdBaseIsMoof | MP4::tfhdSampleDesc);
+    tfhdBox.setTrackID(track + 1);
+    tfhdBox.setDefaultSampleDuration(444);
+    tfhdBox.setDefaultSampleSize(444);
+    tfhdBox.setDefaultSampleFlags((M.getType(track) == "video") ? (MP4::noIPicture | MP4::noKeySample)
+                                  : (MP4::isIPicture | MP4::isKeySample));
+    tfhdBox.setSampleDescriptionIndex(1);
+    trafBox.setContent(tfhdBox, 0);
+
+    MP4::TFDT tfdtBox;
+    tfdtBox.setBaseMediaDecodeTime(thisPacket.getTime());
+    trafBox.setContent(tfdtBox, 1);
+
+    MP4::TRUN trunBox;
+    trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::isKeySample);
+    trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize |
+                     MP4::trunsampleDuration | MP4::trunsampleOffsets);
+
+    /*
+      
+       8 = moof (once)
+      16 = mfhd (once)
+      
+      per track:
+        32 = tfhd + first 8 bytes of traf
+        20 = tfdt
+        24 = 24 * ... 
+    */
+    trunBox.setDataOffset(8 + (8 + 16) + ((32 + 20 + 24)) + 12);
+
+    MP4::trunSampleInformation sampleInfo;
+
+    size_t part_idx = M.getPartIndex(thisPacket.getTime(), thisIdx);
+    DTSC::Parts parts(M.parts(thisIdx));
+    sampleInfo.sampleDuration = parts.getDuration(part_idx);
+
+    sampleInfo.sampleOffset = 0;
+    if (thisPacket.hasMember("offset")) { 
+      sampleInfo.sampleOffset = thisPacket.getInt("offset");
+    }
+
+    sampleInfo.sampleSize = thisPacket.getDataStringLen()+extraBytes;
+
+    trunBox.setSampleInformation(sampleInfo, 0);
+    trafBox.setContent(trunBox, 2);
+    moofBox.setContent(trafBox, 1);
+    moofOut.append(moofBox.asBox(), moofBox.boxedSize());
+  }
+
+  // ------------------------------------------------------------
+  
   void OutMP4::sendFragmentHeaderTime(uint64_t startFragmentTime, uint64_t endFragmentTime){
     bool hasAudio = false;
     uint64_t mdatSize = 0;
@@ -942,13 +1060,12 @@ namespace Mist{
     H.Chunkify(mdatHeader, 8, myConn);
   }
 
-  bool OutMP4::onFinish(){
-    H.Chunkify(0, 0, myConn);
-    wantRequest = true;
-    return true;
-  }
-
   void OutMP4::onHTTP(){
+
+    if (webSock) {
+      return;
+    }
+    
     std::string dl;
     if (H.GetVar("dl").size()){
       dl = H.GetVar("dl");
@@ -1130,12 +1247,96 @@ namespace Mist{
   }
 
   void OutMP4::sendNext(){
-    static bool perfect = true;
 
+    if (!thisPacket.getData()) {
+      FAIL_MSG("`thisPacket.getData()` is invalid.");
+      return;
+    }
+    
     // Obtain a pointer to the data of this packet
     char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
+
+    // WebSockets send each packet directly. The packet is constructed in `appendSinglePacketMoof()`. 
+    if (webSock) {
+
+      if (forwardTo && currentTime() >= forwardTo){
+        forwardTo = 0;
+        if (target_rate == 0.0){
+          realTime = 1000;//set playback speed to default
+          firstTime = Util::bootMS() - currentTime();
+          maxSkipAhead = 0;//enabled automatic rate control
+        }else{
+          stayLive = false;
+          //Set new realTime speed
+          realTime = 1000 / target_rate;
+          firstTime = Util::bootMS() - (currentTime() / target_rate);
+          maxSkipAhead = 1;//disable automatic rate control
+        }
+        JSON::Value r;
+        r["type"] = "set_speed";
+        r["data"]["play_rate_prev"] = "fast-forward";
+        if (target_rate == 0.0){
+          r["data"]["play_rate_curr"] = "auto";
+        }else{
+          r["data"]["play_rate_curr"] = target_rate;
+        }
+        webSock->sendFrame(r.toString());
+      }
+
+      // Handle nice move-over to new track ID
+      if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
+        if (!thisPacket.getFlag("keyframe")){
+          // Ignore the packet if not a keyframe
+          return;
+        }
+        dropTrack(prevVidTrack, "Smoothly switching to new video track", false);
+        prevVidTrack = INVALID_TRACK_ID;
+        onIdle();
+        sendWebsocketCodecData("tracks");
+        sendHeader();
+
+/*
+        MP4::AVCC avccbox;
+        avccbox.setPayload(M.getInit(thisIdx));
+        std::string bs = avccbox.asAnnexB();
+        static Util::ResizeablePointer initBuf;
+        initBuf.assign(0,0);
+        initBuf.allocate(bs.size());
+        char * ib = initBuf;
+        initBuf.append(0, nalu::fromAnnexB(bs.data(), bs.size(), ib));
+
+        webBuf.truncate(0);
+        appendSinglePacketMoof(webBuf, bs.size());
+          
+        char mdatHeader[8] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
+        Bit::htobl(mdatHeader, 8 + len); //8 bytes for the header + length of data.
+        webBuf.append(mdatHeader, 8);
+        webBuf.append(dataPointer, len);
+        webBuf.append(initBuf, initBuf.size());
+        webSock->sendFrame(webBuf, webBuf.size(), 2);
+        return;
+*/
+
+
+      }
+
+
+      webBuf.truncate(0);
+      appendSinglePacketMoof(webBuf);
+        
+      char mdatHeader[8] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
+      Bit::htobl(mdatHeader, 8 + len); /* 8 bytes for the header + length of data. */
+      webBuf.append(mdatHeader, 8);
+      webBuf.append(dataPointer, len);
+      webSock->sendFrame(webBuf, webBuf.size(), 2);
+
+      if (stayLive && thisPacket.getFlag("keyframe")){liveSeek();}
+      // We must return here, the rest of this function won't work for websockets. 
+      return;
+    }
+
     std::string subtitle;
 
     if (M.getLive()){
@@ -1167,11 +1368,18 @@ namespace Mist{
 
       // generate content in mdat, meaning: send right parts
       DONTEVEN_MSG("Sending tid: %zu size: %zu", thisIdx, len);
-      H.Chunkify(dataPointer, len, myConn);
+      if (webSock) {
+        /* create packet */
+        webBuf.append(dataPointer, len);
+      }
+      else {
+        H.Chunkify(dataPointer, len, myConn);
+      }
     }
-
+    
     keyPart firstKeyPart = *sortSet.begin();
     DTSC::Parts parts(M.parts(firstKeyPart.trackID));
+    /*
     if (thisIdx != firstKeyPart.trackID || thisPacket.getTime() != firstKeyPart.time ||
         len != parts.getSize(firstKeyPart.index)){
       if (thisPacket.getTime() > firstKeyPart.time || thisIdx > firstKeyPart.trackID){
@@ -1191,6 +1399,7 @@ namespace Mist{
       }
       return;
     }
+    */
 
     // The remainder of this function handles non-live situations
     if (M.getLive()){
@@ -1235,6 +1444,31 @@ namespace Mist{
   }
 
   void OutMP4::sendHeader(){
+
+    if (webSock) {
+
+      JSON::Value r;
+      r["type"] = "info";
+      r["data"]["msg"] = "Sending header";
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        r["data"]["tracks"].append(it->first);
+      }
+      webSock->sendFrame(r.toString());
+
+      Util::ResizeablePointer headerData;
+      if (!mp4Header(headerData, fileSize, 1)){
+        FAIL_MSG("Could not generate MP4 header!");
+        return;
+      }
+
+      webSock->sendFrame(headerData, headerData.size(), 2);
+      std::ofstream bleh("/tmp/bleh.mp4");
+      bleh.write(headerData, headerData.size());
+      bleh.close();
+      sentHeader = true;
+      return;
+    }
+        
     vidTrack = getMainSelectedTrack();
 
     if (M.getLive()){
@@ -1260,4 +1494,301 @@ namespace Mist{
     sentHeader = true;
   }
 
+  void OutMP4::onWebsocketConnect() {
+    capa["name"] = "MP4/WS";
+    fragSeqNum = 0;
+    idleInterval = 1000;
+    maxSkipAhead = 0;
+  }
+
+  void OutMP4::onWebsocketFrame() {
+
+    JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
+    if (!command.isMember("type")) {
+      JSON::Value r;
+      r["type"] = "error";
+      r["data"] = "type field missing from command";
+      webSock->sendFrame(r.toString());
+      return;
+    }
+    
+    if (command["type"] == "request_codec_data") {
+      //If no supported codecs are passed, assume autodetected capabilities
+      if (command.isMember("supported_codecs")) {
+        capa.removeMember("exceptions");
+        capa["codecs"].null();
+        std::set<std::string> dupes;
+        jsonForEach(command["supported_codecs"], i){
+          if (dupes.count(i->asStringRef())){continue;}
+          dupes.insert(i->asStringRef());
+          if (supportedVideo.count(i->asStringRef())){
+            capa["codecs"][0u][0u].append(i->asStringRef());
+          }else if (supportedAudio.count(i->asStringRef())){
+            capa["codecs"][0u][1u].append(i->asStringRef());
+          }else{
+            JSON::Value r;
+            r["type"] = "error";
+            r["data"] = "Unsupported codec: "+i->asStringRef();
+          }
+        }
+      }
+      selectDefaultTracks();
+      sendWebsocketCodecData("codec_data");
+    }else if (command["type"] == "seek") {
+      handleWebsocketSeek(command);
+    }else if (command["type"] == "pause") {
+      parseData = !parseData;
+      JSON::Value r;
+      r["type"] = "pause";
+      r["paused"] = !parseData;
+      //Make sure we reset our timing code, too
+      if (parseData){
+        firstTime = Util::bootMS() - (currentTime() / target_rate);
+      }
+      webSock->sendFrame(r.toString());
+    }else if (command["type"] == "hold") {
+      parseData = false;
+      webSock->sendFrame("{\"type\":\"pause\",\"paused\":true}");
+    }else if (command["type"] == "tracks") {
+      if (command.isMember("audio")){
+        if (!command["audio"].isNull()){
+          targetParams["audio"] = command["audio"].asString();
+        }else{
+          targetParams.erase("audio");
+        }
+      }
+      if (command.isMember("video")){
+        if (!command["video"].isNull()){
+          targetParams["video"] = command["video"].asString();
+        }else{
+          targetParams.erase("video");
+        }
+      }
+      // Remember the previous video track, if any.
+      std::set<size_t> prevSelTracks;
+      prevVidTrack = INVALID_TRACK_ID;
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        prevSelTracks.insert(it->first);
+        if (M.getType(it->first) == "video"){
+          prevVidTrack = it->first;
+        }
+      }
+      if (selectDefaultTracks()) {
+        uint64_t seekTarget = currentTime();
+        if (command.isMember("seek_time")){
+          seekTarget = command["seek_time"].asInt();
+          prevVidTrack = INVALID_TRACK_ID;
+        }
+        // Add the previous video track back, if we had one.
+        if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
+          userSelect[prevVidTrack].reload(streamName, prevVidTrack);
+          seek(seekTarget);
+          std::set<size_t> newSelTracks;
+          newSelTracks.insert(prevVidTrack);
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            if (M.getType(it->first) != "video"){
+              newSelTracks.insert(it->first);
+            }
+          }
+          if (prevSelTracks != newSelTracks){
+            seek(seekTarget, true);
+            realTime = 0;
+            forwardTo = seekTarget;
+            sendWebsocketCodecData(command["type"]);
+            sendHeader();
+            JSON::Value r;
+            r["type"] = "set_speed";
+            if (target_rate == 0.0){
+              r["data"]["play_rate_prev"] = "auto";
+            }else{
+              r["data"]["play_rate_prev"] = target_rate;
+            }
+            r["data"]["play_rate_curr"] = "fast-forward";
+            webSock->sendFrame(r.toString());
+          }
+        }else{
+          prevVidTrack = INVALID_TRACK_ID;
+          seek(seekTarget, true);
+          realTime = 0;
+          forwardTo = seekTarget;
+          sendWebsocketCodecData(command["type"]);
+          sendHeader();
+          JSON::Value r;
+          r["type"] = "set_speed";
+          if (target_rate == 0.0){
+            r["data"]["play_rate_prev"] = "auto";
+          }else{
+            r["data"]["play_rate_prev"] = target_rate;
+          }
+          r["data"]["play_rate_curr"] = "fast-forward";
+          webSock->sendFrame(r.toString());
+        }
+        onIdle();
+        return;
+      }else{
+        prevVidTrack = INVALID_TRACK_ID;
+      }
+      onIdle();
+      return;
+    }else if (command["type"] == "set_speed") {
+      handleWebsocketSetSpeed(command);
+    }else if (command["type"] == "stop") {
+      Util::logExitReason("User requested stop");
+      myConn.close();
+    }else if (command["type"] == "play") {
+      parseData = true;
+      if (command.isMember("seek_time")){handleWebsocketSeek(command);}
+    }
+  }
+
+  void OutMP4::sendWebsocketCodecData(const std::string& type) {
+    JSON::Value r;
+    r["type"] = type;
+    r["data"]["current"] = currentTime();
+    std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
+    while (it != userSelect.end()) {
+      if (prevVidTrack != INVALID_TRACK_ID && M.getType(it->first) == "video" && it->first != prevVidTrack){
+        //Skip future tracks
+        ++it;
+        continue;
+      }
+      std::string codec = Util::codecString(M.getCodec(it->first), M.getInit(it->first));
+      if (!codec.size()) {
+        FAIL_MSG("Failed to get the codec string for track: %zu.", it->first);
+        ++it;
+        continue;
+      }
+      r["data"]["codecs"].append(codec);
+      r["data"]["tracks"].append(it->first);
+      ++it;
+    }
+    webSock->sendFrame(r.toString());
+  }
+  
+  bool OutMP4::handleWebsocketSeek(JSON::Value& command) {
+    JSON::Value r;
+    r["type"] = "seek";
+    if (!command.isMember("seek_time")){
+      r["error"] = "seek_time missing";
+      webSock->sendFrame(r.toString());
+      return false;
+    }
+
+    uint64_t seek_time = command["seek_time"].asInt();
+    if (!parseData){
+      parseData = true;
+      selectDefaultTracks();
+    }
+
+    stayLive = (target_rate == 0.0) && (Output::endTime() < seek_time + 5000);
+    if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
+    if (stayLive){seek_time = Output::endTime();}
+    
+    if (!seek(seek_time, true)) {
+      r["error"] = "seek failed, continuing as-is";
+      webSock->sendFrame(r.toString());
+      return false;
+    }
+    if (M.getLive()){r["data"]["live_point"] = stayLive;}
+    if (target_rate == 0.0){
+      r["data"]["play_rate_curr"] = "auto";
+    }else{
+      r["data"]["play_rate_curr"] = target_rate;
+    }
+    if (seek_time >= 250 && currentTime() < seek_time - 250){
+      forwardTo = seek_time;
+      realTime = 0;
+      r["data"]["play_rate_curr"] = "fast-forward";
+    }
+    onIdle();
+    webSock->sendFrame(r.toString());
+    return true;
+  }
+
+  bool OutMP4::handleWebsocketSetSpeed(JSON::Value& command) {
+    JSON::Value r;
+    r["type"] = "set_speed";
+    if (!command.isMember("play_rate")){
+      r["error"] = "play_rate missing";
+      webSock->sendFrame(r.toString());
+      return false;
+    }
+
+    double set_rate = command["play_rate"].asDouble();
+    if (!parseData){
+      parseData = true;
+      selectDefaultTracks();
+    }
+    
+    if (target_rate == 0.0){
+      r["data"]["play_rate_prev"] = "auto";
+    }else{
+      r["data"]["play_rate_prev"] = target_rate;
+    }
+    if (set_rate == 0.0){
+      r["data"]["play_rate_curr"] = "auto";
+    }else{
+      r["data"]["play_rate_curr"] = set_rate;
+    }
+
+    if (target_rate != set_rate){
+      target_rate = set_rate;
+      if (target_rate == 0.0){
+        realTime = 1000;//set playback speed to default
+        firstTime = Util::bootMS() - currentTime();
+        maxSkipAhead = 0;//enabled automatic rate control
+      }else{
+        stayLive = false;
+        //Set new realTime speed
+        realTime = 1000 / target_rate;
+        firstTime = Util::bootMS() - (currentTime() / target_rate);
+        maxSkipAhead = 1;//disable automatic rate control
+      }
+    }
+    if (M.getLive()){r["data"]["live_point"] = stayLive;}
+    webSock->sendFrame(r.toString());
+    onIdle();
+    return true;
+  }
+
+  void OutMP4::onIdle() {
+    if (!webSock){return;}
+    if (!parseData){return;}
+    JSON::Value r;
+    r["type"] = "on_time";
+    r["data"]["current"] = currentTime();
+    r["data"]["begin"] = Output::startTime();
+    r["data"]["end"] = Output::endTime();
+    if (realTime == 0){
+      r["data"]["play_rate_curr"] = "fast-forward";
+    }else{
+      if (target_rate == 0.0){
+        r["data"]["play_rate_curr"] = "auto";
+      }else{
+        r["data"]["play_rate_curr"] = target_rate;
+      }
+    }
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      r["data"]["tracks"].append(it->first);
+    }
+    webSock->sendFrame(r.toString());
+  }
+
+  bool OutMP4::onFinish() {
+    if (!webSock){
+      H.Chunkify(0, 0, myConn);
+      wantRequest = true;
+      return true;
+    }
+    JSON::Value r;
+    r["type"] = "on_stop";
+    r["data"]["current"] = currentTime();
+    r["data"]["begin"] = Output::startTime();
+    r["data"]["end"] = Output::endTime();
+    webSock->sendFrame(r.toString());
+    parseData = false;
+    return false;
+  }
+
 }// namespace Mist
+

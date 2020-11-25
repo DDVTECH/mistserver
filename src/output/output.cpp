@@ -1243,10 +1243,11 @@ namespace Mist{
                 }
                 stats();
               }
+              if (!thisPacket){continue;}
             }
 
             // delay the stream until metadata has caught up, if needed
-            if (needsLookAhead){
+            if (needsLookAhead && M.getLive()){
               // we sleep in 20ms increments, or less if the lookahead time itself is less
               uint32_t sleepTime = std::min(20ul, needsLookAhead);
               // wait at most double the look ahead time, plus ten seconds

@@ -519,7 +519,7 @@ namespace Mist{
     ///\todo Add tracing of earliest watched keys, to prevent data going out of memory for
     /// still-watching viewers
     if (!(users.getStatus(id) & COMM_STATUS_DISCONNECT) && (users.getStatus(id) & COMM_STATUS_SOURCE)){
-      sourcePids[users.getPid(id)].insert(users.getTrack(id));
+      sourcePids[id] = users.getTrack(id);
       // GeneratePids holds the pids of the process that generate data, so ignore those for determining if a push is ingested.
       if (M.trackValid(users.getTrack(id)) && !generatePids.count(users.getPid(id))){hasPush = true;}
     }
@@ -527,11 +527,11 @@ namespace Mist{
     if (!(users.getStatus(id) & COMM_STATUS_DONOTTRACK)){++connectedUsers;}
   }
   void inputBuffer::userOnDisconnect(size_t id){
-    if (sourcePids.count(users.getPid(id)) && sourcePids[users.getPid(id)].count(users.getTrack(id))){
-      INFO_MSG("Disconnected track %" PRIu32, users.getTrack(id));
+    if (sourcePids.count(id)){
+      INFO_MSG("Disconnected track %zu", sourcePids[id]);
       meta.refresh();
-      removeTrack(users.getTrack(id));
-      sourcePids[users.getPid(id)].erase(users.getTrack(id));
+      removeTrack(sourcePids[id]);
+      sourcePids.erase(id);
     }
   }
   void inputBuffer::userLeadOut(){

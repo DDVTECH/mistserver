@@ -53,7 +53,7 @@ namespace Mist{
     std::map<std::string, pid_t> runningProcs;     // LTS
 
     std::set<size_t> generatePids;
-    std::map<size_t, std::set<size_t> > sourcePids;
+    std::map<size_t, size_t> sourcePids;
   };
 }// namespace Mist
 

@@ -509,6 +509,33 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
   /*LTS-END*/
+
+  if (Request.isMember("config_backup")){
+    std::set<std::string> skip;
+    skip.insert("log");
+    skip.insert("online");
+    skip.insert("error");
+    Response["config_backup"].assignFrom(Controller::Storage, skip);
+  }
+
+  if (Request.isMember("config_restore")){
+    std::set<std::string> skip;
+    skip.insert("log");
+    skip.insert("online");
+    skip.insert("error");
+    Controller::CheckStreams(Request["config_restore"]["streams"], Controller::Storage["streams"]);
+    Request["config_restore"]["streams"] = Controller::Storage["streams"];
+    Controller::Storage.assignFrom(Request["config_restore"], skip);
+    removeDuplicateProtocols();
+    Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
+    Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
+    if (Util::printDebugLevel != (Controller::Storage["config"]["debug"].isInt() ? Controller::Storage["config"]["debug"].asInt() : DEBUG)){
+      Util::printDebugLevel = (Controller::Storage["config"]["debug"].isInt() ? Controller::Storage["config"]["debug"].asInt() : DEBUG);
+      INFO_MSG("Debug level set to %u", Util::printDebugLevel);
+    }
+    WARN_MSG("Restored configuration over API, replacing previous configuration entirely");
+  }
+
   // Parse config and streams from the request.
   if (Request.isMember("config") && Request["config"].isObject()){
     const JSON::Value &in = Request["config"];
@@ -810,11 +837,6 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
-  if (Request.isMember("save")){
-    Controller::Log("CONF", "Writing config to file on request through API");
-    Controller::writeConfigToDisk();
-  }
-
   if (Request.isMember("ui_settings")){
     if (Request["ui_settings"].isObject()){Storage["ui_settings"] = Request["ui_settings"];}
     Response["ui_settings"] = Storage["ui_settings"];
@@ -1049,4 +1071,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
 
   Controller::writeConfig();
   Controller::configChanged = false;
+
+  if (Request.isMember("save")){
+    Controller::Log("CONF", "Writing config to file on request through API");
+    Controller::writeConfigToDisk();
+  }
+
 }

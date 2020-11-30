@@ -429,7 +429,7 @@ MistSkins["default"] = {
                       }
                       MistUtil.event.addListener(MistVideo.video,"volumechange",fu);
                       
-                    });
+                    },function(){});
                   }
                 }
               });
@@ -2198,6 +2198,13 @@ MistSkins.dev = {
         label.set = function(val){
           if (val !== 0) { this.style.display = ""; }
           if (typeof val == "object") {
+            if (val instanceof Promise) {
+              val.then(function(val){
+                label.set(val)
+              },function(){});
+              return;
+            }
+            
             if ("val" in val) {
               value.nodeValue = val.val;
               valuec.className = "value";
@@ -2328,6 +2335,26 @@ MistSkins.dev = {
           "Bytes received": function(){
             if (MistVideo.player.api) {
               return MistUtil.format.bytes(MistVideo.player.api.bytesReceived);
+            }
+          },
+          "Local latency [ms]": function(){
+            if ((MistVideo.player.api) && ("getLatency" in MistVideo.player.api)) {
+              var p = MistVideo.player.api.getLatency();
+              if (p) {
+                return new Promise(function(resolve,reject) {
+                  p.then(function(result){
+                    var r = [];
+                    for (var i in result) {
+                      if (result[i]) {
+                        r.push(i[0]+Math.round(result[i]*1e3));
+                      }
+                    }
+                    if (r.length) { resolve(r.join(" ")); }
+                    else { resolve(); }
+                  },reject)
+                });
+              }
+              return new Promise(function(resolve,reject){resolve();},function(){});
             }
           }
         };

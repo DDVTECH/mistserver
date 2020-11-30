@@ -16,6 +16,23 @@ tthread::recursive_mutex tMutex;
 namespace TS{
 
   bool Assembler::assemble(Stream & TSStrm, char * ptr, size_t len, bool parse){
+    tsStrm = &TSStrm;
+    shouldParse = parse;
+    return assemble(ptr, len);
+  }
+  
+  void Assembler::hasPacket(TS::Packet & pkt){
+    if (tsStrm){
+      if (shouldParse){
+        tsStrm->parse(pkt, 0);
+      }else{
+        tsStrm->add(pkt);
+        if (!tsStrm->isDataTrack(pkt.getPID())){tsStrm->parse(pkt.getPID());}
+      }
+    }
+  }
+
+  bool Assembler::assemble(char * ptr, size_t len){
     bool ret = false;
     size_t offset = 0;
     size_t amount = 188-leftData.size();
@@ -27,12 +44,7 @@ namespace TS{
         leftData.append(ptr, amount);
         tsBuf.FromPointer(leftData);
         if (!ret && tsBuf.getUnitStart()){ret = true;}
-        if (parse){
-          TSStrm.parse(tsBuf, 0);
-        }else{
-          TSStrm.add(tsBuf);
-          if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
-        }
+        hasPacket(tsBuf);
         offset = amount;
         leftData.assign(0,0);
       }
@@ -50,12 +62,7 @@ namespace TS{
         if (offset + 188 <= len){
           tsBuf.FromPointer(ptr + offset);
           if (!ret && tsBuf.getUnitStart()){ret = true;}
-          if (parse){
-            TSStrm.parse(tsBuf, 0);
-          }else{
-            TSStrm.add(tsBuf);
-            if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
-          }
+          hasPacket(tsBuf);
         }else{
           leftData.assign(ptr + offset, len - offset);
         }

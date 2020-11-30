@@ -112,10 +112,18 @@ namespace TS{
 
   class Assembler{
   public:
+    Assembler(){
+      tsStrm = 0;
+      shouldParse = false;
+    }
     bool assemble(Stream & TSStrm, char * ptr, size_t len, bool parse = false);
+    bool assemble(char * ptr, size_t len);
+    virtual void hasPacket(TS::Packet & pkt);
   private:
     Util::ResizeablePointer leftData;
     TS::Packet tsBuf;
+    TS::Stream * tsStrm;
+    bool shouldParse;
   };
 
 }// namespace TS

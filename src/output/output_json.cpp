@@ -1,6 +1,7 @@
 #include "output_json.h"
 #include <iomanip>
 #include <mist/stream.h>
+#include <mist/triggers.h>
 
 namespace Mist{
   OutJSON::OutJSON(Socket::Connection &conn) : HTTPOutput(conn){
@@ -150,6 +151,21 @@ namespace Mist{
 
   void OutJSON::onWebsocketFrame(){
     if (!isPushing()){
+      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+        std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()){
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                   getConnectedHost().c_str(), reqUrl.c_str());
+          onFinish();
+          return;
+        }else{
+          streamName = newStream;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
+      }
       if (!allowPush(pushPass)){
         onFinish();
         return;

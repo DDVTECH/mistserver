@@ -295,7 +295,13 @@ namespace Mist{
   void OutDTSC::handlePlay(DTSC::Scan &dScan){
     streamName = dScan.getMember("stream").asString();
     Util::sanitizeName(streamName);
-    Util::streamName = streamName;
+    Util::setStreamName(streamName);
+    HTTP::URL qUrl;
+    qUrl.protocol = "dtsc";
+    qUrl.host = myConn.getBoundAddress();
+    qUrl.port = config->getOption("port").asString();
+    qUrl.path = streamName;
+    reqUrl = qUrl.getUrl();
     parseData = true;
     INFO_MSG("Handled play for stream %s", streamName.c_str());
     setBlocking(false);
@@ -305,7 +311,32 @@ namespace Mist{
     streamName = dScan.getMember("stream").asString();
     std::string passString = dScan.getMember("password").asString();
     Util::sanitizeName(streamName);
-    Util::streamName = streamName;
+    Util::setStreamName(streamName);
+    HTTP::URL qUrl;
+    qUrl.protocol = "dtsc";
+    qUrl.host = myConn.getBoundAddress();
+    qUrl.port = config->getOption("port").asString();
+    qUrl.path = streamName;
+    qUrl.pass = passString;
+    reqUrl = qUrl.getUrl();
+    if (Triggers::shouldTrigger("PUSH_REWRITE")){
+      std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+      std::string newStream = streamName;
+      Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+      if (!newStream.size()){
+        FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                 getConnectedHost().c_str(), reqUrl.c_str());
+        Util::logExitReason(
+            "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+            getConnectedHost().c_str(), reqUrl.c_str());
+        onFail("Push not allowed - rejected by trigger");
+        return;
+      }else{
+        streamName = newStream;
+        Util::sanitizeName(streamName);
+        Util::setStreamName(streamName);
+      }
+    }
     if (!allowPush(passString)){
       onFail("Push not allowed - stream and/or password incorrect", true);
       return;

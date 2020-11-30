@@ -2,6 +2,8 @@
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include <mist/url.h>
+#include <mist/triggers.h>
+#include <mist/stream.h>
 
 namespace Mist{
   OutTS::OutTS(Socket::Connection &conn) : TSOutput(conn){
@@ -48,6 +50,21 @@ namespace Mist{
     wantRequest = pushing;
     parseData = !pushing;
     if (pushing){
+      if (Triggers::shouldTrigger("PUSH_REWRITE")){
+        std::string payload = "ts-tcp://" + myConn.getBoundAddress() + ":" + config->getOption("port").asString() + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()){
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                   getConnectedHost().c_str(), reqUrl.c_str());
+          config->is_active = false;
+          return;
+        }else{
+          streamName = newStream;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
+      }
       if (!allowPush("")){
         FAIL_MSG("Pushing not allowed");
         config->is_active = false;
@@ -164,6 +181,21 @@ namespace Mist{
       }
       if (parseData){
         parseData = false;
+        if (Triggers::shouldTrigger("PUSH_REWRITE")){
+          std::string payload = "ts-tcp://" + myConn.getBoundAddress() + ":" + config->getOption("port").asString() + "\n" + getConnectedHost() + "\n" + streamName;
+          std::string newStream = "";
+          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+          if (!newStream.size()){
+            FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                     getConnectedHost().c_str(), reqUrl.c_str());
+            onFinish();
+            return;
+          }else{
+            streamName = newStream;
+            Util::sanitizeName(streamName);
+            Util::setStreamName(streamName);
+          }
+        }
         if (!allowPush("")){
           onFinish();
           return;

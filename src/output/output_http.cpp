@@ -3,6 +3,7 @@
 #include <mist/langcodes.h>
 #include <mist/stream.h>
 #include <mist/util.h>
+#include <mist/url.h>
 #include <set>
 #include <sys/stat.h>
 
@@ -234,7 +235,12 @@ namespace Mist{
       }
 
       /*LTS-START*/
-      reqUrl = H.url + H.allVars();
+      {
+        HTTP::URL qUrl("http://"+H.GetHeader("Host")+"/"+H.url + H.allVars());
+        if (!qUrl.host.size()){qUrl.host = myConn.getBoundAddress();}
+        if (!qUrl.port.size() && config->hasOption("port")){qUrl.port = config->getOption("port").asString();}
+        reqUrl = qUrl.getUrl();
+      }
       /*LTS-END*/
       if (H.hasHeader("User-Agent")){UA = H.GetHeader("User-Agent");}
       if (hasSessionIDs()){

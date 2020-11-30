@@ -4,6 +4,8 @@
 #include <mist/sdp.h>
 #include <mist/timing.h>
 #include <mist/url.h>
+#include <mist/stream.h>
+#include <mist/triggers.h>
 #include <netdb.h> // ifaddr, listing ip addresses.
 #include <mist/stream.h>
 
@@ -817,6 +819,22 @@ namespace Mist{
       if (prefAudioCodec.empty()){
         WARN_MSG("No preferred audio codec value set; resetting to default.");
         prefAudioCodec = "opus,ALAW,ULAW";
+      }
+    }
+
+
+    if (Triggers::shouldTrigger("PUSH_REWRITE")){
+      std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+      std::string newStream = streamName;
+      Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+      if (!newStream.size()){
+        FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                 getConnectedHost().c_str(), reqUrl.c_str());
+        return false;
+      }else{
+        streamName = newStream;
+        Util::sanitizeName(streamName);
+        Util::setStreamName(streamName);
       }
     }
 

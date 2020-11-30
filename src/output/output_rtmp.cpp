@@ -876,6 +876,25 @@ namespace Mist{
 
         Util::sanitizeName(streamName);
 
+        if (Triggers::shouldTrigger("PUSH_REWRITE")){
+          std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+          std::string newStream = streamName;
+          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+          if (!newStream.size()){
+            FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                     getConnectedHost().c_str(), reqUrl.c_str());
+            Util::logExitReason(
+                "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
+                getConnectedHost().c_str(), reqUrl.c_str());
+            onFinish();
+            return;
+          }else{
+            streamName = newStream;
+            Util::sanitizeName(streamName);
+            Util::setStreamName(streamName);
+          }
+        }
+
         if (!allowPush(app_name)){
           onFinish();
           return;

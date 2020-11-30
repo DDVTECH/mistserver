@@ -94,10 +94,10 @@ namespace Mist{
           reqUrl.port = config->getString("port");
           reqUrl.host = config->getString("interface");
           reqUrl.args = "streamid="+Encodings::URL::encode(sName);
-          std::string payload = reqUrl.getUrl() + "\n" + getConnectedHost();
-          std::string newUrl = "";
-          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newUrl);
-          if (!newUrl.size()){
+          std::string payload = reqUrl.getUrl() + "\n" + getConnectedHost() + "\n" + streamName;
+          std::string newStream = streamName;
+          Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+          if (!newStream.size()){
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.getUrl().c_str());
             Util::logExitReason(
@@ -105,16 +105,9 @@ namespace Mist{
                 getConnectedHost().c_str(), reqUrl.getUrl().c_str());
             onFinish();
             return;
-          }
-          reqUrl = HTTP::URL(newUrl);
-          if (reqUrl.args.size()){
-            std::map<std::string, std::string> args;
-            HTTP::parseVars(reqUrl.args, args);
-            if (args.count("streamid")){
-              streamName = args["streamid"];
-              Util::sanitizeName(streamName);
-              Util::setStreamName(streamName);
-            }
+          }else{
+            streamName = newStream;
+            Util::sanitizeName(streamName);
           }
         }
         myConn.setHost(srtConn.remotehost);

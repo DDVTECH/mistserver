@@ -125,6 +125,16 @@ namespace Controller{
         "If non-empty, overrides the full RTMP url to the response value. If empty, denies the "
         "incoming RTMP push.";
 
+    trgs["PUSH_REWRITE"]["when"] =
+        "On all incoming pushes on any protocol, allows parsing the push URL to/from custom formatting to an internal stream name";
+    trgs["PUSH_REWRITE"]["stream_specific"] = false;
+    trgs["PUSH_REWRITE"]["payload"] =
+        "full current push url (string)\nconnection hostname (string)\ncurrently parsed stream name (string)";
+    trgs["PUSH_REWRITE"]["response"] = "when-blocking";
+    trgs["PUSH_REWRITE"]["response_action"] =
+        "If non-empty, overrides the parsed stream name to the response value. If empty, denies the "
+        "incoming push.";
+
     trgs["PUSH_OUT_START"]["when"] = "Before a push out (to file or other target type) is started";
     trgs["PUSH_OUT_START"]["stream_specific"] = true;
     trgs["PUSH_OUT_START"]["payload"] = "stream name (string)\npush target (string)";

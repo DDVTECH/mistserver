@@ -1,3 +1,4 @@
+#pragma once
 #include "bitstream.h"
 #include <stdint.h>
 #include <string>

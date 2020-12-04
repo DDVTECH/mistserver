@@ -860,7 +860,7 @@ namespace Mist{
       userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
     while (thisPacket && config->is_active && userSelect[idx]){
-      if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
+      if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
         Util::logExitReason("buffer requested shutdown");
         break;
       }
@@ -933,7 +933,7 @@ namespace Mist{
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload();}
         if (statComm){
-          if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
+          if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
             return;

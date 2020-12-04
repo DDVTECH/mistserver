@@ -138,7 +138,7 @@ int main(int argc, char **argv){
     for (size_t i = 0; i < cleanUsers.recordCount(); ++i){
       uint8_t status = cleanUsers.getStatus(i);
       cleanUsers.setStatus(COMM_STATUS_INVALID, i);
-      if (status != COMM_STATUS_INVALID && status != COMM_STATUS_DISCONNECT){
+      if (status != COMM_STATUS_INVALID && !(status & COMM_STATUS_DISCONNECT)){
         pid_t pid = cleanUsers.getPid(i);
         if (pid > 1){
           Util::Procs::Stop(pid);

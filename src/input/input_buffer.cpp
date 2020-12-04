@@ -393,7 +393,7 @@ namespace Mist{
       if (!(users.getStatus(i) & COMM_STATUS_SOURCE)){continue;}
       if (users.getTrack(i) != tid){continue;}
       // We have found the right track here (pid matches, and COMM_STATUS_SOURCE set)
-      users.setStatus(COMM_STATUS_REQDISCONNECT, i);
+      users.setStatus(COMM_STATUS_REQDISCONNECT | users.getStatus(i), i);
       break;
     }
 
@@ -518,7 +518,7 @@ namespace Mist{
   void inputBuffer::userOnActive(size_t id){
     ///\todo Add tracing of earliest watched keys, to prevent data going out of memory for
     /// still-watching viewers
-    if (users.getStatus(id) != COMM_STATUS_DISCONNECT && users.getStatus(id) & COMM_STATUS_SOURCE){
+    if (!(users.getStatus(id) & COMM_STATUS_DISCONNECT) && (users.getStatus(id) & COMM_STATUS_SOURCE)){
       sourcePids[users.getPid(id)].insert(users.getTrack(id));
       // GeneratePids holds the pids of the process that generate data, so ignore those for determining if a push is ingested.
       if (M.trackValid(users.getTrack(id)) && !generatePids.count(users.getPid(id))){hasPush = true;}

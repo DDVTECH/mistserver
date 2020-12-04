@@ -16,7 +16,9 @@ namespace Comms{
   }
 
   Comms::~Comms(){
-    if (index != INVALID_RECORD_INDEX){setStatus(COMM_STATUS_DISCONNECT);}
+    if (index != INVALID_RECORD_INDEX){
+      setStatus(COMM_STATUS_DISCONNECT | getStatus());
+    }
     if (master){
       if (dataPage.mapped){
         finishAll();
@@ -69,13 +71,13 @@ namespace Comms{
     do{
       keepGoing = false;
       for (size_t i = 0; i < recordCount(); i++){
-        if (getStatus(i) == COMM_STATUS_INVALID || getStatus(i) == COMM_STATUS_DISCONNECT){continue;}
+        if (getStatus(i) == COMM_STATUS_INVALID || (getStatus(i) & COMM_STATUS_DISCONNECT)){continue;}
         uint64_t cPid = getPid(i);
         if (cPid > 1){
           Util::Procs::Stop(cPid); // soft kill
           keepGoing = true;
         }
-        setStatus(COMM_STATUS_REQDISCONNECT, i);
+        setStatus(COMM_STATUS_REQDISCONNECT | getStatus(i), i);
       }
       if (keepGoing){Util::sleep(250);}
     }while (keepGoing && ++c < 8);
@@ -83,7 +85,7 @@ namespace Comms{
 
   Comms::operator bool() const{
     if (master){return dataPage;}
-    return dataPage && (getStatus() != COMM_STATUS_INVALID) && (getStatus() != COMM_STATUS_DISCONNECT);
+    return dataPage && (getStatus() != COMM_STATUS_INVALID) && !(getStatus() & COMM_STATUS_DISCONNECT);
   }
 
   void Comms::setMaster(bool _master){
@@ -142,7 +144,9 @@ namespace Comms{
   Statistics::Statistics() : Comms(){sem.open(SEM_STATISTICS, O_CREAT | O_RDWR, ACCESSPERMS, 1);}
 
   void Statistics::unload(){
-    if (index != INVALID_RECORD_INDEX){setStatus(COMM_STATUS_DISCONNECT);}
+    if (index != INVALID_RECORD_INDEX){
+      setStatus(COMM_STATUS_DISCONNECT | getStatus());
+    }
     index = INVALID_RECORD_INDEX;
   }
 

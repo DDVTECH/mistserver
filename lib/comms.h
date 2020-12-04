@@ -3,12 +3,12 @@
 #include "shared_memory.h"
 #include "util.h"
 
-#define COMM_STATUS_DONOTTRACK 0x40
 #define COMM_STATUS_SOURCE 0x80
-#define COMM_STATUS_REQDISCONNECT 0xFD
-#define COMM_STATUS_DISCONNECT 0xFE
-#define COMM_STATUS_INVALID 0x0
+#define COMM_STATUS_DONOTTRACK 0x40
+#define COMM_STATUS_DISCONNECT 0x20
+#define COMM_STATUS_REQDISCONNECT 0x10
 #define COMM_STATUS_ACTIVE 0x1
+#define COMM_STATUS_INVALID 0x0
 
 
 #define COMM_LOOP(comm, onActive, onDisconnect) \
@@ -16,10 +16,10 @@
     for (size_t id = 0; id < comm.recordCount(); id++){\
       if (comm.getStatus(id) == COMM_STATUS_INVALID){continue;}\
       if (!Util::Procs::isRunning(comm.getPid(id))){\
-        comm.setStatus(COMM_STATUS_DISCONNECT, id);\
+        comm.setStatus(COMM_STATUS_DISCONNECT | comm.getStatus(id), id);\
       }\
       onActive;\
-      if (comm.getStatus(id) == COMM_STATUS_DISCONNECT){\
+      if (comm.getStatus(id) & COMM_STATUS_DISCONNECT){\
         onDisconnect;\
         comm.setStatus(COMM_STATUS_INVALID, id);\
       }\

@@ -227,7 +227,7 @@ namespace Mist{
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         streamName = H.GetVar("stream");
         userSelect.clear();
-        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT);}
+        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
         reConnector(handler);
         onFail("Server error - could not start connector", true);
         return;

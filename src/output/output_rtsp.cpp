@@ -361,7 +361,7 @@ namespace Mist{
         HTTP_S.SetHeader("Cache-Control", "no-cache");
         if (trackNo != INVALID_TRACK_ID){
           userSelect[trackNo].reload(streamName, trackNo);
-          if (isPushing()){userSelect[trackNo].setStatus(COMM_STATUS_SOURCE);}
+          if (isPushing()){userSelect[trackNo].setStatus(COMM_STATUS_SOURCE | userSelect[trackNo].getStatus());}
           SDP::Track &sdpTrack = sdpState.tracks[trackNo];
           if (sdpTrack.channel != -1){expectTCP = true;}
           HTTP_S.SetHeader("Transport", sdpTrack.transportString);

@@ -1365,7 +1365,7 @@ namespace Mist{
     /*LTS-END*/
 
     stats(true);
-    if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT);}
+    if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
 
     userSelect.clear();
 
@@ -1676,7 +1676,7 @@ namespace Mist{
     HIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
              crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
-    if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
+    if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
       onFail("Shutting down on controller request");
       return;
     }
@@ -1709,7 +1709,7 @@ namespace Mist{
 
     if (isPushing()){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (it->second.getStatus() == COMM_STATUS_REQDISCONNECT){
+        if (it->second.getStatus() & COMM_STATUS_REQDISCONNECT){
           if (dropPushTrack(it->second.getTrack(), "disconnect request from buffer")){break;}
         }
         if (!it->second){

@@ -146,7 +146,7 @@ void parseThread(void *mistIn){
     threadTimer.erase(tid);
   }
   liveStream.eraseTrack(tid);
-  if (dataTrack && userConn){userConn.setStatus(COMM_STATUS_DISCONNECT);}
+  if (dataTrack && userConn){userConn.setStatus(COMM_STATUS_DISCONNECT | userConn.getStatus());}
 }
 
 namespace Mist{

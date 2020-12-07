@@ -802,7 +802,7 @@ namespace Mist{
     CMAFPushTrack & track = pushTracks[idx];
     track.url = pushUrl;
     if (targetParams.count("usp") && targetParams["usp"] == "1"){
-      std::string usp_path = "Streams(" + M.getType(idx) + + "_" + JSON::Value(idx).asString() + ")"; 
+      std::string usp_path = "Streams(" + M.getTrackIdentifier(idx) + ")"; 
       track.url = track.url.link(usp_path);
     }else{
       track.url.path += "/"; 

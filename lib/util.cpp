@@ -569,6 +569,8 @@ namespace Util{
     std::stringstream r;
     uint64_t delled = getDeleted();
     uint64_t max = getEndPos();
+    if (max - delled > getRCount()){max = delled + getRCount();}
+    if (max == 0){max = getRCount();}
     r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
       << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
     for (uint64_t i = delled; i < max; ++i){

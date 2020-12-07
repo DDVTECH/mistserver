@@ -10,9 +10,8 @@ int main(int argc, char **argv){
   }
   IPC::sharedPage f(argv[1], 0, false, false);
   const Util::RelAccX A(f.mapped, false);
-  if (A.isReady()){
-    std::cout << A.toPrettyString() << std::endl;
-  }else{
+  if (!A.isReady()){
     std::cout << "Memory structure " << argv[1] << " is not ready" << std::endl;
   }
+  std::cout << A.toPrettyString() << std::endl;
 }

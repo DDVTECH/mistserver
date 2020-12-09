@@ -5,15 +5,15 @@
 #include <mist/urireader.h>
 
 #define DETAIL_LOW(msg, ...)                                                                       \
-  if (detail >= 1){printf(msg "\n", ##__VA_ARGS__);}
+  if (detail >= 1 && !validate){printf(msg "\n", ##__VA_ARGS__);}
 #define DETAIL_MED(msg, ...)                                                                       \
-  if (detail >= 2){printf(msg "\n", ##__VA_ARGS__);}
+  if (detail >= 2 && !validate){printf(msg "\n", ##__VA_ARGS__);}
 #define DETAIL_HI(msg, ...)                                                                        \
-  if (detail >= 3){printf(msg "\n", ##__VA_ARGS__);}
+  if (detail >= 3 && !validate){printf(msg "\n", ##__VA_ARGS__);}
 #define DETAIL_VHI(msg, ...)                                                                       \
-  if (detail >= 4){printf(msg "\n", ##__VA_ARGS__);}
+  if (detail >= 4 && !validate){printf(msg "\n", ##__VA_ARGS__);}
 #define DETAIL_XTR(msg, ...)                                                                       \
-  if (detail >= 5){printf(msg "\n", ##__VA_ARGS__);}
+  if (detail >= 5 && !validate){printf(msg "\n", ##__VA_ARGS__);}
 
 class Analyser{
 public:

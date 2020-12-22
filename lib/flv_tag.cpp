@@ -904,29 +904,28 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
       }
     }
     if (needsInitData() && isInitData()){
-      if ((videodata & 0x0F) == 7){
+      if ((videodata & 0x0F) == 7){//H264
         if (len < 21){return;}
         MP4::AVCC avccBox;
         avccBox.setPayload(data + 16, len - 20);
         avccBox.sanitize();
+        std::string oldInit = meta.getInit(reTrack);
         meta.setInit(reTrack, avccBox.payload(), avccBox.payloadSize());
-      }else{
-        if (len < 17){return;}
-        MP4::AVCC avccBox;
-        avccBox.setPayload(data + 12, len - 16);
-        avccBox.sanitize();
-        meta.setInit(reTrack, avccBox.payload(), avccBox.payloadSize());
-      }
-      /// this is a hacky way around invalid FLV data (since it gets ignored nearly everywhere, but
-      /// we do need correct data...
-      if (!meta.getWidth(reTrack) || !meta.getHeight(reTrack) || !meta.getFpks(reTrack)){
+
+        //Read the metadata from the init data, because we don't trust the metadata
         std::string init = meta.getInit(reTrack);
+        if (oldInit.size() && init != oldInit){
+          WARN_MSG("Initialization data for video track changed! Updating stream to match, but there may be some glitches for a bit.");
+        }
         h264::sequenceParameterSet sps;
         sps.fromDTSCInit(init);
         h264::SPSMeta spsChar = sps.getCharacteristics();
         meta.setWidth(reTrack, spsChar.width);
         meta.setHeight(reTrack, spsChar.height);
         meta.setFpks(reTrack, spsChar.fps * 1000);
+      }else{//non-H264
+        if (len < 17){return;}
+        meta.setInit(reTrack, data+12, len-16);
       }
     }
   }

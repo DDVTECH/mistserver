@@ -116,8 +116,8 @@ namespace TS{
       tsStrm = 0;
       shouldParse = false;
     }
-    bool assemble(Stream & TSStrm, char * ptr, size_t len, bool parse = false);
-    bool assemble(char * ptr, size_t len);
+    bool assemble(Stream & TSStrm,const char * ptr, size_t len, bool parse = false);
+    bool assemble(const char * ptr, size_t len);
     virtual void hasPacket(TS::Packet & pkt);
   private:
     Util::ResizeablePointer leftData;

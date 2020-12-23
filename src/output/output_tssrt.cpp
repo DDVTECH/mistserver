@@ -67,7 +67,7 @@ namespace Mist{
           if (recvSize){
             accTypes = 2;
             INFO_MSG("Connection put into ingest mode");
-            assembler.assemble(tsIn, srtConn.recvbuf, recvSize, true);
+            assembler.assemble(tsIn, (const char *)srtConn.recvbuf, recvSize, true);
           }else{
             Util::sleep(50);
           }

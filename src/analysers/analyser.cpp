@@ -65,8 +65,7 @@ bool Analyser::isOpen(){
 int Analyser::run(Util::Config &conf){
   isActive = &conf.is_active;
   if (!open(conf.getString("filename"))){return 1;}
-
-  while (conf.is_active && isOpen()){
+  while (isOpen()){
     if (!parsePacket()){
       if (isOpen()){
         stopReason("media parse error");
@@ -99,7 +98,7 @@ int Analyser::run(Util::Config &conf){
         //Stop analysing when too far behind real-time speed
         if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 7500){
           stopReason("fell too far behind");
-          FAIL_MSG("Media time %" PRIu64 " ms behind!", (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime));
+          FAIL_MSG("Media time %" PRIu64 " ms behind!", (finTime - firstMediaBootTime) - (mediaTime - firstMediaTime));
           return 4;
         }
       }

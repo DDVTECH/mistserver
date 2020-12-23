@@ -17,6 +17,13 @@
 #include <string>
 #include <unistd.h>
 
+Util::ResizeablePointer buffer;
+
+
+void AnalyserCallback::hasPacket(TS::Packet & p){
+  buffer.append(p.checkAndGetBuffer(), 188);
+}
+
 
 std::set<unsigned int> pmtTracks;
 
@@ -47,7 +54,13 @@ void AnalyserTS::init(Util::Config &conf){
   opt["help"] = "Write raw PES payloads to given file";
   conf.addOption("raw", opt);
   opt.null();
-}
+
+  opt["long"] = "assembler";
+  opt["short"] = "A";
+  opt["help"] = "Use TS packet assembler";
+  conf.addOption("assembler", opt);
+  opt.null();
+ }
 
 AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
   pidOnly = conf.getInteger("pid");
@@ -55,22 +68,24 @@ AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
     outFile.open(conf.getString("raw").c_str());
   }
   bytes = 0;
+  useAssembler = conf.getBool("assembler");
 }
 
 bool AnalyserTS::parsePacket(){
   while (buffer.size() < 188) {
-    if (uri.isEOF()) {
+    if (!isOpen()) {
       FAIL_MSG("End of file");
       return false;
     }
-    uri.readSome(188-buffer.size(), *this);
+    //uri.readSome(188-buffer.size(), *this);
+    uri.readSome(188,*this);
     if (buffer.size() < 188){
       Util::sleep(50);
     }
   }
-
   DONTEVEN_MSG("Reading from position %" PRIu64, bytes);
   bytes += 188;
+
   if (!packet.FromPointer(buffer)){return false;}
   if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
   if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
@@ -91,7 +106,7 @@ bool AnalyserTS::parsePacket(){
       payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
     }
   }
-  if (packet.getPID() >= 0x10 && !packet.isPMT() && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
+  if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
     mediaTime = packet.getPCR() / 27000;
   }
   //If the data buffer is exactly one packet, simply wipe it
@@ -227,6 +242,10 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
 }
 
 void AnalyserTS::dataCallback(const char *ptr, size_t size) {
-  buffer.append(ptr, size);
+  if(useAssembler){
+    assembler.assemble(ptr,size);
+  }else{
+    buffer.append(ptr,size);
+  }
 }
 

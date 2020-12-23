@@ -344,6 +344,10 @@ if (NOT NOSSL)
   find_path(SRTP2_HEADER_DIR "srtp2/srtp.h")
   include_directories(${MBEDTLS_HEADER_DIR} ${SRTP2_HEADER_DIR})
 endif()
+if(SRT_LIB)
+  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
+  target_link_libraries(mist srt)
+endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist
@@ -382,9 +386,7 @@ macro(makeAnalyser analyserName format)
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
-  target_link_libraries(MistAnalyser${analyserName}
-    mist
-  )
+  target_link_libraries(MistAnalyser${analyserName} mist)
   install(
     TARGETS MistAnalyser${analyserName}
     DESTINATION bin
@@ -451,6 +453,7 @@ macro(makeInput inputName format)
     src/input/input_${format}.cpp 
     src/io.cpp
   )
+
   if (";${ARGN};" MATCHES ";with_srt;")
     target_link_libraries(MistIn${inputName} mist_srt )
   endif()
@@ -545,6 +548,7 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistOut${outputName} rist cjson)
   endif()
+
   target_link_libraries(MistOut${outputName} mist )
   install(
     TARGETS MistOut${outputName}

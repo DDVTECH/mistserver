@@ -2,9 +2,13 @@
 #include "downloader.h"
 #include "util.h"
 #include <fstream>
+#ifdef WITH_SRT
+#include "socket_srt.h"
+#endif
+
 namespace HTTP{
 
-  enum URIType{Closed = 0, File, Stream, HTTP};
+  enum URIType{Closed = 0, File, Stream, HTTP, SRT};
 
   /// Opens a generic URI for reading. Supports streams/pipes, HTTP(S) and file access.
   /// Supports seeking, partial and full reads; emulating behaviour where necessary.
@@ -84,5 +88,10 @@ namespace HTTP{
     URIType stateType;       ///< Holds the type of URI this is, for internal processing purposes.
     HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
+    #ifdef WITH_SRT
+    Socket::SRTConnection srtConn;
+    #endif
+
+
   };
 }// namespace HTTP

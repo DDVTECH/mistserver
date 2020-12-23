@@ -1,7 +1,13 @@
 #include "analyser.h"
 #include <mist/config.h>
 #include <mist/ts_packet.h>
+#include <mist/ts_stream.h>
 #include <fstream>
+
+
+class AnalyserCallback : public TS::Assembler{
+  void hasPacket(TS::Packet & p);
+};
 
 class AnalyserTS : public Analyser, public Util::DataCallback{
 public:
@@ -18,6 +24,7 @@ private:
   uint32_t pidOnly;
   TS::Packet packet;
   uint64_t bytes;
-  Util::ResizeablePointer buffer;
+  AnalyserCallback assembler;
+  bool useAssembler;
 };
 

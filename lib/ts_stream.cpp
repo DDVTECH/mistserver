@@ -15,7 +15,7 @@ tthread::recursive_mutex tMutex;
 
 namespace TS{
 
-  bool Assembler::assemble(Stream & TSStrm, char * ptr, size_t len, bool parse){
+  bool Assembler::assemble(Stream & TSStrm, const char * ptr, size_t len, bool parse){
     tsStrm = &TSStrm;
     shouldParse = parse;
     return assemble(ptr, len);
@@ -32,7 +32,7 @@ namespace TS{
     }
   }
 
-  bool Assembler::assemble(char * ptr, size_t len){
+  bool Assembler::assemble(const char * ptr, size_t len){
     bool ret = false;
     size_t offset = 0;
     size_t amount = 188-leftData.size();

@@ -9,8 +9,9 @@
 #include <string>
 #include <../lib/config.h>
 #include <../lib/util.h>
-#include <iostream> 
+#include <iostream>
 #include <loadtest_html.h>
+#include <sys/resource.h>
 
 // These variables must be global because the prometheus thread uses them
 std::string jsonUrl;
@@ -49,13 +50,16 @@ public:
 /// Starts a process to view the given URL.
 Process newViewer(int time, HTTP::URL url, const std::string &protocol){
   std::deque<std::string> args;
-  
+
   args.push_back(Util::getMyPath() + "MistAnalyser" + protocol);
   args.push_back(url.getUrl());
   args.push_back("-T");
   args.push_back(JSON::Value((uint64_t)time).asString());
   args.push_back("-V");
 
+  if(url.protocol == "srt"){
+    args.push_back("-A");
+  }
 
   // Start process and return class holding it
   int fout = -1, ferr = fileno(stderr);
@@ -79,7 +83,7 @@ void prom_fetch(void * n){
         INFO_MSG("%#3.1f%% CPU, %#3.1f%% RAM; %um%us left", J["cpu"].asInt() / 10.0, (J["mem_used"].asInt()*100)/(double)J["mem_total"].asInt(), ((int)(t) % 3600) / 60, (int)(t) % 60);
         JSON::Value jsonData;
         jsonData["bootMS"] = Util::bootMS();
-        jsonData["timestamp"] = Util::getMS(); 
+        jsonData["timestamp"] = Util::getMS();
         jsonData["data"] = J;
         promLogs.append(jsonData);
       }else{
@@ -89,6 +93,31 @@ void prom_fetch(void * n){
     Util::sleep(1000);
   }
 }
+
+bool sysSetNrOpenFiles(int n){
+    struct rlimit limit;
+    
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+      FAIL_MSG("getrlimit() failed with errno=%d\n", errno);
+      return false;
+    }
+
+    if(limit.rlim_cur < n){
+      limit.rlim_cur = n;
+      if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
+        FAIL_MSG("setrlimit() '%d' failed err: %d: %s\n",n, errno, strerror(errno));
+        return false;
+      }
+
+      INFO_MSG("ulimit increased to: %d", limit.rlim_cur)
+    }else{
+      
+      INFO_MSG("current ulimit value not changed. Current: %d, wanted: %d", limit.rlim_cur,n)
+    }
+
+    return true;
+  }
+
 
 int main(int argc, char *argv[]){
   Util::redirectLogsIfNeeded();
@@ -135,18 +164,30 @@ int main(int argc, char *argv[]){
   config.addOption("prometheus", option);
   option.null();
 
+  option["arg"] = "integer";
+  option["default"] = 0;
+  option["short"] = "l";
+  option["long"] = "ulimit";
+  option["help"] = "Increase ulimit only if current setting is below value";
+  config.addOption("ulimit", option);
+  option.null();
+
   if (!config.parseArgs(argc, argv)){
     config.printHelp(std::cout);
     return 0;
   }
   config.activate();
-  
+
   int total_time = config.getInteger("timelimit"); // time to run in seconds
   int total = config.getInteger("connections");    // total connections
   HTTP::URL url(config.getString("url"));
   jsonUrl = config.getString("prometheus"); // URL for prometheus JSON output
 
-  
+  int ulimit = config.getInteger("ulimit");
+  if(ulimit > 0){
+    sysSetNrOpenFiles(ulimit);
+  }
+
   std::list<Process> processes;
 
   //check which analyser is needed
@@ -156,6 +197,8 @@ int main(int argc, char *argv[]){
   // \TODO Protocol detection should probably use Mist's capabilities system instead
   if (url.protocol == "rtmp"){
     protocol = "RTMP";
+  }else if (url.protocol == "srt"){
+    protocol = "TS";
   }else if(ext == "flv"){
     protocol = "FLV";
   }else if(ext == "mp4"){
@@ -232,7 +275,7 @@ int main(int argc, char *argv[]){
     allStats["streamInfo"] = JSON::fromString(d.data());
   }
 
-  
+
   std::stringstream outFile;
   {
     // Generate filename for outputs

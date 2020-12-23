@@ -316,6 +316,10 @@ target_link_libraries(mist
 if (NOT NOSSL)
   target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
 endif()
+if(SRT_LIB)
+  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
+  target_link_libraries(mist srt)
+endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist
@@ -324,16 +328,6 @@ install(
   TARGETS mist
   DESTINATION lib
 )
-
-
-if(SRT_LIB)
-  add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
-  target_link_libraries(mist_srt mist srt)
-  install(
-    TARGETS mist_srt
-    DESTINATION lib
-  )
-endif()
 
 ########################################
 # MistLib - Local Header Install       #
@@ -375,9 +369,7 @@ macro(makeAnalyser analyserName format)
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
-  target_link_libraries(MistAnalyser${analyserName}
-    mist
-  )
+  target_link_libraries(MistAnalyser${analyserName} mist)
   install(
     TARGETS MistAnalyser${analyserName}
     DESTINATION bin
@@ -447,10 +439,6 @@ macro(makeInput inputName format)
     src/io.cpp
     ${BINARY_DIR}/mist/.headers
   )
-  if (";${ARGN};" MATCHES ";with_srt;")
-    target_link_libraries(MistIn${inputName} mist_srt )
-  endif()
-
   #Set compile definitions
   unset(my_definitions)
   list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
@@ -528,9 +516,6 @@ macro(makeOutput outputName format)
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
   )
-  if (";${ARGN};" MATCHES ";with_srt;")
-    target_link_libraries(MistOut${outputName} mist_srt)
-  endif()
   target_link_libraries(MistOut${outputName} mist )
   install( 
     TARGETS MistOut${outputName}

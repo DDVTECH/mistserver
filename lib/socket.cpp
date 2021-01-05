@@ -1715,15 +1715,19 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = family;
   hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  hints.ai_flags = AI_ADDRCONFIG | AI_ALL;
   hints.ai_protocol = IPPROTO_UDP;
   hints.ai_canonname = NULL;
   hints.ai_addr = NULL;
   hints.ai_next = NULL;
   int s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
   if (s != 0){
-    FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strmagic(s));
-    return;
+    hints.ai_family = AF_UNSPEC;
+    s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
+    if (s != 0){
+      FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strmagic(s));
+      return;
+    }
   }
 
   for (rp = result; rp != NULL; rp = rp->ai_next){
@@ -1747,7 +1751,12 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
         bind(boundPort, boundAddr, boundMulti);
       }
     }
-    HIGH_MSG("Set UDP destination: %s:%d (%s)", destIp.c_str(), port, addrFam(family));
+    {
+      std::string trueDest;
+      uint32_t truePort;
+      GetDestination(trueDest, truePort);
+      HIGH_MSG("Set UDP destination: %s:%d => %s:%d (%s)", destIp.c_str(), port, trueDest.c_str(), truePort, addrFam(family));
+    }
     freeaddrinfo(result);
     return;
     //\todo Possibly detect and handle failure
@@ -1883,6 +1892,12 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   for (rp = addr_result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
+    if (rp->ai_family == AF_INET6){
+      const int optval = 0;
+      if (setsockopt(sock, SOL_SOCKET, IPV6_V6ONLY, &optval, sizeof(optval)) < 0){
+        WARN_MSG("Could not set IPv6 UDP socket to be dual-stack! %s", strerror(errno));
+      }
+    }
     checkRecvBuf();
     char human_addr[INET6_ADDRSTRLEN];
     char human_port[16];
@@ -1911,7 +1926,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
     if (multicast){
       const int optval = 1;
       if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0){
-        WARN_MSG("Could not set multicast UDP socket re-use!");
+        WARN_MSG("Could not set multicast UDP socket re-use! %s", strerror(errno));
       }
     }
     if (::bind(sock, rp->ai_addr, rp->ai_addrlen) == 0){

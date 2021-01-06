@@ -42,5 +42,6 @@ namespace Util{
     static void forget(pid_t pid);
     static void remember(pid_t pid);
     static std::set<int> socketList; ///< Holds sockets that should be closed before forking
+    static int kill_timeout;
   };
 }// namespace Util

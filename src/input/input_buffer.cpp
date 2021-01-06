@@ -573,6 +573,7 @@ namespace Mist{
 
   bool inputBuffer::preRun(){
     // This function gets run periodically to make sure runtime updates of the config get parsed.
+    Util::Procs::kill_timeout = 5;
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));

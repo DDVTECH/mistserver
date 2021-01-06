@@ -29,6 +29,9 @@ bool Util::Procs::thread_handler = false;
 tthread::mutex Util::Procs::plistMutex;
 tthread::thread *Util::Procs::reaper_thread = 0;
 
+/// How many seconds to wait when shutting down child processes. Defaults to 10
+int Util::Procs::kill_timeout = 10;
+
 /// Local-only function. Attempts to reap child and returns current running status.
 bool Util::Procs::childRunning(pid_t p){
   int status;
@@ -98,7 +101,7 @@ void Util::Procs::exit_handler(){
            (int)listcopy.size());
   waiting = 0;
   // wait up to 10 seconds for applications to shut down
-  while (!listcopy.empty() && waiting <= 500){
+  while (!listcopy.empty() && waiting <= 50*Util::Procs::kill_timeout){
     bool doWait = true;
     for (it = listcopy.begin(); it != listcopy.end(); it++){
       if (!childRunning(*it)){

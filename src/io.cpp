@@ -37,8 +37,8 @@ namespace Mist{
   /// Buffering itself is done by bufferNext().
   ///\param tid The trackid of the page to start buffering
   ///\param pageNumber The number of the page to start buffering
-  bool InOutBase::bufferStart(size_t idx, size_t pageNumber){
-    VERYHIGH_MSG("bufferStart for stream %s, track %zu, page %zu", streamName.c_str(), idx, pageNumber);
+  bool InOutBase::bufferStart(size_t idx, uint32_t pageNumber){
+    VERYHIGH_MSG("bufferStart for stream %s, track %zu, page %" PRIu32, streamName.c_str(), idx, pageNumber);
     // Initialize the stream metadata if it does not yet exist
 #ifndef TSLIVE_INPUT
     if (!meta){meta.reInit(streamName);}
@@ -52,15 +52,15 @@ namespace Mist{
     // If we are currently buffering a page, abandon it completely and print a message about this
     // This page will NEVER be deleted, unless we open it again later.
     if (curPage.count(idx)){
-      WARN_MSG("Abandoning current page (%zu) for track %zu", curPageNum[idx], idx);
+      WARN_MSG("Abandoning current page (%" PRIu32 ") for track %zu", curPageNum[idx], idx);
       curPage.erase(idx);
       curPageNum.erase(idx);
     }
 
     Util::RelAccX &tPages = meta.pages(idx);
 
-    size_t pageIdx = INVALID_PAGE_NUM;
-    for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+    uint32_t pageIdx = INVALID_KEY_NUM;
+    for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       if (tPages.getInt("firstkey", i) == pageNumber){
         pageIdx = i;
         break;
@@ -68,10 +68,10 @@ namespace Mist{
     }
 
     // If this is not a valid page number on this track, stop buffering this page.
-    if (pageIdx == INVALID_PAGE_NUM){
-      WARN_MSG("Aborting page buffer start: %zu is not a valid page number on track %zu.", pageNumber, idx);
+    if (pageIdx == INVALID_KEY_NUM){
+      WARN_MSG("Aborting page buffer start: %" PRIu32 " is not a valid page number on track %zu.", pageNumber, idx);
       std::stringstream test;
-      for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+      for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
         test << tPages.getInt("firstkey", i) << " ";
       }
       INFO_MSG("Valid page numbers: %s", test.str().c_str());
@@ -81,7 +81,7 @@ namespace Mist{
 
     // If the page is already buffered, ignore this request
     if (isBuffered(idx, pageNumber)){
-      INFO_MSG("Page %zu on track %zu already buffered", pageNumber, idx);
+      INFO_MSG("Page %" PRIu32 " on track %zu already buffered", pageNumber, idx);
       ///\return false if the page was already buffered.
       return false;
     }
@@ -100,7 +100,7 @@ namespace Mist{
     // Set the current offset to 0, to allow for using it in bufferNext()
     tPages.setInt("avail", 0, pageIdx);
 
-    HIGH_MSG("Start buffering page %zu on track %zu successful", pageNumber, idx);
+    HIGH_MSG("Start buffering page %" PRIu32 " on track %zu successful", pageNumber, idx);
     return true;
   }
 
@@ -109,26 +109,26 @@ namespace Mist{
   /// Does not do anything if the process is not standalone, in this case the master process will have an overloaded version of this function.
   ///\param tid The trackid to remove the page from
   ///\param pageNumber The number of the page to remove
-  void InOutBase::bufferRemove(size_t idx, size_t pageNumber){
+  void InOutBase::bufferRemove(size_t idx, uint32_t pageNumber){
     if (!standAlone){// A different process will handle this for us
       return;
     }
     Util::RelAccX &tPages = meta.pages(idx);
 
-    size_t pageIdx = INVALID_PAGE_NUM;
-    for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+    uint32_t pageIdx = INVALID_KEY_NUM;
+    for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       if (tPages.getInt("firstkey", i) == pageNumber){
         pageIdx = i;
         break;
       }
     }
     // If the given pagenumber is not a valid page on this track, do nothing
-    if (pageIdx == INVALID_PAGE_NUM){
-      INFO_MSG("Can't remove page %zu on track %zu as it is not a valid page number.", pageNumber, idx);
+    if (pageIdx == INVALID_KEY_NUM){
+      INFO_MSG("Can't remove page %" PRIu32 " on track %zu as it is not a valid page number.", pageNumber, idx);
       return;
     }
 
-    HIGH_MSG("Removing page %zu on track %zu from the corresponding metaPage", pageNumber, idx);
+    HIGH_MSG("Removing page %" PRIu32 " on track %zu from the corresponding metaPage", pageNumber, idx);
     tPages.setInt("avail", 0, pageIdx);
 
     // Open the correct page
@@ -161,7 +161,7 @@ namespace Mist{
   /// Returns the pagenumber where this key is buffered on
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  size_t InOutBase::bufferedOnPage(size_t idx, size_t keyNum){
+  uint32_t InOutBase::bufferedOnPage(size_t idx, uint32_t keyNum){
     Util::RelAccX &tPages = meta.pages(idx);
 
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -206,8 +206,8 @@ namespace Mist{
     IPC::sharedPage &myPage = curPage[packTrack];
 
     Util::RelAccX &tPages = meta.pages(packTrack);
-    size_t pageIdx = 0;
-    size_t currPagNum = curPageNum[packTrack];
+    uint32_t pageIdx = 0;
+    uint32_t currPagNum = curPageNum[packTrack];
     Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       if (tPages.getInt(firstkey, i) == currPagNum){
@@ -220,7 +220,7 @@ namespace Mist{
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     // Do nothing when there is not enough free space on the page to add the packet.
     if (pageSize - pageOffset < packDataLen){
-      FAIL_MSG("Track %" PRIu32 "p%zu : Pack %" PRIu64 "ms of %" PRIu64 "b exceeds size %" PRIu64 " @ bpos %" PRIu64,
+      FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %" PRIu64 "b exceeds size %" PRIu64 " @ bpos %" PRIu64,
                packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
       return;
     }

@@ -201,7 +201,7 @@ static inline void show_stackframe(){}
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name
 
-#define SHM_TRACK_DATA "MstData%s@%zu_%zu" //%s stream name, %zu track ID, %PRIu32 page #
+#define SHM_TRACK_DATA "MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
 
 #define INPUT_USER_INTERVAL 1000
@@ -258,12 +258,9 @@ static inline void show_stackframe(){}
 #define STAT_EX_SIZE 177
 #define PLAY_EX_SIZE 2 + 6 * SIMUL_TRACKS
 
-#define INVALID_TRACK_ID 0xFFFFFFFF
-#define INVALID_KEY_NUM 0xFFFFFFFF
-#define INVALID_PAGE_NUM 0xFFFF
-#define INVALID_RECORD_INDEX 0xFFFFFFFFFFFFFFFF
-
-#define MAX_SIZE_T 0xFFFFFFFF
+#define INVALID_TRACK_ID     0xFFFFFFFFu
+#define INVALID_KEY_NUM      0xFFFFFFFFu
+#define INVALID_RECORD_INDEX 0xFFFFFFFFFFFFFFFFull
 
 #define NEW_TRACK_ID 0x80000000
 #define QUICK_NEGOTIATE 0xC0000000

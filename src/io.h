@@ -15,13 +15,13 @@ namespace Mist{
     InOutBase();
 
     bool isBuffered(size_t idx, uint32_t keyNum);
-    size_t bufferedOnPage(size_t idx, size_t keyNum);
+    uint32_t bufferedOnPage(size_t idx, uint32_t keyNum);
 
     size_t getMainSelectedTrack();
 
-    bool bufferStart(size_t idx, size_t pageNumber);
+    bool bufferStart(size_t idx, uint32_t pageNumber);
     void bufferFinalize(size_t idx);
-    void bufferRemove(size_t idx, size_t pageNumber);
+    void bufferRemove(size_t idx, uint32_t pageNumber);
     void bufferLivePacket(const DTSC::Packet &packet);
 
     void bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
@@ -42,7 +42,7 @@ namespace Mist{
 
     std::map<size_t, Comms::Users> userSelect;
 
-    std::map<size_t, size_t> curPageNum; ///< For each track, holds the number page that is currently being written.
+    std::map<size_t, uint32_t> curPageNum; ///< For each track, holds the number page that is currently being written.
     std::map<size_t, IPC::sharedPage> curPage; ///< For each track, holds the page that is currently being written.
   };
 }// namespace Mist

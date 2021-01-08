@@ -95,7 +95,7 @@ namespace Mist{
     std::string getCountry(std::string ip);
     void doSync(bool force = false);
     /*LTS-END*/
-    std::map<size_t, size_t> currentPage;
+    std::map<size_t, uint32_t> currentPage;
     void loadPageForKey(size_t trackId, size_t keyNum);
     uint64_t pageNumForKey(size_t trackId, size_t keyNum);
     uint64_t pageNumMax(size_t trackId);

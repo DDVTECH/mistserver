@@ -2157,7 +2157,7 @@ namespace DTSC{
       if (t.pages.getInt("avail", i) == 0){continue;}
       char thisPageName[NAME_BUFFER_SIZE];
       snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-               t.pages.getInt("firstkey", i));
+               (uint32_t)t.pages.getInt("firstkey", i));
       IPC::sharedPage p(thisPageName, 20971520);
       p.master = true;
     }
@@ -2201,7 +2201,7 @@ namespace DTSC{
       // Initialize the correct page, make it master so it gets cleaned up when leaving scope.
       char thisPageName[NAME_BUFFER_SIZE];
       snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-               t.pages.getInt("firstkey", t.pages.getDeleted()));
+               (uint32_t)t.pages.getInt("firstkey", t.pages.getDeleted()));
       IPC::sharedPage p(thisPageName, 20971520);
       p.master = true;
 
@@ -3151,8 +3151,8 @@ namespace DTSC{
     return pages.getInt("firstkey", res);
   }
 
-  /// Given a key, returns the page number that timestamp can be found on.
-  /// If the key is not available, returns the closest page number that is.
+  /// Given a key, returns the page number it can be found on.
+  /// If the key is not available, returns the closest page that is.
   size_t Meta::getPageNumberForKey(uint32_t idx, uint64_t keyNum) const{
     const Util::RelAccX &pages = tracks.at(idx).pages;
     size_t res = pages.getStartPos();

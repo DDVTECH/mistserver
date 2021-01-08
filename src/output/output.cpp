@@ -511,9 +511,9 @@ namespace Mist{
       uint64_t pageKeys = tPages.getInt("keycount", i);
       if (keyNum > pageNum + pageKeys - 1) continue;
       uint64_t pageAvail = tPages.getInt("avail", i);
-      return pageAvail == 0 ? INVALID_PAGE_NUM : pageNum;
+      return pageAvail == 0 ? INVALID_KEY_NUM : pageNum;
     }
-    return INVALID_PAGE_NUM;
+    return INVALID_KEY_NUM;
   }
 
   /// Gets the highest page number available for the given trackId.
@@ -551,8 +551,8 @@ namespace Mist{
     uint64_t micros = Util::getMicros();
     VERYHIGH_MSG("Loading track %zu, containing key %zu", trackId, keyNum);
     uint32_t timeout = 0;
-    uint64_t pageNum = pageNumForKey(trackId, keyNum);
-    while (keepGoing() && pageNum == INVALID_PAGE_NUM){
+    uint32_t pageNum = pageNumForKey(trackId, keyNum);
+    while (keepGoing() && pageNum == INVALID_KEY_NUM){
       if (!timeout){HIGH_MSG("Requesting page with key %zu:%zu", trackId, keyNum);}
       ++timeout;
       //Time out after 15 seconds
@@ -689,7 +689,7 @@ namespace Mist{
       }
       if (M.getType(mainTrack) == "video"){
         DTSC::Keys keys(M.keys(mainTrack));
-        size_t keyNum = M.getKeyNumForTime(mainTrack, pos);
+        uint32_t keyNum = M.getKeyNumForTime(mainTrack, pos);
         pos = keys.getTime(keyNum);
       }
     }
@@ -734,9 +734,9 @@ namespace Mist{
       return false;
     }
     DTSC::Keys keys(M.keys(tid));
-    size_t keyNum = M.getKeyNumForTime(tid, pos);
+    uint32_t keyNum = M.getKeyNumForTime(tid, pos);
     uint64_t actualKeyTime = keys.getTime(keyNum);
-    HIGH_MSG("Seeking to track %zu key %zu => time %" PRIu64, tid, keyNum, pos);
+    HIGH_MSG("Seeking to track %zu key %" PRIu32 " => time %" PRIu64, tid, keyNum, pos);
     if (actualKeyTime > pos){
       if (M.getLive()){
         pos = actualKeyTime;
@@ -776,7 +776,7 @@ namespace Mist{
                tid);
       return false;
     }
-    VERYHIGH_MSG("Track %zu no data (key %zu @ %" PRIu64 ") - waiting...", tid,
+    VERYHIGH_MSG("Track %zu no data (key %" PRIu32 " @ %" PRIu64 ") - waiting...", tid,
                  keyNum + (getNextKey ? 1 : 0), tmp.offset);
     uint32_t i = 0;
     while (!meta.getLive() && curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
@@ -784,7 +784,7 @@ namespace Mist{
       stats();
     }
     if (curPage[tid].mapped[tmp.offset]){return seek(tid, pos, getNextKey);}
-    FAIL_MSG("Track %zu no data (key %zu@%" PRIu64 ", page %s, time %" PRIu64 " -> %" PRIu64 ", next=%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset, curPage[tid].name.c_str(), pos, actualKeyTime, keys.getTime(keyNum+1));
+    FAIL_MSG("Track %zu no data (key %" PRIu32 "@%" PRIu64 ", page %s, time %" PRIu64 " -> %" PRIu64 ", next=%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset, curPage[tid].name.c_str(), pos, actualKeyTime, keys.getTime(keyNum+1));
     userSelect.erase(tid);
     firstTime = Util::bootMS() - (buffer.begin()->time * realTime / 1000);
     return false;
@@ -1061,7 +1061,7 @@ namespace Mist{
     DTSC::Keys mainKeys(meta.keys(mainTrack));
     if (!mainKeys.getValidCount()){return false;}
 
-    for (size_t keyNum = mainKeys.getEndValid() - 1; keyNum >= mainKeys.getFirstValid(); keyNum--){
+    for (uint32_t keyNum = mainKeys.getEndValid() - 1; keyNum >= mainKeys.getFirstValid(); keyNum--){
       seekPos = mainKeys.getTime(keyNum);
       // Only skip forward if we can win a decent amount (100ms)
       if (seekPos <= cTime + 100 * seekCount){break;}
@@ -1407,7 +1407,7 @@ namespace Mist{
     // store copy of current state
     std::set<sortedPageInfo> tmp_buffer = buffer;
     std::map<size_t, Comms::Users> tmp_userSelect = userSelect;
-    std::map<size_t, size_t> tmp_currentPage = currentPage;
+    std::map<size_t, uint32_t> tmp_currentPage = currentPage;
 
     // reset the current packet to null, assuming failure
     thisPacket.null();
@@ -1424,7 +1424,7 @@ namespace Mist{
     userSelect[mainTrack].reload(streamName, mainTrack);
     // now, seek to the exact timestamp of the keyframe
     DTSC::Keys keys(M.keys(mainTrack));
-    size_t targetKey = M.getKeyNumForTime(mainTrack, currTime);
+    uint32_t targetKey = M.getKeyNumForTime(mainTrack, currTime);
     seek(keys.getTime(targetKey));
     // attempt to load the key into thisPacket
     bool ret = prepareNext();
@@ -1437,7 +1437,7 @@ namespace Mist{
     buffer = tmp_buffer;
     userSelect = tmp_userSelect;
     // but the currentPage map must also load keys as needed
-    for (std::map<size_t, size_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
+    for (std::map<size_t, uint32_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
       loadPageForKey(it->first, it->second);
     }
     // now we are back to normal and can return safely
@@ -1543,6 +1543,12 @@ namespace Mist{
         dropTrack(nxt.tid, "EOP: invalid next packet");
         return false;
       }
+      if (nextTime < nxt.time){
+        std::stringstream errMsg;
+        errMsg << "next packet has timestamp " << nextTime << " but current timestamp is " << nxt.time;
+        dropTrack(nxt.tid, errMsg.str().c_str());
+        return false;
+      }
     }else{
       //no next packet yet!
       //Check if this is the last packet of a VoD stream. Return success and drop the track.
@@ -1552,13 +1558,25 @@ namespace Mist{
         dropTrack(nxt.tid, "end of VoD track reached", false);
         return true;
       }
-      size_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
+      uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       //Check if there exists a different page for the next key
-      size_t nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);
+      uint32_t nextKeyPage = INVALID_KEY_NUM;
+      //Make sure we only try to read the page for the next key if it actually should be available
+      DTSC::Keys keys(M.keys(nxt.tid));
+      if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
-        DTSC::Keys keys(M.keys(nxt.tid));
         // If so, the next key is our next packet
         nextTime = keys.getTime(thisKey + 1);
+
+        //If the next packet should've been before the current packet, something is wrong. Abort, abort!
+        if (nextTime < nxt.time){
+          std::stringstream errMsg;
+          errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
+          errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
+          errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
+          dropTrack(nxt.tid, errMsg.str().c_str());
+          return false;
+        }
       }else{
         //Okay, there's no next page yet, and no next packet on this page either.
         //That means we're waiting for data to show up, somewhere.
@@ -1575,7 +1593,7 @@ namespace Mist{
         }
         //every ~16 seconds, reconnect to metadata
         if (emptyCount % 1600 == 0){
-          INFO_MSG("Reconnecting to input; track %" PRIu64 " key %zu is on page %zu and we're currently serving %zu from %zu", nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
+          INFO_MSG("Reconnecting to input; track %" PRIu64 " key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
           reconnect();
           if (!meta){
             onFail("Could not connect to stream data", true);
@@ -1594,12 +1612,6 @@ namespace Mist{
         playbackSleep(10);
         return false;
       }
-    }
-
-    //If the next packet should've been before the current packet, something is wrong. Abort, abort!
-    if (nextTime < nxt.time){
-      dropTrack(nxt.tid, "time going backwards");
-      return false;
     }
 
     // we've handled all special cases - at this point the packet should exist
@@ -1622,7 +1634,7 @@ namespace Mist{
     //Update keynum only when the second flips over in the timestamp
     //We do this because DTSC::Keys is pretty CPU-heavy
     if (nxt.time / 1000 < nextTime/1000){
-      size_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
+      uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       userSelect[nxt.tid].setKeyNum(thisKey);
     }
 

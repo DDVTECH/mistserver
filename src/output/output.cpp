@@ -1601,6 +1601,7 @@ namespace Mist{
     // let's load it
     thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
     thisIdx = nxt.tid;
+    thisTime = thisPacket.getTime();
     // if it failed, drop the track and continue
     if (!thisPacket){
       dropTrack(nxt.tid, "packet load failure");

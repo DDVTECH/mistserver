@@ -163,6 +163,7 @@ namespace Mist{
     uint64_t lastPacketTime;
 
     size_t thisIdx;
+    uint64_t thisTime;
   };
 
 }// namespace Mist

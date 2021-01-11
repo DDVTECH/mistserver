@@ -159,6 +159,7 @@ namespace Mist{
         if (freq){
           uint64_t aacSamples = packTime * freq / 90000;
           //round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
+          aacSamples += 256;//Add a quarter frame of offset to encourage correct rounding
           aacSamples &= ~0x3FF;
           //Get closest 90kHz clock time to perfect sample alignment
           packTime = aacSamples * 90000 / freq;

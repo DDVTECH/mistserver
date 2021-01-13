@@ -573,21 +573,31 @@ namespace Mist{
       selectedTracks.insert(it->first);
     }
     tag.DTSCMetaInit(meta, selectedTracks);
-    if (tag.len){myConn.SendNow(RTMPStream::SendMedia(tag));}
+    if (tag.len){
+      tag.tagTime(currentTime());
+      myConn.SendNow(RTMPStream::SendMedia(tag));
+    }
 
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string type = M.getType(*it);
       if (type == "video"){
-        if (tag.DTSCVideoInit(meta, *it)){myConn.SendNow(RTMPStream::SendMedia(tag));}
+        if (tag.DTSCVideoInit(meta, *it)){
+          tag.tagTime(currentTime());
+          myConn.SendNow(RTMPStream::SendMedia(tag));
+        }
       }
       if (type == "audio"){
-        if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){myConn.SendNow(RTMPStream::SendMedia(tag));}
+        if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
+          tag.tagTime(currentTime());
+          myConn.SendNow(RTMPStream::SendMedia(tag));
+        }
       }
     }
     //Insert silent init data if audio set to silent
     hasSilence = (targetParams.count("audio") && targetParams["audio"] == "silent");
     if (hasSilence && tag.DTSCAudioInit("AAC", 44100, 32, 2, std::string("\022\020V\345\000", 5))){
       INFO_MSG("Inserting silence track init data");
+      tag.tagTime(currentTime());
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
     sentHeader = true;

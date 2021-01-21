@@ -496,6 +496,7 @@ namespace Mist{
     if (!keys.getValidCount()){return 0;}
     //Get the key for the current time
     size_t keyNum = keys.getNumForTime(lastPacketTime);
+    if (keys.getEndValid() <= keyNum+1){return 0;}
     //Return the next key
     return keys.getTime(keyNum+1);
   }
@@ -1225,7 +1226,7 @@ namespace Mist{
         if (!sought){initialSeek();}
         if (prepareNext()){
           if (thisPacket){
-            lastPacketTime = thisPacket.getTime();
+            lastPacketTime = thisTime;
             if (firstPacketTime == 0xFFFFFFFFFFFFFFFFull){firstPacketTime = lastPacketTime;}
 
             // slow down processing, if real time speed is wanted

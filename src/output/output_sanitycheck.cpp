@@ -7,11 +7,11 @@
 namespace Mist{
   OutSanityCheck::OutSanityCheck(Socket::Connection &conn) : Output(conn){
     streamName = config->getString("streamname");
-    if (config->getOption("fakepush", true).size()){
-      pushMultiplier = config->getInteger("fakepush");
-      if (!allowPush("testing")){onFinish();}
-      return;
-    }
+    //if (config->getOption("fakepush", true).size()){
+      //pushMultiplier = config->getInteger("fakepush");
+    //  if (!allowPush("testing")){onFinish();}
+    //  return;
+    //}
     parseData = true;
     wantRequest = false;
     initialize();
@@ -80,12 +80,14 @@ namespace Mist{
     config = cfg;
   }
 
+  /*
   void OutSanityCheck::requestHandler(){
     if (!pushing){
       Output::requestHandler();
       return;
     }
   }
+  */
 
   void OutSanityCheck::sendNext(){
     if (M.getLive()){

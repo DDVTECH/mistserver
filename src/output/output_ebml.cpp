@@ -115,14 +115,12 @@ namespace Mist{
       DTSC::Keys keys(M.keys(it->first));
       DTSC::Parts parts(M.parts(it->first));
 
-      uint32_t firstPart = parts.getFirstValid();
-      unsigned long long int prevParts = 0;
+      uint32_t firstPart = keys.getFirstPart(keys.getFirstValid());
       uint64_t curMS = 0;
 
       for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
-        if (keys.getTime(i) > start && i != keys.getFirstValid()){break;}
-        firstPart += prevParts;
-        prevParts = keys.getParts(i);
+        if (keys.getTime(i) > start){break;}
+        firstPart =  keys.getFirstPart(i);
         curMS = keys.getTime(i);
       }
       for (size_t i = firstPart; i < parts.getEndValid(); ++i){

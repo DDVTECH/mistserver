@@ -366,8 +366,7 @@ namespace Mist{
       }
     }
     // Alright, everything looks good, let's delete the key and possibly also fragment
-    meta.removeFirstKey(tid);
-    return true;
+    return meta.removeFirstKey(tid);
   }
 
   void inputBuffer::finish(){
@@ -399,7 +398,7 @@ namespace Mist{
 
     curPageNum.erase(tid);
     INFO_MSG("Should remove track %zu", tid);
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     meta.removeTrack(tid);
     /*LTS-START*/
     if (!M.getValidTracks().size()){
@@ -412,7 +411,7 @@ namespace Mist{
   }
 
   void inputBuffer::removeUnused(){
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     // first remove all tracks that have not been updated for too long
     bool changed = true;
     while (changed){
@@ -456,7 +455,7 @@ namespace Mist{
                      streamName.c_str(), i, type.c_str(), codec.c_str(), firstms / 1000,
                      lastms / 1000, compareFirst / 1000, compareLast / 1000, bufferTime / 1000);
           }
-          meta.refresh();
+          meta.reloadReplacedPagesIfNeeded();
           removeTrack(i);
           changed = true;
           break;
@@ -500,7 +499,7 @@ namespace Mist{
   }
 
   void inputBuffer::userLeadIn(){
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     /*LTS-START*/
     // Reload the configuration to make sure we stay up to date with changes through the api
     if (Util::epoch() - lastReTime > 4){preRun();}
@@ -529,7 +528,7 @@ namespace Mist{
   void inputBuffer::userOnDisconnect(size_t id){
     if (sourcePids.count(id)){
       INFO_MSG("Disconnected track %zu", sourcePids[id]);
-      meta.refresh();
+      meta.reloadReplacedPagesIfNeeded();
       removeTrack(sourcePids[id]);
       sourcePids.erase(id);
     }

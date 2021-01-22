@@ -1073,7 +1073,7 @@ namespace Mist{
         newState = streamStatus.mapped[0];
       }
 
-      if (meta){meta.refresh();}
+      if (meta){meta.reloadReplacedPagesIfNeeded();}
       if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks() != prevTracks)){
         if (newState == STRMSTAT_READY){
           reconnect();

@@ -20,7 +20,7 @@ namespace Mist{
   size_t InOutBase::getMainSelectedTrack(){
     if (!userSelect.size()){return INVALID_TRACK_ID;}
     size_t bestSoFar = INVALID_TRACK_ID;
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (meta.trackValid(it->first)){
         if (meta.getType(it->first) == "video"){return it->first;}
@@ -324,7 +324,7 @@ namespace Mist{
 
   void InOutBase::bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe){
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     meta.setLive();
 
     // Store the trackid for easier access
@@ -368,28 +368,32 @@ namespace Mist{
       // If there is no page, create it
       if (!endPage){
         nextPageNum = 0;
-        tPages.addRecords(1);
         tPages.setInt("firstkey", 0, 0);
         tPages.setInt("firsttime", packTime, 0);
         tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, 0);
         tPages.setInt("keycount", 0, 0);
         tPages.setInt("avail", 0, 0);
+        tPages.addRecords(1);
         ++endPage;
       }
 
       uint64_t prevPageTime = tPages.getInt("firsttime", endPage - 1);
       // Compare on 8 mb boundary and target duration
       if (tPages.getInt("avail", endPage - 1) > FLIP_DATA_PAGE_SIZE || packTime - prevPageTime > FLIP_TARGET_DURATION){
+
+        if ((endPage - tPages.getDeleted()) >= tPages.getRCount()){
+          meta.resizeTrack(packTrack, M.fragments(packTrack).getRCount(), M.keys(packTrack).getRCount(), M.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
+        }
         // Create the book keeping data for the new page
         nextPageNum = tPages.getInt("firstkey", endPage - 1) + tPages.getInt("keycount", endPage - 1);
         HIGH_MSG("Live page transition from %" PRIu32 ":%zu to %" PRIu32 ":%" PRIu32, packTrack,
                  tPages.getInt("firstkey", endPage - 1), packTrack, nextPageNum);
-        tPages.addRecords(1);
         tPages.setInt("firstkey", nextPageNum, endPage);
         tPages.setInt("firsttime", packTime, endPage);
         tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
         tPages.setInt("keycount", 0, endPage);
         tPages.setInt("avail", 0, endPage);
+        tPages.addRecords(1);
         ++endPage;
       }
       tPages.setInt("lastkeytime", packTime, endPage - 1);
@@ -426,7 +430,7 @@ namespace Mist{
       // Open the new page
       if (!bufferStart(packTrack, nextPageNum)){
         // if this fails, return instantly without actually buffering the packet
-        WARN_MSG("Dropping packet %s:%" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
+        WARN_MSG("Dropping packet for %s: (no page) %" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
         return;
       }
     }

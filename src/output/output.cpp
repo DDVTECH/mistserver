@@ -276,7 +276,7 @@ namespace Mist{
     // If a protocol does not support any codecs, we assume you know what you're doing
     if (!capa.isMember("codecs")){return true;}
     if (!isInitialized){initialize();}
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
     if (getSupportedTracks().size()){
       if (!userSelect.size()){selectDefaultTracks();}
       size_t mainTrack = getMainSelectedTrack();
@@ -374,7 +374,6 @@ namespace Mist{
       meta.reInit(streamName, false);
     }
     if (!meta){return;}
-    meta.refresh();
     isInitialized = true;
     statComm.reload();
     stats(true);
@@ -387,7 +386,7 @@ namespace Mist{
           break;
         }
         Util::wait(500);
-        meta.refresh();
+        meta.reloadReplacedPagesIfNeeded();
         stats();
       }
     }
@@ -406,7 +405,7 @@ namespace Mist{
       if (!isInitialized){return false;}
     }
 
-    meta.refresh();
+    meta.reloadReplacedPagesIfNeeded();
 
     bool autoSeek = buffer.size();
     uint64_t seekTarget = currentTime();
@@ -533,7 +532,7 @@ namespace Mist{
       WARN_MSG("Load for track %zu key %zu aborted - track does not exist", trackId, keyNum);
       return;
     }
-    if (!M.trackLoaded(trackId)){meta.refresh();}
+    if (!M.trackLoaded(trackId)){meta.reloadReplacedPagesIfNeeded();}
     DTSC::Keys keys(M.keys(trackId));
     if (!keys.getValidCount()){
       WARN_MSG("Load for track %zu key %zu aborted - track is empty", trackId, keyNum);
@@ -710,7 +709,7 @@ namespace Mist{
       userSelect.erase(tid);
       return false;
     }
-    if (!M.trackLoaded(tid)){meta.refresh();}
+    if (!M.trackLoaded(tid)){meta.reloadReplacedPagesIfNeeded();}
     if (!userSelect.count(tid) || !userSelect[tid]){
       WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: user select failure (%s)", pos, tid, userSelect.count(tid)?"not connected":"not selected");
       userSelect.erase(tid);
@@ -1496,6 +1495,7 @@ namespace Mist{
 
     sortedPageInfo nxt = *(buffer.begin());
 
+    if (meta.reloadReplacedPagesIfNeeded()){return false;}
     if (!M.getValidTracks().count(nxt.tid)){
       dropTrack(nxt.tid, "disappeared from metadata");
       return false;

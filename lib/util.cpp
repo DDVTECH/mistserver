@@ -832,7 +832,9 @@ namespace Util{
     if (*hdrPresent >= amount){
       *hdrPresent -= amount; // decrease records present
     }else{
+      BACKTRACE;
       WARN_MSG("Depleting recordCount!");
+      exit(1);
       *hdrPresent = 0;
     }
   }

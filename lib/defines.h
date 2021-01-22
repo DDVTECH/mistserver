@@ -163,13 +163,10 @@ static inline void show_stackframe(){}
 
 // Default values, these will scale up and down when needed, and are mainly used as starting values.
 #define DEFAULT_TRACK_COUNT 100
-#define DEFAULT_FRAGMENT_COUNT 2000
-#define DEFAULT_KEY_COUNT                                                                          \
-  3 * DEFAULT_FRAGMENT_COUNT // A highest average of 5 keys / fragment is assumed
-#define DEFAULT_PART_COUNT                                                                         \
-  400 * DEFAULT_KEY_COUNT                    // A highest average of 500 parts / key is
-                                             // assumed
-#define DEFAULT_PAGE_COUNT DEFAULT_KEY_COUNT // Assume every page is a key to ensure enough space
+#define DEFAULT_FRAGMENT_COUNT 60
+#define DEFAULT_KEY_COUNT 60
+#define DEFAULT_PART_COUNT 30 * DEFAULT_KEY_COUNT
+#define DEFAULT_PAGE_COUNT 10
 
 #define DEFAULT_FRAGMENT_DURATION 1900
 

@@ -242,7 +242,7 @@ namespace Mist{
         std::string dataPacket = myConn.Received().remove(8 + rSize);
         DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
         DTSC::Scan metaScan = metaPack.getScan();
-        meta.refresh();
+        meta.reloadReplacedPagesIfNeeded();
         size_t prevTracks = meta.getValidTracks().size();
 
         size_t tNum = metaScan.getMember("tracks").getSize();
@@ -256,7 +256,7 @@ namespace Mist{
             HIGH_MSG("Already had track: %s", trk.asJSON().toString().c_str());
           }
         }
-        meta.refresh();
+        meta.reloadReplacedPagesIfNeeded();
         std::stringstream rep;
         rep << "DTSC_HEAD parsed, we went from " << prevTracks << " to " << meta.getValidTracks().size() << " tracks. Bring on those data packets!";
         sendOk(rep.str());

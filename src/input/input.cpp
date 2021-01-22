@@ -1063,6 +1063,9 @@ namespace Mist{
         for (uint32_t j = 0; j < endKey; j++){
           uint64_t keyTime = keys.getTime(j);
           if (newData){
+            if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
+              meta.resizeTrack(*it, M.fragments(*it).getRCount(), M.keys(*it).getRCount(), M.parts(*it).getRCount(), tPages.getRCount() * 2, "not enough pages");
+            }
             tPages.addRecords(1);
             ++pageNum;
             tPages.setInt("firsttime", keyTime, pageNum);

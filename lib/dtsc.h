@@ -281,6 +281,7 @@ namespace DTSC{
     void addTrackFrom(const DTSC::Scan &src);
 
     void refresh();
+    bool reloadReplacedPagesIfNeeded();
 
     operator bool() const;
 
@@ -302,7 +303,7 @@ namespace DTSC{
                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT,
                     bool setValid = true);
     void resizeTrack(size_t source, size_t fragCount = DEFAULT_FRAGMENT_COUNT, size_t keyCount = DEFAULT_KEY_COUNT,
-                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT);
+                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT, const char * reason = "");
     void initializeTrack(Track &t, size_t fragCount = DEFAULT_FRAGMENT_COUNT, size_t keyCount = DEFAULT_KEY_COUNT,
                          size_t parCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT);
 
@@ -424,7 +425,7 @@ namespace DTSC{
     void validateTrack(size_t trackIdx, uint8_t validType = TRACK_VALID_ALL);
     void removeEmptyTracks();
     void removeTrack(size_t trackIdx);
-    void removeFirstKey(size_t trackIdx);
+    bool removeFirstKey(size_t trackIdx);
 
     size_t mainTrack() const;
     uint32_t biggestFragment(uint32_t idx = INVALID_TRACK_ID) const;

@@ -5,6 +5,7 @@
 #include "defines.h"
 #include "dtsc.h"
 #include "encode.h"
+#include "lib/shared_memory.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -1033,7 +1034,6 @@ namespace DTSC{
 
     //Ok, we have data, let's parse it, too.
     Track &s = tracks[tIdx];
-    s.fragments.addRecords(fragCount);
     uint64_t *vals = (uint64_t *)malloc(4 * fragCount * sizeof(uint64_t));
     for (int i = 0; i < fragCount; i++){
       char *ptr = fragStor + (i * DTSH_FRAGMENT_SIZE);
@@ -1046,9 +1046,9 @@ namespace DTSC{
     s.fragments.setInts("keys", vals + fragCount, fragCount);
     s.fragments.setInts("firstkey", vals + (2 * fragCount), fragCount);
     s.fragments.setInts("size", vals + (3 * fragCount), fragCount);
+    s.fragments.addRecords(fragCount);
 
     vals = (uint64_t *)realloc(vals, 7 * keyCount * sizeof(uint64_t));
-    s.keys.addRecords(keyCount);
     uint64_t totalPartCount = 0;
     for (int i = 0; i < keyCount; i++){
       char *ptr = keyStor + (i * DTSH_KEY_SIZE);
@@ -1068,9 +1068,9 @@ namespace DTSC{
     s.keys.setInts("time", vals + (4 * keyCount), keyCount);
     s.keys.setInts("size", vals + (5 * keyCount), keyCount);
     s.keys.setInts("firstpart", vals + (6 * keyCount), keyCount);
+    s.keys.addRecords(keyCount);
 
     vals = (uint64_t *)realloc(vals, 3 * partCount * sizeof(uint64_t));
-    s.parts.addRecords(partCount);
     for (int i = 0; i < partCount; i++){
       char *ptr = partStor + (i * DTSH_PART_SIZE);
       vals[i] = Bit::btoh24(ptr);
@@ -1080,6 +1080,7 @@ namespace DTSC{
     s.parts.setInts("size", vals, partCount);
     s.parts.setInts("duration", vals + partCount, partCount);
     s.parts.setInts("offset", vals + (2 * partCount), partCount);
+    s.parts.addRecords(partCount);
     free(vals);
   }
 
@@ -1253,6 +1254,98 @@ namespace DTSC{
     }
   }
 
+  /// Reloads shared memory pages that are marked as needing an update, if any
+  /// Returns true if a reload happened
+  bool Meta::reloadReplacedPagesIfNeeded(){
+    if (isMemBuf){return false;}//Only for shm-backed metadata
+    if (!stream.isReady() || !stream.getPointer("tracks")){
+      INFO_MSG("No track pointer, not refreshing.");
+      return false;
+    }
+    char pageName[NAME_BUFFER_SIZE];
+
+    if (stream.isReload()){
+      INFO_MSG("Reloading entire metadata");
+      streamPage.close();
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, streamName.c_str());
+      streamPage.init(pageName, 0, false, true);
+      if (!streamPage.mapped){
+        INFO_MSG("Page %s not found", pageName);
+        return true;
+      }
+      stream = Util::RelAccX(streamPage.mapped, true);
+      tM.clear();
+      tracks.clear();
+      refresh();
+      return true;
+    }
+
+    bool ret = false;
+    for (size_t i = 0; i < trackList.getPresent(); i++){
+      if (trackList.getInt("valid", i) == 0){continue;}
+      bool always_load = !tracks.count(i);
+      if (always_load || tracks[i].track.isReload()){
+        ret = true;
+        Track &t = tracks[i];
+        if (always_load){
+          VERYHIGH_MSG("Loading track: %s", trackList.getPointer("page", i));
+        }else{
+          VERYHIGH_MSG("Reloading track: %s", trackList.getPointer("page", i));
+        }
+        IPC::sharedPage &p = tM[i];
+        p.init(trackList.getPointer("page", i), SHM_STREAM_TRACK_LEN, false, false);
+        if (!p.mapped){
+          WARN_MSG("Failed to load page %s, retrying later", trackList.getPointer("page", i));
+          tM.erase(i);
+          tracks.erase(i);
+          continue;
+        }
+
+        t.track = Util::RelAccX(p.mapped, true);
+        t.parts = Util::RelAccX(t.track.getPointer("parts"), true);
+        t.keys = Util::RelAccX(t.track.getPointer("keys"), true);
+        t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
+        t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
+
+        t.trackIdField = t.track.getFieldData("id");
+        t.trackTypeField = t.track.getFieldData("type");
+        t.trackCodecField = t.track.getFieldData("codec");
+        t.trackFirstmsField = t.track.getFieldData("firstms");
+        t.trackLastmsField = t.track.getFieldData("lastms");
+        t.trackBpsField = t.track.getFieldData("bps");
+        t.trackMaxbpsField = t.track.getFieldData("maxbps");
+        t.trackLangField = t.track.getFieldData("lang");
+        t.trackInitField = t.track.getFieldData("init");
+        t.trackRateField = t.track.getFieldData("rate");
+        t.trackSizeField = t.track.getFieldData("size");
+        t.trackChannelsField = t.track.getFieldData("channels");
+        t.trackWidthField = t.track.getFieldData("width");
+        t.trackHeightField = t.track.getFieldData("height");
+        t.trackFpksField = t.track.getFieldData("fpks");
+        t.trackMissedFragsField = t.track.getFieldData("missedFrags");
+
+        t.partSizeField = t.parts.getFieldData("size");
+        t.partDurationField = t.parts.getFieldData("duration");
+        t.partOffsetField = t.parts.getFieldData("offset");
+
+        t.keyFirstPartField = t.keys.getFieldData("firstpart");
+        t.keyBposField = t.keys.getFieldData("bpos");
+        t.keyDurationField = t.keys.getFieldData("duration");
+        t.keyNumberField = t.keys.getFieldData("number");
+        t.keyPartsField = t.keys.getFieldData("parts");
+        t.keyTimeField = t.keys.getFieldData("time");
+        t.keySizeField = t.keys.getFieldData("size");
+
+        t.fragmentDurationField = t.fragments.getFieldData("duration");
+        t.fragmentKeysField = t.fragments.getFieldData("keys");
+        t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
+        t.fragmentSizeField = t.fragments.getFieldData("size");
+
+      }
+    }
+    return ret;
+  }
+
   /// Merges in track information from a given DTSC::Meta object, optionally deleting missing tracks
   /// and optionally making hard copies of the original data.
   void Meta::merge(const DTSC::Meta &M, bool deleteTracks, bool copyData){
@@ -1342,22 +1435,33 @@ namespace DTSC{
     t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
     t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
 
-    trackList.addRecords(1);
     trackList.setString(trackPageField, pageName, tNumber);
     trackList.setInt(trackPidField, getpid(), tNumber);
     trackList.setInt(trackSourceTidField, sourceTrack, tNumber);
+    trackList.addRecords(1);
     validateTrack(tNumber);
     return tNumber;
   }
 
   /// Resizes a given track to be able to hold the given amount of fragments, keys, parts and pages.
   /// Currently called exclusively from Meta::update(), to resize the internal structures.
-  void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount){
-    INFO_MSG("Track %zu now with %zu frags, %zu keys, %zu parts, %zu pages", source, fragCount,
-             keyCount, partCount, pageCount);
+  void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason){
+    char pageName[NAME_BUFFER_SIZE];
+    IPC::semaphore resizeLock;
+
+    if (!isMemBuf){
+      snprintf(pageName, NAME_BUFFER_SIZE, "/" SHM_STREAM_TM, streamName.c_str(), getpid(), source);
+      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      resizeLock.wait();
+    }
+
     size_t pageSize = (isMemBuf ? sizeMemBuf[source] : tM[source].len);
 
     char *orig = (char *)malloc(pageSize);
+    if (!orig){
+      FAIL_MSG("Failed to re-allocate memory for track %zu: %s", source, strerror(errno));
+      return;
+    }
     memcpy(orig, (isMemBuf ? tMemBuf[source] : tM[source].mapped), pageSize);
 
     Track &t = tracks[source];
@@ -1373,17 +1477,23 @@ namespace DTSC{
       free(tMemBuf[source]);
       tMemBuf.erase(source);
       tMemBuf[source] = (char *)malloc(newPageSize);
+      if (!tMemBuf[source]){
+        FAIL_MSG("Failed to re-allocate memory for track %zu: %s", source, strerror(errno));
+        resizeLock.unlink();
+        return;
+      }
       sizeMemBuf[source] = newPageSize;
       memset(tMemBuf[source], 0, newPageSize);
-      INFO_MSG("Done re-allocating buffer %zu", source);
-
       t.track = Util::RelAccX(tMemBuf[source], false);
     }else{
-      char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_TM, streamName.c_str(), getpid(), source);
-      INFO_MSG("Re-allocating page %s", pageName);
       tM[source].master = true;
       tM[source].init(pageName, newPageSize, true);
+      if (!tM[source].mapped){
+        FAIL_MSG("Failed to re-allocate shared memory for track %zu: %s", source, strerror(errno));
+        resizeLock.unlink();
+        return;
+      }
       tM[source].master = false;
 
       t.track = Util::RelAccX(tM[source].mapped, false);
@@ -1391,6 +1501,17 @@ namespace DTSC{
     initializeTrack(t, fragCount, keyCount, partCount, pageCount);
 
     Util::RelAccX origAccess(orig);
+    Util::RelAccX origFragments(origAccess.getPointer("fragments"));
+    Util::RelAccX origKeys(origAccess.getPointer("keys"));
+    Util::RelAccX origParts(origAccess.getPointer("parts"));
+    Util::RelAccX origPages(origAccess.getPointer("pages"));
+
+    MEDIUM_MSG("Track %zu resizing (reason: %s): frags %" PRIu32 "->%zu, keys %" PRIu32 "->%zu, parts %" PRIu32 "->%zu, pages %" PRIu32 "->%zu",
+             source, reason,
+             origFragments.getRCount(), fragCount,
+             origKeys.getRCount(), keyCount,
+             origParts.getRCount(), partCount,
+             origPages.getRCount(), pageCount);
 
     t.track.setInt(t.trackIdField, origAccess.getInt("id"));
     t.track.setString(t.trackTypeField, origAccess.getPointer("type"));
@@ -1409,8 +1530,10 @@ namespace DTSC{
     t.track.setInt(t.trackFpksField, origAccess.getInt("fpks"));
     t.track.setInt(t.trackMissedFragsField, origAccess.getInt("missedFrags"));
 
-    Util::RelAccX origParts(origAccess.getPointer("parts"));
-    t.parts.deleteRecords(origParts.getDeleted());
+    t.parts.setEndPos(origParts.getEndPos());
+    t.parts.setStartPos(origParts.getStartPos());
+    t.parts.setDeleted(origParts.getDeleted());
+    t.parts.setPresent(origParts.getPresent());
 
     Util::FieldAccX origPartSizeAccX = origParts.getFieldAccX("size");
     Util::FieldAccX origPartDurationAccX = origParts.getFieldAccX("duration");
@@ -1427,10 +1550,11 @@ namespace DTSC{
       partDurationAccX.set(origPartDurationAccX.uint(i), i);
       partOffsetAccX.set(origPartOffsetAccX.uint(i), i);
     }
-    t.parts.addRecords(origParts.getPresent());
 
-    Util::RelAccX origKeys(origAccess.getPointer("keys"));
-    t.keys.deleteRecords(origKeys.getDeleted());
+    t.keys.setEndPos(origKeys.getEndPos());
+    t.keys.setStartPos(origKeys.getStartPos());
+    t.keys.setDeleted(origKeys.getDeleted());
+    t.keys.setPresent(origKeys.getPresent());
 
     Util::FieldAccX origKeyFirstpartAccX = origKeys.getFieldAccX("firstpart");
     Util::FieldAccX origKeyBposAccX = origKeys.getFieldAccX("bpos");
@@ -1459,10 +1583,11 @@ namespace DTSC{
       keyTimeAccX.set(origKeyTimeAccX.uint(i), i);
       keySizeAccX.set(origKeySizeAccX.uint(i), i);
     }
-    t.keys.addRecords(origKeys.getPresent());
 
-    Util::RelAccX origFragments(origAccess.getPointer("fragments"));
-    t.fragments.deleteRecords(origFragments.getDeleted());
+    t.fragments.setEndPos(origFragments.getEndPos());
+    t.fragments.setStartPos(origFragments.getStartPos());
+    t.fragments.setDeleted(origFragments.getDeleted());
+    t.fragments.setPresent(origFragments.getPresent());
 
     Util::FieldAccX origFragmentDurationAccX = origFragments.getFieldAccX("duration");
     Util::FieldAccX origFragmentKeysAccX = origFragments.getFieldAccX("keys");
@@ -1482,10 +1607,11 @@ namespace DTSC{
       fragmentFirstkeyAccX.set(origFragmentFirstkeyAccX.uint(i), i);
       fragmentSizeAccX.set(origFragmentSizeAccX.uint(i), i);
     }
-    t.fragments.addRecords(origFragments.getPresent());
 
-    Util::RelAccX origPages(origAccess.getPointer("pages"));
-    t.pages.deleteRecords(origPages.getDeleted());
+    t.pages.setEndPos(origPages.getEndPos());
+    t.pages.setStartPos(origPages.getStartPos());
+    t.pages.setDeleted(origPages.getDeleted());
+    t.pages.setPresent(origPages.getPresent());
 
     Util::FieldAccX origPageFirstkeyAccX = origPages.getFieldAccX("firstkey");
     Util::FieldAccX origPageKeycountAccX = origPages.getFieldAccX("keycount");
@@ -1514,9 +1640,10 @@ namespace DTSC{
       pageFirsttimeAccX.set(origPageFirsttimeAccX.uint(i), i);
       pageLastkeytimeAccX.set(origPageLastkeytimeAccX.uint(i), i);
     }
-    t.pages.addRecords(origPages.getPresent());
+    t.track.setReady();
 
     free(orig);
+    resizeLock.unlink();
   }
 
   size_t Meta::addDelayedTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount){
@@ -1568,10 +1695,11 @@ namespace DTSC{
       t.track = Util::RelAccX(tM[tNumber].mapped, false);
     }
     initializeTrack(t, fragCount, keyCount, partCount, pageCount);
-    trackList.addRecords(1);
+    t.track.setReady();
     trackList.setString(trackPageField, pageName, tNumber);
     trackList.setInt(trackPidField, getpid(), tNumber);
     trackList.setInt(trackSourceTidField, INVALID_TRACK_ID, tNumber);
+    trackList.addRecords(1);
     if (setValid){validateTrack(tNumber);}
     if (!isMemBuf){trackLock.post();}
     return tNumber;
@@ -1602,7 +1730,6 @@ namespace DTSC{
     t.track.addField("missedFrags", RAX_32UINT);
 
     t.track.setRCount(1);
-    t.track.setReady();
     t.track.addRecords(1);
 
     t.parts = Util::RelAccX(t.track.getPointer("parts"), false);
@@ -1971,9 +2098,12 @@ namespace DTSC{
 
   std::set<size_t> Meta::getValidTracks(bool skipEmpty) const{
     std::set<size_t> res;
-    if (!(*this) && !isMemBuf){return res;}
+    if (!(*this) && !isMemBuf){
+      INFO_MSG("Shared metadata not ready yet - no tracks valid");
+      return res;
+    }
     uint64_t firstValid = trackList.getDeleted();
-    uint64_t beyondLast = firstValid + trackList.getPresent();
+    uint64_t beyondLast = trackList.getEndPos();
     for (size_t i = firstValid; i < beyondLast; i++){
       if (trackList.getInt(trackValidField, i) & trackValidMask){res.insert(i);}
       if (trackList.getInt(trackSourceTidField, i) != INVALID_TRACK_ID &&
@@ -2008,7 +2138,7 @@ namespace DTSC{
   }
 
   void Meta::removeEmptyTracks(){
-    refresh();
+    reloadReplacedPagesIfNeeded();
     std::set<size_t> validTracks = getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       if (!tracks.at(*it).parts.getPresent()){removeTrack(*it);}
@@ -2035,9 +2165,29 @@ namespace DTSC{
   }
 
   /// Removes the first key from the memory structure and caches.
-  void Meta::removeFirstKey(size_t trackIdx){
+  bool Meta::removeFirstKey(size_t trackIdx){
+
+    char pageName[NAME_BUFFER_SIZE];
+    IPC::semaphore resizeLock;
+
+    if (!isMemBuf){
+      __pid_t trPid = trackList.getInt(trackPidField, trackIdx);
+      snprintf(pageName, NAME_BUFFER_SIZE, "/" SHM_STREAM_TM, streamName.c_str(), trPid, trackIdx);
+      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      if (!resizeLock.tryWait()){
+        MEDIUM_MSG("Metadata is busy, delaying deletion of key a bit");
+        resizeLock.close();
+        return false;
+      }
+      if (reloadReplacedPagesIfNeeded()){
+        MEDIUM_MSG("Metadata just got replaced, delaying deletion of key a bit");
+        return false;
+      }
+    }
     Track &t = tracks[trackIdx];
+    DONTEVEN_MSG("Deleting parts: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.parts.getDeleted(), t.parts.getDeleted()+t.keys.getInt(t.keyPartsField, t.keys.getDeleted()), t.parts.getPresent());
     t.parts.deleteRecords(t.keys.getInt(t.keyPartsField, t.keys.getDeleted()));
+    DONTEVEN_MSG("Deleting key: %" PRIu64 "->%" PRIu64 " del'd, %zu pres", t.keys.getDeleted(), t.keys.getDeleted()+1, t.keys.getPresent());
     t.keys.deleteRecords(1);
     if (t.fragments.getInt(t.fragmentFirstKeyField, t.fragments.getDeleted()) < t.keys.getDeleted()){
       t.fragments.deleteRecords(1);
@@ -2055,6 +2205,8 @@ namespace DTSC{
       t.pages.deleteRecords(1);
     }
     setFirstms(trackIdx, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
+    if (resizeLock){resizeLock.unlink();}
+    return true;
   }
 
   ///\brief Updates a meta object given a DTSC::Packet with byte position override.
@@ -2202,10 +2354,8 @@ namespace DTSC{
 
     uint32_t newPartNum = t.parts.getEndPos();
     if ((newPartNum - t.parts.getDeleted()) >= t.parts.getRCount()){
-      resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount(), t.parts.getRCount() * 2,
-                  t.keys.getRCount());
+      resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount(), t.parts.getRCount() * 2, t.pages.getRCount(), "not enough parts");
     }
-    t.parts.addRecords(1);
     t.parts.setInt(t.partSizeField, packDataSize, newPartNum);
     t.parts.setInt(t.partOffsetField, packOffset, newPartNum);
     if (newPartNum){
@@ -2214,17 +2364,15 @@ namespace DTSC{
     }else{
       t.parts.setInt(t.partDurationField, 0, newPartNum);
     }
-    t.track.setInt(t.trackLastmsField, packTime);
+    t.parts.addRecords(1);
 
     uint32_t newKeyNum = t.keys.getEndPos();
     if (isKeyframe || newKeyNum == 0 ||
         (getType(tNumber) != "video" && packTime >= AUDIO_KEY_INTERVAL &&
          packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1) >= AUDIO_KEY_INTERVAL)){
       if ((newKeyNum - t.keys.getDeleted()) >= t.keys.getRCount()){
-        resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount() * 2, t.parts.getRCount(),
-                    t.keys.getRCount() * 2);
+        resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount() * 2, t.parts.getRCount(), t.pages.getRCount(), "not enough keys");
       }
-      t.keys.addRecords(1);
       t.keys.setInt(t.keyBposField, packBytePos, newKeyNum);
       t.keys.setInt(t.keyTimeField, packTime, newKeyNum);
       t.keys.setInt(t.keyPartsField, 0, newKeyNum);
@@ -2242,6 +2390,7 @@ namespace DTSC{
       }else{
         t.keys.setInt(t.keyFirstPartField, 0, newKeyNum);
       }
+      t.keys.addRecords(1);
       if (packBytePos){t.track.setInt(t.trackFirstmsField, t.keys.getInt(t.keyTimeField, 0));}
 
       uint32_t newFragNum = t.fragments.getEndPos();
@@ -2250,10 +2399,8 @@ namespace DTSC{
            (packTime - getMinimumFragmentDuration()) >=
                t.keys.getInt(t.keyTimeField, t.fragments.getInt(t.fragmentFirstKeyField, newFragNum - 1)))){
         if ((newFragNum - t.fragments.getDeleted()) >= t.fragments.getRCount()){
-          resizeTrack(tNumber, t.fragments.getRCount() * 2, t.keys.getRCount(), t.parts.getRCount(),
-                      t.keys.getRCount());
+          resizeTrack(tNumber, t.fragments.getRCount() * 2, t.keys.getRCount(), t.parts.getRCount(), t.pages.getRCount(), "not enough frags");
         }
-        t.fragments.addRecords(1);
         if (newFragNum){
           t.fragments.setInt(t.fragmentDurationField,
                              packTime - t.keys.getInt(t.keyTimeField, t.fragments.getInt(t.fragmentFirstKeyField,
@@ -2278,6 +2425,7 @@ namespace DTSC{
         t.fragments.setInt(t.fragmentSizeField, 0, newFragNum);
         t.fragments.setInt(t.fragmentKeysField, 1, newFragNum);
         t.fragments.setInt(t.fragmentFirstKeyField, t.keys.getInt(t.keyNumberField, newKeyNum), newFragNum);
+        t.fragments.addRecords(1);
       }else{
         t.fragments.setInt(t.fragmentKeysField,
                            t.fragments.getInt(t.fragmentKeysField, newFragNum - 1) + 1, newFragNum - 1);
@@ -2296,6 +2444,7 @@ namespace DTSC{
     uint32_t lastFragNum = t.fragments.getEndPos() - 1;
     t.fragments.setInt(t.fragmentSizeField,
                        t.fragments.getInt(t.fragmentSizeField, lastFragNum) + packDataSize, lastFragNum);
+    t.track.setInt(t.trackLastmsField, packTime);
     markUpdated(tNumber);
   }
 
@@ -2408,8 +2557,8 @@ namespace DTSC{
       memset(tMemBuf[i], 0, SHM_STREAM_TRACK_LEN);
       t.track = Util::RelAccX(tMemBuf[i], false);
       initializeTrack(t);
-
       t.track.flowFrom(src.tracks.at(i).track);
+      t.track.setReady();
     }
   }
 
@@ -2434,6 +2583,7 @@ namespace DTSC{
       t.track = Util::RelAccX(tM[i].mapped, false);
       initializeTrack(t);
       t.track.flowFrom(M.tracks[i].track);
+      t.track.setReady();
     }
   }
 

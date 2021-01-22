@@ -507,6 +507,14 @@ namespace IPC{
         }
         return;
       }
+      if (handle > 0 && handle < 3){
+        int tmpHandle = fcntl(handle, F_DUPFD, 3);
+        if (tmpHandle >= 3){
+          DONTEVEN_MSG("Remapped handle for page %s from %d to %d!", name.c_str(), handle, tmpHandle);
+          ::close(handle);
+          handle = tmpHandle;
+        }
+      }
       if (master){
         if (ftruncate(handle, len) < 0){
           FAIL_MSG("truncate to %" PRIu64 " for page %s failed: %s", len, name.c_str(), strerror(errno));

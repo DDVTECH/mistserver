@@ -135,6 +135,15 @@ namespace Mist{
       return;
     }
 
+
+    size_t keyIndex = M.getKeyIndexForTime(getMainSelectedTrack(), thisPacket.getTime());
+    uint64_t keyTime = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex);
+    if (keyTime > thisPacket.getTime()){
+      std::cout << "Corruption? Our time is " << thisPacket.getTime() << ", but our key time is " << keyTime << std::endl;
+      myConn.close();
+      return;
+    }
+
     // Packet is normally sent here
     packets.push_back(thisPacket.toSummary());
     while (packets.size() > 10){packets.pop_front();}

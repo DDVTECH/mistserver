@@ -506,6 +506,7 @@ namespace RTP{
       rtpSeq = pSNo - 5;
       first = false;
     }
+    DONTEVEN_MSG("Received packet #%u, current packet is #%u", pSNo, rtpSeq);
     if (preBuffer){
       //If we've buffered the first 5 packets, assume we have the first one known
       if (packBuffer.size() >= 5){
@@ -583,6 +584,7 @@ namespace RTP{
     packCount = 0;
     lastSeq = 0;
     vp8BufferHasKeyframe = false;
+    curPicParameterSetId = 0;
   }
 
   void toDTSC::setProperties(const uint64_t track, const std::string &c, const std::string &t,
@@ -601,7 +603,7 @@ namespace RTP{
       MP4::AVCC avccbox;
       avccbox.setPayload(init);
       spsData.assign(avccbox.getSPS(), avccbox.getSPSLen());
-      ppsData.assign(avccbox.getPPS(), avccbox.getPPSLen());
+      ppsData[curPicParameterSetId].assign(avccbox.getPPS(), avccbox.getPPSLen());
       h264::sequenceParameterSet sps(spsData.data(), spsData.size());
       h264::SPSMeta hMeta = sps.getCharacteristics();
       fps = hMeta.fps;
@@ -668,6 +670,12 @@ namespace RTP{
           recentWrap = true;
         }
       }
+    }
+    // When there are B-frames, the firstTime can be higher than the current time
+    //   causing msTime to become negative and thus overflow
+    if (firstTime > pTime + 1){
+      WARN_MSG("firstTime was higher than current packet time. Readjusting firsTime...");
+      firstTime = pTime + 1;
     }
     prevTime = pkt.getTimeStamp();
     uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0x100000000ull * wrapArounds) / multiplier + milliSync;
@@ -844,9 +852,13 @@ namespace RTP{
     if (fps > 1){
       // Assume a steady frame rate, clip the timestamp based on frame number.
       uint64_t frameNo = (ts / (1000.0 / fps)) + 0.5;
-      while (frameNo < packCount){packCount--;}
+      if (frameNo < packCount){
+        packCount = frameNo;
+      }
       // More than 32 frames behind? We probably skipped something, somewhere...
-      if ((frameNo - packCount) > 32){packCount = frameNo;}
+      if ((frameNo - packCount) > 32){
+        packCount = frameNo;
+      }
       // After some experimentation, we found that the time offset is the difference between the
       // frame number and the packet counter, times the frame rate in ms
       offset = (frameNo - packCount) * (1000.0 / fps);
@@ -981,9 +993,13 @@ namespace RTP{
       if (fps > 1){
         // Assume a steady frame rate, clip the timestamp based on frame number.
         uint64_t frameNo = (currH264Time / (1000.0 / fps)) + 0.5;
-        while (frameNo < packCount){packCount--;}
+        if (frameNo < packCount){
+          packCount = frameNo;
+        }
         // More than 32 frames behind? We probably skipped something, somewhere...
-        if ((frameNo - packCount) > 32){packCount = frameNo;}
+        if ((frameNo - packCount) > 32){
+          packCount = frameNo;
+        }
         // After some experimentation, we found that the time offset is the difference between the
         // frame number and the packet counter, times the frame rate in ms
         offset = (frameNo - packCount) * (1000.0 / fps);
@@ -1026,58 +1042,50 @@ namespace RTP{
         spsData.assign(buffer + 4, len - 4);
         h264::SPSMeta hMeta = sps.getCharacteristics();
         fps = hMeta.fps;
-
-        MP4::AVCC avccBox;
-        avccBox.setVersion(1);
-        avccBox.setProfile(spsData[1]);
-        avccBox.setCompatibleProfiles(spsData[2]);
-        avccBox.setLevel(spsData[3]);
-        avccBox.setSPSCount(1);
-        avccBox.setSPS(spsData);
-        avccBox.setPPSCount(1);
-        avccBox.setPPS(ppsData);
-        std::string newInit = std::string(avccBox.payload(), avccBox.payloadSize());
-        if (newInit != init){
-          init = newInit;
-          outInit(trackId, init);
-        }
       }
       return;
     case 8: // PPS
-      if (ppsData.size() != len - 4 || memcmp(buffer + 4, ppsData.data(), len - 4) != 0){
-        if (!h264::ppsValidate(buffer+4, len-4)){
-          WARN_MSG("Ignoring invalid PPS packet! (%" PRIu32 "b)", len-4);
-          return;
-        }
-        HIGH_MSG("Updated PPS from RTP data: %" PRIu32 "b", len-4);
-        ppsData.assign(buffer + 4, len - 4);
-        MP4::AVCC avccBox;
-        avccBox.setVersion(1);
-        avccBox.setProfile(spsData[1]);
-        avccBox.setCompatibleProfiles(spsData[2]);
-        avccBox.setLevel(spsData[3]);
-        avccBox.setSPSCount(1);
-        avccBox.setSPS(spsData);
-        avccBox.setPPSCount(1);
-        avccBox.setPPS(ppsData);
-        std::string newInit = std::string(avccBox.payload(), avccBox.payloadSize());
-        if (newInit != init){
-          init = newInit;
-          outInit(trackId, init);
+      // Determine pic_parameter_set_id and check whether the PPS is new or updated
+      {
+        h264::ppsUnit PPS(buffer + 4, len - 4);
+        if (ppsData[PPS.picParameterSetId].size() != len - 4 || memcmp(buffer + 4, ppsData[PPS.picParameterSetId].data(), len - 4) != 0){
+          if (!h264::ppsValidate(buffer+4, len-4)){
+            WARN_MSG("Ignoring invalid PPS packet! (%" PRIu32 "b)", len-4);
+            return;
+          }
+          HIGH_MSG("Updated PPS with ID %li from RTP data", PPS.picParameterSetId);
+          ppsData[PPS.picParameterSetId].assign(buffer + 4, len - 4);
         }
       }
       return;
     case 5:{
-      //If this is a keyframe and we have no buffer yet, prepend the SPS/PPS
-      if (!h264OutBuffer.size()){
+      // We have a keyframe: prepend SPS/PPS if the pic_parameter_set_id changed or if this is the first keyframe
+      h264::codedSliceUnit keyPiece(buffer + 4, len - 4);
+      if (!h264OutBuffer.size() || keyPiece.picParameterSetId != curPicParameterSetId){
+        curPicParameterSetId = keyPiece.picParameterSetId;
+        // Update meta init data if needed
+        MP4::AVCC avccBox;
+        avccBox.setVersion(1);
+        avccBox.setProfile(spsData[1]);
+        avccBox.setCompatibleProfiles(spsData[2]);
+        avccBox.setLevel(spsData[3]);
+        avccBox.setSPSCount(1);
+        avccBox.setSPS(spsData);
+        avccBox.setPPSCount(1);
+        avccBox.setPPS(ppsData[curPicParameterSetId]);
+        std::string newInit = std::string(avccBox.payload(), avccBox.payloadSize());
+        if (newInit != init){
+          init = newInit;
+          outInit(trackId, init);
+        }
+        // Prepend SPS/PPS
         char sizeBuffer[4];
         Bit::htobl(sizeBuffer, spsData.size());
         h264OutBuffer.append(sizeBuffer, 4);
         h264OutBuffer.append(spsData.data(), spsData.size());
-
-        Bit::htobl(sizeBuffer, ppsData.size());
+        Bit::htobl(sizeBuffer, ppsData[curPicParameterSetId].size());
         h264OutBuffer.append(sizeBuffer, 4);
-        h264OutBuffer.append(ppsData.data(), ppsData.size());
+        h264OutBuffer.append(ppsData[curPicParameterSetId].data(), ppsData[curPicParameterSetId].size());
       }
       //Note: no return, we still want to buffer the packet itself, below!
     }

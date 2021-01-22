@@ -398,6 +398,60 @@ namespace SDP{
     return true;
   }
 
+  /// Tries to bind a RTP/RTCP UDP port pair
+  /// \param portInfo port/#ports as found in SDP file
+  /// \param hostInfo host address
+  bool Track::bindUDPPort(std::string portInfo, std::string hostInfo){
+    uint32_t portRTP, portRTCP;
+
+    if (portInfo == "" || hostInfo == ""){
+      WARN_MSG("Can not setup transport to address %s:%s", hostInfo.c_str(), portInfo.c_str());
+      return false;
+    }
+
+    // Extract port numbers from input string
+    size_t tempPos;
+    tempPos = portInfo.find('/');
+    if (tempPos != std::string::npos){
+      // TODO https://tools.ietf.org/html/rfc4566#section-5.14
+      // bind more ports if theres a /, which indicates the amount of port pairs
+      WARN_MSG("Does not support more than one RTP/RTCP port pair");
+      portInfo = portInfo.substr(0, tempPos);
+    }
+    std::istringstream ( portInfo ) >> portRTP;
+    portRTCP = portRTP + 1;
+
+    // During RTSP streams we get the transport info on setup
+    // in this case the port is set to 0 in the SDP file
+    if (!portRTP){
+      return true;
+    }
+
+    // Since default is set to IPV6, force to AF_UNSPEC
+    data.setSocketFamily(AF_UNSPEC);
+    rtcp.setSocketFamily(AF_UNSPEC);
+    // Test UDP ports
+    int sendbuff = 4 * 1024 * 1024;
+    data.SetDestination(hostInfo, portRTP);
+    setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+    rtcp.SetDestination(hostInfo, portRTCP);
+    setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+    // Bind sockets
+    portA = data.bind(portRTP, hostInfo);
+    if (portA != portRTP){
+      FAIL_MSG("Server requested RTP port %u, which we couldn't bind", portRTP);
+      return false;
+    }
+    portB = rtcp.bind(portRTCP, hostInfo);
+    if (portB != portRTCP){
+      FAIL_MSG("Server requested RTCP port %u, which we couldn't bind", portRTCP);
+      return false;
+    }
+
+    return true;
+  }
+
+
   /// Gets the rtpInfo for a given DTSC::Track, source identifier and timestamp (in millis).
   std::string Track::rtpInfo(const DTSC::Meta &M, size_t tid, const std::string &source, uint64_t currentTime){
     std::stringstream rInfo;
@@ -414,8 +468,14 @@ namespace SDP{
 
   void State::parseSDP(const std::string &sdp){
     DONTEVEN_MSG("Parsing %zu-byte SDP", sdp.size());
+    if (!sdp.size()){
+      FAIL_MSG("SDP buffer is empty!");
+      return;
+    }
     std::stringstream ss(sdp);
     std::string to;
+    // (UDP) Host will be set when a c= line is read
+    std::string host = "127.0.0.1";
     size_t tid = INVALID_TRACK_ID;
     bool nope = true; // true if we have no valid track to fill
     while (std::getline(ss, to, '\n')){
@@ -423,12 +483,39 @@ namespace SDP{
       if (to.empty()){continue;}
       DONTEVEN_MSG("Parsing SDP line: %s", to.c_str());
 
+      // Extract host IP from c= line
+      // c=<nettype> <addrtype> <connection-address>
+      if (to.substr(0, 2) == "c="){
+        // Strip c=
+        std::stringstream words(to.substr(2));
+        std::string item;
+        size_t tempPos;
+
+        // Strip nettype
+        getline(words, item, ' ');
+        // Strip addrtype
+        getline(words, item, ' ');
+        // Get connection address
+        getline(words, item, ' ');
+        // Strip TTL, which is appended as IP/TTL
+        tempPos = item.find('/');
+        if (tempPos != std::string::npos){
+          item = item.substr(0, tempPos);
+        }
+        host = item;
+      }
+
       // All tracks start with a media line
+      // m=<media> <port>/<number of ports> <proto> <fmt> ...
       if (to.substr(0, 2) == "m="){
         nope = true;
         tid = myMeta->addTrack();
+
+        // Strip m=
         std::stringstream words(to.substr(2));
         std::string item;
+
+        // Get media type
         if (getline(words, item, ' ') && (item == "audio" || item == "video")){
           myMeta->setType(tid, item);
           myMeta->setID(tid, tid);
@@ -438,13 +525,22 @@ namespace SDP{
           tracks.erase(tid);
           continue;
         }
+
+        // Get port info and bind RTP/RTCP UDP pairs
         getline(words, item, ' ');
+        if (!tracks[tid].bindUDPPort(item, host) ){
+          FAIL_MSG("Failed to bind ports for given port info: %s", item.c_str());
+        }
+
+        // Get transport protocol
         if (!getline(words, item, ' ') || item.substr(0, 7) != "RTP/AVP"){
           WARN_MSG("Media transport not supported: %s", item.c_str());
           myMeta->removeTrack(tid);
           tracks.erase(tid);
           continue;
         }
+        
+        // Get media format description
         if (getline(words, item, ' ')){
           uint64_t avp_type = JSON::Value(item).asInt();
           switch (avp_type){
@@ -774,4 +870,22 @@ namespace SDP{
     tConv[track].addRTP(pkt);
   }
 
+  /// Re-inits internal variables and removes all tracks from meta
+  void State::reinitSDP(){
+    tConv.clear();
+    size_t trackID;
+
+    for (std::map<long unsigned int, Track>::iterator it = tracks.begin(); it != tracks.end(); it++) {
+      trackID = myMeta->getID(it->first);
+      INFO_MSG("Removing track %zu:%s", it->first, myMeta->getTrackIdentifier(it->first).c_str());
+      if (trackID == INVALID_TRACK_ID){
+        WARN_MSG("TrackID was invalid");
+      }
+      else{
+        myMeta->removeTrack(it->first);
+      }
+    }
+    //myMeta->refresh();
+    tracks.clear();
+  }
 }// namespace SDP

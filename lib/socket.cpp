@@ -1701,6 +1701,7 @@ void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
 /// Stores the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
+  DONTEVEN_MSG("Setting destination to %s:%u", destIp.c_str(), port);
   // UDP sockets can switch between IPv4 and IPv6 on demand.
   // We change IPv4-mapped IPv6 addresses into IPv4 addresses for Windows-sillyness reasons.
   if (destIp.substr(0, 7) == "::ffff:"){destIp = destIp.substr(7);}

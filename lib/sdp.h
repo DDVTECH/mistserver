@@ -14,6 +14,8 @@ namespace SDP{
   public:
     Track();
     std::string generateTransport(uint32_t trackNo, const std::string &dest = "", bool TCPmode = true);
+    /// Tries to bind a RTP/RTCP UDP port pair
+    bool bindUDPPort(std::string portInfo, std::string hostInfo);
     std::string getParamString(const std::string &param) const;
     uint64_t getParamInt(const std::string &param) const;
     bool parseTransport(const std::string &transport, const std::string &host,
@@ -55,6 +57,10 @@ namespace SDP{
     size_t getTrackNoForChannel(uint8_t chan);
     size_t parseSetup(HTTP::Parser &H, const std::string &host, const std::string &source);
     void handleIncomingRTP(const uint64_t track, const RTP::Packet &pkt);
+    // Sets up the transport from SDP data
+    bool parseTransport(const std::string &sdpString);
+    // Re-inits internal variables and removes all tracks from meta
+    void reinitSDP();
 
   public:
     DTSC::Meta *myMeta;

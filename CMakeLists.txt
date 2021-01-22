@@ -486,6 +486,7 @@ makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
 makeInput(SRT srt)#LTS
+makeInput(SDP sdp)
 
 if(SRT_LIB)
   makeInput(TSSRT tssrt with_srt)#LTS

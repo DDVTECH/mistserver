@@ -179,7 +179,8 @@ namespace RTP{
     void handleH264Single(uint64_t ts, const char *buffer, const uint32_t len, bool isKey);
     void handleH264Multi(uint64_t ts, char *buffer, const uint32_t len);
     std::string spsData; ///< SPS for H264
-    std::string ppsData; ///< PPS for H264
+    uint8_t curPicParameterSetId;
+    std::map<uint8_t,std::string> ppsData; ///< PPS for H264
     void handleVP8(uint64_t msTime, const char *buffer, const uint32_t len, bool missed, bool hasPadding);
     Util::ResizeablePointer vp8FrameBuffer; ///< Stores successive VP8 payload data. We always start with the first
                                             ///< partition; but we might be missing other partitions when they were

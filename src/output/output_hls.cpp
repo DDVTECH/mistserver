@@ -151,7 +151,7 @@ namespace Mist{
       /*LTS-END*/
     }
 
-    result << "#EXT-X-MEDIA-SEQUENCE:" << M.getMissedFragments(timingTid) + skippedLines << "\r\n";
+    result << "#EXT-X-MEDIA-SEQUENCE:" << firstFragment + skippedLines << "\r\n";
 
     for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); it++){
       result << *it;

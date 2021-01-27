@@ -318,11 +318,20 @@ namespace Mist{
     if (!isInitialized){initialize();}
     meta.reloadReplacedPagesIfNeeded();
     if (getSupportedTracks().size()){
+      size_t minTracks = 2;
+      size_t minMs = 5000;
+      if (targetParams.count("waittrackcount")){
+        minTracks = JSON::Value(targetParams["waittrackcount"]).asInt();
+        minMs = 120000;
+      }
+      if (targetParams.count("maxwaittrackms")){
+        minMs = JSON::Value(targetParams["maxwaittrackms"]).asInt();
+      }
       if (!userSelect.size()){selectDefaultTracks();}
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack != INVALID_TRACK_ID){
         DTSC::Keys keys(M.keys(mainTrack));
-        if (keys.getValidCount() >= 2 || M.getLastms(mainTrack) - M.getFirstms(mainTrack) > 5000){
+        if (keys.getValidCount() >= minTracks || M.getLastms(mainTrack) - M.getFirstms(mainTrack) > minMs){
           return true;
         }
         HIGH_MSG("NOT READY YET (%zu tracks, main track: %zu, with %zu keys)",

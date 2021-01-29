@@ -238,6 +238,7 @@ namespace Mist{
       uint64_t tmpRes = 0;
       DTSC::Parts parts(M.parts(it->first));
       uint64_t partCount = parts.getValidCount();
+      uint64_t tDuration = M.getLastms(it->first) - M.getFirstms(it->first);
 
       tmpRes += 8 + 92                                        // TRAK + TKHD Boxes
                 + 36                                          // EDTS Box
@@ -246,8 +247,17 @@ namespace Mist{
                 + 8                                           // MINF Box
                 + 36                                          // DINF Box
                 + 8;                                          // STBL Box
-      if (!M.getLive() && M.getFirstms(it->first) != firstms){
-        tmpRes += 12; // EDTS entry extra
+
+      if (tDuration >= 0xFFFFFFFFull || M.getFirstms(it->first) - firstms >= 0xFFFFFFFFull){
+        //big size EDTS entries
+        tmpRes += 8;
+        if (!M.getLive() && M.getFirstms(it->first) != firstms){
+          tmpRes += 20; // EDTS entry extra
+        }
+      }else{
+        if (!M.getLive() && M.getFirstms(it->first) != firstms){
+          tmpRes += 12; // EDTS entry extra
+        }
       }
 
       // These boxes are empty when generating fragmented output
@@ -414,13 +424,17 @@ namespace Mist{
       // This box is used for track durations as well as firstms synchronisation;
       MP4::EDTS edtsBox;
       MP4::ELST elstBox;
-      elstBox.setVersion(0);
+      if (tDuration >= 0xFFFFFFFFull || M.getFirstms(it->first) - firstms >= 0xFFFFFFFFull){
+        elstBox.setVersion(1);
+      }else{
+        elstBox.setVersion(0);
+      }
       elstBox.setFlags(0);
       if (!M.getLive() && M.getFirstms(it->first) != firstms){
         elstBox.setCount(2);
 
         elstBox.setSegmentDuration(0, M.getFirstms(it->first) - firstms);
-        elstBox.setMediaTime(0, 0xFFFFFFFFull);
+        elstBox.setMediaTime(0, 0xFFFFFFFFFFFFFFFFull);
         elstBox.setMediaRateInteger(0, 0);
         elstBox.setMediaRateFraction(0, 0);
 

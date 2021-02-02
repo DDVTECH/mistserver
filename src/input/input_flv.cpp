@@ -163,7 +163,7 @@ namespace Mist{
     // keyframe. Flv files are never multi-track, so track 1 is video, track 2 is audio.
     size_t seekTrack = (idx == INVALID_TRACK_ID ? M.mainTrack() : idx);
     DTSC::Keys keys(M.keys(seekTrack));
-    uint32_t keyNum = keys.getNumForTime(seekTime);
+    uint32_t keyNum = M.getKeyNumForTime(seekTrack, seekTime);
     Util::fseek(inFile, keys.getBpos(keyNum), SEEK_SET);
   }
 }// namespace Mist

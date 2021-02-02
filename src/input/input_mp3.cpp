@@ -150,7 +150,7 @@ namespace Mist{
 
   void inputMP3::seek(uint64_t seekTime, size_t idx){
     DTSC::Keys keys(M.keys(idx));
-    uint32_t keyNum = keys.getNumForTime(seekTime);
+    uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);
     fseek(inFile, keys.getBpos(keyNum), SEEK_SET);
     timestamp = keys.getTime(keyNum);
   }

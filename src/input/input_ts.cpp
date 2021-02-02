@@ -457,14 +457,14 @@ namespace Mist{
     readPMT();
     uint64_t seekPos = 0xFFFFFFFFull;
     if (idx != INVALID_TRACK_ID){
+      uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);
       DTSC::Keys keys(M.keys(idx));
-      uint32_t keyNum = keys.getNumForTime(seekTime);
       seekPos = keys.getBpos(keyNum);
     }else{
       std::set<size_t> tracks = M.getValidTracks();
       for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+        uint32_t keyNum = M.getKeyNumForTime(*it, seekTime);
         DTSC::Keys keys(M.keys(*it));
-        uint32_t keyNum = keys.getNumForTime(seekTime);
         uint64_t thisBPos = keys.getBpos(keyNum);
         if (thisBPos < seekPos){seekPos = thisBPos;}
       }

@@ -394,7 +394,7 @@ namespace Mist{
       tmpPos.seekTime = 0;
     }
     DTSC::Keys keys(M.keys(trackIdx));
-    uint32_t keyNum = keys.getNumForTime(ms);
+    uint32_t keyNum = M.getKeyNumForTime(trackIdx, ms);
     if (keys.getTime(keyNum) > tmpPos.seekTime){
       tmpPos.seekTime = keys.getTime(keyNum);
       tmpPos.bytePos = keys.getBpos(keyNum);

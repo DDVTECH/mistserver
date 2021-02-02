@@ -189,7 +189,6 @@ namespace DTSC{
     uint64_t getTime(size_t idx) const;
     void setSize(size_t idx, size_t _size);
     size_t getSize(size_t idx) const;
-    size_t getNumForTime(uint64_t time) const;
 
   private:
     bool isConst;
@@ -442,6 +441,7 @@ namespace DTSC{
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
     size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;
     size_t getPageNumberForKey(uint32_t idx, uint64_t keynumber) const;
+    size_t getKeyNumForTime(uint32_t idx, uint64_t time) const;
 
     const Util::RelAccX &parts(size_t idx) const;
     Util::RelAccX &keys(size_t idx);

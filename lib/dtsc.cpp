@@ -6,6 +6,7 @@
 #include "dtsc.h"
 #include "encode.h"
 #include "lib/shared_memory.h"
+#include "lib/util.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -3159,6 +3160,35 @@ namespace DTSC{
     return pages.getInt("firstkey", res);
   }
 
+  /// Returns the key number containing a given time.
+  /// Or, closest key if given time is not available.
+  /// Or, zero if no keys are available at all.
+  /// If the time is in the gap before a key, returns that next key instead.
+  size_t Meta::getKeyNumForTime(uint32_t idx, uint64_t time) const{
+    const Track &trk = tracks.at(idx);
+    const Util::RelAccX &keys = trk.keys;
+    const Util::RelAccX &parts = trk.parts;
+    if (!keys.getEndPos()){return 0;}
+    size_t res = keys.getStartPos();
+    for (size_t i = res; i < keys.getEndPos(); i++){
+      if (keys.getInt(trk.keyTimeField, i) > time){
+        //It's possible we overshot our timestamp, but the previous key does not contain it.
+        //This happens when seeking to a timestamp past the last part of the previous key, but
+        //before the first part of the next key.
+        //In this case, we should _not_ return the previous key, but the current key.
+        //That prevents getting stuck at the end of the page, waiting for a part to show up that never will.
+        if (keys.getInt(trk.keyFirstPartField, i) > parts.getStartPos()){
+          uint64_t dur = parts.getInt(trk.partDurationField, keys.getInt(trk.keyFirstPartField, i)-1);
+          if (keys.getInt(trk.keyTimeField, i) - dur < time){res = i;}
+        }
+        break;
+      }
+      res = i;
+    }
+    return res;
+  }
+
+
   Parts::Parts(const Util::RelAccX &_parts) : parts(_parts){
     sizeField = parts.getFieldData("size");
     durationField = parts.getFieldData("duration");
@@ -3207,17 +3237,6 @@ namespace DTSC{
     keys.setInt(sizeField, _size, idx);
   }
   size_t Keys::getSize(size_t idx) const{return cKeys.getInt(sizeField, idx);}
-
-  /// Returns the key number containing a given timestamp.
-  /// Returns the closest key number if the timestamp is not available.
-  size_t Keys::getNumForTime(uint64_t time) const{
-    size_t res = getFirstValid();
-    for (size_t i = getFirstValid(); i < getEndValid(); i++){
-      if (getTime(i) > time){break;}
-      res = i;
-    }
-    return res;
-  }
 
   Fragments::Fragments(const Util::RelAccX &_fragments) : fragments(_fragments){}
   size_t Fragments::getFirstValid() const{return fragments.getDeleted();}

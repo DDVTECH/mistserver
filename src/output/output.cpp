@@ -491,11 +491,11 @@ namespace Mist{
     }
     //Abort if the track is not loaded
     if (!M.trackLoaded(trk)){return 0;}
-    DTSC::Keys keys(M.keys(trk));
+    const DTSC::Keys &keys = M.keys(trk);
     //Abort if there are no keys
     if (!keys.getValidCount()){return 0;}
     //Get the key for the current time
-    size_t keyNum = keys.getNumForTime(lastPacketTime);
+    size_t keyNum = M.getKeyNumForTime(trk, lastPacketTime);
     if (keys.getEndValid() <= keyNum+1){return 0;}
     //Return the next key
     return keys.getTime(keyNum+1);
@@ -687,7 +687,7 @@ namespace Mist{
       }
       if (M.getType(mainTrack) == "video"){
         DTSC::Keys keys(M.keys(mainTrack));
-        size_t keyNum = keys.getNumForTime(pos);
+        size_t keyNum = M.getKeyNumForTime(mainTrack, pos);
         pos = keys.getTime(keyNum);
       }
     }
@@ -732,7 +732,7 @@ namespace Mist{
       return false;
     }
     DTSC::Keys keys(M.keys(tid));
-    size_t keyNum = keys.getNumForTime(pos);
+    size_t keyNum = M.getKeyNumForTime(tid, pos);
     uint64_t actualKeyTime = keys.getTime(keyNum);
     HIGH_MSG("Seeking to track %zu key %zu => time %" PRIu64, tid, keyNum, pos);
     if (actualKeyTime > pos){
@@ -1419,7 +1419,7 @@ namespace Mist{
     userSelect[mainTrack].reload(streamName, mainTrack);
     // now, seek to the exact timestamp of the keyframe
     DTSC::Keys keys(M.keys(mainTrack));
-    unsigned int targetKey = keys.getNumForTime(currTime);
+    size_t targetKey = M.getKeyNumForTime(mainTrack, currTime);
     seek(keys.getTime(targetKey));
     // attempt to load the key into thisPacket
     bool ret = prepareNext();
@@ -1547,11 +1547,11 @@ namespace Mist{
         dropTrack(nxt.tid, "end of VoD track reached", false);
         return true;
       }
-      DTSC::Keys keys(M.keys(nxt.tid));
-      size_t thisKey = keys.getNumForTime(nxt.time);
+      size_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       //Check if there exists a different page for the next key
       size_t nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
+        DTSC::Keys keys(M.keys(nxt.tid));
         // If so, the next key is our next packet
         nextTime = keys.getTime(thisKey + 1);
       }else{
@@ -1617,8 +1617,7 @@ namespace Mist{
     //Update keynum only when the second flips over in the timestamp
     //We do this because DTSC::Keys is pretty CPU-heavy
     if (nxt.time / 1000 < nextTime/1000){
-      DTSC::Keys keys(M.keys(nxt.tid));
-      size_t thisKey = keys.getNumForTime(nxt.time);
+      size_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       userSelect[nxt.tid].setKeyNum(thisKey);
     }
 

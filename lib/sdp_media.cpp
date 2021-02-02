@@ -1079,21 +1079,34 @@ namespace SDP{
     // and provides both formats in their SDP. It may happen that
     // an SDP contains multiple format-specs for H264
     SDP::MediaFormat *format = NULL;
+    SDP::MediaFormat *backupFormat = NULL;
     for (size_t i = 0; i < codecs.size(); ++i){
       std::string codec = codecMist2RTP(codecs[i]);
       std::vector<SDP::MediaFormat *> formats = media->getFormatsForEncodingName(codec);
       for (size_t j = 0; j < formats.size(); ++j){
         if (codec == "H264"){
           if (formats[j]->getPacketizationModeForH264() != 1){
-            MEDIUM_MSG(
-                "Skipping this H264 format because it uses a packetization mode we don't support.");
-            format = NULL;
+            MEDIUM_MSG("Skipping this H264 format because it uses a packetization mode we don't support.");
             continue;
           }
           if (formats[j]->getProfileLevelIdForH264() != "42e01f"){
-            MEDIUM_MSG(
-                "Skipping this H264 format because it uses an unsupported profile-level-id.");
-            format = NULL;
+            MEDIUM_MSG("Skipping this H264 format because it uses an unsupported profile-level-id.");
+            //Store the best match so far, though - just in case we never find a proper match
+            if (!backupFormat){
+              backupFormat = formats[j];
+            }else{
+              std::string ideal = "42e01f";
+              std::string oProf = backupFormat->getProfileLevelIdForH264();
+              std::string nProf = formats[j]->getProfileLevelIdForH264();
+              size_t oScore = 0, nScore = 0;
+              for (size_t k = 0; k < 6 && k < oProf.size(); ++k){
+                if (oProf[k] == ideal[k]){++oScore;}else{break;}
+              }
+              for (size_t k = 0; k < 6 && k < nProf.size(); ++k){
+                if (nProf[k] == ideal[k]){++nScore;}else{break;}
+              }
+              if (nScore > oScore){backupFormat = formats[j];}
+            }
             continue;
           }
         }
@@ -1103,6 +1116,10 @@ namespace SDP{
       if (format){break;}
     }
 
+    if (!format){
+      format = backupFormat;
+      INFO_MSG("Picking non-perfect match for codec string");
+    }
     if (!format){
       FAIL_MSG("Cannot enable %s; codec not found %s.", type.c_str(), codecList.c_str());
       return false;

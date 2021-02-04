@@ -35,6 +35,7 @@ namespace Mist{
     void sendHeader(){};
 
   protected:
+    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
     void onTrackEnd(size_t idx);
 
     void sendDashManifest();

@@ -14,6 +14,9 @@
 #include <mist/timing.h>
 
 uint64_t bootMsOffset;
+uint64_t cmafBoot = Util::bootSecs();
+uint64_t dataUp = 0;
+uint64_t dataDown = 0;
 
 namespace Mist{
   void CMAFPushTrack::connect(std::string debugParam) {
@@ -52,11 +55,15 @@ namespace Mist{
   }
 
   void CMAFPushTrack::send(const char * data, size_t len){
+    uint64_t preUp = D.getSocket().dataUp();
+    uint64_t preDown = D.getSocket().dataDown();
     D.getHTTP().Chunkify(data, len, D.getSocket());
     if (debug && debugFile) {
       fwrite(data, 1, len, debugFile);
 
     }
+    dataUp += D.getSocket().dataUp() - preUp;
+    dataDown += D.getSocket().dataDown() - preDown;
   }
 
   void CMAFPushTrack::send(const std::string & data){
@@ -80,6 +87,18 @@ namespace Mist{
       initialSeek();
       startPushOut();
     }
+  }
+
+  void OutCMAF::connStats(uint64_t now, Comms::Statistics &statComm){
+    //For non-push usage, call usual function.
+    if (!isRecording()){
+      Output::connStats(now, statComm);
+      return;
+    }
+    //For push output, this data is not coming from the usual place as we have multiple connections to worry about.
+    statComm.setUp(dataUp);
+    statComm.setDown(dataDown);
+    statComm.setTime(now - cmafBoot);
   }
 
   //Properly end all tracks on shutdown.

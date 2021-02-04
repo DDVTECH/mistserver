@@ -170,6 +170,7 @@ static inline void show_stackframe(){}
 
 #define DEFAULT_FRAGMENT_DURATION 1900
 
+/// \TODO These values are hardcoded and that is dangerous and probably a very bad idea. I don't even know if they are currently correct...?! I doubt they are.
 #define META_META_OFFSET 104
 #define META_META_RECORDSIZE 576
 

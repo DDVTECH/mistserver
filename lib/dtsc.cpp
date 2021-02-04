@@ -1723,12 +1723,12 @@ namespace DTSC{
     t.track.addField("channels", RAX_16UINT);
     t.track.addField("width", RAX_32UINT);
     t.track.addField("height", RAX_32UINT);
+    t.track.addField("fpks", RAX_16UINT);
+    t.track.addField("missedFrags", RAX_32UINT);
     t.track.addField("parts", RAX_NESTED, TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount));
     t.track.addField("keys", RAX_NESTED, TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount));
     t.track.addField("fragments", RAX_NESTED, TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount));
     t.track.addField("pages", RAX_NESTED, TRACK_PAGE_OFFSET + (TRACK_PAGE_RECORDSIZE * pageCount));
-    t.track.addField("fpks", RAX_16UINT);
-    t.track.addField("missedFrags", RAX_32UINT);
 
     t.track.setRCount(1);
     t.track.addRecords(1);

@@ -737,8 +737,6 @@ namespace Mist{
     HIGH_MSG("Seeking to track %zu key %zu => time %" PRIu64, tid, keyNum, pos);
     if (actualKeyTime > pos){
       if (M.getLive()){
-        WARN_MSG("Actually seeking to %" PRIu64 ", for %" PRIu64 " is not available any more",
-                 actualKeyTime, pos);
         pos = actualKeyTime;
         userSelect[tid].setKeyNum(keyNum);
       }
@@ -784,7 +782,7 @@ namespace Mist{
       stats();
     }
     if (curPage[tid].mapped[tmp.offset]){return seek(tid, pos, getNextKey);}
-    FAIL_MSG("Track %zu no data (key %zu@%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset);
+    FAIL_MSG("Track %zu no data (key %zu@%" PRIu64 ", page %s, time %" PRIu64 " -> %" PRIu64 ", next=%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset, curPage[tid].name.c_str(), pos, actualKeyTime, keys.getTime(keyNum+1));
     userSelect.erase(tid);
     firstTime = Util::bootMS() - (buffer.begin()->time * realTime / 1000);
     return false;
@@ -1249,7 +1247,7 @@ namespace Mist{
               uint32_t sleepTime = std::min(20ul, needsLookAhead);
               // wait at most double the look ahead time, plus ten seconds
               uint64_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
-              uint64_t needsTime = thisPacket.getTime() + needsLookAhead;
+              uint64_t needsTime = thisTime + needsLookAhead;
               bool firstTime = true;
               while (--timeoutTries && keepGoing()){
                 bool lookReady = true;
@@ -1273,9 +1271,10 @@ namespace Mist{
                 //Make sure we stay responsive to requests and stats while waiting
                 if (wantRequest){requestHandler();}
                 stats();
+                meta.reloadReplacedPagesIfNeeded();
               }
               if (!timeoutTries){
-                WARN_MSG("Waiting for lookahead timed out - resetting lookahead!");
+                WARN_MSG("Waiting for lookahead (%zums in %zu tracks) timed out - resetting lookahead!", needsLookAhead, userSelect.size());
                 needsLookAhead = 0;
               }
             }

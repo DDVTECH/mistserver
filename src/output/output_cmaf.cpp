@@ -65,6 +65,7 @@ namespace Mist{
 
   OutCMAF::OutCMAF(Socket::Connection &conn) : HTTPOutput(conn){
     uaDelay = 0;
+    realTime = 0;
     if (config->getString("target").size()){
       needsLookAhead = 5000;
 
@@ -78,10 +79,7 @@ namespace Mist{
       initialize();
       initialSeek();
       startPushOut();
-    } else {
-      realTime = 0;
     }
-    INFO_MSG("Out of constructor now");
   }
 
   //Properly end all tracks on shutdown.
@@ -802,18 +800,19 @@ namespace Mist{
   /// Function that waits at most `maxWait` ms (in steps of 100ms) for the next keyframe to become available.
   /// Uses thisIdx and thisPacket to determine track and current timestamp respectively.
   bool OutCMAF::waitForNextKey(uint64_t maxWait){
-    size_t currentKey = M.getKeyIndexForTime(getMainSelectedTrack(), thisPacket.getTime());
-    DTSC::Keys keys(M.keys(getMainSelectedTrack()));
-    size_t waitTimes = maxWait / 100; 
-    for (size_t i = 0; i < waitTimes; ++i){
-      if (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) > M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey+1)){
+    uint64_t mTrk = getMainSelectedTrack();
+    size_t currentKey = M.getKeyIndexForTime(mTrk, thisTime);
+    uint64_t startTime = Util::bootMS();
+    DTSC::Keys keys(M.keys(mTrk));
+    while (startTime + maxWait > Util::bootMS() && keepGoing()){
+      if (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey+1)){
         return true;
       }
-      Util::wait(100);
-      //Make sure we don't accidentally timeout while waiting - runs approximately every second.
-      if (i % 10 == 0){stats();}
+      Util::sleep(20);
+      meta.reloadReplacedPagesIfNeeded();
     }
-    return (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) > M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey+1));
+    INFO_MSG("Timed out waiting for next key (track %" PRIu64 ", %zu+1, last is %zu, time is %" PRIu64 ")", mTrk, currentKey, keys.getEndValid()-1, M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey+1));
+    return (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey+1));
   }
 
   //Set up an empty connection to the target to make sure we can push data towards it.
@@ -827,14 +826,15 @@ namespace Mist{
 
   //CMAF Push output uses keyframe boundaries instead of fragment boundaries, to allow for lower latency
   void OutCMAF::pushNext() {
+    size_t mTrk = getMainSelectedTrack();
     //Set up a new connection if this is a new track, or if we have been disconnected.
     if (!pushTracks.count(thisIdx) || !pushTracks.at(thisIdx).D.getSocket()){
       if (pushTracks.count(thisIdx)){INFO_MSG("Reconnecting existing track: socket was disconnected");}
       CMAFPushTrack & track = pushTracks[thisIdx];
-      size_t keyIndex = M.getKeyIndexForTime(getMainSelectedTrack(), thisPacket.getTime());
-      track.headerFrom = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex);
+      size_t keyIndex = M.getKeyIndexForTime(mTrk, thisPacket.getTime());
+      track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex);
       if (track.headerFrom < thisPacket.getTime()){
-        track.headerFrom = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex + 1);
+        track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
       }
 
       INFO_MSG("Starting track %zu at %" PRIu64 "ms into the stream, current packet at %" PRIu64 "ms", thisIdx, track.headerFrom, thisPacket.getTime());
@@ -846,14 +846,18 @@ namespace Mist{
     CMAFPushTrack & track = pushTracks[thisIdx];
     if (thisPacket.getTime() < track.headerFrom){return;}
     if (thisPacket.getTime() >= track.headerUntil){
-      size_t keyIndex = M.getKeyIndexForTime(getMainSelectedTrack(), thisPacket.getTime());
-      uint64_t keyTime = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex);
-      if (keyTime > thisPacket.getTime()){
-        WARN_MSG("Corruption probably occurred, initiating reconnect %" PRIu64 " != %" PRIu64, keyTime, thisPacket.getTime());
-        onTrackEnd(thisIdx);
-        track.headerFrom = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex + 1);
-        track.headerUntil = 0;
-        pushNext();
+      size_t keyIndex = M.getKeyIndexForTime(mTrk, thisTime);
+      uint64_t keyTime = M.getTimeForKeyIndex(mTrk, keyIndex);
+      if (keyTime > thisTime){
+        realTime = 1000;
+        if (!liveSeek()){
+          WARN_MSG("Corruption probably occurred, initiating reconnect. Key %zu is time %" PRIu64 ", but packet is time %" PRIu64, keyIndex, keyTime, thisTime);
+          onTrackEnd(thisIdx);
+          track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
+          track.headerUntil = 0;
+          pushNext();
+        }
+        realTime = 0;
         return;
       }
       track.headerFrom = keyTime;
@@ -862,7 +866,7 @@ namespace Mist{
         dropTrack(thisIdx, "No next keyframe available");
         return;
       }
-      track.headerUntil = M.getTimeForKeyIndex(getMainSelectedTrack(), keyIndex + 1);
+      track.headerUntil = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
       std::string keyHeader = CMAF::keyHeader(M, thisIdx, track.headerFrom, track.headerUntil, keyIndex+1, true, true);
       uint64_t mdatSize = 8 + CMAF::payloadSize(M, thisIdx, track.headerFrom, track.headerUntil);
       char mdatHeader[] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};

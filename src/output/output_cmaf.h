@@ -69,7 +69,7 @@ namespace Mist{
     HTTP::URL pushUrl;
     std::map<size_t, CMAFPushTrack> pushTracks; 
     void setupTrackObject(size_t idx);
-    bool waitForNextKey(uint64_t maxWait = 5000);
+    bool waitForNextKey(uint64_t maxWait = 15000);
     // End CMAF push out
   };
 }// namespace Mist

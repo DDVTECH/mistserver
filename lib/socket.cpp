@@ -873,7 +873,12 @@ void Socket::Connection::open(std::string host, int port, bool nonblock, bool wi
   for (rp = result; rp != NULL; rp = rp->ai_next){
     sSend = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sSend < 0){continue;}
-    if (connect(sSend, rp->ai_addr, rp->ai_addrlen) == 0){
+    //Ensure we can handle interrupted system call case
+    int ret = 0;
+    do{
+      ret = connect(sSend, rp->ai_addr, rp->ai_addrlen);
+    }while(ret && errno == EINTR);
+    if (!ret){
       memcpy(&remoteaddr, rp->ai_addr, rp->ai_addrlen);
       break;
     }

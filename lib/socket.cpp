@@ -995,12 +995,6 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
     int r;
     r = mbedtls_ssl_write(ssl, (const unsigned char *)buffer, len);
     if (r < 0){
-      char estr[200];
-      mbedtls_strerror(r, estr, 200);
-      lastErr = estr;
-      INFO_MSG("Write returns %d: %s", r, lastErr.c_str());
-    }
-    if (r < 0){
       switch (errno){
       case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
       case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;

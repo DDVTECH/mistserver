@@ -1407,12 +1407,16 @@ namespace Mist{
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
         if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
+          uint64_t timeOffset = 0;
+          if (targetParams.count("timeoffset")){
+            timeOffset = JSON::Value(targetParams["timeoffset"]).asInt();
+          }
           if (!M.getBootMsOffset()){
             meta.setBootMsOffset(Util::bootMS() - tagTime);
-            rtmpOffset = 0;
+            rtmpOffset = timeOffset;
             setRtmpOffset = true;
           }else if (!setRtmpOffset){
-            rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset();
+            rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
             setRtmpOffset = true;
           }
           tagTime += rtmpOffset;

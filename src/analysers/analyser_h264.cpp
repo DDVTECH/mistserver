@@ -34,26 +34,34 @@ bool AnalyserH264::parsePacket(){
   }
 
   size_t size = 0;
-  h264::nalUnit *nalPtr;
-  do{
-    size = 0;
-    nalPtr = h264::nalFactory(dataBuffer.data(), dataBuffer.size(), size, !sizePrepended);
-    if (nalPtr){
-      HIGH_MSG("Read a %lu-byte NAL unit at position %" PRIu64, size, prePos);
-      if (detail >= 2){nalPtr->toPrettyString(std::cout);}
-      dataBuffer.erase(0, size); // erase the NAL unit we just read
-      prePos += size;
-      return true;
+  h264::nalUnit *nalPtr = h264::nalFactory(dataBuffer.data(), dataBuffer.size(), size, !sizePrepended);
+  if (!nalPtr){
+    FAIL_MSG("Could not read a NAL unit at position %" PRIu64, prePos);
+    return false;
+  }
+  HIGH_MSG("Read a %lu-byte NAL unit at position %" PRIu64, size, prePos);
+  if (detail >= 2){nalPtr->toPrettyString(std::cout);}
+  //SPS unit? Find the FPS, if any.
+  if (nalPtr->getType() == 7){
+    h264::spsUnit *sps = (h264::spsUnit*)nalPtr;
+    if (sps->vuiParametersPresentFlag && sps->vuiParams.fixedFrameRateFlag){
+      INFO_MSG("Frame rate: %f", sps->vuiParams.derived_fps);
+    }else{
+      INFO_MSG("Frame rate undetermined - assuming 25 FPS");
     }
-    ///\TODO update mediaTime with current timestamp
-  }while (nalPtr);
-  FAIL_MSG("Could not read a NAL unit at position %" PRIu64, prePos);
-  return false;
+  }
+  dataBuffer.erase(0, size); // erase the NAL unit we just read
+  prePos += size;
+  ///\TODO update mediaTime with current timestamp
+  return true;
 }
 
 uint64_t AnalyserH264::neededBytes(){
   // We buffer a megabyte if AnnexB
-  if (!sizePrepended){return 1024 * 1024;}
+  if (!sizePrepended){
+    if (isOpen()){return 1024 * 1024;}
+    return dataBuffer.size();
+  }
   // otherwise, buffer the exact size needed
   if (dataBuffer.size() < 4){return 4;}
   return Bit::btohl(dataBuffer.data()) + 4;

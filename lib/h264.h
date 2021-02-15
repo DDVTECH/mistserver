@@ -150,6 +150,7 @@ namespace h264{
     uint64_t log2MaxMvLengthVertical;
     uint64_t numReorderFrames;
     uint64_t maxDecFrameBuffering;
+    double derived_fps;
   };
 
   class spsUnit : public nalUnit{
@@ -158,6 +159,8 @@ namespace h264{
     ~spsUnit(){
       if (scalingListPresentFlags != NULL){free(scalingListPresentFlags);}
     }
+    const char* profile();
+    const char* level();
     std::string generate();
     void toPrettyString(std::ostream &out);
     void scalingList(uint64_t *scalingList, size_t sizeOfScalingList,

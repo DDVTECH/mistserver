@@ -51,7 +51,7 @@ bool Analyser::isOpen(){
 int Analyser::run(Util::Config &conf){
   isActive = &conf.is_active;
   if (!open(conf.getString("filename"))){return 1;}
-  while (conf.is_active && isOpen()){
+  while (conf.is_active){
     if (!parsePacket()){
       if (isOpen()){
         FAIL_MSG("Could not parse packet!");

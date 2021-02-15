@@ -428,16 +428,63 @@ namespace h264{
     payload.insert(4, 1, 0x08);
   }
 
+  const char* spsUnit::profile(){
+    if (profileIdc == 66){
+      if (constraintSet1Flag){return "Constrained baseline";}
+      return "Baseline";
+    }
+    if (profileIdc == 77){return "Main";}
+    if (profileIdc == 88){return "Extended";}
+    if (profileIdc == 100){return "High";}
+    if (profileIdc == 110){
+      if (constraintSet3Flag){return "High-10 Intra";}
+      return "High-10";
+    }
+    if (profileIdc == 122){
+      if (constraintSet3Flag){return "High-4:2:2 Intra";}
+      return "High-4:2:2";
+    }
+    if (profileIdc == 244){
+      if (constraintSet3Flag){return "High-4:4:4 Intra";}
+      return "High-4:4:4";
+    }
+    if (profileIdc == 44){return "CAVLC 4:4:4 Intra";}
+    return "Unknown";
+  }
+
+  const char* spsUnit::level(){
+    if (levelIdc == 9){return "1b";}
+    if (levelIdc == 10){return "1";}
+    if (levelIdc == 11){
+      if (constraintSet3Flag){return "1b";}
+      return "1.1";
+    }
+    if (levelIdc == 12){return "1.2";}
+    if (levelIdc == 13){return "1.3";}
+    if (levelIdc == 20){return "2";}
+    if (levelIdc == 21){return "2.1";}
+    if (levelIdc == 21){return "2.2";}
+    if (levelIdc == 30){return "3";}
+    if (levelIdc == 31){return "3.1";}
+    if (levelIdc == 31){return "3.2";}
+    if (levelIdc == 40){return "4";}
+    if (levelIdc == 41){return "4.1";}
+    if (levelIdc == 41){return "4.2";}
+    if (levelIdc == 50){return "5";}
+    if (levelIdc == 51){return "5.1";}
+    return "Unknown";
+  }
+
   void spsUnit::toPrettyString(std::ostream &out){
     out << "Nal unit of type " << (((uint8_t)payload[0]) & 0x1F) << " [Sequence Parameter Set] , "
         << payload.size() << " bytes long" << std::endl;
     out << "  profile_idc: 0x" << std::setw(2) << std::setfill('0') << std::hex << (int)profileIdc
-        << std::dec << " (" << (int)profileIdc << ")" << std::endl;
+        << std::dec << " (" << (int)profileIdc << ") = " << profile() << std::endl;
     out << "  contraints: " << (constraintSet0Flag ? "0 " : "") << (constraintSet1Flag ? "1 " : "")
         << (constraintSet2Flag ? "2 " : "") << (constraintSet3Flag ? "3 " : "")
         << (constraintSet4Flag ? "4 " : "") << (constraintSet5Flag ? "5" : "") << std::endl;
     out << "  level_idc: 0x" << std::setw(2) << std::setfill('0') << std::hex << (int)levelIdc
-        << std::dec << " (" << (int)profileIdc << ")" << std::endl;
+        << std::dec << " (" << (int)levelIdc << ") = " << level() << std::endl;
     out << "  seq_parameter_set_id: " << seqParameterSetId
         << (seqParameterSetId >= 32 ? " INVALID" : "") << std::endl;
     switch (profileIdc){
@@ -1052,10 +1099,12 @@ namespace h264{
       chromaSampleLocTypeBottomField = bs.getUExpGolomb();
     }
     timingInfoPresentFlag = bs.get(1);
+    derived_fps = 0.0;
     if (timingInfoPresentFlag){
       numUnitsInTick = bs.get(32);
       timeScale = bs.get(32);
       fixedFrameRateFlag = bs.get(1);
+      derived_fps = (double)timeScale / (2 * numUnitsInTick);
     }
     nalHrdParametersPresentFlag = bs.get(1);
     // hrd param nal

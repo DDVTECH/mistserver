@@ -289,10 +289,10 @@ namespace Mist{
             MP4::VisualSampleEntry & vEntryBox = (MP4::VisualSampleEntry&)sEntryBox;
             myMeta.tracks[trackNo].type = "video";
             myMeta.tracks[trackNo].codec = "H264";
-            if (!myMeta.tracks[trackNo].width){
-              myMeta.tracks[trackNo].width = vEntryBox.getWidth();
-              myMeta.tracks[trackNo].height = vEntryBox.getHeight();
-            }
+
+            myMeta.tracks[trackNo].width = vEntryBox.getWidth();
+            myMeta.tracks[trackNo].height = vEntryBox.getHeight();
+
             MP4::Box initBox = vEntryBox.getCLAP();
             if (initBox.isType("avcC")){
               myMeta.tracks[trackNo].init.assign(initBox.payload(), initBox.payloadSize());

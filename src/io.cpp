@@ -381,9 +381,8 @@ namespace Mist {
 
     if (myMeta.live){
       myMeta.update(pack);
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-        it->second.clearParts();
-      }
+      // unsigned long cleanTrackID = pack.getTrackId();
+      // myMeta.tracks[cleanTrackID].removeOldKeyframes(pack.getTime() - pack.timeOffset);
     }
 
     //End of brain melt
@@ -550,10 +549,14 @@ namespace Mist {
       }
       //Take the last allocated page
       std::map<unsigned long, DTSCPageData>::reverse_iterator tmpIt = pagesByTrack[tid].rbegin();
+      int currentPageNum = tmpIt->second.pageNum;
+      if (!pagesByTrack[tid][currentPageNum].curOffset) {
+        pagesByTrack[tid][currentPageNum].firstTime = packet.getTime();
+      }
       //Compare on 8 mb boundary
-      if (tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE || packet.getTime() - tmpIt->second.firstTime > FLIP_TARGET_DURATION) { 
+      if ((tmpIt->second.curOffset > FLIP_DATA_PAGE_SIZE || (packet.getTime() - tmpIt->second.firstTime) > FLIP_TARGET_DURATION) && tmpIt->second.keyNum > 0) { 
         //Create the book keeping data for the new page
-        nextPageNum = tmpIt->second.pageNum + tmpIt->second.keyNum;
+        nextPageNum = currentPageNum + tmpIt->second.keyNum;
         HIGH_MSG("We should go to next page now, transition from %lu to %d", tmpIt->second.pageNum, nextPageNum);
         pagesByTrack[tid][nextPageNum].dataSize = DEFAULT_DATA_PAGE_SIZE;
         pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
@@ -812,6 +815,7 @@ namespace Mist {
             pagesByTrack[tid][firstPage].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
             pagesByTrack[tid][firstPage].pageNum = firstPage;
             pagesByTrack[tid][firstPage].firstTime = 0;
+            pagesByTrack[tid][firstPage].curOffset = 0;
           }
           break;
         }

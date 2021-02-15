@@ -741,7 +741,11 @@ namespace Mist {
           //Write the final mapped track number and keyframe number to the user page element
           //This is used to resume pushing as well as pushing new tracks
           userConn.setTrackId(index, finalMap);
-          userConn.setKeynum(index, myMeta.tracks[finalMap].keys.size());
+          if (myMeta.tracks[finalMap].keys.size()){
+            userConn.setKeynum(index, myMeta.tracks[finalMap].keys.rbegin()->getNumber());
+          }else{
+            userConn.setKeynum(index, 0);
+          }
           continue;
         }
         //Set the temporary track id for this item, and increase the temporary value for use with the next track
@@ -800,14 +804,27 @@ namespace Mist {
           continue;
         }
 
-        std::string trackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
-        DEBUG_MSG(DLVL_HIGH, "Attempting colision detection for track %s", trackIdentifier.c_str());
-        //Get the identifier for the track, and attempt colission detection.
+        //Get the identifier for the track, and attempt colision detection.
+        ///\todo Maybe switch to a new form of detecting collisions, especially with regards to multiple audio languages and camera angles.
         int collidesWith = -1;
+        std::string newTrackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
+        std::string newTrackInit = trackMeta.tracks.find(value)->second.init;
+        INFO_MSG("Attempting colision detection for track %s", newTrackIdentifier.c_str());
+
+        //First check for matches on INIT data
         for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
-          //If the identifier of an existing track and the current track match, assume the are the same track and reject the negotiated one.
-          ///\todo Maybe switch to a new form of detecting collisions, especially with regards to multiple audio languages and camera angles.
-          if (it->second.getIdentifier() == trackIdentifier) {
+          if (it->second.init == newTrackInit) {
+            // It is the first match
+            if (collidesWith == -1){
+              collidesWith = it->first;
+            }
+            // More than one match: check if identifier matches
+            else if (it->second.getIdentifier() == newTrackIdentifier) {
+              collidesWith = it->first;
+              break;
+            }
+          }
+          else if (it->second.getIdentifier() == newTrackIdentifier) {
             collidesWith = it->first;
             break;
           }

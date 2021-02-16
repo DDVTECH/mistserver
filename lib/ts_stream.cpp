@@ -366,7 +366,7 @@ namespace TS{
       psCache = &(pesStreams[tid]);
       psCacheTid = tid;
     }
-    if (psCache->size() <= 1){
+    if (!psCache->size() || (!finished && psCache->size() <= 1)){
       if (!finished){FAIL_MSG("No PES packets to parse");}
       seenUnitStart[tid] = 0;
       return;
@@ -534,6 +534,12 @@ namespace TS{
       // Shift the offset by the payload size, the mandatory headers and the optional
       // headers/padding
       offset += realPayloadSize + (9 + pesHeader[8]);
+    }
+    if (finished && (pidToCodec[tid] == H264 || pidToCodec[tid] == H265)){
+      if (buildPacket.count(tid) && buildPacket[tid].getDataStringLen()){
+        outPackets[tid].push_back(buildPacket[tid]);
+        buildPacket.erase(tid);
+      }
     }
     free(payload);
   }

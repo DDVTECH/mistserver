@@ -656,6 +656,7 @@ namespace Mist {
             negotiatingTracks.erase(value);
           }
           if (activeTracks.count(value)) {
+            updateTrackMeta(value);
             updateMeta();
             activeTracks.erase(value);
             if (!config->getBool("resume")){
@@ -809,7 +810,7 @@ namespace Mist {
         int collidesWith = -1;
         std::string newTrackIdentifier = trackMeta.tracks.find(value)->second.getIdentifier();
         std::string newTrackInit = trackMeta.tracks.find(value)->second.init;
-        INFO_MSG("Attempting colision detection for track %s", newTrackIdentifier.c_str());
+        MEDIUM_MSG("Attempting collision detection for track %s", newTrackIdentifier.c_str());
 
         //First check for matches on INIT data
         for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++) {
@@ -845,7 +846,7 @@ namespace Mist {
         if (finalMap == -1) {
           //No collision has been detected, assign a new final number
           finalMap = (myMeta.tracks.size() ? myMeta.tracks.rbegin()->first : 0) + 1;
-          MEDIUM_MSG("No colision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
+          MEDIUM_MSG("No collision detected for temporary track %lu from user %u, assigning final track number %lu", value, id, finalMap);
           /*LTS-START*/
           if (Triggers::shouldTrigger("STREAM_TRACK_ADD")) {
             std::string payload = config->getString("streamname") + "\n" + JSON::Value(finalMap).asString() + "\n";
@@ -884,7 +885,7 @@ namespace Mist {
         pushLocation[finalMap] = data;
         //Initialize the metadata for this track if it was not in place yet.
         if (!myMeta.tracks.count(finalMap)) {
-          DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %d", finalMap);
+          DEBUG_MSG(DLVL_MEDIUM, "Inserting metadata for track number %" PRIu64, finalMap);
           myMeta.tracks[finalMap] = trackMeta.tracks.begin()->second;
           myMeta.tracks[finalMap].firstms = 0;
           myMeta.tracks[finalMap].lastms = 0;
@@ -936,7 +937,7 @@ namespace Mist {
       //Add an entry into bufferLocations[tNum] for the pages we haven't handled yet.
       if (!locations.count(keyNum)) {
         locations[keyNum].curOffset = 0;
-        VERYHIGH_MSG("Page %d detected, with %d keys", keyNum, Bit::btohl(tmpOffset+4));
+        VERYHIGH_MSG("Page %lu detected, with %" PRIu32 " keys", keyNum, Bit::btohl(tmpOffset+4));
       }
       locations[keyNum].pageNum = keyNum;
       locations[keyNum].keyNum = Bit::btohl(tmpOffset+4);
@@ -948,7 +949,7 @@ namespace Mist {
   }
 
   void inputBuffer::updateMetaFromPage(unsigned long tNum, unsigned long pageNum) {
-    VERYHIGH_MSG("Updating meta for track %d page %d", tNum, pageNum);
+    VERYHIGH_MSG("Updating meta for track %lu page %lu", tNum, pageNum);
     DTSCPageData & pageData = bufferLocations[tNum][pageNum];
 
     //If the current page is over its 8mb "splitting" boundary

@@ -487,7 +487,7 @@ namespace Mist {
     continueNegotiate(tid, myMeta);
     //If the track is declined, stop here
     if (trackState[tid] == FILL_DEC) {
-      INFO_MSG("Track %lu declined", tid);
+      WARN_MSG("Track %lu declined", tid);
       preBuffer[tid].clear();
       return;
     }
@@ -496,7 +496,6 @@ namespace Mist {
       preBuffer[tid].push_back(packet);
     }else{
       if (preBuffer[tid].size()){
-        INFO_MSG("Track %lu accepted as track %lu", tid, trackMap[tid] );
         while (preBuffer[tid].size()){
           bufferSinglePacket(preBuffer[tid].front(), myMeta);
           preBuffer[tid].pop_front();
@@ -543,13 +542,14 @@ namespace Mist {
       //If there is no page, create it
       if (!pagesByTrack.count(tid) || pagesByTrack[tid].size() == 0) {
         nextPageNum = 1;
-        pagesByTrack[tid][1].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
-        pagesByTrack[tid][1].pageNum = 1;
-        pagesByTrack[tid][1].firstTime = packet.getTime();
+        pagesByTrack[tid][nextPageNum].dataSize = DEFAULT_DATA_PAGE_SIZE;//Initialize op 25mb
+        pagesByTrack[tid][nextPageNum].pageNum = nextPageNum;
+        pagesByTrack[tid][nextPageNum].curOffset = 0;
+        pagesByTrack[tid][nextPageNum].firstTime = packet.getTime();
       }
       //Take the last allocated page
       std::map<unsigned long, DTSCPageData>::reverse_iterator tmpIt = pagesByTrack[tid].rbegin();
-      int currentPageNum = tmpIt->second.pageNum;
+      unsigned long currentPageNum = tmpIt->first;
       if (!pagesByTrack[tid][currentPageNum].curOffset) {
         pagesByTrack[tid][currentPageNum].firstTime = packet.getTime();
       }

@@ -623,6 +623,7 @@ namespace Mist {
       return;
     }
 
+    nProxy.pagesByTrack.clear();
 
     timeOffset = 0;
     uint64_t minFirstMs = 0;
@@ -630,6 +631,49 @@ namespace Mist {
     //If resume mode is on, find matching tracks and set timeOffset values to make sure we append to the tracks.
     if (config->getBool("realtime")){
       seek(0);
+
+      minFirstMs = 0xFFFFFFFFFFFFFFFFull;
+      uint64_t maxFirstMs = 0;
+      uint64_t minLastMs = 0xFFFFFFFFFFFFFFFFull;
+      uint64_t maxLastMs = 0;
+      
+      //track lowest firstms value
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
+        if (it->second.firstms < minFirstMs){minFirstMs = it->second.firstms;}
+        if (it->second.firstms > maxFirstMs){maxFirstMs = it->second.firstms;}
+        if (it->second.lastms < minLastMs){minLastMs = it->second.lastms;}
+        if (it->second.lastms > maxLastMs){maxLastMs = it->second.lastms;}
+      }
+      if (maxFirstMs - minFirstMs > 500){
+        WARN_MSG("Begin timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxFirstMs-minFirstMs, minFirstMs, maxFirstMs);
+      }
+      if (maxLastMs - minLastMs > 500){
+        WARN_MSG("Stop timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxLastMs-minLastMs, minLastMs, maxLastMs);
+      }
+
+      bool needsWait = true;
+      //change firstms of all tracks to -1 to indicate we're resuming
+      std::map<unsigned int, uint64_t> preFirstMs;
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
+        preFirstMs[it->first] = it->second.firstms;
+        it->second.firstms = -1;
+      }
+      //negotiate all tracks with buffer
+      while (needsWait && config->is_active && nProxy.userClient.isAlive()){
+        needsWait = false;
+        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
+          if (!it->first){continue;}
+          if (nProxy.trackState.count(it->first) && nProxy.trackState[it->first] == FILL_ACC){continue;}
+          nProxy.continueNegotiate(it->first, myMeta);
+          if (nProxy.trackState.count(it->first) && nProxy.trackState[it->first] == FILL_ACC){continue;}
+          needsWait = true;
+        }
+        if (needsWait){Util::sleep(200);}
+      }
+      //Restore firstms of tracks - should not be needed, but why risk messing things up..?
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
+        it->second.firstms = preFirstMs[it->first];
+      }
 
       
       char nameBuf[NAME_BUFFER_SIZE];
@@ -653,33 +697,16 @@ namespace Mist {
         liveSem = 0;
       }
       DTSC::Meta tmpM(tmpMeta);
-      minFirstMs = 0xFFFFFFFFFFFFFFFFull;
-      uint64_t maxFirstMs = 0;
-      uint64_t minLastMs = 0xFFFFFFFFFFFFFFFFull;
-      uint64_t maxLastMs = 0;
-      
-      //track lowest firstms value
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); ++it){
-        if (it->second.firstms < minFirstMs){minFirstMs = it->second.firstms;}
-        if (it->second.firstms > maxFirstMs){maxFirstMs = it->second.firstms;}
-        if (it->second.lastms < minLastMs){minLastMs = it->second.lastms;}
-        if (it->second.lastms > maxLastMs){maxLastMs = it->second.lastms;}
-      }
-      if (maxFirstMs - minFirstMs > 500){
-        WARN_MSG("Begin timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxFirstMs-minFirstMs, minFirstMs, maxFirstMs);
-      }
-      if (maxLastMs - minLastMs > 500){
-        WARN_MSG("Stop timings of tracks for this file are %" PRIu64 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64 "ms - %" PRIu64 "ms)", maxLastMs-minLastMs, minLastMs, maxLastMs);
-      }
       //find highest current time
       for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin(); secondIt != tmpM.tracks.end(); ++secondIt){
+        VERYHIGH_MSG("Track %u starts at %" PRIu64, secondIt->first, secondIt->second.lastms);
         timeOffset = std::max(timeOffset, (int64_t)secondIt->second.lastms);
       }
       
       if (timeOffset){
         if (minFirstMs == 0xFFFFFFFFFFFFFFFFull){minFirstMs = 0;}
-        MEDIUM_MSG("Offset is %" PRId64 ", adding 1s and subtracting the start time of %" PRIu64, timeOffset, minFirstMs);
-        timeOffset += 1000;//Add an artificial frame at 25 FPS to make sure we append, not overwrite
+        MEDIUM_MSG("Offset is %" PRId64 "ms, adding 40ms and subtracting the start time of %" PRIu64, timeOffset, minFirstMs);
+        timeOffset += 40;//Add an artificial frame at 25 FPS to make sure we append, not overwrite
         timeOffset -= minFirstMs;//we don't need to add the lowest firstms value to the offset, as it's already there
       }
     }
@@ -690,7 +717,6 @@ namespace Mist {
       selectedTracks.insert(it->first);
       it->second.minKeepAway = SIMULATED_LIVE_BUFFER;
     }
-    nProxy.pagesByTrack.clear();
 
     simStartTime = config->getInteger("simulated-starttime");
     if (!simStartTime){simStartTime = Util::bootMS();}

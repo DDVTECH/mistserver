@@ -272,6 +272,14 @@ namespace Mist{
     capa["optional"]["key"]["default"] = "";
     capa["optional"]["key"]["type"] = "str";
 
+    capa["optional"]["iceservers"]["name"] = "STUN/TURN config";
+    capa["optional"]["iceservers"]["help"] = "An array of RTCIceServer objects, each describing one server which may be used by the ICE agent; these are typically STUN and/or TURN servers. These will be passed verbatim to the RTCPeerConnection constructor as the 'iceServers' property.";
+    capa["optional"]["iceservers"]["option"] = "--iceservers";
+    capa["optional"]["iceservers"]["short"] = "z";
+    capa["optional"]["iceservers"]["default"] = "";
+    capa["optional"]["iceservers"]["type"] = "json";
+
+
     config->addOptionsFromCapabilities(capa);
   }
 

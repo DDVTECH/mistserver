@@ -217,21 +217,6 @@ namespace Mist{
     }
   };
 
-  void addSource(const std::string &rel, std::set<JSON::Value, sourceCompare> &sources, const HTTP::URL &url,
-                 JSON::Value &conncapa, unsigned int most_simul, unsigned int total_matches){
-    JSON::Value tmp;
-    tmp["type"] = conncapa["type"];
-    tmp["relurl"] = rel;
-    tmp["priority"] = conncapa["priority"];
-    if (conncapa.isMember("player_url")){
-      tmp["player_url"] = conncapa["player_url"].asStringRef();
-    }
-    tmp["simul_tracks"] = most_simul;
-    tmp["total_matches"] = total_matches;
-    tmp["url"] = url.link(rel).getUrl();
-    sources.insert(tmp);
-  }
-
   void addSources(std::string &streamname, std::set<JSON::Value, sourceCompare> &sources, HTTP::URL url,
                   JSON::Value &conncapa, JSON::Value &strmMeta, const std::string &useragent){
     url.path += "/";
@@ -325,7 +310,18 @@ namespace Mist{
           if (it->isMember("handler")){
             url.protocol = (*it)["handler"].asStringRef() + (isSSL?"s":"");
           }
-          addSource(relurl, sources, url, *it, most_simul, total_matches);
+          JSON::Value tmp;
+          tmp["type"] = (*it)["type"];
+          tmp["relurl"] = relurl;
+          tmp["priority"] = (*it)["priority"];
+          if ((*it).isMember("player_url")){
+            tmp["player_url"] = (*it)["player_url"].asStringRef();
+          }
+          if (conncapa.isMember("cnf") && conncapa["cnf"].isMember("iceservers")){tmp["RTCIceServers"] = conncapa["cnf"]["iceservers"];}
+          tmp["simul_tracks"] = most_simul;
+          tmp["total_matches"] = total_matches;
+          tmp["url"] = url.link(relurl).getUrl();
+          sources.insert(tmp);
         }
       }
     }
@@ -556,6 +552,7 @@ namespace Mist{
         }
         // and a URL - then list the URL
         JSON::Value capa_json = capa.asJSON();
+        capa_json["cnf"] = prots.getIndice(i).asJSON();
         if (capa.getMember("url_rel") || capa.getMember("methods")){
           jsonForEach(pubAddrs, jit){
             HTTP::URL altURL = outURL;
@@ -577,6 +574,13 @@ namespace Mist{
                 connectors.getIndice(j).getMember("deps").asString() == cProv &&
                 connectors.getIndice(j).getMember("methods")){
               JSON::Value subcapa_json = connectors.getIndice(j).asJSON();
+              subcapa_json["cnf"] = prots.getIndice(i).asJSON();
+              for (unsigned int k = 0; k < prots_ctr; ++k){
+                if (prots.getIndice(k).getMember("connector").asString() == connectors.getIndiceName(j)){
+                  subcapa_json["cnf"].extend(prots.getIndice(k).asJSON());
+                  break;
+                }
+              }
 
               jsonForEach(pubAddrs, jit){
                 HTTP::URL altURL = outURL;

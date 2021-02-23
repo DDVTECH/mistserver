@@ -6,7 +6,7 @@
     "minimize": "./minimize_internal.sh"
   },
   "dependencies": {
-    "clean-css-cli": "^4.2.1",
+    "clean-css-cli": "^4.3.0",
     "terser": "^3.17.0"
   }
 }

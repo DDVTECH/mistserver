@@ -42,7 +42,7 @@ namespace Triggers{
   ///\brief Handles a trigger by sending a payload to a destination.
   ///\param trigger Trigger event type.
   ///\param value Destination. This can be an (HTTP)URL, or an absolute path to a binary/script
-  ///\param payload This data will be sent to the destionation URL/program
+  ///\param payload This data will be sent to the destination URL/program
   ///\param sync If true, handler is executed blocking and uses the response data.
   ///\returns String, false if further processing should be aborted.
   std::string handleTrigger(const std::string &trigger, const std::string &value,
@@ -65,6 +65,15 @@ namespace Triggers{
       DL.setHeader("X-Trigger-UUID", getenv("MIST_TUUID"));
       if (Util::UUID[0]){DL.setHeader("X-UUID", Util::UUID);}
       DL.setHeader("Content-Type", "text/plain");
+      // If (global env) cookie variable was set by http parser, pass cookie to target
+      std::string cookie;
+      if (getenv("Cookie")){
+        cookie = std::string(getenv("Cookie"));
+        if (cookie != ""){
+          HIGH_MSG("Adding cookie header: '%s'", cookie.c_str());
+          DL.setHeader("Cookie", cookie);
+        }
+      }
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
         submitTriggerStat(trigger, tStartMs, true);

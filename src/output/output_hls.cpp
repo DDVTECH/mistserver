@@ -76,7 +76,7 @@ namespace Mist{
     return result.str();
   }
 
-  std::string OutHLS::liveIndex(size_t tid, const std::string &sessId){
+  std::string OutHLS::liveIndex(size_t tid, const std::string &sessId, const std::string &urlPrefix){
     //Timing track is current track, unless non-video, then time by video track
     size_t timingTid = tid;
     if (M.getType(timingTid) != "video"){timingTid = M.mainTrack();}
@@ -118,18 +118,18 @@ namespace Mist{
       }else{
         if (origin.size()){
           if (sessId.size()){
-            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s&origin=%s\r\n",
-                     floatDur, startTime, startTime + duration, sessId.c_str(), origin.c_str());
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts?sessId=%s&origin=%s\r\n",
+                     floatDur, urlPrefix.c_str(), startTime, startTime + duration, sessId.c_str(), origin.c_str());
           }else{
-            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?origin=%s\r\n", floatDur,
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts?origin=%s\r\n", floatDur, urlPrefix.c_str(),
                      startTime, startTime + duration, origin.c_str());
           }
         }else{
           if (sessId.size()){
-            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s\r\n",
-                     floatDur, startTime, startTime + duration, sessId.c_str());
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts?sessId=%s\r\n",
+                     floatDur, urlPrefix.c_str(), startTime, startTime + duration, sessId.c_str());
           }else{
-            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts\r\n", floatDur,
+            snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts\r\n", floatDur, urlPrefix.c_str(),
                      startTime, startTime + duration);
           }
         }
@@ -238,6 +238,18 @@ namespace Mist{
         "If enabled, merges together all views from a single user into a single combined session. "
         "If disabled, each view (main playlist request) is a separate session.";
     capa["optional"]["mergesessions"]["option"] = "--mergesessions";
+
+    cfg->addOption("chunkpath",
+                   JSON::fromString(
+                       "{\"arg\":\"string\",\"default\":"",\"short\":\"e\",\"long\":\"chunkpath\","
+                       "\"help\":\"Alternate URL path to prepend to chunk paths, for serving through e.g. a CDN\"}"));
+    capa["optional"]["chunkpath"]["name"] = "Prepend path for chunks";
+    capa["optional"]["chunkpath"]["help"] = "Chunks will be served from this path. This also disables sessions IDs for chunks.";
+    capa["optional"]["chunkpath"]["default"] = "";
+    capa["optional"]["chunkpath"]["type"] = "str";
+    capa["optional"]["chunkpath"]["option"] = "--chunkpath";
+    capa["optional"]["chunkpath"]["short"] = "e";
+    capa["optional"]["chunkpath"]["default"] = "";
     /*LTS-END*/
   }
 
@@ -278,7 +290,7 @@ namespace Mist{
       }else{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
-      if (isTS && !hasSessionIDs()){
+      if (isTS && (!hasSessionIDs() || config->getOption("chunkpath"))){
         H.SetHeader("Cache-Control", "public, max-age="+JSON::Value(M.getDuration(getMainSelectedTrack())/1000).asString()+", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
@@ -345,7 +357,7 @@ namespace Mist{
 
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
-      if (hasSessionIDs()){
+      if (hasSessionIDs() && !config->getOption("chunkpath")){
         H.SetHeader("Cache-Control", "no-cache");
       }else{
         H.SetHeader("Cache-Control", "public, max-age="+JSON::Value(M.getDuration(getMainSelectedTrack())/1000).asString()+", immutable");
@@ -372,6 +384,7 @@ namespace Mist{
       ts_from = from;
     }else{
       initialize();
+      const std::string reqUrl = "./"+H.url;
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
@@ -392,8 +405,11 @@ namespace Mist{
           H.SendResponse("404", "No corresponding track found", myConn);
           return;
         }
-
-        manifest = liveIndex(idx, sid);
+        if (config->getString("chunkpath").size()){
+          manifest = liveIndex(idx, "", HTTP::URL(config->getString("chunkpath")).link(reqUrl).link("./").getUrl());
+        }else{
+          manifest = liveIndex(idx, sid);
+        }
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);

@@ -21,7 +21,7 @@ namespace Mist{
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
     std::string origin;
     std::string liveIndex();
-    std::string liveIndex(size_t tid, const std::string &sessId);
+    std::string liveIndex(size_t tid, const std::string &sessId, const std::string &urlPrefix = "");
 
     size_t vidTrack;
     size_t audTrack;

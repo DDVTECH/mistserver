@@ -761,6 +761,7 @@ void HTTP::parseVars(const std::string &data, std::map<std::string, std::string>
       varval.clear();
     }
     if (varname.size()){
+      DONTEVEN_MSG("Found key:value pair '%s:%s'", varname.c_str(), varval.c_str());
       storage[Encodings::URL::decode(varname)] = Encodings::URL::decode(varval);
     }
     if (nextpos == std::string::npos){

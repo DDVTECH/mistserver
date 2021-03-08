@@ -721,7 +721,7 @@ namespace Mist{
     HIGH_MSG("Seeking for pos %" PRIu64, pos);
     if (meta.getLive() && meta.getLastms(tid) < pos){
       unsigned int maxTime = 0;
-      while (meta.getLastms(tid) < pos && myConn && ++maxTime <= 20){
+      while (meta.getLastms(tid) < pos && myConn && ++maxTime <= 20 && keepGoing()){
         Util::wait(500);
         stats();
       }
@@ -840,14 +840,17 @@ namespace Mist{
     }
     /*LTS-START*/
     if (isRecordingToFile){
+      if (M.getLive()){
+        MEDIUM_MSG("Stream currently contains data from %lu ms to %lu ms", startTime(), endTime());
+      }
+      // Overwrite recstart/recstop with recstartunix/recstopunix if set
       if (M.getLive() &&
           (targetParams.count("recstartunix") || targetParams.count("recstopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
         if (targetParams.count("recstartunix")){
           uint64_t startUnix = atoll(targetParams["recstartunix"].c_str());
           if (startUnix < unixStreamBegin){
-            WARN_MSG(
-                "Recording start time is earlier than stream begin - starting earliest possible");
+            WARN_MSG("Recording start time is earlier than stream begin - starting earliest possible");
             targetParams["recstart"] = "-1";
           }else{
             targetParams["recstart"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
@@ -863,59 +866,71 @@ namespace Mist{
           }
         }
       }
+      // Check recstart/recstop for correctness
       if (targetParams.count("recstop")){
         uint64_t endRec = atoll(targetParams["recstop"].c_str());
         if (endRec < startTime()){
           onFail("Entire recording range is in the past", true);
           return;
         }
-        INFO_MSG("Recording will stop at %" PRIu64, endRec);
       }
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
-        size_t mainTrack = getMainSelectedTrack();
         uint64_t startRec = atoll(targetParams["recstart"].c_str());
-        if (startRec > M.getLastms(mainTrack)){
+        if (startRec > endTime()){
           if (M.getVod()){
             onFail("Recording start past end of non-live source", true);
             return;
           }
-          uint64_t streamAvail = M.getLastms(mainTrack);
-          uint64_t lastUpdated = Util::getMS();
-          while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
-            Util::sleep(500);
-            if (M.getLastms(mainTrack) > streamAvail){
-              stats();
-              streamAvail = M.getLastms(mainTrack);
-              lastUpdated = Util::getMS();
-            }
-          }
         }
         if (startRec < startTime()){
-          WARN_MSG("Record begin at %" PRIu64 " ms not available, starting at %" PRIu64
-                   " ms instead",
-                   startRec, startTime());
           startRec = startTime();
+          WARN_MSG("Record begin at %llu ms not available, starting at %" PRIu64
+                   " ms instead", atoll(targetParams["recstart"].c_str()), startRec);
+          targetParams["recstart"] = JSON::Value(startRec).asString();
         }
-        INFO_MSG("Recording will start at %" PRIu64, startRec);
         seekPos = startRec;
       }
-      // Duration to record in seconds. Overrides recstop.
+      
       if (targetParams.count("split")){
         long long endRec = atoll(targetParams["split"].c_str()) * 1000;
         INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
         targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
       }
+      // Duration to record in seconds. Overrides recstop.
       if (targetParams.count("duration")){
         long long endRec = atoll(targetParams["duration"].c_str()) * 1000;
         targetParams["recstop"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
-      }
-      if (targetParams.count("recstop")){
-        long long endRec = atoll(targetParams["recstop"].c_str());
+        // Recheck recording end time
+        endRec = atoll(targetParams["recstop"].c_str());
         if (endRec < 0 || endRec < startTime()){
           onFail("Entire recording range is in the past", true);
           return;
         }
-        INFO_MSG("Recording will stop at %lld", endRec);
+      }
+      // Print calculated start and stop time
+      if (targetParams.count("recstart")){
+        INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
+      }
+      else{
+        INFO_MSG("Recording will start at timestamp %lu ms", endTime()); 
+      }
+      if (targetParams.count("recstop")){
+        INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
+      }
+      // Wait for the stream to catch up to the starttime
+      uint64_t streamAvail = endTime();
+      uint64_t lastUpdated = Util::getMS();
+      if (atoll(targetParams["recstart"].c_str()) > streamAvail){       
+        INFO_MSG("Waiting for stream to reach recording starting point. Recording will start in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((atoll(targetParams["recstart"].c_str()) - streamAvail) / 1000));
+        while (Util::getMS() - lastUpdated < 10000 && atoll(targetParams["recstart"].c_str()) > streamAvail && keepGoing()){
+          Util::sleep(250);
+          meta.reloadReplacedPagesIfNeeded();
+          if (endTime() > streamAvail){
+            stats();
+            streamAvail = endTime();
+            lastUpdated = Util::getMS();
+          }
+        }
       }
     }else{
       if (M.getLive() && targetParams.count("pushdelay")){
@@ -925,17 +940,20 @@ namespace Mist{
       }
       if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
+        size_t mainTrack = getMainSelectedTrack();
+        int64_t streamAvail = M.getLastms(mainTrack);
         if (targetParams.count("startunix")){
           int64_t startUnix = atoll(targetParams["startunix"].c_str());
           if (startUnix < 0){
             int64_t origStartUnix = startUnix;
             startUnix += Util::epoch();
             if (startUnix < unixStreamBegin){
-              INFO_MSG("Waiting for stream to reach intended starting point");
+              INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
               while (startUnix < Util::epoch() - (endTime() / 1000) && keepGoing()){
                 Util::wait(1000);
                 stats();
                 startUnix = origStartUnix + Util::epoch();
+                HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
               }
             }
           }
@@ -974,12 +992,13 @@ namespace Mist{
             onFail("Playback start past end of non-live source", true);
             return;
           }
-          INFO_MSG("Waiting for stream to reach playback starting point");
           int64_t streamAvail = M.getLastms(mainTrack);
           int64_t lastUpdated = Util::getMS();
+          INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
             if (M.getLastms(mainTrack) > streamAvail){
+              HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
               stats();
               streamAvail = M.getLastms(mainTrack);
               lastUpdated = Util::getMS();
@@ -997,8 +1016,16 @@ namespace Mist{
       }
     }
     /*LTS-END*/
-    MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
-    seek(seekPos);
+    if (!keepGoing()){
+      ERROR_MSG("Aborting seek to %" PRIu64 " since the stream is no longer active", seekPos);
+      return;
+    }
+    if (endTime() >= atoll(targetParams["recstart"].c_str())) {
+      MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
+      seek(seekPos);
+    }else{
+      ERROR_MSG("Aborting seek to %" PRIu64 " since stream only has available from %lu ms to %lu ms", seekPos, startTime(), endTime());
+    }
   }
 
   /// Returns the highest getMinKeepAway of all selected tracks
@@ -1805,6 +1832,7 @@ namespace Mist{
     }
     close(outFile);
     isRecordingToFile = true;
+    realTime = 0;
     return true;
   }
 

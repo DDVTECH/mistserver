@@ -51,9 +51,9 @@ namespace RTMPStream{
     unsigned char headertype;   ///< For input chunks, the type of header. This is calculated
                                 ///< automatically for output chunks.
     unsigned int cs_id;         ///< ContentStream ID
-    unsigned int timestamp;     ///< Timestamp of this chunk.
-    unsigned int ts_delta;      ///< Last timestamp delta.
-    unsigned int ts_header;     ///< Last header timestamp without extensions or deltas.
+    uint64_t timestamp;     ///< Timestamp of this chunk.
+    uint32_t ts_delta;      ///< Last timestamp delta.
+    uint64_t ts_header;     ///< Last header timestamp without extensions or deltas.
     unsigned int len;           ///< Length of the complete chunk.
     unsigned int real_len;      ///< Length of this particular part of it.
     unsigned int len_left;      ///< Length not yet received, out of complete chunk.

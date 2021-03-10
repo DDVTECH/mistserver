@@ -76,7 +76,7 @@ std::string &RTMPStream::Chunk::Pack(){
   output.clear();
   bool allow_short = lastsend.count(cs_id);
   RTMPStream::Chunk prev = lastsend[cs_id];
-  unsigned int tmpi;
+  uint64_t tmpi;
   unsigned char chtype = 0x00;
   if (allow_short && (prev.cs_id == cs_id)){
     if (msg_stream_id == prev.msg_stream_id){
@@ -106,7 +106,7 @@ std::string &RTMPStream::Chunk::Pack(){
       output += (unsigned char)((cs_id - 64) / 256);
     }
   }
-  unsigned int ntime = 0;
+  uint64_t ntime = 0;
   if (chtype != 0xC0){
     // timestamp or timestamp diff
     if (chtype == 0x00){
@@ -458,7 +458,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
     timestamp += indata[i++] * 256;
     timestamp = indata[i++];
     ts_delta = timestamp;
-    DONTEVEN_MSG("Extended timestamp: %u", timestamp);
+    DONTEVEN_MSG("Extended timestamp: %" PRIu64, timestamp);
   }
 
   // read data if length > 0, and allocate it

@@ -1427,21 +1427,16 @@ namespace Mist{
           }
           tagTime += rtmpOffset;
           uint64_t &ltt = lastTagTime[reTrack];
-          // Check for decreasing timestamps - this is a connection error.
-          // We allow wrapping around the 32 bits maximum value if the most significant 8 bits are set.
-          /// \TODO Provide time continuity for wrap-around.
-          if (ltt && tagTime < ltt && ltt < 0xFF000000ull){
-            FAIL_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (decreased): disconnecting!", ltt, tagTime);
-            onFinish();
-            break;
-          }
-          // Check if we went more than 10 minutes into the future
-          if (ltt && tagTime > ltt + 600000){
-            FAIL_MSG("Timestamps went from %" PRIu64 " to %" PRIu64
-                     " (> 10m in future): disconnecting!",
-                     ltt, tagTime);
-            onFinish();
-            break;
+          if (tagTime < ltt){
+            WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (decreased): rewriting timestamps for continuity", ltt, tagTime);
+            rtmpOffset += (ltt-tagTime) + 1;
+            tagTime += (ltt-tagTime) + 1;
+          }else{
+            if (tagTime > ltt + 600000){
+              WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (increased): rewriting timestamps for continuity", ltt, tagTime);
+              rtmpOffset -= (tagTime - ltt) - 1;
+              tagTime -= (tagTime - ltt) - 1;
+            }
           }
           uint64_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){

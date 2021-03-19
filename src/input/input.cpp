@@ -310,11 +310,8 @@ namespace Mist {
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
-      //Abandon all semaphores, ye who enter here.
-      playerLock.abandon();
-      pullLock.abandon();
-      if (!preRun()){return 0;}
-      int ret = run();
+      int ret = 0;
+      if (preRun()){ret = run();}
       if (playerLock){
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
@@ -322,14 +319,17 @@ namespace Mist {
         streamStatus.init(pageName, 1, true, false);
         streamStatus.close();
       }
+      playerLock.unlink();
       pullLock.unlink();
       return ret;
     }
 
     uint64_t reTimer = 0;
     while (config->is_active){
+      Util::Procs::fork_prepare();
       pid_t pid = fork();
       if (pid == 0){
+        Util::Procs::fork_complete();
         if (playerLock){
           //Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
@@ -344,6 +344,7 @@ namespace Mist {
         if (!preRun()){return 0;}
         return run();
       }
+      Util::Procs::fork_complete();
       if (pid == -1){
         FAIL_MSG("Unable to spawn input process");
         //We failed. Release the kra... semaphores!

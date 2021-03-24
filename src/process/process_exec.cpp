@@ -427,11 +427,12 @@ int main(int argc, char *argv[]){
   close(pipein[1]);
   close(pipeout[1]);
 
+  source.join();
+  HIGH_MSG("source thread joined");
+
   sink.join();
   HIGH_MSG("sink thread joined")
 
-  source.join();
-  HIGH_MSG("source thread joined");
 
   return 0;
 }

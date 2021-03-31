@@ -738,6 +738,140 @@ namespace Util{
     return 0; // Not an integer type, or not implemented
   }
 
+  /// \brief Converts RelAccX into human readable string and also does some sanity checks
+  /// \param indent default indentation, used for formatting when called recursively
+  /// \param quitEarly if true, only print basic info of page. Used to limit
+  ///        output basesd on log level
+  std::string RelAccX::getRaxAsString(size_t indent, bool quitEarly) const{
+    std::stringstream toReturn;
+    int64_t thisInt;
+    uint64_t thisUInt;
+
+    uint64_t deletedEntries = getDeleted();
+    uint64_t maxIndex = getEndPos();
+
+    // Print basic RAX info
+    toReturn << std::string(indent, ' ') << "Found " << getRCount() << " records (" << getRSize() << " B)" << std::endl;
+    if (deletedEntries){
+      toReturn << std::string(indent, ' ') << "Skipping " << deletedEntries << " deleted records" << std::endl;
+    }
+
+    // Sanity check for large records
+    if (getRSize() > 1073741824){
+      WARN_MSG("Current object contains very large records (%u B)", getRSize())
+    }
+
+    if (quitEarly){
+      return toReturn.str();
+    }
+
+    for (uint64_t i = deletedEntries; i < maxIndex; ++i){
+      // Only print record # if there is more than 1 record
+      if (maxIndex > 1){
+        toReturn << std::string(indent, ' ') << "Record #" << i << ":" << std::endl;
+      }
+      // Iterate over record fields. Tracks can contain:
+      // bps, channels, codec, firstms, fpks, fragments, height, id, init, keys,
+      // lang, lastms, maxbps, missedFrags, pages, parts, rate, size, type, width
+      // Meta pages can contain:
+      // bootmsoffset, bufferwindow, live, maxkeepaway, minfragduration, source
+      // tracks, vod
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
+          it != fields.end(); ++it){
+        // Print name of field
+        toReturn << std::string(indent + 2, ' ') << it->first << ": ";
+        DONTEVEN_MSG("Found field '%s'", it->first.c_str());
+        // Print value of field
+        switch (it->second.type & 0xF0){
+          case RAX_INT:
+            thisInt = (int64_t)getInt(it->first, i);
+            // Sanity check for negative integers (ignore bootmsoffset field)
+            if (it->first != "bootmsoffset" && thisInt < 0){
+              WARN_MSG("Current field '%s' has a negative value of %li", it->first.c_str(), thisInt);
+            }
+            // Sanity check for large numbers (ignore sourcetid and pid fields)
+            if (it->first != "sourcetid" && it->first != "pid" && thisInt > 4294967295){
+              WARN_MSG("Current field '%s' has a very high value of %li", it->first.c_str(), thisInt);
+            }
+            toReturn << thisInt << std::endl;
+            break;
+          case RAX_UINT:
+            thisUInt = getInt(it->first, i);
+            // Sanity check for negative integers (ignore bootmsoffset field)
+            if (it->first != "bootmsoffset" && thisUInt < 0){
+              WARN_MSG("Current field '%s' has a negative value of %li", it->first.c_str(), thisUInt);
+            }
+            // Sanity check for large numbers (ignore sourcetid and pid fields)
+            if (it->first != "sourcetid" && it->first != "pid" && thisUInt > 4294967295){
+              WARN_MSG("Current field '%s' has a very high value of %li", it->first.c_str(), thisUInt);
+            }
+            if ((it->first == "pages") && thisUInt > 65535){
+              WARN_MSG("Current field '%s' has a high number of pages (%li)", it->first.c_str(), thisUInt);
+            }
+            if ((it->first == "parts") && thisUInt > 4294967295){
+              WARN_MSG("Current field '%s' has a high number of parts (%li)", it->first.c_str(), thisUInt);
+            }
+            toReturn << thisUInt << std::endl;
+            break;
+          case RAX_STRING:
+            toReturn << getPointer(it->first, i) << std::endl;
+            break;
+          case RAX_RAW:{
+            char *ptr = getPointer(it->first, i);
+            size_t sz = getSize(it->first, i);
+            size_t zeroCount = 0;
+            for (size_t j = 0; j < sz && j < 100 && zeroCount < 16; ++j){
+              toReturn << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
+              if (ptr[j] == 0x00){
+                zeroCount++;
+              }else{
+                zeroCount = 0;
+              }
+            }
+            toReturn << std::endl;
+            break;
+          }
+          case RAX_DTSC:{
+            char *ptr = getPointer(it->first, i);
+            size_t sz = getSize(it->first, i);
+            toReturn << std::endl;
+            toReturn << DTSC::Scan(ptr, sz).toPrettyString(indent + 4) << std::endl;
+            break;
+          }
+          // Don't print rax_nested, but continue recursively
+          case 0:{
+            RelAccX newRaxObj(getPointer(it->first, i), false);
+            if (newRaxObj.isReady()){
+              // Limit output for very spammy outputs
+              if (Util::printDebugLevel <= DLVL_EXTREME && (it->first == "keys" || it->first == "parts")){
+                quitEarly = true;
+              }
+              // Limit output for spammy outputs
+              if (Util::printDebugLevel <= DLVL_VERYHIGH && (it->first == "pages")){
+                quitEarly = true;
+              }
+              // Limit output for little spammy outputs
+              if (Util::printDebugLevel <= DLVL_HIGH && (it->first == "fragments")){
+                quitEarly = true;
+              }
+              // Get string of nested fields
+              toReturn << std::endl << newRaxObj.getRaxAsString(indent + 4, quitEarly);
+              // Reset flag for next field
+              quitEarly = false;
+            }else{
+              toReturn << "Nested RelAccX not ready. Skipping..." << std::endl;
+            }
+            break;
+          }
+          default:
+            toReturn << "[UNIMPLEMENTED]" << std::endl; 
+            break;
+        }
+      }
+    }
+    return toReturn.str();
+  }
+
   std::string RelAccX::toPrettyString(size_t indent) const{
     std::stringstream r;
     uint64_t delled = getDeleted();

@@ -64,6 +64,7 @@ namespace DTSC{
     Scan();
     Scan(char *pointer, size_t len);
     operator bool() const;
+    std::string getDataAsString(size_t & dataSize, bool & isKeyFrame) const;
     std::string toPrettyString(size_t indent = 0) const;
     bool hasMember(const std::string &indice) const;
     bool hasMember(const char *indice, size_t ind_len) const;
@@ -285,12 +286,14 @@ namespace DTSC{
     Meta(const std::string &_streamName, const DTSC::Scan &src);
     Meta(const std::string &_streamName = "", bool master = true);
     Meta(const std::string &_streamName, const std::string &fileName);
+    Meta(const std::string &streamName, const std::string &filePath, bool master = false);
 
     ~Meta();
     void reInit(const std::string &_streamName, bool master = true);
     void reInit(const std::string &_streamName, const std::string &fileName);
     void reInit(const std::string &_streamName, const DTSC::Scan &src);
     void addTrackFrom(const DTSC::Scan &src);
+    void reInitFromFile(const std::string &streamName, const std::string &filePath, bool master = false);
 
     void refresh();
     bool reloadReplacedPagesIfNeeded();
@@ -491,6 +494,7 @@ namespace DTSC{
 
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
+    void sBufMem(size_t fileSize, char *fileBuf, const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = false);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true);
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);
 

@@ -162,6 +162,7 @@ namespace Util{
     uint64_t getInt(const std::string &name, uint64_t recordNo = 0) const;
     uint64_t getInt(const RelAccXFieldData &fd, uint64_t recordNo = 0) const;
 
+    std::string getRaxAsString(size_t indent = 0, bool quitEarly = false) const;
     std::string toPrettyString(size_t indent = 0) const;
     std::string toCompactString(size_t indent = 0) const;
     // Read-write functions:

@@ -422,7 +422,7 @@ macro(makeUtil utilName utilFile)
 endmacro()
 
 #makeUtil(Stats stats)
-makeUtil(META meta)
+makeUtil(Meta meta)
 makeUtil(RAX rax)
 makeUtil(AMF amf)
 makeUtil(Certbot certbot)

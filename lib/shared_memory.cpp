@@ -542,14 +542,16 @@ namespace IPC{
   ///\param len_ The size to make the file
   ///\param master_ Whether to create or merely open the file
   ///\param autoBackoff When only opening the file, wait for it to appear or fail
-  sharedFile::sharedFile(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff)
-      : handle(0), name(name_), len(len_), master(master_), mapped(NULL){
+  ///\param folderPath If set, try to read the file that directory. Defaults to Util::getTmpFolder()
+  sharedFile::sharedFile(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff, std::string folderLocation_)
+      : handle(0), name(name_), len(len_), master(master_), mapped(NULL), folderLocation(folderLocation_){
     handle = 0;
     name = name_;
     len = len_;
     master = master_;
     mapped = 0;
-    init(name_, len_, master_, autoBackoff);
+    folderLocation = folderLocation_;
+    init(name_, len_, folderLocation_, master_, autoBackoff);
   }
 
   ///\brief Creates a copy of a shared page
@@ -560,7 +562,8 @@ namespace IPC{
     len = 0;
     master = false;
     mapped = 0;
-    init(rhs.name, rhs.len, rhs.master);
+    folderLocation = rhs.folderLocation;
+    init(rhs.name, rhs.len, rhs.folderLocation, rhs.master);
   }
 
   ///\brief Returns whether the shared file is valid or not
@@ -568,7 +571,7 @@ namespace IPC{
 
   ///\brief Assignment operator
   void sharedFile::operator=(sharedFile &rhs){
-    init(rhs.name, rhs.len, rhs.master);
+    init(rhs.name, rhs.len, rhs.folderLocation, rhs.master);
     rhs.master = false; // Make sure the memory does not get unlinked
   }
 
@@ -607,27 +610,33 @@ namespace IPC{
   ///\param len_ The size to make the page
   ///\param master_ Whether to create or merely open the page
   ///\param autoBackoff When only opening the page, wait for it to appear or fail
-  void sharedFile::init(const std::string &name_, uint64_t len_, bool master_, bool autoBackoff){
+  void sharedFile::init(const std::string &name_, uint64_t len_, std::string folderLocation_, bool master_, bool autoBackoff){
     close();
     name = name_;
     len = len_;
     master = master_;
+    if (folderLocation_ == ""){
+      folderLocation = Util::getTmpFolder();
+    }else{
+      folderLocation = folderLocation_;
+    }
+    INSANE_MSG("Opening '%s'", std::string(folderLocation + name).c_str());
     mapped = 0;
     if (name.size()){
       /// \todo Use ACCESSPERMS instead of 0600?
-      handle = open(std::string(Util::getTmpFolder() + name).c_str(),
+      handle = open(std::string(folderLocation + name).c_str(),
                     (master ? O_CREAT | O_TRUNC | O_EXCL : 0) | O_RDWR, (mode_t)0600);
       if (handle == -1){
         if (master){
           HIGH_MSG("Overwriting old file for %s", name.c_str());
-          handle = open(std::string(Util::getTmpFolder() + name).c_str(),
+          handle = open(std::string(folderLocation + name).c_str(),
                         O_CREAT | O_TRUNC | O_RDWR, (mode_t)0600);
         }else{
           int i = 0;
           while (i < 11 && handle == -1 && autoBackoff){
             i++;
             Util::wait(Util::expBackoffMs(i-1, 10, 10000));
-            handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_RDWR, (mode_t)0600);
+            handle = open(std::string(folderLocation + name).c_str(), O_RDWR, (mode_t)0600);
           }
         }
       }

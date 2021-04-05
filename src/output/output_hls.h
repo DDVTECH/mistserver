@@ -12,7 +12,7 @@ namespace Mist{
     void onHTTP();
     bool isReadyForPlay();
     virtual void onFail(const std::string &msg, bool critical = false);
-
+    virtual std::string getStatsName(){return Output::getStatsName();}
   protected:
     std::string h264init(const std::string &initData);
     std::string h265init(const std::string &initData);

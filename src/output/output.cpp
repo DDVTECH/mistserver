@@ -50,6 +50,7 @@ namespace Mist{
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
     pushing = false;
+    recursingSync = false;
     firstTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;

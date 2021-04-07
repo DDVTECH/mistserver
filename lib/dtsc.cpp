@@ -2364,6 +2364,7 @@ namespace DTSC{
       t.parts.setInt(t.partDurationField, packTime - getLastms(tNumber), newPartNum);
     }else{
       t.parts.setInt(t.partDurationField, 0, newPartNum);
+      setFirstms(tNumber, packTime);
     }
     t.parts.addRecords(1);
 

@@ -487,6 +487,9 @@ namespace Mist{
       json_resp["height"] = (hasVideo ? 480 : 20);
     }
     json_resp["type"] = (M.getVod() ? "vod" : "live");
+    if (M.getLive()){
+      json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
+    }
 
     // show ALL the meta datas!
     M.toJSON(json_resp["meta"], true);

@@ -356,25 +356,29 @@ namespace Mist{
     }
   }
 
-  static inline void builPipedPart(JSON::Value &p, char *argarr[], int &argnum, JSON::Value &argset){
-    jsonForEach(argset, it){
+  static inline void builPipedPart(JSON::Value &p, char *argarr[], int &argnum, const JSON::Value &argset){
+    jsonForEachConst(argset, it){
       if (it->isMember("option") && p.isMember(it.key())){
-        if (it->isMember("type")){
-          if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
-            p[it.key()] = p[it.key()].asString();
+        if (!it->isMember("type")){
+          if (JSON::Value(p[it.key()]).asBool()){
+            argarr[argnum++] = (char *)((*it)["option"].c_str());
           }
-          if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
-              (*it)["type"].asStringRef() == "debug"){
-            p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
+          continue;
+        }
+        if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
+          p[it.key()] = p[it.key()].asString();
+        }
+        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
+            (*it)["type"].asStringRef() == "debug"){
+          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
+        }
+        if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
+          jsonForEach(p[it.key()], iVal){
+            (*iVal) = iVal->asString();
+            argarr[argnum++] = (char *)((*it)["option"].c_str());
+            argarr[argnum++] = (char *)((*iVal).c_str());
           }
-          if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
-            jsonForEach(p[it.key()], iVal){
-              (*iVal) = iVal->asString();
-              argarr[argnum++] = (char *)((*it)["option"].c_str());
-              argarr[argnum++] = (char *)((*iVal).c_str());
-            }
-            continue;
-          }
+          continue;
         }
         if (p[it.key()].asStringRef().size() > 0){
           argarr[argnum++] = (char *)((*it)["option"].c_str());

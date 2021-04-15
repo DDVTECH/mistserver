@@ -1084,8 +1084,8 @@ namespace Mist{
       // if yes, seek here
       if (good){
         HIGH_MSG("Skipping forward %" PRIu64 "ms (%" PRIu64 " ms LA, %" PRIu64
-                 " ms mKA, %lu eKA, > %" PRIu32 "ms)",
-                 seekPos - cTime, needsLookAhead, mKa, extraKeepAway, seekCount * 100);
+                 " ms mKA, %lu eKA, > %" PRIu32 "ms, mSa %" PRIu64 " ms)",
+                 seekPos - cTime, needsLookAhead, mKa, extraKeepAway, seekCount * 100, maxSkipAhead);
         if (seekCount < 20){++seekCount;}
         seek(seekPos);
         return true;
@@ -1693,7 +1693,7 @@ namespace Mist{
 
     lastStats = now;
 
-    HIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
+    VERYHIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
              crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
     if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){

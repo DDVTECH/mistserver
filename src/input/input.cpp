@@ -157,8 +157,10 @@ namespace Mist {
     config->activate();
     uint64_t reTimer = 0;
     while (config->is_active){
+      Util::Procs::fork_prepare();
       pid_t pid = fork();
       if (pid == 0){
+        Util::Procs::fork_complete();
         if (playerLock){
           //Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
@@ -173,6 +175,7 @@ namespace Mist {
         if (!preRun()){return 0;}
         return run();
       }
+      Util::Procs::fork_complete();
       if (pid == -1){
         FAIL_MSG("Unable to spawn input process");
         //We failed. Release the kra... semaphores!

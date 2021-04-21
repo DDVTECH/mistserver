@@ -157,6 +157,28 @@ void Util::Procs::exit_handler() {
   FAIL_MSG("Giving up with %d children left.", (int)listcopy.size());
 }
 
+// Joins the reaper thread, if any, before a fork
+void Util::Procs::fork_prepare(){
+  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  if (handler_set){
+    thread_handler = false;
+    if (reaper_thread){
+      reaper_thread->join();
+      delete reaper_thread;
+      reaper_thread = 0;
+    }
+  }
+}
+
+/// Restarts reaper thread if it was joined
+void Util::Procs::fork_complete(){
+  tthread::lock_guard<tthread::mutex> guard(plistMutex);
+  if (handler_set){
+    thread_handler = true;
+    reaper_thread = new tthread::thread(grim_reaper, 0);
+  }
+}
+
 /// Sets up exit and childsig handlers.
 /// Spawns grim_reaper. exit handler despawns grim_reaper
 /// Called by every Start* function.

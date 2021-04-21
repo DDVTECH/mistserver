@@ -245,8 +245,10 @@ namespace Util{
     int pipeErr[2];
     if (pipe(pipeErr) >= 0){
       //Start reading log messages from the unnamed pipe
+      Util::Procs::fork_prepare();
       pid_t pid = fork();
       if (pid == 0) { //child
+        Util::Procs::fork_complete();
         close(pipeErr[1]);               // close the unneeded pipe file descriptor
         //Close all sockets in the socketList
         for (std::set<int>::iterator it = Util::Procs::socketList.begin(); it != Util::Procs::socketList.end(); ++it){
@@ -264,6 +266,7 @@ namespace Util{
         Util::logParser(pipeErr[0], true_stderr, isatty(true_stderr));
         exit(0);
       }
+      Util::Procs::fork_complete();
       if (pid == -1){
         FAIL_MSG("Failed to fork child process for log handling!");
       }else{

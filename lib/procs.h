@@ -26,6 +26,8 @@ namespace Util {
       static bool childRunning(pid_t p);
       static tthread::thread * reaper_thread;
       static bool handler_set; ///< If true, the sigchld handler has been setup.
+      static void fork_prepare();
+      static void fork_complete();
       static void setHandler();
       static std::string getOutputOf(char * const * argv);
       static std::string getOutputOf(std::deque<std::string> & argDeq);

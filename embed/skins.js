@@ -734,13 +734,12 @@ MistSkins["default"] = {
       container.appendChild(container.kids.bar);
       
       var video = this.video;
-      var api = this.player.api;
       var MistVideo = this;
       
       //these functions update the states
       container.updateBar = function(currentTime){
         if (this.kids.bar) {
-          if (!isFinite(api.duration)) { this.kids.bar.style.display = "none"; return; }
+          if (!isFinite(MistVideo.player.api.duration)) { this.kids.bar.style.display = "none"; return; }
           else { this.kids.bar.style.display = ""; }
           
           w = Math.min(1,Math.max(0,this.time2perc(currentTime)));
@@ -748,14 +747,14 @@ MistSkins["default"] = {
         }
       };
       container.time2perc = function(time) {
-        if (!isFinite(api.duration)) { return 0; }
+        if (!isFinite(MistVideo.player.api.duration)) { return 0; }
         var result = 0;
         if (MistVideo.info.type == "live") {
           var buffer_window = MistVideo.info.meta.buffer_window * 1e-3;
-          result =  (time - api.duration + buffer_window) / buffer_window;
+          result =  (time - MistVideo.player.api.duration + buffer_window) / buffer_window;
         }
         else {
-          result =  time / api.duration;
+          result =  time / MistVideo.player.api.duration;
         }
         return Math.min(1,Math.max(0,result));
       }
@@ -823,7 +822,7 @@ MistSkins["default"] = {
         updateBar();
       },container);
       MistUtil.event.addListener(video,"seeking",function(){
-        container.updateBar(api.currentTime);
+        container.updateBar(MistVideo.player.api.currentTime);
       },container);
       
       //control video states
@@ -837,14 +836,14 @@ MistSkins["default"] = {
         }
         else {
           //VOD mode
-          if (!isFinite(api.duration)) { return false; }
-          return perc * api.duration;
+          if (!isFinite(MistVideo.player.api.duration)) { return false; }
+          return perc * MistVideo.player.api.duration;
         }
       };
       //seeking
       container.seek = function(e){
         var pos = this.getPos(e);
-        api.currentTime = pos;
+        MistVideo.player.api.currentTime = pos;
       };
       MistUtil.event.addListener(margincontainer,"mouseup",function(e){
         if (e.which != 1) { return;} //only respond to left mouse clicks

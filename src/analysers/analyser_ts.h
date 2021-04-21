@@ -8,11 +8,11 @@ public:
   ~AnalyserTS();
   bool parsePacket();
   static void init(Util::Config &conf);
-  std::string printPES(const std::string &d, unsigned long PID);
+  std::string printPES(const std::string &d, size_t PID);
 
 private:
-  std::map<unsigned long long, std::string> payloads;
-  uint32_t pidOnly;
+  std::map<size_t, std::string> payloads;
+  size_t pidOnly;
   TS::Packet packet;
   uint64_t bytes;
 };

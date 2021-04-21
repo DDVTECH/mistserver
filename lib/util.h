@@ -63,7 +63,11 @@ namespace Util{
     uint8_t type;
     uint32_t size;
     uint32_t offset;
-    RelAccXFieldData(){}
+    RelAccXFieldData(){
+      type = 0;
+      size = 0;
+      offset = 0;
+    }
     RelAccXFieldData(uint8_t t, uint32_t s, uint32_t o){
       type = t;
       size = s;

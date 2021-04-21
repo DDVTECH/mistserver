@@ -40,7 +40,7 @@ void AnalyserHLS::getParts(const std::string &body){
       }
       if (!parsedPart || no > parsedPart){
         HTTP::URL newURL = root.link(line);
-        INFO_MSG("Discovered #%llu: %s", no, newURL.getUrl().c_str());
+        INFO_MSG("Discovered #%" PRIu64 ": %s", no, newURL.getUrl().c_str());
         parts.push_back(HLSPart(newURL, no, durat));
       }
       ++no;
@@ -111,7 +111,7 @@ bool AnalyserHLS::parsePacket(){
         }
       }
       if (DL.data().size() % 188){
-        FAIL_MSG("Expected a multiple of 188 bytes, received %d bytes", DL.data().size());
+        FAIL_MSG("Expected a multiple of 188 bytes, received %zu bytes", DL.data().size());
         return false;
       }
       parsedPart = part.no;
@@ -124,8 +124,8 @@ bool AnalyserHLS::parsePacket(){
     // Hm. I guess we had no parts to get.
     if (refreshAt && refreshAt > Util::bootSecs()){
       // We're getting a live stream. Let's wait and check again.
-      uint32_t sleepSecs = (refreshAt - Util::bootSecs());
-      INFO_MSG("Sleeping for %lu seconds", sleepSecs);
+      uint64_t sleepSecs = (refreshAt - Util::bootSecs());
+      INFO_MSG("Sleeping for %" PRIu64 " seconds", sleepSecs);
       Util::sleep(sleepSecs * 1000);
     }
     // The non-live case is already handled in isOpen()

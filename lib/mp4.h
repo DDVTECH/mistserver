@@ -80,6 +80,7 @@ namespace MP4{
   class fullBox : public Box{
   public:
     fullBox();
+    fullBox(const Box &rs) : Box(rs){}
     void setVersion(char newVersion);
     char getVersion() const;
     void setFlags(uint32_t newFlags);

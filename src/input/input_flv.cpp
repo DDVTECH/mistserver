@@ -28,6 +28,8 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP3");
   }
 
+  inputFLV::~inputFLV(){}
+
   bool inputFLV::checkArguments(){
     if (config->getString("input") == "-"){
       std::cerr << "Input from stdin not yet supported" << std::endl;
@@ -77,45 +79,49 @@ namespace Mist{
 
   bool inputFLV::readHeader(){
     if (!inFile){return false;}
+    meta.reInit(config->getString("streamname"));
     // Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);
     AMF::Object amf_storage;
-    long long int lastBytePos = 13;
+    uint64_t lastBytePos = 13;
     uint64_t bench = Util::getMicros();
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
-        tmpTag.toMeta(myMeta, amf_storage);
+        tmpTag.toMeta(meta, amf_storage);
         if (!tmpTag.getDataLen()){continue;}
         if (tmpTag.needsInitData() && tmpTag.isInitData()){continue;}
-        myMeta.update(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getDataLen(),
-                      lastBytePos, tmpTag.isKeyframe);
+        size_t tNumber = meta.trackIDToIndex(tmpTag.getTrackID(), getpid());
+        if (tNumber != INVALID_TRACK_ID){
+          meta.update(tmpTag.tagTime(), tmpTag.offset(), tNumber, tmpTag.getDataLen(), lastBytePos,
+                      tmpTag.isKeyframe);
+        }
         lastBytePos = Util::ftell(inFile);
       }
     }
     bench = Util::getMicros(bench);
-    INFO_MSG("Header generated in %llu ms: @%lld, %s, %s", bench / 1000, lastBytePos,
-             myMeta.vod ? "VoD" : "NOVoD", myMeta.live ? "Live" : "NOLive");
+    INFO_MSG("Header generated in %" PRIu64 " ms: @%" PRIu64 ", %s, %s", bench / 1000, lastBytePos,
+             M.getVod() ? "VoD" : "NOVoD", M.getLive() ? "Live" : "NOLive");
     if (FLV::Parse_Error){
       tmpTag = FLV::Tag();
       FLV::Parse_Error = false;
-      ERROR_MSG("Stopping at FLV parse error @%lld: %s", lastBytePos, FLV::Error_Str.c_str());
+      ERROR_MSG("Stopping at FLV parse error @%" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
     }
-    myMeta.toFile(config->getString("input") + ".dtsh");
+    M.toFile(config->getString("input") + ".dtsh");
     Util::fseek(inFile, 13, SEEK_SET);
     return true;
   }
 
-  void inputFLV::getNext(bool smart){
-    long long int lastBytePos = Util::ftell(inFile);
-    if (selectedTracks.size() == 1){
+  void inputFLV::getNext(size_t idx){
+    uint64_t lastBytePos = Util::ftell(inFile);
+    if (idx != INVALID_TRACK_ID){
       uint8_t targetTag = 0x08;
-      if (selectedTracks.count(1)){targetTag = 0x09;}
-      if (selectedTracks.count(3)){targetTag = 0x12;}
+      if (M.getType(idx) == "video"){targetTag = 0x09;}
+      if (M.getType(idx) == "meta"){targetTag = 0x12;}
       FLV::seekToTagType(inFile, targetTag);
     }
     while (!feof(inFile) && !FLV::Parse_Error){
       if (tmpTag.FileLoader(inFile)){
-        if (!selectedTracks.count(tmpTag.getTrackID())){
+        if (idx != INVALID_TRACK_ID && M.getID(idx) != tmpTag.getTrackID()){
           lastBytePos = Util::ftell(inFile);
           continue;
         }
@@ -129,22 +135,22 @@ namespace Mist{
     if (FLV::Parse_Error){
       FLV::Parse_Error = false;
       tmpTag = FLV::Tag();
-      FAIL_MSG("FLV error @ %lld: %s", lastBytePos, FLV::Error_Str.c_str());
+      FAIL_MSG("FLV error @ %" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
       thisPacket.null();
       return;
     }
     if (!tmpTag.getDataLen() || (tmpTag.needsInitData() && tmpTag.isInitData())){
-      return getNext();
+      return getNext(idx);
     }
-    thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tmpTag.getTrackID(), tmpTag.getData(),
-                           tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe); // init packet from tmpTags data
+    size_t tNumber = meta.trackIDToIndex(tmpTag.getTrackID(), getpid());
+    thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tNumber, tmpTag.getData(),
+                           tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
 
-    DTSC::Track &trk = myMeta.tracks[tmpTag.getTrackID()];
-    if (trk.codec == "PCM" && trk.size == 16){
+    if (M.getCodec(idx) == "PCM" && M.getSize(idx) == 16){
       char *ptr = 0;
       size_t ptrSize = 0;
       thisPacket.getString("data", ptr, ptrSize);
-      for (uint32_t i = 0; i < ptrSize; i += 2){
+      for (size_t i = 0; i < ptrSize; i += 2){
         char tmpchar = ptr[i];
         ptr[i] = ptr[i + 1];
         ptr[i + 1] = tmpchar;
@@ -152,29 +158,12 @@ namespace Mist{
     }
   }
 
-  void inputFLV::seek(int seekTime){
+  void inputFLV::seek(uint64_t seekTime, size_t idx){
     // We will seek to the corresponding keyframe of the video track if selected, otherwise audio
     // keyframe. Flv files are never multi-track, so track 1 is video, track 2 is audio.
-    int trackSeek = (selectedTracks.count(1) ? 1 : 2);
-    uint64_t seekPos = myMeta.tracks[trackSeek].keys[0].getBpos();
-    for (unsigned int i = 0; i < myMeta.tracks[trackSeek].keys.size(); i++){
-      if (myMeta.tracks[trackSeek].keys[i].getTime() > seekTime){break;}
-      seekPos = myMeta.tracks[trackSeek].keys[i].getBpos();
-    }
-    Util::fseek(inFile, seekPos, SEEK_SET);
-  }
-
-  void inputFLV::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    size_t index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
-    }
+    size_t seekTrack = (idx == INVALID_TRACK_ID ? M.mainTrack() : idx);
+    DTSC::Keys keys(M.keys(seekTrack));
+    uint32_t keyNum = keys.getNumForTime(seekTime);
+    Util::fseek(inFile, keys.getBpos(keyNum), SEEK_SET);
   }
 }// namespace Mist

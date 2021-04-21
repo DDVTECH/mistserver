@@ -21,14 +21,12 @@ namespace Mist{
     void incomingRTP(const uint64_t track, const RTP::Packet &p);
 
   private:
-    long long connectedAt;   ///< The timestamp the connection was made, as reference point for RTCP
-                             /// packets.
-    unsigned int pausepoint; ///< Position to pause at, when reached
+    uint64_t pausepoint; ///< Position to pause at, when reached
     SDP::State sdpState;
     HTTP::Parser HTTP_R, HTTP_S;
     std::string source;
     uint64_t lastTimeSync;
-    int64_t bootMsOffset;
+    bool setPacketOffset;
     int64_t packetOffset;
     bool expectTCP;
     bool checkPort;

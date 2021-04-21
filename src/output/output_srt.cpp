@@ -5,12 +5,10 @@
 #include <mist/http_parser.h>
 
 namespace Mist{
-  OutProgressiveSRT::OutProgressiveSRT(Socket::Connection &conn) : HTTPOutput(conn){
-    realTime = 0;
-  }
-  OutProgressiveSRT::~OutProgressiveSRT(){}
+  OutSRT::OutSRT(Socket::Connection &conn) : HTTPOutput(conn){realTime = 0;}
+  OutSRT::~OutSRT(){}
 
-  void OutProgressiveSRT::init(Util::Config *cfg){
+  void OutSRT::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "SRT";
     capa["friendly"] = "SubRip/WebVTT over HTTP";
@@ -28,16 +26,15 @@ namespace Mist{
     capa["methods"][1u]["url_rel"] = "/$.vtt";
   }
 
-  void OutProgressiveSRT::sendNext(){
+  void OutSRT::sendNext(){
     char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
-    //    INFO_MSG("getting sub: %s", dataPointer);
     // ignore empty subs
     if (len == 0 || (len == 1 && dataPointer[0] == ' ')){return;}
     std::stringstream tmp;
     if (!webVTT){tmp << lastNum++ << std::endl;}
-    long long unsigned int time = thisPacket.getTime();
+    uint64_t time = thisPacket.getTime();
 
     // filter subtitle in specific timespan
     if (filter_from > 0 && time < filter_from){
@@ -52,13 +49,14 @@ namespace Mist{
     }
 
     char tmpBuf[50];
-    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000),
-                         ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    size_t tmpLen =
+        sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (time / 3600000),
+                ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
     time += thisPacket.getInt("duration");
     if (time == thisPacket.getTime()){time += len * 75 + 800;}
-    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000),
+    tmpLen = sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (time / 3600000),
                      ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;
@@ -69,25 +67,24 @@ namespace Mist{
     myConn.SendNow("\n\n");
   }
 
-  void OutProgressiveSRT::sendHeader(){
+  void OutSRT::sendHeader(){
     H.setCORSHeaders();
-    if (webVTT){
-      H.SetHeader("Content-Type", "text/vtt; charset=utf-8");
-    }else{
-      H.SetHeader("Content-Type", "text/plain; charset=utf-8");
-    }
+    H.SetHeader("Content-Type", (webVTT ? "text/vtt; charset=utf-8" : "text/plain; charset=utf-8"));
     H.protocol = "HTTP/1.0";
     H.SendResponse("200", "OK", myConn);
     if (webVTT){myConn.SendNow("WEBVTT\n\n");}
     sentHeader = true;
   }
 
-  void OutProgressiveSRT::onHTTP(){
+  void OutSRT::onHTTP(){
     std::string method = H.method;
     webVTT = (H.url.find(".vtt") != std::string::npos);
     if (H.GetVar("track") != ""){
-      selectedTracks.clear();
-      selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
+      size_t tid = atoll(H.GetVar("track").c_str());
+      if (M.getValidTracks().count(tid)){
+        userSelect.clear();
+        userSelect[tid].reload(streamName, tid);
+      }
     }
 
     filter_from = 0;
@@ -100,11 +97,7 @@ namespace Mist{
     H.Clean();
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
-      if (webVTT){
-        H.SetHeader("Content-Type", "text/vtt; charset=utf-8");
-      }else{
-        H.SetHeader("Content-Type", "text/plain; charset=utf-8");
-      }
+      H.SetHeader("Content-Type", (webVTT ? "text/vtt; charset=utf-8" : "text/plain; charset=utf-8"));
       H.protocol = "HTTP/1.0";
       H.SendResponse("200", "OK", myConn);
       H.Clean();

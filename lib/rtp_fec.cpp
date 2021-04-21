@@ -240,7 +240,7 @@ namespace RTP{
 
     size_t maskNumBytes = getNumBytesUsedForMask();
     if (maskNumBytes != 2 && maskNumBytes != 6){
-      FAIL_MSG("Invalid mask size (%u) cannot extract sequence numbers.", maskNumBytes);
+      FAIL_MSG("Invalid mask size (%zu) cannot extract sequence numbers.", maskNumBytes);
       return false;
     }
 
@@ -259,7 +259,7 @@ namespace RTP{
     for (uint16_t byteDX = 0; byteDX < maskNumBytes; ++byteDX){
       uint8_t maskByte = maskPtr[byteDX];
       for (uint16_t bitDX = 0; bitDX < 8; ++bitDX){
-        if (maskByte & (1 << 7 - bitDX)){
+        if (maskByte & ((1 << 7) - bitDX)){
           uint16_t seqNum = seqNumBase + (byteDX << 3) + bitDX;
           coveredSeqNums.insert(seqNum);
         }
@@ -502,7 +502,7 @@ namespace RTP{
       Packet recreatedPacket;
       fec->tryToRecoverMissingPacket(packetHistory, recreatedPacket);
       if (recreatedPacket.ptr() != NULL){
-        char *pl = recreatedPacket.getPayload();
+        char *pl = (char *)recreatedPacket.getPayload();
         WARN_MSG(" => reconstructed %u, %02X %02X %02X %02X | %02X %02X %02X %02X",
                  recreatedPacket.getSequence(), pl[0], pl[1], pl[2], pl[3], pl[4], pl[5], pl[6], pl[7]);
         addPacket(recreatedPacket);
@@ -531,7 +531,7 @@ namespace RTP{
   }
 
   void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
-                              void callBack(void *userData, const char *payload, uint32_t nbytes)){
+                              void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -545,11 +545,12 @@ namespace RTP{
     Bit::htobl(rtcpData + 8, theirSSRC); // set source identifier
     rtcpData[12] = (sorter.lostCurrent * 255) / (sorter.lostCurrent + sorter.packCurrent); // fraction lost since prev RR
     Bit::htob24(rtcpData + 13, sorter.lostTotal); // cumulative packets lost since start
-    Bit::htobl(rtcpData + 16, sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
+    Bit::htobl(rtcpData + 16,
+               sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
     Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
-    callBack(userData, rtcpData, 32);
+    callBack(userData, rtcpData, 32, 0);
     sorter.lostCurrent = 0;
     sorter.packCurrent = 0;
     free(rtcpData);

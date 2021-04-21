@@ -5,7 +5,7 @@
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();
   if (argc < 1){
-    FAIL_MSG("Usage: %s MEMORY_PAGE_NAME");
+    FAIL_MSG("Usage: %s MEMORY_PAGE_NAME", argv[0]);
     return 1;
   }
   IPC::sharedPage f(argv[1], 0, false, false);

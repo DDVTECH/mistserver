@@ -1,5 +1,6 @@
 #pragma once
 #include "defines.h"
+#include "util.h"
 #include <string>
 
 namespace Utils{
@@ -52,23 +53,20 @@ namespace Utils{
   class bitWriter{
   public:
     bitWriter();
-    ~bitWriter();
-    size_t size();
-    void append(uint64_t value, size_t bitLength);
+    size_t size() const;
+    void append(const std::string &val);
+    void append(uint64_t val, size_t bitLength = 8);
     void appendExpGolomb(int64_t value);
     void appendUExpGolomb(uint64_t value);
     static size_t UExpGolombEncodedSize(uint64_t value);
-    std::string str(){return std::string(dataBuffer, (dataSize / 8) + (dataSize % 8 ? 1 : 0));}
+    std::string str(){return std::string(p, (bitSize / 8) + (bitSize % 8 ? 1 : 0));}
+
+    void clear();
 
   protected:
-    void reallocate(size_t newSize);
-    void appendData(uint8_t data, size_t len);
-
-    char *dataBuffer;
-    // NOTE: ALL SIZES IN BITS!
-    size_t bufferSize;
-
-    size_t dataSize;
+    // void appendData(uint8_t data, size_t len);
+    size_t bitSize;
+    Util::ResizeablePointer p;
   };
 
   class bitstreamLSBF{

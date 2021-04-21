@@ -47,7 +47,7 @@ namespace Mist{
 
     Socket::Connection balConn(url.host, url.getPort(), true);
     if (!balConn){
-      WARN_MSG("Failed to reach %s on port %lu", url.host.c_str(), url.getPort());
+      WARN_MSG("Failed to reach %s on port %" PRIu16, url.host.c_str(), url.getPort());
     }else{
       HTTP::Parser http;
       http.url = "/" + url.path;

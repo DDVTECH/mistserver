@@ -11,14 +11,7 @@ namespace Mist{
     uint64_t time, offset, track, dsize, bpos;
     bool key;
     Util::ResizeablePointer ptr;
-    packetData(){
-      time = 0;
-      offset = 0;
-      track = 0;
-      dsize = 0;
-      bpos = 0;
-      key = false;
-    }
+    packetData() : time(0), offset(0), track(0), dsize(0), bpos(0), key(false){}
     void set(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize,
              uint64_t packBytePos, bool isKeyframe, void *dataPtr = 0){
       time = packTime;
@@ -132,10 +125,12 @@ namespace Mist{
         p.offset = ((uint32_t)((frameOffset + (smallestFrame / 2)) / smallestFrame)) * smallestFrame;
       }
       lastTime = p.time;
-      INSANE_MSG("Outputting%s %llu+%llu (#%llu, Max=%llu), display at %llu", (p.key ? "KEY" : ""),
-                 p.time, p.offset, rem, maxOffset, p.time + p.offset);
+      INSANE_MSG("Outputting%s %" PRIu64 "+%" PRIu64 " (#%" PRIu64 ", Max=%" PRIu64
+                 "), display at %" PRIu64,
+                 (p.key ? "KEY" : ""), p.time, p.offset, rem, maxOffset, p.time + p.offset);
       return p;
     }
+
     void add(uint64_t packTime, uint64_t packOffset, uint64_t packTrack, uint64_t packDataSize,
              uint64_t packBytePos, bool isKeyframe, bool isVideo, void *dataPtr = 0){
       if (!ctr){lowestTime = packTime;}
@@ -155,13 +150,16 @@ namespace Mist{
     bool needsLock();
 
   protected:
+    virtual size_t streamByteCount(){
+      return totalBytes;
+    }; // For live streams: to update the stats with correct values.
     void fillPacket(packetData &C);
     bool checkArguments();
     bool preRun();
     bool readHeader();
     bool readElement();
-    void getNext(bool smart = true);
-    void seek(int seekTime);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void clearPredictors();
     FILE *inFile;
     Util::ResizeablePointer ptr;
@@ -177,6 +175,7 @@ namespace Mist{
     bool needHeader(){return needsLock() && !readExistingHeader();}
     double timeScale;
     bool wantBlocks;
+    size_t totalBytes;
   };
 }// namespace Mist
 

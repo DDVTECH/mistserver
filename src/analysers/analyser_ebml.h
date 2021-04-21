@@ -11,7 +11,7 @@ private:
   uint64_t neededBytes();
   std::string dataBuffer;
   uint64_t curPos;
-  uint64_t prePos;
+  size_t prePos;
   uint64_t segmentOffset;
   uint32_t lastSeekId;
   uint64_t lastSeekPos;

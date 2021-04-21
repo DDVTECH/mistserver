@@ -253,20 +253,6 @@ JSON::Value Util::getGlobalConfig(const std::string &optionName){
   }
 }
 
-DTSC::Meta Util::getStreamMeta(const std::string &streamname){
-  DTSC::Meta ret;
-  char pageId[NAME_BUFFER_SIZE];
-  snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamname.c_str());
-  IPC::sharedPage mPage(pageId, DEFAULT_STRM_PAGE_SIZE);
-  if (!mPage.mapped){
-    FAIL_MSG("Could not connect to metadata for %s", streamname.c_str());
-    return ret;
-  }
-  DTSC::Packet tmpMeta(mPage.mapped, mPage.len, true);
-  if (tmpMeta.getVersion()){ret.reinit(tmpMeta);}
-  return ret;
-}
-
 /// Checks if the given streamname has an active input serving it. Returns true if this is the case.
 /// Assumes the streamname has already been through sanitizeName()!
 bool Util::streamAlive(std::string &streamname){
@@ -696,12 +682,16 @@ DTSC::Scan Util::DTSCShmReader::getScan(){
   return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data"));
 }
 
-std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType,
-                                  const std::string &trackVal, const std::string &UA){
+/*LTS-START*/
+/// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
+/// trackVal may be a comma-separated list of numbers, codecs or the word "all" or an asterisk.
+/// Does not do any checks if the protocol supports these tracks, just selects blindly.
+/// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported
+/// codecs/combinations.
+std::set<size_t> Util::findTracks(const DTSC::Meta &M, const std::string &trackType, const std::string &trackVal){
   std::set<size_t> result;
-  if (!trackVal.size() || trackVal == "0" || trackVal == "-1" || trackVal == "none"){
-    return result;
-  }// don't select anything in particular
+  if (!trackVal.size()){return result;}
+  if (trackVal == "-1" | trackVal == "none"){return result;}// don't select anything in particular
   if (trackVal.find(',') != std::string::npos){
     // Comma-separated list, recurse.
     std::stringstream ss(trackVal);
@@ -712,36 +702,27 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     }
     return result;
   }
-  {
-    size_t trackNo = JSON::Value(trackVal).asInt();
-    if (trackVal == JSON::Value((uint64_t)trackNo).asString()){
-      // It's an integer number
-      if (!M.tracks.count(trackNo)){
-        INFO_MSG("Track %zd does not exist in stream, cannot select", trackNo);
-        return result;
-      }
-      const DTSC::Track &Trk = M.tracks.at(trackNo);
-      if (Trk.type != trackType && Trk.codec != trackType){
-        INFO_MSG("Track %zd is not %s (%s/%s), cannot select", trackNo, trackType.c_str(),
-                 Trk.type.c_str(), Trk.codec.c_str());
-        return result;
-      }
-      INFO_MSG("Selecting %s track %zd (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(),
-               Trk.codec.c_str());
-      result.insert(trackNo);
+  size_t idx = JSON::Value(trackVal).asInt();
+  if (trackVal == JSON::Value(idx).asString()){
+    if (!M.trackValid(idx)){
+      WARN_MSG("Track %zu does not exist in stream, cannot select", idx);
       return result;
     }
+    if (M.getType(idx) != trackType && M.getCodec(idx) != trackType){
+      WARN_MSG("Track %zu is not %s (%s/%s), cannot select", idx, trackType.c_str(),
+               M.getType(idx).c_str(), M.getCodec(idx).c_str());
+      return result;
+    }
+    result.insert(idx);
+    return result;
   }
   std::string trackLow = trackVal;
   Util::stringToLower(trackLow);
   if (trackLow == "all" || trackLow == "*"){
     // select all tracks of this type
-    std::set<size_t> validTracks = getSupportedTracks(M, capa);
+    std::set<size_t> validTracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-      const DTSC::Track &Trk = M.tracks.at(*it);
-      if (!trackType.size() || Trk.type == trackType || Trk.codec == trackType){
-        result.insert(*it);
-      }
+      if (M.getType(*it) == trackType || M.getCodec(*it) == trackType){result.insert(*it);}
     }
     return result;
   }
@@ -960,27 +941,12 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
   // attempt to do language/codec matching
   // convert 2-character language codes into 3-character language codes
   if (trackLow.size() == 2){trackLow = Encodings::ISO639::twoToThree(trackLow);}
-  std::set<size_t> validTracks = getSupportedTracks(M, capa);
+  std::set<size_t> validTracks = M.getValidTracks();
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-    const DTSC::Track &Trk = M.tracks.at(*it);
-    if (!trackType.size() || Trk.type == trackType || Trk.codec == trackType){
-      std::string codecLow = Trk.codec;
+    if (M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+      std::string codecLow = M.getCodec(*it);
       Util::stringToLower(codecLow);
-      if (Trk.lang == trackLow || trackLow == codecLow){result.insert(*it);}
-      if (!trackType.size() || trackType == "video"){
-        unsigned int resX, resY;
-        if (trackLow == "720p" && Trk.width == 1280 && Trk.height == 720){result.insert(*it);}
-        if (trackLow == "1080p" && Trk.width == 1920 && Trk.height == 1080){result.insert(*it);}
-        if (trackLow == "1440p" && Trk.width == 2560 && Trk.height == 1440){result.insert(*it);}
-        if (trackLow == "2k" && Trk.width == 2048 && Trk.height == 1080){result.insert(*it);}
-        if (trackLow == "4k" && Trk.width == 3840 && Trk.height == 2160){result.insert(*it);}
-        if (trackLow == "5k" && Trk.width == 5120 && Trk.height == 2880){result.insert(*it);}
-        if (trackLow == "8k" && Trk.width == 7680 && Trk.height == 4320){result.insert(*it);}
-        // match "XxY" format
-        if (sscanf(trackLow.c_str(), "%ux%u", &resX, &resY) == 2){
-          if (Trk.width == resX && Trk.height == resY){result.insert(*it);}
-        }
-      }
+      if (M.getLang(*it) == trackLow || trackLow == codecLow){result.insert(*it);}
     }
   }
   return result;
@@ -996,14 +962,19 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::string &track
 
 std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                           const std::string &type, const std::string &UA){
-  std::set<size_t> validTracks;
-  for (std::map<unsigned int, DTSC::Track>::const_iterator it = M.tracks.begin(); it != M.tracks.end(); it++){
-    const DTSC::Track &Trk = it->second;
-    if (type != "" && type != Trk.type){continue;}
+  std::set<size_t> validTracks = M.getValidTracks();
+
+  std::set<size_t> toRemove;
+  for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+    // Remove unrequested tracks
+    if (type != "" && type != M.getType(*it)){
+      toRemove.insert(*it);
+      continue;
+    }
     // Remove tracks for which we don't have codec support
     if (capa.isMember("codecs")){
-      std::string codec = Trk.codec;
-      std::string type = Trk.type;
+      std::string codec = M.getCodec(*it);
+      std::string type = M.getType(*it);
       bool found = false;
       jsonForEachConst(capa["codecs"], itb){
         jsonForEachConst(*itb, itc){
@@ -1040,11 +1011,30 @@ std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value
         if (found){break;}
       }
       if (!found){
-        HIGH_MSG("Track %u with codec %s not supported!", it->first, codec.c_str());
+        HIGH_MSG("Track %zu with codec %s not supported!", *it, codec.c_str());
+        toRemove.insert(*it);
         continue;
       }
     }
-    validTracks.insert(it->first);
+    // Remove encrypted tracks if not supported
+    if (M.getEncryption(*it) != ""){
+      std::string encryptionType = M.getEncryption(*it);
+      encryptionType = encryptionType.substr(0, encryptionType.find('/'));
+      bool found = false;
+      jsonForEach(capa["encryption"], itb){
+        if (itb->asStringRef() == encryptionType){
+          found = true;
+          break;
+        }
+      }
+      if (!found){
+        INFO_MSG("Track %zu with encryption type %s not supported!", *it, encryptionType.c_str());
+        toRemove.insert(*it);
+      }
+    }
+  }
+  for (std::set<size_t>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
+    validTracks.erase(*it);
   }
   return validTracks;
 }
@@ -1153,9 +1143,8 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               ++shift;
             }
             for (std::set<size_t>::iterator itd = result.begin(); itd != result.end(); itd++){
-              const DTSC::Track &Trk = M.tracks.at(*itd);
-              if ((!byType && Trk.codec == strRef.substr(shift)) ||
-                  (byType && Trk.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+              if ((!byType && M.getCodec(*itd) == strRef.substr(shift)) ||
+                  (byType && M.getType(*itd) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                 // user-agent-check
                 bool problems = false;
                 if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
@@ -1208,9 +1197,8 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
             ++shift;
           }
           for (std::set<size_t>::iterator itd = result.begin(); itd != result.end(); itd++){
-            const DTSC::Track &Trk = M.tracks.at(*itd);
-            if ((!byType && Trk.codec == strRef.substr(shift)) ||
-                (byType && Trk.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+            if ((!byType && M.getCodec(*itd) == strRef.substr(shift)) ||
+                (byType && M.getType(*itd) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
               // user-agent-check
               bool problems = false;
               if (capa.isMember("exceptions") && capa["exceptions"].isObject() && capa["exceptions"].size()){
@@ -1242,12 +1230,11 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               ++shift;
             }
             if (found && !multiSel){continue;}
-            if (M.live){
+            if (M.getLive()){
               for (std::set<size_t>::reverse_iterator trit = validTracks.rbegin();
                    trit != validTracks.rend(); trit++){
-                const DTSC::Track &Trk = M.tracks.at(*trit);
-                if ((!byType && Trk.codec == strRef.substr(shift)) ||
-                    (byType && Trk.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
+                    (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                   // user-agent-check
                   bool problems = false;
                   if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
@@ -1259,12 +1246,15 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
                       }
                     }
                   }
-                  // if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
+                  if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
                   if (problems){break;}
                   /*LTS-START*/
-                  if (noSelAudio && Trk.type == "audio"){continue;}
-                  if (noSelVideo && Trk.type == "video"){continue;}
-                  if (noSelSub && (Trk.type == "subtitle" || Trk.codec == "subtitle")){continue;}
+                  if (noSelAudio && M.getType(*trit) == "audio"){continue;}
+                  if (noSelVideo && M.getType(*trit) == "video"){continue;}
+                  if (noSelSub &&
+                      (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
+                    continue;
+                  }
                   /*LTS-END*/
                   result.insert(*trit);
                   found = true;
@@ -1273,9 +1263,8 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               }
             }else{
               for (std::set<size_t>::iterator trit = validTracks.begin(); trit != validTracks.end(); trit++){
-                const DTSC::Track &Trk = M.tracks.at(*trit);
-                if ((!byType && Trk.codec == strRef.substr(shift)) ||
-                    (byType && Trk.type == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
+                    (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
                   // user-agent-check
                   bool problems = false;
                   if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
@@ -1287,12 +1276,15 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
                       }
                     }
                   }
-                  // if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
+                  if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
                   if (problems){break;}
                   /*LTS-START*/
-                  if (noSelAudio && Trk.type == "audio"){continue;}
-                  if (noSelVideo && Trk.type == "video"){continue;}
-                  if (noSelSub && (Trk.type == "subtitle" || Trk.type == "subtitle")){continue;}
+                  if (noSelAudio && M.getType(*trit) == "audio"){continue;}
+                  if (noSelVideo && M.getType(*trit) == "video"){continue;}
+                  if (noSelSub &&
+                      (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
+                    continue;
+                  }
                   /*LTS-END*/
                   result.insert(*trit);
                   found = true;

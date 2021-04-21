@@ -110,7 +110,6 @@ namespace Mist{
     capa["desc"] = "HTTP connection handler, provides all enabled HTTP-based outputs";
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
-    capa["codecs"][0u][0u].append("*");
     capa["url_rel"] = "/$.html";
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
@@ -237,6 +236,15 @@ namespace Mist{
         }
       }
     }
+    bool allowBFrames = true;
+    if (conncapa.isMember("methods")){
+      jsonForEach(conncapa["methods"], mthd){
+        if (mthd->isMember("nobframes") && (*mthd)["nobframes"]){
+          allowBFrames = false;
+          break;
+        }
+      }
+    }
     const std::string &rel = conncapa["url_rel"].asStringRef();
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
@@ -250,31 +258,31 @@ namespace Mist{
               jsonForEach((*itb), itc){
                 const std::string &strRef = (*itc).asStringRef();
                 bool byType = false;
-                bool multiSel = false;
                 uint8_t shift = 0;
                 if (strRef[shift] == '@'){
                   byType = true;
                   ++shift;
                 }
                 if (strRef[shift] == '+'){
-                  multiSel = true;
                   ++shift;
                 }
                 jsonForEach(strmMeta["tracks"], trit){
                   if ((!byType && (*trit)["codec"].asStringRef() == strRef.substr(shift)) ||
                       (byType && (*trit)["type"].asStringRef() == strRef.substr(shift)) ||
                       strRef.substr(shift) == "*"){
-                    matches++;
-                    total_matches++;
-                    if (conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() &&
-                        conncapa["exceptions"].size()){
-                      jsonForEach(conncapa["exceptions"], ex){
-                        if (ex.key() == "codec:" + strRef.substr(shift)){
-                          if (!Util::checkException(*ex, useragent)){
-                            matches--;
-                            total_matches--;
+                    if (allowBFrames || !(trit->isMember("bframes") && (*trit)["bframes"])){
+                      matches++;
+                      total_matches++;
+                      if (conncapa.isMember("exceptions") && conncapa["exceptions"].isObject() &&
+                          conncapa["exceptions"].size()){
+                        jsonForEach(conncapa["exceptions"], ex){
+                          if (ex.key() == "codec:" + strRef.substr(shift)){
+                            if (!Util::checkException(*ex, useragent)){
+                              matches--;
+                              total_matches--;
+                            }
+                            break;
                           }
-                          break;
                         }
                       }
                     }
@@ -392,9 +400,13 @@ namespace Mist{
               "'),MistVideoObject:mv" + forceType + devSkin + "});" + seekTo + "</script></div></body></html>");
     if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) ||
         (uAgent.find("iPhone") != std::string::npos)){
-      H.SetHeader("Location", hlsUrl);
-      H.SendResponse("307", "HLS redirect", myConn);
-      return;
+      if (uAgent.find("OS 11") == std::string::npos && uAgent.find("OS 12") == std::string::npos &&
+          uAgent.find("OS 13") == std::string::npos && uAgent.find("OS 14") == std::string::npos &&
+          uAgent.find("OS 15") == std::string::npos && uAgent.find("OS 16") == std::string::npos){
+        H.SetHeader("Location", hlsUrl);
+        H.SendResponse("307", "HLS redirect", myConn);
+        return;
+      }
     }
     H.SendResponse("200", "OK", myConn);
   }
@@ -450,39 +462,32 @@ namespace Mist{
     if (!myConn){return json_resp;}
 
     bool hasVideo = false;
-    for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin();
-         trit != myMeta.tracks.end(); trit++){
-      if (trit->second.type == "video"){
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      if (M.getType(*it) == "video"){
         hasVideo = true;
-        if (trit->second.width > json_resp["width"].asInt()){
-          json_resp["width"] = trit->second.width;
-        }
-        if (trit->second.height > json_resp["height"].asInt()){
-          json_resp["height"] = trit->second.height;
+        if (M.getWidth(*it) > json_resp["width"].asInt()){json_resp["width"] = M.getWidth(*it);}
+        if (M.getHeight(*it) > json_resp["height"].asInt()){
+          json_resp["height"] = M.getHeight(*it);
         }
       }
     }
     if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
       json_resp["width"] = 640;
-      json_resp["height"] = 480;
-      if (!hasVideo){json_resp["height"] = 20;}
+      json_resp["height"] = (hasVideo ? 480 : 20);
     }
-    if (myMeta.vod){json_resp["type"] = "vod";}
-    if (myMeta.live){json_resp["type"] = "live";}
+    json_resp["type"] = (M.getVod() ? "vod" : "live");
 
     // show ALL the meta datas!
-    json_resp["meta"] = myMeta.toJSON();
+    M.toJSON(json_resp["meta"], true);
     jsonForEach(json_resp["meta"]["tracks"], it){
       if (it->isMember("lang")){
         (*it)["language"] = Encodings::ISO639::decode((*it)["lang"].asStringRef());
       }
-      it->removeMember("fragments");
-      it->removeMember("keys");
-      it->removeMember("keysizes");
-      it->removeMember("parts");
-      it->removeMember("ivecs"); /*LTS*/
+      if (M.hasBFrames((*it)["idx"].asInt())){(*it)["bframes"] = 1;}
     }
     json_resp["meta"].removeMember("source");
+    json_resp["meta"]["bframes"] = (M.hasBFrames() ? 1 : 0);
 
     // Get sources/protocols information
     Util::DTSCShmReader rCapa(SHM_CAPA);
@@ -704,14 +709,13 @@ namespace Mist{
 
         initialize();
         if (!myConn){return;}
-        for (std::map<unsigned int, DTSC::Track>::iterator trit = myMeta.tracks.begin();
-             trit != myMeta.tracks.end(); trit++){
-          if (trit->second.type == "video"){
-            trackSources += "      <video src='" + streamName +
-                            "?track=" + JSON::Value(trit->first).asString() + "' height='" +
-                            JSON::Value(trit->second.height).asString() + "' system-bitrate='" +
-                            JSON::Value(trit->second.bps).asString() + "' width='" +
-                            JSON::Value(trit->second.width).asString() + "' />\n";
+        std::set<size_t> validTracks = M.getValidTracks();
+        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+          if (M.getType(*it) == "video"){
+            trackSources += "      <video src='" + streamName + "?track=" + JSON::Value(*it).asString() +
+                            "' height='" + JSON::Value(M.getHeight(*it)).asString() +
+                            "' system-bitrate='" + JSON::Value(M.getBps(*it)).asString() +
+                            "' width='" + JSON::Value(M.getWidth(*it)).asString() + "' />\n";
           }
         }
       }
@@ -1023,7 +1027,7 @@ namespace Mist{
     currStreamName = streamName;
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
     IPC::sharedPage streamStatus(pageName, 1, false, false);
-    uint8_t prevState, newState, metaCounter;
+    uint8_t prevState, newState, pingCounter = 0;
     uint64_t prevTracks;
     prevState = newState = STRMSTAT_INVALID;
     while (keepGoing()){
@@ -1034,11 +1038,10 @@ namespace Mist{
         newState = streamStatus.mapped[0];
       }
 
-      if (newState != prevState || (newState == STRMSTAT_READY && myMeta.tracks.size() != prevTracks)){
+      if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks().size() != prevTracks)){
         if (newState == STRMSTAT_READY){
           reconnect();
-          updateMeta();
-          prevTracks = myMeta.tracks.size();
+          prevTracks = M.getValidTracks().size();
         }else{
           disconnect();
         }
@@ -1057,8 +1060,7 @@ namespace Mist{
         }else{
           Util::sleep(250);
         }
-        if (newState == STRMSTAT_READY && (++metaCounter % 4) == 0){updateMeta();}
-        if ((metaCounter % 40) == 0){ws.sendFrame("", 0, 0x9);}
+        if ((++pingCounter % 40) == 0){ws.sendFrame("", 0, 0x9);}
       }
     }
     return true;

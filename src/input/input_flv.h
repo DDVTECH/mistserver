@@ -6,15 +6,15 @@ namespace Mist{
   class inputFLV : public Input{
   public:
     inputFLV(Util::Config *cfg);
+    ~inputFLV();
 
   protected:
     // Private Functions
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     bool keepRunning();
     FLV::Tag tmpTag;
     uint64_t lastModTime;

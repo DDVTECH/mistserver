@@ -26,7 +26,7 @@ bool AnalyserRIFF::parsePacket(){
   if (dataBuffer.size() < 8){return false;}
 
   RIFF::Chunk C(dataBuffer.data(), dataBuffer.size());
-  INFO_MSG("Read a chunk at position %d", prePos);
+  INFO_MSG("Read a chunk at position %" PRIu64, prePos);
   if (detail >= 2){C.toPrettyString(std::cout);}
   ///\TODO update mediaTime with the current timestamp
   if (C){

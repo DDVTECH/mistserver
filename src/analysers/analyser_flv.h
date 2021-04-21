@@ -9,5 +9,5 @@ public:
 
 private:
   FLV::Tag flvData;
-  long long filter;
+  int64_t filter;
 };

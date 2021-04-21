@@ -396,6 +396,7 @@ namespace Util{
   void FieldAccX::set(const std::string &val, size_t recordNo){
     char *place = src->getPointer(field, recordNo);
     memcpy(place, val.data(), std::min((size_t)field.size, val.size()));
+    place[std::min((size_t)field.size - 1, val.size())] = 0;
   }
 
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.
@@ -939,10 +940,12 @@ namespace Util{
   }
 
   FieldAccX RelAccX::getFieldAccX(const std::string &fName){
+    if (!fields.count(fName)){return FieldAccX();}
     return FieldAccX(this, fields.at(fName));
   }
 
   RelAccXFieldData RelAccX::getFieldData(const std::string &fName) const{
+    if (!fields.count(fName)){return RelAccXFieldData();}
     return fields.at(fName);
   }
 }// namespace Util

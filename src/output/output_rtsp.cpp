@@ -22,23 +22,19 @@ namespace Mist{
 
   /// Takes incoming packets and buffers them.
   void OutRTSP::incomingPacket(const DTSC::Packet &pkt){
-    if (!bootMsOffset){
-      if (myMeta.bootMsOffset){
-        bootMsOffset = myMeta.bootMsOffset;
-        packetOffset = (Util::bootMS() - pkt.getTime()) - bootMsOffset;
-      }else{
-        bootMsOffset = Util::bootMS() - pkt.getTime();
-        packetOffset = 0;
-      }
+    if (!M.getBootMsOffset()){
+      meta.setBootMsOffset(Util::bootMS() - pkt.getTime());
+      packetOffset = 0;
+      setPacketOffset = true;
+    }else if (!setPacketOffset){
+      packetOffset = (Util::bootMS() - pkt.getTime()) - M.getBootMsOffset();
+      setPacketOffset = true;
     }
-    /// \TODO Make this less inefficient. Seriously. Maybe use DTSC::RetimedPacket by extending with bmo functionality...?
-    static DTSC::Packet newPkt;
     char *pktData;
     size_t pktDataLen;
     pkt.getString("data", pktData, pktDataLen);
-    newPkt.genericFill(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(),
-                       pktData, pktDataLen, 0, pkt.getFlag("keyframe"), bootMsOffset);
-    bufferLivePacket(newPkt);
+    bufferLivePacket(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData,
+                     pktDataLen, 0, pkt.getFlag("keyframe"));
     // bufferLivePacket(DTSC::RetimedPacket(pkt.getTime() + packetOffset, pkt));
   }
   void OutRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){
@@ -46,9 +42,8 @@ namespace Mist{
   }
 
   OutRTSP::OutRTSP(Socket::Connection &myConn) : Output(myConn){
-    connectedAt = Util::epoch() + 2208988800ll;
     pausepoint = 0;
-    bootMsOffset = 0;
+    setPacketOffset = false;
     packetOffset = 0;
     setBlocking(false);
     maxSkipAhead = 0;
@@ -58,7 +53,7 @@ namespace Mist{
     mainConn = &myConn;
     classPointer = this;
     sdpState.incomingPacketCallback = insertPacket;
-    sdpState.myMeta = &myMeta;
+    sdpState.myMeta = &meta;
   }
 
   /// Function used to send RTP packets over UDP
@@ -66,7 +61,7 @@ namespace Mist{
   ///\param data The RTP Packet that needs to be sent
   ///\param len The size of data
   ///\param channel Not used here, but is kept for compatibility with sendTCP
-  void sendUDP(void *socket, char *data, unsigned int len, unsigned int channel){
+  void sendUDP(void *socket, const char *data, size_t len, uint8_t){
     ((Socket::UDPConnection *)socket)->SendNow(data, len);
     if (mainConn){mainConn->addUp(len);}
   }
@@ -76,7 +71,7 @@ namespace Mist{
   ///\param data The RTP Packet that needs to be sent
   ///\param len The size of data
   ///\param channel Used to distinguish different data streams when sending RTP over TCP
-  void sendTCP(void *socket, char *data, unsigned int len, unsigned int channel){
+  void sendTCP(void *socket, const char *data, size_t len, uint8_t channel){
     // 1 byte '$', 1 byte channel, 2 bytes length
     char buf[] = "$$$$";
     buf[1] = channel;
@@ -130,7 +125,6 @@ namespace Mist{
     char *dataPointer = 0;
     size_t dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen);
-    uint32_t tid = thisPacket.getTrackId();
     uint64_t timestamp = thisPacket.getTime();
 
     // if we're past the pausing point, seek to it, and pause immediately
@@ -140,31 +134,78 @@ namespace Mist{
       return;
     }
 
-    if (myMeta.live && lastTimeSync + 666 < timestamp){
+    if (M.getLive() && lastTimeSync + 200 < timestamp){
       lastTimeSync = timestamp;
-      updateMeta();
       if (liveSeek()){return;}
     }
 
     void *socket = 0;
-    void (*callBack)(void *, char *, unsigned int, unsigned int) = 0;
+    void (*callBack)(void *, const char *, size_t, uint8_t) = 0;
 
-    if (sdpState.tracks[tid].channel == -1){// UDP connection
-      socket = &sdpState.tracks[tid].data;
+    if (sdpState.tracks[thisIdx].channel == -1){// UDP connection
+      socket = &sdpState.tracks[thisIdx].data;
       callBack = sendUDP;
-      if (Util::epoch() / 5 != sdpState.tracks[tid].rtcpSent){
-        sdpState.tracks[tid].rtcpSent = Util::epoch() / 5;
-        sdpState.tracks[tid].pack.sendRTCP_SR(connectedAt, &sdpState.tracks[tid].rtcp, tid, myMeta, sendUDP);
+      if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
+        sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
+        sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
+        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, sendUDP);
       }
     }else{
       socket = &myConn;
       callBack = sendTCP;
+      if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
+        sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
+        sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
+        sdpState.tracks[thisIdx].pack.sendRTCP_SR(socket, sendTCP);
+      }
     }
 
     uint64_t offset = thisPacket.getInt("offset");
-    sdpState.tracks[tid].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(myMeta.tracks[tid]));
-    sdpState.tracks[tid].pack.sendData(socket, callBack, dataPointer, dataLen,
-                                       sdpState.tracks[tid].channel, myMeta.tracks[tid].codec);
+    sdpState.tracks[thisIdx].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
+    sdpState.tracks[thisIdx].pack.sendData(socket, callBack, dataPointer, dataLen,
+                                           sdpState.tracks[thisIdx].channel, meta.getCodec(thisIdx));
+
+    static uint64_t lastAnnounce = Util::bootSecs();
+    if (reqUrl.size() && lastAnnounce + 5 < Util::bootSecs()){
+      INFO_MSG("Sending announce");
+      lastAnnounce = Util::bootSecs();
+      std::stringstream transportString;
+      transportString.precision(3);
+      transportString << std::fixed
+                      << "v=0\r\n"
+                         "o=- "
+                      << Util::getMS()
+                      << " 1 IN IP4 127.0.0.1\r\n"
+                         "s="
+                      << streamName
+                      << "\r\n"
+                         "c=IN IP4 0.0.0.0\r\n"
+                         "i="
+                      << streamName
+                      << "\r\n"
+                         "u="
+                      << reqUrl
+                      << "\r\n"
+                         "t=0 0\r\n"
+                         "a=tool:MistServer\r\n"
+                         "a=type:broadcast\r\n"
+                         "a=control:*\r\n"
+                      << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
+                      << ((double)endTime()) / 1000.0 << "\r\n";
+
+      std::set<size_t> validTracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        transportString << SDP::mediaDescription(&M, *it);
+      }
+      HTTP_S.Clean();
+      HTTP_S.SetHeader("Content-Type", "application/sdp");
+      HTTP_S.SetHeader("Content-Base", reqUrl);
+      HTTP_S.method = "ANNOUNCE";
+      HTTP_S.url = reqUrl;
+      HTTP_S.protocol = "RTSP/1.0";
+      HTTP_S.SendRequest(myConn, transportString.str());
+      HTTP_R.Clean();
+    }
   }
 
   /// This request handler also checks for UDP packets
@@ -177,10 +218,20 @@ namespace Mist{
     RTP::MAX_SEND = config->getInteger("maxsend");
     // if needed, parse TCP packets, and cancel if it is not safe (yet) to read HTTP/RTSP packets
     while ((!expectTCP || handleTCP()) && HTTP_R.Read(myConn)){
+      // check for response codes. Assume a 3-letter URL is a response code.
+      if (HTTP_R.url.size() == 3){
+        INFO_MSG("Received response: %s %s", HTTP_R.url.c_str(), HTTP_R.protocol.c_str());
+        if (HTTP_R.url == "501"){
+          // Not implemented = probably a response to our ANNOUNCE. Turn them off.
+          reqUrl.clear();
+        }
+        HTTP_R.Clean();
+        continue;
+      }
       // cancel broken URLs
       if (HTTP_R.url.size() < 8){
-        WARN_MSG("Invalid data found in RTSP input around ~%llub - disconnecting!", myConn.dataDown());
-        myConn.close();
+        WARN_MSG("Invalid data found in RTSP input around ~%" PRIu64 "b - disconnecting!", myConn.dataDown());
+        onFail("Invalid RTSP Data", true);
         break;
       }
       HTTP_S.Clean();
@@ -189,8 +240,7 @@ namespace Mist{
       // set the streamname and session
       if (!source.size()){
         std::string source = HTTP_R.url.substr(7);
-        unsigned int loc = std::min(source.find(':'), source.find('/'));
-        source = source.substr(0, loc);
+        source = source.substr(0, std::min(source.find(':'), source.find('/')));
       }
       size_t found = HTTP_R.url.find('/', 7);
       if (found != std::string::npos && !streamName.size()){
@@ -254,10 +304,13 @@ namespace Mist{
         continue;
       }
       if (HTTP_R.method == "DESCRIBE"){
+        reqUrl = HTTP::URL(HTTP_R.url).link(streamName).getProxyUrl();
         initialize();
-        selectedTracks.clear();
+        userSelect.clear();
         std::stringstream transportString;
-        transportString << "v=0\r\n"
+        transportString.precision(3);
+        transportString << std::fixed
+                        << "v=0\r\n"
                            "o=- "
                         << Util::getMS()
                         << " 1 IN IP4 127.0.0.1\r\n"
@@ -269,26 +322,21 @@ namespace Mist{
                         << streamName
                         << "\r\n"
                            "u="
-                        << HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) << "/" << streamName
+                        << reqUrl
                         << "\r\n"
                            "t=0 0\r\n"
                            "a=tool:MistServer\r\n"
                            "a=type:broadcast\r\n"
-                           "a=control:*\r\n";
-        if (myMeta.live){
-          transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-\r\n";
-        }else{
-          transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
-                          << ((double)endTime()) / 1000.0 << "\r\n";
-        }
+                           "a=control:*\r\n"
+                        << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
+                        << ((double)endTime()) / 1000.0 << "\r\n";
 
-        for (std::map<unsigned int, DTSC::Track>::iterator objIt = myMeta.tracks.begin();
-             objIt != myMeta.tracks.end(); ++objIt){
-          transportString << SDP::mediaDescription(objIt->second);
+        std::set<size_t> validTracks = M.getValidTracks();
+        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+          transportString << SDP::mediaDescription(&M, *it);
         }
-        transportString << "\r\n";
         HIGH_MSG("Reply: %s", transportString.str().c_str());
-        HTTP_S.SetHeader("Content-Base", HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) + "/" + streamName);
+        HTTP_S.SetHeader("Content-Base", reqUrl);
         HTTP_S.SetHeader("Content-Type", "application/sdp");
         HTTP_S.SetBody(transportString.str());
         HTTP_S.SendResponse("200", "OK", myConn);
@@ -296,17 +344,18 @@ namespace Mist{
         continue;
       }
       if (HTTP_R.method == "SETUP"){
-        uint32_t trackNo = sdpState.parseSetup(HTTP_R, getConnectedHost(), source);
+        size_t trackNo = sdpState.parseSetup(HTTP_R, getConnectedHost(), source);
         HTTP_S.SetHeader("Expires", HTTP_S.GetHeader("Date"));
         HTTP_S.SetHeader("Cache-Control", "no-cache");
-        if (trackNo){
-          selectedTracks.insert(trackNo);
+        if (trackNo != INVALID_TRACK_ID){
+          userSelect[trackNo].reload(streamName, trackNo);
+          if (isPushing()){userSelect[trackNo].setStatus(COMM_STATUS_SOURCE);}
           SDP::Track &sdpTrack = sdpState.tracks[trackNo];
           if (sdpTrack.channel != -1){expectTCP = true;}
           HTTP_S.SetHeader("Transport", sdpTrack.transportString);
           HTTP_S.SendResponse("200", "OK", myConn);
-          INFO_MSG("Setup completed for track %lu (%s): %s", trackNo,
-                   myMeta.tracks[trackNo].codec.c_str(), sdpTrack.transportString.c_str());
+          INFO_MSG("Setup completed for track %zu (%s): %s", trackNo, M.getCodec(trackNo).c_str(),
+                   sdpTrack.transportString.c_str());
         }else{
           HTTP_S.SendResponse("404", "Track not known or allowed", myConn);
           FAIL_MSG("Could not handle setup for %s", HTTP_R.url.c_str());
@@ -321,12 +370,12 @@ namespace Mist{
           range = range.substr(range.find("npt=") + 4);
           if (!range.empty()){
             range = range.substr(0, range.find('-'));
-            uint64_t targetPos = 1000 * atof(range.c_str());
-            if (targetPos || myMeta.vod){seek(targetPos, true);}
+            uint64_t targetPos = 1000 * atoll(range.c_str());
+            if (targetPos || meta.getVod()){seek(targetPos);}
           }
         }
         std::stringstream rangeStr;
-        if (myMeta.live){
+        if (meta.getLive()){
           rangeStr << "npt=" << currentTime() / 1000 << "." << std::setw(3) << std::setfill('0')
                    << currentTime() % 1000 << "-";
         }else{
@@ -336,13 +385,10 @@ namespace Mist{
         }
         HTTP_S.SetHeader("Range", rangeStr.str());
         std::stringstream infoString;
-        if (selectedTracks.size()){
-          for (std::set<unsigned long>::iterator it = selectedTracks.begin();
-               it != selectedTracks.end(); ++it){
-            if (!infoString.str().empty()){infoString << ",";}
-            infoString << sdpState.tracks[*it].rtpInfo(myMeta.tracks[*it],
-                                                       source + "/" + streamName, currentTime());
-          }
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+          if (!infoString.str().empty()){infoString << ", ";}
+          infoString << sdpState.tracks[it->first].rtpInfo(M, it->first, source + "/" + streamName,
+                                                           currentTime());
         }
         HTTP_S.SetHeader("RTP-Info", infoString.str());
         HTTP_S.SendResponse("200", "OK", myConn);
@@ -357,7 +403,7 @@ namespace Mist{
         if (range.empty()){
           stop();
         }else{
-          pausepoint = 1000 * (int)atof(range.c_str());
+          pausepoint = 1000 * atoll(range.c_str());
           if (pausepoint > currentTime()){
             pausepoint = 0;
             stop();
@@ -408,14 +454,14 @@ namespace Mist{
     // We have a TCP packet! Read it...
     // Format: 1 byte '$', 1 byte channel, 2 bytes len, len bytes binary data
     std::string tcpHead = myConn.Received().copy(4);
-    uint16_t len = ntohs(*(short *)(tcpHead.data() + 2));
+    uint16_t len = Bit::btohs(tcpHead.data() + 2);
     if (!myConn.Received().available(len + 4)){
       return false;
     }// a TCP RTP packet, but not complete yet
     // remove whole packet from buffer, including 4 byte header
     std::string tcpPacket = myConn.Received().remove(len + 4);
-    uint32_t trackNo = sdpState.getTrackNoForChannel(tcpHead.data()[1]);
-    if (trackNo && isPushing()){
+    size_t trackNo = sdpState.getTrackNoForChannel(tcpHead.data()[1]);
+    if ((trackNo != INVALID_TRACK_ID) && isPushing()){
       RTP::Packet pkt(tcpPacket.data() + 4, len);
       sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
       incomingRTP(trackNo, pkt);
@@ -427,7 +473,7 @@ namespace Mist{
   /// Reads and handles RTP packets over UDP, if needed
   void OutRTSP::handleUDP(){
     if (!isPushing()){return;}
-    for (std::map<uint32_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+    for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       it->second.sorter.setCallback(it->first, insertRTP);
@@ -436,15 +482,15 @@ namespace Mist{
           // wrong sending port, ignore packet
           continue;
         }
-        lastRecv = Util::epoch(); // prevent disconnect of idle TCP connection when using UDP
+        lastRecv = Util::bootSecs(); // prevent disconnect of idle TCP connection when using UDP
         myConn.addDown(s.data_len);
         RTP::Packet pack(s.data, s.data_len);
         if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }
-      if (selectedTracks.count(it->first) && Util::epoch() / 5 != it->second.rtcpSent){
-        it->second.rtcpSent = Util::epoch() / 5;
-        it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
+      if (userSelect.count(it->first) && Util::bootSecs() / 5 != it->second.rtcpSent){
+        it->second.rtcpSent = Util::bootSecs() / 5;
+        it->second.pack.sendRTCP_RR(it->second, sendUDP);
       }
     }
   }

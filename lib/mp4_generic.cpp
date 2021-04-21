@@ -4,9 +4,10 @@
 #include "mp4_generic.h"
 
 namespace MP4{
-  MFHD::MFHD(){
+  MFHD::MFHD(uint32_t sequenceNumber){
     memcpy(data + 4, "mfhd", 4);
     setInt32(0, 0);
+    setSequenceNumber(sequenceNumber);
   }
 
   void MFHD::setSequenceNumber(uint32_t newSequenceNumber){setInt32(newSequenceNumber, 4);}
@@ -1381,7 +1382,9 @@ namespace MP4{
   }
 
   // Note: next 4 headers inherit from fullBox, start at byte 4.
-  VMHD::VMHD(){
+  VMHD::VMHD(uint32_t version, uint32_t flags){
+    setVersion(version);
+    setFlags(flags);
     memcpy(data + 4, "vmhd", 4);
     setGraphicsMode(0);
     setOpColor(0, 0);
@@ -1563,7 +1566,7 @@ namespace MP4{
     uint32_t offset = 8; // start of boxes
     for (i = 0; i < getEntryCount() && i < index; i++){offset += getBoxLen(offset);}
     if (index + 1 > getEntryCount()){
-      int amount = index + 1 - getEntryCount();
+      int amount = index - getEntryCount();
       if (!reserve(payloadOffset + offset, 0, amount * 8)){return;}
       for (int j = 0; j < amount; ++j){
         memcpy(data + payloadOffset + offset + j * 8, "\000\000\000\010erro", 8);
@@ -1922,14 +1925,14 @@ namespace MP4{
     setHeight(height);
   }
 
-  TKHD::TKHD(DTSC::Track &track, bool fragmented){
+  TKHD::TKHD(const DTSC::Meta &M, size_t idx){
     initialize();
-    setTrackID(track.trackID);
+    setTrackID(idx + 1);
     setDuration(-1);
-    if (!fragmented){setDuration(track.lastms - track.firstms);}
-    if (track.type == "video"){
-      setWidth(track.width);
-      setHeight(track.height);
+    if (M.getVod()){setDuration(M.getLastms(idx) - M.getFirstms(idx));}
+    if (M.getType(idx) == "video"){
+      setWidth(M.getWidth(idx));
+      setHeight(M.getHeight(idx));
     }
   }
 
@@ -2136,7 +2139,7 @@ namespace MP4{
     return r.str();
   }
 
-  MDHD::MDHD(uint64_t duration){
+  MDHD::MDHD(uint64_t duration, const std::string &language){
     memcpy(data + 4, "mdhd", 4);
     // reserve an entire version 0 box
     if (!reserve(0, 9, 32)){
@@ -2146,6 +2149,7 @@ namespace MP4{
 
     setTimeScale(1000);
     setDuration(duration);
+    setLanguage(language);
   }
 
   void MDHD::setCreationTime(uint64_t newCreationTime){
@@ -2643,22 +2647,23 @@ namespace MP4{
 
   VisualSampleEntry::VisualSampleEntry(){initialize();}
 
-  VisualSampleEntry::VisualSampleEntry(DTSC::Track &track){
+  VisualSampleEntry::VisualSampleEntry(const DTSC::Meta &M, size_t idx){
+    std::string tCodec = M.getCodec(idx);
     initialize();
     setDataReferenceIndex(1);
-    setWidth(track.width);
-    setHeight(track.height);
-    if (track.codec == "H264"){
+    setWidth(M.getWidth(idx));
+    setHeight(M.getHeight(idx));
+    if (tCodec == "H264"){
       setCodec("avc1");
       MP4::AVCC avccBox;
-      avccBox.setPayload(track.init);
+      avccBox.setPayload(M.getInit(idx));
       setCLAP(avccBox);
     }
     /*LTS-START*/
-    if (track.codec == "HEVC"){
+    if (tCodec == "HEVC"){
       setCodec("hev1");
       MP4::HVCC hvccBox;
-      hvccBox.setPayload(track.init);
+      hvccBox.setPayload(M.getInit(idx));
       setCLAP(hvccBox);
     }
     /*LTS-END*/
@@ -2677,6 +2682,8 @@ namespace MP4{
   }
 
   void VisualSampleEntry::setCodec(const char *newCodec){memcpy(data + 4, newCodec, 4);}
+
+  std::string VisualSampleEntry::getCodec(){return std::string(data + 4, 4);}
 
   void VisualSampleEntry::setWidth(uint16_t newWidth){setInt16(newWidth, 24);}
 
@@ -2815,19 +2822,20 @@ namespace MP4{
 
   AudioSampleEntry::AudioSampleEntry(){initialize();}
 
-  AudioSampleEntry::AudioSampleEntry(DTSC::Track &track){
+  AudioSampleEntry::AudioSampleEntry(const DTSC::Meta &M, size_t idx){
+    std::string tCodec = M.getCodec(idx);
     initialize();
-    if (track.codec == "AAC" || track.codec == "MP3"){setCodec("mp4a");}
-    if (track.codec == "AC3"){setCodec("ac-3");}
+    if (tCodec == "AAC" || tCodec == "MP3"){setCodec("mp4a");}
+    if (tCodec == "AC3"){setCodec("ac-3");}
     setDataReferenceIndex(1);
-    setSampleRate(track.rate);
-    setChannelCount(track.channels);
-    setSampleSize(track.size);
-    if (track.codec == "AC3"){
-      MP4::DAC3 dac3Box(track.rate, track.channels);
+    setSampleRate(M.getRate(idx));
+    setChannelCount(M.getChannels(idx));
+    setSampleSize(M.getSize(idx));
+    if (tCodec == "AC3"){
+      MP4::DAC3 dac3Box(M.getRate(idx), M.getChannels(idx));
       setCodecBox(dac3Box);
     }else{// other codecs use the ESDS box
-      MP4::ESDS esdsBox(track.init);
+      MP4::ESDS esdsBox(M.getInit(idx));
       setCodecBox(esdsBox);
     }
   }
@@ -2938,14 +2946,14 @@ namespace MP4{
     return r.str();
   }
 
-  TextSampleEntry::TextSampleEntry(DTSC::Track &track){
+  TextSampleEntry::TextSampleEntry(const DTSC::Meta &M, size_t idx){
     initialize();
 
-    if (track.codec == "subtitle"){
+    if (M.getCodec(idx) == "subtitle"){
       setCodec("tx3g");
     }else{
       // not supported codec
-      INFO_MSG("not supported codec: %s", track.codec.c_str());
+      INFO_MSG("not supported codec: %s", M.getCodec(idx).c_str());
     }
   }
 
@@ -3258,7 +3266,11 @@ namespace MP4{
     return toPrettyCFBString(indent, "[meta] Meta Box");
   }
 
-  ELST::ELST(){memcpy(data + 4, "elst", 4);}
+  ELST::ELST(){
+    memcpy(data + 4, "elst", 4);
+    setVersion(0);
+    setFlags(0);
+  }
 
   void ELST::setCount(uint32_t newVal){setInt32(newVal, 4);}
 

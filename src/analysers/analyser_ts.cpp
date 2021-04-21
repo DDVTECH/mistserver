@@ -46,7 +46,7 @@ bool AnalyserTS::parsePacket(){
   static char packetPtr[188];
   std::cin.read(packetPtr, 188);
   if (std::cin.gcount() != 188){return false;}
-  DONTEVEN_MSG("Reading from position %llu", bytes);
+  DONTEVEN_MSG("Reading from position %" PRIu64, bytes);
   bytes += 188;
   if (!packet.FromPointer(packetPtr)){return false;}
   if (detail){
@@ -74,15 +74,15 @@ bool AnalyserTS::parsePacket(){
 }
 
 AnalyserTS::~AnalyserTS(){
-  for (std::map<unsigned long long, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
+  for (std::map<size_t, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
     if ((detail & 1) && (!pidOnly || it->first == pidOnly)){
       std::cout << printPES(it->second, it->first);
     }
   }
 }
 
-std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
-  unsigned int headSize = 0;
+std::string AnalyserTS::printPES(const std::string &d, size_t PID){
+  size_t headSize = 0;
   std::stringstream res;
   bool known = false;
   res << "[PES " << PID << "]";
@@ -98,7 +98,7 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
   if (d[0] != 0 || d[1] != 0 || d[2] != 1){
     res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] << " ]";
   }
-  unsigned int padding = 0;
+  size_t padding = 0;
   if (known){
     if ((d[6] & 0xC0) != 0x80){res << " [!INVALID FIRST BITS!]";}
     if (d[6] & 0x30){res << " [SCRAMBLED]";}
@@ -144,19 +144,19 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
       res << " [Padding: " << padding << "b]";
     }
     if (timeFlags & 0x02){
-      long long unsigned int time = (((unsigned int)d[9] & 0xE) >> 1);
+      uint64_t time = ((d[9] & 0xE) >> 1);
       time <<= 15;
-      time |= ((unsigned int)d[10] << 7) | (((unsigned int)d[11] >> 1) & 0x7F);
+      time |= ((uint32_t)d[10] << 7) | ((d[11] >> 1) & 0x7F);
       time <<= 15;
-      time |= ((unsigned int)d[12] << 7) | (((unsigned int)d[13] >> 1) & 0x7F);
+      time |= ((uint32_t)d[12] << 7) | ((d[13] >> 1) & 0x7F);
       res << " [PTS " << ((double)time / 90000) << "s]";
     }
     if (timeFlags & 0x01){
-      long long unsigned int time = ((d[14] >> 1) & 0x07);
+      uint64_t time = ((d[14] >> 1) & 0x07);
       time <<= 15;
-      time |= ((int)d[15] << 7) | (d[16] >> 1);
+      time |= ((uint32_t)d[15] << 7) | (d[16] >> 1);
       time <<= 15;
-      time |= ((int)d[17] << 7) | (d[18] >> 1);
+      time |= ((uint32_t)d[17] << 7) | (d[18] >> 1);
       res << " [DTS " << ((double)time / 90000) << "s]";
     }
   }
@@ -169,11 +169,17 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
   res << std::endl;
 
   if (detail & 32){
-    unsigned int counter = 0;
-    for (unsigned int i = 9 + headSize + padding; i < d.size(); ++i){
+    size_t counter = 0;
+    for (size_t i = 9 + headSize + padding; i < d.size(); ++i){
       if ((i < d.size() - 4) && d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 0 && d[i + 3] == 1){
         res << std::endl;
         counter = 0;
+      }
+      if ((i < d.size() - 3) && d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 1){
+        if (counter > 1){
+          res << std::endl << "   ";
+          counter = 0;
+        }
       }
       res << std::hex << std::setw(2) << std::setfill('0') << (int)(d[i] & 0xff) << " ";
       if ((counter) % 32 == 31){res << std::endl;}

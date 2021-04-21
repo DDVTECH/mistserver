@@ -67,10 +67,10 @@ int Analyser::run(Util::Config &conf){
       if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
         uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
         if ((finTime - upTime + sleepMs / 1000) >= timeOut){
-          WARN_MSG("Reached timeout of %llu seconds, stopping", timeOut);
+          WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
           return 3;
         }
-        INFO_MSG("Sleeping for %lums", sleepMs);
+        INFO_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
         Util::sleep(sleepMs);
         finTime = Util::bootSecs();
       }
@@ -80,7 +80,7 @@ int Analyser::run(Util::Config &conf){
         return 4;
       }
       if ((finTime - upTime) >= timeOut){
-        WARN_MSG("Reached timeout of %llu seconds, stopping", timeOut);
+        WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
         return 3;
       }
     }

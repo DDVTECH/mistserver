@@ -51,13 +51,7 @@ namespace Mist{
 
   void OutHTTPTS::initialSeek(){
     // Adds passthrough support to the regular initialSeek function
-    if (targetParams.count("passthrough")){
-      selectedTracks.clear();
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        selectedTracks.insert(it->first);
-      }
-    }
+    if (targetParams.count("passthrough")){selectAllTracks();}
     Output::initialSeek();
   }
 
@@ -69,13 +63,13 @@ namespace Mist{
     capa["url_rel"] = "/$.ts";
     capa["url_match"] = "/$.ts";
     capa["socket"] = "http_ts";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][0u].append("+HEVC");
+    capa["codecs"][0u][0u].append("+MPEG2");
+    capa["codecs"][0u][1u].append("+AAC");
+    capa["codecs"][0u][1u].append("+MP3");
+    capa["codecs"][0u][1u].append("+AC3");
+    capa["codecs"][0u][1u].append("+MP2");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mpeg";
     capa["methods"][0u]["priority"] = 1;
@@ -83,7 +77,6 @@ namespace Mist{
     capa["push_urls"].append("ts-exec:*");
 
     {
-      int fin = 0, fout = 0, ferr = 0;
       pid_t srt_tx = -1;
       const char *args[] ={"srt-live-transmit", 0};
       srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
@@ -130,11 +123,12 @@ namespace Mist{
     wantRequest = false;
   }
 
-  void OutHTTPTS::sendTS(const char *tsData, unsigned int len){
-    if (!isRecording()){
-      H.Chunkify(tsData, len, myConn);
-    }else{
+  void OutHTTPTS::sendTS(const char *tsData, size_t len){
+    if (isRecording()){
       myConn.SendNow(tsData, len);
+      return;
     }
+    H.Chunkify(tsData, len, myConn);
+    if (targetParams.count("passthrough")){selectAllTracks();}
   }
 }// namespace Mist

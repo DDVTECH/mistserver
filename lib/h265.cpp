@@ -509,8 +509,7 @@ namespace h265{
     profileTierLevel(bs, maxSubLayersMinus1, res);
     bs.getUExpGolomb();
     uint64_t chromaFormatIdc = bs.getUExpGolomb();
-    bool separateColorPlane = false;
-    if (chromaFormatIdc == 3){separateColorPlane = bs.get(1);}
+    if (chromaFormatIdc == 3){bs.skip(1);}
     res.width = bs.getUExpGolomb();
     res.height = bs.getUExpGolomb();
     bool conformanceWindow = bs.get(1);

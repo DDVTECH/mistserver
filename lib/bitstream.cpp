@@ -1,3 +1,4 @@
+#include "bitfields.h"
 #include "bitstream.h"
 #include "defines.h"
 #include <stdlib.h>
@@ -142,62 +143,40 @@ namespace Utils{
 
   long long unsigned int bitstream::peekUExpGolomb(){return golombPeeker() - 1;}
 
-  bitWriter::bitWriter(){
-    dataBuffer = NULL;
-    bufferSize = 0;
-    reallocate(0);
-    dataSize = 0;
+  bitWriter::bitWriter(){bitSize = 0;}
+
+  size_t bitWriter::size() const{return bitSize;}
+
+  void bitWriter::append(const std::string &val){
+    for (size_t i = 0; i < val.size(); i++){append(val[i]);}
   }
 
-  bitWriter::~bitWriter(){
-    if (dataBuffer != NULL){free(dataBuffer);}
-  }
+  void bitWriter::append(uint64_t val, size_t bitLength){
+    static char buf[9];
 
-  void bitWriter::reallocate(size_t newSize){
-    size_t sizeBefore = bufferSize / 8;
-    char *tmp;
-    if (dataBuffer != NULL){
-      tmp = (char *)realloc(dataBuffer, (newSize / 8) + 1);
+    uint32_t byteLength = ((bitSize + bitLength) / 8) + 1;
+    while (byteLength > p.size()){p.append("", 1);}
+
+    int bitShift = (64 - bitLength) - (bitSize % 8);
+
+    if (bitShift >= 0){
+      Bit::htobll(buf, val << bitShift);
     }else{
-      tmp = (char *)malloc((newSize / 8) + 1);
+      Bit::htobll(buf, val >> (bitShift * -1));
+      buf[8] = ((val << (8 + bitShift)) & 0xFF);
     }
-    if (tmp){
-      dataBuffer = tmp;
-      bufferSize = ((newSize / 8) + 1) * 8;
-      memset(dataBuffer + sizeBefore, 0x00, (bufferSize / 8) - sizeBefore);
-    }else{
-      FAIL_MSG("Could not reallocate!!");
-    }
+
+    size_t adjustableBits = (bitSize % 8) + bitLength;
+    size_t adjustableBytes = adjustableBits / 8 + (adjustableBits % 8 ? 1 : 0);
+
+    for (int i = 0; i < adjustableBytes; i++){p[bitSize / 8 + i] |= buf[i];}
+
+    bitSize += bitLength;
   }
 
-  size_t bitWriter::size(){return dataSize;}
-
-  void bitWriter::append(uint64_t value, size_t bitLength){
-    if (dataSize + bitLength > bufferSize){reallocate(dataSize + bitLength);}
-
-    int64_t fullShift = (bitLength / 8) * 8;
-    uint64_t firstMask = ((0x01ull << (bitLength % 8)) - 1) << fullShift;
-
-    appendData(((value & firstMask) >> fullShift), bitLength - fullShift);
-    while (fullShift > 0){
-      fullShift -= 8;
-      uint64_t mask = (0xFFull) << fullShift;
-      appendData((value & mask) >> fullShift, 8);
-    }
-  }
-
-  void bitWriter::appendData(uint8_t data, size_t len){
-    size_t byteOffset = dataSize / 8;
-    size_t bitOffset = dataSize % 8;
-    if (len <= 8 - bitOffset){
-      dataBuffer[byteOffset] |= (data << (8 - bitOffset - len));
-      dataSize += len;
-    }else{
-      size_t shift = (len - (8 - bitOffset));
-      dataBuffer[byteOffset] |= (data >> shift);
-      dataSize += (len - shift);
-      appendData(data, shift);
-    }
+  void bitWriter::clear(){
+    p.assign("", 0);
+    bitSize = 0;
   }
 
   size_t bitWriter::UExpGolombEncodedSize(uint64_t value){

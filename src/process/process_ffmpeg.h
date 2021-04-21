@@ -43,7 +43,7 @@ namespace Mist{
   class EncodeInputEBML : public InputEBML{
   public:
     EncodeInputEBML(Util::Config *cfg) : InputEBML(cfg){};
-    void getNext(bool smart = true);
+    void getNext(size_t idx = INVALID_TRACK_ID);
     void setInFile(int stdin_val);
     bool needsLock(){return false;}
     bool isSingular(){return false;}
@@ -51,7 +51,7 @@ namespace Mist{
 
   class EncodeOutputEBML : public OutEBML{
   public:
-    EncodeOutputEBML(Socket::Connection &c) : OutEBML(c){};
+    EncodeOutputEBML(Socket::Connection &c) : OutEBML(c){}; // realTime = 0;};
     void setVideoTrack(std::string tid);
     void setAudioTrack(std::string tid);
     void sendNext();

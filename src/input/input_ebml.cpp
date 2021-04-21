@@ -41,6 +41,7 @@ namespace Mist{
     lastClusterTime = 0;
     bufferedPacks = 0;
     wantBlocks = true;
+    totalBytes = 0;
   }
 
   std::string ASStoSRT(const char *ptr, uint32_t len){
@@ -112,13 +113,15 @@ namespace Mist{
     uint32_t needed = EBML::Element::needBytes(ptr, ptr.size(), readingMinimal);
     while (ptr.size() < needed){
       if (!ptr.allocate(needed)){return false;}
-      if (!fread(ptr + ptr.size(), needed - ptr.size(), 1, inFile)){
+      int64_t toRead = needed - ptr.size();
+      if (!fread(ptr + ptr.size(), toRead, 1, inFile)){
         // We assume if there is no current data buffered, that we are at EOF and don't print a warning
         if (ptr.size()){
-          FAIL_MSG("Could not read more data! (have %lu, need %lu)", ptr.size(), needed);
+          FAIL_MSG("Could not read more data! (have %zu, need %" PRIu32 ")", ptr.size(), needed);
         }
         return false;
       }
+      totalBytes += toRead;
       ptr.size() = needed;
       needed = EBML::Element::needBytes(ptr, ptr.size(), readingMinimal);
       if (ptr.size() >= needed){
@@ -141,26 +144,26 @@ namespace Mist{
           lastClusterBPos = bp;
         }
       }
-      DONTEVEN_MSG("Found a cluster at position %llu", lastClusterBPos);
+      DONTEVEN_MSG("Found a cluster at position %" PRIu64, lastClusterBPos);
     }
     if (E.getID() == EBML::EID_TIMECODE){
       lastClusterTime = E.getValUInt();
-      DONTEVEN_MSG("Cluster time %llu ms", lastClusterTime);
+      DONTEVEN_MSG("Cluster time %" PRIu64 " ms", lastClusterTime);
     }
     return true;
   }
 
   bool InputEBML::readExistingHeader(){
     if (!Input::readExistingHeader()){return false;}
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); ++it){
-      if (it->second.codec == "PCMLE"){
-        it->second.codec = "PCM";
-        swapEndianness.insert(it->first);
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      if (M.getCodec(*it) == "PCMLE"){
+        meta.setCodec(*it, "PCM");
+        swapEndianness.insert(*it);
       }
     }
-    if (myMeta.inputLocalVars.isMember("timescale")){
-      timeScale = ((double)myMeta.inputLocalVars["timescale"].asInt()) / 1000000.0;
+    if (M.inputLocalVars.isMember("timescale")){
+      timeScale = ((double)M.inputLocalVars["timescale"].asInt()) / 1000000.0;
     }
     return true;
   }
@@ -169,6 +172,7 @@ namespace Mist{
     if (!inFile){return false;}
     // Create header file from file
     uint64_t bench = Util::getMicros();
+    if (!meta){meta.reInit(streamName);}
 
     while (readElement()){
       EBML::Element E(ptr, readingMinimal);
@@ -178,7 +182,7 @@ namespace Mist{
           ERROR_MSG("Track without track number encountered, ignoring");
           continue;
         }
-        uint64_t trackNo = tmpElem.getValUInt();
+        uint64_t trackID = tmpElem.getValUInt();
         tmpElem = E.findChild(EBML::EID_CODECID);
         if (!tmpElem){
           ERROR_MSG("Track without codec id encountered, ignoring");
@@ -311,32 +315,33 @@ namespace Mist{
         }
         tmpElem = E.findChild(EBML::EID_LANGUAGE);
         if (tmpElem){lang = tmpElem.getValString();}
-        DTSC::Track &Trk = myMeta.tracks[trackNo];
-        Trk.trackID = trackNo;
-        Trk.lang = lang;
-        Trk.codec = trueCodec;
-        Trk.type = trueType;
-        Trk.init = init;
-        if (Trk.type == "video"){
+        size_t idx = M.trackIDToIndex(trackID, getpid());
+        if (idx == INVALID_TRACK_ID){idx = meta.addTrack();}
+        meta.setID(idx, trackID);
+        meta.setLang(idx, lang);
+        meta.setCodec(idx, trueCodec);
+        meta.setType(idx, trueType);
+        meta.setInit(idx, init);
+        if (trueType == "video"){
           tmpElem = E.findChild(EBML::EID_PIXELWIDTH);
-          Trk.width = tmpElem ? tmpElem.getValUInt() : 0;
+          meta.setWidth(idx, tmpElem ? tmpElem.getValUInt() : 0);
           tmpElem = E.findChild(EBML::EID_PIXELHEIGHT);
-          Trk.height = tmpElem ? tmpElem.getValUInt() : 0;
-          Trk.fpks = 0;
+          meta.setHeight(idx, tmpElem ? tmpElem.getValUInt() : 0);
+          meta.setFpks(idx, 0);
         }
-        if (Trk.type == "audio"){
+        if (trueType == "audio"){
           tmpElem = E.findChild(EBML::EID_CHANNELS);
-          Trk.channels = tmpElem ? tmpElem.getValUInt() : 1;
+          meta.setChannels(idx, tmpElem ? tmpElem.getValUInt() : 1);
           tmpElem = E.findChild(EBML::EID_BITDEPTH);
-          Trk.size = tmpElem ? tmpElem.getValUInt() : 0;
+          meta.setSize(idx, tmpElem ? tmpElem.getValUInt() : 0);
           tmpElem = E.findChild(EBML::EID_SAMPLINGFREQUENCY);
-          Trk.rate = tmpElem ? (int)tmpElem.getValFloat() : 8000;
+          meta.setRate(idx, tmpElem ? (int)tmpElem.getValFloat() : 8000);
         }
-        INFO_MSG("Detected track: %s", Trk.getIdentifier().c_str());
+        INFO_MSG("Detected track: %s", M.getTrackIdentifier(idx).c_str());
       }
       if (E.getID() == EBML::EID_TIMECODESCALE){
         uint64_t timeScaleVal = E.getValUInt();
-        myMeta.inputLocalVars["timescale"] = timeScaleVal;
+        meta.inputLocalVars["timescale"] = timeScaleVal;
         timeScale = ((double)timeScaleVal) / 1000000.0;
       }
       // Live streams stop parsing the header as soon as the first Cluster is encountered
@@ -346,34 +351,35 @@ namespace Mist{
         uint64_t tNum = B.getTrackNum();
         uint64_t newTime = lastClusterTime + B.getTimecode();
         trackPredictor &TP = packBuf[tNum];
-        DTSC::Track &Trk = myMeta.tracks[tNum];
-        bool isVideo = (Trk.type == "video");
-        bool isAudio = (Trk.type == "audio");
-        bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
+        size_t idx = meta.trackIDToIndex(tNum, getpid());
+        bool isVideo = (M.getType(idx) == "video");
+        bool isAudio = (M.getType(idx) == "audio");
+        bool isASS = (M.getCodec(idx) == "subtitle" && M.getInit(idx).size());
         // If this is a new video keyframe, flush the corresponding trackPredictor
         if (isVideo && B.isKeyframe()){
           while (TP.hasPackets(true)){
             packetData &C = TP.getPacketData(true);
-            myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
+            meta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
             TP.remove();
           }
           TP.flush();
         }
         for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
           if (frameNo){
-            if (Trk.codec == "AAC"){
-              newTime += (1000000 / Trk.rate) / timeScale; // assume ~1000 samples per frame
-            }else if (Trk.codec == "MP3"){
-              newTime += (1152000 / Trk.rate) / timeScale; // 1152 samples per frame
-            }else if (Trk.codec == "DTS"){
+            if (M.getCodec(idx) == "AAC"){
+              newTime += (1000000 / M.getRate(idx)) / timeScale; // assume ~1000 samples per frame
+            }else if (M.getCodec(idx) == "MP3"){
+              newTime += (1152000 / M.getRate(idx)) / timeScale; // 1152 samples per frame
+            }else if (M.getCodec(idx) == "DTS"){
               // Assume 512 samples per frame (DVD default)
               // actual amount can be calculated from data, but data
               // is not available during header generation...
               // See: http://www.stnsoft.com/DVD/dtshdr.html
-              newTime += (512000 / Trk.rate) / timeScale;
+              newTime += (512000 / M.getRate(idx)) / timeScale;
             }else{
               newTime += 1 / timeScale;
-              ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
+              ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!",
+                        M.getCodec(idx).c_str());
             }
           }
           uint32_t frameSize = B.getFrameSize(frameNo);
@@ -388,7 +394,7 @@ namespace Mist{
         }
         while (TP.hasPackets()){
           packetData &C = TP.getPacketData(isVideo);
-          myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
+          meta.update(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.dsize, C.bpos, C.key);
           TP.remove();
         }
       }
@@ -398,23 +404,25 @@ namespace Mist{
       for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
         trackPredictor &TP = it->second;
         while (TP.hasPackets(true)){
-          packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
-          myMeta.update(C.time, C.offset, C.track, C.dsize, C.bpos, C.key);
+          packetData &C =
+              TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
+          meta.update(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.dsize, C.bpos, C.key);
           TP.remove();
         }
       }
     }
 
     bench = Util::getMicros(bench);
-    INFO_MSG("Header generated in %llu ms", bench / 1000);
+    INFO_MSG("Header generated in %" PRIu64 " ms", bench / 1000);
     clearPredictors();
     bufferedPacks = 0;
-    myMeta.toFile(config->getString("input") + ".dtsh");
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); ++it){
-      if (it->second.codec == "PCMLE"){
-        it->second.codec = "PCM";
-        swapEndianness.insert(it->first);
+    M.toFile(config->getString("input") + ".dtsh");
+
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      if (M.getCodec(*it) == "PCMLE"){
+        meta.setCodec(*it, "PCM");
+        swapEndianness.insert(*it);
       }
     }
     return true;
@@ -422,7 +430,7 @@ namespace Mist{
 
   void InputEBML::fillPacket(packetData &C){
     if (swapEndianness.count(C.track)){
-      switch (myMeta.tracks[C.track].size){
+      switch (M.getSize(M.trackIDToIndex(C.track, getpid()))){
       case 16:{
         char *ptr = C.ptr;
         uint32_t ptrSize = C.dsize;
@@ -455,16 +463,18 @@ namespace Mist{
       }break;
       }
     }
-    thisPacket.genericFill(C.time, C.offset, C.track, C.ptr, C.dsize, C.bpos, C.key);
+    thisPacket.genericFill(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.ptr, C.dsize,
+                           C.bpos, C.key);
   }
 
-  void InputEBML::getNext(bool smart){
+  void InputEBML::getNext(size_t idx){
     // Make sure we empty our buffer first
     if (bufferedPacks && packBuf.size()){
       for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
         trackPredictor &TP = it->second;
         if (TP.hasPackets()){
-          packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
+          packetData &C =
+              TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
           fillPacket(C);
           TP.remove();
           --bufferedPacks;
@@ -481,7 +491,7 @@ namespace Mist{
             for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
               trackPredictor &TP = it->second;
               if (TP.hasPackets(true)){
-                packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
+                packetData &C = TP.getPacketData(M.getType(M.trackIDToIndex(it->first, getpid())) == "video");
                 fillPacket(C);
                 TP.remove();
                 --bufferedPacks;
@@ -494,7 +504,8 @@ namespace Mist{
           return;
         }
         B = EBML::Block(ptr);
-      }while (!B || B.getType() != EBML::ELEM_BLOCK || !selectedTracks.count(B.getTrackNum()));
+      }while (!B || B.getType() != EBML::ELEM_BLOCK ||
+               (idx != INVALID_TRACK_ID && M.getID(idx) != B.getTrackNum()));
     }else{
       B = EBML::Block(ptr);
     }
@@ -502,10 +513,10 @@ namespace Mist{
     uint64_t tNum = B.getTrackNum();
     uint64_t newTime = lastClusterTime + B.getTimecode();
     trackPredictor &TP = packBuf[tNum];
-    DTSC::Track &Trk = myMeta.tracks[tNum];
-    bool isVideo = (Trk.type == "video");
-    bool isAudio = (Trk.type == "audio");
-    bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
+    size_t trackIdx = M.trackIDToIndex(tNum, getpid());
+    bool isVideo = (M.getType(trackIdx) == "video");
+    bool isAudio = (M.getType(trackIdx) == "audio");
+    bool isASS = (M.getCodec(trackIdx) == "subtitle" && M.getInit(trackIdx).size());
 
     // If this is a new video keyframe, flush the corresponding trackPredictor
     if (isVideo && B.isKeyframe() && bufferedPacks){
@@ -523,18 +534,19 @@ namespace Mist{
 
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
-        if (Trk.codec == "AAC"){
-          newTime += (1000000 / Trk.rate) / timeScale; // assume ~1000 samples per frame
-        }else if (Trk.codec == "MP3"){
-          newTime += (1152000 / Trk.rate) / timeScale; // 1152 samples per frame
-        }else if (Trk.codec == "DTS"){
+        if (M.getCodec(trackIdx) == "AAC"){
+          newTime += (1000000 / M.getRate(trackIdx)) / timeScale; // assume ~1000 samples per frame
+        }else if (M.getCodec(trackIdx) == "MP3"){
+          newTime += (1152000 / M.getRate(trackIdx)) / timeScale; // 1152 samples per frame
+        }else if (M.getCodec(trackIdx) == "DTS"){
           // Assume 512 samples per frame (DVD default)
           // actual amount can be calculated from data, but data
           // is not available during header generation...
           // See: http://www.stnsoft.com/DVD/dtshdr.html
-          newTime += (512000 / Trk.rate) / timeScale;
+          newTime += (512000 / M.getRate(trackIdx)) / timeScale;
         }else{
-          ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
+          ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!",
+                    M.getCodec(trackIdx).c_str());
         }
       }
       uint32_t frameSize = B.getFrameSize(frameNo);
@@ -560,22 +572,26 @@ namespace Mist{
     }else{
       // We didn't set thisPacket yet. Read another.
       // Recursing is fine, this can only happen a few times in a row.
-      getNext(smart);
+      getNext(idx);
     }
   }
 
-  void InputEBML::seek(int seekTime){
+  void InputEBML::seek(uint64_t seekTime, size_t idx){
     wantBlocks = true;
     clearPredictors();
     bufferedPacks = 0;
     uint64_t mainTrack = getMainSelectedTrack();
-    DTSC::Track Trk = myMeta.tracks[mainTrack];
-    bool isVideo = (Trk.type == "video");
-    uint64_t seekPos = Trk.keys[0].getBpos();
+
+    DTSC::Keys keys(M.keys(mainTrack));
+    DTSC::Parts parts(M.parts(mainTrack));
+    uint64_t seekPos = keys.getBpos(0);
     // Replay the parts of the previous keyframe, so the timestaps match up
-    for (unsigned int i = 1; i < Trk.keys.size(); i++){
-      if (Trk.keys[i].getTime() > seekTime){break;}
-      seekPos = Trk.keys[i].getBpos();
+    uint64_t partCount = 0;
+    for (size_t i = 0; i < keys.getEndValid(); i++){
+      if (keys.getTime(i) > seekTime){break;}
+      partCount += keys.getParts(i);
+      DONTEVEN_MSG("Seeking to %" PRIu64 ", found %" PRIu64 "...", seekTime, keys.getTime(i));
+      seekPos = keys.getBpos(i);
     }
     Util::fseek(inFile, seekPos, SEEK_SET);
   }

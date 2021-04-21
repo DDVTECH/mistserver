@@ -7,7 +7,7 @@ namespace Mist{
     OutHLS(Socket::Connection &conn);
     ~OutHLS();
     static void init(Util::Config *cfg);
-    void sendTS(const char *tsData, unsigned int len = 188);
+    void sendTS(const char *tsData, size_t len = 188);
     void sendNext();
     void onHTTP();
     bool isReadyForPlay();
@@ -19,17 +19,11 @@ namespace Mist{
 
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
     std::string liveIndex();
-    std::string liveIndex(int tid, std::string &sessId);
+    std::string liveIndex(size_t tid, const std::string &sessId);
 
-    std::string pushLiveIndex();
-    std::string pushLiveIndex(int tid, unsigned long bTime, unsigned long eTime);
-
-    std::string generatePushList();
-    int canSeekms(unsigned int ms);
-    int keysToSend;
-    unsigned int vidTrack;
-    unsigned int audTrack;
-    long long unsigned int until;
+    size_t vidTrack;
+    size_t audTrack;
+    uint64_t until;
   };
 }// namespace Mist
 

@@ -18,8 +18,11 @@
 class DTLSSRTPHandshake{
 public:
   DTLSSRTPHandshake();
-  int init(mbedtls_x509_crt *certificate,
-           mbedtls_pk_context *privateKey, int (*writeCallback)(const uint8_t *data, int *nbytes)); // writeCallback should return 0 on succes < 0 on error. nbytes holds the number of bytes to be sent and needs to be set to the number of bytes actually sent.
+  int init(mbedtls_x509_crt *certificate, mbedtls_pk_context *privateKey,
+           int (*writeCallback)(const uint8_t *data,
+                                int *nbytes)); // writeCallback should return 0 on succes < 0 on error.
+                                               // nbytes holds the number of bytes to be sent and needs
+                                               // to be set to the number of bytes actually sent.
   int shutdown();
   int parse(const uint8_t *data, size_t nbytes);
   bool hasKeyingMaterial();
@@ -40,8 +43,9 @@ private:
 
 public:
   int (*write_callback)(const uint8_t *data, int *nbytes);
-  std::deque<uint8_t> buffer; /* Accessed from BIO callbback. We copy the bytes you pass into `parse()` into this temporary buffer which is read by a trigger to `mbedlts_ssl_handshake()`. */
-  std::string cipher;         /* selected SRTP cipher. */
+  std::deque<uint8_t> buffer; /* Accessed from BIO callbback. We copy the bytes you pass into `parse()` into this
+                                 temporary buffer which is read by a trigger to `mbedlts_ssl_handshake()`. */
+  std::string cipher; /* selected SRTP cipher. */
   std::string remote_key;
   std::string remote_salt;
   std::string local_key;

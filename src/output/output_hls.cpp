@@ -6,10 +6,11 @@
 
 namespace Mist{
   bool OutHLS::isReadyForPlay(){
-    if (myMeta.tracks.size()){
-      if (myMeta.mainTrack().fragments.size() > 4){return true;}
-    }
-    return false;
+    if (!M.getValidTracks().size()){return false;}
+    uint32_t mainTrack = M.mainTrack();
+    if (mainTrack == INVALID_TRACK_ID){return false;}
+    DTSC::Fragments fragments(M.fragments(mainTrack));
+    return fragments.getValidCount() > 4;
   }
 
   ///\brief Builds an index file for HTTP Live streaming.
@@ -18,256 +19,139 @@ namespace Mist{
     std::stringstream result;
     selectDefaultTracks();
     result << "#EXTM3U\r\n";
-    int audioId = -1;
-    unsigned int vidTracks = 0;
+    size_t audioId = INVALID_TRACK_ID;
+    size_t vidTracks = 0;
     bool hasSubs = false;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
-      if (audioId == -1 && myMeta.tracks[*it].type == "audio"){audioId = *it;}
-      if (!hasSubs && myMeta.tracks[*it].codec == "subtitle"){hasSubs = true;}
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+      if (audioId == INVALID_TRACK_ID && M.getType(it->first) == "audio"){audioId = it->first;}
+      if (!hasSubs && M.getCodec(it->first) == "subtitle"){hasSubs = true;}
     }
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
-      if (myMeta.tracks[*it].type == "video"){
-        vidTracks++;
-        int bWidth = myMeta.tracks[*it].bps;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+      if (M.getType(it->first) == "video"){
+        ++vidTracks;
+        int bWidth = M.getBps(it->first);
         if (bWidth < 5){bWidth = 5;}
-        if (audioId != -1){bWidth += myMeta.tracks[audioId].bps;}
+        if (audioId != INVALID_TRACK_ID){bWidth += M.getBps(audioId);}
         result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8);
-        result << ",RESOLUTION=" << myMeta.tracks[*it].width << "x" << myMeta.tracks[*it].height;
-        if (myMeta.tracks[*it].fpks){
-          result << ",FRAME-RATE=" << (float)myMeta.tracks[*it].fpks / 1000;
+        result << ",RESOLUTION=" << M.getWidth(it->first) << "x" << M.getHeight(it->first);
+        if (M.getFpks(it->first)){
+          result << ",FRAME-RATE=" << (float)M.getFpks(it->first) / 1000;
         }
         if (hasSubs){result << ",SUBTITLES=\"sub1\"";}
         result << ",CODECS=\"";
-        result << Util::codecString(myMeta.tracks[*it].codec, myMeta.tracks[*it].init);
-        if (audioId != -1){
-          result << "," << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init);
+        result << Util::codecString(M.getCodec(it->first), M.getInit(it->first));
+        if (audioId != INVALID_TRACK_ID){
+          result << "," << Util::codecString(M.getCodec(audioId), M.getInit(audioId));
         }
-        result << "\"";
-        result << "\r\n";
-        result << *it;
-        if (audioId != -1){result << "_" << audioId;}
+        result << "\"\r\n" << it->first;
+        if (audioId != INVALID_TRACK_ID){result << "_" << audioId;}
         if (hasSessionIDs()){
           result << "/index.m3u8?sessId=" << getpid() << "\r\n";
         }else{
           result << "/index.m3u8\r\n";
         }
-      }else if (myMeta.tracks[*it].codec == "subtitle"){
+      }else if (M.getCodec(it->first) == "subtitle"){
 
-        if (myMeta.tracks[*it].lang.empty()){myMeta.tracks[*it].lang = "und";}
+        if (M.getLang(it->first).empty()){meta.setLang(it->first, "und");}
 
-        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << myMeta.tracks[*it].lang
-               << "\",NAME=\"" << Encodings::ISO639::decode(myMeta.tracks[*it].lang)
-               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << *it << "/index.m3u8\""
+        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << M.getLang(it->first)
+               << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(it->first))
+               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8\""
                << "\r\n";
       }
     }
-    if (!vidTracks && audioId){
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[audioId].bps * 8);
-      result << ",CODECS=\""
-             << Util::codecString(myMeta.tracks[audioId].codec, myMeta.tracks[audioId].init) << "\"";
+    if (!vidTracks && audioId != INVALID_TRACK_ID){
+      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
+      result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
       result << "\r\n";
       result << audioId << "/index.m3u8\r\n";
     }
-    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
     return result.str();
   }
 
-  std::string OutHLS::pushLiveIndex(){
-    std::stringstream result;
-    result << "#EXTM3U\r\n";
-    std::set<unsigned int> audioTracks;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3" ||
-          it->second.codec == "MP2"){
-        audioTracks.insert(it->first);
-      }
-    }
-    if (!audioTracks.size()){audioTracks.insert(-1);}
-    unsigned int vidTracks = 0;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "H264" || it->second.codec == "HEVC" || it->second.codec == "MPEG2"){
-        for (std::set<unsigned int>::iterator audIt = audioTracks.begin(); audIt != audioTracks.end(); audIt++){
-          vidTracks++;
-          int bWidth = it->second.bps;
-          if (bWidth < 5){bWidth = 5;}
-          if (*audIt != -1){bWidth += myMeta.tracks[*audIt].bps;}
-          result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8) << "\r\n";
-          result << it->first;
-          if (*audIt != -1){result << "_" << *audIt;}
-          result << "/index.m3u8\r\n";
-        }
-      }
-    }
-    if (!vidTracks && audioTracks.size()){
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (myMeta.tracks[*audioTracks.begin()].bps * 8)
-             << "\r\n";
-      result << *audioTracks.begin() << "/index.m3u8\r\n";
-    }
-    return result.str();
-  }
-
-  std::string OutHLS::pushLiveIndex(int tid, unsigned long bTime, unsigned long eTime){
-    updateMeta();
+  std::string OutHLS::liveIndex(size_t tid, const std::string &sessId){
     std::stringstream result;
     // parse single track
-    result << "#EXTM3U\r\n#EXT-X-TARGETDURATION:" << (myMeta.tracks[tid].biggestFragment() / 1000) + 1 << "\r\n";
+    uint32_t targetDuration = (M.biggestFragment(tid) / 1000) + 1;
+    result << "#EXTM3U\r\n#EXT-X-VERSION:";
 
-    std::deque<std::string> lines;
-    unsigned int skippedLines = 0;
-    for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin();
-         it != myMeta.tracks[tid].fragments.end(); it++){
-      long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
-      long long duration = it->getDuration();
-      if (duration <= 0){duration = myMeta.tracks[tid].lastms - starttime;}
-      if (starttime < bTime){skippedLines++;}
-      if (starttime >= bTime && (starttime + duration) <= eTime){
-        char lineBuf[400];
-        snprintf(lineBuf, 400, "#EXTINF:%lld, no desc\r\n%lld_%lld.ts\r\n",
-                 ((duration + 500) / 1000), starttime, starttime + duration);
-        lines.push_back(lineBuf);
-      }
+    result << (M.getEncryption(tid) == "" ? "3" : "5");
+
+    result << "\r\n#EXT-X-TARGETDURATION:" << targetDuration << "\r\n";
+
+    if (M.getEncryption(tid) != ""){
+      result << "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"";
+      result << "urlHere";
+      result << "\",KEYFORMAT=\"com.apple.streamingkeydelivery" << std::endl;
     }
 
-    result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
-
-    while (lines.size()){
-      result << lines.front();
-      lines.pop_front();
-    }
-    if (!myMeta.live && eTime >= myMeta.tracks[tid].lastms){result << "#EXT-X-ENDLIST\r\n";}
-    return result.str();
-  }
-
-  std::string OutHLS::liveIndex(int tid, std::string &sessId){
-    updateMeta();
-    std::stringstream result;
-    // parse single track
-    uint32_t target_dur = (myMeta.tracks[tid].biggestFragment() / 1000) + 1;
-    result << "#EXTM3U\r\n#EXT-X-VERSION:3\r\n#EXT-X-TARGETDURATION:" << target_dur << "\r\n";
-
     std::deque<std::string> lines;
-    std::deque<uint16_t> durs;
-    uint32_t total_dur = 0;
-    for (std::deque<DTSC::Fragment>::iterator it = myMeta.tracks[tid].fragments.begin();
-         it != myMeta.tracks[tid].fragments.end(); it++){
-      long long int starttime = myMeta.tracks[tid].getKey(it->getNumber()).getTime();
-      long long duration = it->getDuration();
-      if (duration <= 0){duration = myMeta.tracks[tid].lastms - starttime;}
+    std::deque<uint16_t> durations;
+    uint32_t totalDuration = 0;
+    DTSC::Keys keys(M.keys(tid));
+    DTSC::Fragments fragments(M.fragments(tid));
+    uint32_t firstFragment = fragments.getFirstValid();
+    uint32_t endFragment = fragments.getEndValid();
+    for (int i = firstFragment; i < endFragment; i++){
+      uint64_t duration = fragments.getDuration(i);
+      size_t keyNumber = fragments.getFirstKey(i);
+      uint64_t startTime = keys.getTime(keyNumber);
+      if (!duration){duration = M.getLastms(tid) - startTime;}
+      double floatDur = (double)duration / 1000;
       char lineBuf[400];
 
-      if (myMeta.tracks[tid].codec == "subtitle"){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.vtt?track=%d&from=%lld&to=%lld\r\n",
-                 (double)duration / 1000, streamName.c_str(), tid, starttime, starttime + duration);
+      if (M.getCodec(tid) == "subtitle"){
+        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.vtt?track=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
+                 (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
       }else{
         if (sessId.size()){
-          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts?sessId=%s\r\n",
-                   (double)duration / 1000, starttime, starttime + duration, sessId.c_str());
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts?sessId=%s\r\n",
+                   floatDur, startTime, startTime + duration, sessId.c_str());
         }else{
-          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%lld_%lld.ts\r\n", (double)duration / 1000,
-                   starttime, starttime + duration);
+          snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".ts\r\n", floatDur,
+                   startTime, startTime + duration);
         }
       }
-      durs.push_back(duration);
-      total_dur += duration;
+      totalDuration += duration;
+      durations.push_back(duration);
       lines.push_back(lineBuf);
     }
-    unsigned int skippedLines = 0;
-    if (myMeta.live && lines.size()){
+    size_t skippedLines = 0;
+    if (M.getLive() && lines.size()){
       // only print the last segment when VoD
       lines.pop_back();
-      total_dur -= durs.back();
-      durs.pop_back();
+      totalDuration -= durations.back();
+      durations.pop_back();
       // skip the first two segments when live, unless that brings us under 4 target durations
-      while ((total_dur - durs.front()) > (target_dur * 4000) && skippedLines < 2){
+      while ((totalDuration - durations.front()) > (targetDuration * 4000) && skippedLines < 2){
         lines.pop_front();
-        total_dur -= durs.front();
-        durs.pop_front();
+        totalDuration -= durations.front();
+        durations.pop_front();
         ++skippedLines;
       }
       /*LTS-START*/
-      // remove lines to reduce size towards listlimit setting - but keep at least 4X target duration available
-      if (config->getInteger("listlimit")){
-        unsigned long listlimit = config->getInteger("listlimit");
-        while (lines.size() > listlimit && (total_dur - durs.front()) > (target_dur * 4000)){
+      // remove lines to reduce size towards listlimit setting - but keep at least 4X target
+      // duration available
+      uint64_t listlimit = config->getInteger("listlimit");
+      if (listlimit){
+        while (lines.size() > listlimit && (totalDuration - durations.front()) > (targetDuration * 4000)){
           lines.pop_front();
-          total_dur -= durs.front();
-          durs.pop_front();
+          totalDuration -= durations.front();
+          durations.pop_front();
           ++skippedLines;
         }
       }
       /*LTS-END*/
     }
 
-    result << "#EXT-X-MEDIA-SEQUENCE:" << myMeta.tracks[tid].missedFrags + skippedLines << "\r\n";
+    result << "#EXT-X-MEDIA-SEQUENCE:" << M.getMissedFragments(tid) + skippedLines << "\r\n";
 
-    while (lines.size()){
-      result << lines.front();
-      lines.pop_front();
+    for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); it++){
+      result << *it;
     }
-    if (!myMeta.live || total_dur == 0){result << "#EXT-X-ENDLIST\r\n";}
-    DEBUG_MSG(DLVL_HIGH, "Sending this index: %s", result.str().c_str());
+    if (!M.getLive() || !totalDuration){result << "#EXT-X-ENDLIST\r\n";}
+    HIGH_MSG("Sending this index: %s", result.str().c_str());
     return result.str();
-  }// liveIndex
-
-  std::string OutHLS::generatePushList(){
-    updateMeta();
-    std::set<unsigned int> videoTracks;
-    std::set<unsigned int> audioTracks;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (it->second.codec == "AAC" || it->second.codec == "MP3" || it->second.codec == "AC3"){
-        audioTracks.insert(it->first);
-      }
-      if (it->second.codec == "H264" || it->second.codec == "HEVC"){
-        videoTracks.insert(it->first);
-      }
-    }
-    JSON::Value result;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      std::stringstream tid;
-      tid << it->second.trackID;
-      result["tracks"][tid.str()] = it->second.toJSON(true);
-    }
-    for (std::set<unsigned int>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
-      for (std::set<unsigned int>::iterator it2 = audioTracks.begin(); it2 != audioTracks.end(); it2++){
-        JSON::Value quality;
-        std::stringstream identifier;
-        identifier << "/" << *it << "_" << *it2;
-        quality["index"] = "/push" + identifier.str() + "/index_\%llu_\%llu.m3u8";
-        quality["segment"] = identifier.str() + "/\%llu_\%llu.ts";
-        quality["video"] = *it;
-        quality["audio"] = *it2;
-        quality["id"] = identifier.str();
-        std::deque<DTSC::Fragment>::iterator it3 = myMeta.tracks[*it].fragments.begin();
-        for (int i = 0; i < 2; i++){
-          if (it3 != myMeta.tracks[*it].fragments.end()){++it3;}
-        }
-        for (; it3 != myMeta.tracks[*it].fragments.end(); it3++){
-          if (myMeta.live && it3 == (myMeta.tracks[*it].fragments.end() - 1)){
-            // Skip the current last fragment if we are live
-            continue;
-          }
-          uint64_t starttime = myMeta.tracks[*it].getKey(it3->getNumber()).getTime();
-          std::stringstream line;
-          uint64_t duration = it3->getDuration();
-          if (duration <= 0){duration = myMeta.tracks[*it].lastms - starttime;}
-          std::stringstream segmenturl;
-          segmenturl << identifier.str() << "/" << starttime << "_" << duration + starttime << ".ts";
-          JSON::Value segment;
-          // segment["url"] = segmenturl.str();
-          segment["time"] = starttime;
-          segment["duration"] = duration;
-          segment["number"] = (uint64_t)it3->getNumber();
-          quality["segments"].append(segment);
-        }
-        result["qualities"].append(quality);
-      }
-    }
-    return result.toString();
-    ;
   }
 
   OutHLS::OutHLS(Socket::Connection &conn) : TSOutput(conn){
@@ -286,7 +170,6 @@ namespace Mist{
         "Segmented streaming in Apple (TS-based) format over HTTP ( = HTTP Live Streaming)";
     capa["url_rel"] = "/hls/$/index.m3u8";
     capa["url_prefix"] = "/hls/$/";
-    capa["url_pushlist"] = "/hls/$/push/list";
     capa["codecs"][0u][0u].append("+HEVC");
     capa["codecs"][0u][1u].append("+H264");
     capa["codecs"][0u][2u].append("+MPEG2");
@@ -380,11 +263,12 @@ namespace Mist{
       return;
     }
 
+    std::string userAgent = H.GetHeader("User-Agent");
     bool VLCworkaround = false;
-    if (H.GetHeader("User-Agent").substr(0, 3) == "VLC"){
-      std::string vlcver = H.GetHeader("User-Agent").substr(4);
+    if (userAgent.substr(0, 3) == "VLC"){
+      std::string vlcver = userAgent.substr(4);
       if (vlcver[0] == '0' || vlcver[0] == '1' || (vlcver[0] == '2' && vlcver[2] < '2')){
-        DEBUG_MSG(DLVL_INFO, "Enabling VLC version < 2.2.0 bug workaround.");
+        INFO_MSG("Enabling VLC version < 2.2.0 bug workaround.");
         VLCworkaround = true;
       }
     }
@@ -392,82 +276,40 @@ namespace Mist{
     initialize();
     if (!keepGoing()){return;}
 
-    if (H.url.substr(5 + streamName.size(), 5) == "/push"){
-      std::string relPushUrl = H.url.substr(10 + streamName.size());
-      H.Clean();
-      if (relPushUrl == "/list"){
-        H.SetBody(generatePushList());
-        H.SendResponse("200", "OK", myConn);
-        H.Clean();
-        return;
-      }
-      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
-      if (relPushUrl == "/index.m3u8"){
-        H.setCORSHeaders();
-        H.SetBody(pushLiveIndex());
-        H.SendResponse("200", "OK", myConn);
-        H.Clean(); // clean for any possible next requests
-        return;
-      }else{
-        unsigned int vTrack;
-        unsigned int aTrack;
-        unsigned long long bTime;
-        unsigned long long eTime;
-        if (sscanf(relPushUrl.c_str(), "/%u_%u/index_%llu_%llu.m3u", &vTrack, &aTrack, &bTime, &eTime) == 4){
-          if (eTime < bTime){eTime = bTime;}
-          H.setCORSHeaders();
-          H.SetBody(pushLiveIndex(vTrack, bTime, eTime));
-          H.SendResponse("200", "OK", myConn);
-          H.Clean(); // clean for any possible next requests
-          return;
-        }
-      }
-      H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
-      myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-      H.Clean(); // clean for any possible next requests
-      return;
-    }else if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
-      size_t slashPos = H.getUrl().find('/', 5);
-      std::string tmpStr = H.getUrl().substr(slashPos);
-      long long unsigned int from;
-      if (sscanf(tmpStr.c_str(), "/%u_%u/%llu_%llu.ts", &vidTrack, &audTrack, &from, &until) != 4){
-        if (sscanf(tmpStr.c_str(), "/%u/%llu_%llu.ts", &vidTrack, &from, &until) != 3){
-          DEBUG_MSG(DLVL_MEDIUM, "Could not parse URL: %s", H.getUrl().c_str());
+    if (H.url.find(".m3u") == std::string::npos){
+      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
+      uint64_t from;
+      if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
+        if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
+          MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
           H.Clean();
           H.setCORSHeaders();
           H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
           myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
           H.Clean(); // clean for any possible next requests
           return;
-        }else{
-          selectedTracks.clear();
-          selectedTracks.insert(vidTrack);
         }
+        userSelect.clear();
+        userSelect[vidTrack].reload(streamName, vidTrack);
       }else{
-        selectedTracks.clear();
-        selectedTracks.insert(vidTrack);
-        selectedTracks.insert(audTrack);
+        userSelect.clear();
+        userSelect[vidTrack].reload(streamName, vidTrack);
+        userSelect[audTrack].reload(streamName, audTrack);
       }
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (it->second.codec == "ID3"){selectedTracks.insert(it->first);}
+      std::set<size_t> validTracks = getSupportedTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        if (M.getCodec(*it) == "ID3"){userSelect[*it].reload(streamName, *it);}
       }
 
-      // Keep a reference to the main track
-      // This is called vidTrack, even for audio-only streams
-      DTSC::Track &Trk = myMeta.tracks[vidTrack];
-
-      if (myMeta.live){
-        if (from < Trk.firstms){
-          H.Clean();
-          H.setCORSHeaders();
-          H.SetBody("The requested fragment is no longer kept in memory on the server and cannot "
-                    "be served.\n");
-          myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
-          H.Clean(); // clean for any possible next requests
-          WARN_MSG("Fragment @ %llu too old", from);
-          return;
-        }
+      if (M.getLive() && from < M.getFirstms(vidTrack)){
+        H.Clean();
+        H.setCORSHeaders();
+        H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
+                  "served.\n");
+        myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
+        H.Clean(); // clean for any possible next requests
+        WARN_MSG("Fragment @ %" PRIu64 " too old", from);
+        return;
       }
 
       H.SetHeader("Content-Type", "video/mp2t");
@@ -487,10 +329,10 @@ namespace Mist{
 
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
       // we assume whole fragments - but timestamps may be altered at will
-      uint32_t fragIndice = Trk.timeToFragnum(from);
-      contPAT = Trk.missedFrags + fragIndice; // PAT continuity counter
-      contPMT = Trk.missedFrags + fragIndice; // PMT continuity counter
-      contSDT = Trk.missedFrags + fragIndice; // SDT continuity counter
+      uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
+      contPAT = M.getMissedFragments(vidTrack) + fragIndice; // PAT continuity counter
+      contPMT = M.getMissedFragments(vidTrack) + fragIndice; // PMT continuity counter
+      contSDT = M.getMissedFragments(vidTrack) + fragIndice; // SDT continuity counter
       packCounter = 0;
       parseData = true;
       wantRequest = false;
@@ -501,8 +343,7 @@ namespace Mist{
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.Clean();
       H.setCORSHeaders();
-      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
-      if (!myMeta.tracks.size()){
+      if (!M.getValidTracks().size()){
         H.SendResponse("404", "Not online or found", myConn);
         H.Clean();
         return;
@@ -516,8 +357,14 @@ namespace Mist{
       if (request.find("/") == std::string::npos){
         manifest = liveIndex();
       }else{
-        int selectId = atoi(request.substr(0, request.find("/")).c_str());
-        manifest = liveIndex(selectId, sessId);
+        size_t idx = atoi(request.substr(0, request.find("/")).c_str());
+        if (!M.getValidTracks().count(idx)){
+          H.SendResponse("404", "No corresponding track found", myConn);
+          H.Clean();
+          return;
+        }
+
+        manifest = liveIndex(idx, sessId);
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);
@@ -532,10 +379,9 @@ namespace Mist{
       parseData = false;
 
       // Ensure alignment of contCounters for selected tracks, to prevent discontinuities.
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
-        DTSC::Track &Trk = myMeta.tracks[*it];
-        uint32_t pkgPid = 255 + *it;
-        int &contPkg = contCounters[pkgPid];
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        uint32_t pkgPid = 255 + it->first;
+        uint16_t &contPkg = contCounters[pkgPid];
         if (contPkg % 16 != 0){
           packData.clear();
           packData.setPID(pkgPid);
@@ -556,7 +402,7 @@ namespace Mist{
     TSOutput::sendNext();
   }
 
-  void OutHLS::sendTS(const char *tsData, unsigned int len){H.Chunkify(tsData, len, myConn);}
+  void OutHLS::sendTS(const char *tsData, size_t len){H.Chunkify(tsData, len, myConn);}
 
   void OutHLS::onFail(const std::string &msg, bool critical){
     if (H.url.find(".m3u") == std::string::npos){

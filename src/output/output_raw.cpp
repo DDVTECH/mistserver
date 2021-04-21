@@ -54,8 +54,8 @@ namespace Mist{
                                  "\"t\",\"long\":\"tracks\",\"help\":\"The track IDs of the stream "
                                  "that this connector will transmit separated by spaces.\"}"));
     cfg->addOption("seek", JSON::fromString("{\"arg\":\"integer\",\"value\":[0],\"short\": "
-                                            "\"S\",\"long\":\"seek\",\"help\":\"The time in "
-                                            "milliseconds to seek to, 0 by default.\"}"));
+                                            "\"S\",\"long\":\"seek\",\"help\":\"The "
+                                            "time in milliseconds to seek to, 0 by default.\"}"));
     cfg->addConnectorOptions(666, capa);
     config = cfg;
   }

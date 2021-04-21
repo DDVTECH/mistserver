@@ -14,9 +14,9 @@ void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
   char *dataPtr;
   size_t dataSize;
   pkt.getString("data", dataPtr, dataSize);
-  DETAIL_MED("Received %ub %sfor track %lu (%s) @ %llums", dataSize,
+  DETAIL_MED("Received %zub %sfor track %zu (%s) @ %" PRIu64 "ms", dataSize,
              pkt.getFlag("keyframe") ? "keyframe " : "", pkt.getTrackId(),
-             myMeta.tracks[pkt.getTrackId()].getIdentifier().c_str(), pkt.getTime());
+             myMeta.getTrackIdentifier(pkt.getTrackId()).c_str(), pkt.getTime());
   if (detail >= 8){
     for (uint32_t i = 0; i < dataSize; ++i){
       std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)dataPtr[i] << " ";
@@ -58,9 +58,9 @@ bool AnalyserRTSP::parsePacket(){
           return true;
         }
         if (HTTP.hasHeader("Transport")){
-          uint32_t trackNo = sdpState.parseSetup(HTTP, "", "");
+          size_t trackNo = sdpState.parseSetup(HTTP, "", "");
           if (trackNo){
-            DETAIL_MED("Parsed transport for track: %lu", trackNo);
+            DETAIL_MED("Parsed transport for track: %zu", trackNo);
           }else{
             DETAIL_MED("Could not parse transport string!");
           }
@@ -95,15 +95,15 @@ bool AnalyserRTSP::parsePacket(){
     RTP::Packet pkt(tcpPacket.data() + 4, len);
     uint8_t chan = tcpHead.data()[1];
     uint32_t trackNo = sdpState.getTrackNoForChannel(chan);
-    DETAIL_HI("Received %ub RTP packet #%u on channel %u, time %llu", len,
-              (unsigned int)pkt.getSequence(), chan, pkt.getTimeStamp());
+    DETAIL_HI("Received %ub RTP packet #%u on channel %u, time %" PRIu32, len, pkt.getSequence(),
+              chan, pkt.getTimeStamp());
     if (!trackNo && (chan % 2) != 1){
       DETAIL_MED("Received packet for unknown track number on channel %u", chan);
     }
     if (trackNo){sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();}
 
     if (detail >= 10){
-      char *pl = pkt.getPayload();
+      const char *pl = pkt.getPayload();
       uint32_t payLen = pkt.getPayloadSize();
       for (uint32_t i = 0; i < payLen; ++i){
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)pl[i] << " ";

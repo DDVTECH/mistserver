@@ -15,7 +15,7 @@ void insertRTP(const uint64_t track, const RTP::Packet &p){
 ///\param data The RTP Packet that needs to be sent
 ///\param len The size of data
 ///\param channel Not used here, but is kept for compatibility with sendTCP
-void sendUDP(void *socket, char *data, unsigned int len, unsigned int channel){
+void sendUDP(void *socket, const char *data, size_t len, uint8_t channel){
   ((Socket::UDPConnection *)socket)->SendNow(data, len);
   if (mainConn){mainConn->addUp(len);}
 }
@@ -27,8 +27,10 @@ namespace Mist{
 
   InputRTSP::InputRTSP(Util::Config *cfg) : Input(cfg){
     needAuth = false;
+    setPacketOffset = false;
+    packetOffset = 0;
     TCPmode = true;
-    sdpState.myMeta = &myMeta;
+    sdpState.myMeta = &meta;
     sdpState.incomingPacketCallback = incomingPacket;
     classPointer = this;
     standAlone = false;
@@ -153,28 +155,29 @@ namespace Mist{
     }
     if (sdpState.tracks.size()){
       bool atLeastOne = false;
-      for (std::map<uint32_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+      for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
            it != sdpState.tracks.end(); ++it){
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-        sendCommand("SETUP", HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl(), "", &extraHeaders);
+        lastRequestedSetup = HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl();
+        sendCommand("SETUP", lastRequestedSetup, "", &extraHeaders);
         if (tcpCon && transportSet){
           atLeastOne = true;
           continue;
         }
         if (!atLeastOne && tcpCon){
           INFO_MSG("Failed to set up transport for track %s, switching transports...",
-                   myMeta.tracks[it->first].getIdentifier().c_str());
+                   M.getTrackIdentifier(it->first).c_str());
           TCPmode = !TCPmode;
           extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-          sendCommand("SETUP", HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl(), "", &extraHeaders);
+          sendCommand("SETUP", lastRequestedSetup, "", &extraHeaders);
         }
         if (tcpCon && transportSet){
           atLeastOne = true;
           continue;
         }
-        FAIL_MSG("Could not setup track %s!", myMeta.tracks[it->first].getIdentifier().c_str());
+        FAIL_MSG("Could not setup track %s!", M.getTrackIdentifier(it->first).c_str());
         tcpCon.close();
         return;
       }
@@ -183,11 +186,7 @@ namespace Mist{
     extraHeaders.clear();
     extraHeaders["Range"] = "npt=0.000-";
     sendCommand("PLAY", url.getUrl(), "", &extraHeaders);
-    if (!TCPmode){
-      connectedAt = Util::epoch() + 2208988800ll;
-    }else{
-      tcpCon.setBlocking(true);
-    }
+    if (TCPmode){tcpCon.setBlocking(true);}
   }
 
   void InputRTSP::closeStreamSource(){
@@ -199,13 +198,9 @@ namespace Mist{
     IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
     uint64_t startTime = Util::epoch();
     uint64_t lastPing = Util::bootSecs();
-    uint64_t lastSecs = 0;
-    while (config->is_active && nProxy.userClient.isAlive() && parsePacket()){
+    while (keepAlive() && parsePacket()){
       handleUDP();
-      // keep going
-      nProxy.userClient.keepAlive();
-      uint64_t currSecs = Util::bootSecs();
-      if (currSecs - lastPing > 30){
+      if (Util::bootSecs() - lastPing > 30){
         sendCommand("GET_PARAMETER", url.getUrl(), "");
         lastPing = Util::bootSecs();
       }
@@ -236,7 +231,7 @@ namespace Mist{
     statsPage.finish();
     if (!tcpCon){return "TCP connection closed";}
     if (!config->is_active){return "received deactivate signal";}
-    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    if (!keepAlive()){return "buffer shutdown";}
     return "Unknown";
   }
 
@@ -246,8 +241,7 @@ namespace Mist{
     do{
       // No new data? Sleep and retry, if connection still open
       if (!tcpCon.Received().size() || !tcpCon.Received().available(1)){
-        if (!tcpCon.spool() && tcpCon && config->is_active && nProxy.userClient.isAlive()){
-          nProxy.userClient.keepAlive();
+        if (!tcpCon.spool() && tcpCon && keepAlive()){
           Util::sleep(waitTime);
           if (!mustHave){return tcpCon;}
         }
@@ -288,14 +282,15 @@ namespace Mist{
             seenSDP = true;
             sdpState.parseSDP(recH.body);
             recH.Clean();
-            INFO_MSG("SDP contained %llu tracks", myMeta.tracks.size());
+            INFO_MSG("SDP contained %zu tracks", M.getValidTracks().size());
             return true;
           }
           if (recH.hasHeader("Transport")){
             INFO_MSG("Received setup response");
-            uint32_t trackNo = sdpState.parseSetup(recH, url.host, "");
-            if (trackNo){
-              INFO_MSG("Parsed transport for track: %lu", trackNo);
+            recH.url = lastRequestedSetup;
+            size_t trackNo = sdpState.parseSetup(recH, url.host, "");
+            if (trackNo != INVALID_TRACK_ID){
+              INFO_MSG("Parsed transport for track: %zu", trackNo);
               transportSet = true;
             }else{
               INFO_MSG("Could not parse transport string!");
@@ -319,17 +314,11 @@ namespace Mist{
           recH.Clean();
           return true;
         }
-        if (!tcpCon.spool() && tcpCon && config->is_active && nProxy.userClient.isAlive()){
-          nProxy.userClient.keepAlive();
-          Util::sleep(waitTime);
-        }
+        if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
         continue;
       }
       if (!tcpCon.Received().available(4)){
-        if (!tcpCon.spool() && tcpCon && config->is_active && nProxy.userClient.isAlive()){
-          nProxy.userClient.keepAlive();
-          Util::sleep(waitTime);
-        }
+        if (!tcpCon.spool() && tcpCon && keepAlive()){Util::sleep(waitTime);}
         continue;
       }// a TCP RTP packet, but not complete yet
 
@@ -345,19 +334,26 @@ namespace Mist{
       std::string tcpPacket = tcpCon.Received().remove(len + 4);
       RTP::Packet pkt(tcpPacket.data() + 4, len);
       uint8_t chan = tcpHead.data()[1];
-      uint32_t trackNo = sdpState.getTrackNoForChannel(chan);
-      EXTREME_MSG("Received %ub RTP packet #%u on channel %u, time %llu", len,
-                  (unsigned int)pkt.getSequence(), chan, pkt.getTimeStamp());
-      if (!trackNo && (chan % 2) != 1){
+      size_t trackNo = sdpState.getTrackNoForChannel(chan);
+      EXTREME_MSG("Received %ub RTP packet #%u on channel %u, time %" PRIu32, len,
+                  pkt.getSequence(), chan, pkt.getTimeStamp());
+      if ((trackNo == INVALID_TRACK_ID) && (chan % 2) != 1){
         WARN_MSG("Received packet for unknown track number on channel %u", chan);
       }
-      if (trackNo){sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();}
+      if (trackNo != INVALID_TRACK_ID){
+        sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
+      }
 
-      sdpState.handleIncomingRTP(trackNo, pkt);
+      if (trackNo != INVALID_TRACK_ID){
+        if (!userSelect.count(trackNo)){
+          userSelect[trackNo].reload(streamName, trackNo, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        }
+        sdpState.handleIncomingRTP(trackNo, pkt);
+      }
 
       return true;
 
-    }while (tcpCon && config->is_active && nProxy.userClient.isAlive());
+    }while (tcpCon && keepAlive());
     return false;
   }
 
@@ -365,7 +361,7 @@ namespace Mist{
   bool InputRTSP::handleUDP(){
     if (TCPmode){return false;}
     bool r = false;
-    for (std::map<uint32_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+    for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       it->second.sorter.setCallback(it->first, insertRTP);
@@ -380,14 +376,29 @@ namespace Mist{
         if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }
-      if (Util::epoch() / 5 != it->second.rtcpSent){
-        it->second.rtcpSent = Util::epoch() / 5;
-        it->second.pack.sendRTCP_RR(connectedAt, it->second, it->first, myMeta, sendUDP);
+      if (Util::bootSecs() != it->second.rtcpSent){
+        it->second.rtcpSent = Util::bootSecs();
+        it->second.pack.sendRTCP_RR(it->second, sendUDP);
       }
     }
     return r;
   }
 
-  void InputRTSP::incoming(const DTSC::Packet &pkt){nProxy.bufferLivePacket(pkt, myMeta);}
+  void InputRTSP::incoming(const DTSC::Packet &pkt){
+    if (!M.getBootMsOffset()){
+      meta.setBootMsOffset(Util::bootMS() - pkt.getTime());
+      packetOffset = 0;
+      setPacketOffset = true;
+    }else if (!setPacketOffset){
+      packetOffset = (Util::bootMS() - pkt.getTime()) - M.getBootMsOffset();
+      setPacketOffset = true;
+    }
+    static DTSC::Packet newPkt;
+    char *pktData;
+    size_t pktDataLen;
+    pkt.getString("data", pktData, pktDataLen);
+    bufferLivePacket(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData,
+                     pktDataLen, 0, pkt.getFlag("keyframe"));
+  }
 
 }// namespace Mist

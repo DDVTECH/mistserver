@@ -27,6 +27,10 @@ namespace Util{
     static bool is_restarting; ///< Set to true when restarting, set to false on boot.
     static uint32_t printDebugLevel;
     static std::string streamName; ///< Used by debug messages to identify the stream name
+    static std::string exitReason;
+    static void logExitReason(const std::string &reason){
+      if (!exitReason.size()){exitReason = reason;}
+    }
     // functions
     Config();
     Config(std::string cmd);

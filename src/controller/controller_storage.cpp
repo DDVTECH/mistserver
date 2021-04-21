@@ -139,7 +139,11 @@ namespace Controller{
 
   void initState(){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
-    shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, true); // max 1M of logs cached
+    shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, false, false); // max 1M of logs cached
+    if (!shmLogs || !shmLogs->mapped){
+      if (shmLogs){delete shmLogs;}
+      shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, true); // max 1M of logs cached
+    }
     if (!shmLogs->mapped){
       FAIL_MSG("Could not open memory page for logs buffer");
       return;
@@ -156,7 +160,11 @@ namespace Controller{
     }
     maxLogsRecs = (1024 * 1024 - rlxLogs->getOffset()) / rlxLogs->getRSize();
 
-    shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024 * 1024, true); // max 1M of accesslogs cached
+    shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024 * 1024, false, false); // max 1M of accesslogs cached
+    if (!shmAccs || !shmAccs->mapped){
+      if (shmAccs){delete shmAccs;}
+      shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024 * 1024, true); // max 1M of accesslogs cached
+    }
     if (!shmAccs->mapped){
       FAIL_MSG("Could not open memory page for access logs buffer");
       return;
@@ -176,7 +184,11 @@ namespace Controller{
     }
     maxAccsRecs = (1024 * 1024 - rlxAccs->getOffset()) / rlxAccs->getRSize();
 
-    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, true); // max 1M of stream data
+    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, false, false); // max 1M of stream data
+    if (!shmStrm || !shmStrm->mapped){
+      if (shmStrm){delete shmStrm;}
+      shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, true); // max 1M of stream data
+    }
     if (!shmStrm->mapped){
       FAIL_MSG("Could not open memory page for stream data");
       return;

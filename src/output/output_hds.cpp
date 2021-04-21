@@ -7,23 +7,22 @@
 namespace Mist{
 
   void OutHDS::getTracks(){
-    /// \todo Why do we have only one audio track option?
     videoTracks.clear();
-    audioTrack = 0;
+    audioTrack = INVALID_TRACK_ID;
     JSON::Value &vidCapa = capa["codecs"][0u][0u];
     JSON::Value &audCapa = capa["codecs"][0u][1u];
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
       jsonForEach(vidCapa, itb){
-        if (it->second.codec == (*itb).asStringRef()){
-          videoTracks.insert(it->first);
+        if (M.getCodec(*it) == itb->asStringRef()){
+          videoTracks.insert(*it);
           break;
         }
       }
-      if (!audioTrack){
+      if (audioTrack == INVALID_TRACK_ID){
         jsonForEach(audCapa, itb){
-          if (it->second.codec == (*itb).asStringRef()){
-            audioTrack = it->first;
+          if (M.getCodec(*it) == itb->asStringRef()){
+            audioTrack = *it;
             break;
           }
         }
@@ -34,18 +33,19 @@ namespace Mist{
   ///\brief Builds a bootstrap for use in HTTP Dynamic streaming.
   ///\param tid The track this bootstrap is generated for.
   ///\return The generated bootstrap.
-  std::string OutHDS::dynamicBootstrap(int tid){
-    updateMeta();
+  std::string OutHDS::dynamicBootstrap(size_t idx){
+    DTSC::Fragments fragments(M.fragments(idx));
+    DTSC::Keys keys(M.keys(idx));
     std::string empty;
 
     MP4::ASRT asrt;
     asrt.setUpdate(false);
     asrt.setVersion(1);
     // asrt.setQualityEntry(empty, 0);
-    if (myMeta.live){
+    if (M.getLive()){
       asrt.setSegmentRun(1, 4294967295ul, 0);
     }else{
-      asrt.setSegmentRun(1, myMeta.tracks[tid].fragments.size(), 0);
+      asrt.setSegmentRun(1, fragments.getValidCount(), 0);
     }
 
     MP4::AFRT afrt;
@@ -54,26 +54,21 @@ namespace Mist{
     afrt.setTimeScale(1000);
     // afrt.setQualityEntry(empty, 0);
     MP4::afrt_runtable afrtrun;
-    int i = 0;
-    int j = 0;
-    if (myMeta.tracks[tid].fragments.size()){
-      std::deque<DTSC::Fragment>::iterator fragIt = myMeta.tracks[tid].fragments.begin();
-      unsigned int firstTime = myMeta.tracks[tid].getKey(fragIt->getNumber()).getTime();
-      while (fragIt != myMeta.tracks[tid].fragments.end()){
-        if (myMeta.vod || fragIt->getDuration() > 0){
-          afrtrun.firstFragment = myMeta.tracks[tid].missedFrags + j + 1;
-          afrtrun.firstTimestamp = myMeta.tracks[tid].getKey(fragIt->getNumber()).getTime() - firstTime;
-          if (fragIt->getDuration() > 0){
-            afrtrun.duration = fragIt->getDuration();
-          }else{
-            afrtrun.duration = myMeta.tracks[tid].lastms - afrtrun.firstTimestamp;
-          }
-          afrt.setFragmentRun(afrtrun, i);
-          ++i;
+    size_t i = 0;
+    size_t j = 0;
+    uint64_t firstTime = keys.getTime(fragments.getFirstKey(fragments.getFirstValid()));
+    for (size_t fragIdx = fragments.getFirstValid() + 1; fragIdx < fragments.getEndValid(); ++fragIdx){
+      if (M.getVod() || fragments.getDuration(fragIdx) > 0){
+        afrtrun.firstFragment = M.getMissedFragments(idx) + j + 1;
+        afrtrun.firstTimestamp = keys.getTime(fragments.getFirstKey(fragIdx)) - firstTime;
+        if (fragments.getDuration(fragIdx) > 0){
+          afrtrun.duration = fragments.getDuration(fragIdx);
+        }else{
+          afrtrun.duration = M.getLastms(idx) - afrtrun.firstTimestamp;
         }
-        ++j;
-        ++fragIt;
+        afrt.setFragmentRun(afrtrun, i++);
       }
+      ++j;
     }
 
     MP4::ABST abst;
@@ -82,15 +77,15 @@ namespace Mist{
     abst.setProfile(0);
     abst.setUpdate(false);
     abst.setTimeScale(1000);
-    abst.setLive(myMeta.live);
-    abst.setCurrentMediaTime(myMeta.tracks[tid].lastms);
+    abst.setLive(M.getLive());
+    abst.setCurrentMediaTime(M.getLastms(idx));
     abst.setSmpteTimeCodeOffset(0);
     abst.setMovieIdentifier(streamName);
     abst.setSegmentRunTable(asrt, 0);
     abst.setFragmentRunTable(afrt, 0);
 
-    DEBUG_MSG(DLVL_VERYHIGH, "Sending bootstrap: %s", abst.toPrettyString(0).c_str());
-    return std::string((char *)abst.asBox(), (int)abst.boxedSize());
+    VERYHIGH_MSG("Sending bootstrap: %s", abst.toPrettyString(0).c_str());
+    return std::string(abst.asBox(), abst.boxedSize());
   }
 
   ///\brief Builds an index file for HTTP Dynamic streaming.
@@ -103,53 +98,53 @@ namespace Mist{
     Result << "  <id>" << streamName << "</id>" << std::endl;
     Result << "  <mimeType>video/mp4</mimeType>" << std::endl;
     Result << "  <deliveryType>streaming</deliveryType>" << std::endl;
-    if (myMeta.vod){
-      Result << "  <duration>" << myMeta.tracks[*videoTracks.begin()].lastms / 1000
+    if (M.getVod()){
+      Result << "  <duration>" << M.getLastms(videoTracks.size() ? *videoTracks.begin() : audioTrack) / 1000
              << ".000</duration>" << std::endl;
       Result << "  <streamType>recorded</streamType>" << std::endl;
     }else{
       Result << "  <duration>0.00</duration>" << std::endl;
       Result << "  <streamType>live</streamType>" << std::endl;
     }
-    for (std::set<int>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
+    for (std::set<size_t>::iterator it = videoTracks.begin(); it != videoTracks.end(); it++){
       Result << "  <bootstrapInfo "
                 "profile=\"named\" "
                 "id=\"boot"
-             << (*it)
+             << *it
              << "\" "
                 "url=\""
-             << (*it)
+             << *it
              << ".abst\">"
                 "</bootstrapInfo>"
              << std::endl;
       Result << "  <media "
                 "url=\""
-             << (*it)
+             << *it
              << "-\" "
                 // bitrate in kbit/s, we have bps so divide by 128
                 "bitrate=\""
-             << (myMeta.tracks[(*it)].bps / 128)
+             << M.getBps(*it) / 128
              << "\" "
                 "bootstrapInfoId=\"boot"
-             << (*it)
+             << *it
              << "\" "
                 "width=\""
-             << myMeta.tracks[(*it)].width
+             << M.getWidth(*it)
              << "\" "
                 "height=\""
-             << myMeta.tracks[(*it)].height << "\">" << std::endl;
+             << M.getHeight(*it) << "\">" << std::endl;
       Result << "    <metadata>AgAKb25NZXRhRGF0YQMAAAk=</metadata>" << std::endl;
       Result << "  </media>" << std::endl;
     }
     Result << "</manifest>" << std::endl;
-    DEBUG_MSG(DLVL_HIGH, "Sending manifest: %s", Result.str().c_str());
+    HIGH_MSG("Sending manifest: %s", Result.str().c_str());
     return Result.str();
   }// BuildManifest
 
   OutHDS::OutHDS(Socket::Connection &conn) : HTTPOutput(conn){
     uaDelay = 0;
     realTime = 0;
-    audioTrack = 0;
+    audioTrack = INVALID_TRACK_ID;
     playUntil = 0;
   }
 
@@ -186,15 +181,14 @@ namespace Mist{
 
   void OutHDS::sendNext(){
     if (thisPacket.getTime() >= playUntil){
-      VERYHIGH_MSG("Done sending fragment (%llu >= %llu)", thisPacket.getTime(), playUntil);
+      VERYHIGH_MSG("Done sending fragment (%" PRIu64 " >= %" PRIu64 ")", thisPacket.getTime(), playUntil);
       stop();
       wantRequest = true;
       H.Chunkify("", 0, myConn);
       return;
     }
-    DTSC::Track &trk = myMeta.tracks[thisPacket.getTrackId()];
-    tag.DTSCLoader(thisPacket, trk);
-    if (trk.codec == "PCM" && trk.size == 16){
+    tag.DTSCLoader(thisPacket, M, thisIdx);
+    if (M.getCodec(thisIdx) == "PCM" && M.getSize(thisIdx) == 16){
       char *ptr = tag.getData();
       uint32_t ptrSize = tag.getDataLen();
       for (uint32_t i = 0; i < ptrSize; i += 2){
@@ -230,47 +224,45 @@ namespace Mist{
     if (H.url.find("f4m") == std::string::npos){
       initialize();
       std::string tmp_qual = H.url.substr(H.url.find("/", 10) + 1);
-      unsigned int tid;
-      unsigned int fragNum;
-      tid = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
+      size_t idx = atoi(tmp_qual.substr(0, tmp_qual.find("Seg") - 1).c_str());
+      if (idx == INVALID_TRACK_ID){FAIL_MSG("Requested fragment for invalid track id");}
       int temp;
       temp = H.url.find("Seg") + 3;
       temp = H.url.find("Frag") + 4;
-      fragNum = atoi(H.url.substr(temp).c_str()) - 1;
-      DEBUG_MSG(DLVL_MEDIUM, "Video track %d, fragment %d", tid, fragNum);
-      if (!audioTrack){getTracks();}
-      unsigned int mstime = 0;
-      unsigned int mslen = 0;
-      if (fragNum < (unsigned int)myMeta.tracks[tid].missedFrags){
+      size_t fragIdx = atoi(H.url.substr(temp).c_str()) - 1;
+      MEDIUM_MSG("Video track %zu, fragment %zu", idx, fragIdx);
+      if (audioTrack == INVALID_TRACK_ID){getTracks();}
+      uint64_t mstime = 0;
+      uint64_t mslen = 0;
+      if (fragIdx < M.getMissedFragments(idx)){
         H.Clean();
         H.setCORSHeaders();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
                   "served.\n");
         H.SendResponse("412", "Fragment out of range", myConn);
         H.Clean(); // clean for any possible next requests
-        std::cout << "Fragment " << fragNum << " too old" << std::endl;
+        FAIL_MSG("Fragment %zu  too old", fragIdx);
         return;
       }
       // delay if we don't have the next fragment available yet
       unsigned int timeout = 0;
-      while (myConn && fragNum >= myMeta.tracks[tid].missedFrags + myMeta.tracks[tid].fragments.size() - 1){
+      DTSC::Fragments fragments(M.fragments(idx));
+      DTSC::Keys keys(M.keys(idx));
+      while (myConn && fragIdx >= fragments.getEndValid() - 1){
         // time out after 21 seconds
         if (++timeout > 42){
-          myConn.close();
+          onFail("Timeout triggered", true);
           break;
         }
         Util::wait(500);
-        updateMeta();
       }
-      mstime = myMeta.tracks[tid]
-                   .getKey(myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getNumber())
-                   .getTime();
-      mslen = myMeta.tracks[tid].fragments[fragNum - myMeta.tracks[tid].missedFrags].getDuration();
-      VERYHIGH_MSG("Playing from %llu for %llu ms", mstime, mslen);
+      mstime = keys.getTime(fragments.getFirstKey(fragIdx));
+      mslen = fragments.getDuration(fragIdx);
+      VERYHIGH_MSG("Playing from %" PRIu64 " for %" PRIu64 " ms", mstime, mslen);
 
-      selectedTracks.clear();
-      selectedTracks.insert(tid);
-      if (audioTrack){selectedTracks.insert(audioTrack);}
+      userSelect.clear();
+      userSelect[idx].reload(streamName, idx);
+      if (audioTrack != INVALID_TRACK_ID){userSelect[audioTrack].reload(streamName, audioTrack);}
       seek(mstime);
       playUntil = mstime + mslen;
 
@@ -284,19 +276,18 @@ namespace Mist{
       }
       H.StartResponse(H, myConn);
       // send the bootstrap
-      std::string bootstrap = dynamicBootstrap(tid);
-      H.Chunkify(bootstrap, myConn);
+      H.Chunkify(dynamicBootstrap(idx), myConn);
       // send a zero-size mdat, meaning it stretches until end of file.
       H.Chunkify("\000\000\000\000mdat", 8, myConn);
       // send init data, if needed.
-      if (audioTrack > 0 && myMeta.tracks[audioTrack].init != ""){
-        if (tag.DTSCAudioInit(myMeta.tracks[audioTrack])){
+      if (audioTrack != INVALID_TRACK_ID && M.getInit(audioTrack) != ""){
+        if (tag.DTSCAudioInit(meta, audioTrack)){
           tag.tagTime(mstime);
           H.Chunkify(tag.data, tag.len, myConn);
         }
       }
-      if (tid > 0){
-        if (tag.DTSCVideoInit(myMeta.tracks[tid])){
+      if (idx != INVALID_TRACK_ID){
+        if (tag.DTSCVideoInit(meta, idx)){
           tag.tagTime(mstime);
           H.Chunkify(tag.data, tag.len, myConn);
         }
@@ -305,8 +296,6 @@ namespace Mist{
       wantRequest = false;
     }else{
       initialize();
-      std::stringstream tmpstr;
-      myMeta.toPrettyString(tmpstr);
       H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Cache-Control", "no-cache");

@@ -140,11 +140,10 @@ namespace Triggers{
     return doTrigger(type, empty, streamName, true, usually_empty, paramsCB, extraParam);
   }
 
-  ///\brief handles triggers for a specific trigger event type, with a payload, for a specified stream, and/or server-wide
-  ///\param type Trigger event type.
-  ///\param payload Trigger type-specific data
-  ///\param streamName The name of a stream.
-  ///\returns Boolean, false if further processing should be aborted.
+  ///\brief handles triggers for a specific trigger event type, with a payload, for a specified
+  /// stream, and/or server-wide \param type Trigger event type. \param payload Trigger
+  /// type-specific data \param streamName The name of a stream. \returns Boolean, false if further
+  /// processing should be aborted.
   /// calls doTrigger with dryRun set to false
   bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName){
     usually_empty.clear();
@@ -158,14 +157,17 @@ namespace Triggers{
   ///\param dryRun determines the mode of operation for this function
   ///\param response Returns the last received response by reference
   ///\returns Boolean, false if further processing should be aborted
-  /// This function attempts to open and parse a shared memory page with the config for a trigger event type, in order to parse the triggers
-  /// defined for that trigger event type.
-  /// The function can be used for two separate purposes, determined by the value of dryRun
-  ///-if this function is called with dryRun==true (for example, from a handleTrigger function), the return value will be true, if at least one
-  /// trigger should be handled for the requested type/stream.
-  /// this can be used to make sure a payload is only generated if at least one trigger should be handled.
-  ///-if this function is called with dryRun==false (for example, from one of the overloaded doTrigger functions), handleTrigger is called for
-  /// all configured triggers. In that case, the return value does not matter, it will probably be false in all cases.
+  /// This function attempts to open and parse a shared memory page with the config for a trigger
+  /// event type, in order to parse the triggers defined for that trigger event type. The function
+  /// can be used for two separate purposes, determined by the value of dryRun
+  ///-if this function is called with dryRun==true (for example, from a handleTrigger function), the
+  /// return value will be true, if at least one trigger should be handled for the requested
+  /// type/stream.
+  /// this can be used to make sure a payload is only generated if at least one trigger should be
+  /// handled.
+  ///-if this function is called with dryRun==false (for example, from one of the overloaded
+  /// doTrigger functions), handleTrigger is called for all configured triggers. In that case, the
+  /// return value does not matter, it will probably be false in all cases.
   bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName,
                  bool dryRun, std::string &response, bool paramsCB(const char *, const void *),
                  const void *extraParam){

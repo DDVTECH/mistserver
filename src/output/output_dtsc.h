@@ -22,7 +22,6 @@ namespace Mist{
     std::string salt;
     void handlePush(DTSC::Scan &dScan);
     void handlePlay(DTSC::Scan &dScan);
-    unsigned long long fastAsPossibleTime;
   };
 }// namespace Mist
 

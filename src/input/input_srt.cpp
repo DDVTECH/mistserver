@@ -47,25 +47,23 @@ namespace Mist{
 
   bool InputSrt::readHeader(){
     if (!fileSource.good()){return false;}
-
-    myMeta.tracks[1].trackID = 1;
-    myMeta.tracks[1].type = "meta";
-    myMeta.tracks[1].codec = "subtitle";
+    size_t idx = meta.addTrack();
+    meta.setID(idx, 1);
+    meta.setType(idx, "meta");
+    meta.setCodec(idx, "subtitle");
 
     getNext();
     while (thisPacket){
-      myMeta.update(thisPacket);
+      meta.update(thisPacket);
       getNext();
     }
 
     // outputting dtsh file
-    myMeta.toFile(config->getString("input") + ".dtsh");
+    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
-  void InputSrt::getNext(bool smart){
-    bool hasPacket = false;
-
+  void InputSrt::getNext(size_t idx){
     thisPacket.null();
     std::string line;
 
@@ -93,7 +91,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = 1;
-        thisPack["bpos"] = (uint64_t)fileSource.tellg();
+        thisPack["bpos"] = fileSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;
@@ -133,12 +131,6 @@ namespace Mist{
     thisPacket.null();
   }
 
-  void InputSrt::seek(int seekTime){fileSource.seekg(0, fileSource.beg);}
-
-  void InputSrt::trackSelect(std::string trackSpec){
-    // we only have one track..
-    selectedTracks.clear();
-    selectedTracks.insert(1);
-  }
+  void InputSrt::seek(uint64_t seekTime, size_t idx){fileSource.seekg(0, fileSource.beg);}
 
 }// namespace Mist

@@ -6,7 +6,7 @@ namespace Mist{
 
   struct segPart{
     char *segData;
-    unsigned int len;
+    size_t len;
   };
 
   class segment{
@@ -25,43 +25,15 @@ namespace Mist{
 
   struct position{
     bool operator<(const position &rhs) const{
-      if (time < rhs.time){
-        return true;
-      }else{
-        if (time == rhs.time){
-          if (trackID < rhs.trackID){return true;}
-        }
-      }
-      return false;
+      if (time < rhs.time){return true;}
+      if (time > rhs.time){return false;}
+      return trackID < rhs.trackID;
     }
     uint64_t trackID;
     uint64_t time;
     uint64_t bytepos;
     uint64_t segmentNo;
   };
-  /*
-    class oggTrack{
-      public:
-        oggTrack() : lastTime(0), parsedHeaders(false), lastPageOffset(0), nxtSegment(0){}
-        codecType codec;
-        std::string contBuffer;//buffer for continuing pages
-        segment myBuffer;
-        double lastTime;
-        long long unsigned int lastGran;
-        bool parsedHeaders;
-        double msPerFrame;
-        long long unsigned int lastPageOffset;
-        OGG::Page myPage;
-        unsigned int nxtSegment;
-        //Codec specific elements
-        //theora
-        theora::header idHeader;
-        //vorbis
-        std::deque<vorbis::mode> vModes;
-        char channels;
-        unsigned long blockSize[2];
-        unsigned long getBlockSize(unsigned int vModeIndex);
-    };*/
 
   class inputOGG : public Input{
   public:
@@ -72,18 +44,17 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    position seekFirstData(long long unsigned int tid);
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    position seekFirstData(size_t tid);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
 
     void parseBeginOfStream(OGG::Page &bosPage);
     std::set<position> currentPositions;
     FILE *inFile;
-    std::map<long unsigned int, OGG::oggTrack> oggTracks; // this remembers all metadata for every track
-    std::set<segment> sortedSegments;                     // probably not needing this
-    long long unsigned int calcGranuleTime(unsigned long tid, long long unsigned int granule);
-    long long unsigned int calcSegmentDuration(unsigned long tid, std::string &segment);
+    std::map<size_t, OGG::oggTrack> oggTracks; // this remembers all metadata for every track
+    std::set<segment> sortedSegments;          // probably not needing this
+    uint64_t calcGranuleTime(size_t tid, uint64_t granule);
+    uint64_t calcSegmentDuration(size_t tid, std::string &segment);
   };
 }// namespace Mist
 

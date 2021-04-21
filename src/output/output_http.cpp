@@ -223,8 +223,8 @@ namespace Mist{
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         streamName = H.GetVar("stream");
-        nProxy.userClient.finish();
-        statsPage.finish();
+        userSelect.clear();
+        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT);}
         reConnector(handler);
         onFail("Server error - could not start connector", true);
         return;
@@ -285,7 +285,6 @@ namespace Mist{
           webSock = 0;
           return;
         }
-        crc = getpid();
         onWebsocketConnect();
         H.Clean();
         return;
@@ -388,7 +387,6 @@ namespace Mist{
       DTSC::Scan capa = rCapa.getMember("connectors");
       pipedCapa = capa.getMember(connector).asJSON();
     }
-
     // build arguments for starting output process
     std::string tmparg = Util::getMyPath() + std::string("MistOut") + connector;
     std::string tmpPrequest;

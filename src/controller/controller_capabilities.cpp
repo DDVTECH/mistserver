@@ -95,17 +95,11 @@ namespace Controller{
     trgs["STREAM_PUSH"]["response"] = "always";
     trgs["STREAM_PUSH"]["response_action"] = "If false, rejects the incoming push.";
 
-    trgs["STREAM_TRACK_ADD"]["when"] = "Before a new track is accepted by a live stream buffer";
-    trgs["STREAM_TRACK_ADD"]["stream_specific"] = true;
-    trgs["STREAM_TRACK_ADD"]["payload"] = "stream name (string)\ntrack ID (integer)\n";
-    trgs["STREAM_TRACK_ADD"]["response"] = "ignored";
-    trgs["STREAM_TRACK_ADD"]["response_action"] = "None.";
-
-    trgs["STREAM_TRACK_REMOVE"]["when"] = "Before a track is removed by a live stream buffer";
-    trgs["STREAM_TRACK_REMOVE"]["stream_specific"] = true;
-    trgs["STREAM_TRACK_REMOVE"]["payload"] = "stream name (string)\ntrack ID (integer)\n";
-    trgs["STREAM_TRACK_REMOVE"]["response"] = "ignored";
-    trgs["STREAM_TRACK_REMOVE"]["response_action"] = "None.";
+    trgs["LIVE_TRACK_LIST"]["when"] = "After the list of valid tracks has been updated";
+    trgs["LIVE_TRACK_LIST"]["stream_specific"] = true;
+    trgs["LIVE_TRACK_LIST"]["payload"] = "stream name (string)\ntrack list (JSON)\n";
+    trgs["LIVE_TRACK_LIST"]["response"] = "ignored";
+    trgs["LIVE_TRACK_LIST"]["response_action"] = "None.";
 
     trgs["STREAM_BUFFER"]["when"] = "Every time a live stream buffer changes state";
     trgs["STREAM_BUFFER"]["stream_specific"] = true;

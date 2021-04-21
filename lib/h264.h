@@ -44,7 +44,6 @@ namespace h264{
     uint32_t chroma_format_idc; ///< the value of chroma_format_idc
     std::string MyData;         ///< The h264 nal unit data
   };
-  // NAL class
 
   /// Special instance of NAL class for analyzing SPS nal units
   class SPS : public NAL{
@@ -96,7 +95,6 @@ namespace h264{
     virtual void setSPSNumber(size_t newNumber){}
     virtual void setPPSNumber(size_t newNumber){}
 
-  protected:
     std::string payload;
   };
 

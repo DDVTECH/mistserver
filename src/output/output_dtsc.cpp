@@ -37,7 +37,6 @@ namespace Mist{
 
   void OutDTSC::sendCmd(const JSON::Value &data){
     MEDIUM_MSG("Sending DTCM: %s", data.toString().c_str());
-    unsigned long sendSize = data.packedSize();
     myConn.SendNow("DTCM");
     char sSize[4] ={0, 0, 0, 0};
     Bit::htobl(sSize, data.packedSize());
@@ -64,61 +63,58 @@ namespace Mist{
     config = cfg;
   }
 
-  std::string OutDTSC::getStatsName(){
-    if (pushing){
-      return "INPUT";
-    }else{
-      return "OUTPUT";
-    }
-  }
+  std::string OutDTSC::getStatsName(){return (pushing ? "INPUT" : "OUTPUT");}
 
   /// Seeks to the first sync'ed keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.
   void OutDTSC::initialSeek(){
-    unsigned long long seekPos = 0;
-    if (myMeta.live){
-      long unsigned int mainTrack = getMainSelectedTrack();
+    uint64_t seekPos = 0;
+    if (M.getLive()){
+      size_t mainTrack = getMainSelectedTrack();
       // cancel if there are no keys in the main track
-      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
+      if (mainTrack == INVALID_TRACK_ID){return;}
+
+      DTSC::Keys keys(M.keys(mainTrack));
+      if (!keys.getValidCount()){return;}
       // seek to the oldest keyframe
-      for (std::deque<DTSC::Key>::iterator it = myMeta.tracks[mainTrack].keys.begin();
-           it != myMeta.tracks[mainTrack].keys.end(); ++it){
-        seekPos = it->getTime();
+      std::set<size_t> validTracks = M.getValidTracks();
+      for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
+        seekPos = keys.getTime(i);
         bool good = true;
         // check if all tracks have data for this point in time
-        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (mainTrack == *ti){continue;}// skip self
-          if (!myMeta.tracks.count(*ti)){
-            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+          if (mainTrack == ti->first){continue;}// skip self
+          if (!validTracks.count(ti->first)){
+            HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
             continue;
           }// ignore missing tracks
-          if (myMeta.tracks[*ti].lastms == myMeta.tracks[*ti].firstms){
-            HIGH_MSG("Skipping track %lu, last equals first", *ti);
+          if (M.getLastms(ti->first) == M.getFirstms(ti->first)){
+            HIGH_MSG("Skipping track %zu, last equals first", ti->first);
             continue;
           }// ignore point-tracks
-          if (myMeta.tracks[*ti].firstms > seekPos){
+          if (M.getFirstms(ti->first) > seekPos){
             good = false;
             break;
           }
-          HIGH_MSG("Track %lu is good", *ti);
+          HIGH_MSG("Track %zu is good", ti->first);
         }
         // if yes, seek here
         if (good){break;}
       }
     }
-    MEDIUM_MSG("Initial seek to %llums", seekPos);
+    MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
     seek(seekPos);
   }
 
   void OutDTSC::sendNext(){
     // If there are now more selectable tracks, select the new track and do a seek to the current
     // timestamp Set sentHeader to false to force it to send init data
-    if (selectedTracks.size() < 2){
-      static unsigned long long lastMeta = 0;
+    if (userSelect.size() < 2){
+      static uint64_t lastMeta = 0;
       if (Util::epoch() > lastMeta + 5){
         lastMeta = Util::epoch();
-        updateMeta();
-        if (myMeta.tracks.size() > 1){
+        std::set<size_t> validTracks = getSupportedTracks();
+        if (validTracks.size() > 1){
           if (selectDefaultTracks()){
             INFO_MSG("Track selection changed - resending headers and continuing");
             sentHeader = false;
@@ -127,21 +123,24 @@ namespace Mist{
         }
       }
     }
-    myConn.SendNow(thisPacket.getData(), thisPacket.getDataLen());
+    DTSC::Packet p(thisPacket, thisIdx + 1);
+    myConn.SendNow(p.getData(), p.getDataLen());
     lastActive = Util::epoch();
   }
 
   void OutDTSC::sendHeader(){
     sentHeader = true;
-    selectedTracks.clear();
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (it->second.type == "video" || it->second.type == "audio"){
-        selectedTracks.insert(it->first);
+    userSelect.clear();
+    std::set<size_t> validTracks = M.getValidTracks();
+    std::set<size_t> selectedTracks;
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      if (M.getType(*it) == "video" || M.getType(*it) == "audio"){
+        userSelect[*it].reload(streamName, *it);
+        selectedTracks.insert(*it);
       }
     }
-    myMeta.send(myConn, true, selectedTracks);
-    if (myMeta.live){realTime = 0;}
+    M.send(myConn, true, selectedTracks, true);
+    if (M.getLive()){realTime = 0;}
   }
 
   void OutDTSC::onFail(const std::string &msg, bool critical){
@@ -184,7 +183,7 @@ namespace Mist{
           continue;
         }
         if (dScan.getMember("cmd").asString() == "reset"){
-          myMeta.reset();
+          meta.reInit(streamName);
           sendOk("Internal state reset");
           continue;
         }
@@ -200,9 +199,9 @@ namespace Mist{
         if (!myConn.Received().available(8 + rSize)){return;}// abort - not enough data yet
         std::string dataPacket = myConn.Received().remove(8 + rSize);
         DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
-        myMeta.reinit(metaPack);
+        meta.reInit(streamName, metaPack.getScan());
         std::stringstream rep;
-        rep << "DTSC_HEAD received with " << myMeta.tracks.size() << " tracks. Bring on those data packets!";
+        rep << "DTSC_HEAD received with " << M.getValidTracks().size() << " tracks. Bring on those data packets!";
         sendOk(rep.str());
       }else if (myConn.Received().copy(4) == "DTP2"){
         if (!isPushing()){
@@ -215,7 +214,7 @@ namespace Mist{
         if (!myConn.Received().available(8 + rSize)){return;}// abort - not enough data yet
         std::string dataPacket = myConn.Received().remove(8 + rSize);
         DTSC::Packet inPack(dataPacket.data(), dataPacket.size(), true);
-        if (!myMeta.tracks.count(inPack.getTrackId())){
+        if (M.trackIDToIndex(inPack.getTrackId(), getpid()) == INVALID_TRACK_ID){
           onFail("DTSC_V2 received for a track that was not announced in the DTSC_HEAD!", true);
           return;
         }

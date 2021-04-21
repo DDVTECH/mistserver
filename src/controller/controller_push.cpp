@@ -135,7 +135,10 @@ namespace Controller{
   void pushCheckLoop(void *np){
     {
       IPC::sharedPage pushReadPage("MstPush", 8 * 1024 * 1024, false, false);
-      if (pushReadPage.mapped){readPushList(pushReadPage.mapped);}
+      if (pushReadPage.mapped){
+        readPushList(pushReadPage.mapped);
+        pushReadPage.master = true;
+      }
     }
     pushListRead = true;
     IPC::sharedPage pushPage("MstPush", 8 * 1024 * 1024, true, false);

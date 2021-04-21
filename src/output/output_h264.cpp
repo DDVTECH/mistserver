@@ -64,9 +64,9 @@ namespace Mist{
 
   void OutH264::sendHeader(){
     MP4::AVCC avccbox;
-    unsigned int mainTrack = getMainSelectedTrack();
-    if (mainTrack && myMeta.tracks.count(mainTrack)){
-      avccbox.setPayload(myMeta.tracks[mainTrack].init);
+    size_t mainTrack = getMainSelectedTrack();
+    if (mainTrack != INVALID_TRACK_ID){
+      avccbox.setPayload(M.getInit(mainTrack));
       myConn.SendNow(avccbox.asAnnexB());
     }
     sentHeader = true;

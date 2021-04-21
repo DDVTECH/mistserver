@@ -8,8 +8,8 @@ public:
   static void init(Util::Config &conf);
 
 private:
-  std::map<int, std::string> sn2Codec;
+  std::map<uint64_t, std::string> sn2Codec;
   std::string oggBuffer;
   OGG::Page oggPage;
-  int kfgshift;
+  uint16_t kfgshift;
 };

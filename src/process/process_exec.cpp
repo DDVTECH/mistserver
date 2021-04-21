@@ -59,6 +59,26 @@ int main(int argc, char *argv[]){
     config.addOption("json", opt);
   }
 
+  capa["codecs"][0u][0u].append("H264");
+  capa["codecs"][0u][0u].append("HEVC");
+  capa["codecs"][0u][0u].append("VP8");
+  capa["codecs"][0u][0u].append("VP9");
+  capa["codecs"][0u][0u].append("theora");
+  capa["codecs"][0u][0u].append("MPEG2");
+  capa["codecs"][0u][0u].append("AV1");
+  capa["codecs"][0u][1u].append("AAC");
+  capa["codecs"][0u][1u].append("vorbis");
+  capa["codecs"][0u][1u].append("opus");
+  capa["codecs"][0u][1u].append("PCM");
+  capa["codecs"][0u][1u].append("ALAW");
+  capa["codecs"][0u][1u].append("ULAW");
+  capa["codecs"][0u][1u].append("MP2");
+  capa["codecs"][0u][1u].append("MP3");
+  capa["codecs"][0u][1u].append("FLOAT");
+  capa["codecs"][0u][1u].append("AC3");
+  capa["codecs"][0u][1u].append("DTS");
+  capa["codecs"][0u][2u].append("+JSON");
+
   if (!(config.parseArgs(argc, argv))){return 1;}
   if (config.getBool("json")){
 
@@ -81,6 +101,14 @@ int main(int argc, char *argv[]){
     capa["optional"]["track_select"]["type"] = "string";
     capa["optional"]["track_select"]["validate"][0u] = "track_selector";
     capa["optional"]["track_select"]["default"] = "audio=all&video=all";
+
+    capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
+    capa["optional"]["track_inhibit"]["help"] =
+        "What tracks to use as inhibitors. If this track selector is able to select a track, the "
+        "process does not start. Defaults to none.";
+    capa["optional"]["track_inhibit"]["type"] = "string";
+    capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
+    capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
 
     std::cout << capa.toString() << std::endl;
     return -1;
@@ -111,6 +139,7 @@ int main(int argc, char *argv[]){
 
   // stream which connects to input
   tthread::thread source(sourceThread, 0);
+  Util::sleep(500);
 
   // needs to pass through encoder to outputEBML
   tthread::thread sink(sinkThread, 0);
@@ -162,7 +191,7 @@ namespace Mist{
     // exec command
     char exec_cmd[10240];
     strncpy(exec_cmd, opt["exec"].asString().c_str(), 10240);
-    MEDIUM_MSG("Executing command: %s", exec_cmd);
+    INFO_MSG("Executing command: %s", exec_cmd);
     uint8_t argCnt = 0;
     char *startCh = 0;
     char *args[1280];
@@ -188,11 +217,11 @@ namespace Mist{
     while (conf.is_active && p.isRunning(execd_proc)){Util::sleep(200);}
 
     while (p.isRunning(execd_proc)){
-      MEDIUM_MSG("Stopping process...");
+      INFO_MSG("Stopping process...");
       p.StopAll();
       Util::sleep(200);
     }
 
-    MEDIUM_MSG("Closing process clean");
+    INFO_MSG("Closing process clean");
   }
 }// namespace Mist

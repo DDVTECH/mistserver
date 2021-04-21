@@ -1,9 +1,10 @@
-#include "output_progressive_flv.h"
+#include "output_flv.h"
+#include <mist/h264.h>
 
 namespace Mist{
-  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutFLV::OutFLV(Socket::Connection &conn) : HTTPOutput(conn){}
 
-  void OutProgressiveFLV::init(Util::Config *cfg){
+  void OutFLV::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "FLV";
     capa["friendly"] = "Flash progressive over HTTP (FLV)";
@@ -45,24 +46,25 @@ namespace Mist{
     cfg->addOption("keyframeonly", opt);
   }
 
-  bool OutProgressiveFLV::isRecording(){return config->getString("target").size();}
+  bool OutFLV::isRecording(){return config->getString("target").size();}
 
-  void OutProgressiveFLV::sendNext(){
-    // If there are now more selectable tracks, select the new track and do a seek to the current timestamp
-    if (myMeta.live && selectedTracks.size() < 2){
-      static unsigned long long lastMeta = 0;
+  void OutFLV::sendNext(){
+    // If there are now more selectable tracks, select the new track and do a seek to the current
+    // timestamp
+    if (M.getLive() && userSelect.size() < 2){
+      static uint64_t lastMeta = 0;
       if (Util::epoch() > lastMeta + 5){
         lastMeta = Util::epoch();
-        updateMeta();
-        if (myMeta.tracks.size() > 1){
+        std::set<size_t> validTracks = getSupportedTracks();
+        if (validTracks.size() > 1){
           if (selectDefaultTracks()){
             INFO_MSG("Track selection changed - resending headers and continuing");
-            for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-                 it != selectedTracks.end(); it++){
-              if (myMeta.tracks[*it].type == "video" && tag.DTSCVideoInit(myMeta.tracks[*it])){
+            for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
+                 it != userSelect.end(); it++){
+              if (M.getType(it->first) == "video" && tag.DTSCVideoInit(meta, it->first)){
                 myConn.SendNow(tag.data, tag.len);
               }
-              if (myMeta.tracks[*it].type == "audio" && tag.DTSCAudioInit(myMeta.tracks[*it])){
+              if (M.getType(it->first) == "audio" && tag.DTSCAudioInit(meta, it->first)){
                 myConn.SendNow(tag.data, tag.len);
               }
             }
@@ -71,10 +73,8 @@ namespace Mist{
         }
       }
     }
-
-    DTSC::Track &trk = myMeta.tracks[thisPacket.getTrackId()];
-    tag.DTSCLoader(thisPacket, trk);
-    if (trk.codec == "PCM" && trk.size == 16){
+    tag.DTSCLoader(thisPacket, M, thisIdx);
+    if (M.getCodec(thisIdx) == "PCM" && M.getSize(thisIdx) == 16){
       char *ptr = tag.getData();
       uint32_t ptrSize = tag.getDataLen();
       for (uint32_t i = 0; i < ptrSize; i += 2){
@@ -87,7 +87,7 @@ namespace Mist{
     if (config->getBool("keyframeonly")){config->is_active = false;}
   }
 
-  void OutProgressiveFLV::sendHeader(){
+  void OutFLV::sendHeader(){
     if (!isRecording()){
       H.Clean();
       H.SetHeader("Content-Type", "video/x-flv");
@@ -96,38 +96,43 @@ namespace Mist{
       H.SendResponse("200", "OK", myConn);
     }
     if (config->getBool("keyframeonly")){
-      selectedTracks.clear();
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (it->second.type == "video"){
-          selectedTracks.insert(it->first);
+      userSelect.clear();
+      std::set<size_t> validTracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        if (M.getType(*it) == "video"){
+          userSelect[*it].reload(streamName, *it);
           break;
         }
       }
     }
 
     myConn.SendNow(FLV::Header, 13);
-    tag.DTSCMetaInit(myMeta, selectedTracks);
+    std::set<size_t> selectedTracks;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      selectedTracks.insert(it->first);
+    }
+    tag.DTSCMetaInit(M, selectedTracks);
     myConn.SendNow(tag.data, tag.len);
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      if (myMeta.tracks[*it].type == "video" && tag.DTSCVideoInit(myMeta.tracks[*it])){
+    for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+      if (M.getType(*it) == "video" && tag.DTSCVideoInit(meta, *it)){
         myConn.SendNow(tag.data, tag.len);
       }
-      if (myMeta.tracks[*it].type == "audio" && tag.DTSCAudioInit(myMeta.tracks[*it])){
+      if (M.getType(*it) == "audio" && tag.DTSCAudioInit(meta, *it)){
         myConn.SendNow(tag.data, tag.len);
       }
     }
     if (config->getBool("keyframeonly")){
-      unsigned int tid = *selectedTracks.begin();
-      int keyNum = myMeta.tracks[tid].keys.rbegin()->getNumber();
-      int keyTime = myMeta.tracks[tid].getKey(keyNum).getTime();
-      INFO_MSG("Seeking for time %d on track %d key %d", keyTime, tid, keyNum);
+      size_t tid = userSelect.begin()->first;
+      DTSC::Keys keys(M.keys(tid));
+      uint32_t endKey = keys.getEndValid();
+      uint64_t keyTime = keys.getTime(endKey - 1);
+      INFO_MSG("Seeking for time %" PRIu64 " on track %zu key %" PRIu32, keyTime, tid, endKey - 1);
       seek(keyTime);
     }
     sentHeader = true;
   }
 
-  void OutProgressiveFLV::onHTTP(){
+  void OutFLV::onHTTP(){
     std::string method = H.method;
 
     H.Clean();

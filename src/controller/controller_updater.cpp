@@ -24,30 +24,6 @@
 #define SHARED_SECRET "empty"
 #endif
 
-static std::string readFile(std::string filename){
-  std::ifstream file(filename.c_str());
-  if (!file.good()){return "";}
-  file.seekg(0, std::ios::end);
-  unsigned int len = file.tellg();
-  file.seekg(0, std::ios::beg);
-  std::string out;
-  out.reserve(len);
-  unsigned int i = 0;
-  while (file.good() && i++ < len){out += file.get();}
-  file.close();
-  return out;
-}
-
-static bool writeFile(std::string filename, std::string &contents){
-  unlink(filename.c_str());
-  std::ofstream file(filename.c_str(), std::ios_base::trunc | std::ios_base::out);
-  if (!file.is_open()){return false;}
-  file << contents;
-  file.close();
-  chmod(filename.c_str(), S_IRWXU | S_IRWXG);
-  return true;
-}
-
 tthread::mutex updaterMutex;
 uint8_t updatePerc = 0;
 JSON::Value updates;

@@ -275,7 +275,8 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser &request,
                                  Socket::Connection &conn, bool bufferAllChunks){
   std::string prot = request.protocol;
-  sendingChunks = (!bufferAllChunks && protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
+  sendingChunks =
+      (!bufferAllChunks && request.protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
   CleanPreserveHeaders();
   protocol = prot;
   if (sendingChunks){

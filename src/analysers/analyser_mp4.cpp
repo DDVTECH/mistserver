@@ -1,4 +1,5 @@
 #include "analyser_mp4.h"
+#include <mist/bitfields.h>
 
 void AnalyserMP4::init(Util::Config &conf){
   Analyser::init(conf);
@@ -22,23 +23,21 @@ bool AnalyserMP4::parsePacket(){
   }
 
   if (mp4Data.read(mp4Buffer)){
-    INFO_MSG("Read a box at position %d", prePos);
+    INFO_MSG("Read a box at position %" PRIu64, prePos);
     if (detail >= 2){std::cout << mp4Data.toPrettyString(0) << std::endl;}
     ///\TODO update mediaTime with the current timestamp
     return true;
   }
-  FAIL_MSG("Could not read box at position %llu", prePos);
+  FAIL_MSG("Could not read box at position %" PRIu64, prePos);
   return false;
 }
 
 /// Calculates how many bytes we need to read a whole box.
 uint64_t AnalyserMP4::neededBytes(){
   if (mp4Buffer.size() < 4){return 4;}
-  uint64_t size = ntohl(((int *)mp4Buffer.data())[0]);
+  uint64_t size = Bit::btohl(mp4Buffer.data());
   if (size != 1){return size;}
   if (mp4Buffer.size() < 16){return 16;}
-  size = 0 + ntohl(((int *)mp4Buffer.data())[2]);
-  size <<= 32;
-  size += ntohl(((int *)mp4Buffer.data())[3]);
+  size = Bit::btohll(mp4Buffer.data() + 8);
   return size;
 }

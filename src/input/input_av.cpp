@@ -72,7 +72,7 @@ namespace Mist{
     if (ret != 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      DEBUG_MSG(DLVL_FAIL, "Could not open file: %s", errstr);
+      FAIL_MSG("Could not open file: %s", errstr);
       return false; // Couldn't open file
     }
 
@@ -81,7 +81,7 @@ namespace Mist{
     if (ret < 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      DEBUG_MSG(DLVL_FAIL, "Could not find stream info: %s", errstr);
+      FAIL_MSG("Could not find stream info: %s", errstr);
       return false;
     }
     return true;
@@ -160,12 +160,12 @@ namespace Mist{
     return true;
   }
 
-  void inputAV::getNext(bool smart){
+  void inputAV::getNext(){
     AVPacket packet;
     while (av_read_frame(pFormatCtx, &packet) >= 0){
       // filter tracks we don't care about
       if (!selectedTracks.count(packet.stream_index + 1)){
-        DEBUG_MSG(DLVL_HIGH, "Track %u not selected", packet.stream_index + 1);
+        HIGH_MSG("Track %u not selected", packet.stream_index + 1);
         continue;
       }
       AVStream *strm = pFormatCtx->streams[packet.stream_index];
@@ -187,7 +187,7 @@ namespace Mist{
     thisPacket.null();
     preRun();
     // failure :-(
-    DEBUG_MSG(DLVL_FAIL, "getNext failed");
+    FAIL_MSG("getNext failed");
   }
 
   void inputAV::seek(int seekTime){

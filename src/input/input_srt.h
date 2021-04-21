@@ -16,9 +16,8 @@ namespace Mist{
     bool checkArguments();
     bool readHeader();
     bool preRun();
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     bool vtt;
 
     FILE *inFile;

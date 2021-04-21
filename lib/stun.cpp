@@ -233,7 +233,7 @@ int stun_compute_hmac_sha1(uint8_t *message, uint32_t nbytes, std::string key, u
     goto error;
   }
 
-  DONTEVEN_MSG("Calculating hmac-sha1 with key `%s` with size %zu over %zu bytes of data.",
+  DONTEVEN_MSG("Calculating hmac-sha1 with key `%s` with size %zu over %" PRIu32 " bytes of data.",
                key.c_str(), key.size(), nbytes);
 
   r = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)key.c_str(), key.size());

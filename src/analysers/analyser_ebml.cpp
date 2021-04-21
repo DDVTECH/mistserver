@@ -35,7 +35,7 @@ bool AnalyserEBML::parsePacket(){
   if (dataBuffer.size() < neededBytes()){return false;}
 
   EBML::Element E(dataBuffer.data(), true);
-  HIGH_MSG("Read an element at position %d", prePos);
+  HIGH_MSG("Read an element at position %zu", prePos);
   if (detail >= 2){std::cout << E.toPrettyString(depthStash.size() * 2, detail);}
   switch (E.getID()){
   case EBML::EID_SEGMENT:

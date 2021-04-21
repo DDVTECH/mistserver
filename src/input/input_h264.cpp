@@ -17,10 +17,9 @@ namespace Mist{
     inputProcess = 0;
   }
 
-  bool InputH264::preRun(){
+  bool InputH264::openStreamSource(){
     if (config->getString("input") != "-"){
       std::string input = config->getString("input");
-      const char *argv[2];
       input = input.substr(10);
 
       char *args[128];
@@ -50,13 +49,18 @@ namespace Mist{
       myConn.open(fileno(stdout), fileno(stdin));
     }
     myConn.Received().splitter.assign("\000\000\001", 3);
-    myMeta.vod = false;
-    myMeta.live = true;
-    myMeta.tracks[1].type = "video";
-    myMeta.tracks[1].codec = "H264";
-    myMeta.tracks[1].trackID = 1;
-    waitsSinceData = 0;
     return true;
+  }
+
+  void InputH264::parseStreamHeader(){
+    tNumber = meta.addTrack();
+    meta.setType(tNumber, "video");
+    meta.setCodec(tNumber, "H264");
+    meta.setID(tNumber, tNumber);
+    waitsSinceData = 0;
+    INFO_MSG("Waiting for init data...");
+    while (myConn && !M.getInit(tNumber).size()){getNext();}
+    INFO_MSG("Init data received!");
   }
 
   bool InputH264::checkArguments(){
@@ -68,7 +72,7 @@ namespace Mist{
     return true;
   }
 
-  void InputH264::getNext(bool smart){
+  void InputH264::getNext(size_t idx){
     do{
       if (!myConn.spool()){
         Util::sleep(25);
@@ -87,18 +91,18 @@ namespace Mist{
       while (nalSize && NAL.data()[nalSize - 1] == 0){--nalSize;}
       if (!nalSize){continue;}
       uint8_t nalType = NAL.data()[0] & 0x1F;
-      INSANE_MSG("NAL unit, type %u, size %lu", nalType, nalSize);
+      INSANE_MSG("NAL unit, type %u, size %" PRIu32, nalType, nalSize);
       if (nalType == 7 || nalType == 8){
         if (nalType == 7){spsInfo = NAL.substr(0, nalSize);}
         if (nalType == 8){ppsInfo = NAL.substr(0, nalSize);}
-        if (!myMeta.tracks[1].init.size() && spsInfo.size() && ppsInfo.size()){
+        if (!meta.getInit(tNumber).size() && spsInfo.size() && ppsInfo.size()){
           h264::sequenceParameterSet sps(spsInfo.data(), spsInfo.size());
           h264::SPSMeta spsChar = sps.getCharacteristics();
-          myMeta.tracks[1].width = spsChar.width;
-          myMeta.tracks[1].height = spsChar.height;
-          myMeta.tracks[1].fpks = spsChar.fps * 1000;
-          if (myMeta.tracks[1].fpks < 100 || myMeta.tracks[1].fpks > 1000000){
-            myMeta.tracks[1].fpks = 0;
+          meta.setWidth(tNumber, spsChar.width);
+          meta.setHeight(tNumber, spsChar.height);
+          meta.setFpks(tNumber, spsChar.fps * 1000);
+          if (M.getFpks(tNumber) < 100 || M.getFpks(tNumber) > 1000000){
+            meta.setFpks(tNumber, 0);
           }
           MP4::AVCC avccBox;
           avccBox.setVersion(1);
@@ -109,14 +113,14 @@ namespace Mist{
           avccBox.setSPS(spsInfo);
           avccBox.setPPSCount(1);
           avccBox.setPPS(ppsInfo);
-          myMeta.tracks[1].init = std::string(avccBox.payload(), avccBox.payloadSize());
+          meta.setInit(tNumber, avccBox.payload(), avccBox.payloadSize());
         }
         continue;
       }
-      if (myMeta.tracks[1].init.size()){
+      if (M.getInit(tNumber).size()){
         uint64_t ts = Util::bootMS() - startTime;
-        if (myMeta.tracks[1].fpks){ts = frameCount * (1000000 / myMeta.tracks[1].fpks);}
-        thisPacket.genericFill(ts, 0, 1, 0, 0, 0, h264::isKeyframe(NAL.data(), nalSize));
+        if (M.getFpks(tNumber)){ts = frameCount * (1000000 / M.getFpks(tNumber));}
+        thisPacket.genericFill(ts, 0, tNumber, 0, 0, 0, h264::isKeyframe(NAL.data(), nalSize));
         thisPacket.appendNal(NAL.data(), nalSize);
         ++frameCount;
         return;

@@ -1,6 +1,5 @@
-#include <fstream>
-
 #include "input.h"
+#include <fstream>
 #include <mist/dtsc.h>
 #include <mist/shared_memory.h>
 
@@ -12,11 +11,12 @@ namespace Mist{
     void onCrash();
 
   private:
-    void fillBufferDetails(JSON::Value &details);
-    unsigned int bufferTime;
-    unsigned int cutTime;
-    unsigned int segmentSize; /*LTS*/
-    unsigned int lastReTime;  /*LTS*/
+    void fillBufferDetails(JSON::Value &details) const;
+    uint64_t bufferTime;
+    uint64_t cutTime;
+    size_t segmentSize;  /*LTS*/
+    uint64_t lastReTime; /*LTS*/
+    uint64_t finalMillis;
     bool hasPush;
     bool resumeMode;
     IPC::semaphore *liveMeta;
@@ -28,29 +28,30 @@ namespace Mist{
     void updateMeta();
     bool readHeader(){return false;}
     bool needHeader(){return false;}
-    void getNext(bool smart = true){}
-    void updateTrackMeta(unsigned long tNum);
-    void updateMetaFromPage(unsigned long tNum, unsigned long pageNum);
-    void seek(int seekTime){}
-    void trackSelect(std::string trackSpec){}
-    bool removeKey(unsigned int tid);
+    void getNext(size_t idx = INVALID_TRACK_ID){};
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID){};
+
+    void removeTrack(size_t tid);
+
+    bool removeKey(size_t tid);
     void removeUnused();
-    void eraseTrackDataPages(unsigned long tid);
     void finish();
-    void userCallback(char *data, size_t len, unsigned int id);
-    std::set<unsigned long> negotiatingTracks;
-    std::set<unsigned long> activeTracks;
-    std::map<unsigned long, unsigned long long> lastUpdated;
-    std::map<unsigned long, unsigned long long> negotiationTimeout;
-    /// Maps trackid to a pagenum->pageData map
-    std::map<unsigned long, std::map<unsigned long, DTSCPageData> > bufferLocations;
-    std::map<unsigned long, char *> pushLocation;
-    inputBuffer *singleton;
+
+    uint64_t retrieveSetting(DTSC::Scan &streamCfg, const std::string &setting, const std::string &option = "");
+
+    void userLeadIn();
+    void userOnActive(size_t id);
+    void userOnDisconnect(size_t id);
+    void userLeadOut();
     // This is used for an ugly fix to prevent metadata from disappearing in some cases.
-    std::map<unsigned long, std::string> initData;
+    std::map<size_t, std::string> initData;
+
     uint64_t findTrack(const std::string &trackVal);
     void checkProcesses(const JSON::Value &procs); // LTS
     std::map<std::string, pid_t> runningProcs;     // LTS
+
+    std::set<size_t> generatePids;
+    std::map<size_t, std::set<size_t> > sourcePids;
   };
 }// namespace Mist
 

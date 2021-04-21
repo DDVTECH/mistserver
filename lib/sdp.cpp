@@ -45,24 +45,26 @@ namespace SDP{
   }
 
   /// Gets the SDP contents for sending out a particular given DTSC::Track.
-  std::string mediaDescription(const DTSC::Track &trk){
+  std::string mediaDescription(const DTSC::Meta *meta, size_t tid){
+    const DTSC::Meta &M = *meta;
     std::stringstream mediaDesc;
-    if (trk.codec == "H264"){
+
+    std::string codec = M.getCodec(tid);
+    std::string init = M.getInit(tid);
+
+    if (codec == "H264"){
       MP4::AVCC avccbox;
-      avccbox.setPayload(trk.init);
+      avccbox.setPayload(init);
       mediaDesc << "m=video 0 RTP/AVP 97\r\n"
                    "a=rtpmap:97 H264/90000\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width
-                << "\r\n"
-                   "a=framesize:97 "
-                << trk.width << '-' << trk.height
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:97 "
+                << M.getWidth(tid) << '-' << M.getHeight(tid)
                 << "\r\n"
                    "a=fmtp:97 packetization-mode=1;profile-level-id="
-                << std::hex << std::setw(2) << std::setfill('0') << (int)trk.init.data()[1]
-                << std::dec << "E0" << std::hex << std::setw(2) << std::setfill('0')
-                << (int)trk.init.data()[3] << std::dec << ";"
-                << "sprop-parameter-sets=";
+                << std::hex << std::setw(2) << std::setfill('0') << (int)init.data()[1] << std::dec
+                << "E0" << std::hex << std::setw(2) << std::setfill('0') << (int)init.data()[3]
+                << std::dec << ";sprop-parameter-sets=";
       size_t count = avccbox.getSPSCount();
       for (size_t i = 0; i < count; ++i){
         mediaDesc << (i ? "," : "")
@@ -75,19 +77,15 @@ namespace SDP{
                   << Encodings::Base64::encode(std::string(avccbox.getPPS(i), avccbox.getPPSLen(i)));
       }
       mediaDesc << "\r\n"
-                << "a=framerate:" << ((double)trk.fpks) / 1000.0
-                << "\r\n"
-                   "a=control:track"
-                << trk.trackID << "\r\n";
-    }else if (trk.codec == "HEVC"){
-      h265::initData iData(trk.init);
+                   "a=framerate:"
+                << ((double)M.getFpks(tid)) / 1000.0 << "\r\na=control:track" << tid << "\r\n";
+    }else if (codec == "HEVC"){
+      h265::initData iData(init);
       mediaDesc << "m=video 0 RTP/AVP 104\r\n"
                    "a=rtpmap:104 H265/90000\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width
-                << "\r\n"
-                   "a=framesize:104 "
-                << trk.width << '-' << trk.height << "\r\n"
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:104 "
+                << M.getWidth(tid) << '-' << M.getHeight(tid) << "\r\n"
                 << "a=fmtp:104 sprop-vps=";
       const std::set<std::string> &vps = iData.getVPS();
       if (vps.size()){
@@ -112,90 +110,80 @@ namespace SDP{
           mediaDesc << Encodings::Base64::encode(*it);
         }
       }
-      mediaDesc << "\r\na=framerate:" << ((double)trk.fpks) / 1000.0
-                << "\r\n"
-                   "a=control:track"
-                << trk.trackID << "\r\n";
-    }else if (trk.codec == "MPEG2"){
+      mediaDesc << "\r\na=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\na=control:track"
+                << tid << "\r\n";
+    }else if (codec == "MPEG2"){
       mediaDesc << "m=video 0 RTP/AVP 32\r\n"
                    "a=cliprect:0,0,"
-                << trk.height << "," << trk.width
-                << "\r\n"
-                   "a=framesize:32 "
-                << trk.width << '-' << trk.height << "\r\n"
-                << "a=framerate:" << ((double)trk.fpks) / 1000.0 << "\r\n"
-                << "a=control:track" << trk.trackID << "\r\n";
-    }else if (trk.codec == "AAC"){
+                << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:32 " << M.getWidth(tid)
+                << '-' << M.getHeight(tid) << "\r\na=framerate:" << ((double)M.getFpks(tid)) / 1000.0
+                << "\r\na=control:track" << tid << "\r\n";
+    }else if (codec == "AAC"){
       mediaDesc << "m=audio 0 RTP/AVP 96"
                 << "\r\n"
                    "a=rtpmap:96 mpeg4-generic/"
-                << trk.rate << "/" << trk.channels
+                << M.getRate(tid) << "/" << M.getChannels(tid)
                 << "\r\n"
                    "a=fmtp:96 streamtype=5; profile-level-id=15; config=";
-      for (unsigned int i = 0; i < trk.init.size(); i++){
-        mediaDesc << std::hex << std::setw(2) << std::setfill('0') << (int)trk.init[i] << std::dec;
+      for (unsigned int i = 0; i < init.size(); i++){
+        mediaDesc << std::hex << std::setw(2) << std::setfill('0') << (int)init[i] << std::dec;
       }
       // these values are described in RFC 3640
       mediaDesc << "; mode=AAC-hbr; SizeLength=13; IndexLength=3; IndexDeltaLength=3;\r\n"
                    "a=control:track"
-                << trk.trackID << "\r\n";
-    }else if (trk.codec == "MP3" || trk.codec == "MP2"){
-      mediaDesc << "m=" << trk.type << " 0 RTP/AVP 14"
+                << tid << "\r\n";
+    }else if (codec == "MP3" || codec == "MP2"){
+      mediaDesc << "m=" << M.getType(tid) << " 0 RTP/AVP 14"
                 << "\r\n"
                    "a=rtpmap:14 MPA/90000/"
-                << trk.channels
-                << "\r\n"
-                   "a=control:track"
-                << trk.trackID << "\r\n";
-    }else if (trk.codec == "AC3"){
+                << M.getChannels(tid) << "\r\n"
+                << "a=control:track" << tid << "\r\n";
+    }else if (codec == "AC3"){
       mediaDesc << "m=audio 0 RTP/AVP 100"
                 << "\r\n"
                    "a=rtpmap:100 AC3/"
-                << trk.rate << "/" << trk.channels
-                << "\r\n"
-                   "a=control:track"
-                << trk.trackID << "\r\n";
-    }else if (trk.codec == "ALAW"){
-      if (trk.channels == 1 && trk.rate == 8000){
+                << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
+                << "a=control:track" << tid << "\r\n";
+    }else if (codec == "ALAW"){
+      if (M.getChannels(tid) == 1 && M.getRate(tid) == 8000){
         mediaDesc << "m=audio 0 RTP/AVP 8"
                   << "\r\n";
       }else{
         mediaDesc << "m=audio 0 RTP/AVP 101"
                   << "\r\n";
-        mediaDesc << "a=rtpmap:101 PCMA/" << trk.rate << "/" << trk.channels << "\r\n";
+        mediaDesc << "a=rtpmap:101 PCMA/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
-      mediaDesc << "a=control:track" << trk.trackID << "\r\n";
-    }else if (trk.codec == "ULAW"){
-      if (trk.channels == 1 && trk.rate == 8000){
+      mediaDesc << "a=control:track" << tid << "\r\n";
+    }else if (codec == "ULAW"){
+      if (M.getChannels(tid) == 1 && M.getRate(tid) == 8000){
         mediaDesc << "m=audio 0 RTP/AVP 0"
                   << "\r\n";
       }else{
         mediaDesc << "m=audio 0 RTP/AVP 104"
                   << "\r\n";
-        mediaDesc << "a=rtpmap:104 PCMU/" << trk.rate << "/" << trk.channels << "\r\n";
+        mediaDesc << "a=rtpmap:104 PCMU/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
-      mediaDesc << "a=control:track" << trk.trackID << "\r\n";
-    }else if (trk.codec == "PCM"){
-      if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
+      mediaDesc << "a=control:track" << tid << "\r\n";
+    }else if (codec == "PCM"){
+      if (M.getSize(tid) == 16 && M.getChannels(tid) == 2 && M.getRate(tid) == 44100){
         mediaDesc << "m=audio 0 RTP/AVP 10"
                   << "\r\n";
-      }else if (trk.size == 16 && trk.channels == 1 && trk.rate == 44100){
+      }else if (M.getSize(tid) == 16 && M.getChannels(tid) == 1 && M.getRate(tid) == 44100){
         mediaDesc << "m=audio 0 RTP/AVP 11"
                   << "\r\n";
       }else{
         mediaDesc << "m=audio 0 RTP/AVP 103"
                   << "\r\n";
-        mediaDesc << "a=rtpmap:103 L" << trk.size << "/" << trk.rate << "/" << trk.channels << "\r\n";
+        mediaDesc << "a=rtpmap:103 L" << M.getSize(tid) << "/" << M.getRate(tid) << "/"
+                  << M.getChannels(tid) << "\r\n";
       }
-      mediaDesc << "a=control:track" << trk.trackID << "\r\n";
-    }else if (trk.codec == "opus"){
+      mediaDesc << "a=control:track" << tid << "\r\n";
+    }else if (codec == "opus"){
       mediaDesc << "m=audio 0 RTP/AVP 102"
                 << "\r\n"
                    "a=rtpmap:102 opus/"
-                << trk.rate << "/" << trk.channels
-                << "\r\n"
-                   "a=control:track"
-                << trk.trackID << "\r\n";
+                << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
+                << "a=control:track" << tid << "\r\n";
     }
     return mediaDesc.str();
   }
@@ -232,43 +220,44 @@ namespace SDP{
   /// \source The source identifier.
   /// \return True if successful, false otherwise.
   bool Track::parseTransport(const std::string &transport, const std::string &host,
-                             const std::string &source, const DTSC::Track &trk){
-    if (trk.codec == "H264"){
+                             const std::string &source, const DTSC::Meta *M, size_t tid){
+    std::string codec = M->getCodec(tid);
+    if (codec == "H264"){
       pack = RTP::Packet(97, 1, 0, mySSRC);
-    }else if (trk.codec == "HEVC"){
+    }else if (codec == "HEVC"){
       pack = RTP::Packet(104, 1, 0, mySSRC);
-    }else if (trk.codec == "MPEG2"){
+    }else if (codec == "MPEG2"){
       pack = RTP::Packet(32, 1, 0, mySSRC);
-    }else if (trk.codec == "AAC"){
+    }else if (codec == "AAC"){
       pack = RTP::Packet(96, 1, 0, mySSRC);
-    }else if (trk.codec == "AC3"){
+    }else if (codec == "AC3"){
       pack = RTP::Packet(100, 1, 0, mySSRC);
-    }else if (trk.codec == "MP3" || trk.codec == "MP2"){
+    }else if (codec == "MP3" || codec == "MP2"){
       pack = RTP::Packet(14, 1, 0, mySSRC);
-    }else if (trk.codec == "ALAW"){
-      if (trk.channels == 1 && trk.rate == 8000){
+    }else if (codec == "ALAW"){
+      if (M->getChannels(tid) == 1 && M->getRate(tid) == 8000){
         pack = RTP::Packet(8, 1, 0, mySSRC);
       }else{
         pack = RTP::Packet(101, 1, 0, mySSRC);
       }
-    }else if (trk.codec == "ULAW"){
-      if (trk.channels == 1 && trk.rate == 8000){
+    }else if (codec == "ULAW"){
+      if (M->getChannels(tid) == 1 && M->getRate(tid) == 8000){
         pack = RTP::Packet(0, 1, 0, mySSRC);
       }else{
         pack = RTP::Packet(104, 1, 0, mySSRC);
       }
-    }else if (trk.codec == "PCM"){
-      if (trk.size == 16 && trk.channels == 2 && trk.rate == 44100){
+    }else if (codec == "PCM"){
+      if (M->getSize(tid) == 16 && M->getChannels(tid) == 2 && M->getRate(tid) == 44100){
         pack = RTP::Packet(10, 1, 0, mySSRC);
-      }else if (trk.size == 16 && trk.channels == 1 && trk.rate == 44100){
+      }else if (M->getSize(tid) == 16 && M->getChannels(tid) == 1 && M->getRate(tid) == 44100){
         pack = RTP::Packet(11, 1, 0, mySSRC);
       }else{
         pack = RTP::Packet(103, 1, 0, mySSRC);
       }
-    }else if (trk.codec == "opus"){
+    }else if (codec == "opus"){
       pack = RTP::Packet(102, 1, 0, mySSRC);
     }else{
-      ERROR_MSG("Unsupported codec %s for RTSP on track %u", trk.codec.c_str(), trk.trackID);
+      ERROR_MSG("Unsupported codec %s for RTSP on track %zu", codec.c_str(), tid);
       return false;
     }
     if (transport.find("TCP") != std::string::npos){
@@ -334,10 +323,10 @@ namespace SDP{
   }
 
   /// Gets the rtpInfo for a given DTSC::Track, source identifier and timestamp (in millis).
-  std::string Track::rtpInfo(const DTSC::Track &trk, const std::string &source, uint64_t currentTime){
+  std::string Track::rtpInfo(const DTSC::Meta &M, size_t tid, const std::string &source, uint64_t currentTime){
     std::stringstream rInfo;
-    rInfo << "url=" << source << "/track" << trk.trackID << ";"; // get the current url, not localhost
-    rInfo << "sequence=" << pack.getSequence() << ";rtptime=" << currentTime * getMultiplier(trk);
+    rInfo << "url=" << source << "/track" << tid << ";"; // get the current url, not localhost
+    rInfo << "seq=" << pack.getSequence() << ";rtptime=" << currentTime * getMultiplier(&M, tid);
     return rInfo.str();
   }
 
@@ -348,12 +337,11 @@ namespace SDP{
   }
 
   void State::parseSDP(const std::string &sdp){
-    DONTEVEN_MSG("Parsing %llu-byte SDP", sdp.size());
+    DONTEVEN_MSG("Parsing %zu-byte SDP", sdp.size());
     std::stringstream ss(sdp);
     std::string to;
-    uint64_t trackNo = 0;
+    size_t tid = INVALID_TRACK_ID;
     bool nope = true; // true if we have no valid track to fill
-    DTSC::Track *thisTrack = 0;
     while (std::getline(ss, to, '\n')){
       if (!to.empty() && *to.rbegin() == '\r'){to.erase(to.size() - 1, 1);}
       if (to.empty()){continue;}
@@ -362,24 +350,23 @@ namespace SDP{
       // All tracks start with a media line
       if (to.substr(0, 2) == "m="){
         nope = true;
-        ++trackNo;
-        thisTrack = &(myMeta->tracks[trackNo]);
+        tid = myMeta->addTrack();
         std::stringstream words(to.substr(2));
         std::string item;
         if (getline(words, item, ' ') && (item == "audio" || item == "video")){
-          thisTrack->type = item;
-          thisTrack->trackID = trackNo;
+          myMeta->setType(tid, item);
+          myMeta->setID(tid, tid);
         }else{
           WARN_MSG("Media type not supported: %s", item.c_str());
-          myMeta->tracks.erase(trackNo);
-          tracks.erase(trackNo);
+          myMeta->removeTrack(tid);
+          tracks.erase(tid);
           continue;
         }
         getline(words, item, ' ');
         if (!getline(words, item, ' ') || item.substr(0, 7) != "RTP/AVP"){
           WARN_MSG("Media transport not supported: %s", item.c_str());
-          myMeta->tracks.erase(trackNo);
-          tracks.erase(trackNo);
+          myMeta->removeTrack(tid);
+          tracks.erase(tid);
           continue;
         }
         if (getline(words, item, ' ')){
@@ -388,62 +375,62 @@ namespace SDP{
           case 0: // PCM Mu-law
             INFO_MSG("PCM Mu-law payload type");
             nope = false;
-            thisTrack->codec = "ULAW";
-            thisTrack->rate = 8000;
-            thisTrack->channels = 1;
+            myMeta->setCodec(tid, "ULAW");
+            myMeta->setRate(tid, 8000);
+            myMeta->setChannels(tid, 1);
             break;
           case 8: // PCM A-law
             INFO_MSG("PCM A-law payload type");
             nope = false;
-            thisTrack->codec = "ALAW";
-            thisTrack->rate = 8000;
-            thisTrack->channels = 1;
+            myMeta->setCodec(tid, "ALAW");
+            myMeta->setRate(tid, 8000);
+            myMeta->setChannels(tid, 1);
             break;
           case 10: // PCM Stereo, 44.1kHz
             INFO_MSG("Linear PCM stereo 44.1kHz payload type");
             nope = false;
-            thisTrack->codec = "PCM";
-            thisTrack->size = 16;
-            thisTrack->rate = 44100;
-            thisTrack->channels = 2;
+            myMeta->setCodec(tid, "PCM");
+            myMeta->setSize(tid, 16);
+            myMeta->setRate(tid, 44100);
+            myMeta->setChannels(tid, 2);
             break;
           case 11: // PCM Mono, 44.1kHz
             INFO_MSG("Linear PCM mono 44.1kHz payload type");
             nope = false;
-            thisTrack->codec = "PCM";
-            thisTrack->rate = 44100;
-            thisTrack->size = 16;
-            thisTrack->channels = 1;
+            myMeta->setCodec(tid, "PCM");
+            myMeta->setRate(tid, 44100);
+            myMeta->setSize(tid, 16);
+            myMeta->setChannels(tid, 1);
             break;
           case 14: // MPA
             INFO_MSG("MPA payload type");
             nope = false;
-            thisTrack->codec = "MP3";
-            thisTrack->rate = 0;
-            thisTrack->size = 0;
-            thisTrack->channels = 0;
+            myMeta->setCodec(tid, "MP3");
+            myMeta->setRate(tid, 0);
+            myMeta->setSize(tid, 0);
+            myMeta->setChannels(tid, 0);
             break;
           case 32: // MPV
             INFO_MSG("MPV payload type");
             nope = false;
-            thisTrack->codec = "MPEG2";
+            myMeta->setCodec(tid, "MPEG2");
             break;
           default:
             // dynamic type
             if (avp_type >= 96 && avp_type <= 127){
-              HIGH_MSG("Dynamic payload type (%llu) detected", avp_type);
+              HIGH_MSG("Dynamic payload type (%" PRIu64 ") detected", avp_type);
               nope = false;
               continue;
             }else{
-              FAIL_MSG("Payload type %llu not supported!", avp_type);
-              myMeta->tracks.erase(trackNo);
-              tracks.erase(trackNo);
+              FAIL_MSG("Payload type %" PRIu64 " not supported!", avp_type);
+              myMeta->removeTrack(tid);
+              tracks.erase(tid);
               continue;
             }
           }
         }
-        tConv[trackNo].setProperties(*thisTrack);
-        HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+        tConv[tid].setProperties(*myMeta, tid);
+        HIGH_MSG("Incoming track %s", myMeta->getTrackIdentifier(tid).c_str());
         continue;
       }
 
@@ -456,62 +443,62 @@ namespace SDP{
         for (unsigned int i = 0; i < trCodec.size(); ++i){
           if (trCodec[i] <= 122 && trCodec[i] >= 97){trCodec[i] -= 32;}
         }
-        if (thisTrack->type == "audio"){
+        if (myMeta->getType(tid) == "audio"){
           std::string extraInfo = mediaType.substr(mediaType.find('/') + 1);
           if (extraInfo.find('/') != std::string::npos){
             size_t lastSlash = extraInfo.find('/');
-            thisTrack->rate = atoll(extraInfo.substr(0, lastSlash).c_str());
-            thisTrack->channels = atoll(extraInfo.substr(lastSlash + 1).c_str());
+            myMeta->setRate(tid, atoll(extraInfo.substr(0, lastSlash).c_str()));
+            myMeta->setChannels(tid, atoll(extraInfo.substr(lastSlash + 1).c_str()));
           }else{
-            thisTrack->rate = atoll(extraInfo.c_str());
-            thisTrack->channels = 1;
+            myMeta->setRate(tid, atoll(extraInfo.c_str()));
+            myMeta->setChannels(tid, 1);
           }
         }
         if (trCodec == "H264"){
-          thisTrack->codec = "H264";
-          thisTrack->rate = 90000;
+          myMeta->setCodec(tid, "H264");
+          myMeta->setRate(tid, 90000);
         }
         if (trCodec == "H265"){
-          thisTrack->codec = "HEVC";
-          thisTrack->rate = 90000;
+          myMeta->setCodec(tid, "HEVC");
+          myMeta->setRate(tid, 90000);
         }
         if (trCodec == "OPUS"){
-          thisTrack->codec = "opus";
-          thisTrack->init = std::string("OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
+          myMeta->setCodec(tid, "opus");
+          myMeta->setInit(tid, "OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
         }
-        if (trCodec == "PCMA"){thisTrack->codec = "ALAW";}
-        if (trCodec == "PCMU"){thisTrack->codec = "ULAW";}
+        if (trCodec == "PCMA"){myMeta->setCodec(tid, "ALAW");}
+        if (trCodec == "PCMU"){myMeta->setCodec(tid, "ULAW");}
         if (trCodec == "L8"){
-          thisTrack->codec = "PCM";
-          thisTrack->size = 8;
+          myMeta->setCodec(tid, "PCM");
+          myMeta->setSize(tid, 8);
         }
         if (trCodec == "L16"){
-          thisTrack->codec = "PCM";
-          thisTrack->size = 16;
+          myMeta->setCodec(tid, "PCM");
+          myMeta->setSize(tid, 16);
         }
         if (trCodec == "L20"){
-          thisTrack->codec = "PCM";
-          thisTrack->size = 20;
+          myMeta->setCodec(tid, "PCM");
+          myMeta->setSize(tid, 20);
         }
         if (trCodec == "L24" || trCodec == "PCM"){
-          thisTrack->codec = "PCM";
-          thisTrack->size = 24;
+          myMeta->setCodec(tid, "PCM");
+          myMeta->setSize(tid, 24);
         }
-        if (trCodec == "MPEG4-GENERIC"){thisTrack->codec = "AAC";}
-        if (!thisTrack->codec.size()){
+        if (trCodec == "MPEG4-GENERIC"){myMeta->setCodec(tid, "AAC");}
+        if (!myMeta->getCodec(tid).size()){
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{
-          tConv[trackNo].setProperties(*thisTrack);
-          HIGH_MSG("Incoming track %s", thisTrack->getIdentifier().c_str());
+          tConv[tid].setProperties(*myMeta, tid);
+          HIGH_MSG("Incoming track %s", myMeta->getTrackIdentifier(tid).c_str());
         }
         continue;
       }
       if (to.substr(0, 10) == "a=control:"){
-        tracks[trackNo].control = to.substr(10);
+        tracks[tid].control = to.substr(10);
         continue;
       }
       if (to.substr(0, 12) == "a=framerate:"){
-        if (!thisTrack->rate){thisTrack->rate = atof(to.c_str() + 12) * 1000;}
+        if (!myMeta->getRate(tid)){myMeta->setRate(tid, atof(to.c_str() + 12) * 1000);}
         continue;
       }
       if (to.substr(0, 12) == "a=framesize:"){
@@ -525,75 +512,76 @@ namespace SDP{
         continue;
       }
       if (to.substr(0, 7) == "a=fmtp:"){
-        tracks[trackNo].fmtp = to.substr(7);
-        if (thisTrack->codec == "AAC"){
-          if (tracks[trackNo].getParamString("mode") != "AAC-hbr"){
+        tracks[tid].fmtp = to.substr(7);
+        if (myMeta->getCodec(tid) == "AAC"){
+          if (tracks[tid].getParamString("mode") != "AAC-hbr"){
             // a=fmtp:97
             // profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;
             // config=120856E500
-            FAIL_MSG("AAC transport mode not supported: %s", tracks[trackNo].getParamString("mode").c_str());
+            FAIL_MSG("AAC transport mode not supported: %s", tracks[tid].getParamString("mode").c_str());
             nope = true;
-            myMeta->tracks.erase(trackNo);
-            tracks.erase(trackNo);
+            myMeta->removeTrack(tid);
+            tracks.erase(tid);
             continue;
           }
-          thisTrack->init = Encodings::Hex::decode(tracks[trackNo].getParamString("config"));
+          myMeta->setInit(tid, Encodings::Hex::decode(tracks[tid].getParamString("config")));
           // myMeta.tracks[trackNo].rate = aac::AudSpecConf::rate(myMeta.tracks[trackNo].init);
         }
-        if (thisTrack->codec == "H264"){
+        if (myMeta->getCodec(tid) == "H264"){
           // a=fmtp:96 packetization-mode=1;
           // sprop-parameter-sets=Z0LAHtkA2D3m//AUABqxAAADAAEAAAMAMg8WLkg=,aMuDyyA=;
           // profile-level-id=42C01E
-          std::string sprop = tracks[trackNo].getParamString("sprop-parameter-sets");
+          std::string sprop = tracks[tid].getParamString("sprop-parameter-sets");
           size_t comma = sprop.find(',');
-          tracks[trackNo].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
-          tracks[trackNo].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
-          updateH264Init(trackNo);
+          tracks[tid].spsData = Encodings::Base64::decode(sprop.substr(0, comma));
+          tracks[tid].ppsData = Encodings::Base64::decode(sprop.substr(comma + 1));
+          updateH264Init(tid);
         }
-        if (thisTrack->codec == "HEVC"){
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-vps")));
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-sps")));
-          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-pps")));
-          updateH265Init(trackNo);
+        if (myMeta->getCodec(tid) == "HEVC"){
+          tracks[tid].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[tid].getParamString("sprop-vps")));
+          tracks[tid].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[tid].getParamString("sprop-sps")));
+          tracks[tid].hevcInfo.addUnit(
+              Encodings::Base64::decode(tracks[tid].getParamString("sprop-pps")));
+          updateH265Init(tid);
         }
         continue;
       }
       // We ignore bandwidth lines
       if (to.substr(0, 2) == "b="){continue;}
       // we ignore everything before the first media line.
-      if (!trackNo){continue;}
+      if (tid == INVALID_TRACK_ID){continue;}
       // at this point, the data is definitely for a track
-      INFO_MSG("Unhandled SDP line for track %llu: %s", trackNo, to.c_str());
+      INFO_MSG("Unhandled SDP line for track %zu: %s", tid, to.c_str());
     }
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta->tracks.begin();
-         it != myMeta->tracks.end(); ++it){
-      INFO_MSG("Detected track %s", it->second.getIdentifier().c_str());
+    std::set<size_t> validTracks = myMeta->getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      INFO_MSG("Detected track %s", myMeta->getTrackIdentifier(*it).c_str());
     }
   }
 
   /// Calculates H265 track metadata from sps and pps data stored in tracks[trackNo]
-  void State::updateH265Init(uint64_t trackNo){
-    DTSC::Track &Trk = myMeta->tracks[trackNo];
-    SDP::Track &RTrk = tracks[trackNo];
+  void State::updateH265Init(size_t tid){
+    SDP::Track &RTrk = tracks[tid];
     if (!RTrk.hevcInfo.haveRequired()){
-      MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", trackNo);
+      MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", tid);
       return;
     }
-    Trk.init = RTrk.hevcInfo.generateHVCC();
+    myMeta->setInit(tid, RTrk.hevcInfo.generateHVCC());
 
-    h265::metaInfo MI = tracks[trackNo].hevcInfo.getMeta();
+    h265::metaInfo MI = tracks[tid].hevcInfo.getMeta();
 
     RTrk.fpsMeta = MI.fps;
-    Trk.width = MI.width;
-    Trk.height = MI.height;
-    Trk.fpks = RTrk.fpsMeta * 1000;
-    tConv[trackNo].setProperties(Trk);
+    myMeta->setWidth(tid, MI.width);
+    myMeta->setHeight(tid, MI.height);
+    myMeta->setFpks(tid, RTrk.fpsMeta * 1000);
+    tConv[tid].setProperties(*myMeta, tid);
   }
 
   /// Calculates H264 track metadata from vps, sps and pps data stored in tracks[trackNo]
-  void State::updateH264Init(uint64_t trackNo){
-    DTSC::Track &Trk = myMeta->tracks[trackNo];
-    SDP::Track &RTrk = tracks[trackNo];
+  void State::updateH264Init(uint64_t tid){
+    SDP::Track &RTrk = tracks[tid];
     h264::sequenceParameterSet sps(RTrk.spsData.data(), RTrk.spsData.size());
     h264::SPSMeta hMeta = sps.getCharacteristics();
     MP4::AVCC avccBox;
@@ -606,27 +594,27 @@ namespace SDP{
     avccBox.setPPSCount(1);
     avccBox.setPPS(RTrk.ppsData);
     RTrk.fpsMeta = hMeta.fps;
-    Trk.width = hMeta.width;
-    Trk.height = hMeta.height;
-    Trk.fpks = hMeta.fps * 1000;
-    Trk.init = std::string(avccBox.payload(), avccBox.payloadSize());
-    tConv[trackNo].setProperties(Trk);
+    myMeta->setWidth(tid, hMeta.width);
+    myMeta->setHeight(tid, hMeta.height);
+    myMeta->setFpks(tid, hMeta.fps * 1000);
+    myMeta->setInit(tid, avccBox.payload(), avccBox.payloadSize());
+    tConv[tid].setProperties(*myMeta, tid);
   }
 
-  uint32_t State::getTrackNoForChannel(uint8_t chan){
-    for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+  size_t State::getTrackNoForChannel(uint8_t chan){
+    for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
       if (chan == it->second.channel){return it->first;}
     }
-    return 0;
+    return INVALID_TRACK_ID;
   }
 
-  uint32_t State::parseSetup(HTTP::Parser &H, const std::string &cH, const std::string &src){
+  size_t State::parseSetup(HTTP::Parser &H, const std::string &cH, const std::string &src){
     static uint32_t trackCounter = 0;
     if (H.url == "200"){
       ++trackCounter;
-      if (!tracks.count(trackCounter)){return 0;}
-      if (!tracks[trackCounter].parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[trackCounter])){
-        return 0;
+      if (!tracks.count(trackCounter)){return INVALID_TRACK_ID;}
+      if (!tracks[trackCounter].parseTransport(H.GetHeader("Transport"), cH, src, myMeta, trackCounter)){
+        return INVALID_TRACK_ID;
       }
       return trackCounter;
     }
@@ -638,7 +626,7 @@ namespace SDP{
 
     while (loop){
       if (tracks.size()){
-        for (std::map<uint32_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+        for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
           if (!it->second.control.size()){
             it->second.control = "/track" + JSON::Value(it->first).asString();
             INFO_MSG("Control track: %s", it->second.control.c_str());
@@ -649,8 +637,8 @@ namespace SDP{
               (pw.size() >= it->second.control.size() &&
                pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
             INFO_MSG("Parsing SETUP against track %lu", it->first);
-            if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[it->first])){
-              return 0;
+            if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src, myMeta, it->first)){
+              return INVALID_TRACK_ID;
             }
             return it->first;
           }
@@ -658,13 +646,13 @@ namespace SDP{
       }
       if (H.url.find("/track") != std::string::npos){
         uint32_t trackNo = atoi(H.url.c_str() + H.url.find("/track") + 6);
-        if (trackNo){
-          INFO_MSG("Parsing SETUP against track %lu", trackNo);
-          if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[trackNo])){
-            return 0;
-          }
-          return trackNo;
+        // if (trackNo){
+        INFO_MSG("Parsing SETUP against track %" PRIu32, trackNo);
+        if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src, myMeta, trackNo)){
+          return INVALID_TRACK_ID;
         }
+        return trackNo;
+        //}
       }
       if (urlString != url.path){
         urlString = url.path;
@@ -672,18 +660,20 @@ namespace SDP{
         loop = false;
       }
     }
-    return 0;
+    return INVALID_TRACK_ID;
   }
 
   /// Returns the multiplier to use to get milliseconds from the RTP payload type for the given
   /// track
-  double getMultiplier(const DTSC::Track &Trk){
-    if (Trk.type == "video" || Trk.codec == "MP2" || Trk.codec == "MP3"){return 90.0;}
-    return ((double)Trk.rate / 1000.0);
+  double getMultiplier(const DTSC::Meta *M, size_t tid){
+    if (M->getType(tid) == "video" || M->getCodec(tid) == "MP2" || M->getCodec(tid) == "MP3"){
+      return 90.0;
+    }
+    return ((double)M->getRate(tid) / 1000.0);
   }
 
-  void State::updateInit(const uint64_t trackNo, const std::string &initData){
-    if (myMeta->tracks.count(trackNo)){myMeta->tracks[trackNo].init = initData;}
+  void State::updateInit(const size_t tid, const std::string &initData){
+    myMeta->setInit(tid, initData.data(), initData.size());
   }
 
   /// Handles RTP packets generically, for both TCP and UDP-based connections.

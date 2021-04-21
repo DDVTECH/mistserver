@@ -60,10 +60,19 @@ namespace Mist{
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 1900;
     /*LTS-END*/
+
+    F = NULL;
+    lockCache = false;
+    lockNeeded = false;
   }
 
   bool inputDTSC::needsLock(){
-    return config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
+    if (!lockCache){
+      lockNeeded =
+          config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
+      lockCache = true;
+    }
+    return lockNeeded;
   }
 
   void parseDTSCURI(const std::string &src, std::string &host, uint16_t &port,
@@ -129,37 +138,40 @@ namespace Mist{
   void inputDTSC::parseStreamHeader(){
     while (srcConn.connected() && config->is_active){
       srcConn.spool();
-      if (srcConn.Received().available(8)){
-        if (srcConn.Received().copy(4) == "DTCM" || srcConn.Received().copy(4) == "DTSC"){
-          // Command message
-          std::string toRec = srcConn.Received().copy(8);
-          unsigned long rSize = Bit::btohl(toRec.c_str() + 4);
-          if (!srcConn.Received().available(8 + rSize)){
-            nProxy.userClient.keepAlive();
-            Util::sleep(100);
-            continue; // abort - not enough data yet
-          }
-          // Ignore initial DTCM message, as this is a "hi" message from the server
-          if (srcConn.Received().copy(4) == "DTCM"){
-            srcConn.Received().remove(8 + rSize);
-          }else{
-            std::string dataPacket = srcConn.Received().remove(8 + rSize);
-            DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
-            myMeta.reinit(metaPack);
-            for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-                 it != myMeta.tracks.end(); it++){
-              continueNegotiate(it->first, true);
-            }
-            break;
-          }
-        }else{
-          INFO_MSG("Received a wrong type of packet - '%s'", srcConn.Received().copy(4).c_str());
-          break;
-        }
-      }else{
+      if (!srcConn.Received().available(8)){
         Util::sleep(100);
-        nProxy.userClient.keepAlive();
+        keepAlive();
+        continue;
       }
+
+      if (srcConn.Received().copy(4) != "DTCM" && srcConn.Received().copy(4) != "DTSC"){
+        INFO_MSG("Received a wrong type of packet - '%s'", srcConn.Received().copy(4).c_str());
+        break;
+      }
+      // Command message
+      std::string toRec = srcConn.Received().copy(8);
+      uint32_t rSize = Bit::btohl(toRec.c_str() + 4);
+      if (!srcConn.Received().available(8 + rSize)){
+        keepAlive();
+        Util::sleep(100);
+        continue; // abort - not enough data yet
+      }
+      // Ignore initial DTCM message, as this is a "hi" message from the server
+      if (srcConn.Received().copy(4) == "DTCM"){
+        srcConn.Received().remove(8 + rSize);
+        continue;
+      }
+      std::string dataPacket = srcConn.Received().remove(8 + rSize);
+      DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
+      DTSC::Meta nM("", metaPack.getScan());
+      meta.reInit(streamName, false);
+      meta.merge(nM);
+      std::set<size_t> validTracks = M.getMySourceTracks(getpid());
+      userSelect.clear();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        userSelect[*it].reload(streamName, *it, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      }
+      break;
     }
   }
 
@@ -194,25 +206,26 @@ namespace Mist{
   void inputDTSC::closeStreamSource(){srcConn.close();}
 
   bool inputDTSC::checkArguments(){
-    if (!needsLock()){
-      return true;
-    }else{
-      if (!config->getString("streamname").size()){
-        if (config->getString("output") == "-"){
-          std::cerr << "Output to stdout not yet supported" << std::endl;
-          return false;
-        }
-      }else{
-        if (config->getString("output") != "-"){
-          std::cerr << "File output in player mode not supported" << std::endl;
-          return false;
-        }
+    if (!needsLock()){return true;}
+    if (!config->getString("streamname").size()){
+      if (config->getString("output") == "-"){
+        std::cerr << "Output to stdout not yet supported" << std::endl;
+        return false;
       }
-
-      // open File
-      inFile = DTSC::File(config->getString("input"));
-      if (!inFile){return false;}
+    }else{
+      if (config->getString("output") != "-"){
+        std::cerr << "File output in player mode not supported" << std::endl;
+        return false;
+      }
     }
+
+    // open File
+    F = fopen(config->getString("input").c_str(), "r+b");
+    if (!F){
+      HIGH_MSG("Could not open file %s", config->getString("input").c_str());
+      return false;
+    }
+    fseek(F, 0, SEEK_SET);
     return true;
   }
 
@@ -222,120 +235,215 @@ namespace Mist{
   }
 
   bool inputDTSC::readHeader(){
-    if (!inFile){return false;}
-    if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0){
-      DEBUG_MSG(DLVL_FAIL, "Missing external header file");
-      return false;
+    if (!F){return false;}
+    if (!readExistingHeader()){
+      size_t moreHeader = 0;
+      do{
+        // read existing header from file here?
+        char hdr[8];
+        fseek(F, moreHeader, SEEK_SET);
+        if (fread(hdr, 8, 1, F) != 1){
+          FAIL_MSG("Could not read header @ bpos %zu", moreHeader);
+          return false;
+        }
+        if (memcmp(hdr, DTSC::Magic_Header, 4)){
+          FAIL_MSG("File does not have a DTSC header @ bpos %zu", moreHeader);
+          return false;
+        }
+        size_t pktLen = Bit::btohl(hdr + 4);
+        char *pkt = (char *)malloc(8 + pktLen * sizeof(char));
+        fseek(F, moreHeader, SEEK_SET);
+        if (fread(pkt, 8 + pktLen, 1, F) != 1){
+          free(pkt);
+          FAIL_MSG("Could not read packet @ bpos %zu", moreHeader);
+        }
+        DTSC::Scan S(pkt + 8, pktLen);
+        if (S.hasMember("moreheader") && S.getMember("moreheader").asInt()){
+          moreHeader = S.getMember("moreheader").asInt();
+        }else{
+          moreHeader = 0;
+          meta.reInit(streamName, moreHeader);
+        }
+
+        free(pkt);
+      }while (moreHeader);
     }
-    myMeta = DTSC::Meta(inFile.getMeta());
-    DEBUG_MSG(DLVL_DEVEL, "Meta read in with %lu tracks", myMeta.tracks.size());
-    return true;
+
+    return meta;
   }
 
-  void inputDTSC::getNext(bool smart){
+  void inputDTSC::getNext(size_t idx){
     if (!needsLock()){
-      thisPacket.reInit(srcConn);
-      while (config->is_active){
-        if (thisPacket.getVersion() == DTSC::DTCM){
-          nProxy.userClient.keepAlive();
-          std::string cmd;
-          thisPacket.getString("cmd", cmd);
-          if (cmd == "reset"){
-            // Read next packet
-            thisPacket.reInit(srcConn);
-            if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
-              DTSC::Meta newMeta;
-              newMeta.reinit(thisPacket);
-              // Detect new tracks
-              std::set<unsigned int> newTracks;
-              for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin();
-                   it != newMeta.tracks.end(); it++){
-                if (!myMeta.tracks.count(it->first)){newTracks.insert(it->first);}
-              }
-
-              for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-                INFO_MSG("Reset: adding track %d", *it);
-                myMeta.tracks[*it] = newMeta.tracks[*it];
-                continueNegotiate(*it, true);
-              }
-
-              // Detect removed tracks
-              std::set<unsigned int> deletedTracks;
-              for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-                   it != myMeta.tracks.end(); it++){
-                if (!newMeta.tracks.count(it->first)){deletedTracks.insert(it->first);}
-              }
-
-              for (std::set<unsigned int>::iterator it = deletedTracks.begin();
-                   it != deletedTracks.end(); it++){
-                INFO_MSG("Reset: deleting track %d", *it);
-                myMeta.tracks.erase(*it);
-              }
-              thisPacket.reInit(srcConn); // read the next packet before continuing
-            }else{
-              myMeta = DTSC::Meta();
-            }
-          }else{
-            thisPacket.reInit(srcConn); // read the next packet before continuing
-          }
-          continue; // parse the next packet before returning
-        }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
-          DTSC::Meta newMeta;
-          newMeta.reinit(thisPacket);
-          std::set<unsigned int> newTracks;
-          for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin();
-               it != newMeta.tracks.end(); it++){
-            if (!myMeta.tracks.count(it->first)){newTracks.insert(it->first);}
-          }
-
-          for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
-            INFO_MSG("New header: adding track %d (%s)", *it, newMeta.tracks[*it].type.c_str());
-            myMeta.tracks[*it] = newMeta.tracks[*it];
-            continueNegotiate(*it, true);
-          }
-          thisPacket.reInit(srcConn); // read the next packet before continuing
-          continue;                   // parse the next packet before returning
-        }
-        // We now know we have either a data packet, or an error.
-        if (!thisPacket.getTrackId()){
-          if (thisPacket.getVersion() == DTSC::DTSC_V2){
-            WARN_MSG("Received bad packet for stream %s: %llu@%llu", streamName.c_str(),
-                     thisPacket.getTrackId(), thisPacket.getTime());
-          }else{
-            // All types except data packets are handled above, so if it's not a V2 data packet, we assume corruption
-            WARN_MSG("Invalid packet header for stream %s", streamName.c_str());
-          }
-        }
-        return; // we have a packet
+      getNextFromStream(idx);
+      return;
+    }
+    if (!currentPositions.size()){
+      WARN_MSG("No seek positions set - returning empty packet.");
+      thisPacket.null();
+      return;
+    }
+    seekPos thisPos = *currentPositions.begin();
+    fseek(F, thisPos.bytePos, SEEK_SET);
+    if (feof(F)){
+      thisPacket.null();
+      return;
+    }
+    clearerr(F);
+    currentPositions.erase(currentPositions.begin());
+    lastreadpos = ftell(F);
+    if (fread(buffer, 4, 1, F) != 1){
+      if (feof(F)){
+        INFO_MSG("End of file reached while seeking @ %" PRIu64, lastreadpos);
+      }else{
+        ERROR_MSG("Could not seek to next @ %" PRIu64, lastreadpos);
       }
+      thisPacket.null();
+      return;
+    }
+    if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
+      seekNext(thisPacket.getTime(), thisPacket.getTrackId(), true);
+      getNext(idx);
+      return;
+    }
+    uint8_t version = 0;
+    if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){version = 1;}
+    if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
+    if (version == 0){
+      ERROR_MSG("Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
+                buffer, DTSC::Magic_Packet2, lastreadpos);
+      thisPacket.null();
+      return;
+    }
+    if (fread(buffer + 4, 4, 1, F) != 1){
+      ERROR_MSG("Could not read packet size @ %" PRIu64, lastreadpos);
+      thisPacket.null();
+      return;
+    }
+    std::string pBuf;
+    uint32_t packSize = Bit::btohl(buffer + 4);
+    pBuf.resize(8 + packSize);
+    memcpy((char *)pBuf.data(), buffer, 8);
+    if (fread((void *)(pBuf.data() + 8), packSize, 1, F) != 1){
+      ERROR_MSG("Could not read packet @ %" PRIu64, lastreadpos);
+      thisPacket.null();
+      return;
+    }
+    thisPacket.reInit(pBuf.data(), pBuf.size());
+    seekNext(thisPos.seekTime, thisPos.trackID);
+    fseek(F, thisPos.bytePos, SEEK_SET);
+  }
+
+  void inputDTSC::getNextFromStream(size_t idx){
+    thisPacket.reInit(srcConn);
+    while (config->is_active){
+      if (thisPacket.getVersion() == DTSC::DTCM){
+        // userClient.keepAlive();
+        std::string cmd;
+        thisPacket.getString("cmd", cmd);
+        if (cmd != "reset"){
+          thisPacket.reInit(srcConn);
+          continue;
+        }
+        // Read next packet
+        thisPacket.reInit(srcConn);
+        if (thisPacket.getVersion() != DTSC::DTSC_HEAD){
+          meta.clear();
+          continue;
+        }
+        DTSC::Meta nM("", thisPacket.getScan());
+        meta.merge(nM, true, false);
+        thisPacket.reInit(srcConn); // read the next packet before continuing
+        continue;                   // parse the next packet before returning
+      }
+      if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
+        DTSC::Meta nM("", thisPacket.getScan());
+        meta.merge(nM, false, false);
+        thisPacket.reInit(srcConn); // read the next packet before continuing
+        continue;                   // parse the next packet before returning
+      }
+      thisPacket = DTSC::Packet(thisPacket, M.trackIDToIndex(thisPacket.getTrackId(), getpid()));
+      return; // we have a packet
+    }
+  }
+
+  void inputDTSC::seek(uint64_t seekTime, size_t idx){
+    currentPositions.clear();
+    if (idx != INVALID_TRACK_ID){
+      seekNext(seekTime, idx, true);
     }else{
-      if (smart){
-        inFile.seekNext();
-      }else{
-        inFile.parseNext();
+      std::set<size_t> tracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+        seekNext(seekTime, *it, true);
       }
-      thisPacket = inFile.getPacket();
     }
   }
 
-  void inputDTSC::seek(int seekTime){
-    inFile.seek_time(seekTime);
-    initialTime = 0;
-    playUntil = 0;
-  }
-
-  void inputDTSC::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    long long unsigned int index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
+  void inputDTSC::seekNext(uint64_t ms, size_t trackIdx, bool forceSeek){
+    seekPos tmpPos;
+    tmpPos.trackID = trackIdx;
+    if (!forceSeek && thisPacket && ms >= thisPacket.getTime() && trackIdx >= thisPacket.getTrackId()){
+      tmpPos.seekTime = thisPacket.getTime();
+      tmpPos.bytePos = ftell(F);
+    }else{
+      tmpPos.seekTime = 0;
+      tmpPos.bytePos = 0;
+    }
+    if (feof(F)){
+      clearerr(F);
+      fseek(F, 0, SEEK_SET);
+      tmpPos.bytePos = 0;
+      tmpPos.seekTime = 0;
+    }
+    DTSC::Keys keys(M.keys(trackIdx));
+    uint32_t keyNum = keys.getNumForTime(ms);
+    if (keys.getTime(keyNum) > tmpPos.seekTime){
+      tmpPos.seekTime = keys.getTime(keyNum);
+      tmpPos.bytePos = keys.getBpos(keyNum);
+    }
+    bool foundPacket = false;
+    while (!foundPacket){
+      lastreadpos = ftell(F);
+      if (feof(F)){
+        WARN_MSG("Reached EOF during seek to %" PRIu64 " in track %zu - aborting @ %" PRIu64, ms,
+                 trackIdx, lastreadpos);
+        return;
+      }
+      // Seek to first packet after ms.
+      fseek(F, tmpPos.bytePos, SEEK_SET);
+      lastreadpos = ftell(F);
+      // read the header
+      char header[20];
+      if (fread((void *)header, 20, 1, F) != 1){
+        WARN_MSG("Could not read header from file. Much sadface.");
+        return;
+      }
+      // check if packetID matches, if not, skip size + 8 bytes.
+      uint32_t packSize = Bit::btohl(header + 4);
+      uint32_t packID = Bit::btohl(header + 8);
+      if (memcmp(header, DTSC::Magic_Packet2, 4) != 0 || packID != trackIdx){
+        if (memcmp(header, "DT", 2) != 0){
+          WARN_MSG("Invalid header during seek to %" PRIu64 " in track %zu @ %" PRIu64
+                   " - resetting bytePos from %" PRIu64 " to zero",
+                   ms, trackIdx, lastreadpos, tmpPos.bytePos);
+          tmpPos.bytePos = 0;
+          continue;
+        }
+        tmpPos.bytePos += 8 + packSize;
+        continue;
+      }
+      // get timestamp of packet, if too large, break, if not, skip size bytes.
+      uint64_t myTime = Bit::btohll(header + 12);
+      tmpPos.seekTime = myTime;
+      if (myTime >= ms){
+        foundPacket = true;
       }else{
-        trackSpec = "";
+        tmpPos.bytePos += 8 + packSize;
+        continue;
       }
     }
-    inFile.selectTracks(selectedTracks);
+    // HIGH_MSG("Seek to %u:%d resulted in %lli", trackIdx, ms, tmpPos.seekTime);
+    if (tmpPos.seekTime > 0xffffffffffffff00ll){tmpPos.seekTime = 0;}
+    currentPositions.insert(tmpPos);
+    return;
   }
 }// namespace Mist

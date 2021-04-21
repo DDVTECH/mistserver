@@ -3,6 +3,7 @@
 #include <fstream>
 #include <mist/defines.h>
 #include <mist/procs.h>
+#include <mist/stream.h>
 #include <mist/tinythread.h>
 #include <mist/util.h>
 #include <ostream>
@@ -48,9 +49,9 @@ void sourceThread(void *){
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
   if (Enc.isAudio){
-    conf.getOption("target", true).append("-?audio=" + opt["source_track"].asString() + "&video=0");
+    conf.getOption("target", true).append("-?audio=" + opt["source_track"].asString() + "&video=-1");
   }else if (Enc.isVideo){
-    conf.getOption("target", true).append("-?video=" + opt["source_track"].asString() + "&audio=0");
+    conf.getOption("target", true).append("-?video=" + opt["source_track"].asString() + "&audio=-1");
   }else{
     FAIL_MSG("Cannot set target option parameters");
     return;
@@ -208,6 +209,34 @@ int main(int argc, char *argv[]){
     capa["optional"]["sources"]["sort"] = "n";
     capa["optional"]["sources"]["dependent"]["x-LSP-kind"] = "video";
 
+    capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
+    capa["optional"]["track_inhibit"]["help"] =
+        "What tracks to use as inhibitors. If this track selector is able to select a track, the "
+        "process does not start. Defaults to none.";
+    capa["optional"]["track_inhibit"]["type"] = "string";
+    capa["optional"]["track_inhibit"]["validate"][0u] = "track_selector";
+    capa["optional"]["track_inhibit"]["default"] = "audio=none&video=none&subtitle=none";
+
+    capa["codecs"][0u][0u].append("H264");
+    capa["codecs"][0u][0u].append("HEVC");
+    capa["codecs"][0u][0u].append("VP8");
+    capa["codecs"][0u][0u].append("VP9");
+    capa["codecs"][0u][0u].append("theora");
+    capa["codecs"][0u][0u].append("MPEG2");
+    capa["codecs"][0u][0u].append("AV1");
+    capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("vorbis");
+    capa["codecs"][0u][1u].append("opus");
+    capa["codecs"][0u][1u].append("PCM");
+    capa["codecs"][0u][1u].append("ALAW");
+    capa["codecs"][0u][1u].append("ULAW");
+    capa["codecs"][0u][1u].append("MP2");
+    capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"][0u][1u].append("FLOAT");
+    capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("DTS");
+    capa["codecs"][0u][2u].append("+JSON");
+
     JSON::Value &grp = capa["optional"]["sources"]["optional"];
     grp["src"]["name"] = "Source";
     grp["src"]["help"] =
@@ -314,29 +343,32 @@ int main(int argc, char *argv[]){
 
 namespace Mist{
 
-  void EncodeInputEBML::getNext(bool smart){
+  void EncodeInputEBML::getNext(size_t idx){
     static bool recurse = false;
 
     // getNext is called recursively, only process the first call
-    if (recurse){return InputEBML::getNext(smart);}
+    if (recurse){return InputEBML::getNext(idx);}
 
     recurse = true;
-    InputEBML::getNext(smart);
+    InputEBML::getNext(idx);
 
-    if (!getFirst){
-      packetTimeDiff = sendPacketTime - thisPacket.getTime();
-      getFirst = true;
+    if (thisPacket){
+
+      if (!getFirst){
+        packetTimeDiff = sendPacketTime - thisPacket.getTime();
+        getFirst = true;
+      }
+
+      uint64_t tmpLong;
+      uint64_t packTime = thisPacket.getTime() + packetTimeDiff;
+
+      // change packettime
+      char *data = thisPacket.getData();
+      tmpLong = htonl((int)(packTime >> 32));
+      memcpy(data + 12, (char *)&tmpLong, 4);
+      tmpLong = htonl((int)(packTime & 0xFFFFFFFF));
+      memcpy(data + 16, (char *)&tmpLong, 4);
     }
-
-    uint64_t tmpLong;
-    uint64_t packTime = thisPacket.getTime() + packetTimeDiff;
-
-    // change packettime
-    char *data = thisPacket.getData();
-    tmpLong = htonl((int)(packTime >> 32));
-    memcpy(data + 12, (char *)&tmpLong, 4);
-    tmpLong = htonl((int)(packTime & 0xFFFFFFFF));
-    memcpy(data + 16, (char *)&tmpLong, 4);
 
     recurse = false;
   }
@@ -345,22 +377,31 @@ namespace Mist{
     inFile = fdopen(stdin_val, "r");
     streamName = opt["sink"].asString();
     if (!streamName.size()){streamName = opt["source"].asString();}
-    nProxy.streamName = streamName;
+    Util::streamVariables(streamName, opt["source"].asString());
+    Util::Config::streamName = opt["source"].asString() + "➡️" + streamName;
   }
 
-  std::string EncodeOutputEBML::getTrackType(int tid){
-    DTSC::Track &Trk = myMeta.tracks[tid];
-    return Trk.type;
+  std::string EncodeOutputEBML::getTrackType(int tid){return M.getType(tid);}
+
+  void EncodeOutputEBML::setVideoTrack(std::string tid){
+    std::set<size_t> tracks = Util::findTracks(M, "video", tid);
+    for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+      userSelect[*it].reload(streamName, *it);
+    }
   }
 
-  void EncodeOutputEBML::setVideoTrack(std::string tid){selectTrack("video", tid);}
-
-  void EncodeOutputEBML::setAudioTrack(std::string tid){selectTrack("audio", tid);}
+  void EncodeOutputEBML::setAudioTrack(std::string tid){
+    std::set<size_t> tracks = Util::findTracks(M, "audio", tid);
+    for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+      userSelect[*it].reload(streamName, *it);
+    }
+  }
 
   void EncodeOutputEBML::sendHeader(){
     realTime = 0;
-    res_x = myMeta.tracks[getMainSelectedTrack()].width;
-    res_y = myMeta.tracks[getMainSelectedTrack()].height;
+    size_t idx = getMainSelectedTrack();
+    res_x = M.getWidth(idx);
+    res_y = M.getHeight(idx);
     Enc.setResolution(res_x, res_y);
     OutEBML::sendHeader();
   }
@@ -403,7 +444,9 @@ namespace Mist{
   bool OutENC::buildAudioCommand(){
     std::string samplerate;
     if (sample_rate){samplerate = "-ar " + JSON::Value(sample_rate).asString();}
-    snprintf(ffcmd, 10240, "ffmpeg -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s -f matroska -live 1 -cluster_time_limit 100 - ",
+    snprintf(ffcmd, 10240,
+             "ffmpeg -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s %s -f "
+             "matroska -live 1 -cluster_time_limit 100 - ",
              codec.c_str(), samplerate.c_str(), getBitrateSetting().c_str(), flags.c_str());
 
     return true;

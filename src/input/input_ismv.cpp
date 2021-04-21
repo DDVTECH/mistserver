@@ -40,297 +40,210 @@ namespace Mist{
     }
     return true;
   }
+
   bool inputISMV::preRun(){
-    // open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
-    return true;
+    return inFile; // True if not null
   }
 
   bool inputISMV::readHeader(){
     if (!inFile){return false;}
+    meta.reInit(streamName);
     // parse ismv header
     fseek(inFile, 0, SEEK_SET);
-    std::string ftyp;
-    readBox("ftyp", ftyp);
-    if (ftyp == ""){return false;}
-    std::string boxRes;
-    readBox("moov", boxRes);
-    if (boxRes == ""){return false;}
-    MP4::MOOV hdrBox;
-    hdrBox.read(boxRes);
-    parseMoov(hdrBox);
-    int tId;
-    std::vector<MP4::trunSampleInformation> trunSamples;
-    std::vector<std::string> initVecs;
-    std::string mdat;
-    unsigned int currOffset;
-    JSON::Value lastPack;
-    unsigned int lastBytePos = 0;
-    std::map<int, unsigned int> currentDuration;
-    unsigned int curBytePos = ftell(inFile);
+    // Skip mandatory ftyp box
+    MP4::skipBox(inFile);
+
+    MP4::MOOV moovBox;
+    moovBox.read(inFile);
+    parseMoov(moovBox);
+
+    std::map<size_t, uint64_t> duration;
+
+    uint64_t currOffset;
+    uint64_t lastBytePos = 0;
+    uint64_t curBytePos = ftell(inFile);
     // parse fragments form here
-    while (parseFrag(tId, trunSamples, initVecs, mdat)){
-      if (!currentDuration.count(tId)){currentDuration[tId] = 0;}
+
+    size_t tId;
+    std::vector<MP4::trunSampleInformation> trunSamples;
+
+    while (readMoofSkipMdat(tId, trunSamples) && !feof(inFile)){
+      if (!duration.count(tId)){duration[tId] = 0;}
       currOffset = 8;
-      int i = 0;
-      while (currOffset < mdat.size()){
-        lastPack.null();
-        lastPack["time"] = currentDuration[tId] / 10000;
-        lastPack["trackid"] = tId;
-        lastPack["data"] = mdat.substr(currOffset, trunSamples[i].sampleSize);
-        if (initVecs.size() == trunSamples.size()){lastPack["ivec"] = initVecs[i];}
-        lastPack["duration"] = trunSamples[i].sampleDuration;
-        if (myMeta.tracks[tId].type == "video"){
-          if (i){
-            lastBytePos++;
-          }else{
-            lastPack["keyframe"] = 1;
-            lastBytePos = curBytePos;
-          }
-          lastPack["bpos"] = lastBytePos;
-          unsigned int offsetConv = trunSamples[i].sampleOffset / 10000;
-          lastPack["offset"] = (int)offsetConv;
+      for (std::vector<MP4::trunSampleInformation>::iterator it = trunSamples.begin();
+           it != trunSamples.end(); it++){
+        bool first = (it == trunSamples.begin());
+
+        int64_t offsetConv = 0;
+        if (M.getType(tId) == "video"){offsetConv = it->sampleOffset / 10000;}
+
+        if (first){
+          lastBytePos = curBytePos;
         }else{
-          if (i == 0){
-            lastPack["keyframe"] = 1;
-            lastPack["bpos"] = curBytePos;
-          }
+          ++lastBytePos;
         }
-        myMeta.update(lastPack);
-        currentDuration[tId] += trunSamples[i].sampleDuration;
-        currOffset += trunSamples[i].sampleSize;
-        i++;
+
+        meta.update(duration[tId] / 10000, offsetConv, tId, it->sampleSize, lastBytePos, first);
+        duration[tId] += it->sampleDuration;
+        currOffset += it->sampleSize;
       }
       curBytePos = ftell(inFile);
     }
-    myMeta.toFile(config->getString("input") + ".dtsh");
+    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
-  void inputISMV::getNext(bool smart){
-    static JSON::Value thisPack;
-    thisPack.null();
-    if (!buffered.size()){
-      thisPacket.null();
-      return;
-    }
-    int tId = buffered.begin()->trackId;
-    thisPack["time"] = (uint64_t)(buffered.begin()->time / 10000);
-    thisPack["trackid"] = tId;
-    fseek(inFile, buffered.begin()->position, SEEK_SET);
-    char *tmpData = (char *)malloc(buffered.begin()->size * sizeof(char));
-    fread(tmpData, buffered.begin()->size, 1, inFile);
-    thisPack["data"] = std::string(tmpData, buffered.begin()->size);
-    free(tmpData);
-    if (buffered.begin()->iVec != ""){thisPack["ivec"] = buffered.begin()->iVec;}
-    if (myMeta.tracks[tId].type == "video"){
-      if (buffered.begin()->isKeyFrame){thisPack["keyframe"] = 1;}
-      thisPack["offset"] = (uint64_t)(buffered.begin()->offset / 10000);
-    }else{
-      if (buffered.begin()->isKeyFrame){thisPack["keyframe"] = 1;}
-    }
-    thisPack["bpos"] = (uint64_t)buffered.begin()->position;
+  void inputISMV::getNext(size_t idx){
+    thisPacket.null();
+
+    if (!buffered.size()){return;}
+
+    seekPos thisPos = *buffered.begin();
     buffered.erase(buffered.begin());
-    if (buffered.size() < 2 * selectedTracks.size()){
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-        parseFragHeader(*it, lastKeyNum[*it]);
-        lastKeyNum[*it]++;
+
+    fseek(inFile, thisPos.position, SEEK_SET);
+    dataPointer.allocate(thisPos.size);
+    fread(dataPointer, thisPos.size, 1, inFile);
+
+    thisPacket.genericFill(thisPos.time / 10000, thisPos.offset / 10000, thisPos.trackId,
+                           dataPointer, thisPos.size, 0, thisPos.isKeyFrame);
+
+    if (buffered.size() < 2 * (idx == INVALID_TRACK_ID ? M.getValidTracks().size() : 1)){
+      std::set<size_t> validTracks = M.getValidTracks();
+      if (idx != INVALID_TRACK_ID){
+        validTracks.clear();
+        validTracks.insert(idx);
+      }
+
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        bufferFragmentData(*it, ++lastKeyNum[*it]);
       }
     }
-    std::string tmpStr = thisPack.toNetPacked();
-    thisPacket.reInit(tmpStr.data(), tmpStr.size());
+    if (idx != INVALID_TRACK_ID && thisPacket.getTrackId() != M.getID(idx)){getNext(idx);}
   }
 
-  ///\brief Overloads Input::atKeyFrame, for ISMV always sets the keyframe number
-  bool inputISMV::atKeyFrame(){return thisPacket.getFlag("keyframe");}
-
-  void inputISMV::seek(int seekTime){
+  void inputISMV::seek(uint64_t seekTime, size_t idx){
     buffered.clear();
-    // Seek to corresponding keyframes on EACH track
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      unsigned int i;
-      for (i = 0; i < myMeta.tracks[*it].keys.size(); i++){
-        if (myMeta.tracks[*it].keys[i].getTime() > seekTime && i > 0){// Ehh, whut?
-          break;
-        }
-      }
-      i--;
-      DEBUG_MSG(DLVL_DEVEL, "ISMV seek frag %d:%d", *it, i);
-      parseFragHeader(*it, i);
-      lastKeyNum[*it] = i + 1;
-    }
-  }
+    lastKeyNum.clear();
 
-  void inputISMV::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    size_t index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
+    // Select tracks
+    std::set<size_t> validTracks = M.getValidTracks();
+    if (idx != INVALID_TRACK_ID){
+      validTracks.clear();
+      validTracks.insert(idx);
     }
-    seek(0);
+
+    // For each selected track
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      DTSC::Keys keys(M.keys(*it));
+      uint32_t i;
+      for (i = keys.getFirstValid(); i < keys.getEndValid(); i++){
+        if (keys.getTime(i) >= seekTime){break;}
+      }
+      INFO_MSG("ISMV seek frag %zu:%" PRIu32, *it, i);
+      bufferFragmentData(*it, i);
+      lastKeyNum[*it] = i;
+    }
   }
 
   void inputISMV::parseMoov(MP4::MOOV &moovBox){
-    for (unsigned int i = 0; i < moovBox.getContentCount(); i++){
-      if (moovBox.getContent(i).isType("mvhd")){
-        MP4::MVHD content = (MP4::MVHD &)moovBox.getContent(i);
-      }
-      if (moovBox.getContent(i).isType("trak")){
-        MP4::TRAK content = (MP4::TRAK &)moovBox.getContent(i);
-        int trackId;
-        for (unsigned int j = 0; j < content.getContentCount(); j++){
-          if (content.getContent(j).isType("tkhd")){
-            MP4::TKHD subContent = (MP4::TKHD &)content.getContent(j);
-            trackId = subContent.getTrackID();
-            myMeta.tracks[trackId].trackID = trackId;
-          }
-          if (content.getContent(j).isType("mdia")){
-            MP4::MDIA subContent = (MP4::MDIA &)content.getContent(j);
-            for (unsigned int k = 0; k < subContent.getContentCount(); k++){
-              if (subContent.getContent(k).isType("hdlr")){
-                MP4::HDLR subsubContent = (MP4::HDLR &)subContent.getContent(k);
-                if (subsubContent.getHandlerType() == "soun"){
-                  myMeta.tracks[trackId].type = "audio";
-                }
-                if (subsubContent.getHandlerType() == "vide"){
-                  myMeta.tracks[trackId].type = "video";
-                }
-              }
-              if (subContent.getContent(k).isType("minf")){
-                MP4::MINF subsubContent = (MP4::MINF &)subContent.getContent(k);
-                for (unsigned int l = 0; l < subsubContent.getContentCount(); l++){
-                  if (subsubContent.getContent(l).isType("stbl")){
-                    MP4::STBL stblBox = (MP4::STBL &)subsubContent.getContent(l);
-                    for (unsigned int m = 0; m < stblBox.getContentCount(); m++){
-                      if (stblBox.getContent(m).isType("stsd")){
-                        MP4::STSD stsdBox = (MP4::STSD &)stblBox.getContent(m);
-                        for (unsigned int n = 0; n < stsdBox.getEntryCount(); n++){
-                          if (stsdBox.getEntry(n).isType("mp4a") ||
-                              stsdBox.getEntry(n).isType("enca")){
-                            MP4::MP4A mp4aBox = (MP4::MP4A &)stsdBox.getEntry(n);
-                            myMeta.tracks[trackId].codec = "AAC";
-                            std::string tmpStr;
-                            tmpStr += (char)((mp4aBox.toAACInit() & 0xFF00) >> 8);
-                            tmpStr += (char)(mp4aBox.toAACInit() & 0x00FF);
-                            myMeta.tracks[trackId].init = tmpStr;
-                            myMeta.tracks[trackId].channels = mp4aBox.getChannelCount();
-                            myMeta.tracks[trackId].size = mp4aBox.getSampleSize();
-                            myMeta.tracks[trackId].rate = mp4aBox.getSampleRate();
-                          }
-                          if (stsdBox.getEntry(n).isType("avc1") ||
-                              stsdBox.getEntry(n).isType("encv")){
-                            MP4::AVC1 avc1Box = (MP4::AVC1 &)stsdBox.getEntry(n);
-                            myMeta.tracks[trackId].height = avc1Box.getHeight();
-                            myMeta.tracks[trackId].width = avc1Box.getWidth();
-                            myMeta.tracks[trackId].init =
-                                std::string(avc1Box.getCLAP().payload(), avc1Box.getCLAP().payloadSize());
-                            myMeta.tracks[trackId].codec = "H264";
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+    std::deque<MP4::TRAK> trak = moovBox.getChildren<MP4::TRAK>();
+    for (std::deque<MP4::TRAK>::iterator it = trak.begin(); it != trak.end(); it++){
+      size_t tNumber = meta.addTrack();
+
+      meta.setID(tNumber, it->getChild<MP4::TKHD>().getTrackID());
+
+      MP4::MDIA mdia = it->getChild<MP4::MDIA>();
+
+      MP4::HDLR hdlr = mdia.getChild<MP4::HDLR>();
+      if (hdlr.getHandlerType() == "soun"){meta.setType(tNumber, "audio");}
+      if (hdlr.getHandlerType() == "vide"){meta.setType(tNumber, "video");}
+
+      MP4::STSD stsd = mdia.getChild<MP4::MINF>().getChild<MP4::STBL>().getChild<MP4::STSD>();
+      for (size_t i = 0; i < stsd.getEntryCount(); ++i){
+        if (stsd.getEntry(i).isType("mp4a") || stsd.getEntry(i).isType("enca")){
+          MP4::MP4A mp4aBox = (MP4::MP4A &)stsd.getEntry(i);
+          std::string tmpStr;
+          tmpStr += (char)((mp4aBox.toAACInit() & 0xFF00) >> 8);
+          tmpStr += (char)(mp4aBox.toAACInit() & 0x00FF);
+          meta.setCodec(tNumber, "AAC");
+          meta.setInit(tNumber, tmpStr);
+          meta.setChannels(tNumber, mp4aBox.getChannelCount());
+          meta.setSize(tNumber, mp4aBox.getSampleSize());
+          meta.setRate(tNumber, mp4aBox.getSampleRate());
+        }
+        if (stsd.getEntry(i).isType("avc1") || stsd.getEntry(i).isType("encv")){
+          MP4::AVC1 avc1Box = (MP4::AVC1 &)stsd.getEntry(i);
+          meta.setCodec(tNumber, "H264");
+          meta.setInit(tNumber, avc1Box.getCLAP().payload(), avc1Box.getCLAP().payloadSize());
+          meta.setHeight(tNumber, avc1Box.getHeight());
+          meta.setWidth(tNumber, avc1Box.getWidth());
         }
       }
     }
   }
 
-  bool inputISMV::parseFrag(int &tId, std::vector<MP4::trunSampleInformation> &trunSamples,
-                            std::vector<std::string> &initVecs, std::string &mdat){
-    tId = -1;
+  bool inputISMV::readMoofSkipMdat(size_t &tId, std::vector<MP4::trunSampleInformation> &trunSamples){
+    tId = INVALID_TRACK_ID;
     trunSamples.clear();
-    initVecs.clear();
-    mdat.clear();
-    std::string boxRes;
-    readBox("moof", boxRes);
-    if (boxRes == ""){return false;}
+
     MP4::MOOF moof;
-    moof.read(boxRes);
-    for (unsigned int i = 0; i < moof.getContentCount(); i++){
-      if (moof.getContent(i).isType("traf")){
-        MP4::TRAF trafBox = (MP4::TRAF &)moof.getContent(i);
-        for (unsigned int j = 0; j < trafBox.getContentCount(); j++){
-          if (trafBox.getContent(j).isType("trun")){
-            MP4::TRUN trunBox = (MP4::TRUN &)trafBox.getContent(j);
-            for (unsigned int i = 0; i < trunBox.getSampleInformationCount(); i++){
-              trunSamples.push_back(trunBox.getSampleInformation(i));
-            }
-          }
-          if (trafBox.getContent(j).isType("tfhd")){
-            tId = ((MP4::TFHD &)trafBox.getContent(j)).getTrackID();
-          }
-          /*LTS-START*/
-          if (trafBox.getContent(j).isType("uuid")){
-            if (((MP4::UUID &)trafBox.getContent(j)).getUUID() ==
-                "a2394f52-5a9b-4f14-a244-6c427c648df4"){
-              MP4::UUID_SampleEncryption uuidBox = (MP4::UUID_SampleEncryption &)trafBox.getContent(j);
-              for (unsigned int i = 0; i < uuidBox.getSampleCount(); i++){
-                initVecs.push_back(uuidBox.getSample(i).InitializationVector);
-              }
-            }
-          }
-          /*LTS-END*/
+    moof.read(inFile);
+
+    if (feof(inFile)){return false;}
+
+    MP4::TRAF trafBox = moof.getChild<MP4::TRAF>();
+    for (size_t j = 0; j < trafBox.getContentCount(); j++){
+      if (trafBox.getContent(j).isType("trun")){
+        MP4::TRUN trunBox = (MP4::TRUN &)trafBox.getContent(j);
+        for (size_t i = 0; i < trunBox.getSampleInformationCount(); i++){
+          trunSamples.push_back(trunBox.getSampleInformation(i));
         }
       }
+      if (trafBox.getContent(j).isType("tfhd")){
+        tId = M.trackIDToIndex(((MP4::TFHD &)trafBox.getContent(j)).getTrackID(), getpid());
+      }
     }
-    readBox("mdat", mdat);
-    if (mdat == ""){return false;}
-    return true;
+
+    MP4::skipBox(inFile);
+    return !feof(inFile);
   }
 
-  void inputISMV::parseFragHeader(const unsigned int &trackId, const unsigned int &keyNum){
-    if (!myMeta.tracks.count(trackId) || (myMeta.tracks[trackId].keys.size() <= keyNum)){return;}
-    long long int lastPos = myMeta.tracks[trackId].keys[keyNum].getBpos();
-    long long int lastTime = myMeta.tracks[trackId].keys[keyNum].getTime() * 10000;
-    fseek(inFile, lastPos, SEEK_SET);
-    std::string boxRes;
-    readBox("moof", boxRes);
-    if (boxRes == ""){return;}
-    MP4::MOOF moof;
-    moof.read(boxRes);
+  void inputISMV::bufferFragmentData(size_t trackId, uint32_t keyNum){
+    INFO_MSG("Bpos seek for %zu/%" PRIu32, trackId, keyNum);
+    if (trackId == INVALID_TRACK_ID){return;}
+    DTSC::Keys keys(M.keys(trackId));
+    INFO_MSG("Key %" PRIu32 " / %zu", keyNum, keys.getEndValid());
+    if (keyNum >= keys.getEndValid()){return;}
+    uint64_t currentPosition = keys.getBpos(keyNum);
+    uint64_t currentTime = keys.getTime(keyNum) * 10000;
+    INFO_MSG("Bpos seek to %" PRIu64, currentPosition);
+    fseek(inFile, currentPosition, SEEK_SET);
+
+    MP4::MOOF moofBox;
+    moofBox.read(inFile);
+
+    MP4::TRAF trafBox = moofBox.getChild<MP4::TRAF>();
+
     MP4::TRUN trunBox;
-    MP4::UUID_SampleEncryption uuidBox; /*LTS*/
-    for (unsigned int i = 0; i < moof.getContentCount(); i++){
-      if (moof.getContent(i).isType("traf")){
-        MP4::TRAF trafBox = (MP4::TRAF &)moof.getContent(i);
-        for (unsigned int j = 0; j < trafBox.getContentCount(); j++){
-          if (trafBox.getContent(j).isType("trun")){
-            trunBox = (MP4::TRUN &)trafBox.getContent(j);
-          }
-          if (trafBox.getContent(j).isType("tfhd")){
-            if (trackId != ((MP4::TFHD &)trafBox.getContent(j)).getTrackID()){
-              DEBUG_MSG(DLVL_FAIL, "Trackids do not match");
-              return;
-            }
-          }
-          /*LTS-START*/
-          if (trafBox.getContent(j).isType("uuid")){
-            if (((MP4::UUID &)trafBox.getContent(j)).getUUID() ==
-                "a2394f52-5a9b-4f14-a244-6c427c648df4"){
-              uuidBox = (MP4::UUID_SampleEncryption &)trafBox.getContent(j);
-            }
-          }
-          /*LTS-END*/
+    MP4::UUID_SampleEncryption uuidBox;
+    for (unsigned int j = 0; j < trafBox.getContentCount(); j++){
+      if (trafBox.getContent(j).isType("trun")){trunBox = (MP4::TRUN &)trafBox.getContent(j);}
+      if (trafBox.getContent(j).isType("tfhd")){
+        if (M.getID(trackId) != ((MP4::TFHD &)trafBox.getContent(j)).getTrackID()){
+          FAIL_MSG("Trackids do not match");
+          return;
         }
       }
     }
-    lastPos = ftell(inFile) + 8;
+
+    currentPosition = ftell(inFile) + 8;
     for (unsigned int i = 0; i < trunBox.getSampleInformationCount(); i++){
       seekPos myPos;
-      myPos.position = lastPos;
+      myPos.position = currentPosition;
       myPos.trackId = trackId;
-      myPos.time = lastTime;
+      myPos.time = currentTime;
       myPos.duration = trunBox.getSampleInformation(i).sampleDuration;
       myPos.size = trunBox.getSampleInformation(i).sampleSize;
       if (trunBox.getFlags() & MP4::trunsampleOffsets){
@@ -340,29 +253,9 @@ namespace Mist{
         myPos.offset = 0;
       }
       myPos.isKeyFrame = (i == 0);
-      /*LTS-START*/
-      if (i <= uuidBox.getSampleCount()){myPos.iVec = uuidBox.getSample(i).InitializationVector;}
-      /*LTS-END*/
-      lastTime += trunBox.getSampleInformation(i).sampleDuration;
-      lastPos += trunBox.getSampleInformation(i).sampleSize;
+      currentTime += trunBox.getSampleInformation(i).sampleDuration;
+      currentPosition += trunBox.getSampleInformation(i).sampleSize;
       buffered.insert(myPos);
     }
-  }
-
-  void inputISMV::readBox(const char *type, std::string &result){
-    int pos = ftell(inFile);
-    char mp4Head[8];
-    fread(mp4Head, 8, 1, inFile);
-    fseek(inFile, pos, SEEK_SET);
-    if (memcmp(mp4Head + 4, type, 4)){
-      DEBUG_MSG(DLVL_FAIL, "No %.4s box found at position %d", type, pos);
-      result = "";
-      return;
-    }
-    unsigned int boxSize = (mp4Head[0] << 24) + (mp4Head[1] << 16) + (mp4Head[2] << 8) + mp4Head[3];
-    char *tmpBox = (char *)malloc(boxSize * sizeof(char));
-    fread(tmpBox, boxSize, 1, inFile);
-    result = std::string(tmpBox, boxSize);
-    free(tmpBox);
   }
 }// namespace Mist

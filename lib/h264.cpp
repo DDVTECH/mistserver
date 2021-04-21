@@ -1039,7 +1039,6 @@ namespace h264{
     if (videoSignalTypePresentFlag){
       videoFormat = bs.get(3);
       videoFullRangeFlag = bs.get(1);
-      ;
       colourDescriptionPresentFlag = bs.get(1);
       if (colourDescriptionPresentFlag){
         colourPrimaries = bs.get(8);

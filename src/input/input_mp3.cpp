@@ -51,44 +51,45 @@ namespace Mist{
 
   bool inputMP3::readHeader(){
     if (!inFile){return false;}
-    myMeta = DTSC::Meta();
-    myMeta.tracks[1].trackID = 1;
-    myMeta.tracks[1].type = "audio";
-    myMeta.tracks[1].codec = "MP3";
+    meta.reInit(config->getString("streamname"));
+    size_t tNum = meta.addTrack();
+    meta.setID(tNum, tNum);
+    meta.setType(tNum, "audio");
+    meta.setCodec(tNum, "MP3");
     // Create header file from MP3 data
     char header[10];
     fread(header, 10, 1, inFile); // Read a 10 byte header
     if (header[0] == 'I' || header[1] == 'D' || header[2] == '3'){
       size_t id3size = (((int)header[6] & 0x7F) << 21) | (((int)header[7] & 0x7F) << 14) |
                        (((int)header[8] & 0x7F) << 7) |
-                       (header[9] & 0x7F) + 10 + ((header[5] & 0x10) ? 10 : 0);
+                       ((header[9] & 0x7F) + 10 + ((header[5] & 0x10) ? 10 : 0));
       INFO_MSG("id3 size: %lu bytes", id3size);
       fseek(inFile, id3size, SEEK_SET);
     }else{
       fseek(inFile, 0, SEEK_SET);
     }
     // Read the first mp3 header for bitrate and such
-    size_t filePos = ftell(inFile);
+    uint64_t filePos = ftell(inFile);
     fread(header, 4, 1, inFile);
     fseek(inFile, filePos, SEEK_SET);
 
     Mpeg::MP2Info mp2Info = Mpeg::parseMP2Header(header);
-    myMeta.tracks[1].rate = mp2Info.sampleRate;
-    myMeta.tracks[1].channels = mp2Info.channels;
+    meta.setRate(tNum, mp2Info.sampleRate);
+    meta.setChannels(tNum, mp2Info.channels);
 
     getNext();
     while (thisPacket){
-      myMeta.update(thisPacket);
+      meta.update(thisPacket);
       getNext();
     }
 
     fseek(inFile, 0, SEEK_SET);
     timestamp = 0;
-    myMeta.toFile(config->getString("input") + ".dtsh");
+    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
-  void inputMP3::getNext(bool smart){
+  void inputMP3::getNext(size_t idx){
     thisPacket.null();
     static char packHeader[3000];
     size_t filePos = ftell(inFile);
@@ -107,7 +108,7 @@ namespace Mist{
         }
       }
       if (!offset){
-        DEBUG_MSG(DLVL_FAIL, "Sync byte not found from offset %lu", filePos);
+        FAIL_MSG("Sync byte not found from offset %zu", filePos);
         return;
       }
       filePos += offset;
@@ -141,34 +142,16 @@ namespace Mist{
     fseek(inFile, filePos + dataSize, SEEK_SET);
 
     // Create a json value with the right data
-    static JSON::Value thisPack;
-    thisPack.null();
-    thisPack["trackid"] = 1;
-    thisPack["bpos"] = (uint64_t)filePos;
-    thisPack["data"] = std::string(packHeader, dataSize);
-    thisPack["time"] = timestamp;
-    // Write the json value to lastpack
-    std::string tmpStr = thisPack.toNetPacked();
-    thisPacket.reInit(tmpStr.data(), tmpStr.size());
+    thisPacket.genericFill(timestamp, 0, idx, packHeader, dataSize, filePos, false);
 
     // Update the internal timestamp
     timestamp += (sampleCount / (sampleRate / 1000));
   }
 
-  void inputMP3::seek(int seekTime){
-    std::deque<DTSC::Key> &keys = myMeta.tracks[1].keys;
-    size_t seekPos = keys[0].getBpos();
-    for (unsigned int i = 0; i < keys.size(); i++){
-      if (keys[i].getTime() > seekTime){break;}
-      seekPos = keys[i].getBpos();
-      timestamp = keys[i].getTime();
-    }
-    timestamp = seekTime;
-    fseek(inFile, seekPos, SEEK_SET);
-  }
-
-  void inputMP3::trackSelect(std::string trackSpec){
-    // Ignore, do nothing
-    // MP3 Always has only 1 track, so we can't select much else..
+  void inputMP3::seek(uint64_t seekTime, size_t idx){
+    DTSC::Keys keys(M.keys(idx));
+    uint32_t keyNum = keys.getNumForTime(seekTime);
+    fseek(inFile, keys.getBpos(keyNum), SEEK_SET);
+    timestamp = keys.getTime(keyNum);
   }
 }// namespace Mist

@@ -1,9 +1,9 @@
-#include "output_progressive_mp3.h"
+#include "output_mp3.h"
 
 namespace Mist{
-  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection &conn) : HTTPOutput(conn){}
+  OutMP3::OutMP3(Socket::Connection &conn) : HTTPOutput(conn){}
 
-  void OutProgressiveMP3::init(Util::Config *cfg){
+  void OutMP3::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "MP3";
     capa["friendly"] = "MP3 over HTTP";
@@ -23,16 +23,16 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
-  bool OutProgressiveMP3::isRecording(){return config->getString("target").size();}
+  bool OutMP3::isRecording(){return config->getString("target").size();}
 
-  void OutProgressiveMP3::sendNext(){
+  void OutMP3::sendNext(){
     char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
     myConn.SendNow(dataPointer, len);
   }
 
-  void OutProgressiveMP3::sendHeader(){
+  void OutMP3::sendHeader(){
     if (!isRecording()){
       std::string method = H.method;
       H.Clean();
@@ -48,7 +48,7 @@ namespace Mist{
     sentHeader = true;
   }
 
-  void OutProgressiveMP3::onHTTP(){
+  void OutMP3::onHTTP(){
     std::string method = H.method;
 
     H.Clean();

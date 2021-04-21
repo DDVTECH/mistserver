@@ -23,7 +23,7 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    void getNext(bool smart = true);
+    void getNext();
     void seek(int seekTime);
     void trackSelect(std::string trackSpec);
 

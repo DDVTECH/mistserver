@@ -9,8 +9,6 @@
 #include "util.h"
 #include <string>
 
-const JSON::Value empty;
-
 namespace Util{
   void streamVariables(std::string &str, const std::string &streamname, const std::string &source = "");
   std::string getTmpFolder();
@@ -24,20 +22,17 @@ namespace Util{
   JSON::Value getStreamConfig(const std::string &streamname);
   JSON::Value getGlobalConfig(const std::string &optionName);
   JSON::Value getInputBySource(const std::string &filename, bool isProvider = false);
-  DTSC::Meta getStreamMeta(const std::string &streamname);
   uint8_t getStreamStatus(const std::string &streamname);
   bool checkException(const JSON::Value &ex, const std::string &useragent);
   std::string codecString(const std::string &codec, const std::string &initData = "");
 
-  std::set<size_t> getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa = empty,
+  std::set<size_t> getSupportedTracks(const DTSC::Meta &M, JSON::Value &capa,
                                       const std::string &type = "", const std::string &UA = "");
-  std::set<size_t> findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType,
-                              const std::string &trackVal, const std::string &UA = "");
+  std::set<size_t> findTracks(const DTSC::Meta &M, const std::string &trackType, const std::string &trackVal);
   std::set<size_t> wouldSelect(const DTSC::Meta &M, const std::string &trackSelector = "",
-                               const JSON::Value &capa = empty, const std::string &UA = "");
+                               JSON::Value capa = JSON::Value(), const std::string &UA = "");
   std::set<size_t> wouldSelect(const DTSC::Meta &M, const std::map<std::string, std::string> &targetParams,
-                               const JSON::Value &capa = empty, const std::string &UA = "",
-                               uint64_t seekTarget = 0);
+                               JSON::Value capa = JSON::Value(), const std::string &UA = "");
 
   class DTSCShmReader{
   public:

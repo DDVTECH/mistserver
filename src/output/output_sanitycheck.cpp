@@ -1,4 +1,5 @@
 #include "output_sanitycheck.h"
+#include <iomanip>
 #include <mist/bitfields.h>
 #include <mist/checksum.h>
 #include <mist/defines.h>
@@ -6,41 +7,61 @@
 namespace Mist{
   OutSanityCheck::OutSanityCheck(Socket::Connection &conn) : Output(conn){
     streamName = config->getString("streamname");
+    if (config->getOption("fakepush", true).size()){
+      pushMultiplier = config->getInteger("fakepush");
+      if (!allowPush("testing")){onFinish();}
+      return;
+    }
     parseData = true;
     wantRequest = false;
     initialize();
     initialSeek();
     sortSet.clear();
-    for (std::set<long unsigned int>::iterator subIt = selectedTracks.begin();
-         subIt != selectedTracks.end(); subIt++){
-      keyPart temp;
-      temp.trackID = *subIt;
-      temp.time = myMeta.tracks[*subIt].firstms; // timeplace of frame
-      temp.endTime = myMeta.tracks[*subIt].firstms + myMeta.tracks[*subIt].parts[0].getDuration();
-      temp.size = myMeta.tracks[*subIt].parts[0].getSize(); // bytesize of frame (alle parts all together)
-      temp.index = 0;
-      sortSet.insert(temp);
-    }
-    realTime = 0;
-
-    if (config->getInteger("seek")){
-      uint64_t seekPoint = config->getInteger("seek");
-
-      while (!sortSet.empty() && sortSet.begin()->time < seekPoint){
+    if (!M.getLive()){
+      realTime = 0;
+      for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
+           it != userSelect.end(); it++){
         keyPart temp;
-        temp.index = sortSet.begin()->index + 1;
-        temp.trackID = sortSet.begin()->trackID;
-        if (temp.index < myMeta.tracks[temp.trackID].parts.size()){// only insert when there are parts left
-          temp.time = sortSet.begin()->endTime;                      // timeplace of frame
-          temp.endTime =
-              sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
-          temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize(); // bytesize of frame
-          sortSet.insert(temp);
-        }
-        // remove highest keyPart
-        sortSet.erase(sortSet.begin());
+        temp.trackID = it->first;
+        temp.time = M.getFirstms(it->first); // timeplace of frame
+        DTSC::Parts parts(M.parts(it->first));
+        temp.endTime = M.getFirstms(it->first) + parts.getDuration(parts.getFirstValid());
+        temp.size = parts.getSize(parts.getFirstValid()); // bytesize of frame (alle parts all together)
+        temp.index = 0;
+        sortSet.insert(temp);
       }
-      seek(seekPoint);
+      if (config->getInteger("seek")){
+        uint64_t seekPoint = config->getInteger("seek");
+
+        while (!sortSet.empty() && sortSet.begin()->time < seekPoint){
+          keyPart temp = *sortSet.begin();
+          temp.index++;
+          DTSC::Parts parts(M.parts(temp.trackID));
+          if (temp.index < parts.getEndValid()){// only insert when there are parts left
+            temp.time = temp.endTime;             // timeplace of frame
+            temp.endTime = temp.time + parts.getDuration(temp.index);
+            temp.size = parts.getSize(temp.index);
+            ; // bytesize of frame
+            sortSet.insert(temp);
+          }
+          // remove highest keyPart
+          sortSet.erase(sortSet.begin());
+        }
+        seek(seekPoint);
+      }
+    }
+  }
+
+  void OutSanityCheck::initialSeek(){
+    if (M.getLive()){
+      liveSeek();
+      if (getKeyFrame() && thisPacket){
+        sendNext();
+        INFO_MSG("Initial sent!");
+      }
+      firstTime = Util::getMS() - currentTime();
+    }else{
+      Output::initialSeek();
     }
   }
 
@@ -59,17 +80,55 @@ namespace Mist{
     config = cfg;
   }
 
+  void OutSanityCheck::requestHandler(){
+    if (!pushing){
+      Output::requestHandler();
+      return;
+    }
+  }
+
   void OutSanityCheck::sendNext(){
-    if ((unsigned long)thisPacket.getTrackId() != sortSet.begin()->trackID ||
-        thisPacket.getTime() != sortSet.begin()->time){
+    if (M.getLive()){
+      static uint64_t prevTime = 0;
+      static size_t prevTrack = 0;
+      uint64_t t = thisPacket.getTime();
+      if (t < prevTime){
+        std::cout << "Time error: ";
+        std::cout << std::setfill('0') << std::setw(2) << (t / 3600000) << ":" << std::setw(2)
+                  << ((t % 3600000) / 60000) << ":" << std::setw(2) << ((t % 60000) / 1000) << "."
+                  << std::setw(3) << (t % 1000);
+        std::cout << " (" << thisIdx << ")";
+        std::cout << " < ";
+        std::cout << std::setfill('0') << std::setw(2) << (prevTime / 3600000) << ":"
+                  << std::setw(2) << ((prevTime % 3600000) / 60000) << ":" << std::setw(2)
+                  << ((prevTime % 60000) / 1000) << "." << std::setw(3) << (prevTime % 1000);
+        std::cout << " (" << prevTrack << ")";
+        std::cout << std::endl << std::endl;
+      }else{
+        prevTime = t;
+        prevTrack = thisIdx;
+      }
+      std::cout << "\033[A" << std::setfill('0') << std::setw(2) << (t / 3600000) << ":"
+                << std::setw(2) << ((t % 3600000) / 60000) << ":" << std::setw(2)
+                << ((t % 60000) / 1000) << "." << std::setw(3) << (t % 1000) << "   ";
+      uint32_t mainTrack = M.mainTrack();
+      if (mainTrack == INVALID_TRACK_ID){return;}
+      t = M.getLastms(mainTrack);
+      std::cout << std::setfill('0') << std::setw(2) << (t / 3600000) << ":" << std::setw(2)
+                << ((t % 3600000) / 60000) << ":" << std::setw(2) << ((t % 60000) / 1000) << "."
+                << std::setw(3) << (t % 1000) << "   " << std::endl;
+      return;
+    }
+
+    if (thisIdx != sortSet.begin()->trackID || thisPacket.getTime() != sortSet.begin()->time){
       while (packets.size()){
         std::cout << packets.front() << std::endl;
         packets.pop_front();
       }
       std::cout << "Input is inconsistent! Expected " << sortSet.begin()->trackID << ":"
-                << sortSet.begin()->time << " but got " << thisPacket.getTrackId() << ":"
-                << thisPacket.getTime() << " (part " << sortSet.begin()->index << " in "
-                << myMeta.tracks[sortSet.begin()->trackID].codec << " track)" << std::endl;
+                << sortSet.begin()->time << " but got " << thisIdx << ":" << thisPacket.getTime()
+                << " (expected part " << sortSet.begin()->index << " in "
+                << M.getCodec(sortSet.begin()->trackID) << " track)" << std::endl;
       myConn.close();
       return;
     }
@@ -80,13 +139,13 @@ namespace Mist{
 
     // keep track of where we are
     if (!sortSet.empty()){
-      keyPart temp;
-      temp.index = sortSet.begin()->index + 1;
-      temp.trackID = sortSet.begin()->trackID;
-      if (temp.index < myMeta.tracks[temp.trackID].parts.size()){// only insert when there are parts left
-        temp.time = sortSet.begin()->endTime;                      // timeplace of frame
-        temp.endTime = sortSet.begin()->endTime + myMeta.tracks[temp.trackID].parts[temp.index].getDuration();
-        temp.size = myMeta.tracks[temp.trackID].parts[temp.index].getSize(); // bytesize of frame
+      keyPart temp = *sortSet.begin();
+      temp.index++;
+      DTSC::Parts parts(M.parts(temp.trackID));
+      if (temp.index < parts.getEndValid()){// only insert when there are parts left
+        temp.time = temp.endTime;             // timeplace of frame
+        temp.endTime = temp.time + parts.getDuration(temp.index);
+        temp.size = parts.getSize(temp.index); // bytesize of frame
         sortSet.insert(temp);
       }
       // remove highest keyPart

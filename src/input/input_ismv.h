@@ -3,6 +3,7 @@
 #include <mist/mp4.h>
 #include <mist/mp4_encryption.h>
 #include <mist/mp4_generic.h>
+#include <mist/util.h>
 #include <set>
 
 namespace Mist{
@@ -11,12 +12,12 @@ namespace Mist{
       if (time < rhs.time){return true;}
       return (time == rhs.time && trackId < rhs.trackId);
     }
-    long long int position;
-    int trackId;
-    long long int time;
-    long long int duration;
-    int size;
-    long long int offset;
+    uint64_t position;
+    size_t trackId;
+    uint64_t time;
+    uint64_t duration;
+    uint64_t size;
+    int64_t offset;
     bool isKeyFrame;
     std::string iVec;
   };
@@ -30,20 +31,19 @@ namespace Mist{
     bool checkArguments();
     bool preRun();
     bool readHeader();
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
-    bool atKeyFrame();
+    virtual void getNext(size_t idx = INVALID_TRACK_ID);
+    virtual void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
 
     FILE *inFile;
 
     void parseMoov(MP4::MOOV &moovBox);
-    bool parseFrag(int &tId, std::vector<MP4::trunSampleInformation> &trunSamples,
-                   std::vector<std::string> &initVecs, std::string &mdat);
-    void parseFragHeader(const unsigned int &trackId, const unsigned int &keyNum);
-    void readBox(const char *type, std::string &result);
+    bool readMoofSkipMdat(size_t &tId, std::vector<MP4::trunSampleInformation> &trunSamples);
+
+    void bufferFragmentData(size_t trackId, uint32_t keyNum);
     std::set<seekPos> buffered;
-    std::map<int, int> lastKeyNum;
+    std::map<size_t, uint32_t> lastKeyNum;
+
+    Util::ResizeablePointer dataPointer;
   };
 }// namespace Mist
 

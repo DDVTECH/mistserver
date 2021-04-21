@@ -8,7 +8,7 @@ namespace h265{
 namespace MP4{
   class MFHD : public Box{
   public:
-    MFHD();
+    MFHD(uint32_t sequenceNumber = 0);
     void setSequenceNumber(uint32_t newSequenceNumber);
     uint32_t getSequenceNumber();
     std::string toPrettyString(uint32_t indent = 0);
@@ -357,7 +357,7 @@ namespace MP4{
 
   class VMHD : public fullBox{
   public:
-    VMHD();
+    VMHD(uint32_t version = 0, uint32_t flags = 0);
     void setGraphicsMode(uint16_t newGraphicsMode);
     uint16_t getGraphicsMode();
     uint32_t getOpColorCount();
@@ -492,8 +492,9 @@ namespace MP4{
 
   class TKHD : public fullBox{
   public:
+    TKHD(const Box &rs) : fullBox(rs){}
     TKHD(uint32_t trackId = 0, uint64_t duration = 0, uint32_t width = 0, uint32_t height = 0);
-    TKHD(DTSC::Track &track, bool fragmented);
+    TKHD(const DTSC::Meta &M, size_t idx);
 
     void setCreationTime(uint64_t newCreationTime);
     uint64_t getCreationTime();
@@ -527,7 +528,7 @@ namespace MP4{
 
   class MDHD : public fullBox{
   public:
-    MDHD(uint64_t duration = 0);
+    MDHD(uint64_t duration = 0, const std::string &language = "");
     void setCreationTime(uint64_t newCreationTime);
     uint64_t getCreationTime();
     void setModificationTime(uint64_t newModificationTime);
@@ -593,6 +594,7 @@ namespace MP4{
 
   class STCO : public fullBox{
   public:
+    STCO(const Box &rs) : fullBox(rs){}
     STCO(char v = 1, uint32_t f = 0);
     void setEntryCount(uint32_t newEntryCount);
     uint32_t getEntryCount();
@@ -604,6 +606,7 @@ namespace MP4{
   class CO64 : public fullBox{
   public:
     CO64(char v = 1, uint32_t f = 0);
+    CO64(const Box &rs) : fullBox(rs){}
     void setEntryCount(uint32_t newEntryCount);
     uint32_t getEntryCount();
     void setChunkOffset(uint64_t newChunkOffset, uint32_t no);
@@ -667,9 +670,10 @@ namespace MP4{
     ///\todo set default values
   public:
     VisualSampleEntry();
-    VisualSampleEntry(DTSC::Track &track);
+    VisualSampleEntry(const DTSC::Meta &M, size_t idx);
     void initialize();
     void setCodec(const char *newCodec);
+    std::string getCodec();
     void setWidth(uint16_t newWidth);
     uint16_t getWidth();
     void setHeight(uint16_t newHeight);
@@ -700,7 +704,7 @@ namespace MP4{
   public:
     ///\todo set default values
     AudioSampleEntry();
-    AudioSampleEntry(DTSC::Track &track);
+    AudioSampleEntry(const DTSC::Meta &M, size_t idx);
     void initialize();
     void setCodec(const char *newCodec);
     void setChannelCount(uint16_t newChannelCount);
@@ -761,7 +765,7 @@ namespace MP4{
   class TextSampleEntry : public SampleEntry{
   public:
     TextSampleEntry();
-    TextSampleEntry(DTSC::Track &track);
+    TextSampleEntry(const DTSC::Meta &m, size_t idx);
     void initialize();
     void setHzJustification(int8_t n);
     void setVtJustification(int8_t n);

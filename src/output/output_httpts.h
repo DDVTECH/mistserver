@@ -8,7 +8,7 @@ namespace Mist{
     ~OutHTTPTS();
     static void init(Util::Config *cfg);
     void onHTTP();
-    void sendTS(const char *tsData, unsigned int len = 188);
+    void sendTS(const char *tsData, size_t len = 188);
     void initialSeek();
 
   private:

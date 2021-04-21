@@ -28,18 +28,18 @@ bool AnalyserOGG::parsePacket(){
       sn2Codec[oggPage.getBitstreamSerialNumber()] = "Opus";
     }
     if (sn2Codec[oggPage.getBitstreamSerialNumber()] != ""){
-      INFO_MSG("Bitstream %llu recognized as %s", oggPage.getBitstreamSerialNumber(),
+      INFO_MSG("Bitstream %" PRIu64 " recognized as %s", oggPage.getBitstreamSerialNumber(),
                sn2Codec[oggPage.getBitstreamSerialNumber()].c_str());
     }else{
-      WARN_MSG("Bitstream %llu not recognized!", oggPage.getBitstreamSerialNumber());
+      WARN_MSG("Bitstream %" PRIu64 " not recognized!", oggPage.getBitstreamSerialNumber());
     }
   }
 
   if (sn2Codec[oggPage.getBitstreamSerialNumber()] == "Theora"){
     if (detail >= 2){std::cout << "  Theora data" << std::endl;}
-    static unsigned int numParts = 0;
-    static unsigned int keyCount = 0;
-    for (unsigned int i = 0; i < oggPage.getAllSegments().size(); i++){
+    static size_t numParts = 0;
+    static size_t keyCount = 0;
+    for (size_t i = 0; i < oggPage.getAllSegments().size(); i++){
       theora::header tmpHeader((char *)oggPage.getSegment(i), oggPage.getAllSegments()[i].size());
       if (tmpHeader.isHeader()){
         if (tmpHeader.getHeaderType() == 0){kfgshift = tmpHeader.getKFGShift();}

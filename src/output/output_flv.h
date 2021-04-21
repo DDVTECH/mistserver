@@ -1,18 +1,20 @@
 #include "output_http.h"
 
 namespace Mist{
-  class OutProgressiveMP3 : public HTTPOutput{
+  class OutFLV : public HTTPOutput{
   public:
-    OutProgressiveMP3(Socket::Connection &conn);
+    OutFLV(Socket::Connection &conn);
     static void init(Util::Config *cfg);
     void onHTTP();
     void sendNext();
     void sendHeader();
 
   private:
+    virtual bool inlineRestartCapable() const{return true;}
+    FLV::Tag tag;
     bool isRecording();
     bool isFileTarget(){return isRecording();}
   };
 }// namespace Mist
 
-typedef Mist::OutProgressiveMP3 mistOut;
+typedef Mist::OutFLV mistOut;

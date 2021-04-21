@@ -202,8 +202,10 @@ public:
   /* write header and finalize. call for each stun message */
   int begin(StunMessage &msg,
             uint8_t paddingByte = 0x00); /* I've added the padding byte here so that we can use the
-                                            examples that can be found here https://tools.ietf.org/html/rfc5769#section-2.2
-                                            as they use 0x20 or 0x00 as the padding byte which is correct as you are free to use w/e padding byte you want. */
+                                            examples that can be found here
+                                            https://tools.ietf.org/html/rfc5769#section-2.2 as they
+                                            use 0x20 or 0x00 as the padding byte which is correct as
+                                            you are free to use w/e padding byte you want. */
   int end();
 
   /* write attributes */
@@ -213,7 +215,9 @@ public:
   int writeUsername(const std::string &username);
   int writeSoftware(const std::string &software);
   int writeMessageIntegrity(const std::string &password); /* When using WebRtc this is the ice-upwd of the other agent. */
-  int writeFingerprint(); /* Must be the last attribute in the message. When adding a fingerprint, make sure that it is added after the message-integrity (when you also use a message-integrity). */
+  int writeFingerprint(); /* Must be the last attribute in the message. When adding a fingerprint,
+                             make sure that it is added after the message-integrity (when you also
+                             use a message-integrity). */
 
   /* get buffer */
   uint8_t *getBufferPtr();

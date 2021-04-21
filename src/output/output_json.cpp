@@ -9,6 +9,7 @@ namespace Mist{
     keepReselecting = false;
     dupcheck = false;
     noReceive = false;
+    pushTrack = INVALID_TRACK_ID;
   }
 
   void OutJSON::init(Util::Config *cfg){
@@ -36,13 +37,13 @@ namespace Mist{
       }
     }
     JSON::Value jPack;
-    if (myMeta.tracks[thisPacket.getTrackId()].codec == "JSON"){
+    if (M.getCodec(thisIdx) == "JSON"){
       char *dPtr;
       size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
       jPack["data"] = JSON::fromString(dPtr, dLen);
       jPack["time"] = thisPacket.getTime();
-      jPack["track"] = (uint64_t)thisPacket.getTrackId();
+      jPack["track"] = thisIdx;
     }else{
       jPack = thisPacket.toJSON();
     }
@@ -93,7 +94,7 @@ namespace Mist{
     static bool recursive = false;
     if (recursive){return true;}
     recursive = true;
-    if (keepReselecting && !isPushing() && !myMeta.vod){
+    if (keepReselecting && !isPushing() && !M.getVod()){
       uint64_t maxTimer = 7200;
       while (--maxTimer && keepGoing()){
         if (!isBlocking){myConn.spool();}
@@ -154,56 +155,39 @@ namespace Mist{
         return;
       }
     }
-    if (!bootMsOffset){
-      if (myMeta.bootMsOffset){
-        bootMsOffset = myMeta.bootMsOffset;
-      }else{
-        bootMsOffset = Util::bootMS();
-      }
-    }
+    if (!M.getBootMsOffset()){meta.setBootMsOffset(Util::bootMS());}
     // We now know we're allowed to push. Read a JSON object.
     JSON::Value inJSON = JSON::fromString(webSock->data, webSock->data.size());
     if (!inJSON || !inJSON.isObject()){
       // Ignore empty and/or non-parsable JSON packets
-      MEDIUM_MSG("Ignoring non-JSON object: %s", webSock->data);
+      MEDIUM_MSG("Ignoring non-JSON object: %s", (char *)webSock->data);
       return;
     }
     // Let's create a new track for pushing purposes, if needed
-    if (!pushTrack){
-      pushTrack = 1;
-      while (myMeta.tracks.count(pushTrack)){++pushTrack;}
-    }
-    myMeta.tracks[pushTrack].type = "meta";
-    myMeta.tracks[pushTrack].codec = "JSON";
+    if (pushTrack == INVALID_TRACK_ID){pushTrack = meta.addTrack();}
+    meta.setType(pushTrack, "meta");
+    meta.setCodec(pushTrack, "JSON");
+    meta.setID(pushTrack, pushTrack);
     // We have a track set correctly. Let's attempt to buffer a frame.
     lastSendTime = Util::bootMS();
     if (!inJSON.isMember("unix")){
       // Base timestamp on arrival time
-      lastOutTime = (lastSendTime - bootMsOffset);
+      lastOutTime = (lastSendTime - M.getBootMsOffset());
     }else{
       // Base timestamp on unix time
-      lastOutTime = (lastSendTime - bootMsOffset) + (inJSON["unix"].asInt() - Util::epoch()) * 1000;
+      lastOutTime = (lastSendTime - M.getBootMsOffset()) + (inJSON["unix"].asInt() - Util::epoch()) * 1000;
     }
     lastOutData = inJSON.toString();
-    static DTSC::Packet newPack;
-    newPack.genericFill(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true, bootMsOffset);
-    bufferLivePacket(newPack);
-    if (!idleInterval){idleInterval = 100;}
+    bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
+    if (!idleInterval){idleInterval = 5000;}
     if (isBlocking){setBlocking(false);}
   }
 
   /// Repeats last JSON packet every 5 seconds to keep stream alive.
   void OutJSON::onIdle(){
-    if (nProxy.trackState[pushTrack] != FILL_ACC){
-      continueNegotiate(pushTrack);
-      if (nProxy.trackState[pushTrack] == FILL_ACC){idleInterval = 5000;}
-      return;
-    }
     lastOutTime += (Util::bootMS() - lastSendTime);
     lastSendTime = Util::bootMS();
-    static DTSC::Packet newPack;
-    newPack.genericFill(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true, bootMsOffset);
-    bufferLivePacket(newPack);
+    bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
   }
 
   void OutJSON::onHTTP(){

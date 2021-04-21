@@ -20,9 +20,8 @@ namespace Mist{
     bool preRun();
     bool readHeader();
     bool needHeader();
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void readPMT();
     bool openStreamSource();
     void parseStreamHeader();
@@ -34,6 +33,8 @@ namespace Mist{
     Socket::Connection tcpCon;
     TS::Packet tsBuf;
     pid_t inputProcess;
+    size_t tmpIdx;
+    bool isFinished;
   };
 }// namespace Mist
 

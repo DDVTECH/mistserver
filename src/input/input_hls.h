@@ -27,8 +27,8 @@ namespace Mist{
     uint64_t bytePos;
     uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
     float duration;
-    unsigned int timestamp;
-    unsigned int wait;
+    uint64_t timestamp;
+    uint64_t wait;
     char ivec[16];
     char keyAES[16];
   };
@@ -75,10 +75,10 @@ namespace Mist{
     int noChangeCount;
     uint64_t lastFileIndex;
 
-    int waitTime;
+    uint64_t waitTime;
     PlaylistType playlistType;
-    unsigned int lastTimestamp;
-    unsigned int startTime;
+    uint64_t lastTimestamp;
+    uint64_t startTime;
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];
     std::map<std::string, std::string> keys;
@@ -103,7 +103,7 @@ namespace Mist{
     int version;
     int targetDuration;
     bool endPlaylist;
-    int currentPlaylist;
+    uint64_t currentPlaylist;
 
     bool allowRemap;     ///< True if the next packet may remap the timestamps
     bool allowSoftRemap; ///< True if the next packet may soft-remap the timestamps
@@ -113,7 +113,7 @@ namespace Mist{
     std::map<int, uint64_t> plsLastTime;
     std::map<int, uint64_t> plsInterval;
 
-    int currentIndex;
+    size_t currentIndex;
     std::string currentFile;
 
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
@@ -128,9 +128,9 @@ namespace Mist{
     bool preSetup();
     bool readHeader();
     bool needHeader(){return true;}
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
+
     FILE *inFile;
     FILE *tsFile;
 
@@ -141,10 +141,7 @@ namespace Mist{
 
     void parseStreamHeader();
 
-    uint32_t getMappedTrackId(uint64_t id);
-    uint32_t getMappedTrackPlaylist(uint64_t id);
-    uint64_t getOriginalTrackId(uint32_t playlistId, uint32_t id);
-    int getEntryId(int playlistId, uint64_t bytePos);
+    size_t getEntryId(uint32_t playlistId, uint64_t bytePos);
   };
 }// namespace Mist
 

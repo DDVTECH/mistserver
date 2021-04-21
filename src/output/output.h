@@ -2,6 +2,7 @@
 #include "../io.h"
 #include <cstdlib>
 #include <map>
+#include <mist/comms.h>
 #include <mist/config.h>
 #include <mist/dtsc.h>
 #include <mist/flv_tag.h>
@@ -20,9 +21,10 @@ namespace Mist{
       if (time < rhs.time){return true;}
       return (time == rhs.time && tid < rhs.tid);
     }
-    uint64_t tid;
+    size_t tid;
     uint64_t time;
-    uint32_t offset;
+    uint64_t offset;
+    size_t partIndex;
   };
 
   /// The output class is intended to be inherited by MistOut process classes.
@@ -44,18 +46,17 @@ namespace Mist{
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
-    void seek(unsigned long long pos, bool toKey = false);
-    bool seek(unsigned int tid, unsigned long long pos, bool getNextKey = false);
+    void seek(uint64_t pos, bool toKey = false);
+    bool seek(size_t tid, uint64_t pos, bool getNextKey);
+    void seekKeyframesIn(unsigned long long pos, unsigned long long maxDelta);
     void stop();
     uint64_t currentTime();
     uint64_t startTime();
     uint64_t endTime();
     uint64_t liveTime();
     void setBlocking(bool blocking);
-    void updateMeta();
-    void selectTrack(const std::string &trackType, const std::string &trackVal); /*LTS*/
     bool selectDefaultTracks();
-    bool connectToFile(std::string file);
+    bool connectToFile(std::string file, bool append = false);
     static bool listenMode(){return true;}
     uint32_t currTrackCount() const;
     virtual bool isReadyForPlay();
@@ -64,11 +65,13 @@ namespace Mist{
     /// This function is called whenever a packet is ready for sending.
     /// Inside it, thisPacket is guaranteed to contain a valid packet.
     virtual void sendNext(){}// REQUIRED! Others are optional.
+    bool getKeyFrame();
     bool prepareNext();
-    virtual void dropTrack(uint32_t trackId, std::string reason, bool probablyBad = true);
+    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
     virtual void onRequest();
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
     virtual void initialSeek();
+    uint64_t getMinKeepAway();
     virtual bool liveSeek();
     virtual bool onFinish(){return false;}
     void reconnect();
@@ -80,6 +83,8 @@ namespace Mist{
     static Util::Config *config;
     void playbackSleep(uint64_t millis);
 
+    void selectAllTracks();
+
   private: // these *should* not be messed with in child classes.
     /*LTS-START*/
     void Log(std::string type, std::string message);
@@ -90,15 +95,16 @@ namespace Mist{
     std::string getCountry(std::string ip);
     void doSync(bool force = false);
     /*LTS-END*/
-    std::map<unsigned long, unsigned int> currKeyOpen;
-    void loadPageForKey(long unsigned int trackId, long long int keyNum);
-    int pageNumForKey(long unsigned int trackId, long long int keyNum);
-    int pageNumMax(long unsigned int trackId);
+    std::map<size_t, size_t> currentPage;
+    void loadPageForKey(size_t trackId, size_t keyNum);
+    uint64_t pageNumForKey(size_t trackId, size_t keyNum);
+    uint64_t pageNumMax(size_t trackId);
     bool isRecordingToFile;
-    unsigned int lastStats;                           ///< Time of last sending of stats.
-    std::map<unsigned long, unsigned long> nxtKeyNum; ///< Contains the number of the next key, for page seeking purposes.
+    uint64_t lastStats; ///< Time of last sending of stats.
+
     std::set<sortedPageInfo> buffer; ///< A sorted list of next-to-be-loaded packets.
-    bool sought; ///< If a seek has been done, this is set to true. Used for seeking on prepareNext().
+    bool sought; ///< If a seek has been done, this is set to true. Used for seeking on
+                 ///< prepareNext().
   protected:     // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
@@ -106,25 +112,28 @@ namespace Mist{
     bool pushing;
     std::map<std::string, std::string> targetParams; /*LTS*/
     std::string UA;                                  ///< User Agent string, if known.
-    uint16_t uaDelay;                                ///< Seconds to wait before setting the UA.
+    uint64_t uaDelay;                                ///< Seconds to wait before setting the UA.
     uint64_t lastRecv;
     uint64_t extraKeepAway;
-    long long unsigned int firstTime; ///< Time of first packet after last seek. Used for real-time sending.
+    uint64_t firstTime; ///< Time of first packet after last seek. Used for real-time sending.
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();
     virtual std::string getStatsName();
     virtual bool hasSessionIDs(){return false;}
 
-    IPC::sharedClient statsPage; ///< Shared memory used for statistics reporting.
-    bool isBlocking;             ///< If true, indicates that myConn is blocking.
-    uint32_t crc;                ///< Checksum, if any, for usage in the stats.
-    unsigned int getKeyForTime(long unsigned int trackId, long long timeStamp);
-    uint64_t nextKeyTime();
+    std::set<size_t> getSupportedTracks(const std::string &type = "") const;
+
+    inline bool keepGoing(){return config->is_active && myConn;}
+
+    Comms::Statistics statComm;
+    bool isBlocking; ///< If true, indicates that myConn is blocking.
+    uint32_t crc;    ///< Checksum, if any, for usage in the stats.
 
     // stream delaying variables
-    unsigned int maxSkipAhead; ///< Maximum ms that we will go ahead of the intended timestamps.
-    unsigned int realTime; ///< Playback speed in ms of data per second. eg: 0 is infinite, 1000 real-time, 5000 is 0.2X speed, 500 = 2X speed.
-    uint32_t needsLookAhead; ///< Amount of millis we need to be able to look ahead in the metadata
+    uint64_t maxSkipAhead;   ///< Maximum ms that we will go ahead of the intended timestamps.
+    uint64_t realTime;       ///< Playback speed in ms of wallclock time per data-second. eg: 0 is
+                             ///< infinite, 1000 real-time, 5000 is 0.2X speed, 500 = 2X speed.
+    uint64_t needsLookAhead; ///< Amount of millis we need to be able to look ahead in the metadata
 
     // Read/write status variables
     Socket::Connection &myConn; ///< Connection to the client.
@@ -134,17 +143,17 @@ namespace Mist{
     bool isInitialized; ///< If false, triggers initialization if parseData is true.
     bool sentHeader;    ///< If false, triggers sendHeader if parseData is true.
 
-    std::map<int, DTSCPageData> bookKeeping;
     virtual bool isRecording();
     virtual bool isFileTarget();
     virtual bool isPushing(){return pushing;};
     bool allowPush(const std::string &passwd);
     void waitForStreamPushReady();
     bool pushIsOngoing;
-    void bufferLivePacket(const DTSC::Packet &packet);
+
     uint64_t firstPacketTime;
     uint64_t lastPacketTime;
-    inline bool keepGoing(){return config->is_active && myConn;}
+
+    size_t thisIdx;
   };
 
 }// namespace Mist

@@ -5,7 +5,7 @@
 namespace Mist{
   class mp4PartTime{
   public:
-    mp4PartTime() : time(0), offset(0), trackID(0), bpos(0), size(0), index(0), duration(0){}
+    mp4PartTime() : time(0), duration(0), offset(0), trackID(0), bpos(0), size(0), index(0){}
     bool operator<(const mp4PartTime &rhs) const{
       if (time < rhs.time){return true;}
       if (time > rhs.time){return false;}
@@ -40,6 +40,7 @@ namespace Mist{
   class mp4TrackHeader{
   public:
     mp4TrackHeader();
+    size_t trackId;
     void read(MP4::TRAK &trakBox);
     MP4::STCO stcoBox;
     MP4::CO64 co64Box;
@@ -80,21 +81,24 @@ namespace Mist{
     bool preRun();
     bool readHeader();
     bool needHeader(){return true;}
-    void getNext(bool smart = true);
-    void seek(int seekTime);
-    void trackSelect(std::string trackSpec);
+    void getNext(size_t idx = INVALID_TRACK_ID);
+    void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
+    void handleSeek(uint64_t seekTime, size_t idx);
 
     FILE *inFile;
 
-    std::map<unsigned int, mp4TrackHeader> headerData;
+    mp4TrackHeader &headerData(size_t trackID);
+
+    std::deque<mp4TrackHeader> trackHeaders;
     std::set<mp4PartTime> curPositions;
 
     // remember last seeked keyframe;
-    std::map<unsigned int, unsigned int> nextKeyframe;
+    std::map<size_t, uint32_t> nextKeyframe;
 
     // these next two variables keep a buffer for reading from filepointer inFile;
     uint64_t malSize;
-    char *data; ///\todo rename this variable to a more sensible name, it is a temporary piece of memory to read from files
+    char *data; ///\todo rename this variable to a more sensible name, it is a temporary piece of
+                /// memory to read from files
   };
 }// namespace Mist
 

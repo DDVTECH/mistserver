@@ -7,7 +7,7 @@
 
 namespace SDP{
 
-  double getMultiplier(const DTSC::Track &Trk);
+  double getMultiplier(const DTSC::Meta *M, size_t tid);
 
   /// Structure used to keep track of selected tracks.
   class Track{
@@ -17,8 +17,8 @@ namespace SDP{
     std::string getParamString(const std::string &param) const;
     uint64_t getParamInt(const std::string &param) const;
     bool parseTransport(const std::string &transport, const std::string &host,
-                        const std::string &source, const DTSC::Track &trk);
-    std::string rtpInfo(const DTSC::Track &trk, const std::string &source, uint64_t currentTime);
+                        const std::string &source, const DTSC::Meta *M, size_t tid);
+    std::string rtpInfo(const DTSC::Meta &M, size_t tid, const std::string &source, uint64_t currentTime);
 
   public:
     Socket::UDPConnection data;
@@ -47,18 +47,18 @@ namespace SDP{
     void (*incomingPacketCallback)(const DTSC::Packet &pkt);
     void parseSDP(const std::string &sdp);
     void parseSDPEx(const std::string &sdp);
-    void updateH264Init(uint64_t trackNo);
-    void updateH265Init(uint64_t trackNo);
+    void updateH264Init(size_t trackNo);
+    void updateH265Init(size_t tid);
     void updateInit(const uint64_t trackNo, const std::string &initData);
-    uint32_t getTrackNoForChannel(uint8_t chan);
-    uint32_t parseSetup(HTTP::Parser &H, const std::string &host, const std::string &source);
+    size_t getTrackNoForChannel(uint8_t chan);
+    size_t parseSetup(HTTP::Parser &H, const std::string &host, const std::string &source);
     void handleIncomingRTP(const uint64_t track, const RTP::Packet &pkt);
 
   public:
     DTSC::Meta *myMeta;
-    std::map<uint32_t, RTP::toDTSC> tConv; ///< Converters to DTSC
-    std::map<uint32_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
+    std::map<size_t, RTP::toDTSC> tConv; ///< Converters to DTSC
+    std::map<size_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
   };
 
-  std::string mediaDescription(const DTSC::Track &trk);
+  std::string mediaDescription(const DTSC::Meta *M, size_t tid);
 }// namespace SDP

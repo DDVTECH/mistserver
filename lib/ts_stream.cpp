@@ -203,8 +203,9 @@ namespace TS{
         case ID3:
         case MP2:
         case MPEG2:
+        case META:
           pidToCodec[pid] = sType;
-          if (sType == ID3){
+          if (sType == ID3 || sType == META){
             metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
           }
           break;
@@ -536,7 +537,7 @@ namespace TS{
         }
       }
     }
-    if (thisCodec == ID3 || thisCodec == AC3 || thisCodec == MP2){
+    if (thisCodec == ID3 || thisCodec == AC3 || thisCodec == MP2 || thisCodec == META){
       out.push_back(DTSC::Packet());
       out.back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize, bPos, 0);
       if (thisCodec == MP2 && !mp2Hdr.count(tid)){
@@ -607,7 +608,7 @@ namespace TS{
           DTSC::Packet &bp = buildPacket[tid];
 
           // Check if this is a keyframe
-          parseNal(tid, pesPayload, nextPtr, isKeyFrame);
+          parseNal(tid, pesPayload, pesPayload + nalSize, isKeyFrame);
           // If yes, set the keyframe flag
           if (isKeyFrame){bp.setKeyFrame(true);}
 
@@ -651,10 +652,10 @@ namespace TS{
       while (nextPtr < pesEnd && nalno < 8){
         if (!nextPtr){nextPtr = pesEnd;}
         // Calculate size of NAL unit, removing null bytes from the end
-        nalu::nalEndPosition(pesPayload, nextPtr - pesPayload);
+        uint32_t nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
 
         // Check if this is a keyframe
-        parseNal(tid, pesPayload, nextPtr, isKeyFrame);
+        parseNal(tid, pesPayload, pesPayload + nalSize, isKeyFrame);
         ++nalno;
 
         if (((nextPtr - pesPayload) + 3) >= realPayloadSize){break;}// end of the loop
@@ -667,7 +668,7 @@ namespace TS{
     }
   }
 
-  void Stream::getPacket(size_t tid, DTSC::Packet &pack){
+  void Stream::getPacket(size_t tid, DTSC::Packet &pack, size_t mappedAs){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
     if (!hasPacket(tid)){
@@ -687,7 +688,7 @@ namespace TS{
       return;
     }
 
-    pack = outPackets[tid].front();
+    pack = DTSC::Packet(outPackets[tid].front(), mappedAs);
     outPackets[tid].pop_front();
 
     if (!outPackets[tid].size()){outPackets.erase(tid);}
@@ -825,14 +826,18 @@ namespace TS{
   void Stream::initializeMetadata(DTSC::Meta &meta, size_t tid, size_t mappingId){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
 
-    size_t mId = mappingId;
-
     for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
-      if (tid && it->first != tid){continue;}
+      if (tid != INVALID_TRACK_ID && it->first != tid){continue;}
 
-      if (mId == 0){mId = it->first;}
+      size_t mId = (mappingId == INVALID_TRACK_ID ? it->first : mappingId);
 
-      if (meta.tracks.count(mId) && meta.tracks[mId].codec.size()){continue;}
+      size_t idx = meta.trackIDToIndex(mId, getpid());
+      if (idx != INVALID_TRACK_ID && meta.getCodec(idx).size()){continue;}
+
+      // We now know we have to add a new track, OR the current track still needs it metadata set
+      bool addNewTrack = false;
+      std::string type, codec, init;
+      uint64_t width = 0, height = 0, fpks = 0, size = 0, rate = 0, channels = 0;
 
       switch (it->second){
       case H264:{
@@ -840,15 +845,11 @@ namespace TS{
           MEDIUM_MSG("Aborted meta fill for h264 track %lu: no SPS/PPS", it->first);
           continue;
         }
-        meta.tracks[mId].type = "video";
-        meta.tracks[mId].codec = "H264";
-        meta.tracks[mId].trackID = mId;
+        // First generate needed data
         std::string tmpBuffer = spsInfo[it->first];
-        h264::sequenceParameterSet sps(spsInfo[it->first].data(), spsInfo[it->first].size());
+        h264::sequenceParameterSet sps(tmpBuffer.data(), tmpBuffer.size());
         h264::SPSMeta spsChar = sps.getCharacteristics();
-        meta.tracks[mId].width = spsChar.width;
-        meta.tracks[mId].height = spsChar.height;
-        meta.tracks[mId].fpks = spsChar.fps * 1000;
+
         MP4::AVCC avccBox;
         avccBox.setVersion(1);
         avccBox.setProfile(spsInfo[it->first][1]);
@@ -858,88 +859,98 @@ namespace TS{
         avccBox.setSPS(spsInfo[it->first]);
         avccBox.setPPSCount(1);
         avccBox.setPPS(ppsInfo[it->first]);
-        meta.tracks[mId].init = std::string(avccBox.payload(), avccBox.payloadSize());
+
+        // Then set all data for track
+        addNewTrack = true;
+        type = "video";
+        codec = "H264";
+        width = spsChar.width;
+        height = spsChar.height;
+        fpks = spsChar.fps * 1000;
+        init.assign(avccBox.payload(), avccBox.payloadSize());
       }break;
       case H265:{
         if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
           MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", it->first);
           continue;
         }
-        meta.tracks[mId].type = "video";
-        meta.tracks[mId].codec = "HEVC";
-        meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].init = hevcInfo[it->first].generateHVCC();
+        addNewTrack = true;
+        type = "video";
+        codec = "HEVC";
+        init = hevcInfo[it->first].generateHVCC();
         h265::metaInfo metaInfo = hevcInfo[it->first].getMeta();
-        meta.tracks[mId].width = metaInfo.width;
-        meta.tracks[mId].height = metaInfo.height;
-        meta.tracks[mId].fpks = metaInfo.fps * 1000;
-        int pmtCount = associationTable.getProgramCount();
-        for (int i = 0; i < pmtCount; i++){
-          int pid = associationTable.getProgramPID(i);
-          ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
-          while (entry){
-            if (entry.getElementaryPid() == tid){
-              meta.tracks[mId].lang =
-                  ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage();
-            }
-            entry.advance();
-          }
-        }
+        width = metaInfo.width;
+        height = metaInfo.height;
+        fpks = metaInfo.fps * 1000;
       }break;
       case MPEG2:{
-        meta.tracks[mId].type = "video";
-        meta.tracks[mId].codec = "MPEG2";
-        meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].init = std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] +
-                                std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
-
-        Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(meta.tracks[mId].init);
-        meta.tracks[mId].width = info.width;
-        meta.tracks[mId].height = info.height;
-        meta.tracks[mId].fpks = info.fps * 1000;
+        addNewTrack = true;
+        type = "video";
+        codec = "MPEG2";
+        init = std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] +
+               std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
+        Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(init);
+        width = info.width;
+        height = info.height;
+        fpks = info.fps * 1000;
       }break;
       case ID3:{
-        meta.tracks[mId].type = "meta";
-        meta.tracks[mId].codec = "ID3";
-        meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].init = metaInit[it->first];
+        addNewTrack = true;
+        type = "meta";
+        codec = "ID3";
+        init = metaInit[it->first];
+      }break;
+      case META:{
+        addNewTrack = true;
+        type = "meta";
+        codec = "RAW";
+        init = metaInit[it->first];
       }break;
       case AC3:{
-        meta.tracks[mId].type = "audio";
-        meta.tracks[mId].codec = "AC3";
-        meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].size = 16;
-        ///\todo Fix these 2 values
-        meta.tracks[mId].rate = 0;
-        meta.tracks[mId].channels = 0;
+        addNewTrack = true;
+        type = "audio";
+        codec = "AC3";
+        size = 16;
       }break;
       case MP2:{
-        meta.tracks[mId].type = "audio";
-        meta.tracks[mId].codec = "MP2";
-        meta.tracks[mId].trackID = mId;
-
+        addNewTrack = true;
         Mpeg::MP2Info info = Mpeg::parseMP2Header(mp2Hdr[it->first]);
-        meta.tracks[mId].rate = info.sampleRate;
-        meta.tracks[mId].channels = info.channels;
-
-        ///\todo Fix this value
-        meta.tracks[mId].size = 0;
+        type = "audio";
+        codec = (info.layer == 3 ? "MP3" : "MP2");
+        rate = info.sampleRate;
+        channels = info.channels;
       }break;
       case AAC:{
-        meta.tracks[mId].type = "audio";
-        meta.tracks[mId].codec = "AAC";
-        meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].size = 16;
-        meta.tracks[mId].rate = adtsInfo[it->first].getFrequency();
-        meta.tracks[mId].channels = adtsInfo[it->first].getChannelCount();
-        char audioInit[2]; // 5 bits object type, 4 bits frequency index, 4 bits channel index
-        audioInit[0] = ((adtsInfo[it->first].getAACProfile() & 0x1F) << 3) |
-                       ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
-        audioInit[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) |
-                       ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
-        meta.tracks[mId].init = std::string(audioInit, 2);
+        addNewTrack = true;
+        init.resize(2);
+        init[0] = ((adtsInfo[it->first].getAACProfile() & 0x1F) << 3) |
+                  ((adtsInfo[it->first].getFrequencyIndex() & 0x0E) >> 1);
+        init[1] = ((adtsInfo[it->first].getFrequencyIndex() & 0x01) << 7) |
+                  ((adtsInfo[it->first].getChannelConfig() & 0x0F) << 3);
+
+        type = "audio";
+        codec = "AAC";
+        size = 16;
+        rate = adtsInfo[it->first].getFrequency();
+        channels = adtsInfo[it->first].getChannelCount();
       }break;
       }
+
+      // Add track to meta here, if newTrack is set. Otherwise only re-initialize values
+      if (idx == INVALID_TRACK_ID){
+        if (!addNewTrack){return;}
+        idx = meta.addTrack();
+      }
+      meta.setType(idx, type);
+      meta.setCodec(idx, codec);
+      meta.setID(idx, mId);
+      if (init.size()){meta.setInit(idx, init);}
+      meta.setWidth(idx, width);
+      meta.setHeight(idx, height);
+      meta.setFpks(idx, fpks);
+      meta.setSize(idx, size);
+      meta.setRate(idx, rate);
+      meta.setChannels(idx, channels);
 
       size_t pmtCount = associationTable.getProgramCount();
       for (size_t i = 0; i < pmtCount; i++){
@@ -947,14 +958,12 @@ namespace TS{
         ProgramMappingEntry entry = mappingTable[pid].getEntry(0);
         while (entry){
           if (entry.getElementaryPid() == tid){
-            meta.tracks[mId].lang =
-                ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage();
+            meta.setLang(idx, ProgramDescriptors(entry.getESInfo(), entry.getESInfoLength()).getLanguage());
           }
           entry.advance();
         }
       }
-      MEDIUM_MSG("Initialized track %lu as %s %s", it->first, meta.tracks[mId].codec.c_str(),
-                 meta.tracks[mId].type.c_str());
+      MEDIUM_MSG("Initialized track %lu as %s %s", idx, codec.c_str(), type.c_str());
     }
   }
 
@@ -983,7 +992,8 @@ namespace TS{
             case AC3:
             case ID3:
             case MP2:
-            case MPEG2: result.insert(entry.getElementaryPid()); break;
+            case MPEG2:
+            case META: result.insert(entry.getElementaryPid()); break;
             default: break;
             }
             entry.advance();

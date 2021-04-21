@@ -16,11 +16,10 @@ static int on_mbedtls_wants_to_read(void *user, unsigned char *buf,
                                     size_t len); /* Called when mbedtls wants to read data from e.g. a socket. */
 static int on_mbedtls_wants_to_write(void *user, const unsigned char *buf,
                                      size_t len); /* Called when mbedtls wants to write data to e.g. a socket. */
-static std::string mbedtls_err_to_string(int r);
 
 /* ----------------------------------------- */
 
-DTLSSRTPHandshake::DTLSSRTPHandshake() : write_callback(NULL), cert(NULL), key(NULL){
+DTLSSRTPHandshake::DTLSSRTPHandshake() : cert(NULL), key(NULL), write_callback(NULL){
   memset((void *)&entropy_ctx, 0x00, sizeof(entropy_ctx));
   memset((void *)&rand_ctx, 0x00, sizeof(rand_ctx));
   memset((void *)&ssl_ctx, 0x00, sizeof(ssl_ctx));
@@ -381,7 +380,7 @@ static void print_mbedtls_error(int r){
 }
 
 static void print_mbedtls_debug_message(void *ctx, int level, const char *file, int line, const char *str){
-  DONTEVEN_MSG("%s:%04d: %.*s", file, line, strlen(str) - 1, str);
+  DONTEVEN_MSG("%s:%04d: %.*s", file, line, (int)strlen(str) - 1, str);
 
 #if LOG_TO_FILE
   static std::ofstream ofs;
@@ -390,21 +389,6 @@ static void print_mbedtls_debug_message(void *ctx, int level, const char *file, 
   ofs << str;
   ofs.flush();
 #endif
-}
-
-static std::string mbedtls_err_to_string(int r){
-  switch (r){
-  case MBEDTLS_ERR_SSL_WANT_READ:{
-    return "MBEDTLS_ERR_SSL_WANT_READ";
-  }
-  case MBEDTLS_ERR_SSL_WANT_WRITE:{
-    return "MBEDTLS_ERR_SSL_WANT_WRITE";
-  }
-  default:{
-    print_mbedtls_error(r);
-    return "UNKNOWN";
-  }
-  }
 }
 
 /* ---------------------------------------- */

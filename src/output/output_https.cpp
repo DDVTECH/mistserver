@@ -95,7 +95,7 @@ namespace Mist{
         C.close();
         return;
       }else{
-        Util::sleep(100);
+        Util::sleep(20);
       }
     }
     HIGH_MSG("Started SSL connection handler");
@@ -162,10 +162,10 @@ namespace Mist{
         // We have data - pass it on
         activity = true;
         while (http_buf.size() && http){
-          int todo = http_buf.get().size();
+          int toSend = http_buf.get().size();
           int done = 0;
-          while (done < todo){
-            ret = mbedtls_ssl_write(&ssl, (const unsigned char *)http_buf.get().data() + done, todo - done);
+          while (done < toSend){
+            ret = mbedtls_ssl_write(&ssl, (const unsigned char *)http_buf.get().data() + done, toSend - done);
             if (ret == MBEDTLS_ERR_NET_CONN_RESET || ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT){
               HIGH_MSG("SSL disconnect!");
               http.close();
@@ -174,19 +174,18 @@ namespace Mist{
             if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
               done += ret;
             }else{
-              Util::sleep(50);
+              Util::sleep(20);
             }
           }
           http_buf.get().clear();
         }
       }
-      if (!activity){Util::sleep(50);}
+      if (!activity){Util::sleep(20);}
     }
     // close the HTTP process (close stdio, kill its PID)
     http.close();
-    Util::Procs::Stop(http_proc);
     uint16_t waiting = 0;
-    while (++waiting < 100){
+    while (++waiting < 50){
       if (!Util::Procs::isRunning(http_proc)){break;}
       Util::sleep(100);
     }

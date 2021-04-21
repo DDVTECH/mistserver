@@ -488,7 +488,7 @@ namespace SDP{
   MediaFormat *Media::getFormatForPayloadType(uint64_t &payloadType){
     std::map<uint64_t, MediaFormat>::iterator it = formats.find(payloadType);
     if (it == formats.end()){
-      ERROR_MSG("No format found for payload type: %u.", payloadType);
+      ERROR_MSG("No format found for payload type: %" PRIu64 ".", payloadType);
       return NULL;
     }
     return &it->second;
@@ -577,6 +577,14 @@ namespace SDP{
     size_t numMedias = medias.size();
     for (size_t i = 0; i < numMedias; ++i){
       if (medias[i].direction == "recvonly"){return true;}
+    }
+    return false;
+  }
+
+  bool Session::hasSendOnlyMedia(){
+    size_t numMedias = medias.size();
+    for (size_t i = 0; i < numMedias; ++i){
+      if (medias[i].direction == "sendonly"){return true;}
     }
     return false;
   }
@@ -760,7 +768,7 @@ namespace SDP{
   }
 
   Answer::Answer()
-      : isVideoEnabled(false), isAudioEnabled(false), candidatePort(0),
+      : isAudioEnabled(false), isVideoEnabled(false), candidatePort(0),
         videoLossPrevention(SDP_LOSS_PREVENTION_NONE){}
 
   bool Answer::parseOffer(const std::string &sdp){
@@ -820,45 +828,44 @@ namespace SDP{
     direction = dir;
   }
 
-  bool Answer::setupVideoDTSCTrack(DTSC::Track &result){
-
+  bool Answer::setupVideoDTSCTrack(DTSC::Meta &M, size_t tid){
     if (!isVideoEnabled){
       FAIL_MSG("Video is disabled; cannot setup DTSC::Track.");
       return false;
     }
 
-    result.codec = codecRTP2Mist(answerVideoFormat.encodingName);
-    if (result.codec.empty()){
+    M.setCodec(tid, codecRTP2Mist(answerVideoFormat.encodingName));
+    if (M.getCodec(tid).empty()){
       FAIL_MSG("Failed to convert the format codec into one that MistServer understands. %s.",
                answerVideoFormat.encodingName.c_str());
       return false;
     }
-
-    result.type = "video";
-    result.rate = answerVideoFormat.getVideoRate();
-    result.trackID = answerVideoFormat.payloadType;
+    M.setType(tid, "video");
+    M.setRate(tid, answerVideoFormat.getVideoRate());
+    M.setID(tid, answerVideoFormat.payloadType);
+    INFO_MSG("Setup video track %zu for payload type %zu", tid, answerVideoFormat.payloadType);
     return true;
   }
 
-  bool Answer::setupAudioDTSCTrack(DTSC::Track &result){
-
+  bool Answer::setupAudioDTSCTrack(DTSC::Meta &M, size_t tid){
     if (!isAudioEnabled){
       FAIL_MSG("Audio is disabled; cannot setup DTSC::Track.");
       return false;
     }
 
-    result.codec = codecRTP2Mist(answerAudioFormat.encodingName);
-    if (result.codec.empty()){
+    M.setCodec(tid, codecRTP2Mist(answerAudioFormat.encodingName));
+    if (M.getCodec(tid).empty()){
       FAIL_MSG("Failed to convert the format codec into one that MistServer understands. %s.",
                answerAudioFormat.encodingName.c_str());
       return false;
     }
 
-    result.type = "audio";
-    result.rate = answerAudioFormat.getAudioSampleRate();
-    result.channels = answerAudioFormat.getAudioNumChannels();
-    result.size = answerAudioFormat.getAudioBitSize();
-    result.trackID = answerAudioFormat.payloadType;
+    M.setType(tid, "audio");
+    M.setRate(tid, answerAudioFormat.getAudioSampleRate());
+    M.setChannels(tid, answerAudioFormat.getAudioNumChannels());
+    M.setSize(tid, answerAudioFormat.getAudioBitSize());
+    M.setID(tid, answerAudioFormat.payloadType);
+    INFO_MSG("Setup audio track %zu for payload time %zu", tid, answerAudioFormat.payloadType);
     return true;
   }
 
@@ -1023,7 +1030,9 @@ namespace SDP{
     return result;
   }
 
-  void Answer::addLine(const std::string &fmt, ...){
+  // The parameter here is NOT a reference, because va_start specifies that its parameter is not
+  // allowed to be one.
+  void Answer::addLine(const std::string fmt, ...){
 
     char buffer[1024] ={};
     va_list args;

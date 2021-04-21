@@ -476,6 +476,31 @@ int main_loop(int argc, char **argv){
     }
   }
 
+  // Upgrade old configurations
+  {
+    bool foundCMAF = false;
+    bool edit = false;
+    JSON::Value newVal;
+    jsonForEach(Controller::Storage["config"]["protocols"], it){
+      if ((*it)["connector"].asStringRef() == "HSS"){
+        edit = true;
+        continue;
+      }
+      if ((*it)["connector"].asStringRef() == "DASH"){
+        edit = true;
+        continue;
+      }
+
+      if ((*it)["connector"].asStringRef() == "CMAF"){foundCMAF = true;}
+      newVal.append(*it);
+    }
+    if (edit && !foundCMAF){newVal.append(JSON::fromString("{\"connector\":\"CMAF\"}"));}
+    if (edit){
+      Controller::Storage["config"]["protocols"] = newVal;
+      Controller::Log("CONF", "Translated protocols to new versions");
+    }
+  }
+
   Controller::Log("CONF", "Controller started");
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){

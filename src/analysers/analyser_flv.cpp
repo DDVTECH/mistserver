@@ -32,7 +32,8 @@ bool AnalyserFLV::parsePacket(){
 
   // If we arrive here, we've loaded a FLV packet
   if (!filter || filter == flvData.data[0]){
-    DETAIL_MED("[%llu+%llu] %s", flvData.tagTime(), flvData.offset(), flvData.tagType().c_str());
+    DETAIL_MED("[%" PRIu64 "+%" PRId64 "] %s", flvData.tagTime(), flvData.offset(),
+               flvData.tagType().c_str());
   }
   mediaTime = flvData.tagTime();
   return true;

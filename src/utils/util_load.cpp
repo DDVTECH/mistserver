@@ -17,11 +17,11 @@ std::string passphrase;
 std::string fallback;
 bool localMode = false;
 
-unsigned int weight_cpu = 500;
-unsigned int weight_ram = 500;
-unsigned int weight_bw = 1000;
-unsigned int weight_geo = 1000;
-unsigned int weight_bonus = 50;
+size_t weight_cpu = 500;
+size_t weight_ram = 500;
+size_t weight_bw = 1000;
+size_t weight_geo = 1000;
+size_t weight_bonus = 50;
 unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
 #define HOSTLOOP                                                                                   \
   unsigned long i = 0;                                                                             \
@@ -79,12 +79,12 @@ private:
   std::map<std::string, struct streamDetails> streams;
   std::set<std::string> conf_streams;
   std::map<std::string, outUrl> outputs;
-  uint32_t cpu;
+  uint64_t cpu;
   uint64_t ramMax;
   uint64_t ramCurr;
-  uint32_t upSpeed;
-  uint32_t downSpeed;
-  uint32_t total;
+  uint64_t upSpeed;
+  uint64_t downSpeed;
+  uint64_t total;
   uint64_t upPrev;
   uint64_t downPrev;
   uint64_t prevTime;
@@ -126,21 +126,18 @@ public:
     addBandwidth *= 1.2;
   }
   /// Returns the count of viewers for a given stream s.
-  unsigned long long count(std::string &s){
+  size_t count(std::string &s){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    if (streams.count(s)){
-      return streams[s].total;
-    }else{
-      return 0;
-    }
+    if (streams.count(s)){return streams[s].total;}
+    return 0;
   }
   /// Fills out a by reference given JSON::Value with current state.
   void fillState(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    r["cpu"] = cpu / 10;
-    if (ramMax){r["ram"] = (ramCurr * 100) / ramMax;}
+    r["cpu"] = (uint64_t)(cpu / 10);
+    if (ramMax){r["ram"] = (uint64_t)((ramCurr * 100) / ramMax);}
     r["up"] = upSpeed;
     r["up_add"] = addBandwidth;
     r["down"] = downSpeed;
@@ -153,9 +150,9 @@ public:
       r["geo"]["loc"] = servLoc;
     }
     if (ramMax && availBandwidth){
-      r["score"]["cpu"] = (weight_cpu - (cpu * weight_cpu) / 1000);
-      r["score"]["ram"] = (weight_ram - ((ramCurr * weight_ram) / ramMax));
-      r["score"]["bw"] = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+      r["score"]["cpu"] = (uint64_t)(weight_cpu - (cpu * weight_cpu) / 1000);
+      r["score"]["ram"] = (uint64_t)(weight_ram - ((ramCurr * weight_ram) / ramMax));
+      r["score"]["bw"] = (uint64_t)(weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
     }
   }
   /// Fills out a by reference given JSON::Value with current streams.
@@ -176,15 +173,16 @@ public:
   }
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
-  unsigned int rate(std::string &s, double lati = 0, double longi = 0){
+  uint64_t rate(std::string &s, double lati = 0, double longi = 0){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
-      WARN_MSG("Host %s invalid: RAM %llu, BW %llu", host.c_str(), ramMax, availBandwidth);
+      WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 0;
     }
     if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
-      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth, availBandwidth);
+      INFO_MSG("Host %s over bandwidth: %" PRIu64 "+%" PRIu64 " >= %" PRIu64, host.c_str(), upSpeed,
+               addBandwidth, availBandwidth);
       return 0;
     }
     if (conf_streams.size() && !conf_streams.count(s) &&
@@ -193,45 +191,48 @@ public:
       return 0;
     }
     // Calculate score
-    unsigned int cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
-    unsigned int ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
-    unsigned int bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
-    unsigned int geo_score = 0;
+    uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
+    uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
+    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+    uint64_t geo_score = 0;
     if (servLati && servLongi && lati && longi){
       geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
     }
-    unsigned int score = cpu_score + ram_score + bw_score + geo_score + (streams.count(s) ? weight_bonus : 0);
+    uint64_t score = cpu_score + ram_score + bw_score + geo_score + (streams.count(s) ? weight_bonus : 0);
     // Print info on host
-    MEDIUM_MSG("%s: CPU %u, RAM %u, Stream %u, BW %u (max %llu MB/s), Geo %u -> %u", host.c_str(),
-               cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
+    MEDIUM_MSG("%s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
+               " (max %" PRIu64 " MB/s), Geo %" PRIu64 " -> %" PRIu64,
+               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
                availBandwidth / 1024 / 1024, geo_score, score);
     return score;
   }
   /// Scores this server as a source
   /// 0 means not possible, the higher the better.
-  unsigned int source(std::string &s, double lati = 0, double longi = 0){
+  uint64_t source(std::string &s, double lati = 0, double longi = 0){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     if (!streams.count(s) || !streams[s].inputs){return 0;}
     if (!ramMax || !availBandwidth){
-      WARN_MSG("Host %s invalid: RAM %llu, BW %llu", host.c_str(), ramMax, availBandwidth);
+      WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 1;
     }
     if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
-      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth, availBandwidth);
+      INFO_MSG("Host %s over bandwidth: %" PRIu64 "+%" PRIu64 " >= %" PRIu64, host.c_str(), upSpeed,
+               addBandwidth, availBandwidth);
       return 1;
     }
     // Calculate score
-    unsigned int cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
-    unsigned int ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
-    unsigned int bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
-    unsigned int geo_score = 0;
+    uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
+    uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
+    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+    uint64_t geo_score = 0;
     if (servLati && servLongi && lati && longi){
       geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
     }
-    unsigned int score = cpu_score + ram_score + bw_score + geo_score + 1;
+    uint64_t score = cpu_score + ram_score + bw_score + geo_score + 1;
     // Print info on host
-    MEDIUM_MSG("SOURCE %s: CPU %u, RAM %u, Stream %u, BW %u (max %llu MB/s), Geo %u -> %u",
+    MEDIUM_MSG("SOURCE %s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
+               " (max %" PRIu64 " MB/s), Geo %" PRIu64 " -> %" PRIu64,
                host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
                availBandwidth / 1024 / 1024, geo_score, score);
     return score;
@@ -246,7 +247,7 @@ public:
   void addViewer(std::string &s){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    unsigned long long toAdd = 0;
+    uint64_t toAdd = 0;
     if (streams.count(s)){
       toAdd = streams[s].bandwidth;
     }else{
@@ -266,10 +267,10 @@ public:
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
     if (d.isMember("bwlimit") && d["bwlimit"].asInt()){availBandwidth = d["bwlimit"].asInt();}
-    long long nRamMax = d["mem_total"].asInt();
-    long long nRamCur = d["mem_used"].asInt();
-    long long nShmMax = d["shm_total"].asInt();
-    long long nShmCur = d["shm_used"].asInt();
+    int64_t nRamMax = d["mem_total"].asInt();
+    int64_t nRamCur = d["mem_used"].asInt();
+    int64_t nShmMax = d["shm_total"].asInt();
+    int64_t nShmCur = d["shm_used"].asInt();
     if (!nRamMax){nRamMax = 1;}
     if (!nShmMax){nShmMax = 1;}
     if (((nRamCur + nShmCur) * 1000) / nRamMax > (nShmCur * 1000) / nShmMax){
@@ -280,8 +281,8 @@ public:
       ramCurr = nShmCur;
     }
     total = d["curr"][0u].asInt();
-    unsigned long long currUp = d["bw"][0u].asInt(), currDown = d["bw"][1u].asInt();
-    unsigned int timeDiff = 0;
+    uint64_t currUp = d["bw"][0u].asInt(), currDown = d["bw"][1u].asInt();
+    uint64_t timeDiff = 0;
     if (prevTime){
       timeDiff = time(0) - prevTime;
       if (timeDiff){
@@ -295,8 +296,7 @@ public:
 
     if (d.isMember("streams") && d["streams"].size()){
       jsonForEach(d["streams"], it){
-        unsigned int count =
-            (*it)["curr"][0u].asInt() + (*it)["curr"][1u].asInt() + (*it)["curr"][2u].asInt();
+        uint64_t count = (*it)["curr"][0u].asInt() + (*it)["curr"][1u].asInt() + (*it)["curr"][2u].asInt();
         if (!count){
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
@@ -304,7 +304,7 @@ public:
         struct streamDetails &strm = streams[it.key()];
         strm.total = (*it)["curr"][0u].asInt();
         strm.inputs = (*it)["curr"][1u].asInt();
-        unsigned long long currTotal = (*it)["bw"][0u].asInt() + (*it)["bw"][1u].asInt();
+        uint64_t currTotal = (*it)["bw"][0u].asInt() + (*it)["bw"][1u].asInt();
         if (timeDiff && count){
           strm.bandwidth = ((currTotal - strm.prevTotal) / timeDiff) / count;
         }else{
@@ -480,7 +480,7 @@ int handleRequest(Socket::Connection &conn){
           continue;
         }
         if (stream.size()){
-          uint32_t count = 0;
+          uint64_t count = 0;
           for (HOSTLOOP){
             HOSTCHECK;
             count += HOST(i).details->getViewers(stream);
@@ -495,14 +495,14 @@ int handleRequest(Socket::Connection &conn){
         if (source.size()){
           INFO_MSG("Finding source for stream %s", source.c_str());
           std::string bestHost = "";
-          unsigned int bestScore = 0;
+          uint64_t bestScore = 0;
           for (HOSTLOOP){
             HOSTCHECK;
             if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
               INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
               continue;
             }
-            unsigned int score = HOST(i).details->source(source);
+            uint64_t score = HOST(i).details->source(source);
             if (score > bestScore){
               bestHost = "dtsc://" + HOST(i).details->host;
               bestScore = score;
@@ -516,7 +516,7 @@ int handleRequest(Socket::Connection &conn){
             }
             FAIL_MSG("No source for %s found!", source.c_str());
           }else{
-            INFO_MSG("Winner: %s scores %u", bestHost.c_str(), bestScore);
+            INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
           }
           H.SetBody(bestHost);
           H.setCORSHeaders();
@@ -573,10 +573,10 @@ int handleRequest(Socket::Connection &conn){
       H.SetHeader("Content-Type", "text/plain");
       H.setCORSHeaders();
       hostEntry *bestHost = 0;
-      unsigned int bestScore = 0;
+      uint64_t bestScore = 0;
       for (HOSTLOOP){
         HOSTCHECK;
-        unsigned int score = HOST(i).details->rate(stream, lat, lon);
+        uint64_t score = HOST(i).details->rate(stream, lat, lon);
         if (score > bestScore){
           bestHost = &HOST(i);
           bestScore = score;
@@ -586,7 +586,7 @@ int handleRequest(Socket::Connection &conn){
         H.SetBody(fallback);
         FAIL_MSG("All servers seem to be out of bandwidth!");
       }else{
-        INFO_MSG("Winner: %s scores %u", bestHost->details->host.c_str(), bestScore);
+        INFO_MSG("Winner: %s scores %" PRIu64, bestHost->details->host.c_str(), bestScore);
         bestHost->details->addViewer(stream);
         H.SetBody(bestHost->details->host);
       }
@@ -609,7 +609,7 @@ int handleRequest(Socket::Connection &conn){
 
 void handleServer(void *hostEntryPointer){
   hostEntry *entry = (hostEntry *)hostEntryPointer;
-  JSON::Value bandwidth = 128 * 1024 * 1024; // assume 1G connection
+  JSON::Value bandwidth = 128 * 1024 * 1024u; // assume 1G connection
   HTTP::URL url(entry->name);
   if (!url.protocol.size()){url.protocol = "http";}
   if (!url.port.size()){url.port = "4242";}
@@ -702,7 +702,7 @@ int main(int argc, char **argv){
   opt["short"] = "p";
   opt["long"] = "port";
   opt["help"] = "TCP port to listen on";
-  opt["value"].append(8042);
+  opt["value"].append(8042u);
   conf.addOption("port", opt);
 
   opt["arg"] = "string";
@@ -798,7 +798,7 @@ int main(int argc, char **argv){
     initHost(HOST(hostsCounter), it->asStringRef());
     ++hostsCounter; // up the hosts counter
   }
-  WARN_MSG("Load balancer activating. Balancing between %lu nodes.", (unsigned long)hostsCounter);
+  WARN_MSG("Load balancer activating. Balancing between %lu nodes.", hostsCounter);
 
   conf.serveThreadedSocket(handleRequest);
   if (!conf.is_active){

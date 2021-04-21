@@ -1,5 +1,6 @@
 #pragma once
 #include <map>
+#include <mist/comms.h>
 #include <mist/defines.h>
 #include <mist/http_parser.h>
 #include <mist/json.h>
@@ -37,9 +38,8 @@ namespace Controller{
   /// Whenever two of these objects are not equal, it will create a new session.
   class sessIndex{
   public:
-    sessIndex(std::string host, unsigned int crc, std::string streamName, std::string connector);
-    sessIndex(IPC::statExchange &data);
     sessIndex();
+    sessIndex(const Comms::Statistics &statComm, size_t id);
     std::string ID;
     std::string host;
     unsigned int crc;
@@ -57,7 +57,7 @@ namespace Controller{
 
   class statStorage{
   public:
-    void update(IPC::statExchange &data);
+    void update(Comms::Statistics &statComm, size_t index);
     bool hasDataFor(unsigned long long);
     statLog &getDataFor(unsigned long long);
     std::map<unsigned long long, statLog> log;
@@ -87,12 +87,13 @@ namespace Controller{
     void wipeOld(uint64_t);
     void finish(uint64_t index);
     void switchOverTo(statSession &newSess, uint64_t index);
-    void update(uint64_t index, IPC::statExchange &data);
-    void ping(const sessIndex &index, uint64_t disconnectPoint);
+    void update(uint64_t index, Comms::Statistics &data);
+    void dropSession(const sessIndex &index);
     uint64_t getStart();
     uint64_t getEnd();
     bool isViewerOn(uint64_t time);
-    bool isViewer();
+    bool isConnected();
+    bool isTracked();
     bool hasDataFor(uint64_t time);
     bool hasData();
     uint64_t getConnTime(uint64_t time);
@@ -110,6 +111,7 @@ namespace Controller{
   extern std::map<sessIndex, statSession> sessions;
   extern std::map<unsigned long, sessIndex> connToSession;
   extern tthread::mutex statsMutex;
+  extern uint64_t statDropoff;
 
   struct triggerLog{
     uint64_t totalCount;
@@ -119,8 +121,12 @@ namespace Controller{
 
   extern std::map<std::string, triggerLog> triggerStats;
 
+  void statLeadIn();
+  void statOnActive(size_t id);
+  void statOnDisconnect(size_t id);
+  void statLeadOut();
+
   std::set<std::string> getActiveStreams(const std::string &prefix = "");
-  void parseStatistics(char *data, size_t len, unsigned int id);
   void killStatistics(char *data, size_t len, unsigned int id);
   void fillClients(JSON::Value &req, JSON::Value &rep);
   void fillActive(JSON::Value &req, JSON::Value &rep, bool onlyNow = false);

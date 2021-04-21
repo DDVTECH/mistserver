@@ -39,6 +39,7 @@ bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::Config::printDebugLevel = DEBUG; //
 std::string Util::Config::streamName;
+std::string Util::Config::exitReason;
 
 std::string Util::listenInterface;
 uint32_t Util::listenPort = 0;
@@ -427,6 +428,7 @@ void Util::Config::activate(){
   sigaction(SIGHUP, &new_action, NULL);
   sigaction(SIGTERM, &new_action, NULL);
   sigaction(SIGPIPE, &new_action, NULL);
+  sigaction(SIGFPE, &new_action, NULL);
   // check if a child signal handler isn't set already, if so, set it.
   sigaction(SIGCHLD, 0, &cur_action);
   if (cur_action.sa_handler == SIG_DFL || cur_action.sa_handler == SIG_IGN){
@@ -448,6 +450,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}
 #endif
+    logExitReason("Setting is_active to false due to received signal interrupt");
     is_active = false;
   default:
     switch (sigInfo->si_code){
@@ -475,6 +478,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     // We ignore SIGPIPE to prevent messages triggering another SIGPIPE.
     // Loops are bad, m'kay?
     break;
+  case SIGFPE: break;
   }
 }// signal_handler
 

@@ -50,7 +50,8 @@ namespace SDP{
     uint64_t getPayloadType() const;      ///< Returns the `payloadType` member.
     int32_t getPacketizationModeForH264(); ///< When this represents a h264 format this will return the
                                            ///< packetization mode when it was provided in the SDP
-    std::string getProfileLevelIdForH264(); ///< When this represents a H264 format, this will return the profile-level-id from the format parameters.
+    std::string getProfileLevelIdForH264(); ///< When this represents a H264 format, this will return the
+                                            ///< profile-level-id from the format parameters.
 
     operator bool() const;
 
@@ -144,6 +145,9 @@ namespace SDP{
     bool hasReceiveOnlyMedia(); ///< Returns true when one of the media sections has a `a=recvonly`
                                 ///< attribute. This is used to determine if the other peer only
                                 ///< wants to receive or also sent data. */
+    bool hasSendOnlyMedia();    ///< Returns true when one of the media sections has a `a=sendonly`
+                                ///< attribute. This is used to determine if the other peer only
+                                ///< wants to receive or also sent data. */
 
   public:
     std::vector<SDP::Media> medias; ///< For each `m=` line we create a `SDP::Media` instance. The
@@ -166,14 +170,14 @@ namespace SDP{
     void setFingerprint(const std::string &fingerprintSha); ///< Set the SHA265 that represents the
                                                             ///< certificate that is used with DTLS.
     void setDirection(const std::string &dir);
-    bool setupVideoDTSCTrack(DTSC::Track &result);
-    bool setupAudioDTSCTrack(DTSC::Track &result);
+    bool setupVideoDTSCTrack(DTSC::Meta &M, size_t tid);
+    bool setupAudioDTSCTrack(DTSC::Meta &M, size_t tid);
     std::string toString();
 
   private:
     bool enableMedia(const std::string &type, const std::string &codecName, SDP::Media &outMedia,
                      SDP::MediaFormat &outFormat);
-    void addLine(const std::string &fmt, ...);
+    void addLine(const std::string fmt, ...);
     std::string generateSessionId();
     std::string generateIceUFrag(); ///< Generates the `ice-ufrag` value.
     std::string generateIcePwd();   ///< Generates the `ice-pwd` value.

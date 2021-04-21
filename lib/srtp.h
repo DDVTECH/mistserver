@@ -15,8 +15,10 @@ public:
   SRTPReader();
   int init(const std::string &cipher, const std::string &key, const std::string &salt);
   int shutdown();
-  int unprotectRtp(uint8_t *data, int *nbytes); /* `nbytes` should contain the number of bytes in `data`. On success `nbytes` will hold the number of bytes of the decoded RTP packet. */
-  int unprotectRtcp(uint8_t *data, int *nbytes); /* `nbytes` should contains the number of bytes in `data`. On success `nbytes` will hold the number of bytes the decoded RTCP packet. */
+  int unprotectRtp(uint8_t *data, int *nbytes); /* `nbytes` should contain the number of bytes in `data`. On success `nbytes`
+                                                   will hold the number of bytes of the decoded RTP packet. */
+  int unprotectRtcp(uint8_t *data, int *nbytes); /* `nbytes` should contains the number of bytes in `data`. On success `nbytes`
+                                                    will hold the number of bytes the decoded RTCP packet. */
 
 private:
   srtp_t session;

@@ -9,6 +9,7 @@
 #include "output.h"
 #include <mist/bitfields.h>
 #include <mist/defines.h>
+#include <mist/h264.h>
 #include <mist/http_parser.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
@@ -27,11 +28,9 @@ namespace Mist{
   JSON::Value Output::capa = JSON::Value();
   Util::Config *Output::config = NULL;
 
-  int getDTSCLen(char *mapped, long long int offset){return Bit::btohl(mapped + offset + 4);}
+  uint32_t getDTSCLen(char *mapped, uint64_t offset){return Bit::btohl(mapped + offset + 4);}
 
-  unsigned long long getDTSCTime(char *mapped, long long int offset){
-    return Bit::btohll(mapped + offset + 12);
-  }
+  uint64_t getDTSCTime(char *mapped, uint64_t offset){return Bit::btohll(mapped + offset + 12);}
 
   void Output::init(Util::Config *cfg){
     capa["optional"]["debug"]["name"] = "debug";
@@ -45,17 +44,6 @@ namespace Mist{
     option["help"] = "Do not start input if not already started";
     option["value"].append(0);
     cfg->addOption("noinput", option);
-  }
-
-  void Output::bufferLivePacket(const DTSC::Packet &packet){
-    if (!pushIsOngoing){waitForStreamPushReady();}
-    if (nProxy.negTimer > 600){
-      WARN_MSG("No negotiation response from buffer - reconnecting.");
-      nProxy.clear();
-      reconnect();
-    }
-    InOutBase::bufferLivePacket(packet);
-    pushIsOngoing = true;
   }
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
@@ -76,11 +64,11 @@ namespace Mist{
     maxSkipAhead = 7500;
     uaDelay = 10;
     realTime = 1000;
-    lastRecv = Util::epoch();
+    lastRecv = Util::bootSecs();
     if (myConn){
       setBlocking(true);
     }else{
-      DEBUG_MSG(DLVL_WARN, "Warning: MistOut created with closed socket!");
+      WARN_MSG("Warning: MistOut created with closed socket!");
     }
     sentHeader = false;
     isRecordingToFile = false;
@@ -128,37 +116,8 @@ namespace Mist{
     myConn.setBlocking(isBlocking);
   }
 
-  uint32_t Output::currTrackCount() const{return buffer.size();}
-
   bool Output::isRecording(){
     return config->hasOption("target") && config->getString("target").size();
-  }
-
-  void Output::updateMeta(){
-    // cancel if not alive or pushing a new stream
-    if (!nProxy.userClient.isAlive() || (isPushing() && myMeta.tracks.size())){return;}
-    // read metadata from page to myMeta variable
-    if (nProxy.metaPages[0].mapped){
-      IPC::semaphore *liveSem = 0;
-      if (!myMeta.vod){
-        static char liveSemName[NAME_BUFFER_SIZE];
-        snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-        liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 8, !myMeta.live);
-        if (*liveSem){
-          liveSem->wait();
-        }else{
-          delete liveSem;
-          liveSem = 0;
-        }
-      }
-      DTSC::Packet tmpMeta(nProxy.metaPages[0].mapped, nProxy.metaPages[0].len, true);
-      if (tmpMeta.getVersion()){myMeta.reinit(tmpMeta);}
-      if (liveSem){
-        liveSem->post();
-        delete liveSem;
-        liveSem = 0;
-      }
-    }
   }
 
   /// Called when stream initialization has failed.
@@ -179,7 +138,6 @@ namespace Mist{
   void Output::initialize(){
     MEDIUM_MSG("initialize");
     if (isInitialized){return;}
-    if (nProxy.metaPages[0].mapped){return;}
     if (streamName.size() < 1){
       return; // abort - no stream to initialize...
     }
@@ -208,11 +166,10 @@ namespace Mist{
   /// If this happens, the extra calls to the function return instantly.
   void Output::doSync(bool force){
     static bool recursing = false;
-    if (!statsPage.getData()){return;}
+    if (!statComm){return;}
     if (recursing){return;}
     recursing = true;
-    IPC::statExchange tmpEx(statsPage.getData());
-    if (tmpEx.getSync() == 2 || force){
+    if (statComm.getSync() == 2 || force){
       if (getStatsName() == capa["name"].asStringRef() && Triggers::shouldTrigger("USER_NEW", streamName)){
         // sync byte 0 = no sync yet, wait for sync from controller...
         char initialSync = 0;
@@ -224,7 +181,7 @@ namespace Mist{
           if (shmSessions.mapped){
             char shmEmpty[SHM_SESSIONS_ITEM];
             memset(shmEmpty, 0, SHM_SESSIONS_ITEM);
-            std::string host = tmpEx.host();
+            std::string host = statComm.getHost();
             if (host.substr(0, 12) ==
                 std::string("\000\000\000\000\000\000\000\000\000\000\377\377", 12)){
               char tmpstr[16];
@@ -232,7 +189,7 @@ namespace Mist{
               host = tmpstr;
             }else{
               char tmpstr[40];
-              snprintf(tmpstr, 40, "%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x:%0.2x%0.2x",
+              snprintf(tmpstr, 40, "%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x",
                        host[0], host[1], host[2], host[3], host[4], host[5], host[6], host[7],
                        host[8], host[9], host[10], host[11], host[12], host[13], host[14], host[15]);
               host = tmpstr;
@@ -241,7 +198,7 @@ namespace Mist{
             const std::string &cName = capa["name"].asStringRef();
             while (shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
               // compare crc
-              if (*((uint32_t *)(shmSessions.mapped + shmOffset)) == tmpEx.crc()){
+              if (Bit::btohl(shmSessions.mapped + shmOffset) == statComm.getCRC()){
                 // compare stream name
                 if (strncmp(shmSessions.mapped + shmOffset + 4, streamName.c_str(), 100) == 0){
                   // compare connector
@@ -265,40 +222,36 @@ namespace Mist{
           if (cacheLock){cacheLock.post();}
         }
         unsigned int i = 0;
-        tmpEx.setSync(initialSync);
+        statComm.setSync(initialSync);
         // wait max 10 seconds for sync
-        while ((!tmpEx.getSync() || tmpEx.getSync() == 2) && i++ < 100 && keepGoing()){
+        while ((!statComm.getSync() || statComm.getSync() == 2) && i++ < 100){
           Util::wait(100);
           stats(true);
-          tmpEx = IPC::statExchange(statsPage.getData());
         }
-        // If we aren't online, skip any further checks.
-        // We don't immediately return, so the recursing = false line only
-        // needs to be written once and will always be executed.
-        if (keepGoing()){
-          HIGH_MSG("USER_NEW sync achieved: %u", (unsigned int)tmpEx.getSync());
-          // 1 = check requested (connection is new)
-          if (tmpEx.getSync() == 1){
-            std::string payload = streamName + "\n" + getConnectedHost() + "\n" +
-                                  JSON::Value(crc).asString() + "\n" + capa["name"].asStringRef() +
-                                  "\n" + reqUrl + "\n" + tmpEx.getSessId();
-            if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
-              onFail("Not allowed to play (USER_NEW)");
-              tmpEx.setSync(100); // 100 = denied
-            }else{
-              tmpEx.setSync(10); // 10 = accepted
-            }
+        HIGH_MSG("USER_NEW sync achieved: %u", statComm.getSync());
+        // 1 = check requested (connection is new)
+        if (statComm.getSync() == 1){
+          std::string payload = streamName + "\n" + getConnectedHost() + "\n" +
+                                JSON::Value(crc).asString() + "\n" + capa["name"].asStringRef() +
+                                "\n" + reqUrl + "\n" + statComm.getSessId();
+          if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
+            onFail("Not allowed to play (USER_NEW)");
+            statComm.setSync(100); // 100 = denied
+          }else{
+            statComm.setSync(10); // 10 = accepted
           }
-          // 100 = denied
-          if (tmpEx.getSync() == 100){onFail("Not allowed to play (USER_NEW cache)");}
-          if (tmpEx.getSync() == 0){onFail("Not allowed to play (USER_NEW init timeout)", true);}
-          if (tmpEx.getSync() == 2){
-            onFail("Not allowed to play (USER_NEW re-init timeout)", true);
-          }
-          // anything else = accepted
         }
+        // 100 = denied
+        if (statComm.getSync() == 100){onFail("Not allowed to play (USER_NEW cache)");}
+        if (statComm.getSync() == 0){
+          onFail("Not allowed to play (USER_NEW init timeout)", true);
+        }
+        if (statComm.getSync() == 2){
+          onFail("Not allowed to play (USER_NEW re-init timeout)", true);
+        }
+        // anything else = accepted
       }else{
-        tmpEx.setSync(10); // auto-accept if no trigger
+        statComm.setSync(10); // auto-accept if no trigger
       }
     }
     recursing = false;
@@ -309,48 +262,47 @@ namespace Mist{
   std::string Output::getConnectedBinHost(){return myConn.getBinHost();}
 
   bool Output::isReadyForPlay(){
-    static bool recursing = false;
-    if (isPushing() || recursing){return true;}
-    recursing = true;
+    // If a protocol does not support any codecs, we assume you know what you're doing
+    if (!capa.isMember("codecs")){return true;}
+    if (isPushing()){return true;}
     if (!isInitialized){initialize();}
-    if (!myMeta.tracks.size()){updateMeta();}
-    if (myMeta.tracks.size()){
-      if (!selectedTracks.size()){selectDefaultTracks();}
-      unsigned int mainTrack = getMainSelectedTrack();
-      if (mainTrack && myMeta.tracks.count(mainTrack) &&
-          (myMeta.tracks[mainTrack].keys.size() >= 2 ||
-           myMeta.tracks[mainTrack].lastms - myMeta.tracks[mainTrack].firstms > 5000)){
-        recursing = false;
-        return true;
+    meta.refresh();
+    if (getSupportedTracks().size()){
+      if (!userSelect.size()){selectDefaultTracks();}
+      size_t mainTrack = getMainSelectedTrack();
+      if (mainTrack != INVALID_TRACK_ID){
+        DTSC::Keys keys(M.keys(mainTrack));
+        if (keys.getValidCount() >= 2 || M.getLastms(mainTrack) - M.getFirstms(mainTrack) > 5000){
+          return true;
+        }
+        HIGH_MSG("NOT READY YET (%zu tracks, main track: %zu, with %zu keys)",
+                 M.getValidTracks().size(), getMainSelectedTrack(), keys.getValidCount());
       }else{
-        HIGH_MSG("NOT READY YET (%lu tracks, %lu = %lu keys)", myMeta.tracks.size(),
-                 getMainSelectedTrack(), myMeta.tracks[getMainSelectedTrack()].keys.size());
+        HIGH_MSG("NOT READY YET (%zu tracks)", getSupportedTracks().size());
       }
     }else{
-      HIGH_MSG("NOT READY YET (%lu tracks)", myMeta.tracks.size());
+      HIGH_MSG("NOT READY (%zu tracks)", getSupportedTracks().size());
     }
-    recursing = false;
     return false;
   }
 
   /// Disconnects from all stat/user-related shared structures.
   void Output::disconnect(){
     MEDIUM_MSG("disconnect");
-    if (statsPage.getData()){
-      statsPage.finish();
+    if (statComm){
+      statComm.unload();
       myConn.resetCounter();
     }
-    if (nProxy.userClient.getData()){nProxy.userClient.finish();}
+    userSelect.clear();
     isInitialized = false;
-    myMeta.reset();
-    nProxy.metaPages.clear();
+    meta.clear();
   }
 
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
-  /// After assuring stream is online, clears nProxy.metaPages, then sets nProxy.metaPages[0],
-  /// statsPage and nProxy.userClient to (hopefully) valid handles. Finally, calls updateMeta()
+  /// After assuring stream is online, clears metaPages, then sets metaPages[0], statistics and
+  /// userClient to (hopefully) valid handles.
   void Output::reconnect(){
     thisPacket.null();
     if (config->hasOption("noinput") && config->getBool("noinput")){
@@ -403,112 +355,40 @@ namespace Mist{
         }
       }
     }
+
     disconnect();
-    nProxy.streamName = streamName;
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
+
+    meta.reInit(streamName, false);
     unsigned int attempts = 0;
-    while (!nProxy.userClient.isAlive() && ++attempts < 20 && Util::streamAlive(streamName)){
-      nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
+    while (!meta && ++attempts < 20 && Util::streamAlive(streamName)){
+      meta.reInit(streamName, false);
     }
-    if (!nProxy.userClient.isAlive()){
-      onFail("Could not register as client", true);
-      return;
-    }
-    char pageId[NAME_BUFFER_SIZE];
-    snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-    nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
-    if (!nProxy.metaPages[0].mapped){
+    if (!meta){
       onFail("Could not connect to stream data", true);
       return;
     }
+    meta.refresh();
     isInitialized = true;
-    statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+    statComm.reload();
     stats(true);
-    updateMeta();
-    selectDefaultTracks();
-    if (!myMeta.vod && !isReadyForPlay()){
-      unsigned long long waitUntil = Util::epoch() + 30;
-      while (!myMeta.vod && !isReadyForPlay() && nProxy.userClient.isAlive() && keepGoing()){
-        if (Util::epoch() > waitUntil + 45 || (!selectedTracks.size() && Util::epoch() > waitUntil)){
+    if (!pushing){selectDefaultTracks();}
+    if (!M.getVod() && !isReadyForPlay()){
+      uint64_t waitUntil = Util::epoch() + 30;
+      while (!M.getVod() && !isReadyForPlay()){
+        if (Util::epoch() > waitUntil + 45 || (!userSelect.size() && Util::epoch() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(),
                    getConnectedHost().c_str());
           break;
         }
-        Util::wait(750);
+        Util::wait(500);
         stats();
-        updateMeta();
       }
     }
   }
 
-  /*LTS-START*/
-  /// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
-  /// trackVal may be a comma-separated list of numbers, codecs or the word "all"/"none" or an asterisk.
-  /// Does not do any checks if the protocol supports these tracks, just selects blindly.
-  /// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported codecs/combinations.
-  void Output::selectTrack(const std::string &trackType, const std::string &trackVal){
-    if (!trackVal.size() || trackVal == "0" || trackVal == "none"){
-      return;
-    }// don't select anything in particular
-    if (trackVal.find(',') != std::string::npos){
-      // Comma-separated list, recurse.
-      std::stringstream ss(trackVal);
-      std::string item;
-      while (std::getline(ss, item, ',')){selectTrack(trackType, item);}
-      return;
-    }
-    uint64_t trackNo = JSON::Value(trackVal).asInt();
-    if (trackVal == JSON::Value(trackNo).asString()){
-      // It's an integer number
-      if (!myMeta.tracks.count(trackNo)){
-        INFO_MSG("Track %lld does not exist in stream, cannot select", trackNo);
-        return;
-      }
-      const DTSC::Track &Trk = myMeta.tracks[trackNo];
-      if (Trk.type != trackType && Trk.codec != trackType){
-        INFO_MSG("Track %lld is not %s (%s/%s), cannot select", trackNo, trackType.c_str(),
-                 Trk.type.c_str(), Trk.codec.c_str());
-        return;
-      }
-      INFO_MSG("Selecting %s track %lld (%s/%s)", trackType.c_str(), trackNo, Trk.type.c_str(),
-               Trk.codec.c_str());
-      selectedTracks.insert(trackNo);
-      return;
-    }
-    std::string trackLow = trackVal;
-    Util::stringToLower(trackLow);
-    if (trackLow == "all" || trackLow == "*"){
-      // select all tracks of this type
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        const DTSC::Track &Trk = it->second;
-        if (Trk.type == trackType || Trk.codec == trackType){
-          selectedTracks.insert(it->first);
-          INFO_MSG("Selecting %s track %lu (%s/%s)", trackType.c_str(), it->first, Trk.type.c_str(),
-                   Trk.codec.c_str());
-        }
-      }
-      return;
-    }
-    // attempt to do language/codec matching
-    // convert 2-character language codes into 3-character language codes
-    if (trackLow.size() == 2){trackLow = Encodings::ISO639::twoToThree(trackLow);}
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      const DTSC::Track &Trk = it->second;
-      if (Trk.type == trackType || Trk.codec == trackType){
-        std::string codecLow = Trk.codec;
-        Util::stringToLower(codecLow);
-        if (Trk.lang == trackLow || trackLow == codecLow){
-          selectedTracks.insert(it->first);
-          INFO_MSG("Selecting %s track %lu (%s/%s)", trackType.c_str(), it->first, Trk.type.c_str(),
-                   Trk.codec.c_str());
-        }
-      }
-    }
+  std::set<size_t> Output::getSupportedTracks(const std::string &type) const{
+    return Util::getSupportedTracks(M, capa, type);
   }
-  /*LTS-END*/
 
   /// Automatically selects the tracks that are possible and/or wanted.
   /// Returns true if the track selection changed in any way.
@@ -517,6 +397,8 @@ namespace Mist{
       initialize();
       if (!isInitialized){return false;}
     }
+
+    meta.refresh();
 
     bool autoSeek = buffer.size();
     uint64_t seekTarget = currentTime();
@@ -534,88 +416,63 @@ namespace Mist{
       return false;
     }
 
-    // We changed the selection! Change to the new selection.
-    selectedTracks.clear();
-    for (std::set<size_t>::iterator reselIt = newSelects.begin(); reselIt != newSelects.end(); ++reselIt){
-      selectedTracks.insert(*reselIt);
+    if (autoSeek){
+      std::set<size_t> toRemove;
+      for (std::set<size_t>::iterator it = wouldSelect.begin(); it != wouldSelect.end(); it++){
+        // autoSeeking and target not in bounds? Drop it too.
+        if (M.getLastms(*it) < std::max(seekTarget, (uint64_t)6000lu) - 6000){
+          toRemove.insert(*it);
+        }
+      }
+      // remove those from selectedtracks
+      for (std::set<size_t>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
+        wouldSelect.erase(*it);
+      }
     }
 
-    if (autoSeek){
-      INFO_MSG("Automatically seeking to position %llu to resume playback", seekTarget);
+    // First, back up and wipe the existing selections, if any.
+    std::map<size_t, Comms::Users> oldSelect = userSelect;
+    userSelect.clear();
+
+    // Select tracks here!
+    for (std::set<size_t>::iterator it = wouldSelect.begin(); it != wouldSelect.end(); it++){
+      userSelect[*it].reload(streamName, *it);
+    }
+
+    bool madeChange = (oldSelect != userSelect);
+    if (autoSeek && madeChange){
+      INFO_MSG("Automatically seeking to position %" PRIu64 " to resume playback", seekTarget);
       seek(seekTarget);
     }
-    return true;
+    return madeChange;
   }
 
   /// Clears the buffer, sets parseData to false, and generally makes not very much happen at all.
   void Output::stop(){
     buffer.clear();
     parseData = false;
-    sought = false;
   }
 
-  unsigned int Output::getKeyForTime(long unsigned int trackId, long long timeStamp){
-    DTSC::Track &trk = myMeta.tracks[trackId];
-    if (!trk.keys.size()){return 0;}
-    unsigned int keyNo = trk.keys.begin()->getNumber();
-    unsigned int partCount = 0;
-    std::deque<DTSC::Key>::iterator it;
-    for (it = trk.keys.begin(); it != trk.keys.end() && it->getTime() <= timeStamp; it++){
-      keyNo = it->getNumber();
-      partCount += it->getParts();
+  uint64_t Output::pageNumForKey(size_t trackId, size_t keyNum){
+    const Util::RelAccX &tPages = M.pages(trackId);
+    for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+      uint64_t pageNum = tPages.getInt("firstkey", i);
+      if (pageNum > keyNum) break;
+      uint64_t pageKeys = tPages.getInt("keycount", i);
+      if (keyNum > pageNum + pageKeys - 1) continue;
+      uint64_t pageAvail = tPages.getInt("avail", i);
+      return pageAvail == 0 ? INVALID_PAGE_NUM : pageNum;
     }
-    // if the time is before the next keyframe but after the last part, correctly seek to next keyframe
-    if (partCount && it != trk.keys.end() && timeStamp > it->getTime() - trk.parts[partCount - 1].getDuration()){
-      ++keyNo;
-    }
-    return keyNo;
-  }
-
-  /// Returns the timestamp of the next upcoming keyframe after thisPacket, or 0 if that cannot be determined (yet).
-  uint64_t Output::nextKeyTime(){
-    DTSC::Track &trk = myMeta.tracks[getMainSelectedTrack()];
-    if (!trk.keys.size()){return 0;}
-    std::deque<DTSC::Key>::iterator it;
-    for (it = trk.keys.begin(); it != trk.keys.end(); it++){
-      if (it->getTime() > lastPacketTime){return it->getTime();}
-    }
-    return 0;
-  }
-
-  int Output::pageNumForKey(long unsigned int trackId, long long int keyNum){
-    if (!nProxy.metaPages.count(trackId) || !nProxy.metaPages[trackId].mapped){
-      char id[NAME_BUFFER_SIZE];
-      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
-      nProxy.metaPages[trackId].init(id, SHM_TRACK_INDEX_SIZE);
-    }
-    if (!nProxy.metaPages[trackId].mapped){return -1;}
-    int len = nProxy.metaPages[trackId].len / 8;
-    for (int i = 0; i < len; i++){
-      char *tmpOffset = nProxy.metaPages[trackId].mapped + (i * 8);
-      long amountKey = Bit::btohl(tmpOffset + 4);
-      if (amountKey == 0){continue;}
-      long tmpKey = Bit::btohl(tmpOffset);
-      if (tmpKey <= keyNum && ((tmpKey ? tmpKey : 1) + amountKey) > keyNum){return tmpKey;}
-    }
-    return -1;
+    return INVALID_PAGE_NUM;
   }
 
   /// Gets the highest page number available for the given trackId.
-  int Output::pageNumMax(long unsigned int trackId){
-    if (!nProxy.metaPages.count(trackId) || !nProxy.metaPages[trackId].mapped){
-      char id[NAME_BUFFER_SIZE];
-      snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_INDEX, streamName.c_str(), trackId);
-      nProxy.metaPages[trackId].init(id, SHM_TRACK_INDEX_SIZE);
-    }
-    if (!nProxy.metaPages[trackId].mapped){return -1;}
-    int len = nProxy.metaPages[trackId].len / 8;
-    int highest = -1;
-    for (int i = 0; i < len; i++){
-      char *tmpOffset = nProxy.metaPages[trackId].mapped + (i * 8);
-      long amountKey = Bit::btohl(tmpOffset + 4);
-      if (amountKey == 0){continue;}
-      long tmpKey = Bit::btohl(tmpOffset);
-      if (tmpKey > highest){highest = tmpKey;}
+  uint64_t Output::pageNumMax(size_t trackId){
+    const Util::RelAccX &tPages = M.pages(trackId);
+    uint64_t highest = 0;
+    for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+      uint64_t pageNum = tPages.getInt("firstkey", i);
+      if (pageNum > highest){highest = pageNum;}
     }
     return highest;
   }
@@ -623,42 +480,50 @@ namespace Mist{
   /// Loads the page for the given trackId and keyNum into memory.
   /// Overwrites any existing page for the same trackId.
   /// Automatically calls thisPacket.null() if necessary.
-  void Output::loadPageForKey(long unsigned int trackId, long long int keyNum){
-    if (!myMeta.tracks.count(trackId) || !myMeta.tracks[trackId].keys.size()){
-      WARN_MSG("Load for track %lu key %lld aborted - track is empty", trackId, keyNum);
+  void Output::loadPageForKey(size_t trackId, size_t keyNum){
+    if (!M.trackValid(trackId)){
+      WARN_MSG("Load for track %zu key %zu aborted - track does not exist", trackId, keyNum);
       return;
     }
-    if (myMeta.vod && keyNum > myMeta.tracks[trackId].keys.rbegin()->getNumber()){
-      INFO_MSG("Load for track %lu key %lld aborted, is > %lld", trackId, keyNum,
-               myMeta.tracks[trackId].keys.rbegin()->getNumber());
-      nProxy.curPage.erase(trackId);
-      currKeyOpen.erase(trackId);
+    if (!M.trackLoaded(trackId)){meta.refresh();}
+    DTSC::Keys keys(M.keys(trackId));
+    if (!keys.getValidCount()){
+      WARN_MSG("Load for track %zu key %zu aborted - track is empty", trackId, keyNum);
       return;
     }
-    VERYHIGH_MSG("Loading track %lu, containing key %lld", trackId, keyNum);
-    unsigned int timeout = 0;
-    unsigned long pageNum = pageNumForKey(trackId, keyNum);
-    while (keepGoing() && pageNum == -1){
-      if (!timeout){HIGH_MSG("Requesting page with key %lu:%lld", trackId, keyNum);}
+    size_t lastAvailKey = keys.getEndValid() - 1;
+    if (meta.getVod() && keyNum > lastAvailKey){
+      INFO_MSG("Load for track %zu key %zu aborted, is > %zu", trackId, keyNum, lastAvailKey);
+      curPage.erase(trackId);
+      currentPage.erase(trackId);
+      return;
+    }
+    VERYHIGH_MSG("Loading track %zu, containing key %zu", trackId, keyNum);
+    uint32_t timeout = 0;
+    uint64_t pageNum = pageNumForKey(trackId, keyNum);
+    while (keepGoing() && pageNum == INVALID_PAGE_NUM){
+      if (!timeout){HIGH_MSG("Requesting page with key %zu:%zu", trackId, keyNum);}
       ++timeout;
       // if we've been waiting for this page for 3 seconds, reconnect to the stream - something might be going wrong...
       if (timeout == 30){
         DEVEL_MSG("Loading is taking longer than usual, reconnecting to stream %s...", streamName.c_str());
         reconnect();
+        if (!meta){return;}
       }
       if (timeout > 100){
-        FAIL_MSG("Timeout while waiting for requested page %lld for track %lu. Aborting.", keyNum, trackId);
-        nProxy.curPage.erase(trackId);
-        currKeyOpen.erase(trackId);
+        FAIL_MSG("Timeout while waiting for requested page %zu for track %zu. Aborting.", pageNum, trackId);
+        curPage.erase(trackId);
+        currentPage.erase(trackId);
         return;
       }
-      if (keyNum){
-        nxtKeyNum[trackId] = keyNum - 1;
+      if (!userSelect.count(trackId)){
+        WARN_MSG("Loading page for non-selected track %zu", trackId);
       }else{
-        nxtKeyNum[trackId] = 0;
+        userSelect[trackId].setKeyNum(keyNum);
       }
+
       stats(true);
-      playbackSleep(100);
+      playbackSleep(50);
       pageNum = pageNumForKey(trackId, keyNum);
     }
 
@@ -667,25 +532,26 @@ namespace Mist{
       return;
     }
 
-    if (keyNum){
-      nxtKeyNum[trackId] = keyNum - 1;
+    if (!userSelect.count(trackId)){
+      WARN_MSG("Loading page for non-selected track %zu", trackId);
     }else{
-      nxtKeyNum[trackId] = 0;
+      userSelect[trackId].setKeyNum(keyNum);
     }
+
     stats(true);
 
-    if (currKeyOpen.count(trackId) && currKeyOpen[trackId] == (unsigned int)pageNum){return;}
+    if (currentPage.count(trackId) && currentPage[trackId] == pageNum){return;}
     // If we're loading the track thisPacket is on, null it to prevent accesses.
-    if (thisPacket && thisPacket.getTrackId() == trackId){thisPacket.null();}
+    if (thisPacket && thisIdx == trackId){thisPacket.null();}
     char id[NAME_BUFFER_SIZE];
     snprintf(id, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackId, pageNum);
-    nProxy.curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
-    if (!(nProxy.curPage[trackId].mapped)){
-      FAIL_MSG("Initializing page %s failed", nProxy.curPage[trackId].name.c_str());
-      currKeyOpen.erase(trackId);
+    curPage[trackId].init(id, DEFAULT_DATA_PAGE_SIZE);
+    if (!(curPage[trackId].mapped)){
+      FAIL_MSG("Initializing page %s failed", curPage[trackId].name.c_str());
+      currentPage.erase(trackId);
       return;
     }
-    currKeyOpen[trackId] = pageNum;
+    currentPage[trackId] = pageNum;
     VERYHIGH_MSG("Page %s loaded for %s", id, streamName.c_str());
   }
 
@@ -699,41 +565,39 @@ namespace Mist{
   /// Returns the start time of earliest track if nothing is selected.
   /// Returns zero if no tracks exist.
   uint64_t Output::startTime(){
-    if (!myMeta.tracks.size()){return 0;}
+    std::set<size_t> validTracks = M.getValidTracks();
+    if (!validTracks.size()){return 0;}
     uint64_t start = 0xFFFFFFFFFFFFFFFFull;
-    if (selectedTracks.size()){
-      for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-           it != selectedTracks.end(); it++){
-        if (myMeta.tracks.count(*it)){
-          if (start > myMeta.tracks[*it].firstms){start = myMeta.tracks[*it].firstms;}
+    if (userSelect.size()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (M.trackValid(it->first) && start > M.getFirstms(it->first)){
+          start = M.getFirstms(it->first);
         }
       }
     }else{
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (start > it->second.firstms){start = it->second.firstms;}
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        if (start > M.getFirstms(*it)){start = M.getFirstms(*it);}
       }
     }
     return start;
   }
 
-  /// Return the end time of the selected tracks, or 0 if unknown.
+  /// Return the end time of the selected tracks, or 0 if unknown or live.
   /// Returns the end time of latest track if nothing is selected.
   /// Returns zero if no tracks exist.
   uint64_t Output::endTime(){
-    if (!myMeta.tracks.size()){return 0;}
+    std::set<size_t> validTracks = M.getValidTracks();
+    if (!validTracks.size()){return 0;}
     uint64_t end = 0;
-    if (selectedTracks.size()){
-      for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-           it != selectedTracks.end(); it++){
-        if (myMeta.tracks.count(*it)){
-          if (end < myMeta.tracks[*it].lastms){end = myMeta.tracks[*it].lastms;}
+    if (userSelect.size()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (M.trackValid(it->first) && end < M.getLastms(it->first)){
+          end = meta.getLastms(it->first);
         }
       }
     }else{
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (end < it->second.lastms){end = it->second.lastms;}
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        if (end < meta.getLastms(*it)){end = meta.getLastms(*it);}
       }
     }
     return end;
@@ -743,129 +607,152 @@ namespace Mist{
   /// Returns the time stamp of the newest track if nothing is selected.
   /// Returns zero if no tracks exist.
   uint64_t Output::liveTime(){
-    if (!myMeta.live){return 0;}
-    if (!myMeta.tracks.size()){return 0;}
+    if (M.getVod()){return 0;}
+    if (M.getValidTracks().size()){return 0;}
     uint64_t end = 0;
-    if (selectedTracks.size()){
-      for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-           it != selectedTracks.end(); it++){
-        if (myMeta.tracks.count(*it)){
-          if (end < myMeta.tracks[*it].lastms){end = myMeta.tracks[*it].lastms;}
-        }
+    if (userSelect.size()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (end < M.getLastms(it->first)){end = M.getLastms(it->first);}
       }
     }else{
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (end < it->second.lastms){end = it->second.lastms;}
+      std::set<size_t> validTracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        if (end < M.getLastms(*it)){end = M.getLastms(*it);}
       }
     }
     return end;
   }
 
   /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
-  /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
-  void Output::seek(unsigned long long pos, bool toKey){
+  void Output::seekKeyframesIn(unsigned long long pos, unsigned long long maxDelta){
     sought = true;
     if (!isInitialized){initialize();}
     buffer.clear();
     thisPacket.null();
-    if (myMeta.live){updateMeta();}
+    MEDIUM_MSG("Seeking keyframes near %llums, max delta of %llu", pos, maxDelta);
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (!M.getValidTracks().count(it->first)){continue;}
+      uint64_t time = M.getTimeForKeyIndex(it->first, M.getKeyIndexForTime(it->first, pos));
+      uint64_t timeDelta = M.getTimeForKeyIndex(it->first, M.getKeyIndexForTime(it->first, pos + maxDelta));
+      if (time >= (pos - maxDelta)){
+        pos = time;
+      }else if (timeDelta >= (pos - maxDelta)){
+        pos = timeDelta;
+      }
+      seek(it->first, pos, false);
+    }
+  }
+
+  /// Prepares all tracks from selectedTracks for seeking to the specified ms position.
+  /// If toKey is true, clips the seek to the nearest keyframe if the main track is a video track.
+  void Output::seek(uint64_t pos, bool toKey){
+    sought = true;
+    if (!isInitialized){initialize();}
+    buffer.clear();
+    thisPacket.null();
     if (toKey){
-      long unsigned int mainTrack = getMainSelectedTrack();
-      // abort toKey if there are no keys in the main track
-      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){
+      size_t mainTrack = getMainSelectedTrack();
+      if (mainTrack == INVALID_TRACK_ID){
         WARN_MSG("Sync-seeking impossible (main track invalid); performing regular seek instead");
         seek(pos);
         return;
       }
-      DTSC::Track &Trk = myMeta.tracks[mainTrack];
-      if (Trk.type == "video"){
-        unsigned long long seekPos = 0;
-        for (std::deque<DTSC::Key>::iterator it = Trk.keys.begin(); it != Trk.keys.end(); ++it){
-          unsigned long long currPos = it->getTime();
-          if (currPos > pos){break;}// stop if we're past the point we wanted
-          seekPos = currPos;
-        }
-        pos = seekPos;
+      if (M.getType(mainTrack) == "video"){
+        DTSC::Keys keys(M.keys(mainTrack));
+        size_t keyNum = keys.getNumForTime(pos);
+        pos = keys.getTime(keyNum);
       }
     }
-    MEDIUM_MSG("Seeking to %llums", pos);
-    std::set<long unsigned int> seekTracks = selectedTracks;
-    for (std::set<long unsigned int>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
-      if (myMeta.tracks.count(*it)){seek(*it, pos);}
+    MEDIUM_MSG("Seeking to %" PRIu64 "ms (%s)", pos, toKey ? "sync" : "direct");
+    std::set<size_t> seekTracks;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      seekTracks.insert(it->first);
     }
-    firstTime = Util::getMS() - buffer.begin()->time;
+    for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
+      seek(*it, pos, false);
+    }
+    firstTime = Util::bootMS() - currentTime();
   }
 
-  bool Output::seek(unsigned int tid, unsigned long long pos, bool getNextKey){
-    if (myMeta.live && myMeta.tracks[tid].lastms < pos){
-      unsigned int maxTime = 0;
-      while (myMeta.tracks[tid].lastms < pos && myConn && ++maxTime <= 20 && keepGoing()){
-        Util::wait(500);
-        stats();
-        updateMeta();
-      }
-    }
-    if (myMeta.tracks[tid].lastms < pos){
-      WARN_MSG("Aborting seek to %llums in track %u: past end of track (= %llums).", pos, tid,
-               myMeta.tracks[tid].lastms);
-      selectedTracks.erase(tid);
+  bool Output::seek(size_t tid, uint64_t pos, bool getNextKey){
+    if (!M.trackValid(tid)){
+      MEDIUM_MSG("Aborting seek to %" PRIu64 "ms in track %zu: Invalid track id.", pos, tid);
+      userSelect.erase(tid);
       return false;
     }
-    unsigned int keyNum = getKeyForTime(tid, pos);
-    if (myMeta.tracks[tid].getKey(keyNum).getTime() > pos){
-      if (myMeta.live){
-        WARN_MSG("Actually seeking to %d, for %d is not available any more",
-                 myMeta.tracks[tid].getKey(keyNum).getTime(), pos);
-        pos = myMeta.tracks[tid].getKey(keyNum).getTime();
+    if (!M.trackLoaded(tid)){meta.refresh();}
+
+    HIGH_MSG("Seeking for pos %" PRIu64, pos);
+    if (meta.getLive() && meta.getLastms(tid) < pos){
+      unsigned int maxTime = 0;
+      while (meta.getLastms(tid) < pos && myConn && ++maxTime <= 20){
+        Util::wait(500);
+        stats();
+      }
+    }
+    if (meta.getLastms(tid) <= pos){
+      WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: past end of track (= %" PRIu64 "ms).",
+               pos, tid, meta.getLastms(tid));
+      userSelect.erase(tid);
+      return false;
+    }
+    DTSC::Keys keys(M.keys(tid));
+    size_t keyNum = keys.getNumForTime(pos);
+    uint64_t actualKeyTime = keys.getTime(keyNum);
+    HIGH_MSG("Seeking to track %zu key %zu => time %" PRIu64, tid, keyNum, pos);
+    if (actualKeyTime > pos){
+      if (M.getLive()){
+        WARN_MSG("Actually seeking to %" PRIu64 ", for %" PRIu64 " is not available any more",
+                 actualKeyTime, pos);
+        pos = actualKeyTime;
+        userSelect[tid].setKeyNum(keyNum);
       }
     }
     loadPageForKey(tid, keyNum + (getNextKey ? 1 : 0));
-    if (!nProxy.curPage.count(tid) || !nProxy.curPage[tid].mapped){
-      WARN_MSG("Aborting seek to %llums in track %u: not available.", pos, tid);
-      selectedTracks.erase(tid);
+    if (!curPage.count(tid) || !curPage[tid].mapped){
+      WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: not available.", pos, tid);
+      userSelect.erase(tid);
       return false;
     }
     sortedPageInfo tmp;
     tmp.tid = tid;
     tmp.offset = 0;
+    tmp.partIndex = 0;
     DTSC::Packet tmpPack;
-    tmpPack.reInit(nProxy.curPage[tid].mapped + tmp.offset, 0, true);
+    tmpPack.reInit(curPage[tid].mapped + tmp.offset, 0, true);
     tmp.time = tmpPack.getTime();
-    char *mpd = nProxy.curPage[tid].mapped;
-    while ((long long)tmp.time < pos && tmpPack){
+    char *mpd = curPage[tid].mapped;
+    while (tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
       tmpPack.reInit(mpd + tmp.offset, 0, true);
       tmp.time = tmpPack.getTime();
     }
     if (tmpPack){
-      HIGH_MSG("Sought to time %llu in %s@%u", tmp.time, streamName.c_str(), tid);
+      HIGH_MSG("Sought to time %" PRIu64 " (yields a packet at %" PRIu64 "ms) in %s@%zu", tmp.time,
+               tmpPack.getTime(), streamName.c_str(), tid);
+      tmp.partIndex = M.getPartIndex(tmpPack, tmp.tid);
       buffer.insert(tmp);
       return true;
-    }else{
-      // don't print anything for empty packets - not sign of corruption, just unfinished stream.
-      if (nProxy.curPage[tid].mapped[tmp.offset] != 0){
-        FAIL_MSG("Noes! Couldn't find packet on track %d because of some kind of corruption error "
-                 "or somesuch.",
-                 tid);
-      }else{
-        VERYHIGH_MSG("Track %d no data (key %u @ %u) - waiting...", tid,
-                     getKeyForTime(tid, pos) + (getNextKey ? 1 : 0), tmp.offset);
-        unsigned int i = 0;
-        while (!myMeta.live && nProxy.curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10 && keepGoing()){
-          Util::wait(100 * i);
-          stats();
-        }
-        if (nProxy.curPage[tid].mapped[tmp.offset] == 0){
-          FAIL_MSG("Track %d no data (key %u@%u) - timeout", tid,
-                   getKeyForTime(tid, pos) + (getNextKey ? 1 : 0), tmp.offset);
-        }else{
-          return seek(tid, pos, getNextKey);
-        }
-      }
-      selectedTracks.erase(tid);
+    }
+    // don't print anything for empty packets - not sign of corruption, just unfinished stream.
+    if (curPage[tid].mapped[tmp.offset] != 0){
+      FAIL_MSG("Noes! Couldn't find packet on track %zu because of some kind of corruption error "
+               "or somesuch.",
+               tid);
       return false;
     }
+    VERYHIGH_MSG("Track %zu no data (key %zu @ %" PRIu64 ") - waiting...", tid,
+                 keyNum + (getNextKey ? 1 : 0), tmp.offset);
+    uint32_t i = 0;
+    while (!meta.getLive() && curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
+      Util::wait(100 * i);
+      stats();
+    }
+    if (curPage[tid].mapped[tmp.offset]){return seek(tid, pos, getNextKey);}
+    FAIL_MSG("Track %zu no data (key %zu@%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset);
+    userSelect.erase(tid);
+    firstTime = Util::bootMS() - buffer.begin()->time;
+    return false;
   }
 
   /// This function decides where in the stream initial playback starts.
@@ -874,34 +761,43 @@ namespace Mist{
   /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
   /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
-    unsigned long long seekPos = 0;
-    if (myMeta.live){
-      long unsigned int mainTrack = getMainSelectedTrack();
-      // cancel if there are no keys in the main track
-      if (!myMeta.tracks.count(mainTrack) || !myMeta.tracks[mainTrack].keys.size()){return;}
+    uint64_t seekPos = 0;
+    if (meta.getLive()){
+      size_t mainTrack = getMainSelectedTrack();
+      if (mainTrack == INVALID_TRACK_ID){return;}
+      DTSC::Keys keys(M.keys(mainTrack));
+      if (!keys.getValidCount()){return;}
       // seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
-      for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin();
-           it != myMeta.tracks[mainTrack].keys.rend(); ++it){
-        seekPos = it->getTime();
+      uint32_t firstKey = keys.getFirstValid();
+      uint32_t lastKey = keys.getEndValid() - 1;
+      for (int64_t i = lastKey; i >= firstKey; i--){
+        seekPos = keys.getTime(i);
         if (seekPos < 5000){continue;}// if we're near the start, skip back
         bool good = true;
         // check if all tracks have data for this point in time
-        for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-          if (!myMeta.tracks.count(*ti)){
-            HIGH_MSG("Skipping track %lu, not in tracks", *ti);
-            continue;
-          }// ignore missing tracks
-          DTSC::Track &thisTrack = myMeta.tracks[*ti];
-          if (thisTrack.lastms < seekPos + needsLookAhead + extraKeepAway + thisTrack.minKeepAway){
+        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+          if (meta.getLastms(ti->first) < seekPos + needsLookAhead){
             good = false;
             break;
           }
-          if (mainTrack == *ti){continue;}// skip self
-          if (thisTrack.lastms == thisTrack.firstms){
-            HIGH_MSG("Skipping track %lu, last equals first", *ti);
+          if (mainTrack == ti->first){continue;}// skip self
+          if (!M.trackValid(ti->first)){
+            HIGH_MSG("Skipping track %lu, not in tracks", ti->first);
+            continue;
+          }// ignore missing tracks
+          if (M.getLastms(ti->first) < seekPos + needsLookAhead + extraKeepAway + M.getMinKeepAway(ti->first)){
+            good = false;
+            break;
+          }
+          if (meta.getLastms(ti->first) == M.getFirstms(ti->first)){
+            HIGH_MSG("Skipping track %lu, last equals first", ti->first);
             continue;
           }// ignore point-tracks
-          HIGH_MSG("Track %lu is good", *ti);
+          if (meta.getLastms(ti->first) < seekPos){
+            good = false;
+            break;
+          }
+          HIGH_MSG("Track %zu is good", ti->first);
         }
         // if yes, seek here
         if (good){break;}
@@ -909,56 +805,63 @@ namespace Mist{
     }
     /*LTS-START*/
     if (isRecordingToFile){
-      if (myMeta.live &&
+      if (M.getLive() &&
           (targetParams.count("recstartunix") || targetParams.count("recstopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
         if (targetParams.count("recstartunix")){
-          long long startUnix = atoll(targetParams["recstartunix"].c_str());
+          uint64_t startUnix = atoll(targetParams["recstartunix"].c_str());
           if (startUnix < unixStreamBegin){
             WARN_MSG(
                 "Recording start time is earlier than stream begin - starting earliest possible");
             targetParams["recstart"] = "-1";
           }else{
-            targetParams["recstart"] =
-                JSON::Value((int64_t)((startUnix - unixStreamBegin) * 1000)).asString();
+            targetParams["recstart"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
           }
         }
         if (targetParams.count("recstopunix")){
-          long long stopUnix = atoll(targetParams["recstopunix"].c_str());
+          uint64_t stopUnix = atoll(targetParams["recstopunix"].c_str());
           if (stopUnix < unixStreamBegin){
             onFail("Recording stop time is earlier than stream begin - aborting", true);
             return;
           }else{
-            targetParams["recstop"] = JSON::Value((int64_t)((stopUnix - unixStreamBegin) * 1000)).asString();
+            targetParams["recstop"] = JSON::Value((stopUnix - unixStreamBegin) * 1000).asString();
           }
         }
       }
+      if (targetParams.count("recstop")){
+        uint64_t endRec = atoll(targetParams["recstop"].c_str());
+        if (endRec < startTime()){
+          onFail("Entire recording range is in the past", true);
+          return;
+        }
+        INFO_MSG("Recording will stop at %" PRIu64, endRec);
+      }
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
-        unsigned long int mainTrack = getMainSelectedTrack();
-        long long startRec = atoll(targetParams["recstart"].c_str());
-        if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
-          if (myMeta.vod){
+        size_t mainTrack = getMainSelectedTrack();
+        uint64_t startRec = atoll(targetParams["recstart"].c_str());
+        if (startRec > M.getLastms(mainTrack)){
+          if (M.getVod()){
             onFail("Recording start past end of non-live source", true);
             return;
           }
-          INFO_MSG("Waiting for stream to reach recording starting point");
-          long unsigned int streamAvail = myMeta.tracks[mainTrack].lastms;
-          long unsigned int lastUpdated = Util::getMS();
+          uint64_t streamAvail = M.getLastms(mainTrack);
+          uint64_t lastUpdated = Util::getMS();
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
-            updateMeta();
-            if (myMeta.tracks[mainTrack].lastms > streamAvail){
+            if (M.getLastms(mainTrack) > streamAvail){
               stats();
-              streamAvail = myMeta.tracks[mainTrack].lastms;
+              streamAvail = M.getLastms(mainTrack);
               lastUpdated = Util::getMS();
             }
           }
         }
-        if (startRec < 0 || startRec < startTime()){
-          WARN_MSG("Record begin at %llu ms not available, starting at %llu ms instead", startRec, startTime());
+        if (startRec < startTime()){
+          WARN_MSG("Record begin at %" PRIu64 " ms not available, starting at %" PRIu64
+                   " ms instead",
+                   startRec, startTime());
           startRec = startTime();
         }
-        INFO_MSG("Recording will start at %lld", startRec);
+        INFO_MSG("Recording will start at %" PRIu64, startRec);
         seekPos = startRec;
       }
       // Duration to record in seconds. Overrides recstop.
@@ -980,23 +883,22 @@ namespace Mist{
         INFO_MSG("Recording will stop at %lld", endRec);
       }
     }else{
-      if (myMeta.live && targetParams.count("pushdelay")){
+      if (M.getLive() && targetParams.count("pushdelay")){
         INFO_MSG("Converting pushdelay syntax into corresponding startunix+realtime options");
         targetParams["startunix"] = std::string("-") + targetParams["pushdelay"];
         targetParams["realtime"] = "1";
       }
-      if (myMeta.live && (targetParams.count("startunix") || targetParams.count("stopunix"))){
-        uint64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
+      if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
+        int64_t unixStreamBegin = Util::epoch() - (liveTime() / 1000);
         if (targetParams.count("startunix")){
-          long long startUnix = atoll(targetParams["startunix"].c_str());
+          int64_t startUnix = atoll(targetParams["startunix"].c_str());
           if (startUnix < 0){
-            long long origStartUnix = startUnix;
+            int64_t origStartUnix = startUnix;
             startUnix += Util::epoch();
             if (startUnix < unixStreamBegin){
               INFO_MSG("Waiting for stream to reach intended starting point");
               while (startUnix < Util::epoch() - (liveTime() / 1000) && keepGoing()){
                 Util::wait(1000);
-                updateMeta();
                 stats();
                 startUnix = origStartUnix + Util::epoch();
               }
@@ -1004,63 +906,74 @@ namespace Mist{
           }
           if (startUnix < unixStreamBegin){
             WARN_MSG("Start time is earlier than stream begin - starting earliest possible");
+            WARN_MSG("%" PRId64 " < %" PRId64, startUnix, unixStreamBegin);
             targetParams["start"] = "-1";
           }else{
-            targetParams["start"] = JSON::Value((int64_t)((startUnix - unixStreamBegin) * 1000)).asString();
+            targetParams["start"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
           }
         }
         if (targetParams.count("stopunix")){
-          long long stopUnix = atoll(targetParams["stopunix"].c_str());
+          int64_t stopUnix = atoll(targetParams["stopunix"].c_str());
           if (stopUnix < 0){stopUnix += Util::epoch();}
           if (stopUnix < unixStreamBegin){
             onFail("Stop time is earlier than stream begin - aborting", true);
             return;
           }else{
-            targetParams["stop"] = JSON::Value((int64_t)((stopUnix - unixStreamBegin) * 1000)).asString();
+            targetParams["stop"] = JSON::Value((stopUnix - unixStreamBegin) * 1000).asString();
           }
         }
       }
       if (targetParams.count("stop")){
-        long long endRec = atoll(targetParams["stop"].c_str());
+        int64_t endRec = atoll(targetParams["stop"].c_str());
         if (endRec < 0 || endRec < startTime()){
           onFail("Entire range is in the past", true);
           return;
         }
-        INFO_MSG("Playback will stop at %lld", endRec);
+        INFO_MSG("Playback will stop at %" PRIu64, endRec);
       }
       if (targetParams.count("start") && atoll(targetParams["start"].c_str()) != 0){
-        unsigned long int mainTrack = getMainSelectedTrack();
-        long long startRec = atoll(targetParams["start"].c_str());
-        if (startRec > 0 && startRec > myMeta.tracks[mainTrack].lastms){
-          if (myMeta.vod){
+        size_t mainTrack = getMainSelectedTrack();
+        int64_t startRec = atoll(targetParams["start"].c_str());
+        if (startRec > M.getLastms(mainTrack)){
+          if (M.getVod()){
             onFail("Playback start past end of non-live source", true);
             return;
           }
           INFO_MSG("Waiting for stream to reach playback starting point");
-          long unsigned int streamAvail = myMeta.tracks[mainTrack].lastms;
-          long unsigned int lastUpdated = Util::getMS();
+          int64_t streamAvail = M.getLastms(mainTrack);
+          int64_t lastUpdated = Util::getMS();
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
-            updateMeta();
-            if (myMeta.tracks[mainTrack].lastms > streamAvail){
+            if (M.getLastms(mainTrack) > streamAvail){
               stats();
-              streamAvail = myMeta.tracks[mainTrack].lastms;
+              streamAvail = M.getLastms(mainTrack);
               lastUpdated = Util::getMS();
             }
           }
         }
         if (startRec < 0 || startRec < startTime()){
-          WARN_MSG("Playback begin at %llu ms not available, starting at %llu ms instead", startRec,
-                   startTime());
+          WARN_MSG("Playback begin at %" PRId64 " ms not available, starting at %" PRIu64
+                   " ms instead",
+                   startRec, startTime());
           startRec = startTime();
         }
-        INFO_MSG("Playback will start at %lld", startRec);
+        INFO_MSG("Playback will start at %" PRIu64, startRec);
         seekPos = startRec;
       }
     }
     /*LTS-END*/
-    MEDIUM_MSG("Initial seek to %llums", seekPos);
+    MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
     seek(seekPos);
+  }
+
+  /// Returns the highest getMinKeepAway of all selected tracks
+  uint64_t Output::getMinKeepAway(){
+    uint64_t r = 0;
+    for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+      if (ti->first == INVALID_TRACK_ID){continue;}
+      if (M.getMinKeepAway(ti->first) > r){r = M.getMinKeepAway(ti->first);}
+    }
+    return r;
   }
 
   /// This function attempts to forward playback in live streams to a more live point.
@@ -1068,44 +981,67 @@ namespace Mist{
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(){
     static uint32_t seekCount = 2;
-    unsigned long long seekPos = 0;
-    if (!myMeta.live){return false;}
-    if (isRecordingToFile){return false;}
-    long unsigned int mainTrack = getMainSelectedTrack();
+    uint64_t seekPos = 0;
+    if (!meta.getLive()){return false;}
+    size_t mainTrack = getMainSelectedTrack();
+    if (mainTrack == INVALID_TRACK_ID){return false;}
+    uint64_t lMs = meta.getLastms(mainTrack);
+    uint64_t cTime = thisPacket.getTime();
+    uint64_t mKa = getMinKeepAway();
+    if (!maxSkipAhead){
+      uint64_t newSpeed = 1000;
+      if (lMs - mKa - needsLookAhead - extraKeepAway > cTime + 50){
+        // We need to speed up!
+        uint64_t diff = (lMs - mKa - needsLookAhead - extraKeepAway) - cTime;
+        if (diff > 1000){
+          newSpeed = 750;
+        }else if (diff > 500){
+          newSpeed = 900;
+        }else{
+          newSpeed = 950;
+        }
+      }
+      if (realTime != newSpeed){
+        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64
+                 " ms LA, %" PRIu64 " ms mKA, %lu eKA)",
+                 realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
+        firstTime = Util::bootMS() - cTime;
+        realTime = newSpeed;
+      }
+      return false;
+    }
     // cancel if there are no keys in the main track
-    if (!myMeta.tracks.count(mainTrack)){return false;}
-    DTSC::Track &mainTrk = myMeta.tracks[mainTrack];
-    if (!mainTrk.keys.size()){return false;}
+    if (mainTrack == INVALID_TRACK_ID){return false;}
+    DTSC::Keys mainKeys(meta.keys(mainTrack));
+    if (!mainKeys.getValidCount()){return false;}
 
-    for (std::deque<DTSC::Key>::reverse_iterator it = myMeta.tracks[mainTrack].keys.rbegin();
-         it != myMeta.tracks[mainTrack].keys.rend(); ++it){
-      seekPos = it->getTime();
-      // Only skip forward if we can win a decent amount
-      if (seekPos <= thisPacket.getTime() + 250 * seekCount){break;}
+    for (size_t keyNum = mainKeys.getEndValid() - 1; keyNum >= mainKeys.getFirstValid(); keyNum--){
+      seekPos = mainKeys.getTime(keyNum);
+      // Only skip forward if we can win a decent amount (100ms)
+      if (seekPos <= cTime + 100 * seekCount){break;}
       bool good = true;
       // check if all tracks have data for this point in time
-      for (std::set<unsigned long>::iterator ti = selectedTracks.begin(); ti != selectedTracks.end(); ++ti){
-        if (!myMeta.tracks.count(*ti)){
-          HIGH_MSG("Skipping track %lu, not in tracks", *ti);
+      for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+        if (ti->first == INVALID_TRACK_ID){
+          HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
           continue;
         }// ignore missing tracks
-        DTSC::Track &thisTrack = myMeta.tracks[*ti];
-        if (thisTrack.lastms < seekPos + needsLookAhead + extraKeepAway + thisTrack.minKeepAway){
+        if (meta.getLastms(ti->first) < seekPos + needsLookAhead + extraKeepAway + mKa){
           good = false;
           break;
         }
-        if (mainTrack == *ti){continue;}// skip self
-        if (thisTrack.lastms == thisTrack.firstms){
-          HIGH_MSG("Skipping track %lu, last equals first", *ti);
+        if (mainTrack == ti->first){continue;}// skip self
+        if (meta.getLastms(ti->first) == meta.getFirstms(ti->first)){
+          HIGH_MSG("Skipping track %lu, last equals first", ti->first);
           continue;
         }// ignore point-tracks
-        HIGH_MSG("Track %lu is good", *ti);
+        HIGH_MSG("Track %lu is good", ti->first);
       }
       // if yes, seek here
       if (good){
-        INFO_MSG("Skipping forward %llums (%u ms LA, %lu ms mKA, %lu eKA, > %lums)",
-                 seekPos - thisPacket.getTime(), needsLookAhead, mainTrk.minKeepAway, extraKeepAway,
-                 seekCount * 250);
+        HIGH_MSG("Skipping forward %" PRIu64 "ms (%" PRIu64 " ms LA, %" PRIu64
+                 " ms mKA, %lu eKA, > %" PRIu32 "ms)",
+                 seekPos - cTime, needsLookAhead, mKa, extraKeepAway, seekCount * 100);
         if (seekCount < 20){++seekCount;}
         seek(seekPos);
         return true;
@@ -1120,14 +1056,14 @@ namespace Mist{
       firstData = false;
       DONTEVEN_MSG("onRequest");
       onRequest();
-      lastRecv = Util::epoch();
+      lastRecv = Util::bootSecs();
     }else{
       if (!isBlocking && !parseData){
-        if (Util::epoch() - lastRecv > 300){
+        if (Util::bootSecs() - lastRecv > 300){
           WARN_MSG("Disconnecting 5 minute idle connection");
-          myConn.close();
+          onFail("Connection idle for 5 minutes");
         }else{
-          Util::sleep(500);
+          Util::sleep(20);
         }
       }
     }
@@ -1136,7 +1072,7 @@ namespace Mist{
   /// Waits for the given amount of millis, increasing the realtime playback
   /// related times as needed to keep smooth playback intact.
   void Output::playbackSleep(uint64_t millis){
-    if (realTime && myMeta.live){
+    if (realTime && M.getLive()){
       firstTime += millis;
       extraKeepAway += millis;
     }
@@ -1193,31 +1129,31 @@ namespace Mist{
     if (isFileTarget()){
       if (!streamName.size()){
         WARN_MSG("Recording unconnected %s output to file! Cancelled.", capa["name"].asString().c_str());
-        myConn.close();
+        onFail("Unconnected recording output", true);
         return 2;
       }
       initialize();
-      if (!myMeta.tracks.size() || !selectedTracks.size() || !keepGoing()){
+      if (!M.getValidTracks().size() || !userSelect.size() || !keepGoing()){
         INFO_MSG("Stream not available - aborting");
-        myConn.close();
+        onFail("Stream not available for recording", true);
+        return 3;
+      }
+      if (config->getString("target") == "-"){
+        parseData = true;
+        wantRequest = false;
+        if (!targetParams.count("realtime")){realTime = 0;}
+        INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
+                 capa["name"].asString().c_str());
       }else{
-        if (config->getString("target") == "-"){
-          parseData = true;
-          wantRequest = false;
-          if (!targetParams.count("realtime")){realTime = 0;}
-          INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
-                   capa["name"].asString().c_str());
-        }else{
-          if (connectToFile(config->getString("target"))){
-            parseData = true;
-            wantRequest = false;
-            if (!targetParams.count("realtime")){realTime = 0;}
-            INFO_MSG("Recording %s to %s with %s format", streamName.c_str(),
-                     config->getString("target").c_str(), capa["name"].asString().c_str());
-          }else{
-            myConn.close();
-          }
+        if (!connectToFile(config->getString("target"), targetParams.count("append"))){
+          onFail("Could not connect to the target for recording", true);
+          return 3;
         }
+        parseData = true;
+        wantRequest = false;
+        if (!targetParams.count("realtime")){realTime = 0;}
+        INFO_MSG("Recording %s to %s with %s format", streamName.c_str(),
+                 config->getString("target").c_str(), capa["name"].asString().c_str());
       }
     }
     // Handle CONN_OPEN trigger, if needed
@@ -1245,29 +1181,31 @@ namespace Mist{
             // slow down processing, if real time speed is wanted
             if (realTime){
               uint8_t i = 6;
-              while (--i && thisPacket.getTime() > (((Util::getMS() - firstTime) * 1000) + maxSkipAhead) / realTime &&
+              while (--i && thisPacket.getTime() > ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime) &&
                      keepGoing()){
-                Util::sleep(std::min(thisPacket.getTime() - (((Util::getMS() - firstTime) * 1000) + maxSkipAhead) / realTime,
-                                     1000llu));
+                Util::sleep(std::min(thisPacket.getTime() -
+                                         ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime),
+                                     1000ul));
                 stats();
               }
             }
 
             // delay the stream until metadata has caught up, if needed
             if (needsLookAhead){
-              // we sleep in 250ms increments, or less if the lookahead time itself is less
-              uint32_t sleepTime = std::min((uint32_t)250, needsLookAhead);
+              // we sleep in 20ms increments, or less if the lookahead time itself is less
+              uint32_t sleepTime = std::min(20ul, needsLookAhead);
               // wait at most double the look ahead time, plus ten seconds
-              uint32_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
+              uint64_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
               uint64_t needsTime = thisPacket.getTime() + needsLookAhead;
               bool firstTime = true;
               while (--timeoutTries && keepGoing()){
                 bool lookReady = true;
-                for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-                     it != selectedTracks.end(); it++){
-                  if (myMeta.tracks[*it].lastms <= needsTime){
+                for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
+                     it != userSelect.end(); it++){
+                  if (meta.getLastms(it->first) <= needsTime){
                     if (timeoutTries == 1){
-                      WARN_MSG("Track %lu: %llu <= %llu", *it, myMeta.tracks[*it].lastms, needsTime);
+                      WARN_MSG("Track %zu: %" PRIu64 " <= %" PRIu64, it->first,
+                               meta.getLastms(it->first), needsTime);
                     }
                     lookReady = false;
                     break;
@@ -1280,7 +1218,6 @@ namespace Mist{
                   playbackSleep(sleepTime);
                 }
                 stats();
-                updateMeta();
               }
               if (!timeoutTries){
                 WARN_MSG("Waiting for lookahead timed out - resetting lookahead!");
@@ -1327,12 +1264,19 @@ namespace Mist{
             if (!onFinish()){break;}
           }
         }
+        if (!meta){
+          Util::Config::logExitReason("No connection to the metadata");
+          break;
+        }
       }
       stats();
     }
     MEDIUM_MSG("MistOut client handler shutting down: %s, %s, %s",
                myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request",
                parseData ? "parsing_data" : "not_parsing_data");
+    if (Util::Config::exitReason.size()){
+      INFO_MSG("Logged exit reason: %s", Util::Config::exitReason.c_str());
+    }
     onFinish();
 
     /*LTS-START*/
@@ -1363,19 +1307,22 @@ namespace Mist{
     /*LTS-END*/
 
     stats(true);
-    nProxy.userClient.finish();
-    statsPage.finish();
+    if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT);}
+
+    userSelect.clear();
+
     myConn.close();
     return 0;
   }
 
-  void Output::dropTrack(uint32_t trackId, std::string reason, bool probablyBad){
+  void Output::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
+    if (!userSelect.count(trackId)){return;}
     // depending on whether this is probably bad and the current debug level, print a message
-    unsigned int printLevel = DLVL_INFO;
-    if (probablyBad){printLevel = DLVL_WARN;}
-    DEBUG_MSG(printLevel, "Dropping %s (%s) track %lu@k%lu (nextP=%d, lastP=%d): %s", streamName.c_str(),
-              myMeta.tracks[trackId].codec.c_str(), (long unsigned)trackId, nxtKeyNum[trackId] + 1,
-              pageNumForKey(trackId, nxtKeyNum[trackId] + 1), pageNumMax(trackId), reason.c_str());
+    size_t printLevel = (probablyBad ? DLVL_WARN : DLVL_INFO);
+    const Comms::Users &usr = userSelect.at(trackId);
+    DEBUG_MSG(printLevel, "Dropping %s (%s) track %zu@k%zu (nextP=%zu, lastP=%zu): %s",
+              streamName.c_str(), meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
+              pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
     // now actually drop the track from the buffer
     for (std::set<sortedPageInfo>::iterator it = buffer.begin(); it != buffer.end(); ++it){
       if (it->tid == trackId){
@@ -1383,7 +1330,52 @@ namespace Mist{
         break;
       }
     }
-    selectedTracks.erase(trackId);
+    userSelect.erase(trackId);
+  }
+
+  /// Assumes at least one video track is selected.
+  /// Seeks back in the buffer to the newest keyframe with a timestamp less than the current
+  /// timestamp. Sets thisPacket to that frame, and then undoes the seek. The next call to
+  /// prepareNext continues as if this function was never called.
+  bool Output::getKeyFrame(){
+    // store copy of current state
+    std::set<sortedPageInfo> tmp_buffer = buffer;
+    std::map<size_t, Comms::Users> tmp_userSelect = userSelect;
+    std::map<size_t, size_t> tmp_currentPage = currentPage;
+
+    // reset the current packet to null, assuming failure
+    thisPacket.null();
+
+    // find the main track, check if it is video. Abort if not.
+    size_t mainTrack = getMainSelectedTrack();
+    if (M.getType(mainTrack) != "video"){return false;}
+
+    // we now know that mainTrack is a video track - let's do some work!
+    // first, we remove all selected tracks and the buffer. Then we select only the main track.
+    uint64_t currTime = currentTime();
+    buffer.clear();
+    userSelect.clear();
+    userSelect[mainTrack].reload(streamName, mainTrack);
+    // now, seek to the exact timestamp of the keyframe
+    DTSC::Keys keys(M.keys(mainTrack));
+    unsigned int targetKey = keys.getNumForTime(currTime);
+    seek(keys.getTime(targetKey));
+    // attempt to load the key into thisPacket
+    bool ret = prepareNext();
+    if (!ret){
+      WARN_MSG("Failed to load keyframe for %" PRIu64 "ms - continuing without it", currTime);
+    }
+
+    // restore state to before the seek/load
+    // most of these can simply be copied back...
+    buffer = tmp_buffer;
+    userSelect = tmp_userSelect;
+    // but the currentPage map must also load keys as needed
+    for (std::map<size_t, size_t>::iterator it = tmp_currentPage.begin(); it != tmp_currentPage.end(); ++it){
+      loadPageForKey(it->first, it->second);
+    }
+    // now we are back to normal and can return safely
+    return ret;
   }
 
   /// Attempts to prepare a new packet for output.
@@ -1392,12 +1384,10 @@ namespace Mist{
   /// \returns true if thisPacket was filled with the next packet.
   /// \returns false if we could not reliably determine the next packet yet.
   bool Output::prepareNext(){
-    static bool atLivePoint = false;
-    static int nonVideoCount = 0;
-    static unsigned int emptyCount = 0;
+    static size_t emptyCount = 0;
     if (!buffer.size()){
       /// \TODO Do we really need this? Seems error-prone.
-      if (isRecording() && myMeta.live){
+      if (isRecording() && M.getLive()){
         selectDefaultTracks();
         initialSeek();
         return false;
@@ -1407,29 +1397,29 @@ namespace Mist{
       return true;
     }
     // check if we have a next seek point for every track that is selected
-    if (buffer.size() != selectedTracks.size()){
-      std::set<uint32_t> dropTracks;
-      if (buffer.size() < selectedTracks.size()){
+    if (buffer.size() != userSelect.size()){
+      std::set<size_t> dropTracks;
+      if (buffer.size() < userSelect.size()){
         // prepare to drop any selectedTrack without buffer entry
-        for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); ++it){
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
           bool found = false;
           for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
-            if (bi->tid == *it){
+            if (bi->tid == it->first){
               found = true;
               break;
             }
           }
-          if (!found){dropTracks.insert(*it);}
+          if (!found){dropTracks.insert(it->first);}
         }
       }else{
         // prepare to drop any buffer entry without selectedTrack
         for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
-          if (!selectedTracks.count(bi->tid)){dropTracks.insert(bi->tid);}
+          if (!userSelect.count(bi->tid)){dropTracks.insert(bi->tid);}
         }
       }
       // actually drop what we found.
       // if both of the above cases occur, the next prepareNext iteration will take care of that
-      for (std::set<uint32_t>::iterator it = dropTracks.begin(); it != dropTracks.end(); ++it){
+      for (std::set<size_t>::iterator it = dropTracks.begin(); it != dropTracks.end(); ++it){
         dropTrack(*it, "seek/select mismatch");
       }
       return false;
@@ -1437,101 +1427,84 @@ namespace Mist{
 
     sortedPageInfo nxt = *(buffer.begin());
 
-    if (!myMeta.tracks.count(nxt.tid)){
+    if (!M.getValidTracks().count(nxt.tid)){
       dropTrack(nxt.tid, "disappeared from metadata");
       return false;
     }
 
-    DONTEVEN_MSG("Loading track %u (next=%lu), %llu ms, %llub", nxt.tid, nxtKeyNum[nxt.tid],
-                 nxt.time, nxt.offset);
-
-    // if we're going to read past the end of the data page, load the next page
-    // this only happens for VoD
-    if (nxt.offset >= nProxy.curPage[nxt.tid].len){
-      if (myMeta.vod && nxt.time >= myMeta.tracks[nxt.tid].lastms){
-        dropTrack(nxt.tid, "end of VoD track reached", false);
-        return false;
-      }
-      if (thisPacket){nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());}
-      loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
+    if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+      loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
       nxt.offset = 0;
-      if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
-        uint64_t newTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
-        VERYHIGH_MSG("New page %llu for track %llu, first timestamp is %llu ms", nxtKeyNum[nxt.tid],
-                     nxt.tid, newTime);
-        if (newTime < nxt.time){
-          dropTrack(nxt.tid, "time going backwards");
-        }else{
-          nxt.time = newTime;
-          // swap out the next object in the buffer with a new one
-          buffer.erase(buffer.begin());
-          buffer.insert(nxt);
-        }
-      }else{
-        dropTrack(nxt.tid, "VoD page load failure");
-      }
+      nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+      buffer.erase(buffer.begin());
+      buffer.insert(nxt);
       return false;
     }
 
-    // have we arrived at the end of the memory page? (4 zeroes mark the end)
-    if (!memcmp(nProxy.curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4)){
-      // if we don't currently know where we are, we're lost. We should drop the track.
-      if (!nxt.time){
-        dropTrack(nxt.tid, "timeless empty packet");
+    // if we're going to read past the end of the data page, load the next page
+    // this only happens for VoD
+    if (nxt.offset >= curPage[nxt.tid].len ||
+        (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
+      if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+        dropTrack(nxt.tid, "end of VoD track reached", false);
         return false;
       }
-      // for VoD, check if we've reached the end of the track, if so, drop it
-      if (myMeta.vod && nxt.time > myMeta.tracks[nxt.tid].lastms){
-        dropTrack(nxt.tid, "Reached end of track", false);
-      }
-      // if this is a live stream, we might have just reached the live point.
-      // check where the next key is
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, nxt.time);
-      int nextPage = pageNumForKey(nxt.tid, nxtKeyNum[nxt.tid] + 1);
-      // if the next key hasn't shown up on another page, then we're waiting.
-      // VoD might be slow, so we check VoD case also, just in case
-      if (currKeyOpen.count(nxt.tid) && (currKeyOpen[nxt.tid] == (unsigned int)nextPage || nextPage == -1)){
-        if (++emptyCount < 100){
-          playbackSleep(250);
-          // we're waiting for new data to show up
-          if (emptyCount % 64 == 0){
-            reconnect(); // reconnect every 16 seconds
-          }else{
-            // updating meta is only useful with live streams
-            if (myMeta.live && emptyCount % 4 == 0){updateMeta();}
-          }
-        }else{
+      dropTrack(nxt.tid, "VoD page load failure");
+      return false;
+    }
+
+    // We know this packet will be valid, pre-load it so we know its length
+    DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+
+    uint64_t nextTime = 0;
+
+    DTSC::Keys keys(M.keys(nxt.tid));
+    size_t thisKey = keys.getNumForTime(nxt.time);
+    while (!nextTime && keepGoing()){
+      // The next packet is either not available yet, or on another page
+      // Check if we have a next valid packet
+      if (memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
+        nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
+        // After 500ms, we assume the time will not update anymore
+        if (++emptyCount >= 20){break;}
+      }else{
+        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){break;}
+        if (M.getPageNumberForKey(nxt.tid, thisKey + 1) != currentPage[nxt.tid]){
+          // Check if its on a different page
+          nextTime = keys.getTime(thisKey + 1);
+        }
+        if (++emptyCount >= 1000){
           // after ~25 seconds, give up and drop the track.
           dropTrack(nxt.tid, "EOP: data wait timeout");
+          return false;
         }
-        return false;
+        Util::sleep(25);
+        // we're waiting for new data to show up
+        if (emptyCount % 640 == 0){
+          reconnect(); // reconnect every 16 seconds
+          // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
+          if (!meta){return false;}
+        }
       }
+    }
+    if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+      thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+      thisIdx = nxt.tid;
+      dropTrack(nxt.tid, "end of VoD track reached", false);
+      return true;
+    }
 
-      // The next key showed up on another page!
-      // We've simply reached the end of the page. Load the next key = next page.
-      loadPageForKey(nxt.tid, ++nxtKeyNum[nxt.tid]);
-      nxt.offset = 0;
-      if (nProxy.curPage.count(nxt.tid) && nProxy.curPage[nxt.tid].mapped){
-        uint64_t nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
-        if (nextTime && nextTime < nxt.time){
-          dropTrack(nxt.tid, "EOP: time going backwards (" + JSON::Value(nextTime).asString() +
-                                 " < " + JSON::Value(nxt.time).asString() + ")");
-        }else{
-          if (nextTime){nxt.time = nextTime;}
-          // swap out the next object in the buffer with a new one
-          buffer.erase(buffer.begin());
-          buffer.insert(nxt);
-          MEDIUM_MSG("Next page for track %u starts at %llu.", nxt.tid, nxt.time);
-        }
-      }else{
-        dropTrack(nxt.tid, "next page load failure");
-      }
+    // If we don't have a timestamp at all, this is due to a different cause.
+    if (!nextTime && (emptyCount < 20)){return false;}
+    if (nextTime < nxt.time){
+      dropTrack(nxt.tid, "time going backwards");
       return false;
     }
 
     // we've handled all special cases - at this point the packet should exist
     // let's load it
-    thisPacket.reInit(nProxy.curPage[nxt.tid].mapped + nxt.offset, 0, true);
+    thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+    thisIdx = nxt.tid;
     // if it failed, drop the track and continue
     if (!thisPacket){
       dropTrack(nxt.tid, "packet load failure");
@@ -1539,78 +1512,26 @@ namespace Mist{
     }
     emptyCount = 0; // valid packet - reset empty counter
 
-    // if there's a timestamp mismatch, print this.
-    // except for live, where we never know the time in advance
-    if (thisPacket.getTime() != nxt.time && nxt.time){
-      if (!atLivePoint){
-        static int warned = 0;
-        if (warned < 5){
-          WARN_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)",
-                   streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid,
-                   nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time),
-                   myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
-          if (++warned == 5){
-            WARN_MSG("Further warnings about time mismatches printed on HIGH level.");
-          }
-        }else{
-          HIGH_MSG("Loaded %s track %ld@%llu instead of %u@%llu (%dms, %s, offset %lu)",
-                   streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime(), nxt.tid,
-                   nxt.time, (int)((long long)thisPacket.getTime() - (long long)nxt.time),
-                   myMeta.tracks[nxt.tid].codec.c_str(), nxt.offset);
-        }
-      }
-      nxt.time = thisPacket.getTime();
-      // swap out the next object in the buffer with a new one
-      buffer.erase(buffer.begin());
-      buffer.insert(nxt);
-      VERYHIGH_MSG("JIT reordering %u@%llu.", nxt.tid, nxt.time);
+    if (!userSelect[nxt.tid].isAlive()){
+      INFO_MSG("Track %zu  is not alive!", nxt.tid);
       return false;
     }
 
-    // when live, every keyframe, check correctness of the keyframe number
-    if (thisPacket.getFlag("keyframe")){
-      // cancel if not alive
-      if (!nProxy.userClient.isAlive()){return false;}
-      // Check whether returned keyframe is correct. If not, wait for approximately 10 seconds while
-      // checking. Failure here will cause tracks to drop due to inconsistent internal state.
-      nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
-      int counter = 0;
-      while (myMeta.live && counter < 40 &&
-             myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
-        if (counter++){
-          // Only sleep 250ms if this is not the first updatemeta try
-          playbackSleep(250);
-        }
-        updateMeta();
-        nxtKeyNum[nxt.tid] = getKeyForTime(nxt.tid, thisPacket.getTime());
-      }
-      if (myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime() != thisPacket.getTime()){
-        WARN_MSG("Keyframe value is not correct (%llu != %llu) - state will now be inconsistent; "
-                 "resetting",
-                 myMeta.tracks[nxt.tid].getKey(nxtKeyNum[nxt.tid]).getTime(), thisPacket.getTime());
-        initialSeek();
-        return false;
-      }
-      EXTREME_MSG("Track %u @ %llums = key %lu", nxt.tid, thisPacket.getTime(), nxtKeyNum[nxt.tid]);
-    }
-
-    // always assume we're not at the live point
-    atLivePoint = false;
     // we assume the next packet is the next on this same page
     nxt.offset += thisPacket.getDataLen();
-    if (nxt.offset < nProxy.curPage[nxt.tid].len){
-      unsigned long long nextTime = getDTSCTime(nProxy.curPage[nxt.tid].mapped, nxt.offset);
-      if (nextTime){
-        nxt.time = nextTime;
-      }else{
-        ++nxt.time;
-        // no packet -> we are at the live point
-        atLivePoint = true;
-      }
-    }
+    nxt.time = nextTime;
+    ++nxt.partIndex;
+
+    userSelect[nxt.tid].setKeyNum(thisKey);
 
     // exchange the current packet in the buffer for the next one
     buffer.erase(buffer.begin());
+
+    if (M.getVod() && nxt.time > M.getLastms(nxt.tid)){
+      dropTrack(nxt.tid, "detected last VoD packet");
+      return true;
+    }
+
     buffer.insert(nxt);
 
     return true;
@@ -1621,11 +1542,8 @@ namespace Mist{
   /// The default implementation is usually good enough for all the non-INPUT types.
   std::string Output::getStatsName(){
     if (isPushing()){return "INPUT";}
-    if (config->hasOption("target") && config->getString("target").size()){
-      return "OUTPUT";
-    }else{
-      return capa["name"].asStringRef();
-    }
+    if (config->hasOption("target") && config->getString("target").size()){return "OUTPUT";}
+    return capa["name"].asStringRef();
   }
 
   void Output::stats(bool force){
@@ -1633,85 +1551,59 @@ namespace Mist{
     if (!isInitialized){return;}
     // also cancel if it has been less than a second since the last update
     // unless force is set to true
-    unsigned long long int now = Util::epoch();
+    uint64_t now = Util::bootSecs();
     if (now == lastStats && !force){return;}
+
+    if (!statComm){statComm.reload();}
+    if (!statComm){return;}
+
     lastStats = now;
 
-    HIGH_MSG("Writing stats: %s, %s, %lu, %llu, %llu", getConnectedHost().c_str(),
-             streamName.c_str(), crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
-    if (statsPage.getData()){
-      /*LTS-START*/
-      if (!statsPage.isAlive()){
-        onFail("Shutting down on controller request");
-        return;
-      }
-      /*LTS-END*/
-      IPC::statExchange tmpEx(statsPage.getData());
-      tmpEx.now(now);
-      if (tmpEx.host() ==
-          std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16)){
-        tmpEx.host(getConnectedBinHost());
-      }
-      tmpEx.crc(crc);
-      tmpEx.streamName(streamName);
-      tmpEx.connector(getStatsName());
-      tmpEx.up(myConn.dataUp());
-      tmpEx.down(myConn.dataDown());
-      tmpEx.time(Util::bootSecs() - myConn.connTime());
-      if (thisPacket){
-        tmpEx.lastSecond(thisPacket.getTime());
-      }else{
-        tmpEx.lastSecond(0);
-      }
-      /*LTS-START*/
-      // Tag the session with the user agent
-      static bool newUA = true; // we only do this once per connection
-      if (newUA && ((Util::bootSecs() - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
-        std::string APIcall =
-            "{\"tag_sessid\":{\"" + tmpEx.getSessId() + "\":" + JSON::string_escape("UA:" + UA) + "}}";
-        Socket::UDPConnection uSock;
-        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-        uSock.SendNow(APIcall);
-        newUA = false;
-      }
-      /*LTS-END*/
-      statsPage.keepAlive();
+    HIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
+             crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
+    /*LTS-START*/
+    if (statComm.getStatus() == COMM_STATUS_DISCONNECT){
+      onFail("Shutting down on controller request");
+      return;
     }
+    /*LTS-END*/
+    statComm.setNow(now);
+    if (statComm.getHost() ==
+        std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16)){
+      statComm.setHost(getConnectedBinHost());
+    }
+    statComm.setCRC(crc);
+    statComm.setStream(streamName);
+    statComm.setConnector(getStatsName());
+    statComm.setUp(myConn.dataUp());
+    statComm.setDown(myConn.dataDown());
+    statComm.setTime(now - myConn.connTime());
+    statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
+    statComm.setPid(getpid());
+    statComm.keepAlive();
+
+    /*LTS-START*/
+    // Tag the session with the user agent
+    static bool newUA = true; // we only do this once per connection
+    if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
+      std::string APIcall =
+          "{\"tag_sessid\":{\"" + statComm.getSessId() + "\":" + JSON::string_escape("UA:" + UA) + "}}";
+      Socket::UDPConnection uSock;
+      uSock.SetDestination("localhost", 4242);
+      uSock.SendNow(APIcall);
+      newUA = false;
+    }
+    /*LTS-END*/
+
     doSync();
-    int tNum = 0;
-    if (!nProxy.userClient.getData()){
-      char userPageName[NAME_BUFFER_SIZE];
-      snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-      nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-      if (!nProxy.userClient.getData()){
-        onFail("Player connection failure - aborting output", true);
-        return;
-      }
-    }
-    if (!nProxy.userClient.isAlive()){
-      if (isPushing() && !pushIsOngoing){
-        waitForStreamPushReady();
-        if (!nProxy.userClient.isAlive()){
-          onFail("Failed to wait for buffer, aborting incoming push", true);
-          return;
+
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      it->second.keepAlive();
+      if (it->second.isAlive() && M.getLive() && it->second.getStatus() & COMM_STATUS_SOURCE){
+        if (Util::bootSecs() - M.getLastUpdated(it->first) > 3){
+          INFO_MSG("Not updating data for track %zu?", it->first);
         }
-      }else{
-        onFail("Received disconnect request from input");
-        return;
       }
-    }
-    if (!isPushing()){
-      IPC::userConnection userConn(nProxy.userClient.getData());
-      for (std::set<unsigned long>::iterator it = selectedTracks.begin();
-           it != selectedTracks.end() && tNum < SIMUL_TRACKS; it++){
-        userConn.setTrackId(tNum, *it);
-        userConn.setKeynum(tNum, nxtKeyNum[*it]);
-        tNum++;
-      }
-    }
-    nProxy.userClient.keepAlive();
-    if (tNum > SIMUL_TRACKS){
-      WARN_MSG("Too many tracks selected, using only first %d", SIMUL_TRACKS);
     }
   }
 
@@ -1726,9 +1618,9 @@ namespace Mist{
     sentHeader = true;
   }
 
-  bool Output::connectToFile(std::string file){
+  bool Output::connectToFile(std::string file, bool append){
     int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    int mode = O_RDWR | O_CREAT | O_TRUNC;
+    int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
     if (!Util::createPathFor(file)){
       ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
       return false;
@@ -1759,7 +1651,7 @@ namespace Mist{
     // Initialize the stream source if needed, connect to it
     waitForStreamPushReady();
     // pull the source setting from metadata
-    strmSource = myMeta.sourceURI;
+    strmSource = meta.getSource();
 
     if (!strmSource.size()){
       FAIL_MSG("Push rejected - stream %s not configured or unavailable", streamName.c_str());
@@ -1823,6 +1715,7 @@ namespace Mist{
     while (streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY && keepGoing()){
       INFO_MSG("Waiting for %s buffer to be ready... (%u)", streamName.c_str(), streamStatus);
       disconnect();
+      userSelect.clear();
       Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
@@ -1831,38 +1724,13 @@ namespace Mist{
         streamStatus = Util::getStreamStatus(streamName);
       }
     }
-    if (streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
-      if (!myMeta.sourceURI.size()){
-        char pageId[NAME_BUFFER_SIZE];
-        snprintf(pageId, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-        nProxy.metaPages[0].init(pageId, DEFAULT_STRM_PAGE_SIZE);
-        if (nProxy.metaPages[0].mapped){
-          IPC::semaphore *liveSem = 0;
-          static char liveSemName[NAME_BUFFER_SIZE];
-          snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-          liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 8, !myMeta.live);
-          if (*liveSem){
-            liveSem->wait();
-          }else{
-            delete liveSem;
-            liveSem = 0;
-          }
-          DTSC::Packet tmpMeta(nProxy.metaPages[0].mapped, nProxy.metaPages[0].len, true);
-          if (tmpMeta.getVersion()){
-            DTSC::Meta reMeta;
-            reMeta.reinit(tmpMeta);
-            myMeta.sourceURI = reMeta.sourceURI;
-            myMeta.bootMsOffset = reMeta.bootMsOffset;
-          }
-          if (liveSem){
-            liveSem->post();
-            delete liveSem;
-            liveSem = 0;
-          }
-        }
-        nProxy.metaPages.clear();
-      }
-    }
+    if (streamStatus == STRMSTAT_READY || streamStatus == STRMSTAT_WAIT){reconnect();}
   }
 
+  void Output::selectAllTracks(){
+    std::set<size_t> tracks = getSupportedTracks();
+    for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+      userSelect[*it].reload(streamName, *it);
+    }
+  }
 }// namespace Mist

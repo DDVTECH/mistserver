@@ -37,6 +37,8 @@ libtool
 server.html*
 *.js.h
 *.css.h
+noffmpeg.h
+noh264.h
 .dirstamp
 *.orig
 *.lock

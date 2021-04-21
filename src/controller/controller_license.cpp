@@ -118,11 +118,12 @@ namespace Controller{
       for (unsigned int i = 0; i < 8; ++i){
         aesKey[15 - i] = ((currID >> (i * 8)) + aesKey[15 - i]) & 0xFF;
       }
-      char ivec[16];
-      memset(ivec, 0, 16);
+
+      Encryption::AES crypter;
+      crypter.setEncryptKey(aesKey);
+      // 0 here for 0-filled ivec.
       dl.setHeader("X-IRDGAF",
-                   Encodings::Base64::encode(Encryption::AES_Crypt(
-                       RELEASE "|" PACKAGE_VERSION, sizeof(RELEASE "|" PACKAGE_VERSION), aesKey, ivec)));
+                   Encodings::Base64::encode(crypter.encryptBlockCTR(0, RELEASE "|" PACKAGE_VERSION)));
     }
     if (!dl.get(url) || !dl.isOk()){return;}
     response = JSON::fromString(dl.data());
@@ -143,11 +144,12 @@ namespace Controller{
       aesKey[15 - i] = ((licID >> (i * 8)) + aesKey[15 - i]) & 0xFF;
     }
     std::string cipher = Encodings::Base64::decode(input);
-    std::string deCrypted;
     // magic ivecs, they are empty. It's secretly 16 times \0.
-    char ivec[16];
-    memset(ivec, 0, 16);
-    deCrypted = Encryption::AES_Crypt(cipher.c_str(), cipher.size(), aesKey, ivec);
+    Encryption::AES crypter;
+    crypter.setEncryptKey(aesKey);
+    // 0 here for 0-filled ivec.
+    std::string deCrypted = crypter.encryptBlockCTR(0, cipher);
+
     // get time stamps and license.
 
     // verify checksum

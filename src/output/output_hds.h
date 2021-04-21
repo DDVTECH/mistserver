@@ -14,11 +14,11 @@ namespace Mist{
 
   protected:
     void getTracks();
-    std::string dynamicBootstrap(int tid);
+    std::string dynamicBootstrap(size_t idx);
     std::string dynamicIndex();
-    std::set<int> videoTracks; ///<< Holds valid video tracks for playback
-    long long int audioTrack;  ///<< Holds audio track ID for playback
-    long long unsigned int playUntil;
+    std::set<size_t> videoTracks; ///<< Holds valid video tracks for playback
+    size_t audioTrack;            ///<< Holds audio track ID for playback
+    uint64_t playUntil;
     FLV::Tag tag;
   };
 }// namespace Mist

@@ -110,12 +110,13 @@ static inline void show_stackframe(){}
 
 #endif
 
-#ifndef SHM_DATASIZE
-#define SHM_DATASIZE 20
-#endif
+#define DTSH_FRAGMENT_SIZE 13
+#define DTSH_KEY_SIZE 25
+#define DTSH_PART_SIZE 9
 
-#define AUDIO_KEY_INTERVAL                                                                         \
-  2000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
+#ifndef SHM_DATASIZE
+#define SHM_DATASIZE 40
+#endif
 
 #ifndef STATS_DELAY
 #define STATS_DELAY 15
@@ -143,10 +144,62 @@ static inline void show_stackframe(){}
 /// Does not affect live streams.
 #define FLIP_MIN_DURATION 20000
 
-/// Interval where the input refreshes the user data for stats etc.
+// New meta
+#define SHM_STREAM_META "MstMeta%s" //%s stream name
+#define SHM_STREAM_META_LEN 8 * 1024 * 1024
+#define SHM_STREAM_META_ITEM 2 * 1024
+
+#define SHM_STREAM_TM "MstTrak%s@%" PRIu32 "-%zu" //%s stream name
+#define SHM_STREAM_TRACK_ITEM 16 * 1024 * 1024
+#define SHM_STREAM_TRACK_LEN 4 * SHM_STREAM_TRACK_ITEM
+
+// Default values, these will scale up and down when needed, and are mainly used as starting values.
+#define DEFAULT_TRACK_COUNT 100
+#define DEFAULT_FRAGMENT_COUNT 2000
+#define DEFAULT_KEY_COUNT                                                                          \
+  3 * DEFAULT_FRAGMENT_COUNT // A highest average of 5 keys / fragment is assumed
+#define DEFAULT_PART_COUNT                                                                         \
+  400 * DEFAULT_KEY_COUNT                    // A highest average of 500 parts / key is
+                                             // assumed
+#define DEFAULT_PAGE_COUNT DEFAULT_KEY_COUNT // Assume every page is a key to ensure enough space
+
+#define DEFAULT_FRAGMENT_DURATION 5000
+
+#define META_META_OFFSET 104
+#define META_META_RECORDSIZE 576
+
+#define META_TRACK_OFFSET 148
+#define META_TRACK_RECORDSIZE 1893
+
+#define TRACK_TRACK_OFFSET 184
+#define TRACK_TRACK_RECORDSIZE 362 + (1 * 1024 * 1024)
+
+#define TRACK_FRAGMENT_OFFSET 68
+#define TRACK_FRAGMENT_RECORDSIZE 14
+
+#define TRACK_KEY_OFFSET 90
+#define TRACK_KEY_RECORDSIZE 42
+
+#define TRACK_PART_OFFSET 60
+#define TRACK_PART_RECORDSIZE 8
+
+#define TRACK_PAGE_OFFSET 92
+#define TRACK_PAGE_RECORDSIZE 36
+
+#define COMMS_STATISTICS "MstStat"
+#define COMMS_STATISTICS_INITSIZE 8 * 1024 * 1024
+
+#define COMMS_USERS "MstUser%s" //%s stream name
+#define COMMS_USERS_INITSIZE 8 * 1024 * 1024
+
+#define SEM_STATISTICS "/MstStat"
+#define SEM_USERS "/MstUser%s" //%s stream name
+
+#define SHM_TRACK_DATA "MstData%s@%zu_%zu" //%s stream name, %zu track ID, %PRIu32 page #
+// End new meta
+
 #define INPUT_USER_INTERVAL 1000
 
-#define SHM_STREAM_INDEX "MstSTRM%s"  //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
 #define SHM_STREAM_CONF "MstSCnf%s"   //%s stream name
 #define SHM_GLOBAL_CONF "MstGlobalConfig"
@@ -157,12 +210,7 @@ static inline void show_stackframe(){}
 #define STRMSTAT_READY 4
 #define STRMSTAT_SHUTDOWN 5
 #define STRMSTAT_INVALID 255
-#define SHM_TRACK_META "MstTRAK%s@%lu"  //%s stream name, %lu track ID
-#define SHM_TRACK_INDEX "MstTRID%s@%lu" //%s stream name, %lu track ID
-#define SHM_TRACK_INDEX_SIZE 8192
-#define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
-#define SHM_STATISTICS "MstSTAT"
-#define SHM_USERS "MstUSER%s"   //%s stream name
+
 #define SHM_TRIGGER "MstTRGR%s" //%s trigger name
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
@@ -180,7 +228,7 @@ static inline void show_stackframe(){}
 
 #define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
 
-#define SIMUL_TRACKS 20
+#define SIMUL_TRACKS 40
 
 #ifndef UDP_API_HOST
 #define UDP_API_HOST "localhost"
@@ -190,8 +238,20 @@ static inline void show_stackframe(){}
 #define UDP_API_PORT 4242
 #endif
 
-#define INVALID_TRACK_ID 0
 
 // The amount of milliseconds a simulated live stream is allowed to be "behind".
 // Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
 #define SIMULATED_LIVE_BUFFER 7000
+
+#define STAT_EX_SIZE 177
+#define PLAY_EX_SIZE 2 + 6 * SIMUL_TRACKS
+
+#define INVALID_TRACK_ID 0xFFFFFFFF
+#define INVALID_KEY_NUM 0xFFFFFFFF
+#define INVALID_PAGE_NUM 0xFFFF
+#define INVALID_RECORD_INDEX 0xFFFFFFFFFFFFFFFF
+
+#define MAX_SIZE_T 0xFFFFFFFF
+
+#define NEW_TRACK_ID 0x80000000
+#define QUICK_NEGOTIATE 0xC0000000

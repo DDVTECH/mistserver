@@ -18,7 +18,8 @@ namespace TS{
     H265 = 0x24,
     ID3 = 0x15,
     MPEG2 = 0x02,
-    MP2 = 0x03
+    MP2 = 0x03,
+    META = 0x06
   };
 
   class ADTSRemainder{
@@ -57,10 +58,10 @@ namespace TS{
     bool hasPacketOnEachTrack() const;
     bool hasPacket(size_t tid) const;
     bool hasPacket() const;
-    void getPacket(size_t tid, DTSC::Packet &pack);
+    void getPacket(size_t tid, DTSC::Packet &pack, size_t mappedAs = INVALID_TRACK_ID);
     uint32_t getEarliestPID();
     void getEarliestPacket(DTSC::Packet &pack);
-    void initializeMetadata(DTSC::Meta &meta, size_t tid = 0, size_t mappingId = 0);
+    void initializeMetadata(DTSC::Meta &meta, size_t tid = INVALID_TRACK_ID, size_t mappingId = INVALID_TRACK_ID);
     void partialClear();
     void clear();
     void finish();

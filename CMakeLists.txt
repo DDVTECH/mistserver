@@ -9,6 +9,8 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98")
+
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON ) #For YCM support
@@ -132,6 +134,7 @@ endif()
 ########################################
 message("Builing release ${RELEASE} for version ${PACKAGE_VERSION} @ debug level ${DEBUG}")
 add_definitions(-g -funsigned-char -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -DDEBUG=${DEBUG} -DPACKAGE_VERSION=${PACKAGE_VERSION} -DRELEASE=${RELEASE})
+add_definitions(-Wall -Wno-sign-compare -Wparentheses)
 
 ########################################
 # MistLib - Header Files               #
@@ -145,6 +148,8 @@ set(libHeaders
   lib/bitstream.h
   lib/certificate.h
   lib/checksum.h
+  lib/cmaf.h
+  lib/comms.h
   lib/config.h
   lib/defines.h
   lib/dtls_srtp_handshake.h
@@ -168,7 +173,6 @@ set(libHeaders
   lib/nal.h
   lib/ogg.h
   lib/procs.h
-  lib/rijndael.h
   lib/rtmpchunks.h
   lib/rtp_fec.h
   lib/rtp.h
@@ -207,11 +211,12 @@ add_library (mist
   lib/encode.cpp
   lib/bitfields.cpp
   lib/bitstream.cpp
+  lib/cmaf.cpp
+  lib/comms.cpp
   lib/certificate.cpp
   lib/config.cpp
   lib/dtls_srtp_handshake.cpp
   lib/dtsc.cpp
-  lib/dtscmeta.cpp
   lib/encryption.cpp
   lib/flv_tag.cpp
   lib/h264.cpp
@@ -230,7 +235,6 @@ add_library (mist
   lib/nal.cpp
   lib/ogg.cpp
   lib/procs.cpp
-  lib/rijndael.cpp
   lib/rtmpchunks.cpp
   lib/rtp_fec.cpp
   lib/rtp.cpp
@@ -356,7 +360,8 @@ macro(makeUtil utilName utilFile)
   )
 endmacro()
 
-makeUtil(Stats stats)
+#makeUtil(Stats stats)
+makeUtil(META meta)
 makeUtil(RAX rax)
 makeUtil(AMF amf)
 makeUtil(Certbot certbot)
@@ -364,6 +369,14 @@ if (DEFINED LOAD_BALANCE )
   makeUtil(Load load)
 endif()
 #LTS_END
+
+add_executable(MistTranslateH264
+  src/analysers/h264_translate.cpp
+  ${BINARY_DIR}/mist/.headers
+)
+target_link_libraries(MistTranslateH264
+  mist
+)
 
 ########################################
 # MistServer - Inputs                  #
@@ -396,7 +409,6 @@ endmacro()
 
 makeInput(HLS hls)
 makeInput(DTSC dtsc)
-makeInput(DTSCCrypt dtsccrypt)
 makeInput(MP3 mp3)
 makeInput(FLV flv)
 if (DEFINED WITH_AV )
@@ -432,6 +444,9 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";ts;")
     SET(tsOutput src/output/output_ts_base.cpp)
   endif()
+  if (";${ARGN};" MATCHES ";jpg;")
+    SET(tsOutput generated/noffmpeg.h generated/noh264.h)
+  endif()
   add_executable(MistOut${outputName}
     src/output/mist_out.cpp
     src/output/output.cpp
@@ -439,6 +454,7 @@ macro(makeOutput outputName format)
     src/io.cpp
     ${httpOutput}
     ${tsOutput} 
+    ${mp4Output}
     ${BINARY_DIR}/mist/.headers
   )
   set_target_properties(MistOut${outputName} 
@@ -455,21 +471,23 @@ endmacro()
 
 makeOutput(RTMP rtmp)
 makeOutput(DTSC dtsc)
-makeOutput(OGG progressive_ogg http)
-makeOutput(FLV progressive_flv http)
-makeOutput(HTTPMinimalServer http_minimalserver http)
-makeOutput(MP4 progressive_mp4 http)
-makeOutput(MP3 progressive_mp3 http)
+makeOutput(OGG ogg             http)
+makeOutput(FLV flv             http)
+makeOutput(HTTPMinimalServer   http_minimalserver http)
+makeOutput(MP4 mp4             http)
+makeOutput(MP3 mp3             http)
 makeOutput(H264 h264           http)
-makeOutput(HSS hss             http)
 makeOutput(HDS hds             http)
 makeOutput(SRT srt             http)
 makeOutput(JSON json           http)
+if (DEFINED WITH_JPG )
+makeOutput(JPG jpg             http jpg)
+endif()
 makeOutput(TS ts                    ts)
 makeOutput(HTTPTS httpts       http ts)
 makeOutput(HLS hls             http ts)
+makeOutput(CMAF cmaf           http)#LTS
 makeOutput(EBML ebml)
-makeOutput(Push push)#LTS
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 makeOutput(WebRTC webrtc http)#LTS
@@ -501,7 +519,6 @@ target_link_libraries(MistProcMKVExec mist)
 if (NOT DEFINED NOSSL )
   makeOutput(HTTPS https)#LTS
 endif()
-makeOutput(DASH dash_mp4       http)#LTS
 
 if (DEFINED WITH_SANITY )
   makeOutput(SanityCheck sanitycheck)#LTS
@@ -587,6 +604,17 @@ else()
 endif()
 
 ########################################
+# RelAccX Sampler                      #
+########################################
+  add_executable(RelAccXSampler
+    src/relaccxsampler.cpp
+    ${BINARY_DIR}/mist/.headers
+  )
+  target_link_libraries(RelAccXSampler
+    mist 
+  )
+
+########################################
 # Embed Code                           #
 ########################################
 # main
@@ -656,6 +684,18 @@ add_custom_command(OUTPUT generated/skin_dev.css.h
 add_custom_command(OUTPUT generated/skin_videojs.css.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/skins/video-js.css skin_videojs_css generated/skin_videojs.css.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/skins/video-js.css
+)
+
+########################################
+# JPG output                           #
+########################################
+add_custom_command(OUTPUT generated/noffmpeg.h
+  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noffmpeg.jpg noffmpeg generated/noffmpeg.h
+  DEPENDS sourcery ${SOURCE_DIR}/src/output/noffmpeg.jpg
+)
+add_custom_command(OUTPUT generated/noh264.h
+  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noh264.jpg noh264 generated/noh264.h
+  DEPENDS sourcery ${SOURCE_DIR}/src/output/noh264.jpg
 )
 
 ########################################
@@ -742,15 +782,6 @@ add_custom_target(clean-all
 ########################################
 # Tests                                #
 ########################################
-add_executable(aes_ctr128
-  test/aes_ctr128.cpp
-  ${BINARY_DIR}/mist/.headers
-)
-target_link_libraries(aes_ctr128
-  mist
-)
-add_test(AESTest COMMAND aes_ctr128)
-
 add_executable(urltest test/url.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(urltest mist)
 add_test(URLTest COMMAND urltest)
@@ -768,4 +799,7 @@ target_link_libraries(jsontest mist)
 add_test(JSONTest COMMAND jsontest)
 add_executable(resolvetest test/resolve.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(resolvetest mist)
+add_executable(bitwritertest test/bitwriter.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(bitwritertest mist)
+add_test(BitWriterTest COMMAND bitwritertest)
 

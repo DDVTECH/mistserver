@@ -213,7 +213,6 @@ std::string Certificate::getFingerprintSha256(){
 
   uint8_t fingerprint_raw[32] ={};
   uint8_t fingerprint_hex[128] ={};
-  mbedtls_md_type_t hash_type = MBEDTLS_MD_SHA256;
 
   mbedtls_sha256(cert.raw.p, cert.raw.len, fingerprint_raw, 0);
 

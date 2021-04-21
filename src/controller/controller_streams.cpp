@@ -295,8 +295,8 @@ namespace Controller{
       Util::sanitizeName(cleaned);
       std::string strmSource;
       if (Util::getStreamStatus(cleaned) != STRMSTAT_OFF){
-        DTSC::Meta mData = Util::getStreamMeta(cleaned);
-        if (mData.sourceURI.size()){strmSource = mData.sourceURI;}
+        DTSC::Meta M(cleaned, false);
+        if (M && M.getSource().size()){strmSource = M.getSource();}
       }
       if (!strmSource.size()){
         std::string smp = cleaned.substr(0, cleaned.find_first_of("+ "));

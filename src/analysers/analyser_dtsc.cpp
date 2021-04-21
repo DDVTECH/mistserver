@@ -35,7 +35,7 @@ bool AnalyserDTSC::parsePacket(){
   }
   P.reInit(conn);
   if (conn && !P){
-    FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes)
+    FAIL_MSG("Invalid DTSC packet @ byte %" PRIu64, totalBytes)
     return false;
   }
   if (!conn && !P){
@@ -70,8 +70,7 @@ bool AnalyserDTSC::parsePacket(){
   case DTSC::DTSC_HEAD:{
     if (detail >= 3){
       std::cout << "DTSC header: ";
-      DTSC::Meta(P).toPrettyString(
-          std::cout, 0, (detail == 3 ? 0 : (detail == 4 ? 0x01 : (detail == 5 ? 0x03 : 0x07))));
+      std::cout << DTSC::Meta("", P.getScan()).toPrettyString();
     }
     if (detail == 2){std::cout << "DTSC header: " << P.getScan().toPrettyString() << std::endl;}
     if (detail == 1){
@@ -79,30 +78,34 @@ bool AnalyserDTSC::parsePacket(){
       bool hasAAC = false;
       JSON::Value result;
       std::stringstream issues;
-      DTSC::Meta M(P);
-      for (std::map<unsigned int, DTSC::Track>::iterator it = M.tracks.begin(); it != M.tracks.end(); it++){
+      DTSC::Meta M("", P.getScan());
+      std::set<size_t> validTracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        std::string codec = M.getCodec(*it);
         JSON::Value track;
-        track["kbits"] = (uint64_t)((double)it->second.bps * 8 / 1024);
-        track["codec"] = it->second.codec;
+        track["kbits"] = M.getBps(*it) * 8 / 1024;
+        track["codec"] = codec;
         uint32_t shrtest_key = 0xFFFFFFFFul;
         uint32_t longest_key = 0;
         uint32_t shrtest_prt = 0xFFFFFFFFul;
         uint32_t longest_prt = 0;
         uint32_t shrtest_cnt = 0xFFFFFFFFul;
         uint32_t longest_cnt = 0;
-        for (std::deque<DTSC::Key>::iterator k = it->second.keys.begin(); k != it->second.keys.end(); k++){
-          if (!k->getLength()){continue;}
-          if (k->getLength() > longest_key){longest_key = k->getLength();}
-          if (k->getLength() < shrtest_key){shrtest_key = k->getLength();}
-          if (k->getParts() > longest_cnt){longest_cnt = k->getParts();}
-          if (k->getParts() < shrtest_cnt){shrtest_cnt = k->getParts();}
-          if (k->getParts()){
-            if ((k->getLength() / k->getParts()) > longest_prt){
-              longest_prt = (k->getLength() / k->getParts());
-            }
-            if ((k->getLength() / k->getParts()) < shrtest_prt){
-              shrtest_prt = (k->getLength() / k->getParts());
-            }
+
+        DTSC::Keys keys(M.keys(*it));
+        uint32_t firstKey = keys.getFirstValid();
+        uint32_t endKey = keys.getEndValid();
+        for (int i = firstKey; i < endKey; i++){
+          uint64_t keyDuration = keys.getDuration(i);
+          uint64_t keyParts = keys.getParts(i);
+          if (!keyDuration){continue;}
+          if (keyDuration > longest_key){longest_key = keyDuration;}
+          if (keyDuration < shrtest_key){shrtest_key = keyDuration;}
+          if (keyParts > longest_cnt){longest_cnt = keyParts;}
+          if (keyParts < shrtest_cnt){shrtest_cnt = keyParts;}
+          if (keyParts){
+            if ((keyDuration / keyParts) > longest_prt){longest_prt = (keyDuration / keyParts);}
+            if ((keyDuration / keyParts) < shrtest_prt){shrtest_prt = (keyDuration / keyParts);}
           }
         }
         track["keys"]["ms_min"] = shrtest_key;
@@ -112,28 +115,28 @@ bool AnalyserDTSC::parsePacket(){
         track["keys"]["frames_min"] = shrtest_cnt;
         track["keys"]["frames_max"] = longest_cnt;
         if (longest_prt > 500){
-          issues << "unstable connection (" << longest_prt << "ms " << it->second.codec << " frame)! ";
+          issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
         }
         if (shrtest_cnt < 6){
-          issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec << " frames in key)! ";
+          issues << "unstable connection (" << shrtest_cnt << " " << codec << " frames in key)! ";
         }
-        if (it->second.codec == "AAC"){hasAAC = true;}
-        if (it->second.codec == "H264"){hasH264 = true;}
-        if (it->second.type == "video"){
-          track["width"] = it->second.width;
-          track["height"] = it->second.height;
-          track["fpks"] = it->second.fpks;
-          if (it->second.codec == "H264"){
+        if (codec == "AAC"){hasAAC = true;}
+        if (codec == "H264"){hasH264 = true;}
+        if (M.getType(*it) == "video"){
+          track["width"] = M.getWidth(*it);
+          track["height"] = M.getHeight(*it);
+          track["fpks"] = M.getFpks(*it);
+          if (codec == "H264"){
             h264::sequenceParameterSet sps;
-            sps.fromDTSCInit(it->second.init);
+            sps.fromDTSCInit(M.getInit(*it));
             h264::SPSMeta spsData = sps.getCharacteristics();
             track["h264"]["profile"] = spsData.profile;
             track["h264"]["level"] = spsData.level;
           }
         }
-        result[it->second.getWritableIdentifier()] = track;
+        result[M.getTrackIdentifier(*it)] = track;
       }
-      if ((hasAAC || hasH264) && M.tracks.size() > 1){
+      if (hasAAC || hasH264){
         if (!hasAAC){issues << "HLS no audio!";}
         if (!hasH264){issues << "HLS no video!";}
       }
@@ -147,7 +150,7 @@ bool AnalyserDTSC::parsePacket(){
     if (detail >= 2){std::cout << "DTCM command: " << P.getScan().toPrettyString() << std::endl;}
     break;
   }
-  default: FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes); break;
+  default: FAIL_MSG("Invalid DTSC packet @ byte %" PRIu64, totalBytes); break;
   }
 
   totalBytes += P.getDataLen();

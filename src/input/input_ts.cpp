@@ -27,82 +27,112 @@ TS::Stream liveStream(true);
 Util::Config *cfgPointer = NULL;
 
 #define THREAD_TIMEOUT 15
-std::map<unsigned long long, unsigned long long> threadTimer;
+std::map<size_t, uint64_t> threadTimer;
 
-std::set<unsigned long> claimableThreads;
+std::set<size_t> claimableThreads;
 
-void parseThread(void *ignored){
+void parseThread(void *mistIn){
+  Mist::inputTS *input = reinterpret_cast<Mist::inputTS *>(mistIn);
 
-  int tid = -1;
+  size_t tid = 0;
   {
     tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
     if (claimableThreads.size()){
       tid = *claimableThreads.begin();
       claimableThreads.erase(claimableThreads.begin());
     }
-    if (tid == -1){return;}
   }
+  if (tid == 0){return;}
 
-  Mist::negotiationProxy myProxy;
-  myProxy.streamName = globalStreamName;
-  DTSC::Meta myMeta;
+  Comms::Users userConn;
+  DTSC::Meta meta;
 
-  if (liveStream.isDataTrack(tid)){
+  bool dataTrack = liveStream.isDataTrack(tid);
+
+  if (dataTrack){
     if (!Util::streamAlive(globalStreamName) &&
         !Util::startInput(globalStreamName, "push://INTERNAL_ONLY:" + cfgPointer->getString("input"), true, true)){
       FAIL_MSG("Could not start buffer for %s", globalStreamName.c_str());
       return;
     }
 
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, globalStreamName.c_str());
-    myProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    myProxy.userClient.countAsViewer = false;
+    {
+      tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+      if (!input->hasMeta()){input->reloadClientMeta();}
+    }
+    meta.reInit(globalStreamName, false);
   }
+
+  size_t idx = meta.trackIDToIndex(tid, getpid());
 
   threadTimer[tid] = Util::bootSecs();
   while (Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT && cfgPointer->is_active &&
-         (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive())){
+         (!liveStream.isDataTrack(tid) || (userConn ? userConn.isAlive() : true))){
     {
       tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
       threadTimer[tid] = Util::bootSecs();
     }
-    if (liveStream.isDataTrack(tid)){myProxy.userClient.keepAlive();}
+    if (liveStream.isDataTrack(tid)){userConn.keepAlive();}
     liveStream.parse(tid);
     if (!liveStream.hasPacket(tid)){
       Util::sleep(100);
       continue;
     }
     uint64_t startSecs = Util::bootSecs();
-    while (liveStream.hasPacket(tid) && ((Util::bootSecs() < startSecs + 2) && cfgPointer->is_active &&
-                                         (!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive()))){
-      liveStream.initializeMetadata(myMeta, tid);
-      DTSC::Packet pack;
-      liveStream.getPacket(tid, pack);
-      if (!pack){
-        Util::sleep(100);
-        break;
+    while (liveStream.hasPacket(tid) &&
+           ((Util::bootSecs() < startSecs + 2) && cfgPointer->is_active &&
+            (!liveStream.isDataTrack(tid) || (userConn ? userConn.isAlive() : true)))){
+      liveStream.parse(tid);
+      if (liveStream.hasPacket(tid)){
+        if (idx == INVALID_TRACK_ID){
+          tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+          liveStream.initializeMetadata(meta, tid);
+          idx = meta.trackIDToIndex(tid, getpid());
+          if (idx != INVALID_TRACK_ID){
+            userConn.reload(globalStreamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+            input->reloadClientMeta();
+          }
+        }
+        if (idx == INVALID_TRACK_ID || !meta.trackValid(idx)){continue;}
+        if (!meta.trackLoaded(idx)){meta.refresh();}
+        DTSC::Packet pack;
+        liveStream.getPacket(tid, pack);
+        if (pack){
+          tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+          if (!input->hasMeta()){input->reloadClientMeta();}
+          if (dataTrack){
+            char *data;
+            size_t dataLen;
+            pack.getString("data", data, dataLen);
+            input->bufferLivePacket(pack.getTime(), pack.getInt("offset"), idx, data, dataLen,
+                                    pack.getInt("bpos"), pack.getFlag("keyframe"));
+          }
+        }
       }
-      if (myMeta.tracks.count(tid)){
-        myProxy.continueNegotiate(tid, myMeta, true);
-        myProxy.bufferLivePacket(pack, myMeta);
+      {
+        tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
+        threadTimer[tid] = Util::bootSecs();
+      }
+      if (!liveStream.hasPacket(tid)){
+        if (liveStream.isDataTrack(tid)){userConn.keepAlive();}
+        Util::sleep(100);
       }
     }
   }
   std::string reason = "unknown reason";
   if (!(Util::bootSecs() - threadTimer[tid] < THREAD_TIMEOUT)){reason = "thread timeout";}
   if (!cfgPointer->is_active){reason = "input shutting down";}
-  if (!(!liveStream.isDataTrack(tid) || myProxy.userClient.isAlive())){
+  if (!(!liveStream.isDataTrack(tid) || userConn.isAlive())){
     reason = "buffer disconnect";
     cfgPointer->is_active = false;
   }
-  INFO_MSG("Shutting down thread for %d because %s", tid, reason.c_str());
+  INFO_MSG("Shutting down thread for %zu because %s", tid, reason.c_str());
   {
     tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
     threadTimer.erase(tid);
   }
   liveStream.eraseTrack(tid);
-  myProxy.userClient.finish();
+  if (dataTrack && userConn){userConn.setStatus(COMM_STATUS_DISCONNECT);}
 }
 
 namespace Mist{
@@ -117,6 +147,7 @@ namespace Mist{
         "standard input (ts-exec:*), or multicast/unicast UDP sockets (tsudp://*).";
     capa["source_match"].append("/*.ts");
     capa["source_file"] = "$source";
+    capa["source_match"].append("/*.m2ts");
     capa["source_match"].append("stream://*.ts");
     capa["source_match"].append("tsudp://*");
     capa["source_match"].append("ts-exec:*");
@@ -143,9 +174,9 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP2");
     inFile = NULL;
     inputProcess = 0;
+    isFinished = false;
 
     {
-      int fin = 0, fout = 0, ferr = 0;
       pid_t srt_tx = -1;
       const char *args[] ={"srt-live-transmit", 0};
       srt_tx = Util::Procs::StartPiped(args, 0, 0, 0);
@@ -265,23 +296,6 @@ namespace Mist{
     return inFile;
   }
 
-  /// Track selector of TS Input
-  ///\arg trackSpec specifies which tracks  are to be selected
-  ///\todo test whether selecting a subset of tracks work
-  void inputTS::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    long long int index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
-    }
-  }
-
   bool inputTS::needHeader(){
     if (!standAlone){return false;}
     return Input::needHeader();
@@ -295,6 +309,7 @@ namespace Mist{
   ///\todo Find errors, perhaps parts can be made more modular
   bool inputTS::readHeader(){
     if (!inFile){return false;}
+    meta.reInit(streamName);
     TS::Packet packet; // to analyse and extract data
     DTSC::Packet headerPack;
     fseek(inFile, 0, SEEK_SET); // seek to beginning
@@ -306,28 +321,39 @@ namespace Mist{
       if (packet.getUnitStart()){
         while (tsStream.hasPacketOnEachTrack()){
           tsStream.getEarliestPacket(headerPack);
-          if (!headerPack){break;}
-          if (!myMeta.tracks.count(headerPack.getTrackId()) ||
-              !myMeta.tracks[headerPack.getTrackId()].codec.size()){
-            tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+          size_t pid = headerPack.getTrackId();
+          size_t idx = M.trackIDToIndex(pid, getpid());
+          if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
+            tsStream.initializeMetadata(meta, pid);
+            idx = M.trackIDToIndex(pid, getpid());
           }
-          myMeta.update(headerPack);
+          char *data;
+          size_t dataLen;
+          headerPack.getString("data", data, dataLen);
+          meta.update(headerPack.getTime(), headerPack.getInt("offset"), idx, dataLen,
+                      headerPack.getInt("bpos"), headerPack.getFlag("keyframe"), headerPack.getDataLen());
         }
       }
     }
     tsStream.finish();
-    INFO_MSG("Reached %s at %llu bytes", feof(inFile) ? "EOF" : "error", lastBpos);
+    INFO_MSG("Reached %s at %" PRIu64 " bytes", feof(inFile) ? "EOF" : "error", lastBpos);
     while (tsStream.hasPacket()){
       tsStream.getEarliestPacket(headerPack);
-      if (!myMeta.tracks.count(headerPack.getTrackId()) ||
-          !myMeta.tracks[headerPack.getTrackId()].codec.size()){
-        tsStream.initializeMetadata(myMeta, headerPack.getTrackId());
+      size_t pid = headerPack.getTrackId();
+      size_t idx = M.trackIDToIndex(pid, getpid());
+      if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
+        tsStream.initializeMetadata(meta, pid);
+        idx = M.trackIDToIndex(pid, getpid());
       }
-      myMeta.update(headerPack);
+      char *data;
+      size_t dataLen;
+      headerPack.getString("data", data, dataLen);
+      meta.update(headerPack.getTime(), headerPack.getInt("offset"), idx, dataLen,
+                  headerPack.getInt("bpos"), headerPack.getFlag("keyframe"), headerPack.getDataLen());
     }
 
     fseek(inFile, 0, SEEK_SET);
-    myMeta.toFile(config->getString("input") + ".dtsh");
+    meta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 
@@ -335,40 +361,42 @@ namespace Mist{
   /// At the moment, the logic of sending the last packet that was finished has been implemented,
   /// but the seeking and finding data is not yet ready.
   ///\todo Finish the implementation
-  void inputTS::getNext(bool smart){
-    INSANE_MSG("Getting next");
+  void inputTS::getNext(size_t idx){
+    size_t pid = (idx == INVALID_TRACK_ID ? 0 : M.getID(idx));
+    INSANE_MSG("Getting next on track %zu", idx);
     thisPacket.null();
-    bool hasPacket =
-        (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin()) : tsStream.hasPacket());
+    bool hasPacket = (idx == INVALID_TRACK_ID ? tsStream.hasPacket() : tsStream.hasPacket(pid));
     while (!hasPacket && !feof(inFile) &&
            (inputProcess == 0 || Util::Procs::childRunning(inputProcess)) && config->is_active){
       tsBuf.FromFile(inFile);
-      if (selectedTracks.count(tsBuf.getPID())){
+      if (idx == INVALID_TRACK_ID || pid == tsBuf.getPID()){
         tsStream.parse(tsBuf, 0); // bPos == 0
         if (tsBuf.getUnitStart()){
-          hasPacket = (selectedTracks.size() == 1 ? tsStream.hasPacket(*selectedTracks.begin())
-                                                  : tsStream.hasPacket());
+          hasPacket = (idx == INVALID_TRACK_ID ? tsStream.hasPacket() : tsStream.hasPacket(pid));
         }
       }
     }
     if (feof(inFile)){
-      tsStream.finish();
+      if (!isFinished){
+        tsStream.finish();
+        isFinished = true;
+      }
       hasPacket = true;
     }
     if (!hasPacket){return;}
-    if (selectedTracks.size() == 1){
-      if (tsStream.hasPacket(*selectedTracks.begin())){
-        tsStream.getPacket(*selectedTracks.begin(), thisPacket);
-      }
-    }else{
+    if (idx == INVALID_TRACK_ID){
       if (tsStream.hasPacket()){tsStream.getEarliestPacket(thisPacket);}
+    }else{
+      if (tsStream.hasPacket(pid)){tsStream.getPacket(pid, thisPacket);}
     }
+
     if (!thisPacket){
       INFO_MSG("Could not getNext TS packet!");
       return;
     }
-    tsStream.initializeMetadata(myMeta);
-    if (!myMeta.tracks.count(thisPacket.getTrackId())){getNext();}
+    tsStream.initializeMetadata(meta);
+    size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+    if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
   }
 
   void inputTS::readPMT(){
@@ -388,24 +416,31 @@ namespace Mist{
     tsStream.partialClear();
 
     // Restore original file position
-    if (Util::fseek(inFile, bpos, SEEK_SET)){return;}
+    if (Util::fseek(inFile, bpos, SEEK_SET)){
+      clearerr(inFile);
+      return;
+    }
   }
 
   /// Seeks to a specific time
-  void inputTS::seek(int seekTime){
+  void inputTS::seek(uint64_t seekTime, size_t idx){
     tsStream.clear();
     readPMT();
-    uint64_t seekPos = 0xFFFFFFFFFFFFFFFFull;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      unsigned long thisBPos = 0;
-      for (std::deque<DTSC::Key>::iterator keyIt = myMeta.tracks[*it].keys.begin();
-           keyIt != myMeta.tracks[*it].keys.end(); keyIt++){
-        if (keyIt->getTime() > seekTime){break;}
-        thisBPos = keyIt->getBpos();
-        tsStream.setLastms(*it, keyIt->getTime());
+    uint64_t seekPos = 0xFFFFFFFFull;
+    if (idx != INVALID_TRACK_ID){
+      DTSC::Keys keys(M.keys(idx));
+      uint32_t keyNum = keys.getNumForTime(seekTime);
+      seekPos = keys.getBpos(keyNum);
+    }else{
+      std::set<size_t> tracks = M.getValidTracks();
+      for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+        DTSC::Keys keys(M.keys(*it));
+        uint32_t keyNum = keys.getNumForTime(seekTime);
+        uint64_t thisBPos = keys.getBpos(keyNum);
+        if (thisBPos < seekPos){seekPos = thisBPos;}
       }
-      if (thisBPos < seekPos){seekPos = thisBPos;}
     }
+    clearerr(inFile);
     Util::fseek(inFile, seekPos, SEEK_SET); // seek to the correct position
   }
 
@@ -424,22 +459,23 @@ namespace Mist{
   }
 
   void inputTS::parseStreamHeader(){
-    // Placeholder to force normal code to continue despite no tracks available
-    myMeta.tracks[0].type = "audio";
+    // Placeholder empty track to force normal code to continue despite no tracks available
+    tmpIdx = meta.addTrack(0, 0, 0, 0);
   }
 
   std::string inputTS::streamMainLoop(){
-    myMeta.tracks.clear(); // wipe the placeholder track from above
-    IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+    meta.removeTrack(tmpIdx);
+    INFO_MSG("Removed temptrack %zu", tmpIdx);
+    Comms::Statistics statComm;
     uint64_t downCounter = 0;
-    uint64_t startTime = Util::epoch();
+    uint64_t startTime = Util::bootSecs();
     uint64_t noDataSince = Util::bootSecs();
     bool gettingData = false;
     bool hasStarted = false;
     cfgPointer = config;
     globalStreamName = streamName;
     unsigned long long threadCheckTimer = Util::bootSecs();
-    while (config->is_active && nProxy.userClient.isAlive()){
+    while (config->is_active){
       if (tcpCon){
         if (tcpCon.spool()){
           while (tcpCon.Received().available(188)){
@@ -471,7 +507,7 @@ namespace Mist{
             gettingData = true;
             INFO_MSG("Now receiving UDP data...");
           }
-          int offset = 0;
+          size_t offset = 0;
           // Try to read full TS Packets
           // Watch out! We push here to a global, in order for threads to be able to access it.
           while (offset < udpCon.data_len){
@@ -489,7 +525,7 @@ namespace Mist{
               uint32_t maxBytes =
                   std::min((uint32_t)(188 - leftData.size()), (uint32_t)(udpCon.data_len - offset));
               uint32_t numBytes = maxBytes;
-              VERYHIGH_MSG("%lu bytes of non-sync-byte data received", numBytes);
+              VERYHIGH_MSG("%" PRIu32 " bytes of non-sync-byte data received", numBytes);
               if (leftData.size()){
                 leftData.append(udpCon.data + offset, numBytes);
                 while (leftData.size() >= 188){
@@ -517,28 +553,23 @@ namespace Mist{
       // Check for and spawn threads here.
       if (Util::bootSecs() - threadCheckTimer > 1){
         // Connect to stats for INPUT detection
-        uint64_t now = Util::epoch();
-        if (!statsPage.getData()){
-          statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
-        }
-        if (statsPage.getData()){
-          if (!statsPage.isAlive()){
+        statComm.reload();
+        if (statComm){
+          if (!statComm.isAlive()){
             config->is_active = false;
-            statsPage.finish();
             return "received shutdown request from controller";
           }
-          IPC::statExchange tmpEx(statsPage.getData());
-          tmpEx.now(now);
-          tmpEx.crc(getpid());
-          tmpEx.streamName(streamName);
-          tmpEx.connector("INPUT");
-          tmpEx.up(0);
-          tmpEx.down(downCounter + tcpCon.dataDown());
-          tmpEx.time(now - startTime);
-          tmpEx.lastSecond(0);
-          statsPage.keepAlive();
+          uint64_t now = Util::bootSecs();
+          statComm.setNow(now);
+          statComm.setCRC(getpid());
+          statComm.setStream(streamName);
+          statComm.setConnector("INPUT");
+          statComm.setUp(0);
+          statComm.setDown(downCounter + tcpCon.dataDown());
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          statComm.keepAlive();
         }
-        nProxy.userClient.keepAlive();
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();
         {
@@ -546,7 +577,6 @@ namespace Mist{
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
-              statsPage.finish();
               return "no active threads and we had input in the past";
             }else{
               hasStarted = false;
@@ -555,7 +585,8 @@ namespace Mist{
           for (std::set<size_t>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++){
             if (!liveStream.isDataTrack(*it)){continue;}
             if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))){
-              WARN_MSG("Thread for track %d timed out %d seconds ago without a clean shutdown.",
+              WARN_MSG("Thread for track %" PRIu64 " timed out %" PRIu64
+                       " seconds ago without a clean shutdown.",
                        *it, Util::bootSecs() - threadTimer[*it]);
               threadTimer.erase(*it);
             }
@@ -566,7 +597,7 @@ namespace Mist{
               claimableThreads.insert(*it);
 
               // Spawn thread here.
-              tthread::thread thisThread(parseThread, 0);
+              tthread::thread thisThread(parseThread, this);
               thisThread.detach();
             }
           }
@@ -576,14 +607,12 @@ namespace Mist{
       if (Util::bootSecs() - noDataSince > 20){
         if (!isAlwaysOn()){
           config->is_active = false;
-          statsPage.finish();
           return "No packets received for 20 seconds - terminating";
         }else{
           noDataSince = Util::bootSecs();
         }
       }
     }
-    statsPage.finish();
     return "received shutdown request";
   }
 
@@ -612,9 +641,8 @@ namespace Mist{
         inpt.substr(0, 7) != "http://" && inpt.substr(0, 10) != "http-ts://" &&
         inpt.substr(0, 8) != "https://" && inpt.substr(0, 11) != "https-ts://"){
       return Input::needsLock();
-    }else{
-      return false;
     }
+    return false;
   }
 
 }// namespace Mist

@@ -25,36 +25,36 @@ namespace RTP{
 
   char *Packet::getPayload() const{return data + getHsize();}
 
-  unsigned int Packet::getVersion() const{return (data[0] >> 6) & 0x3;}
+  uint32_t Packet::getVersion() const{return (data[0] >> 6) & 0x3;}
 
-  unsigned int Packet::getPadding() const{return (data[0] >> 5) & 0x1;}
+  uint32_t Packet::getPadding() const{return (data[0] >> 5) & 0x1;}
 
-  unsigned int Packet::getExtension() const{return (data[0] >> 4) & 0x1;}
+  uint32_t Packet::getExtension() const{return (data[0] >> 4) & 0x1;}
 
-  unsigned int Packet::getContribCount() const{return (data[0]) & 0xE;}
+  uint32_t Packet::getContribCount() const{return (data[0]) & 0xE;}
 
-  unsigned int Packet::getMarker() const{return (data[1] >> 7) & 0x1;}
+  uint32_t Packet::getMarker() const{return (data[1] >> 7) & 0x1;}
 
-  unsigned int Packet::getPayloadType() const{return (data[1]) & 0x7F;}
+  uint32_t Packet::getPayloadType() const{return (data[1]) & 0x7F;}
 
-  unsigned int Packet::getSequence() const{return (((((unsigned int)data[2]) << 8) + data[3]));}
+  uint16_t Packet::getSequence() const{return Bit::btohs(data + 2);}
 
   uint32_t Packet::getTimeStamp() const{return Bit::btohl(data + 4);}
 
-  unsigned int Packet::getSSRC() const{return ntohl(*((unsigned int *)(data + 8)));}
+  unsigned int Packet::getSSRC() const{return Bit::btohl(data + 8);}
 
-  char *Packet::getData(){return data + 8 + 4 * getContribCount() + getExtension();}
+  const char *Packet::getData(){return data + 8 + 4 * getContribCount() + getExtension();}
 
-  void Packet::setTimestamp(uint32_t t){Bit::htobl(data + 4, t);}
+  void Packet::setTimestamp(uint32_t timestamp){Bit::htobl(data + 4, timestamp);}
 
-  void Packet::setSequence(unsigned int seq){*((short *)(data + 2)) = htons(seq);}
+  void Packet::setSequence(uint16_t seq){Bit::htobs(data + 2, seq);}
 
-  void Packet::setSSRC(unsigned long ssrc){*((int *)(data + 8)) = htonl(ssrc);}
+  void Packet::setSSRC(uint32_t ssrc){Bit::htobl(data + 8, ssrc);}
 
-  void Packet::increaseSequence(){*((short *)(data + 2)) = htons(getSequence() + 1);}
+  void Packet::increaseSequence(){setSequence(getSequence() + 1);}
 
-  void Packet::sendH264(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                        const char *payload, unsigned int payloadlen, unsigned int channel, bool lastOfAccesUnit){
+  void Packet::sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t),
+                        const char *payload, uint32_t payloadlen, uint32_t channel, bool lastOfAccesUnit){
     if ((payload[0] & 0x1F) == 12){return;}
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 2 <= maxDataLen){
@@ -102,7 +102,7 @@ namespace RTP{
     }
   }
 
-  void Packet::sendVP8(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+  void Packet::sendVP8(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                        const char *payload, unsigned int payloadlen, unsigned int channel){
 
     bool isKeyframe = ((payload[0] & 0x01) == 0) ? true : false;
@@ -133,7 +133,7 @@ namespace RTP{
     // WARN_MSG("KEYFRAME: %c", (isKeyframe) ? 'y' : 'n');
   }
 
-  void Packet::sendH265(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+  void Packet::sendH265(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                         const char *payload, unsigned int payloadlen, unsigned int channel){
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 3 <= maxDataLen){
@@ -175,7 +175,7 @@ namespace RTP{
     }
   }
 
-  void Packet::sendMPEG2(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+  void Packet::sendMPEG2(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                          const char *payload, unsigned int payloadlen, unsigned int channel){
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 4 <= maxDataLen){
@@ -223,8 +223,8 @@ namespace RTP{
     }
   }
 
-  void Packet::sendData(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                        const char *payload, unsigned int payloadlen, unsigned int channel, std::string codec){
+  void Packet::sendData(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
+                        unsigned int payloadlen, unsigned int channel, std::string codec){
     if (codec == "H264"){
       unsigned long sent = 0;
       while (sent < payloadlen){
@@ -254,18 +254,18 @@ namespace RTP{
     }
     /// \todo This function probably belongs in DMS somewhere.
     data[1] |= 0x80; // setting the RTP marker bit to 1
-    long offsetLen = 0;
+    size_t offsetLen = 0;
     if (codec == "AAC"){
-      *((long *)(data + getHsize())) = htonl(((payloadlen << 3) & 0x0010fff8) | 0x00100000);
+      Bit::htobl(data + getHsize(), ((payloadlen << 3) & 0x0010fff8) | 0x00100000);
       offsetLen = 4;
     }else if (codec == "MP3" || codec == "MP2"){
       // See RFC 2250, "MPEG Audio-specific header"
-      *((long *)(data + getHsize())) = 0; // this is MBZ and Frag_Offset, which are always 0
+      Bit::htobl(data + getHsize(), 0); // this is MBZ and Frag_Offset, which are always 0
       if (payload[0] != 0xFF){FAIL_MSG("MP2/MP3 data does not start with header?");}
       offsetLen = 4;
     }else if (codec == "AC3"){
-      *((short *)(data + getHsize())) = htons(0x0001); // this is 6 bits MBZ, 2 bits FT = 0 = full
-                                                       // frames and 8 bits saying we send 1 frame
+      Bit::htobs(data + getHsize(),
+                 1); // this is 6 bits MBZ, 2 bits FT = 0 = full frames and 8 bits saying we send 1 frame
       offsetLen = 2;
     }
     if (maxDataLen < getHsize() + offsetLen + payloadlen){
@@ -289,8 +289,7 @@ namespace RTP{
     increaseSequence();
   }
 
-  void Packet::sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
-                           void callBack(void *, char *, unsigned int, unsigned int)){
+  void Packet::sendRTCP_SR(void *socket, void callBack(void *, const char *, size_t, uint8_t)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -311,8 +310,7 @@ namespace RTP{
     free(rtcpData);
   }
 
-  void Packet::sendRTCP_RR(long long &connectedAt, SDP::Track &sTrk, unsigned int tid, DTSC::Meta &metadata,
-                           void callBack(void *, char *, unsigned int, unsigned int)){
+  void Packet::sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -330,7 +328,7 @@ namespace RTP{
     Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
-    callBack(&(sTrk.rtcp), (char *)rtcpData, 32, 0);
+    callBack(&(sTrk.rtcp), rtcpData, 32, 0);
     sTrk.sorter.lostCurrent = 0;
     sTrk.sorter.packCurrent = 0;
     free(rtcpData);
@@ -344,8 +342,7 @@ namespace RTP{
     sentPackets = 0;
   }
 
-  Packet::Packet(unsigned int payloadType, unsigned int sequence, unsigned int timestamp,
-                 unsigned int ssrc, unsigned int csrcCount){
+  Packet::Packet(uint32_t payloadType, uint32_t sequence, uint64_t timestamp, uint32_t ssrc, uint32_t csrcCount){
     managed = true;
     data = new char[12 + 4 * csrcCount + 2 + MAX_SEND]; // headerSize, 2 for FU-A, MAX_SEND for maximum sent size
     if (data){
@@ -409,7 +406,7 @@ namespace RTP{
   Packet::~Packet(){
     if (managed){delete[] data;}
   }
-  Packet::Packet(const char *dat, unsigned int len){
+  Packet::Packet(const char *dat, uint64_t len){
     managed = false;
     maxDataLen = len;
     sentBytes = 0;
@@ -496,7 +493,7 @@ namespace RTP{
       while (packBuffer.count(rtpSeq)){
         outPacket(packTrack, packBuffer[rtpSeq]);
         packBuffer.erase(rtpSeq);
-        VERYHIGH_MSG("Sent packet %u, now %llu in buffer", rtpSeq, packBuffer.size());
+        INFO_MSG("Sent packet %u, now %zu in buffer", rtpSeq, packBuffer.size());
         ++rtpSeq;
         ++packTotal;
         ++packCurrent;
@@ -506,7 +503,7 @@ namespace RTP{
     while (packBuffer.count(rtpSeq)){
       outPacket(packTrack, packBuffer[rtpSeq]);
       packBuffer.erase(rtpSeq);
-      VERYHIGH_MSG("Sent packet %u, now %llu in buffer", rtpSeq, packBuffer.size());
+      INFO_MSG("Sent packet %u, now %zu in buffer", rtpSeq, packBuffer.size());
       ++rtpSeq;
       ++packTotal;
       ++packCurrent;
@@ -542,7 +539,7 @@ namespace RTP{
     cbPack = 0;
     cbInit = 0;
     multiplier = 1.0;
-    trackId = 0;
+    trackId = INVALID_TRACK_ID;
     firstTime = 0;
     packCount = 0;
     lastSeq = 0;
@@ -572,10 +569,12 @@ namespace RTP{
     }
   }
 
-  void toDTSC::setProperties(const DTSC::Track &Trk){
-    double m = (double)Trk.rate / 1000.0;
-    if (Trk.type == "video" || Trk.codec == "MP2" || Trk.codec == "MP3"){m = 90.0;}
-    setProperties(Trk.trackID, Trk.codec, Trk.type, Trk.init, m);
+  void toDTSC::setProperties(const DTSC::Meta &M, size_t tid){
+    double m = (double)M.getRate(tid) / 1000.0;
+    if (M.getType(tid) == "video" || M.getCodec(tid) == "MP2" || M.getCodec(tid) == "MP3"){
+      m = 90.0;
+    }
+    setProperties(tid, M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
   }
 
   void toDTSC::setCallbacks(void (*cbP)(const DTSC::Packet &pkt),
@@ -610,11 +609,12 @@ namespace RTP{
     }
     prevTime = pkt.getTimeStamp();
     uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0xFFFFFFFFull * wrapArounds) / multiplier;
-    char *pl = pkt.getPayload();
+    char *pl = (char *)pkt.getPayload();
     uint32_t plSize = pkt.getPayloadSize();
     bool missed = lastSeq != (pkt.getSequence() - 1);
     lastSeq = pkt.getSequence();
-    INSANE_MSG("Received RTP packet for track %llu, time %llu -> %llu", trackId, pkt.getTimeStamp(), msTime);
+    INSANE_MSG("Received RTP packet for track %" PRIu64 ", time %" PRIu32 " -> %" PRIu64, trackId,
+               pkt.getTimeStamp(), msTime);
     // From here on, there is codec-specific parsing. We call handler functions for each codec,
     // except for the trivial codecs.
     if (codec == "H264"){
@@ -749,7 +749,7 @@ namespace RTP{
   }
 
   void toDTSC::handleHEVCSingle(uint64_t ts, const char *buffer, const uint32_t len, bool isKey){
-    MEDIUM_MSG("H265: %llu@%llu, %lub%s", trackId, ts, len, isKey ? " (key)" : "");
+    MEDIUM_MSG("H265: %" PRIu64 "@%" PRIu64 ", %" PRIu32 "b%s", trackId, ts, len, isKey ? " (key)" : "");
     // Ignore zero-length packets (e.g. only contained init data and nothing else)
     if (!len){return;}
 
@@ -787,11 +787,13 @@ namespace RTP{
       offset = (frameNo - packCount) * (1000.0 / fps);
       //... and the timestamp is the packet counter times the frame rate in ms.
       newTs = packCount * (1000.0 / fps);
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts,
-                   isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
+      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
+                   " -> +%" PRIu64 "/%" PRIu32,
+                   ts, (isKey ? "key" : "i"), frameNo, fps, packCount, (frameNo - packCount), offset);
     }else{
       // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
+      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", ts,
+                   isKey ? "key" : "i", packCount);
     }
     // Fill the new DTSC packet, buffer it.
     DTSC::Packet nextPack;
@@ -893,7 +895,7 @@ namespace RTP{
   }
 
   void toDTSC::handleH264Single(uint64_t ts, const char *buffer, const uint32_t len, bool isKey){
-    MEDIUM_MSG("H264: %llu@%llu, %lub%s", trackId, ts, len, isKey ? " (key)" : "");
+    MEDIUM_MSG("H264: %" PRIu64 "@%" PRIu64 ", %" PRIu32 "b%s", trackId, ts, len, isKey ? " (key)" : "");
     // Ignore zero-length packets (e.g. only contained init data and nothing else)
     if (!len){return;}
 
@@ -976,12 +978,14 @@ namespace RTP{
         offset = (frameNo - packCount) * (1000.0 / fps);
         //... and the timestamp is the packet counter times the frame rate in ms.
         newTs = packCount * (1000.0 / fps);
-        VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts,
-                     isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
+        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
+                     " -> +%" PRIu64 "/%" PRIu32,
+                     ts, isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
       }else{
         // For non-steady frame rate, assume no offsets are used and the timestamp is already
         // correct
-        VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
+        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", ts,
+                     isKey ? "key" : "i", packCount);
       }
       // Fill the new DTSC packet, buffer it.
       DTSC::Packet nextPack;
@@ -1007,11 +1011,13 @@ namespace RTP{
       offset = (frameNo - packCount) * (1000.0 / fps);
       //... and the timestamp is the packet counter times the frame rate in ms.
       newTs = packCount * (1000.0 / fps);
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (%.2f FPS). Expected %llu -> +%llu/%lu", ts,
-                   isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
+      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
+                   " -> +%" PRIu64 "/%" PRIu32,
+                   ts, isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
     }else{
       // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
+      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", ts,
+                   isKey ? "key" : "i", packCount);
     }
     // Fill the new DTSC packet, buffer it.
     DTSC::Packet nextPack;

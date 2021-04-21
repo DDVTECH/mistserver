@@ -4,8 +4,12 @@
 
 #include "input.h"
 #include <fstream>
+#include <iomanip>
 #include <iterator>
+#include <mist/auth.h>
 #include <mist/defines.h>
+#include <mist/downloader.h>
+#include <mist/encode.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
@@ -13,23 +17,30 @@
 #include <sys/wait.h>
 
 namespace Mist{
-  Input *Input::singleton = NULL;
   Util::Config *Input::config = NULL;
 
-  void Input::userCallback(char *data, size_t len, unsigned int id){
-    for (int i = 0; i < SIMUL_TRACKS; i++){
-      unsigned long tid = ((unsigned long)(data[i * 6]) << 24) | ((unsigned long)(data[i * 6 + 1]) << 16) |
-                          ((unsigned long)(data[i * 6 + 2]) << 8) | ((unsigned long)(data[i * 6 + 3]));
-      if (tid){
-        unsigned long keyNum = ((unsigned long)(data[i * 6 + 4]) << 8) | ((unsigned long)(data[i * 6 + 5]));
-        bufferFrame(tid, keyNum + 1); // Try buffer next frame
-      }
+  void Input::userLeadIn(){connectedUsers = 0;}
+  void Input::userOnActive(size_t id){
+    ++connectedUsers;
+    size_t track = users.getTrack(id);
+    size_t key = users.getKeyNum(id);
+    uint64_t time = M.getTimeForKeyIndex(track, key);
+    size_t endKey = M.getKeyIndexForTime(track, time + 20000);
+    for (size_t i = key; i <= endKey; i++){bufferFrame(track, i);}
+  }
+  void Input::userOnDisconnect(size_t id){}
+  void Input::userLeadOut(){}
+
+  void Input::reloadClientMeta(){
+    if (M.getStreamName() != "" && M.getMaster()){return;}
+    if (M.getStreamName() != streamName){
+      meta.reInit(streamName, false);
+    }else{
+      meta.refresh();
     }
   }
 
-  void Input::callbackWrapper(char *data, size_t len, unsigned int id){
-    singleton->userCallback(data, 30, id); // call the userCallback for this input
-  }
+  bool Input::hasMeta() const{return M && M.getStreamName() != "" && M.getValidTracks().size();}
 
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;
@@ -59,19 +70,22 @@ namespace Mist{
     option["long"] = "stream";
     option["help"] = "The name of the stream that this connector will provide in player mode";
     config->addOption("streamname", option);
+    option.null();
+    option["short"] = "H";
+    option["long"] = "headerOnly";
+    option["value"].append(0u);
+    option["help"] = "Generate .dtsh, then exit";
+    config->addOption("headeronly", option);
 
-    /*LTS-START*/
-    // Encryption
+    /*LTS-START
+    //Encryption
+    option.null();
     option["arg"] = "string";
-    option["long"] = "verimatrix-playready";
-    option["short"] = "P";
-    option["help"] = "URL of the Verimatrix PlayReady keyserver";
-    config->addOption("verimatrix-playready", option);
-    capa["optional"]["verimatrix-playready"]["name"] = "Verimatrix PlayReady Server";
-    capa["optional"]["verimatrix-playready"]["help"] = "URL of the Verimatrix PlayReady keyserver";
-    capa["optional"]["verimatrix-playready"]["option"] = "--verimatrix-playready";
-    capa["optional"]["verimatrix-playready"]["type"] = "str";
-    capa["optional"]["verimatrix-playready"]["default"] = "";
+    option["short"] = "e";
+    option["long"] = "encryption";
+    option["help"] = "a KID:KEY combo for auto-encrypting tracks";
+    config->addOption("encryption", option);
+
 
     option.null();
     option["long"] = "realtime";
@@ -97,19 +111,76 @@ namespace Mist{
     capa["optional"]["simulated-starttime"]["type"] = "uint";
     capa["optional"]["simulated-starttime"]["default"] = 0;
 
-    /*LTS-END*/
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "B";
+    option["long"] = "buydrm";
+    option["help"] = "Your BuyDRM user string";
+    config->addOption("buydrm", option);
+
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "C";
+    option["long"] = "contentid";
+    option["help"] = "The content ID for this stream, defaults to an md5 hash of the stream name";
+    config->addOption("contentid", option);
+
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "K";
+    option["long"] = "keyid";
+    option["help"] = "The Key ID for this stream, defaults to an md5 hash of the content key";
+    config->addOption("keyid", option);
+
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "W";
+    option["long"] = "widevine";
+    option["help"] = "The header to use for Widevine encryption.";
+    config->addOption("widevine", option);
+
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "P";
+    option["long"] = "playready";
+    option["help"] = "The header to use for PlayReady encryption";
+    config->addOption("playready", option);
+
+    capa["optional"]["encryption"]["name"] = "encryption";
+    capa["optional"]["encryption"]["help"] = "Encryption key.";
+    capa["optional"]["encryption"]["option"] = "--encryption";
+    capa["optional"]["encryption"]["type"] = "string";
+
+    capa["optional"]["buydrm"]["name"] = "buydrm";
+    capa["optional"]["buydrm"]["help"] = "BuyDRM User Key.";
+    capa["optional"]["buydrm"]["option"] = "--buydrm";
+    capa["optional"]["buydrm"]["type"] = "string";
+
+    capa["optional"]["contentid"]["name"] = "contentid";
+    capa["optional"]["contentid"]["help"] = "The content ID to use for this stream's encryption.
+    Defaults to an md5 hash of the stream name."; capa["optional"]["contentid"]["option"] =
+    "--contentid"; capa["optional"]["contentid"]["type"] = "string";
+
+    capa["optional"]["keyid"]["name"] = "keyid";
+    capa["optional"]["keyid"]["help"] = "The Key ID to use for this stream's encryption. Defaults to
+    an md5 hash of the content key."; capa["optional"]["keyid"]["option"] = "--keyid";
+    capa["optional"]["keyid"]["type"] = "string";
+
+    capa["optional"]["widevine"]["name"] = "widevine";
+    capa["optional"]["widevine"]["help"] = "The header to use for Widevine encryption.";
+    capa["optional"]["widevine"]["option"] = "--widevine";
+    capa["optional"]["widevine"]["type"] = "string";
+
+    capa["optional"]["playready"]["name"] = "playready";
+    capa["optional"]["playready"]["help"] = "The header to use for PlayReady encryption.";
+    capa["optional"]["playready"]["option"] = "--playready";
+    capa["optional"]["playready"]["type"] = "string";
+    LTS-END*/
+
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
     capa["optional"]["debug"]["type"] = "debug";
-
-    packTime = 0;
-    lastActive = Util::epoch();
-    playing = 0;
-    playUntil = 0;
-
-    singleton = this;
-    isBuffer = false;
 
     hasSrt = false;
     srtTrack = 0;
@@ -152,15 +223,15 @@ namespace Mist{
   void Input::readSrtHeader(){
     if (!hasSrt){return;}
     if (!srtSource.good()){return;}
-    srtTrack = myMeta.tracks.rbegin()->first + 1;
 
-    myMeta.tracks[srtTrack].trackID = srtTrack;
-    myMeta.tracks[srtTrack].type = "meta";
-    myMeta.tracks[srtTrack].codec = "subtitle";
+    srtTrack = meta.addTrack();
+    meta.setID(srtTrack, srtTrack);
+    meta.setType(srtTrack, "meta");
+    meta.setCodec(srtTrack, "subtitle");
 
     getNextSrt();
     while (srtPack){
-      myMeta.update(srtPack);
+      meta.update(srtPack);
       getNextSrt();
     }
     srtSource.clear();
@@ -168,8 +239,6 @@ namespace Mist{
   }
 
   void Input::getNextSrt(bool smart){
-    bool hasPacket = false;
-
     srtPack.null();
     std::string line;
 
@@ -188,7 +257,7 @@ namespace Mist{
         static JSON::Value thisPack;
         thisPack.null();
         thisPack["trackid"] = srtTrack;
-        thisPack["bpos"] = (uint64_t)srtSource.tellg();
+        thisPack["bpos"] = srtSource.tellg();
         thisPack["data"] = data;
         thisPack["index"] = index;
         thisPack["time"] = timestamp;
@@ -197,41 +266,41 @@ namespace Mist{
         std::string tmpStr = thisPack.toNetPacked();
         srtPack.reInit(tmpStr.data(), tmpStr.size());
         return;
+      }
+      // INFO_MSG("printline size: %d, string: %s", line.size(), line.c_str());
+      if (lineNr == 1){
+        index = atoi(line.c_str());
+      }else if (lineNr == 2){
+        // timestamp
+        int from_hour = 0;
+        int from_min = 0;
+        int from_sec = 0;
+        int from_ms = 0;
+
+        int to_hour = 0;
+        int to_min = 0;
+        int to_sec = 0;
+        int to_ms = 0;
+        sscanf(line.c_str(), "%d:%d:%d,%d --> %d:%d:%d,%d", &from_hour, &from_min, &from_sec,
+               &from_ms, &to_hour, &to_min, &to_sec, &to_ms);
+
+        timestamp = (from_hour * 60 * 60 * 1000) + (from_min * 60 * 1000) + (from_sec * 1000) + from_ms;
+        duration = ((to_hour * 60 * 60 * 1000) + (to_min * 60 * 1000) + (to_sec * 1000) + to_ms) - timestamp;
       }else{
-        // INFO_MSG("printline size: %d, string: %s", line.size(), line.c_str());
-        if (lineNr == 1){
-          index = atoi(line.c_str());
-        }else if (lineNr == 2){
-          // timestamp
-          int from_hour = 0;
-          int from_min = 0;
-          int from_sec = 0;
-          int from_ms = 0;
-
-          int to_hour = 0;
-          int to_min = 0;
-          int to_sec = 0;
-          int to_ms = 0;
-          sscanf(line.c_str(), "%d:%d:%d,%d --> %d:%d:%d,%d", &from_hour, &from_min, &from_sec,
-                 &from_ms, &to_hour, &to_min, &to_sec, &to_ms);
-
-          timestamp = (from_hour * 60 * 60 * 1000) + (from_min * 60 * 1000) + (from_sec * 1000) + from_ms;
-          duration = ((to_hour * 60 * 60 * 1000) + (to_min * 60 * 1000) + (to_sec * 1000) + to_ms) - timestamp;
-        }else{
-          // subtitle
-          if (data.size() > 1){data.append("\n");}
-          data.append(line);
-        }
+        // subtitle
+        if (data.size() > 1){data.append("\n");}
+        data.append(line);
       }
     }
 
-    if (!srtSource.eof()){FAIL_MSG("Could not get next subtitle packet");}
+    srtPack.null();
+    FAIL_MSG("Could not get next srt packet!");
   }
 
   /// Starts checks the SEM_INPUT lock, starts an angel process and then
   int Input::boot(int argc, char *argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
-    streamName = nProxy.streamName = config->getString("streamname");
+    streamName = config->getString("streamname");
     Util::Config::streamName = streamName;
 
     if (config->getBool("json")){
@@ -260,7 +329,7 @@ namespace Mist{
         snprintf(semName, NAME_BUFFER_SIZE, SEM_INPUT, streamName.c_str());
         playerLock.open(semName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
         if (!playerLock.tryWait()){
-          INFO_MSG("A player for stream %s is already running", streamName.c_str());
+          INFO_MSG("A player for this stream is already running");
           playerLock.close();
           return 1;
         }
@@ -279,11 +348,12 @@ namespace Mist{
         if (isSingular()){
           pullLock.open(std::string("/MstPull_" + streamName).c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
           if (!pullLock){
-            FAIL_MSG("Could not open pull lock for stream '%s' - aborting!", streamName.c_str());
+            FAIL_MSG("Could not open pull lock - aborting!");
             return 1;
           }
-          if (!pullLock.tryWait()){
-            WARN_MSG("A pull process for stream %s is already running", streamName.c_str());
+          // We wait at most 5 seconds for a lock
+          if (!pullLock.tryWait(5000)){
+            WARN_MSG("A pull process for this stream is already running");
             pullLock.close();
             return 1;
           }
@@ -317,7 +387,10 @@ namespace Mist{
       return ret;
     }
 
+#if DEBUG < DLVL_DEVEL
     uint64_t reTimer = 0;
+#endif
+
     while (config->is_active){
       Util::Procs::fork_prepare();
       pid_t pid = fork();
@@ -395,23 +468,23 @@ namespace Mist{
   }
 
   int Input::run(){
-    myMeta.sourceURI = config->getString("input");
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
     checkHeaderTimes(config->getString("input"));
     if (needHeader()){
       uint64_t timer = Util::bootMS();
       bool headerSuccess = readHeader();
-      if (!headerSuccess){
-        std::cerr << "Reading header for " << config->getString("input") << " failed." << std::endl;
+      if (!headerSuccess || (!M && needsLock())){
+        FAIL_MSG("Reading header for '%s' failed.", config->getString("input").c_str());
         return 0;
-      }else{
-        timer = Util::bootMS() - timer;
-        DEBUG_MSG(DLVL_DEVEL, "Read header for '%s' in %" PRIu64 "ms", streamName.c_str(), timer);
       }
+      timer = Util::bootMS() - timer;
+      INFO_MSG("Read header in %" PRIu64 "ms (%zu tracks)", timer, M.trackCount());
     }
-    if (myMeta.vod){
+    if (config->getBool("headeronly")){return 0;}
+    if (M && M.getVod()){
+      meta.removeEmptyTracks();
       parseHeader();
-      MEDIUM_MSG("Header parsed, %lu tracks", myMeta.tracks.size());
+      INFO_MSG("Header parsed, %lu tracks", M.getValidTracks().size());
     }
 
     if (!streamName.size()){
@@ -419,46 +492,67 @@ namespace Mist{
       MEDIUM_MSG("Starting convert");
       convert();
     }else if (!needsLock()){
-      // We have a name and aren't the sole process. That means we're streaming live data to a buffer.
-      MEDIUM_MSG("Starting stream");
+      // We have a name and aren't the sole process. That means we're streaming live data to a
+      // buffer.
+      INFO_MSG("Starting stream");
       stream();
     }else{
       // We are the sole process and have a name. That means this is a Buffer or VoD input.
-      MEDIUM_MSG("Starting serve");
+      INFO_MSG("Starting serve");
       serve();
     }
     return 0;
   }
 
   void Input::convert(){
-    // check filename for no -
-    if (config->getString("output") != "-"){
-      std::string filename = config->getString("output");
-      if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".dtsc"){
-        filename += ".dtsc";
-      }
-      // output to dtsc
-      DTSC::Meta newMeta = myMeta;
-      newMeta.reset();
-      std::ofstream file(filename.c_str());
-      long long int bpos = 0;
-      seek(0);
-      getNext();
-      while (thisPacket){
-        newMeta.updatePosOverride(thisPacket, bpos);
-        file.write(thisPacket.getData(), thisPacket.getDataLen());
-        bpos += thisPacket.getDataLen();
-        getNext();
-      }
-      // close file
-      file.close();
-      // create header
-      file.open((filename + ".dtsh").c_str());
-      file << newMeta.toJSON().toNetPacked();
-      file.close();
-    }else{
-      DEBUG_MSG(DLVL_FAIL, "No filename specified, exiting");
+    INFO_MSG("Starting conversion");
+    std::string fileName = config->getString("output");
+    if (fileName == "-"){
+      FAIL_MSG("No filename specified, exiting");
+      return;
     }
+    if (fileName.size() < 5 || fileName.substr(fileName.size() - 5) != ".dtsc"){
+      fileName += ".dtsc";
+    }
+    std::ofstream file(fileName.c_str());
+
+    DTSC::Meta outMeta;
+
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      std::string type = M.getType(*it);
+      size_t idx = outMeta.addTrack(M.fragments(*it).getPresent(), M.keys(*it).getPresent(),
+                                    M.parts(*it).getPresent());
+      outMeta.setID(idx, M.getID(*it));
+      outMeta.setType(idx, type);
+      outMeta.setCodec(idx, M.getCodec(*it));
+      outMeta.setInit(idx, M.getInit(*it));
+      outMeta.setLang(idx, M.getLang(*it));
+      if (type == "video"){
+        outMeta.setHeight(idx, M.getHeight(*it));
+        outMeta.setWidth(idx, M.getWidth(*it));
+        outMeta.setFpks(idx, M.getFpks(*it));
+      }
+      if (type == "audio"){
+        outMeta.setRate(idx, M.getRate(*it));
+        outMeta.setSize(idx, M.getSize(*it));
+        outMeta.setChannels(idx, M.getChannels(*it));
+      }
+    }
+    // output to dtsc
+    uint64_t bpos = 0;
+
+    seek(0);
+    getNext();
+    while (thisPacket){
+      outMeta.updatePosOverride(thisPacket, bpos);
+      file.write(thisPacket.getData(), thisPacket.getDataLen());
+      bpos += thisPacket.getDataLen();
+      getNext();
+    }
+    // close file
+    file.close();
+    outMeta.toFile(fileName + ".dtsh");
   }
 
   /// Checks in the server configuration if this stream is set to always on or not.
@@ -494,15 +588,21 @@ namespace Mist{
   /// input name
   /// ~~~~~~~~~~~~~~~
   void Input::serve(){
-    if (!isBuffer){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        bufferFrame(it->first, 1);
+    users.reload(streamName, true);
+
+    if (!M){
+      // Initialize meta page
+      meta.reInit(streamName, true);
+    }else{
+      std::set<size_t> validTracks = M.getValidTracks(true);
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        bufferFrame(*it, 0);
       }
     }
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    userPage.init(userPageName, PLAY_EX_SIZE, true);
+    meta.setSource(config->getString("input"));
+
+    bool internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
+
     /*LTS-START*/
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef();
@@ -513,22 +613,24 @@ namespace Mist{
     /*LTS-END*/
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_READY;}
 
-    INFO_MSG("Input for stream %s started", streamName.c_str());
+    INFO_MSG("Input started");
     activityCounter = Util::bootSecs();
     // main serve loop
     while (keepRunning()){
       // load pages for connected clients on request
-      // through the callbackWrapper function
-      userPage.parseEach(callbackWrapper);
+      userLeadIn();
+      COMM_LOOP(users, userOnActive(id), userOnDisconnect(id))
+      userLeadOut();
+
       // unload pages that haven't been used for a while
       removeUnused();
-      // If users are connected and tracks exist, reset the activity counter
-      // Also reset periodically if the stream is configured as Always on
-      if (userPage.connectedUsers ||
-          ((Util::bootSecs() - activityCounter) > INPUT_TIMEOUT / 2 && isAlwaysOn())){
-        if (myMeta.tracks.size()){activityCounter = Util::bootSecs();}
+
+      if (M.getLive() && !internalOnly){
+        uint64_t currLastUpdate = M.getLastUpdated();
+        if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
+      }else{
+        if (connectedUsers && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
       }
-      INSANE_MSG("Connected: %d users, %d total", userPage.connectedUsers, userPage.amount);
       // if not shutting down, wait 1 second before looping
       if (config->is_active){Util::wait(INPUT_USER_INTERVAL);}
     }
@@ -536,9 +638,8 @@ namespace Mist{
     config->is_active = false;
     finish();
     INFO_MSG("Input for stream %s closing clean", streamName.c_str());
-    userPage.finishEach();
+    userSelect.clear();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
-    // end player functionality
   }
 
   /// This function checks if an input in serve mode should keep running or not.
@@ -551,9 +652,7 @@ namespace Mist{
     // We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
-    bool ret = (config->is_active &&
-                ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT ||
-                 (myMeta.live && (Util::bootSecs() - activityCounter) < myMeta.biggestFragment() / 500)));
+    bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT);
     if (!ret && config->is_active && isAlwaysOn()){
       ret = true;
       activityCounter = Util::bootSecs();
@@ -607,26 +706,22 @@ namespace Mist{
       return;
     }
 
+    INFO_MSG("Input started");
+    meta.reInit(streamName, false);
+
     if (!openStreamSource()){
       FAIL_MSG("Unable to connect to source");
       return;
     }
-
-    char userPageName[NAME_BUFFER_SIZE];
-    snprintf(userPageName, NAME_BUFFER_SIZE, SHM_USERS, streamName.c_str());
-    nProxy.userClient = IPC::sharedClient(userPageName, PLAY_EX_SIZE, true);
-    nProxy.userClient.countAsViewer = false;
-
     parseStreamHeader();
 
-    if (myMeta.tracks.size() == 0){
-      nProxy.userClient.finish();
+    std::set<size_t> validTracks = M.getMySourceTracks(getpid());
+    if (!validTracks.size()){
+      userSelect.clear();
       finish();
       INFO_MSG("No tracks found, cancelling");
       return;
     }
-
-    nProxy.pagesByTrack.clear();
 
     timeOffset = 0;
     uint64_t minFirstMs = 0;
@@ -660,58 +755,6 @@ namespace Mist{
                  "ms - %" PRIu64 "ms)",
                  maxLastMs - minLastMs, minLastMs, maxLastMs);
       }
-
-      bool needsWait = true;
-      // change firstms of all tracks to -1 to indicate we're resuming
-      std::map<unsigned int, uint64_t> preFirstMs;
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); ++it){
-        preFirstMs[it->first] = it->second.firstms;
-        it->second.firstms = -1;
-      }
-      // negotiate all tracks with buffer
-      while (needsWait && config->is_active && nProxy.userClient.isAlive()){
-        needsWait = false;
-        for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-             it != myMeta.tracks.end(); ++it){
-          if (!it->first){continue;}
-          if (nProxy.trackState.count(it->first) && nProxy.trackState[it->first] == FILL_ACC){
-            continue;
-          }
-          nProxy.continueNegotiate(it->first, myMeta);
-          if (nProxy.trackState.count(it->first) && nProxy.trackState[it->first] == FILL_ACC){
-            continue;
-          }
-          needsWait = true;
-        }
-        if (needsWait){Util::sleep(200);}
-      }
-      // Restore firstms of tracks - should not be needed, but why risk messing things up..?
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); ++it){
-        it->second.firstms = preFirstMs[it->first];
-      }
-
-      char nameBuf[NAME_BUFFER_SIZE];
-      snprintf(nameBuf, NAME_BUFFER_SIZE, SHM_STREAM_INDEX, streamName.c_str());
-      IPC::sharedPage curMeta(nameBuf);
-
-      static char liveSemName[NAME_BUFFER_SIZE];
-      snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, streamName.c_str());
-      IPC::semaphore *liveSem = new IPC::semaphore(liveSemName, O_RDWR, ACCESSPERMS, 8, !myMeta.live);
-      if (*liveSem){
-        liveSem->wait();
-      }else{
-        delete liveSem;
-        liveSem = 0;
-      }
-      DTSC::Packet tmpMeta(curMeta.mapped, curMeta.len, true);
-      if (liveSem){
-        liveSem->post();
-        delete liveSem;
-        liveSem = 0;
-      }
-      DTSC::Meta tmpM(tmpMeta);
       // find highest current time
       for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin();
            secondIt != tmpM.tracks.end(); ++secondIt){
@@ -749,18 +792,53 @@ namespace Mist{
 
     closeStreamSource();
 
-    nProxy.userClient.finish();
+    userSelect.clear();
+
     finish();
-    INFO_MSG("Stream input %s closing clean; reason: %s", streamName.c_str(), reason.c_str());
+    INFO_MSG("Input closing clean; reason: %s", reason.c_str());
     return;
   }
 
   std::string Input::streamMainLoop(){
+    uint64_t statTimer = 0;
+    uint64_t startTime = Util::bootSecs();
+    Comms::Statistics statComm;
     getNext();
-    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
-      nProxy.bufferLivePacket(thisPacket, myMeta);
+    if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
+      size_t tid = thisPacket.getTrackId();
+      userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+    }
+    while (thisPacket && config->is_active && userSelect[thisPacket.getTrackId()].isAlive()){
+      bufferLivePacket(thisPacket);
+      userSelect[thisPacket.getTrackId()].keepAlive();
       getNext();
-      nProxy.userClient.keepAlive();
+      if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
+        size_t tid = thisPacket.getTrackId();
+        userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      }
+
+      if (Util::bootSecs() - statTimer > 1){
+        // Connect to stats for INPUT detection
+        if (!statComm){statComm.reload();}
+        if (statComm){
+          if (!statComm.isAlive()){
+            config->is_active = false;
+            return "received shutdown request from controller";
+          }
+          uint64_t now = Util::bootSecs();
+          statComm.setNow(now);
+          statComm.setCRC(getpid());
+          statComm.setStream(streamName);
+          statComm.setConnector("INPUT");
+          statComm.setUp(0);
+          statComm.setDown(streamByteCount());
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          statComm.keepAlive();
+        }
+
+        statTimer = Util::bootSecs();
+      }
     }
     if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
     if (!config->is_active){return "received deactivate signal";}
@@ -787,281 +865,331 @@ namespace Mist{
     }
     if (!thisPacket){return "end of file";}
     if (!config->is_active){return "received deactivate signal";}
-    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
+    if (!userSelect[thisPacket.getTrackId()].isAlive()){return "buffer shutdown";}
     return "Unknown";
   }
 
   void Input::finish(){
     if (!standAlone || config->getBool("realtime")){return;}
-    for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin();
+    for (std::map<size_t, std::map<uint32_t, size_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
-      for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin();
-           it2 != it->second.end(); it2++){
+      for (std::map<uint32_t, size_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
         it2->second = 1;
       }
     }
     removeUnused();
-    for (std::map<unsigned long, IPC::sharedPage>::iterator it = nProxy.metaPages.begin();
-         it != nProxy.metaPages.end(); it++){
-      it->second.master = true;
-    }
   }
 
   void Input::removeUnused(){
-    for (std::map<unsigned int, std::map<unsigned int, unsigned int> >::iterator it = pageCounter.begin();
-         it != pageCounter.end(); it++){
-      for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin();
-           it2 != it->second.end(); it2++){
-        it2->second--;
-      }
-      bool change = true;
-      while (change){
-        change = false;
-        for (std::map<unsigned int, unsigned int>::iterator it2 = it->second.begin();
-             it2 != it->second.end(); it2++){
-          if (!it2->second){
-            bufferRemove(it->first, it2->first);
-            pageCounter[it->first].erase(it2->first);
-            change = true;
-            break;
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      Util::RelAccX &tPages = meta.pages(*it);
+      for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+        uint64_t pageNum = tPages.getInt("firstkey", i);
+        if (pageCounter[*it].count(pageNum)){
+          --pageCounter[*it][pageNum];
+          if (!pageCounter[*it][pageNum]){
+            pageCounter[*it].erase(pageNum);
+            bufferRemove(*it, pageNum);
           }
         }
       }
     }
   }
 
-  void Input::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    size_t index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
-    }
+  std::string formatGUID(const std::string &val){
+    std::stringstream r;
+    r << std::hex << std::setw(2) << std::setfill('0');
+    r << (int)val[0] << (int)val[1] << (int)val[2] << (int)val[3];
+    r << "-";
+    r << (int)val[4] << (int)val[5];
+    r << "-";
+    r << (int)val[6] << (int)val[7];
+    r << "-";
+    r << (int)val[8] << (int)val[9];
+    r << "-";
+    r << (int)val[10] << (int)val[11] << (int)val[12] << (int)val[13] << (int)val[14] << (int)val[15];
+    return r.str();
+  }
+
+  bool Input::readHeader(){
+    INFO_MSG("Empty header created by default readHeader handler");
+    meta.reInit(streamName);
+    return true;
   }
 
   void Input::parseHeader(){
     if (hasSrt){readSrtHeader();}
-    DEBUG_MSG(DLVL_DONTEVEN, "Parsing the header");
-    selectedTracks.clear();
-    std::stringstream trackSpec;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      DEBUG_MSG(DLVL_VERYHIGH, "Track %u encountered", it->first);
-      if (trackSpec.str() != ""){trackSpec << " ";}
-      trackSpec << it->first;
-      DEBUG_MSG(DLVL_VERYHIGH, "Trackspec now %s", trackSpec.str().c_str());
-      for (std::deque<DTSC::Key>::iterator it2 = it->second.keys.begin(); it2 != it->second.keys.end(); it2++){
-        keyTimes[it->first].insert(it2->getTime());
-      }
-    }
-    trackSelect(trackSpec.str());
-
+    DONTEVEN_MSG("Parsing the header");
     bool hasKeySizes = true;
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (!it->second.keySizes.size()){
-        hasKeySizes = false;
-        break;
+
+    std::set<size_t> validTracks = M.getValidTracks(true);
+
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      DTSC::Keys keys(M.keys(*it));
+      size_t endKey = keys.getEndValid();
+      INFO_MSG("Track %zu has %zu keys", *it, endKey);
+      std::set<uint64_t> &kTimes = keyTimes[*it];
+      for (size_t j = 0; j < endKey; j++){
+        kTimes.insert(keys.getTime(j));
+        if (hasKeySizes && keys.getSize(j) == 0){hasKeySizes = false;}
       }
     }
-    if (hasKeySizes){
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        bool newData = true;
-        for (int i = 0; i < it->second.keys.size(); i++){
+
+    if (!hasKeySizes){
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        DTSC::Keys keys(M.keys(*it));
+        DTSC::Parts parts(M.parts(*it));
+        size_t partIndex = 0;
+        size_t keyCount = keys.getEndValid();
+        for (size_t i = 0; i < keyCount; ++i){
+          size_t keySize = 0;
+          size_t partCount = keys.getParts(i);
+          for (size_t j = 0; j < partCount; ++j){keySize += parts.getSize(partIndex + j);}
+          keys.setSize(i, keySize);
+          partIndex += partCount;
+        }
+      }
+    }
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      bool newData = true;
+
+      DTSC::Keys keys(M.keys(*it));
+      uint32_t endKey = keys.getEndValid();
+
+      Util::RelAccX &tPages = meta.pages(*it);
+      // Generate page data only if not set yet (might be crash-recovering here)
+      if (!tPages.getEndPos()){
+        int32_t pageNum = -1;
+        for (uint32_t j = 0; j < endKey; j++){
+          uint64_t keyTime = keys.getTime(j);
           if (newData){
-            // i+1 because keys are 1-indexed
-            nProxy.pagesByTrack[it->first][i + 1].firstTime = it->second.keys[i].getTime();
+            tPages.addRecords(1);
+            ++pageNum;
+            tPages.setInt("firsttime", keyTime, pageNum);
+            tPages.setInt("firstkey", j, pageNum);
+
             newData = false;
           }
-          DTSCPageData &dPage = nProxy.pagesByTrack[it->first].rbegin()->second;
-          dPage.keyNum++;
-          if (it->second.keys.size() <= i || it->second.keySizes.size() <= i){
-            FAIL_MSG("Corrupt header - deleting for regeneration and aborting");
-            std::string headerFile = config->getString("input");
-            headerFile += ".dtsh";
-            remove(headerFile.c_str());
-            return;
-          }
-          dPage.partNum += it->second.keys[i].getParts();
-          dPage.dataSize += it->second.keySizes[i];
-          if ((dPage.dataSize > FLIP_DATA_PAGE_SIZE ||
-               it->second.keys[i].getTime() - dPage.firstTime > FLIP_TARGET_DURATION) &&
-              it->second.keys[i].getTime() - dPage.firstTime > FLIP_MIN_DURATION){
+          tPages.setInt("keycount", tPages.getInt("keycount", pageNum) + 1, pageNum);
+          tPages.setInt("parts", tPages.getInt("parts", pageNum) + keys.getParts(j), pageNum);
+          tPages.setInt("size", tPages.getInt("size", pageNum) + keys.getSize(j), pageNum);
+          tPages.setInt("lastkeytime", keyTime, pageNum);
+          if ((tPages.getInt("size", pageNum) > FLIP_DATA_PAGE_SIZE ||
+               keyTime - tPages.getInt("firsttime", pageNum) > FLIP_TARGET_DURATION) &&
+              keyTime - tPages.getInt("firsttime", pageNum) > FLIP_MIN_DURATION){
             newData = true;
           }
         }
       }
-    }else{
-      std::map<int, DTSCPageData> curData;
-      std::map<int, booking> bookKeeping;
-
-      seek(0);
-      getNext();
-
-      while (thisPacket){// loop through all
-        unsigned int tid = thisPacket.getTrackId();
-        if (!tid){
-          getNext(false);
-          continue;
-        }
-        if (!bookKeeping.count(tid)){
-          bookKeeping[tid].first = 1;
-          bookKeeping[tid].curPart = 0;
-          bookKeeping[tid].curKey = 0;
-
-          curData[tid].lastKeyTime = 0xFFFFFFFF;
-          curData[tid].keyNum = 1;
-          curData[tid].partNum = 0;
-          curData[tid].dataSize = 0;
-          curData[tid].curOffset = 0;
-          curData[tid].firstTime = myMeta.tracks[tid].keys[0].getTime();
-        }
-        if (myMeta.tracks[tid].keys.size() <= bookKeeping[tid].curKey){
-          FAIL_MSG("Corrupt header - deleting for regeneration and aborting");
-          std::string headerFile = config->getString("input");
-          headerFile += ".dtsh";
-          remove(headerFile.c_str());
-          return;
-        }
-        if (myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getParts() + 1 == curData[tid].partNum){
-          if ((curData[tid].dataSize > FLIP_DATA_PAGE_SIZE ||
-               myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_TARGET_DURATION) &&
-              myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime() - curData[tid].firstTime > FLIP_MIN_DURATION){
-            nProxy.pagesByTrack[tid][bookKeeping[tid].first] = curData[tid];
-            bookKeeping[tid].first += curData[tid].keyNum;
-            curData[tid].keyNum = 0;
-            curData[tid].dataSize = 0;
-            curData[tid].firstTime = myMeta.tracks[tid].keys[bookKeeping[tid].curKey].getTime();
-          }
-          bookKeeping[tid].curKey++;
-          curData[tid].keyNum++;
-          curData[tid].partNum = 0;
-        }
-        curData[tid].dataSize += thisPacket.getDataLen();
-        curData[tid].partNum++;
-        bookKeeping[tid].curPart++;
-        DEBUG_MSG(DLVL_DONTEVEN, "Track %ld:%llu on page %d@%llu (len:%d), being part %lu of key %lu",
-                  thisPacket.getTrackId(), thisPacket.getTime(), bookKeeping[tid].first,
-                  curData[tid].dataSize, thisPacket.getDataLen(), curData[tid].partNum,
-                  bookKeeping[tid].first + curData[tid].keyNum);
-        getNext(false);
+      /*LTS-START*/
+      /*
+      if (config->getString("encryption") == "" && config->getString("buydrm") != ""){
+        handleBuyDRM();
       }
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); it++){
-        if (curData.count(it->first) && !nProxy.pagesByTrack[it->first].count(bookKeeping[it->first].first)){
-          nProxy.pagesByTrack[it->first][bookKeeping[it->first].first] = curData[it->first];
-        }
+      if (config->getString("encryption").find(":") != std::string::npos){
+        size_t tNumber = meta.addCopy(*it);
+        meta.setID(tNumber, tNumber);
+        meta.setType(tNumber, M.getType(*it));
+        meta.setCodec(tNumber, M.getCodec(*it));
+        meta.setEncryption(tNumber, "CTR128/" + config->getString("encryption"));
+        meta.setIvec(tNumber, 0x0CD00C657BA88D47);//Poke_compat
+//        meta.setIvec(tNumber, 0x5DC800E53A65018A);//Dash_compat
+        meta.setWidevine(tNumber, config->getString("widevine"));
+        meta.setPlayReady(tNumber, config->getString("playready"));
+
+        tNumber = meta.addCopy(*it);
+        meta.setID(tNumber, tNumber);
+        meta.setType(tNumber, M.getType(*it));
+        meta.setCodec(tNumber, M.getCodec(*it));
+        meta.setEncryption(tNumber, "CBC128/" + config->getString("encryption"));
+        meta.setIvec(tNumber, 0x0CD00C657BA88D47);//Poke_compat
+//        meta.setIvec(tNumber, 0x5DC800E53A65018A);//Dash_compat
+        meta.setWidevine(tNumber, config->getString("widevine"));
+        meta.setPlayReady(tNumber, config->getString("playready"));
       }
+      */
+      /*LTS-END*/
     }
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      if (!nProxy.pagesByTrack.count(it->first)){
-        DEBUG_MSG(DLVL_WARN, "No pages for track %d found", it->first);
-      }else{
-        DEBUG_MSG(DLVL_MEDIUM, "Track %d (%s) split into %lu pages", it->first,
-                  myMeta.tracks[it->first].codec.c_str(), nProxy.pagesByTrack[it->first].size());
-        for (std::map<unsigned long, DTSCPageData>::iterator it2 = nProxy.pagesByTrack[it->first].begin();
-             it2 != nProxy.pagesByTrack[it->first].end(); it2++){
-          DEBUG_MSG(DLVL_VERYHIGH, "Page %lu-%lu, (%llu bytes)", it2->first,
-                    it2->first + it2->second.keyNum - 1, it2->second.dataSize);
-        }
+
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      const Util::RelAccX &tPages = meta.pages(*it);
+      if (!tPages.getEndPos()){
+        WARN_MSG("No pages for track %zu found", *it);
+        continue;
+      }
+      MEDIUM_MSG("Track %zu (%s) split into %zu pages", *it, M.getCodec(*it).c_str(), tPages.getEndPos());
+      for (size_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
+        size_t pageNumber = tPages.getInt("firstkey", j);
+        size_t pageKeys = tPages.getInt("keycount", j);
+        size_t pageSize = tPages.getInt("size", j);
+
+        HIGH_MSG("  Page %zu-%zu, (%zu bytes)", pageNumber, pageNumber + pageKeys - 1, pageSize);
       }
     }
   }
 
-  bool Input::bufferFrame(unsigned int track, unsigned int keyNum){
-    VERYHIGH_MSG("Buffering stream %s, track %u, key %u", streamName.c_str(), track, keyNum);
-    if (keyNum > myMeta.tracks[track].keys.size()){
-      // End of movie here, returning true to avoid various error messages
-      WARN_MSG("Key %u is higher than total (%zu). Cancelling buffering.", keyNum,
-               myMeta.tracks[track].keys.size());
-      return true;
+  void getCData(std::string &val){
+    if (val.find("<![CDATA[") == 0){
+      val.erase(0, 9);
+      val.erase(val.size() - 3);
     }
-    if (keyNum < 1){keyNum = 1;}
-    if (nProxy.isBuffered(track, keyNum)){
-      // get corresponding page number
-      int pageNumber = 0;
-      int pageSize = 0;
-      for (std::map<unsigned long, DTSCPageData>::iterator it = nProxy.pagesByTrack[track].begin();
-           it != nProxy.pagesByTrack[track].end(); it++){
-        if (it->first <= keyNum){
-          pageNumber = it->first;
-          pageSize = it->second.keyNum;
+  }
+
+  std::string getXMLValue(const std::string &xml, const std::string &field){
+    size_t offset = xml.find("<" + field + ">") + field.size() + 2;
+    std::string res = xml.substr(offset, xml.find("</" + field + ">") - offset);
+    getCData(res);
+    return res;
+  }
+
+  void Input::handleBuyDRM(){
+    std::string contentID = config->getString("contentid");
+    if (contentID == ""){contentID = Secure::md5(config->getString("streamname"));}
+    std::string keyID = config->getString("keyid");
+    if (keyID == ""){keyID = Secure::md5(contentID);}
+
+    std::stringstream soap;
+    soap << "<s:Envelope "
+            "xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body><RequestEncryptionInfo "
+            "xmlns=\"http://tempuri.org/\"><ServerKey>"
+            "52B11D80-21E2-4281-BB83-1B4191002534"
+            "</ServerKey><RequestXml>"
+            "<![CDATA["
+            "<KeyOSEncryptionInfoRequest><APIVersion>5.0.0.2</APIVersion><DRMType>smooth</"
+            "DRMType><EncoderVersion>"
+            "MistServer " RELEASE "_" PACKAGE_VERSION "</EncoderVersion><UserKey>";
+    soap << config->getString("buydrm");
+    soap << "</UserKey><KeyID>";
+    soap << formatGUID(contentID);
+    soap << "</KeyID><ContentID>";
+    soap << formatGUID(keyID);
+    soap << "</ContentID><fl_GeneratePRHeader>true</fl_GeneratePRHeader><fl_GenerateWVHeader>true</"
+            "fl_GenerateWVHeader><MediaID>";
+    soap << config->getString("streamname");
+    soap << "</MediaID></KeyOSEncryptionInfoRequest>"
+            "]]>"
+            "</RequestXml></RequestEncryptionInfo></s:Body></s:Envelope>";
+    INFO_MSG("Sending soap request %s", soap.str().c_str());
+
+    HTTP::Downloader dld;
+    dld.setHeader("Content-Type", "text/xml; charset=utf-8");
+    dld.setHeader("SOAPAction", "\"http://tempuri.org/ISmoothPackager/RequestEncryptionInfo\"");
+    dld.post(HTTP::URL("https://packager.licensekeyserver.com/pck/"), soap.str());
+    const std::string &result = dld.getHTTP().body;
+    std::string replaced;
+    replaced.reserve(result.size());
+    size_t i = 0;
+    while (i < result.size()){
+      if (result.at(i) == '&'){
+        if (result.at(i + 1) == 'l' && result.at(i + 2) == 't'){
+          replaced += '<';
+        }else if (result.at(i + 1) == 'g' && result.at(i + 2) == 't'){
+          replaced += '>';
+        }else if (result.at(i + 1) == '#' && result.at(i + 2) == 'x' && result.at(i + 3) == 'D'){
+          replaced += '\r';
         }else{
-          break;
+          replaced.append(result.data() + i, result.find(';', i) - i);
         }
+        i = result.find(';', i) + 1;
+        continue;
       }
-      pageCounter[track][pageNumber] = 15;
-      // If we're less than 10% off from the next page, make sure the next is also buffered.
-      if (keyNum + pageSize / 10 > pageNumber + pageSize){
-        MEDIUM_MSG("Pre-buffering next page! (%u+%u/10 > %u+%u)", keyNum, pageSize, pageNumber, pageSize);
-        return bufferFrame(track, pageNumber + pageSize + 1);
+      replaced += result.at(i);
+      i++;
+    }
+    while (replaced.find('\r') != std::string::npos){replaced.erase(replaced.find('\r'), 1);}
+    while (replaced.find('\n') != std::string::npos){replaced.erase(replaced.find('\n'), 1);}
+    INFO_MSG("ContentKey: %s", getXMLValue(replaced, "ContentKey").c_str());
+    INFO_MSG("WVHeader:   %s", getXMLValue(replaced, "WVHeader").c_str());
+    INFO_MSG("PRHeader:   %s", getXMLValue(replaced, "PRHeader").c_str());
+    std::string cKey = Encodings::Base64::decode(getXMLValue(replaced, "ContentKey"));
+    config->getOption("encryption", true).append(keyID + ":" + Encodings::Hex::encode(cKey));
+    config->getOption("widevine", true).append(getXMLValue(replaced, "WVHeader"));
+    config->getOption("playready", true).append(getXMLValue(replaced, "PRHeader"));
+    INFO_MSG("Set encryption to %s", config->getString("encryption").c_str());
+  }
+
+  bool Input::bufferFrame(size_t idx, uint32_t keyNum){
+    if (M.getLive()){return true;}
+    HIGH_MSG("Buffering track %zu, key %" PRIu32, idx, keyNum);
+    size_t sourceIdx = M.getSourceTrack(idx);
+    if (sourceIdx == INVALID_TRACK_ID){sourceIdx = idx;}
+
+    const Util::RelAccX &tPages = M.pages(idx);
+    DTSC::Keys keys(M.keys(idx));
+    uint32_t keyCount = keys.getValidCount();
+    if (!tPages.getEndPos()){
+      WARN_MSG("No pages for track %zu found! Cancelling bufferFrame", idx);
+      return false;
+    }
+    if (keyNum > keyCount){
+      // End of movie here, returning true to avoid various error messages
+      if (keyNum > keyCount + 1){
+        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (%" PRIu32
+                 "). Cancelling buffering.",
+                 keyNum, idx, keyCount);
       }
-      VERYHIGH_MSG("Track %u, key %u is already buffered in page %d. Cancelling bufferFrame", track,
-                   keyNum, pageNumber);
       return true;
     }
-    if (!nProxy.pagesByTrack.count(track)){
-      WARN_MSG("No pages for track %u found! Cancelling bufferFrame", track);
-      return false;
+    uint64_t pageIdx = 0;
+    for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+      if (tPages.getInt("firstkey", i) > keyNum) break;
+      pageIdx = i;
+    }
+    uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+    if (isBuffered(idx, pageNumber)){
+      // get corresponding page number
+      pageCounter[idx][pageNumber] = 15;
+      VERYHIGH_MSG("Track %zu, key %" PRIu32 "is already buffered in page %" PRIu32
+                   ". Cancelling bufferFrame",
+                   idx, keyNum, pageNumber);
+      return true;
     }
     // Update keynum to point to the corresponding page
     uint64_t bufferTimer = Util::bootMS();
-    MEDIUM_MSG("Loading key %u from page %lu", keyNum,
-               (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first);
-    keyNum = (--(nProxy.pagesByTrack[track].upper_bound(keyNum)))->first;
-    if (!bufferStart(track, keyNum)){
+    keyNum = pageNumber;
+    if (!bufferStart(idx, keyNum)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
       return false;
     }
 
-    std::stringstream trackSpec;
-    trackSpec << track;
-    trackSelect(trackSpec.str());
-    bool isSrt = (hasSrt && track == myMeta.tracks.rbegin()->first);
+    uint64_t keyTime = keys.getTime(keyNum);
+    userSelect[idx].reload(streamName, idx);
+
+    bool isSrt = (hasSrt && idx == srtTrack);
     if (isSrt){
-      srtTrack = track;
       srtSource.clear();
       srtSource.seekg(0, srtSource.beg);
       srtPack.null();
     }else{
-      seek(myMeta.tracks[track].keys[keyNum - 1].getTime());
+      seek(keyTime, sourceIdx);
     }
-    long long unsigned int stopTime = myMeta.tracks[track].lastms + 1;
-    if ((int)myMeta.tracks[track].keys.size() > keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum){
-      stopTime = myMeta.tracks[track].keys[keyNum - 1 + nProxy.pagesByTrack[track][keyNum].keyNum].getTime();
+    uint64_t stopTime = M.getLastms(idx) + 1;
+    if (pageIdx != tPages.getEndPos() - 1){
+      stopTime = keys.getTime(pageNumber + tPages.getInt("keycount", pageIdx));
     }
-    HIGH_MSG("Playing from %llu to %llu", myMeta.tracks[track].keys[keyNum - 1].getTime(), stopTime);
+    HIGH_MSG("Playing from %" PRIu64 " to %" PRIu64, keyTime, stopTime);
     if (isSrt){
       getNextSrt();
       // in case earlier seeking was inprecise, seek to the exact point
-      while (srtPack &&
-             srtPack.getTime() < (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()){
-        getNextSrt();
-      }
+      while (srtPack && srtPack.getTime() < keys.getTime(keyNum)){getNextSrt();}
     }else{
-      getNext();
+      getNext(sourceIdx);
       // in case earlier seeking was inprecise, seek to the exact point
-      while (thisPacket && thisPacket.getTime() <
-                               (unsigned long long)myMeta.tracks[track].keys[keyNum - 1].getTime()){
-        DONTEVEN_MSG("Skipping packet: %u@%" PRIu64 ", %zub", track, thisPacket.getTime(),
-                     thisPacket.getDataLen());
-        getNext();
-      }
+      while (thisPacket && thisPacket.getTime() < keys.getTime(keyNum)){getNext(sourceIdx);}
     }
     uint64_t lastBuffered = 0;
-    uint64_t packCounter = 0;
+    uint32_t packCounter = 0;
     uint64_t byteCounter = 0;
+    std::string encryption;
     if (isSrt){
       while (srtPack && srtPack.getTime() < stopTime){
         if (srtPack.getTime() >= lastBuffered){
-          bufferNext(srtPack);
+          char *data;
+          size_t dataLen;
+          srtPack.getString("data", data, dataLen);
+          bufferNext(srtPack.getTime(), 0, idx, data, dataLen, srtPack.getInt("bpos"),
+                     srtPack.getFlag("keyframe"));
           ++packCounter;
           byteCounter += srtPack.getDataLen();
           lastBuffered = srtPack.getTime();
@@ -1071,62 +1199,91 @@ namespace Mist{
     }else{
       while (thisPacket && thisPacket.getTime() < stopTime){
         if (thisPacket.getTime() >= lastBuffered){
-          DONTEVEN_MSG("Buffering packet: %u@%" PRIu64 ", %zub", track, thisPacket.getTime(),
-                       thisPacket.getDataLen());
-          bufferNext(thisPacket);
+          if (sourceIdx != idx){
+            if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){
+              if (encryption == ""){
+                encryption = M.getEncryption(idx);
+                std::string encryptionKey =
+                    Encodings::Hex::decode(encryption.substr(encryption.find(":") + 1));
+                aesCipher.setEncryptKey(encryptionKey.c_str());
+              }
+              if (encryption.substr(0, encryption.find('/')) == "CTR128"){
+                DTSC::Packet encPacket = aesCipher.encryptPacketCTR(
+                    M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisPacket, idx), idx);
+                thisPacket = encPacket;
+              }else if (encryption.substr(0, encryption.find('/')) == "CBC128"){
+                char ivec[] ={0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+                Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisPacket, idx));
+                DTSC::Packet encPacket = aesCipher.encryptPacketCBC(M, thisPacket, ivec, idx);
+                thisPacket = encPacket;
+              }
+            }else{
+              thisPacket = DTSC::Packet(thisPacket, idx);
+            }
+          }
+          char *data;
+          size_t dataLen;
+          thisPacket.getString("data", data, dataLen);
+          bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), idx, data, dataLen,
+                     thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"));
           ++packCounter;
           byteCounter += thisPacket.getDataLen();
           lastBuffered = thisPacket.getTime();
         }
-        getNext();
+        getNext(sourceIdx);
       }
     }
-    bufferFinalize(track);
+    bufferFinalize(idx);
     bufferTimer = Util::bootMS() - bufferTimer;
-    DEBUG_MSG(DLVL_DEVEL, "Done buffering page %d (%llu packets, %llu bytes, %llu-%llums -> %llums) for track %d (%s) in %llums",
-              keyNum, packCounter, byteCounter, myMeta.tracks[track].keys[keyNum - 1].getTime(),
-              stopTime, lastBuffered, track, myMeta.tracks[track].codec.c_str(), bufferTimer);
-    pageCounter[track][keyNum] = 15;
+    INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
+             idx, keyNum, tPages.getInt("firsttime", pageIdx), thisPacket.getTime(), bufferTimer);
+    INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
+             tPages.getInt("parts", pageIdx), byteCounter);
+    pageCounter[idx][keyNum] = 15;
     return true;
   }
 
   bool Input::atKeyFrame(){
-    static std::map<int, unsigned long long> lastSeen;
+    static std::map<size_t, uint64_t> lastSeen;
+    size_t idx = thisPacket.getTrackId();
     // not in keyTimes? We're not at a keyframe.
-    unsigned int c = keyTimes[thisPacket.getTrackId()].count(thisPacket.getTime());
-    if (!c){return false;}
+    if (!keyTimes[idx].count(thisPacket.getTime())){return false;}
     // skip double times
-    if (lastSeen.count(thisPacket.getTrackId()) && lastSeen[thisPacket.getTrackId()] == thisPacket.getTime()){
-      return false;
-    }
+    if (lastSeen.count(idx) && lastSeen[idx] == thisPacket.getTime()){return false;}
     // set last seen, and return true
-    lastSeen[thisPacket.getTrackId()] = thisPacket.getTime();
+    lastSeen[idx] = thisPacket.getTime();
     return true;
   }
-
-  void Input::play(int until){
-    playing = -1;
-    playUntil = until;
-    initialTime = 0;
-  }
-
-  void Input::playOnce(){
-    if (playing <= 0){playing = 1;}
-    ++playing;
-  }
-
-  void Input::quitPlay(){playing = 0;}
 
   bool Input::readExistingHeader(){
-    DTSC::File tmpdtsh(config->getString("input") + ".dtsh");
-    if (!tmpdtsh){return false;}
-    if (tmpdtsh.getMeta().version != DTSH_VERSION){
-      INFO_MSG("Updating wrong version header file from version %" PRIu16 " to %d",
-               tmpdtsh.getMeta().version, DTSH_VERSION);
+    char pageName[NAME_BUFFER_SIZE];
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
+    IPC::sharedPage sp(pageName, 0, false, false);
+    if (sp){
+      sp.close();
+      meta.reInit(config->getString("streamname"), false);
+      if (meta){
+        meta.setMaster(true);
+        INFO_MSG("Read existing header");
+        return true;
+      }
+    }
+    meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
+    if (meta.version != DTSH_VERSION){
+      INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
       return false;
     }
-    myMeta = tmpdtsh.getMeta();
-    return true;
+    return meta;
   }
 
+  bool Input::keepAlive(){
+    if (!userSelect.size()){return config->is_active;}
+
+    bool isAlive = false;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (it->second.isAlive()){isAlive = true;}
+      it->second.keepAlive();
+    }
+    return isAlive && config->is_active;
+  }
 }// namespace Mist

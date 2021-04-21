@@ -25,7 +25,7 @@ namespace SDP{
 /// This namespace holds all RTP-parsing and sending related functionality.
 namespace RTP{
 
-  extern unsigned int MAX_SEND;
+  extern uint32_t MAX_SEND;
 
   /// This class is used to make RTP packets. Currently, H264, and AAC are supported. RTP
   /// mechanisms, like increasing sequence numbers and setting timestamps are all taken care of in
@@ -35,49 +35,47 @@ namespace RTP{
     bool managed;
     char *data;          ///< The actual RTP packet that is being sent
     uint32_t maxDataLen; ///< Amount of reserved bytes for the packet(s)
-    int sentPackets;
-    int sentBytes; // Because ugly is beautiful
+    uint32_t sentPackets;
+    uint32_t sentBytes; // Because ugly is beautiful
   public:
     static double startRTCP;
-    unsigned int getHsize() const;
-    unsigned int getPayloadSize() const;
+    uint32_t getHsize() const;
+    uint32_t getPayloadSize() const;
     char *getPayload() const;
-    unsigned int getVersion() const;
-    unsigned int getPadding() const;
-    unsigned int getExtension() const;
-    unsigned int getContribCount() const;
-    unsigned int getMarker() const;
-    unsigned int getPayloadType() const;
-    unsigned int getSequence() const;
+    uint32_t getVersion() const;
+    uint32_t getPadding() const;
+    uint32_t getExtension() const;
+    uint32_t getContribCount() const;
+    uint32_t getMarker() const;
+    uint32_t getPayloadType() const;
+    uint16_t getSequence() const;
     uint32_t getTimeStamp() const;
-    void setSequence(unsigned int seq);
-    unsigned int getSSRC() const;
-    void setSSRC(unsigned long ssrc);
+    void setSequence(uint16_t seq);
+    uint32_t getSSRC() const;
+    void setSSRC(uint32_t ssrc);
 
     void setTimestamp(uint32_t t);
     void increaseSequence();
-    void sendH264(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                  const char *payload, unsigned int payloadlen, unsigned int channel, bool lastOfAccesUnit);
-    void sendVP8(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+    void sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
+                  unsigned int payloadlen, unsigned int channel, bool lastOfAccessUnit);
+    void sendVP8(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                  const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendH265(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+    void sendH265(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                   const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendMPEG2(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
+    void sendMPEG2(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                    const char *payload, unsigned int payloadlen, unsigned int channel);
-    void sendData(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                  const char *payload, unsigned int payloadlen, unsigned int channel, std::string codec);
-    void sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
-                     void callBack(void *, char *, unsigned int, unsigned int));
-    void sendRTCP_RR(long long &connectedAt, SDP::Track &sTrk, unsigned int tid,
-                     DTSC::Meta &metadata, void callBack(void *, char *, unsigned int, unsigned int));
+    void sendData(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
+                  unsigned int payloadlen, unsigned int channel, std::string codec);
+    void sendRTCP_SR(void *socket, void callBack(void *, const char *, size_t, uint8_t));
+    void sendRTCP_RR(SDP::Track &sTrk, void callBack(void *, const char *, size_t, uint8_t));
 
     Packet();
-    Packet(unsigned int pt, unsigned int seq, unsigned int ts, unsigned int ssr, unsigned int csrcCount = 0);
+    Packet(uint32_t pt, uint32_t seq, uint64_t ts, uint32_t ssr, uint32_t csrcCount = 0);
     Packet(const Packet &o);
     void operator=(const Packet &o);
     ~Packet();
-    Packet(const char *dat, unsigned int len);
-    char *getData();
+    Packet(const char *dat, uint64_t len);
+    const char *getData();
     char *ptr() const{return data;}
   };
 
@@ -130,7 +128,7 @@ namespace RTP{
     toDTSC();
     void setProperties(const uint64_t track, const std::string &codec, const std::string &type,
                        const std::string &init, const double multiplier);
-    void setProperties(const DTSC::Track &Trk);
+    void setProperties(const DTSC::Meta &M, size_t tid);
     void setCallbacks(void (*cbPack)(const DTSC::Packet &pkt),
                       void (*cbInit)(const uint64_t track, const std::string &initData));
     void addRTP(const RTP::Packet &rPkt);

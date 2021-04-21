@@ -22,11 +22,9 @@ namespace Mist{
     bool checkArguments();
     bool needHeader(){return false;}
     bool readHeader(){return true;}
-    void getNext(bool smart = true){}
     bool openStreamSource();
     void closeStreamSource();
     void parseStreamHeader();
-    void seek(int seekTime){}
     void sendCommand(const std::string &cmd, const std::string &cUrl, const std::string &body,
                      const std::map<std::string, std::string> *extraHeaders = 0, bool reAuth = true);
     bool parsePacket(bool mustHave = false);
@@ -43,8 +41,10 @@ namespace Mist{
     bool TCPmode;
     bool needAuth;
     std::string session;
-    long long connectedAt; ///< The timestamp the connection was made, as reference point for RTCP
-                           /// packets.
+    bool setPacketOffset;
+    int64_t packetOffset;
+
+    std::string lastRequestedSetup;
   };
 }// namespace Mist
 

@@ -145,17 +145,18 @@ namespace Controller{
     if (pipedCapa.isMember("optional")){builPipedPart(p, argarr, argnum, pipedCapa["optional"]);}
   }
 
-  ///\brief Checks current protocol configuration, updates state of enabled connectors if neccessary.
-  ///\param p An object containing all protocols.
-  ///\param capabilities An object containing the detected capabilities.
-  ///\returns True if any action was taken
+  ///\brief Checks current protocol configuration, updates state of enabled connectors if
+  /// neccessary. \param p An object containing all protocols. \param capabilities An object
+  /// containing the detected capabilities. \returns True if any action was taken
   ///
   /// \triggers
-  /// The `"OUTPUT_START"` trigger is global, and is ran whenever a new protocol listener is started. It cannot be cancelled. Its payload is:
+  /// The `"OUTPUT_START"` trigger is global, and is ran whenever a new protocol listener is
+  /// started. It cannot be cancelled. Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// output listener commandline
   /// ~~~~~~~~~~~~~~~
-  /// The `"OUTPUT_STOP"` trigger is global, and is ran whenever a protocol listener is terminated. It cannot be cancelled. Its payload is:
+  /// The `"OUTPUT_STOP"` trigger is global, and is ran whenever a protocol listener is terminated.
+  /// It cannot be cancelled. Its payload is:
   /// ~~~~~~~~~~~~~~~
   /// output listener commandline
   /// ~~~~~~~~~~~~~~~

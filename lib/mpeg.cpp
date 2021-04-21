@@ -13,7 +13,7 @@ namespace Mpeg{
     // samplerate is encoded in bits 0x0C of header[2];
     res.sampleRate = sampleRates[mpegVersion][((hdr[2] >> 2) & 0x03)] * 1000;
     res.channels = 2 - (hdr[3] >> 7);
-    res.layer = 4 - (hdr[1] >> 1) & 0x03;
+    res.layer = 4 - ((hdr[1] >> 1) & 0x03);
     return res;
   }
 

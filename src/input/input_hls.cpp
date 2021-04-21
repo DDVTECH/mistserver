@@ -118,7 +118,7 @@ namespace Mist{
 
   /// Called by the global callbackFunc, to prevent timeouts
   bool inputHLS::callback(){
-    if (nProxy.userClient.isAlive()){nProxy.userClient.keepAlive();}
+    keepAlive();
     return config->is_active;
   }
 
@@ -415,7 +415,7 @@ namespace Mist{
 
         if (key == "TARGETDURATION"){
           waitTime = atoi(val.c_str()) / 2;
-          if (waitTime < 5){waitTime = 5;}
+          if (waitTime < 2){waitTime = 2;}
         }
 
         if (key == "MEDIA-SEQUENCE"){fileNo = atoll(val.c_str());}
@@ -520,12 +520,13 @@ namespace Mist{
       memset(entry.keyAES, 0, 16);
     }
 
-    if (!isUrl()){
-      std::ifstream fileSource;
-      std::string test = root.link(entry.filename).getFilePath();
-      fileSource.open(test.c_str(), std::ios::ate | std::ios::binary);
-      if (!fileSource.good()){WARN_MSG("file: %s, error: %s", test.c_str(), strerror(errno));}
-      totalBytes += fileSource.tellg();
+      if (!isUrl()){
+        std::ifstream fileSource;
+        std::string test = root.link(entry.filename).getFilePath();
+        fileSource.open(test.c_str(), std::ios::ate | std::ios::binary);
+        if (!fileSource.good()){WARN_MSG("file: %s, error: %s", test.c_str(), strerror(errno));}
+        entry.byteEnd = fileSource.tellg();
+        totalBytes += entry.byteEnd;
     }
 
     entry.timestamp = lastTimestamp + startTime;
@@ -586,20 +587,6 @@ namespace Mist{
     }
     if (!initPlaylist(config->getString("input"), false)){return false;}
     return true;
-  }
-
-  void inputHLS::trackSelect(std::string trackSpec){
-    selectedTracks.clear();
-    size_t index;
-    while (trackSpec != ""){
-      index = trackSpec.find(' ');
-      selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos){
-        trackSpec.erase(0, index + 1);
-      }else{
-        trackSpec = "";
-      }
-    }
   }
 
   void inputHLS::parseStreamHeader(){
@@ -668,6 +655,8 @@ namespace Mist{
         }while (!segDowner.atEnd());
         if (preCounter < counter){break;}// We're done reading this playlist!
       }
+
+      in.close();
     }
     tsStream.clear();
     currentPlaylist = 0;
@@ -681,13 +670,12 @@ namespace Mist{
     bool hasHeader = false;
 
     // See whether a separate header file exists.
-    DTSC::File tmp(config->getString("input") + ".dtsh");
-    if (tmp){
-      myMeta = tmp.getMeta();
-      if (myMeta){hasHeader = true;}
-    }
+    meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
+    hasHeader = (bool)M;
 
-    if (!hasHeader){myMeta = DTSC::Meta();}
+    if (M){return true;}
+
+    if (!hasHeader){meta.reInit(config->getString("streamname"), true);}
 
     TS::Packet packet; // to analyse and extract data
 
@@ -728,19 +716,22 @@ namespace Mist{
               counter++;
             }
 
-            if (!hasHeader && (!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
-              tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
+            size_t idx = M.trackIDToIndex(packetId, getpid());
+            INFO_MSG("PacketID: %" PRIu64 ", pid: %d, mapped to %zu", packetId, getpid(), idx);
+            if (!hasHeader && (idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
+              tsStream.initializeMetadata(meta, tmpTrackId, packetId);
+              INFO_MSG("InitializingMeta for track %zu -> %zu", tmpTrackId, packetId);
+              idx = M.trackIDToIndex(packetId, getpid());
             }
 
             if (!hasHeader){
               headerPack.getString("data", data, dataLen);
-              uint64_t pBPos = headerPack.getInt("bpos");
 
               // keyframe data exists, so always add 19 bytes keyframedata.
-              long long packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
-              long long packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-              myMeta.update(headerPack.getTime(), packOffset, packetId, dataLen, entId,
-                            headerPack.hasMember("keyframe"), packSendSize);
+              uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
+              size_t packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
+              meta.update(headerPack.getTime(), packOffset, idx, dataLen, entId,
+                          headerPack.hasMember("keyframe"), packSendSize);
             }
           }
 
@@ -766,19 +757,18 @@ namespace Mist{
             counter++;
           }
 
-          if (!hasHeader && (!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
-            tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
+          if (!hasHeader && (idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
+            tsStream.initializeMetadata(meta, tmpTrackId, packetId);
+            idx = M.trackIDToIndex(packetId, getpid());
           }
 
           if (!hasHeader){
             headerPack.getString("data", data, dataLen);
-            uint64_t pBPos = headerPack.getInt("bpos");
-
             // keyframe data exists, so always add 19 bytes keyframedata.
             long long packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
             long long packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-            myMeta.update(headerPack.getTime(), packOffset, packetId, dataLen, entId,
-                          headerPack.hasMember("keyframe"), packSendSize);
+            meta.update(headerPack.getTime(), packOffset, idx, dataLen, entId,
+                        headerPack.hasMember("keyframe"), packSendSize);
           }
           tsStream.getEarliestPacket(headerPack);
         }
@@ -790,10 +780,8 @@ namespace Mist{
     if (streamIsLive){return true;}
 
     INFO_MSG("write header file...");
-    std::ofstream oFile((config->getString("input") + ".dtsh").c_str());
-
-    oFile << myMeta.toJSON().toNetPacked();
-    oFile.close();
+    M.toFile((config->getString("input") + ".dtsh").c_str());
+    in.close();
 
     return true;
   }
@@ -802,34 +790,30 @@ namespace Mist{
 
   bool inputHLS::openStreamSource(){return true;}
 
-  void inputHLS::getNext(bool smart){
+  void inputHLS::getNext(size_t idx){
     INSANE_MSG("Getting next");
     uint32_t tid = 0;
     bool finished = false;
-    if (selectedTracks.size()){tid = *selectedTracks.begin();}
+    if (userSelect.size()){tid = userSelect.begin()->first;}
     thisPacket.null();
-    while (config->is_active && (needsLock() || nProxy.userClient.isAlive())){
+    while (config->is_active && (needsLock() || keepAlive())){
 
       // Check if we have a packet
       bool hasPacket = false;
       if (streamIsLive){
         hasPacket = tsStream.hasPacketOnEachTrack() || (segDowner.atEnd() && tsStream.hasPacket());
       }else{
-        hasPacket = tsStream.hasPacket(getMappedTrackId(tid));
+        hasPacket = tsStream.hasPacket(M.getID(idx) & 0xFFFF);
       }
 
       // Yes? Excellent! Read and return it.
       if (hasPacket){
         // Read
-        if (myMeta.live){
+        if (M.getLive()){
           tsStream.getEarliestPacket(thisPacket);
-          tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
-          if (!tid){
-            INFO_MSG("Track %" PRIu64 " on PLS %u -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
-            continue;
-          }
+          tid = M.trackIDToIndex((((uint64_t)currentPlaylist) << 16) + thisPacket.getTrackId(), getpid());
         }else{
-          tsStream.getPacket(getMappedTrackId(tid), thisPacket);
+          tsStream.getPacket(M.getID(idx) & 0xFFFF, thisPacket);
         }
         if (!thisPacket){
           FAIL_MSG("Could not getNext TS packet!");
@@ -940,25 +924,19 @@ namespace Mist{
   }
 
   // Note: bpos is overloaded here for playlist entry!
-  void inputHLS::seek(int seekTime){
+  void inputHLS::seek(uint64_t seekTime, size_t idx){
     plsTimeOffset.clear();
     plsLastTime.clear();
     plsInterval.clear();
     tsStream.clear();
-    int trackId = 0;
+    uint64_t trackId = M.getID(idx);
 
-    unsigned long plistEntry = 0xFFFFFFFFull;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
-      unsigned long thisBPos = 0;
-      for (std::deque<DTSC::Key>::iterator keyIt = myMeta.tracks[*it].keys.begin();
-           keyIt != myMeta.tracks[*it].keys.end(); keyIt++){
-        if (keyIt->getTime() > seekTime){break;}
-        thisBPos = keyIt->getBpos();
-      }
-      if (thisBPos < plistEntry){
-        plistEntry = thisBPos;
-        trackId = *it;
-      }
+    unsigned long plistEntry = 0;
+
+    DTSC::Keys keys(M.keys(idx));
+    for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); i++){
+      if (keys.getTime(i) > seekTime){break;}
+      plistEntry = keys.getBpos(i);
     }
 
     if (plistEntry < 1){
@@ -995,7 +973,7 @@ namespace Mist{
     }
   }
 
-  int inputHLS::getEntryId(int playlistId, uint64_t bytePos){
+  size_t inputHLS::getEntryId(uint32_t playlistId, uint64_t bytePos){
     if (bytePos == 0){return 0;}
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
     for (int i = 0; i < listEntries[playlistId].size(); i++){
@@ -1248,9 +1226,9 @@ namespace Mist{
   /// return the playlist id from which we need to read the first upcoming segment
   /// by timestamp.
   /// this will keep the playlists in sync while reading segments.
-  int inputHLS::firstSegment(){
+  size_t inputHLS::firstSegment(){
     // Only one selected? Immediately return the right playlist.
-    if (selectedTracks.size() == 1){return getMappedTrackPlaylist(*selectedTracks.begin());}
+    if (userSelect.size() == 1){return ((M.getID(userSelect.begin()->first) >> 16) & 0xFFFF);}
     uint64_t firstTimeStamp = 0;
     int tmpId = -1;
     int segCount = 0;

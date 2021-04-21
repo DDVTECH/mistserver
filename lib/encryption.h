@@ -1,35 +1,28 @@
 #pragma once
 #include "dtsc.h"
+#include <mbedtls/aes.h>
 #include <string>
 
 namespace Encryption{
-  class verimatrixData{
+  class AES{
   public:
-    void read(const char *shmPage);
-    void write(char *shmPage);
-    std::string url;
-    std::string name;
-    std::string key;
-    std::string keyid;
-    std::string keyseed;
-    std::string laurl;
-    std::string lauurl;
+    AES();
+    ~AES();
+
+    void setEncryptKey(const char *key);
+    void setDecryptKey(const char *key);
+
+    DTSC::Packet encryptPacketCTR(const DTSC::Meta &M, const DTSC::Packet &src, uint64_t ivec, size_t newTrack);
+    std::string encryptBlockCTR(uint64_t ivec, const std::string &inp);
+    bool encryptBlockCTR(uint64_t ivec, const char *src, char *dest, size_t dataLen);
+
+    bool encryptH264BlockFairplay(char *ivec, const char *src, char *dest, size_t dataLen);
+
+    DTSC::Packet encryptPacketCBC(const DTSC::Meta &M, const DTSC::Packet &src, char *ivec, size_t newTrack);
+    std::string encryptBlockCBC(char *ivec, const std::string &inp);
+    bool encryptBlockCBC(char *ivec, const char *src, char *dest, size_t dataLen);
+
+  protected:
+    mbedtls_aes_context ctx;
   };
-
-  std::string hexString(const char *data, unsigned long dataLen);
-
-  std::string AES_Crypt(const std::string &data, const std::string &key, std::string &ivec);
-  std::string AES_Crypt(const char *data, int dataLen, const char *key, const char *ivec);
-
-  // These functions are dangerous for your data
-  void AESFullCrypt(char *data, int dataLen, const char *key, const char *ivec);
-  void AESPartialCrypt(char *data, int dataLen, char *expandedKey, char *eCount, char *iVec,
-                       unsigned int &num, bool &initialize);
-
-  std::string PR_GenerateContentKey(std::string &keyseed, std::string &keyid);
-  std::string PR_GuidToByteArray(std::string &guid);
-
-  void encryptPlayReady(DTSC::Packet &pack, std::string &codec, const char *iVec, const char *key);
-
-  void fillVerimatrix(verimatrixData &vmData);
 }// namespace Encryption

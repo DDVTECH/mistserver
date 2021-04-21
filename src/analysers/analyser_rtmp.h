@@ -7,7 +7,7 @@ class AnalyserRTMP : public Analyser{
 private:
   RTMPStream::Chunk next;    ///< Holds the most recently parsed RTMP chunk
   FLV::Tag F;                ///< Holds the most recently created FLV packet
-  unsigned int read_in;      ///< Amounts of bytes read to fill 'strbuf' so far
+  size_t read_in;            ///< Amounts of bytes read to fill 'strbuf' so far
   Socket::Buffer strbuf;     ///< Internal buffer from where 'next' is filled
   AMF::Object amfdata;       ///< Last read AMF object
   AMF::Object3 amf3data;     ///< Last read AMF3 object

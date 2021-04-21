@@ -1,5 +1,4 @@
 /// \file json.h Holds all JSON-related headers.
-
 #pragma once
 #include "socket.h"
 #include <deque>

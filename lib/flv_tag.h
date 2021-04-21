@@ -49,11 +49,12 @@ namespace FLV{
     ~Tag();                          ///< Generic destructor.
     // loader functions
     bool ChunkLoader(const RTMPStream::Chunk &O);
-    bool DTSCLoader(DTSC::Packet &packData, DTSC::Track &track);
-    bool DTSCVideoInit(DTSC::Track &video);
-    bool DTSCAudioInit(DTSC::Track &audio);
-    bool DTSCMetaInit(DTSC::Meta &M, std::set<long unsigned int> &selTracks);
-    void toMeta(DTSC::Meta &metadata, AMF::Object &amf_storage, unsigned int reTrack = 0);
+    bool DTSCLoader(DTSC::Packet &packData, const DTSC::Meta &M, size_t idx);
+    bool DTSCVideoInit(DTSC::Meta &meta, uint32_t vTrack);
+    bool DTSCAudioInit(DTSC::Meta &meta, uint32_t aTrack);
+    bool DTSCMetaInit(const DTSC::Meta &M, std::set<long unsigned int> &selTracks);
+    void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage);
+    void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack);
     bool MemLoader(char *D, unsigned int S, unsigned int &P);
     bool FileLoader(FILE *f);
     unsigned int getTrackID();

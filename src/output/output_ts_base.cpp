@@ -11,16 +11,22 @@ namespace Mist{
   }
 
   void TSOutput::fillPacket(char const *data, size_t dataLen, bool &firstPack, bool video,
-                            bool keyframe, uint32_t pkgPid, int &contPkg){
+                            bool keyframe, size_t pkgPid, uint16_t &contPkg){
     do{
       if (!packData.getBytesFree()){
         if ((sendRepeatingHeaders && thisPacket.getTime() - lastHeaderTime > sendRepeatingHeaders) || !packCounter){
+
+          std::set<size_t> selectedTracks;
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            selectedTracks.insert(it->first);
+          }
+
           lastHeaderTime = thisPacket.getTime();
           TS::Packet tmpPack;
           tmpPack.FromPointer(TS::PAT);
           tmpPack.setContinuityCounter(++contPAT);
           sendTS(tmpPack.checkAndGetBuffer());
-          sendTS(TS::createPMT(selectedTracks, myMeta, ++contPMT));
+          sendTS(TS::createPMT(selectedTracks, M, ++contPMT));
           sendTS(TS::createSDT(streamName, ++contSDT));
           packCounter += 3;
         }
@@ -56,39 +62,44 @@ namespace Mist{
 
   void TSOutput::sendNext(){
     // Get ready some data to speed up accesses
-    uint32_t trackId = thisPacket.getTrackId();
-    DTSC::Track &Trk = myMeta.tracks[trackId];
-    bool &firstPack = first[trackId];
-    uint32_t pkgPid = 255 + trackId;
-    int &contPkg = contCounters[pkgPid];
+    std::string type = M.getType(thisIdx);
+    std::string codec = M.getCodec(thisIdx);
+    bool video = (type == "video");
+
+    size_t pkgPid = M.getID(thisIdx);
+    if (pkgPid < 255){pkgPid += 255;}
+
+    bool &firstPack = first[thisIdx];
+    uint16_t &contPkg = contCounters[pkgPid];
+
     uint64_t packTime = thisPacket.getTime();
-    bool video = (Trk.type == "video");
     bool keyframe = thisPacket.getInt("keyframe");
     firstPack = true;
 
     char *dataPointer = 0;
-    size_t tmpDataLen = 0;
-    thisPacket.getString("data", dataPointer, tmpDataLen); // data
-    uint64_t dataLen = tmpDataLen;
+    size_t dataLen = 0;
+    thisPacket.getString("data", dataPointer, dataLen); // data
+
     packTime *= 90;
     std::string bs;
     // prepare bufferstring
     if (video){
-      if (Trk.codec == "H264" || Trk.codec == "HEVC"){
+      if (codec == "H264" || codec == "HEVC"){
         unsigned int extraSize = 0;
-        // dataPointer[4] & 0x1f is used to check if this should be done later: fillPacket("\000\000\000\001\011\360", 6);
-        if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){extraSize += 6;}
+        // dataPointer[4] & 0x1f is used to check if this should be done later:
+        // fillPacket("\000\000\000\001\011\360", 6);
+        if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){extraSize += 6;}
         if (keyframe){
-          if (Trk.codec == "H264"){
+          if (codec == "H264"){
             MP4::AVCC avccbox;
-            avccbox.setPayload(Trk.init);
+            avccbox.setPayload(M.getInit(thisIdx));
             bs = avccbox.asAnnexB();
             extraSize += bs.size();
           }
           /*LTS-START*/
-          if (Trk.codec == "HEVC"){
+          if (codec == "HEVC"){
             MP4::HVCC hvccbox;
-            hvccbox.setPayload(Trk.init);
+            hvccbox.setPayload(M.getInit(thisIdx));
             bs = hvccbox.asAnnexB();
             extraSize += bs.size();
           }
@@ -107,26 +118,26 @@ namespace Mist{
           unsigned int alreadySent = 0;
           bs = TS::Packet::getPESVideoLeadIn(
               (currPack != splitCount ? watKunnenWeIn1Ding : dataLen + extraSize - currPack * watKunnenWeIn1Ding),
-              packTime, offset, !currPack, Trk.bps);
+              packTime, offset, !currPack, M.getBps(thisIdx));
           fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
           if (!currPack){
-            if (Trk.codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
+            if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
               // End of previous nal unit, if not already present
               fillPacket("\000\000\000\001\011\360", 6, firstPack, video, keyframe, pkgPid, contPkg);
               alreadySent += 6;
             }
             if (keyframe){
-              if (Trk.codec == "H264"){
+              if (codec == "H264"){
                 MP4::AVCC avccbox;
-                avccbox.setPayload(Trk.init);
+                avccbox.setPayload(M.getInit(thisIdx));
                 bs = avccbox.asAnnexB();
                 fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
                 alreadySent += bs.size();
               }
               /*LTS-START*/
-              if (Trk.codec == "HEVC"){
+              if (codec == "HEVC"){
                 MP4::HVCC hvccbox;
-                hvccbox.setPayload(Trk.init);
+                hvccbox.setPayload(M.getInit(thisIdx));
                 bs = hvccbox.asAnnexB();
                 fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
                 alreadySent += bs.size();
@@ -136,7 +147,7 @@ namespace Mist{
           }
           while (i + 4 < (unsigned int)dataLen){
             if (nalLead){
-              fillPacket("\000\000\000\001" + 4 - nalLead, nalLead, firstPack, video, keyframe, pkgPid, contPkg);
+              fillPacket(&"\000\000\000\001"[4 - nalLead], nalLead, firstPack, video, keyframe, pkgPid, contPkg);
               i += nalLead;
               alreadySent += nalLead;
               nalLead = 0;
@@ -183,17 +194,17 @@ namespace Mist{
         }
       }else{
         uint64_t offset = thisPacket.getInt("offset") * 90;
-        bs = TS::Packet::getPESVideoLeadIn(0, packTime, offset, true, Trk.bps);
+        bs = TS::Packet::getPESVideoLeadIn(0, packTime, offset, true, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
 
         fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
       }
-    }else if (Trk.type == "audio"){
-      long unsigned int tempLen = dataLen;
-      if (Trk.codec == "AAC"){
+    }else if (type == "audio"){
+      size_t tempLen = dataLen;
+      if (codec == "AAC"){
         tempLen += 7;
         // Make sure TS timestamp is sample-aligned, if possible
-        uint32_t freq = Trk.rate;
+        uint32_t freq = M.getRate(thisIdx);
         if (freq){
           uint64_t aacSamples = (packTime / 90) * freq / 1000;
           // round to nearest packet, assuming all 1024 samples (probably wrong, but meh)
@@ -204,12 +215,17 @@ namespace Mist{
           packTime = aacSamples * 90000 / freq;
         }
       }
-      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, Trk.bps);
+      bs = TS::Packet::getPESAudioLeadIn(tempLen, packTime, M.getBps(thisIdx));
       fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-      if (Trk.codec == "AAC"){
-        bs = TS::getAudioHeader(dataLen, Trk.init);
+      if (codec == "AAC"){
+        bs = TS::getAudioHeader(dataLen, M.getInit(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       }
+      fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
+    }else if (type == "meta"){
+      long unsigned int tempLen = dataLen;
+      bs = TS::Packet::getPESMetaLeadIn(tempLen, packTime, M.getBps(thisIdx));
+      fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
       fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }
     if (packData.getBytesFree() < 184){

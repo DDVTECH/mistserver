@@ -134,12 +134,16 @@ function MistVideo(streamName,options) {
     
     //retrieve and sort the players we can loop over
     var players;
+    //make sure all players have the shortname param
+    for (var i in mistplayers) {
+      mistplayers[i].shortname = i;
+    }
     if (options.forcePlayer) {
-      players = [options.forcePlayer];
+      players = [mistplayers[options.forcePlayer]];
       MistVideo.log("Forcing player "+options.forcePlayer);
     }
     else {
-      players = MistUtil.object.keys(mistplayers);
+      players = MistUtil.object.values(mistplayers);
     }
     
     
@@ -155,7 +159,7 @@ function MistVideo(streamName,options) {
         a.origIndex = MistVideo.info.source.indexOf(a)
         return a.origIndex;
       }],
-      player: [{priority:-1}]
+      player: [{priority:1}]
     };
     var map = {
       inner: "player",
@@ -170,7 +174,7 @@ function MistVideo(streamName,options) {
       if ("player" in options.forcePriority) {
         if (!(options.forcePriority.player instanceof Array)) { throw "forcePriority.player is not an array."; }
         sortoptions.player = options.forcePriority.player.concat(sortoptions.player); //prepend
-        MistUtil.array.multiSort(players,sortoptions.players);
+        MistUtil.array.multiSort(players,sortoptions.player);
       }
       if ("first" in options.forcePriority) {
         sortopions.first = options.forcePriority.first; //overwrite
@@ -223,7 +227,7 @@ function MistVideo(streamName,options) {
         if (checkStartCombo(map.inner) >= 1) { continue; }
         
         var source = variables.source.list[variables.source.current];
-        var p_shortname = variables.player.list[variables.player.current];
+        var p_shortname = variables.player.list[variables.player.current].shortname;
         var player = mistplayers[p_shortname];
         
         if (player.isMimeSupported(source.type)) {
@@ -579,7 +583,7 @@ function MistVideo(streamName,options) {
         
         //add event logging
         var events = [
-        "abort","canplay","canplaythrough","durationchange","emptied","ended","loadeddata","loadedmetadata","loadstart","pause","play","playing","ratechange","seeked","seeking","stalled","volumechange","waiting","metaUpdate_tracks","resizing"
+        "abort","canplay","canplaythrough",/*"durationchange"*/,"emptied","ended","loadeddata","loadedmetadata","loadstart","pause","play","playing","ratechange","seeked","seeking","stalled","volumechange","waiting","metaUpdate_tracks","resizing"
         //,"timeupdate"
         ];
         for (var i in events) {
@@ -1142,7 +1146,12 @@ function MistVideo(streamName,options) {
         this.player.api.setSource("");
         //this.element.load(); //don't use this.load() to avoid interrupting play/pause
       }
-      if ("unload" in this.player.api) { try { this.player.api.unload(); } catch (e) {} }
+      if ("unload" in this.player.api) { 
+        try { this.player.api.unload(); }
+        catch (e) {
+          MistVideo.log("Error while unloading player: "+e.message);
+        }
+      }
     }
     if ((this.UI) && (this.UI.elements)) {
       for (var i in this.UI.elements) {

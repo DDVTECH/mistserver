@@ -236,19 +236,23 @@ p.prototype.build = function (MistVideo,callback) {
       function checkH264(n){
         var p = new Promise(function(resolve,reject){
           function promise_body(n){
-            var r = RTCRtpReceiver.getCapabilities("video");
-            for (var i = 0; i < r.codecs.length; i++) {
-              if (r.codecs[i].mimeType == "video/H264") {
-                resolve("H264 found :)");
-                return;
+            try {
+              var r = RTCRtpReceiver.getCapabilities("video");
+              for (var i = 0; i < r.codecs.length; i++) {
+                if (r.codecs[i].mimeType == "video/H264") {
+                  resolve("H264 found :)");
+                  return;
+                }
               }
-            }
-            if (n > 0) { setTimeout(function(){
-              promise_body(n-1);
-            },100) }
-            else {
-              reject("H264 not found :(");
-            }
+              if (n > 0) {
+                setTimeout(function(){
+                  promise_body(n-1);
+                },100);
+              }
+              else {
+                reject("H264 not found :(");
+              }
+            } catch (e) { resolve("Checker unavailable"); }
           }
           promise_body(n);
         });

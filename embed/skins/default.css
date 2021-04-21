@@ -41,6 +41,7 @@
   border-right: inherit;
   background-color: $accent;
   z-index: 2; /*keep above buffer bar(s)*/
+  transition: width 0.2s;
 }
 .mistvideo-progress .buffer {
   height: inherit;

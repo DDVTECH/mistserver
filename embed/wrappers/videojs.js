@@ -39,6 +39,7 @@ p.prototype.build = function (MistVideo,callback) {
     if (MistVideo.source.type != "html5/video/ogg") {
       ele.crossOrigin = "anonymous"; //required for subtitles, but if ogg, the video won"t load
     }
+    ele.setAttribute("playsinline",""); //for apple
     
     var shortmime = MistVideo.source.type.split("/");
     if (shortmime[0] == "html5") {

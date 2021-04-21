@@ -136,6 +136,7 @@ namespace Mist {
     capa["optional"]["wrappers"]["allowed"].append("videojs");
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
     capa["optional"]["wrappers"]["allowed"].append("webrtc");
+    capa["optional"]["wrappers"]["allowed"].append("mews");
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
@@ -749,9 +750,12 @@ namespace Mist {
           response.append((char*)webrtc_js, (size_t)webrtc_js_len);
           used = true;
         }
-        if (!used) {
-          WARN_MSG("Unknown player type: %s",it->asStringRef().c_str());
+        if (it->asStringRef() == "mews"){
+          #include "mews.js.h"
+          response.append((char*)mews_js, (size_t)mews_js_len);
+          used = true;
         }
+        if (!used){WARN_MSG("Unknown player type: %s", it->asStringRef().c_str());}
       }
       
       if ((rURL.substr(0, 7) == "/embed_") && (rURL.length() > 10) && (rURL.substr(rURL.length() - 3, 3) == ".js")){

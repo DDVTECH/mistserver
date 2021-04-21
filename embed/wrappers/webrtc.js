@@ -268,6 +268,45 @@ p.prototype.build = function (MistVideo,callback) {
           video.srcObject = ev.streams[0];
           if (callback) { callback(); }
         };
+        thisWebRTCPlayer.peerConn.onconnectionstatechange = function(e){
+          if (this.destroyed) { return; } //the player doesn't exist any more
+          switch (this.connectionState) {
+            case "failed": {
+              //WebRTC will never work (firewall maybe?)
+              MistVideo.log("UDP connection failed, trying next combo.","error");
+              MistVideo.nextCombo();
+              break;
+            }
+            case "disconnected":
+            case "closed":
+            case "new":
+            case "connecting":
+            case "connected":
+            default: {
+              MistVideo.log("WebRTC connection state changed to "+this.connectionState);
+              break;
+            }
+          }
+        };
+        thisWebRTCPlayer.peerConn.oniceconnectionstatechange = function(e){
+          if (this.destroyed) { return; } //the player doesn't exist any more
+          switch (this.iceConnectionState) {
+            case "failed": {
+              MistVideo.showError("ICE connection "+this.iceConnectionState);
+              break;
+            }
+            case "disconnected":
+            case "closed": 
+            case "new":
+            case "checking":
+            case "connected":
+            case "completed":
+            default: {
+              MistVideo.log("WebRTC ICE connection state changed to "+this.iceConnectionState);
+              break;
+            }
+          }
+        };
       });
     };
     

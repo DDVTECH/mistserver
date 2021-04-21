@@ -101,6 +101,8 @@ namespace Mist{
 
     uint64_t simStartTime;
 
+    IPC::sharedPage pidPage; ///Stores responsible input process PID
+
     void handleBuyDRM();
   };
 }// namespace Mist

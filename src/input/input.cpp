@@ -335,12 +335,19 @@ namespace Mist{
           playerLock.close();
           return 1;
         }
+        //Set stream status to STRMSTAT_INIT, then close the page in non-master mode to keep it around
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
         streamStatus.init(pageName, 1, true, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         streamStatus.master = false;
         streamStatus.close();
+        //Set stream input PID to current PID
+        snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, streamName.c_str());
+        pidPage.init(pageName, 8, true, false);
+        if (pidPage){(*(uint64_t*)(pidPage.mapped)) = getpid();}
+        pidPage.master = false;
+        pidPage.close();
       }else{
         // needsLock() == false means this binary will itself start the sole responsible input
         // So, we definitely do NOT lock SEM_INPUT, since the child process will do that later.
@@ -359,6 +366,13 @@ namespace Mist{
             pullLock.close();
             return 1;
           }
+          //Set stream pull PID to current PID
+          char pageName[NAME_BUFFER_SIZE];
+          snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_PPID, streamName.c_str());
+          pidPage.init(pageName, 8, true, false);
+          if (pidPage){(*(uint64_t*)(pidPage.mapped)) = getpid();}
+          pidPage.master = false;
+          pidPage.close();
         }
       }
     }
@@ -449,21 +463,43 @@ namespace Mist{
           streamName.c_str());
       break;
 #else
-      WARN_MSG("Input for stream %s uncleanly shut down! Restarting...", streamName.c_str());
+      if (config->is_active){
+        WARN_MSG("Input for stream %s uncleanly shut down! Cleaning and restarting...", streamName.c_str());
+      }else{
+        WARN_MSG("Input for stream %s uncleanly killed, cleaning up...", streamName.c_str());
+      }
       onCrash();
-      Util::wait(reTimer);
-      reTimer += 1000;
+      if (config->is_active){
+        Util::wait(reTimer);
+        reTimer += 1000;
+      }
 #endif
     }
 
     if (playerLock){
-      playerLock.unlink();
+      //Clear stream input PID
       char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, streamName.c_str());
+      pidPage.init(pageName, 8, false, false);
+      pidPage.master = true;
+      pidPage.close();
+      //Clear stream state
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
       streamStatus.init(pageName, 1, true, false);
       streamStatus.close();
+      //Delete lock
+      playerLock.unlink();
     }
-    pullLock.unlink();
+    if (pullLock){
+      //Clear stream pull PID
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_PPID, streamName.c_str());
+      pidPage.init(pageName, 8, false, false);
+      pidPage.master = true;
+      pidPage.close();
+      //Delete lock
+      pullLock.unlink();
+    }
 
     HIGH_MSG("Angel process for %s exiting", streamName.c_str());
     return 0;

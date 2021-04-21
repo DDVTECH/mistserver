@@ -936,6 +936,17 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
+  if (Request.isMember("nuke_stream") && Request["nuke_stream"].isString() && Request["nuke_stream"].asStringRef().size()){
+    std::string strm = Request["nuke_stream"].asStringRef();
+    std::deque<std::string> command;
+    command.push_back(Util::getMyPath() + "MistUtilNuke");
+    command.push_back(strm);
+    int stdIn = 0;
+    int stdOut = 1;
+    int stdErr = 2;
+    Util::Procs::StartPiped(command, &stdIn, &stdOut, &stdErr);
+  }
+
   if (Request.isMember("invalidate_sessions")){
     if (Request["invalidate_sessions"].isArray()){
       for (unsigned int i = 0; i < Request["invalidate_sessions"].size(); ++i){

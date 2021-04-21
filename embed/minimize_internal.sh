@@ -46,6 +46,8 @@ echo "    Minimizing wrappers.."
   terser -mn -o min/wrappers/mews.js -- wrappers/mews.js
   echo "      Minimizing flv.js";
   terser -mn -o min/wrappers/flv.js -- wrappers/flv.js
+  echo "      Minimizing hls.js";
+  terser -mn -o min/wrappers/hlsjs.js -- wrappers/hlsjs.js
 echo "    Done.";
 
 echo "  Minimizing CSS..";

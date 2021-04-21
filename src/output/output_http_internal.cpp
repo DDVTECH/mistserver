@@ -130,6 +130,7 @@ namespace Mist{
     capa["url_match"].append("/dashjs.js");
     capa["url_match"].append("/webrtc.js");
     capa["url_match"].append("/flv.js");
+    capa["url_match"].append("/hlsjs.js");
     capa["url_match"].append("/skins/default.css");
     capa["url_match"].append("/skins/dev.css");
     capa["url_match"].append("/skins/videojs.css");
@@ -142,6 +143,7 @@ namespace Mist{
     capa["optional"]["wrappers"]["default"] = "";
     capa["optional"]["wrappers"]["type"] = "ord_multi_sel";
     capa["optional"]["wrappers"]["allowed"].append("html5");
+    capa["optional"]["wrappers"]["allowed"].append("hlsjs");
     capa["optional"]["wrappers"]["allowed"].append("videojs");
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
     capa["optional"]["wrappers"]["allowed"].append("webrtc");
@@ -897,6 +899,11 @@ namespace Mist{
           response.append((char *)flv_js, (size_t)flv_js_len);
           used = true;
         }
+        if (it->asStringRef() == "hlsjs"){
+          #include "hlsjs.js.h"
+          response.append((char*)hlsjs_js, (size_t)hlsjs_js_len);
+          used = true;
+        }
         if (!used){WARN_MSG("Unknown player type: %s", it->asStringRef().c_str());}
       }
 
@@ -1034,6 +1041,26 @@ namespace Mist{
 #include "player_flv.js.h"
       response.append((char *)player_flv_js, (size_t)player_flv_js_len);
 
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    }
+    if (H.url == "/hlsjs.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+      
+      #include "player_hlsjs.js.h"
+      response.append((char*)player_hlsjs_js, (size_t)player_hlsjs_js_len);
+      
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();

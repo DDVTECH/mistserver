@@ -1284,29 +1284,32 @@ MistSkins["default"] = {
       var MistVideo = this;
       
       //determine which functions to use.. 
-      var requestfuncs = ["requestFullscreen","webkitRequestFullscreen","mozRequestFullScreen","msRequestFullscreen"];
+      var requestfuncs = ["requestFullscreen","webkitRequestFullscreen","mozRequestFullScreen","msRequestFullscreen","webkitEnterFullscreen"];
+      var fullscreenableElements = [function(){ return MistVideo.container;},function(){ return MistVideo.video;}]; //if the functions are not available on the container div, try them again on the video element (for iphone)
       var funcs = false;
-      for (var i in requestfuncs) {
-        if (requestfuncs[i] in document.body) {
-          funcs = {};
-          funcs.request = function(){ return MistVideo.container[requestfuncs[i]](); }
-          
-          var cancelfuncs = ["exitFullscreen","webkitCancelFullScreen","mozCancelFullScreen","msExitFullscreen"];
-          var elementfuncs = ["fullscreenElement","webkitFullscreenElement","mozFullScreenElement","msFullscreenElement"];
-          var eventname = ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"];
-          funcs.cancel = function() { return document[cancelfuncs[i]](); };
-          funcs.element = function() { return document[elementfuncs[i]]; };
-          funcs.event = eventname[i];
-          break;
+      main:
+      for (var j in fullscreenableElements) {
+        for (var i in requestfuncs) {
+          if (requestfuncs[i] in fullscreenableElements[j]()) {
+            funcs = {};
+            funcs.request = function(){ return funcs.fullscreenableElement()[requestfuncs[i]](); }
+            
+            var cancelfuncs = ["exitFullscreen","webkitCancelFullScreen","mozCancelFullScreen","msExitFullscreen","webkitExitFullscreen"];
+            var elementfuncs = ["fullscreenElement","webkitFullscreenElement","mozFullScreenElement","msFullscreenElement","webkitFullscreenElement"];
+            var eventname = ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange","webkitfullscreenchange"];
+            funcs.cancel = function() { return document[cancelfuncs[i]](); };
+            funcs.element = function() { return document[elementfuncs[i]]; };
+            funcs.event = eventname[i];
+            funcs.fullscreenableElement = fullscreenableElements[j];
+            break main; //break to the main loop
+          }
         }
       }
       if (!funcs) {
         //fake fullscreen mode!
         funcs = {
-          request: "fakeRequestFullScreen",
-          cancel: "fakeCancelFullScreen",
-          element: "fakeFullScreenElement",
-          event: "fakefullscreenchange"
+          event: "fakefullscreenchange",
+          fullscreenableElement: function (){ return MistVideo.container; },
         };
         var keydownfunc = function(e){
           switch (e.key) {
@@ -1343,8 +1346,8 @@ MistSkins["default"] = {
       }
       MistUtil.event.addListener(button,"click",onclick);
       MistUtil.event.addListener(MistVideo.video,"dblclick",onclick);
-      MistUtil.event.addListener(document,funcs.event, function() {
-        if (funcs.element() == MistVideo.container) {
+      MistUtil.event.addListener(document,funcs.event,function() {
+        if (funcs.element() == funcs.fullscreenableElement()) {
           MistVideo.container.setAttribute("data-fullscreen","");
         }
         else if (MistVideo.container.hasAttribute("data-fullscreen")) {

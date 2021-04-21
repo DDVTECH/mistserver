@@ -112,6 +112,8 @@ select > option {
   bottom: 0;
   width: 100% !important;
   height: 100% !important;
+  background-color: #111 !important;
+  z-index: 999;
 }
 video {
   display: block;

@@ -1282,40 +1282,70 @@ MistSkins["default"] = {
     fullscreen: function(){
       if ((!("setSize" in this.player)) || (!this.info.hasVideo) || (this.source.type.split("/")[1] == "audio")) { return; }
       
+      var MistVideo = this;
+      
       //determine which functions to use.. 
       var requestfuncs = ["requestFullscreen","webkitRequestFullscreen","mozRequestFullScreen","msRequestFullscreen"];
       var funcs = false;
       for (var i in requestfuncs) {
         if (requestfuncs[i] in document.body) {
           funcs = {};
-          funcs.request = requestfuncs[i];
+          funcs.request = function(){ return MistVideo.container[requestfuncs[i]](); }
           
           var cancelfuncs = ["exitFullscreen","webkitCancelFullScreen","mozCancelFullScreen","msExitFullscreen"];
           var elementfuncs = ["fullscreenElement","webkitFullscreenElement","mozFullScreenElement","msFullscreenElement"];
           var eventname = ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"];
-          funcs.cancel = cancelfuncs[i];
-          funcs.element = elementfuncs[i];
+          funcs.cancel = function() { return document[cancelfuncs[i]](); };
+          funcs.element = function() { return document[elementfuncs[i]]; };
           funcs.event = eventname[i];
           break;
         }
       }
-      if (!funcs) { return;}
+      if (!funcs) {
+        //fake fullscreen mode!
+        funcs = {
+          request: "fakeRequestFullScreen",
+          cancel: "fakeCancelFullScreen",
+          element: "fakeFullScreenElement",
+          event: "fakefullscreenchange"
+        };
+        var keydownfunc = function(e){
+          switch (e.key) {
+            case "Escape": {
+              funcs.cancel();
+              break;
+            }
+          }
+        };
+        funcs.request = function(){
+          funcs.element = function(){ return MistVideo.container; };
+          MistUtil.event.send(funcs.event,null,document);
+          document.addEventListener("keydown",keydownfunc);
+          return true;
+        }
+        funcs.cancel = function(){
+          funcs.element = function(){ return null; }
+          document.removeEventListener("keydown",keydownfunc);
+          MistUtil.event.send(funcs.event,null,document);
+          return true;
+        }
+        funcs.element = function(){ return null; }
+      }
       
       var button = this.skin.icons.build("fullscreen");
-      var MistVideo = this;
       
       function onclick(){
-        if (document[funcs.element]) {
-          document[funcs.cancel]();
+        if (funcs.element()) {
+          funcs.cancel();
         }
         else {
-          MistVideo.container[funcs.request]();
+          funcs.request();
         }
       }
       MistUtil.event.addListener(button,"click",onclick);
       MistUtil.event.addListener(MistVideo.video,"dblclick",onclick);
       MistUtil.event.addListener(document,funcs.event, function() {
-        if (document[funcs.element] == MistVideo.container) {
+        if (funcs.element() == MistVideo.container) {
           MistVideo.container.setAttribute("data-fullscreen","");
         }
         else if (MistVideo.container.hasAttribute("data-fullscreen")) {
@@ -2377,7 +2407,7 @@ MistSkins.dev = {
                     var r = [];
                     for (var i in result) {
                       if (result[i]) {
-                        r.push(i[0]+Math.round(result[i]*1e3));
+                        r.push(i[0]+":"+Math.round(result[i]*1e3));
                       }
                     }
                     if (r.length) { resolve(r.join(" ")); }

@@ -21,7 +21,7 @@ select>option{background-color:$background}
 0%{transform:rotate(0)}
 100%{transform:rotate(360deg)}
 }
-[data-fullscreen]{position:fixed;top:0;left:0;right:0;bottom:0;width:100%!important;height:100%!important}
+[data-fullscreen]{position:fixed;top:0;left:0;right:0;bottom:0;width:100%!important;height:100%!important;background-color:#111!important;z-index:999}
 video{display:block;flex-shrink:0}
 table{color:inherit;font-size:inherit;font-style:inherit}
 audio:not([controls]){display:block!important}
@@ -115,6 +115,7 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mistvideo-decodingIssues>*>:last-child{margin-right:.5em}
 .mistvideo-decodingIssues{display:flex;flex-flow:row wrap;justify-content:space-between}
 .mistvideo-decodingIssues label{position:relative}
+.mistvideo-decodingIssues label .mistvideo-description{font-size:.9em}
 .mistvideo-decodingIssues label .value{font-size:.8em}
 svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
 select{border-radius:0}

@@ -6,6 +6,8 @@
 
 namespace Mist{
   bool OutHLS::isReadyForPlay(){
+    if (!isInitialized){initialize();}
+    meta.refresh();
     if (!M.getValidTracks().size()){return false;}
     uint32_t mainTrack = M.mainTrack();
     if (mainTrack == INVALID_TRACK_ID){return false;}
@@ -244,7 +246,11 @@ namespace Mist{
       bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
       H.Clean();
       H.setCORSHeaders();
-      H.SetHeader("Content-Type", "application/octet-stream");
+      if (isTS){
+        H.SetHeader("Content-Type", "video/mp2t");
+      }else{
+        H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
+      }
       if (isTS && !hasSessionIDs()){
         H.SetHeader("Cache-Control", "public, max-age=600, immutable");
         H.SetHeader("Pragma", "");
@@ -343,6 +349,7 @@ namespace Mist{
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.Clean();
       H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (!M.getValidTracks().size()){
         H.SendResponse("404", "Not online or found", myConn);
         H.Clean();
@@ -378,16 +385,14 @@ namespace Mist{
       wantRequest = true;
       parseData = false;
 
-      // Ensure alignment of contCounters for selected tracks, to prevent discontinuities.
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        uint32_t pkgPid = 255 + it->first;
-        uint16_t &contPkg = contCounters[pkgPid];
-        if (contPkg % 16 != 0){
+      // Ensure alignment of contCounters, to prevent discontinuities.
+      for (std::map<size_t, uint16_t>::iterator it = contCounters.begin(); it != contCounters.end(); it++){
+        if (it->second % 16 != 0){
           packData.clear();
-          packData.setPID(pkgPid);
+          packData.setPID(it->first);
           packData.addStuffing();
-          while (contPkg % 16 != 0){
-            packData.setContinuityCounter(++contPkg);
+          while (it->second % 16 != 0){
+            packData.setContinuityCounter(++it->second);
             sendTS(packData.checkAndGetBuffer());
           }
           packData.clear();

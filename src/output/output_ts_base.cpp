@@ -65,17 +65,12 @@ namespace Mist{
     std::string type = M.getType(thisIdx);
     std::string codec = M.getCodec(thisIdx);
     bool video = (type == "video");
-
-    size_t pkgPid = M.getID(thisIdx);
-    if (pkgPid < 255){pkgPid += 255;}
-
+    size_t pkgPid = TS::getUniqTrackID(M, thisIdx);
     bool &firstPack = first[thisIdx];
     uint16_t &contPkg = contCounters[pkgPid];
-
     uint64_t packTime = thisPacket.getTime();
     bool keyframe = thisPacket.getInt("keyframe");
     firstPack = true;
-
     char *dataPointer = 0;
     size_t dataLen = 0;
     thisPacket.getString("data", dataPointer, dataLen); // data

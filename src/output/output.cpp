@@ -48,7 +48,6 @@ namespace Mist{
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
     pushing = false;
-    pushIsOngoing = false;
     firstTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
@@ -67,6 +66,10 @@ namespace Mist{
     lastRecv = Util::bootSecs();
     if (myConn){
       setBlocking(true);
+      //Make sure that if the socket is a non-stdio socket, we close it when forking
+      if (myConn.getSocket() > 2){
+        Util::Procs::socketList.insert(myConn.getSocket());
+      }
     }else{
       WARN_MSG("Warning: MistOut created with closed socket!");
     }
@@ -129,6 +132,7 @@ namespace Mist{
     }else{
       MEDIUM_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
     }
+    Util::logExitReason(msg.c_str());
     isInitialized = false;
     wantRequest = true;
     parseData = false;
@@ -143,7 +147,7 @@ namespace Mist{
     }
     reconnect();
     // if the connection failed, fail
-    if (streamName.size() < 1){
+    if (!meta || streamName.size() < 1){
       onFail("Could not connect to stream", true);
       return;
     }
@@ -181,19 +185,8 @@ namespace Mist{
           if (shmSessions.mapped){
             char shmEmpty[SHM_SESSIONS_ITEM];
             memset(shmEmpty, 0, SHM_SESSIONS_ITEM);
-            std::string host = statComm.getHost();
-            if (host.substr(0, 12) ==
-                std::string("\000\000\000\000\000\000\000\000\000\000\377\377", 12)){
-              char tmpstr[16];
-              snprintf(tmpstr, 16, "%hhu.%hhu.%hhu.%hhu", host[12], host[13], host[14], host[15]);
-              host = tmpstr;
-            }else{
-              char tmpstr[40];
-              snprintf(tmpstr, 40, "%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x:%.2x%.2x",
-                       host[0], host[1], host[2], host[3], host[4], host[5], host[6], host[7],
-                       host[8], host[9], host[10], host[11], host[12], host[13], host[14], host[15]);
-              host = tmpstr;
-            }
+            std::string host;
+            Socket::hostBytesToStr(statComm.getHost().data(), 16, host);
             uint32_t shmOffset = 0;
             const std::string &cName = capa["name"].asStringRef();
             while (shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
@@ -259,12 +252,19 @@ namespace Mist{
 
   std::string Output::getConnectedHost(){return myConn.getHost();}
 
-  std::string Output::getConnectedBinHost(){return myConn.getBinHost();}
+  std::string Output::getConnectedBinHost(){
+    if (!prevHost.size()){
+      if (myConn && myConn.getPureSocket() != -1){
+        prevHost = myConn.getBinHost();
+      }
+      if (!prevHost.size()){prevHost.assign("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);}
+    }
+    return prevHost;
+  }
 
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
     if (!capa.isMember("codecs")){return true;}
-    if (isPushing()){return true;}
     if (!isInitialized){initialize();}
     meta.refresh();
     if (getSupportedTracks().size()){
@@ -363,27 +363,25 @@ namespace Mist{
     while (!meta && ++attempts < 20 && Util::streamAlive(streamName)){
       meta.reInit(streamName, false);
     }
-    if (!meta){
-      onFail("Could not connect to stream data", true);
-      return;
-    }
+    if (!meta){return;}
     meta.refresh();
     isInitialized = true;
     statComm.reload();
     stats(true);
-    if (!pushing){selectDefaultTracks();}
-    if (!M.getVod() && !isReadyForPlay()){
-      uint64_t waitUntil = Util::epoch() + 30;
+    if (isPushing()){return;}
+    if (!isRecording() && !M.getVod() && !isReadyForPlay()){
+      uint64_t waitUntil = Util::bootSecs() + 45;
       while (!M.getVod() && !isReadyForPlay()){
-        if (Util::epoch() > waitUntil + 45 || (!userSelect.size() && Util::epoch() > waitUntil)){
-          INFO_MSG("Giving up waiting for playable tracks. Stream: %s, IP: %s", streamName.c_str(),
-                   getConnectedHost().c_str());
+        if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
+          INFO_MSG("Giving up waiting for playable tracks. IP: %s", getConnectedHost().c_str());
           break;
         }
         Util::wait(500);
+        meta.refresh();
         stats();
       }
     }
+    selectDefaultTracks();
   }
 
   std::set<size_t> Output::getSupportedTracks(const std::string &type) const{
@@ -403,22 +401,11 @@ namespace Mist{
     bool autoSeek = buffer.size();
     uint64_t seekTarget = currentTime();
     std::set<size_t> newSelects =
-        Util::wouldSelect(myMeta, targetParams, capa, UA, autoSeek ? seekTarget : 0);
-
-    std::set<size_t> oldSel;
-    for (std::set<unsigned long>::iterator selIt = selectedTracks.begin();
-         selIt != selectedTracks.end(); ++selIt){
-      oldSel.insert(*selIt);
-    }
-
-    if (oldSel == newSelects){
-      // No new selections? Do nothing, return no change.
-      return false;
-    }
+        Util::wouldSelect(M, targetParams, capa, UA, autoSeek ? seekTarget : 0);
 
     if (autoSeek){
       std::set<size_t> toRemove;
-      for (std::set<size_t>::iterator it = wouldSelect.begin(); it != wouldSelect.end(); it++){
+      for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
         // autoSeeking and target not in bounds? Drop it too.
         if (M.getLastms(*it) < std::max(seekTarget, (uint64_t)6000lu) - 6000){
           toRemove.insert(*it);
@@ -426,7 +413,7 @@ namespace Mist{
       }
       // remove those from selectedtracks
       for (std::set<size_t>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
-        wouldSelect.erase(*it);
+        newSelects.erase(*it);
       }
     }
 
@@ -435,7 +422,7 @@ namespace Mist{
     userSelect.clear();
 
     // Select tracks here!
-    for (std::set<size_t>::iterator it = wouldSelect.begin(); it != wouldSelect.end(); it++){
+    for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
       userSelect[*it].reload(streamName, *it);
     }
 
@@ -453,6 +440,14 @@ namespace Mist{
     parseData = false;
   }
 
+  ///Returns the timestamp of the next upcoming keyframe after thisPacket, or 0 if that cannot be determined (yet).
+  uint64_t Output::nextKeyTime(){
+    DTSC::Keys keys(M.keys(getMainSelectedTrack()));
+    if (!keys.getValidCount()){return 0;}
+    size_t keyNum = keys.getNumForTime(lastPacketTime);
+    return keys.getTime(keyNum+1);
+  }
+  
   uint64_t Output::pageNumForKey(size_t trackId, size_t keyNum){
     const Util::RelAccX &tPages = M.pages(trackId);
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -671,7 +666,7 @@ namespace Mist{
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
       seek(*it, pos, false);
     }
-    firstTime = Util::bootMS() - currentTime();
+    firstTime = Util::bootMS() - (currentTime() * realTime / 1000);
   }
 
   bool Output::seek(size_t tid, uint64_t pos, bool getNextKey){
@@ -690,7 +685,7 @@ namespace Mist{
         stats();
       }
     }
-    if (meta.getLastms(tid) <= pos){
+    if (meta.getLastms(tid) < pos){
       WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: past end of track (= %" PRIu64 "ms).",
                pos, tid, meta.getLastms(tid));
       userSelect.erase(tid);
@@ -751,7 +746,7 @@ namespace Mist{
     if (curPage[tid].mapped[tmp.offset]){return seek(tid, pos, getNextKey);}
     FAIL_MSG("Track %zu no data (key %zu@%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset);
     userSelect.erase(tid);
-    firstTime = Util::bootMS() - buffer.begin()->time;
+    firstTime = Util::bootMS() - (buffer.begin()->time * realTime / 1000);
     return false;
   }
 
@@ -761,6 +756,7 @@ namespace Mist{
   /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
   /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
   void Output::initialSeek(){
+    if (!meta){return;}
     uint64_t seekPos = 0;
     if (meta.getLive()){
       size_t mainTrack = getMainSelectedTrack();
@@ -980,6 +976,7 @@ namespace Mist{
   /// It seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(){
+    if (!realTime){return false;}//Makes no sense when playing in turbo mode
     static uint32_t seekCount = 2;
     uint64_t seekPos = 0;
     if (!meta.getLive()){return false;}
@@ -989,11 +986,15 @@ namespace Mist{
     uint64_t cTime = thisPacket.getTime();
     uint64_t mKa = getMinKeepAway();
     if (!maxSkipAhead){
+      bool noReturn = false;
       uint64_t newSpeed = 1000;
       if (lMs - mKa - needsLookAhead - extraKeepAway > cTime + 50){
         // We need to speed up!
         uint64_t diff = (lMs - mKa - needsLookAhead - extraKeepAway) - cTime;
-        if (diff > 1000){
+        if (diff > 3000){
+          noReturn = true;
+          newSpeed = 1000;
+        }else if (diff > 1000){
           newSpeed = 750;
         }else if (diff > 500){
           newSpeed = 900;
@@ -1002,13 +1003,11 @@ namespace Mist{
         }
       }
       if (realTime != newSpeed){
-        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64
-                 " ms LA, %" PRIu64 " ms mKA, %lu eKA)",
-                 realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
-        firstTime = Util::bootMS() - cTime;
+        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA, %lu eKA)", realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
+        firstTime = Util::bootMS() - (cTime * newSpeed / 1000);
         realTime = newSpeed;
       }
-      return false;
+      if (!noReturn){return false;}
     }
     // cancel if there are no keys in the main track
     if (mainTrack == INVALID_TRACK_ID){return false;}
@@ -1167,8 +1166,14 @@ namespace Mist{
     while (keepGoing() && (wantRequest || parseData)){
       if (wantRequest){requestHandler();}
       if (parseData){
-        if (!isInitialized){initialize();}
-        if (!sentHeader){
+        if (!isInitialized){
+          initialize();
+          if (!isInitialized){
+            onFail("Stream initialization failed");
+            break;
+          }
+        }
+        if (!sentHeader && keepGoing()){
           DONTEVEN_MSG("sendHeader");
           sendHeader();
         }
@@ -1186,6 +1191,8 @@ namespace Mist{
                 Util::sleep(std::min(thisPacket.getTime() -
                                          ((((Util::bootMS() - firstTime) * 1000) + maxSkipAhead) / realTime),
                                      1000ul));
+                //Make sure we stay responsive to requests and stats while waiting
+                if (wantRequest){requestHandler();}
                 stats();
               }
             }
@@ -1217,6 +1224,8 @@ namespace Mist{
                 }else{
                   playbackSleep(sleepTime);
                 }
+                //Make sure we stay responsive to requests and stats while waiting
+                if (wantRequest){requestHandler();}
                 stats();
               }
               if (!timeoutTries){
@@ -1237,6 +1246,7 @@ namespace Mist{
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
                 if (!connectToFile(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
+                  Util::logExitReason("failed to open file, aborting: %s", newTarget.c_str());
                   onFinish();
                   break;
                 }
@@ -1247,13 +1257,14 @@ namespace Mist{
               }else{
                 if (!onFinish()){
                   INFO_MSG("Shutting down because planned stopping point reached");
+                  Util::logExitReason("planned stopping point reached");
                   break;
                 }
               }
             }
             sendNext();
           }else{
-            INFO_MSG("Shutting down because of stream end");
+            Util::logExitReason("end of stream");
             /*LTS-START*/
             if (Triggers::shouldTrigger("CONN_STOP", streamName)){
               std::string payload =
@@ -1265,18 +1276,14 @@ namespace Mist{
           }
         }
         if (!meta){
-          Util::Config::logExitReason("No connection to the metadata");
+          Util::logExitReason("lost internal connection to stream data");
           break;
         }
       }
       stats();
     }
-    MEDIUM_MSG("MistOut client handler shutting down: %s, %s, %s",
-               myConn.connected() ? "conn_active" : "conn_closed", wantRequest ? "want_request" : "no_want_request",
-               parseData ? "parsing_data" : "not_parsing_data");
-    if (Util::Config::exitReason.size()){
-      INFO_MSG("Logged exit reason: %s", Util::Config::exitReason.c_str());
-    }
+    if (!myConn){Util::logExitReason("remote connection closed");}
+    INFO_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
     onFinish();
 
     /*LTS-START*/
@@ -1460,42 +1467,66 @@ namespace Mist{
 
     DTSC::Keys keys(M.keys(nxt.tid));
     size_t thisKey = keys.getNumForTime(nxt.time);
-    while (!nextTime && keepGoing()){
-      // The next packet is either not available yet, or on another page
-      // Check if we have a next valid packet
-      if (memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
-        nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
-        // After 500ms, we assume the time will not update anymore
-        if (++emptyCount >= 20){break;}
+
+    // Check if we have a next valid packet
+    if (memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
+      nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
+      if (!nextTime){
+        WARN_MSG("Next packet is available, but has no time. Please warn the developers if you see this message!");
+        dropTrack(nxt.tid, "EOP: invalid next packet");
+        return false;
+      }
+    }else{
+      //no next packet yet!
+      //Check if this is the last packet of a VoD stream. Return success and drop the track.
+      if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+        thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+        thisIdx = nxt.tid;
+        dropTrack(nxt.tid, "end of VoD track reached", false);
+        return true;
+      }
+      //Check if there exists a different page for the next key
+      size_t nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);
+      if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
+        // If so, the next key is our next packet
+        nextTime = keys.getTime(thisKey + 1);
       }else{
-        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){break;}
-        if (M.getPageNumberForKey(nxt.tid, thisKey + 1) != currentPage[nxt.tid]){
-          // Check if its on a different page
-          nextTime = keys.getTime(thisKey + 1);
-        }
+        //Okay, there's no next page yet, and no next packet on this page either.
+        //That means we're waiting for data to show up, somewhere.
+        // after ~25 seconds, give up and drop the track.
         if (++emptyCount >= 1000){
-          // after ~25 seconds, give up and drop the track.
           dropTrack(nxt.tid, "EOP: data wait timeout");
           return false;
         }
-        Util::sleep(25);
-        // we're waiting for new data to show up
-        if (emptyCount % 640 == 0){
-          reconnect(); // reconnect every 16 seconds
-          // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
-          if (!meta){return false;}
+        //every ~1 second, check if the stream is not offline
+        if (emptyCount % 40 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+          Util::logExitReason("Stream source shut down");
+          thisPacket.null();
+          return true;
         }
+        //every ~16 seconds, reconnect to metadata
+        if (emptyCount % 640 == 0){
+          reconnect();
+          if (!meta){
+            onFail("Could not connect to stream data", true);
+            thisPacket.null();
+            return true;
+          }
+          // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
+          if (!meta){
+            Util::logExitReason("Attempted reconnect to source failed");
+            thisPacket.null();
+            return true;
+          }
+          return false;//no sleep after reconnect
+        }
+        //Fine! We didn't want a packet, anyway. Let's try again later.
+        Util::sleep(25);
+        return false;
       }
     }
-    if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
-      thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
-      thisIdx = nxt.tid;
-      dropTrack(nxt.tid, "end of VoD track reached", false);
-      return true;
-    }
 
-    // If we don't have a timestamp at all, this is due to a different cause.
-    if (!nextTime && (emptyCount < 20)){return false;}
+    //If the next packet should've been before the current packet, something is wrong. Abort, abort!
     if (nextTime < nxt.time){
       dropTrack(nxt.tid, "time going backwards");
       return false;
@@ -1513,7 +1544,7 @@ namespace Mist{
     emptyCount = 0; // valid packet - reset empty counter
 
     if (!userSelect[nxt.tid].isAlive()){
-      INFO_MSG("Track %zu  is not alive!", nxt.tid);
+      INFO_MSG("Track %zu is not alive!", nxt.tid);
       return false;
     }
 
@@ -1526,12 +1557,6 @@ namespace Mist{
 
     // exchange the current packet in the buffer for the next one
     buffer.erase(buffer.begin());
-
-    if (M.getVod() && nxt.time > M.getLastms(nxt.tid)){
-      dropTrack(nxt.tid, "detected last VoD packet");
-      return true;
-    }
-
     buffer.insert(nxt);
 
     return true;
@@ -1541,8 +1566,10 @@ namespace Mist{
   /// Outputs used as an input should return INPUT, outputs used for automation should return OUTPUT, others should return their proper name.
   /// The default implementation is usually good enough for all the non-INPUT types.
   std::string Output::getStatsName(){
-    if (isPushing()){return "INPUT";}
-    if (config->hasOption("target") && config->getString("target").size()){return "OUTPUT";}
+    if (isPushing()){return "INPUT:" + capa["name"].asStringRef();}
+    if (config->hasOption("target") && config->getString("target").size()){
+      return "OUTPUT:" + capa["name"].asStringRef();
+    }
     return capa["name"].asStringRef();
   }
 
@@ -1554,6 +1581,25 @@ namespace Mist{
     uint64_t now = Util::bootSecs();
     if (now == lastStats && !force){return;}
 
+    if (isRecording()){
+      static uint64_t lastPushUpdate = now;
+      if (lastPushUpdate + 5 <= now){
+        JSON::Value pStat;
+        pStat["push_status_update"]["id"] = getpid();
+        JSON::Value & pData = pStat["push_status_update"]["status"];
+        pData["mediatime"] = currentTime();
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+          pData["tracks"].append(it->first);
+        }
+        pData["bytes"] = myConn.dataUp();
+        pData["active_seconds"] = (now - myConn.connTime());
+        Socket::UDPConnection uSock;
+        uSock.SetDestination("localhost", 4242);
+        uSock.SendNow(pStat.toString());
+        lastPushUpdate = now;
+      }
+    }
+
     if (!statComm){statComm.reload();}
     if (!statComm){return;}
 
@@ -1562,16 +1608,13 @@ namespace Mist{
     HIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
              crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
-    if (statComm.getStatus() == COMM_STATUS_DISCONNECT){
+    if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
       onFail("Shutting down on controller request");
       return;
     }
     /*LTS-END*/
     statComm.setNow(now);
-    if (statComm.getHost() ==
-        std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16)){
-      statComm.setHost(getConnectedBinHost());
-    }
+    statComm.setHost(getConnectedBinHost());
     statComm.setCRC(crc);
     statComm.setStream(streamName);
     statComm.setConnector(getStatsName());
@@ -1597,14 +1640,36 @@ namespace Mist{
 
     doSync();
 
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      it->second.keepAlive();
-      if (it->second.isAlive() && M.getLive() && it->second.getStatus() & COMM_STATUS_SOURCE){
-        if (Util::bootSecs() - M.getLastUpdated(it->first) > 3){
-          INFO_MSG("Not updating data for track %zu?", it->first);
+    if (isPushing()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        it->second.keepAlive();
+        if (it->second.getStatus() == COMM_STATUS_REQDISCONNECT){
+          if (dropPushTrack(it->second.getTrack(), "disconnect request from buffer")){break;}
         }
+        if (!it->second.isAlive()){
+          if (dropPushTrack(it->second.getTrack(), "track mapping no longer valid")){break;}
+        }
+        //if (Util::bootSecs() - M.getLastUpdated(it->first) > 5){
+        //  if (dropPushTrack(it->second.getTrack(), "track updates being ignored by buffer")){break;}
+        //}
+      }
+    }else{
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        it->second.keepAlive();
       }
     }
+  }
+
+  bool Output::dropPushTrack(uint32_t trackId, const std::string & dropReason){
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (it->second.getTrack() == trackId){
+        WARN_MSG("Dropping input track %" PRIu32 ": %s", trackId, dropReason.c_str());
+        userSelect.erase(it);
+        return true;
+        break;
+      }
+    }
+    return false;
   }
 
   void Output::onRequest(){
@@ -1651,7 +1716,7 @@ namespace Mist{
     // Initialize the stream source if needed, connect to it
     waitForStreamPushReady();
     // pull the source setting from metadata
-    strmSource = meta.getSource();
+    if (meta){strmSource = meta.getSource();}
 
     if (!strmSource.size()){
       FAIL_MSG("Push rejected - stream %s not configured or unavailable", streamName.c_str());
@@ -1683,13 +1748,10 @@ namespace Mist{
       }
     }
 
-    std::string smp = streamName.substr(0, streamName.find_first_of("+ "));
-    if (Triggers::shouldTrigger("STREAM_PUSH", smp)){
-      std::string payload =
-          streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
-      if (!Triggers::doTrigger("STREAM_PUSH", payload, smp)){
-        FAIL_MSG("Push from %s to %s rejected - STREAM_PUSH trigger denied the push",
-                 getConnectedHost().c_str(), streamName.c_str());
+    if (Triggers::shouldTrigger("STREAM_PUSH", streamName)){
+      std::string payload = streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
+      if (!Triggers::doTrigger("STREAM_PUSH", payload, streamName)){
+        WARN_MSG("Push from %s rejected by STREAM_PUSH trigger", getConnectedHost().c_str());
         pushing = false;
         return false;
       }
@@ -1698,8 +1760,7 @@ namespace Mist{
 
     if (IP != ""){
       if (!myConn.isAddress(IP)){
-        FAIL_MSG("Push from %s to %s rejected - source host not whitelisted",
-                 getConnectedHost().c_str(), streamName.c_str());
+        WARN_MSG("Push from %s rejected; not whitelisted", getConnectedHost().c_str());
         pushing = false;
         return false;
       }
@@ -1712,7 +1773,31 @@ namespace Mist{
   void Output::waitForStreamPushReady(){
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     MEDIUM_MSG("Current status for %s buffer is %u", streamName.c_str(), streamStatus);
-    while (streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY && keepGoing()){
+    if (streamStatus == STRMSTAT_READY){
+      reconnect();
+      std::set<size_t> vTracks = M.getValidTracks(true);
+      INFO_MSG("Stream already active (%zu valid tracks) - check if it's not shutting down...", vTracks.size());
+      uint64_t oneTime = 0;
+      uint64_t twoTime = 0;
+      for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
+        if (M.getLastms(*it) > oneTime){oneTime = M.getLastms(*it);}
+      }
+      Util::wait(2000);
+      for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
+        if (M.getLastms(*it) > twoTime){twoTime = M.getLastms(*it);}
+      }
+      if (twoTime <= oneTime+500){
+        disconnect();
+        INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
+        while (streamStatus != STRMSTAT_OFF && keepGoing()){
+          userSelect.clear();
+          Util::wait(1000);
+          streamStatus = Util::getStreamStatus(streamName);
+        }
+        reconnect();
+      }
+    }
+    while (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){
       INFO_MSG("Waiting for %s buffer to be ready... (%u)", streamName.c_str(), streamStatus);
       disconnect();
       userSelect.clear();
@@ -1720,11 +1805,15 @@ namespace Mist{
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
         INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
+        Util::wait(500);
         reconnect();
         streamStatus = Util::getStreamStatus(streamName);
       }
     }
     if (streamStatus == STRMSTAT_READY || streamStatus == STRMSTAT_WAIT){reconnect();}
+    if (!meta){
+      onFail("Could not connect to stream data", true);
+    }
   }
 
   void Output::selectAllTracks(){

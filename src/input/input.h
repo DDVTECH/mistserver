@@ -33,6 +33,7 @@ namespace Mist{
     bool hasMeta() const;
     static Util::Config *config;
     virtual bool needsLock(){return !config->getBool("realtime");}
+    virtual bool publishesTracks(){return true;}
 
   protected:
     virtual bool checkArguments() = 0;
@@ -54,11 +55,12 @@ namespace Mist{
     virtual void convert();
     virtual void serve();
     virtual void stream();
+    virtual std::string getConnectedBinHost(){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);}
     virtual size_t streamByteCount(){
       return 0;
     }; // For live streams: to update the stats with correct values.
-    virtual std::string streamMainLoop();
-    virtual std::string realtimeMainLoop();
+    virtual void streamMainLoop();
+    virtual void realtimeMainLoop();
     bool isAlwaysOn();
 
     virtual void userLeadIn();

@@ -4,6 +4,7 @@
 #pragma once
 #include <stdlib.h>
 #include <string>
+#include <inttypes.h>
 
 /// Holds all HTTP processing related code.
 namespace HTTP{

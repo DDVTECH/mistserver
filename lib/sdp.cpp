@@ -462,9 +462,18 @@ namespace SDP{
           myMeta->setCodec(tid, "HEVC");
           myMeta->setRate(tid, 90000);
         }
+        if (trCodec == "VP8"){
+          myMeta->setCodec(tid, "VP8");
+          myMeta->setRate(tid, 90000);
+        }
+        if (trCodec == "VP9"){
+          myMeta->setCodec(tid, "VP9");
+          myMeta->setRate(tid, 90000);
+        }
         if (trCodec == "OPUS"){
           myMeta->setCodec(tid, "opus");
           myMeta->setInit(tid, "OpusHead\001\002\170\000\200\273\000\000\000\000\000", 19);
+          myMeta->setRate(tid, 48000);
         }
         if (trCodec == "PCMA"){myMeta->setCodec(tid, "ALAW");}
         if (trCodec == "PCMU"){myMeta->setCodec(tid, "ULAW");}
@@ -484,7 +493,10 @@ namespace SDP{
           myMeta->setCodec(tid, "PCM");
           myMeta->setSize(tid, 24);
         }
-        if (trCodec == "MPEG4-GENERIC"){myMeta->setCodec(tid, "AAC");}
+        if (trCodec == "MPEG4-GENERIC"){
+          myMeta->setCodec(tid, "AAC");
+          myMeta->setSize(tid, 16);
+        }
         if (!myMeta->getCodec(tid).size()){
           ERROR_MSG("Unsupported RTP mapping: %s", mediaType.c_str());
         }else{
@@ -668,6 +680,9 @@ namespace SDP{
   double getMultiplier(const DTSC::Meta *M, size_t tid){
     if (M->getType(tid) == "video" || M->getCodec(tid) == "MP2" || M->getCodec(tid) == "MP3"){
       return 90.0;
+    }
+    if (M->getCodec(tid) == "opus"){
+      return 48.0;
     }
     return ((double)M->getRate(tid) / 1000.0);
   }

@@ -343,7 +343,7 @@ int main_loop(int argc, char **argv){
       WARN_MSG("You have very little free RAM available (%" PRIu64
                " MiB). While Mist will run just fine with this amount, do note that random crashes "
                "may occur should you ever run out of free RAM. Please be pro-active and keep an "
-               "eye on the RAM usage!");
+               "eye on the RAM usage!", (mem_free + mem_bufcache)/1024);
     }
     if (shm_free < 1024 * 1024 && mem_total > 1024 * 1024 * 1.12){
       WARN_MSG("You have very little shared memory available (%" PRIu64

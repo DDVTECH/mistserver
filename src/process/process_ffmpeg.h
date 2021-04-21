@@ -52,6 +52,7 @@ namespace Mist{
   class EncodeOutputEBML : public OutEBML{
   public:
     EncodeOutputEBML(Socket::Connection &c) : OutEBML(c){}; // realTime = 0;};
+    bool isRecording(){return false;}
     void setVideoTrack(std::string tid);
     void setAudioTrack(std::string tid);
     void sendNext();

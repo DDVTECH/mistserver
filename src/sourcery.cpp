@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <string>
+#include <sstream>
 #include <unistd.h>
 
 std::string getContents(const char *fileName){

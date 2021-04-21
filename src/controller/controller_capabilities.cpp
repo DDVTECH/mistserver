@@ -200,6 +200,12 @@ namespace Controller{
     trgs["DEFAULT_STREAM"]["response_action"] =
         "Overrides the default stream setting (for this view) to the response value. If empty, "
         "fails loading the stream and returns an error to the viewer/user.";
+
+    trgs["PUSH_END"]["when"] = "Every time a push stops, for any reason";
+    trgs["PUSH_END"]["stream_specific"] = true;
+    trgs["PUSH_END"]["payload"] = "push ID (integer)\nstream name (string)\ntarget URI, before variables/triggers affected it (string)\ntarget URI, afterwards, as actually used (string)\nlast 10 log messages (JSON array string)\nmost recent push status (JSON object string)";
+    trgs["PUSH_END"]["response"] = "ignored";
+    trgs["PUSH_END"]["response_action"] = "None.";
   }
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.

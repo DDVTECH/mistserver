@@ -114,12 +114,17 @@ namespace Mist{
     while (ptr.size() < needed){
       if (!ptr.allocate(needed)){return false;}
       int64_t toRead = needed - ptr.size();
-      if (!fread(ptr + ptr.size(), toRead, 1, inFile)){
-        // We assume if there is no current data buffered, that we are at EOF and don't print a warning
-        if (ptr.size()){
-          FAIL_MSG("Could not read more data! (have %zu, need %" PRIu32 ")", ptr.size(), needed);
+      int readResult = 0;
+      while (!readResult){
+        readResult = fread(ptr + ptr.size(), toRead, 1, inFile);
+        if (!readResult){
+          if (errno == EINTR){continue;}
+          // At EOF we don't print a warning
+          if (!feof(inFile)){
+            FAIL_MSG("Could not read more data! (have %zu, need %" PRIu32 ")", ptr.size(), needed);
+          }
+          return false;
         }
-        return false;
       }
       totalBytes += toRead;
       ptr.size() = needed;
@@ -463,7 +468,7 @@ namespace Mist{
       }break;
       }
     }
-    thisPacket.genericFill(C.time, C.offset, M.trackIDToIndex(C.track, getpid()), C.ptr, C.dsize,
+    thisPacket.genericFill(C.time, C.offset, C.track, C.ptr, C.dsize,
                            C.bpos, C.key);
   }
 

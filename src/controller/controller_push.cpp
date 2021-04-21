@@ -7,6 +7,7 @@
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/tinythread.h>
+#include <mist/triggers.h>
 #include <string>
 
 namespace Controller{
@@ -38,6 +39,38 @@ namespace Controller{
     }
   }
 
+  void setPushStatus(uint64_t id, const JSON::Value & status){
+    if (!activePushes.count(id)){return;}
+    activePushes[id][5].extend(status);
+  }
+
+  void pushLogMessage(uint64_t id, const JSON::Value & msg){
+    JSON::Value &log = activePushes[id][4];
+    log.append(msg);
+    log.shrink(10);
+  }
+
+  bool isPushActive(uint64_t id){
+    while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
+    return activePushes.count(id);
+  }
+
+  /// Only used internally, to remove pushes
+  static void removeActivePush(pid_t id){
+    //ignore if the push does not exist
+    if (!activePushes.count(id)){return;}
+
+    JSON::Value p = activePushes[id];
+    if (Triggers::shouldTrigger("PUSH_END", p[1].asStringRef())){
+      std::string payload = p[0u].asString() + "\n" + p[1u].asString() + "\n" + p[2u].asString() + "\n" + p[3u].asString() + "\n" + p[4u].toString() + "\n" + p[5u].toString();
+      Triggers::doTrigger("PUSH_END", payload, p[1].asStringRef());
+    }
+
+    //actually remove, make sure next pass the new list is written out too
+    activePushes.erase(id);
+    mustWritePushList = true;
+  }
+
   /// Returns true if the push is currently active, false otherwise.
   bool isPushActive(const std::string &streamname, const std::string &target){
     while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
@@ -52,8 +85,7 @@ namespace Controller{
       }
     }
     while (toWipe.size()){
-      activePushes.erase(*toWipe.begin());
-      mustWritePushList = true;
+      removeActivePush(*toWipe.begin());
       toWipe.erase(toWipe.begin());
     }
     return false;
@@ -75,8 +107,7 @@ namespace Controller{
       }
     }
     while (toWipe.size()){
-      activePushes.erase(*toWipe.begin());
-      mustWritePushList = true;
+      removeActivePush(*toWipe.begin());
       toWipe.erase(toWipe.begin());
     }
   }
@@ -198,6 +229,17 @@ namespace Controller{
             break;
           }
         }
+        //Check if any pushes have ended, clean them up
+        std::set<pid_t> toWipe;
+        for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
+          if (!Util::Procs::isActive(it->first)){toWipe.insert(it->first);}
+        }
+        while (toWipe.size()){
+          removeActivePush(*toWipe.begin());
+          toWipe.erase(toWipe.begin());
+          mustWritePushList = true;
+        }
+        //write push list to shared memory, for restarting/crash recovery/etc
         if (mustWritePushList && pushPage.mapped){
           writePushList(pushPage.mapped);
           mustWritePushList = false;
@@ -227,8 +269,7 @@ namespace Controller{
       }
     }
     while (toWipe.size()){
-      activePushes.erase(*toWipe.begin());
-      mustWritePushList = true;
+      removeActivePush(*toWipe.begin());
       toWipe.erase(toWipe.begin());
     }
   }

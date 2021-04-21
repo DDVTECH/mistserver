@@ -664,7 +664,9 @@ void handleServer(void *hostEntryPointer){
         entry->state = STATE_ERROR;
       }else{
         if (down){
-          WARN_MSG("Connection established with %s", url.host.c_str());
+          std::string ipStr;
+          Socket::hostBytesToStr(DL.getSocket().getBinHost().data(), 16, ipStr);
+          WARN_MSG("Connection established with %s (%s)", url.host.c_str(), ipStr.c_str());
           memcpy(entry->details->binHost, DL.getSocket().getBinHost().data(), 16);
           entry->state = STATE_ONLINE;
           down = false;

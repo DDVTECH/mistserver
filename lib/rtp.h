@@ -77,6 +77,7 @@ namespace RTP{
     Packet(const char *dat, uint64_t len);
     const char *getData();
     char *ptr() const{return data;}
+    std::string toString() const;
   };
 
   /// Sorts RTP packets, outputting them through a callback in correct order.
@@ -163,6 +164,9 @@ namespace RTP{
     h265::initData hevcInfo;            ///< For HEVC init parsing
     Util::ResizeablePointer fuaBuffer;  ///< For H264/HEVC FU-A packets
     Util::ResizeablePointer packBuffer; ///< For H264/HEVC regular and STAP packets
+    uint64_t currH264Time;//Time of the DTSC packet currently being built (pre-conversion)
+    Util::ResizeablePointer h264OutBuffer; ///< For collecting multiple timestamps into one packet
+    bool h264BufferWasKey;
     void handleH264(uint64_t msTime, char *pl, uint32_t plSize, bool missed, bool hasPadding);
     void handleH264Single(uint64_t ts, const char *buffer, const uint32_t len, bool isKey);
     void handleH264Multi(uint64_t ts, char *buffer, const uint32_t len);

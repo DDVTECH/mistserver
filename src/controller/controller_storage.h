@@ -22,7 +22,7 @@ namespace Controller{
   Util::RelAccX *streamsAccessor();
 
   /// Store and print a log message.
-  void Log(const std::string &kind, const std::string &message, const std::string &stream = "",
+  void Log(const std::string &kind, const std::string &message, const std::string &stream = "", uint64_t progPid = 0,
            bool noWriteToLog = false);
   void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,
                  const std::string &host, uint64_t duration, uint64_t up, uint64_t down,

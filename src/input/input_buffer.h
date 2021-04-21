@@ -17,7 +17,8 @@ namespace Mist{
     size_t segmentSize;  /*LTS*/
     uint64_t lastReTime; /*LTS*/
     uint64_t finalMillis;
-    bool hasPush;
+    bool hasPush;//Is a push currently being received?
+    bool everHadPush;//Was there ever a push received?
     bool resumeMode;
     IPC::semaphore *liveMeta;
 

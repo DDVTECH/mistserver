@@ -111,6 +111,7 @@ namespace Mist{
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
     capa["url_rel"] = "/$.html";
+    capa["codecs"][0u][0u].append("+*");
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");
@@ -1028,7 +1029,7 @@ namespace Mist{
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
     IPC::sharedPage streamStatus(pageName, 1, false, false);
     uint8_t prevState, newState, pingCounter = 0;
-    uint64_t prevTracks;
+    std::set<size_t> prevTracks;
     prevState = newState = STRMSTAT_INVALID;
     while (keepGoing()){
       if (!streamStatus || !streamStatus.exists()){streamStatus.init(pageName, 1, false, false);}
@@ -1038,10 +1039,10 @@ namespace Mist{
         newState = streamStatus.mapped[0];
       }
 
-      if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks().size() != prevTracks)){
+      if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks() != prevTracks)){
         if (newState == STRMSTAT_READY){
           reconnect();
-          prevTracks = M.getValidTracks().size();
+          prevTracks = M.getValidTracks();
         }else{
           disconnect();
         }

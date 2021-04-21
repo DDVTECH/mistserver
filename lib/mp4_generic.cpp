@@ -1063,8 +1063,8 @@ namespace MP4{
 
   ESDS::ESDS(){memcpy(data + 4, "esds", 4);}
 
-  ESDS::ESDS(std::string init){
-    ///\todo Do this better, in a non-hardcoded way.
+  ESDS::ESDS(const DTSC::Meta & M, size_t idx){
+    std::string init = M.getInit(idx);
     memcpy(data + 4, "esds", 4);
     reserve(payloadOffset, 0, init.size() ? init.size() + 28 : 26);
     unsigned int i = 12;
@@ -1084,14 +1084,10 @@ namespace MP4{
     data[i++] = 0;    // buffer size
     data[i++] = 0;    // buffer size
     data[i++] = 0;    // buffer size
-    data[i++] = 0;    // maxbps
-    data[i++] = 0;    // maxbps
-    data[i++] = 0;    // maxbps
-    data[i++] = 0;    // maxbps
-    data[i++] = 0;    // avgbps
-    data[i++] = 0;    // avgbps
-    data[i++] = 0;    // avgbps
-    data[i++] = 0;    // avgbps
+    Bit::htobl(data+i, M.getMaxBps(idx));//maxbps
+    i += 4;
+    Bit::htobl(data+i, M.getBps(idx));//avgbps
+    i += 4;
     if (init.size()){
       data[i++] = 0x5; // DecSpecificInfoTag
       data[i++] = init.size();
@@ -2825,17 +2821,20 @@ namespace MP4{
   AudioSampleEntry::AudioSampleEntry(const DTSC::Meta &M, size_t idx){
     std::string tCodec = M.getCodec(idx);
     initialize();
-    if (tCodec == "AAC" || tCodec == "MP3"){setCodec("mp4a");}
-    if (tCodec == "AC3"){setCodec("ac-3");}
     setDataReferenceIndex(1);
     setSampleRate(M.getRate(idx));
     setChannelCount(M.getChannels(idx));
     setSampleSize(M.getSize(idx));
+    if (tCodec == "AAC" || tCodec == "MP3"){
+      setCodec("mp4a");
+      setSampleSize(16);
+    }
+    if (tCodec == "AC3"){setCodec("ac-3");}
     if (tCodec == "AC3"){
       MP4::DAC3 dac3Box(M.getRate(idx), M.getChannels(idx));
       setCodecBox(dac3Box);
     }else{// other codecs use the ESDS box
-      MP4::ESDS esdsBox(M.getInit(idx));
+      MP4::ESDS esdsBox(M, idx);
       setCodecBox(esdsBox);
     }
   }

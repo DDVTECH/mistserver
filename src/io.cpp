@@ -303,10 +303,15 @@ namespace Mist{
   /// Initiates/continues negotiation with the buffer as well
   ///\param packet The packet to buffer
   void InOutBase::bufferLivePacket(const DTSC::Packet &packet){
+    size_t idx = M.trackIDToIndex(packet.getTrackId(), getpid());
+    if (idx == INVALID_TRACK_ID){
+      INFO_MSG("Packet for track %zu has no valid index!", packet.getTrackId());
+      return;
+    }
     char *data;
     size_t dataLen;
     packet.getString("data", data, dataLen);
-    bufferLivePacket(packet.getTime(), packet.getInt("offset"), packet.getTrackId(), data, dataLen,
+    bufferLivePacket(packet.getTime(), packet.getInt("offset"), idx, data, dataLen,
                      packet.getInt("bpos"), packet.getFlag("keyframe"));
     /// \TODO META Build something that should actually be able to deal with "extra" values
   }
@@ -329,7 +334,7 @@ namespace Mist{
         // Assume this is the first packet on the track
         isKeyframe = true;
       }else{
-        if (packTime - tPages.getInt("lastkeytime", tPages.getEndPos() - 1) >= 5000){
+        if (packTime - tPages.getInt("lastkeytime", tPages.getEndPos() - 1) >= AUDIO_KEY_INTERVAL){
           isKeyframe = true;
         }
       }
@@ -343,9 +348,8 @@ namespace Mist{
                  packTime, M.getLastms(packTrack));
         return;
       }
-      if (packet.getTime() > myMeta.tracks[tid].lastms + 30000 && myMeta.tracks[tid].lastms){
-        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, myMeta.tracks[tid].lastms,
-                 packet.getTime());
+      if (packTime > M.getLastms(packTrack) + 30000 && M.getLastms(packTrack)){
+        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, M.getLastms(packTrack), packTime);
       }
     }
 
@@ -361,7 +365,7 @@ namespace Mist{
         tPages.setInt("firstkey", 0, 0);
         tPages.setInt("firsttime", packTime, 0);
         tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, 0);
-        tPages.setInt("keycount", 0, endPage);
+        tPages.setInt("keycount", 0, 0);
         tPages.setInt("avail", 0, 0);
         ++endPage;
       }

@@ -361,7 +361,6 @@ namespace Mist{
         thisPacket.reInit(srcConn); // read the next packet before continuing
         continue;                   // parse the next packet before returning
       }
-      thisPacket = DTSC::Packet(thisPacket, M.trackIDToIndex(thisPacket.getTrackId(), getpid()));
       return; // we have a packet
     }
   }

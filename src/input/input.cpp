@@ -77,7 +77,8 @@ namespace Mist{
     option["help"] = "Generate .dtsh, then exit";
     config->addOption("headeronly", option);
 
-    /*LTS-START
+    /*LTS-START*/
+    /*
     //Encryption
     option.null();
     option["arg"] = "string";
@@ -85,31 +86,6 @@ namespace Mist{
     option["long"] = "encryption";
     option["help"] = "a KID:KEY combo for auto-encrypting tracks";
     config->addOption("encryption", option);
-
-
-    option.null();
-    option["long"] = "realtime";
-    option["short"] = "r";
-    option["help"] = "Feed the results of this input in realtime to the buffer";
-    config->addOption("realtime", option);
-    capa["optional"]["realtime"]["name"] = "Simulated Live";
-    capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
-    capa["optional"]["realtime"]["option"] = "--realtime";
-
-    option.null();
-    option["long"] = "simulated-starttime";
-    option["arg"] = "integer";
-    option["short"] = "S";
-    option["help"] = "Unix timestamp on which the simulated start of the stream is based.";
-    option["value"].append(0);
-    config->addOption("simulated-starttime", option);
-    capa["optional"]["simulated-starttime"]["name"] = "Simulated start time";
-    capa["optional"]["simulated-starttime"]["help"] =
-        "The unix timestamp on which this stream is assumed to have started playback, or 0 for "
-        "automatic";
-    capa["optional"]["simulated-starttime"]["option"] = "--simulated-starttime";
-    capa["optional"]["simulated-starttime"]["type"] = "uint";
-    capa["optional"]["simulated-starttime"]["default"] = 0;
 
     option.null();
     option["arg"] = "string";
@@ -175,8 +151,33 @@ namespace Mist{
     capa["optional"]["playready"]["help"] = "The header to use for PlayReady encryption.";
     capa["optional"]["playready"]["option"] = "--playready";
     capa["optional"]["playready"]["type"] = "string";
-    LTS-END*/
+    */
 
+    option.null();
+    option["long"] = "realtime";
+    option["short"] = "r";
+    option["help"] = "Feed the results of this input in realtime to the buffer";
+    config->addOption("realtime", option);
+    capa["optional"]["realtime"]["name"] = "Simulated Live";
+    capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
+    capa["optional"]["realtime"]["option"] = "--realtime";
+
+    option.null();
+    option["long"] = "simulated-starttime";
+    option["arg"] = "integer";
+    option["short"] = "S";
+    option["help"] = "Unix timestamp on which the simulated start of the stream is based.";
+    option["value"].append(0);
+    config->addOption("simulated-starttime", option);
+    capa["optional"]["simulated-starttime"]["name"] = "Simulated start time";
+    capa["optional"]["simulated-starttime"]["help"] =
+        "The unix timestamp on which this stream is assumed to have started playback, or 0 for "
+        "automatic";
+    capa["optional"]["simulated-starttime"]["option"] = "--simulated-starttime";
+    capa["optional"]["simulated-starttime"]["type"] = "uint";
+    capa["optional"]["simulated-starttime"]["default"] = 0;
+
+    /*LTS-END*/
     capa["optional"]["debug"]["name"] = "debug";
     capa["optional"]["debug"]["help"] = "The debug level at which messages need to be printed.";
     capa["optional"]["debug"]["option"] = "--debug";
@@ -637,7 +638,7 @@ namespace Mist{
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
     config->is_active = false;
     finish();
-    INFO_MSG("Input for stream %s closing clean", streamName.c_str());
+    INFO_MSG("Input closing clean, reason: %s", Util::exitReason);
     userSelect.clear();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
   }
@@ -669,6 +670,9 @@ namespace Mist{
       }
     }
     /*LTS-END*/
+    if (!ret && ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT)){
+      Util::logExitReason("no activity for %u seconds", Util::bootSecs() - activityCounter);
+    }
     return ret;
   }
 
@@ -682,28 +686,29 @@ namespace Mist{
   /// - call getNext() in a loop, buffering packets
   void Input::stream(){
 
-    if (!config->getBool("realtime") && Util::streamAlive(streamName)){
-      WARN_MSG("Stream already online, cancelling");
-      return;
-    }
-
     std::map<std::string, std::string> overrides;
     overrides["throughboot"] = "";
-    if (isSingular()){
-      if (Util::streamAlive(streamName)){
-        WARN_MSG("Stream already online, cancelling");
-        return;
-      }
-      overrides["singular"] = "";
-    }
     if (config->getBool("realtime") ||
         (capa.isMember("hardcoded") && capa["hardcoded"].isMember("resume") && capa["hardcoded"]["resume"])){
       overrides["resume"] = "1";
     }
-    if (!Util::startInput(streamName, "push://INTERNAL_ONLY:" + config->getString("input"), true,
-                          true, overrides)){// manually override stream url to start the buffer
-      WARN_MSG("Could not start buffer, cancelling");
-      return;
+    if (isSingular()){
+      if (!config->getBool("realtime") && Util::streamAlive(streamName)){
+        WARN_MSG("Stream already online, cancelling");
+        return;
+      }
+      overrides["singular"] = "";
+      if (!Util::startInput(streamName, "push://INTERNAL_ONLY:" + config->getString("input"), true,
+                            true, overrides)){// manually override stream url to start the buffer
+        WARN_MSG("Could not start buffer, cancelling");
+        return;
+      }
+    }else{
+      if (!Util::startInput(streamName, "push://INTERNAL_PUSH:" + capa["name"].asStringRef(), true,
+                            true, overrides)){// manually override stream url to start the buffer
+        WARN_MSG("Could not start buffer, cancelling");
+        return;
+      }
     }
 
     INFO_MSG("Input started");
@@ -715,19 +720,23 @@ namespace Mist{
     }
     parseStreamHeader();
 
-    std::set<size_t> validTracks = M.getMySourceTracks(getpid());
-    if (!validTracks.size()){
-      userSelect.clear();
-      finish();
-      INFO_MSG("No tracks found, cancelling");
-      return;
+    std::set<size_t> validTracks;
+
+    if (publishesTracks()){
+      validTracks = M.getMySourceTracks(getpid());
+      if (!validTracks.size()){
+        userSelect.clear();
+        finish();
+        INFO_MSG("No tracks found, cancelling");
+        return;
+      }
     }
 
     timeOffset = 0;
     uint64_t minFirstMs = 0;
 
     // If resume mode is on, find matching tracks and set timeOffset values to make sure we append to the tracks.
-    if (config->getBool("realtime")){
+    if (publishesTracks() && config->getBool("realtime")){
       seek(0);
 
       minFirstMs = 0xFFFFFFFFFFFFFFFFull;
@@ -736,12 +745,11 @@ namespace Mist{
       uint64_t maxLastMs = 0;
 
       // track lowest firstms value
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-           it != myMeta.tracks.end(); ++it){
-        if (it->second.firstms < minFirstMs){minFirstMs = it->second.firstms;}
-        if (it->second.firstms > maxFirstMs){maxFirstMs = it->second.firstms;}
-        if (it->second.lastms < minLastMs){minLastMs = it->second.lastms;}
-        if (it->second.lastms > maxLastMs){maxLastMs = it->second.lastms;}
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        if (meta.getFirstms(*it) < minFirstMs){minFirstMs = meta.getFirstms(*it);}
+        if (meta.getFirstms(*it) > maxFirstMs){maxFirstMs = meta.getFirstms(*it);}
+        if (meta.getLastms(*it) < minLastMs){minLastMs = meta.getLastms(*it);}
+        if (meta.getLastms(*it) > maxLastMs){maxLastMs = meta.getLastms(*it);}
       }
       if (maxFirstMs - minFirstMs > 500){
         WARN_MSG("Begin timings of tracks for this file are %" PRIu64
@@ -756,10 +764,8 @@ namespace Mist{
                  maxLastMs - minLastMs, minLastMs, maxLastMs);
       }
       // find highest current time
-      for (std::map<unsigned int, DTSC::Track>::iterator secondIt = tmpM.tracks.begin();
-           secondIt != tmpM.tracks.end(); ++secondIt){
-        VERYHIGH_MSG("Track %u starts at %" PRIu64, secondIt->first, secondIt->second.lastms);
-        timeOffset = std::max(timeOffset, (int64_t)secondIt->second.lastms);
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        timeOffset = std::max(timeOffset, (int64_t)meta.getLastms(*it));
       }
 
       if (timeOffset){
@@ -771,13 +777,11 @@ namespace Mist{
         timeOffset -= minFirstMs; // we don't need to add the lowest firstms value to the offset, as it's already there
       }
     }
-
-    for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
-         it != myMeta.tracks.end(); it++){
-      it->second.firstms += timeOffset;
-      it->second.lastms = 0;
-      selectedTracks.insert(it->first);
-      it->second.minKeepAway = SIMULATED_LIVE_BUFFER;
+    if (publishesTracks()){
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        meta.setFirstms(*it, meta.getFirstms(*it)+timeOffset);
+        meta.setLastms(*it, 0);
+      }
     }
 
     simStartTime = config->getInteger("simulated-starttime");
@@ -785,9 +789,9 @@ namespace Mist{
 
     std::string reason;
     if (config->getBool("realtime")){
-      reason = realtimeMainLoop();
+      realtimeMainLoop();
     }else{
-      reason = streamMainLoop();
+      streamMainLoop();
     }
 
     closeStreamSource();
@@ -795,11 +799,68 @@ namespace Mist{
     userSelect.clear();
 
     finish();
-    INFO_MSG("Input closing clean; reason: %s", reason.c_str());
+    INFO_MSG("Input closing clean; reason: %s", Util::exitReason);
     return;
   }
 
-  std::string Input::streamMainLoop(){
+  void Input::streamMainLoop(){
+    uint64_t statTimer = 0;
+    uint64_t startTime = Util::bootSecs();
+    size_t tid;
+    size_t idx;
+    Comms::Statistics statComm;
+    getNext();
+    tid = thisPacket.getTrackId();
+    idx = M.trackIDToIndex(tid, getpid());
+    if (thisPacket && !userSelect.count(idx)){
+      userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+    }
+    while (thisPacket && config->is_active && userSelect[idx].isAlive()){
+      if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
+        Util::logExitReason("buffer requested shutdown");
+        break;
+      }
+      bufferLivePacket(thisPacket);
+      userSelect[idx].keepAlive();
+      getNext();
+      if (!thisPacket){
+        Util::logExitReason("invalid packet from getNext");
+        break;
+      }
+      tid = thisPacket.getTrackId();
+      idx = M.trackIDToIndex(tid, getpid());
+      if (thisPacket && !userSelect.count(idx)){
+        userSelect[idx].reload(streamName, idx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      }
+
+      if (Util::bootSecs() - statTimer > 1){
+        // Connect to stats for INPUT detection
+        if (!statComm){statComm.reload();}
+        if (statComm){
+          if (!statComm.isAlive()){
+            config->is_active = false;
+            Util::logExitReason("received shutdown request from controller");
+            return;
+          }
+          uint64_t now = Util::bootSecs();
+          statComm.setNow(now);
+          statComm.setCRC(getpid());
+          statComm.setStream(streamName);
+          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
+          statComm.setUp(0);
+          statComm.setDown(streamByteCount());
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          statComm.setHost(getConnectedBinHost());
+          statComm.keepAlive();
+        }
+
+        statTimer = Util::bootSecs();
+      }
+    }
+  }
+
+  void Input::realtimeMainLoop(){
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
     Comms::Statistics statComm;
@@ -809,7 +870,18 @@ namespace Mist{
       userSelect[tid].reload(streamName, tid, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
     while (thisPacket && config->is_active && userSelect[thisPacket.getTrackId()].isAlive()){
+      thisPacket.nullMember("bpos");
+      while (config->is_active && userSelect[thisPacket.getTrackId()].isAlive() &&
+             Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset) + simStartTime){
+        Util::sleep(std::min(((thisPacket.getTime() + timeOffset) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER),
+                             (uint64_t)1000));
+        userSelect[thisPacket.getTrackId()].keepAlive();
+      }
+      uint64_t originalTime = thisPacket.getTime();
+      thisPacket.setTime(originalTime + timeOffset);
       bufferLivePacket(thisPacket);
+      thisPacket.setTime(originalTime);
+
       userSelect[thisPacket.getTrackId()].keepAlive();
       getNext();
       if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
@@ -823,50 +895,31 @@ namespace Mist{
         if (statComm){
           if (!statComm.isAlive()){
             config->is_active = false;
-            return "received shutdown request from controller";
+            Util::logExitReason("received shutdown request from controller");
+            return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
           statComm.setCRC(getpid());
           statComm.setStream(streamName);
-          statComm.setConnector("INPUT");
+          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setUp(0);
           statComm.setDown(streamByteCount());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
+          statComm.setHost(getConnectedBinHost());
           statComm.keepAlive();
         }
 
         statTimer = Util::bootSecs();
       }
     }
-    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
-    if (!config->is_active){return "received deactivate signal";}
-    if (!thisPacket){return "Invalid packet";}
-    return "Unknown";
-  }
-
-  std::string Input::realtimeMainLoop(){
-    getNext();
-    while (thisPacket && config->is_active && nProxy.userClient.isAlive()){
-      thisPacket.nullMember("bpos");
-      while (config->is_active && nProxy.userClient.isAlive() &&
-             Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset) + simStartTime){
-        Util::sleep(std::min(((thisPacket.getTime() + timeOffset) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER),
-                             (uint64_t)1000));
-        nProxy.userClient.keepAlive();
-      }
-      uint64_t originalTime = thisPacket.getTime();
-      thisPacket.setTime(originalTime + timeOffset);
-      nProxy.bufferLivePacket(thisPacket, myMeta);
-      thisPacket.setTime(originalTime);
-      getNext();
-      nProxy.userClient.keepAlive();
+    if (!thisPacket){
+      Util::logExitReason("invalid packet from getNext");
     }
-    if (!thisPacket){return "end of file";}
-    if (!config->is_active){return "received deactivate signal";}
-    if (!userSelect[thisPacket.getTrackId()].isAlive()){return "buffer shutdown";}
-    return "Unknown";
+    if (thisPacket && !userSelect[thisPacket.getTrackId()].isAlive()){
+      Util::logExitReason("buffer shutdown");
+    }
   }
 
   void Input::finish(){

@@ -9,6 +9,10 @@ void AnalyserDTSC::init(Util::Config &conf){
   opt["short"] = "H";
   opt["help"] = "Parse entire file or streams as a single headless DTSC packet";
   conf.addOption("headless", opt);
+  opt["long"] = "sizeprepended";
+  opt["short"] = "s";
+  opt["help"] = "If set, data of packets is considered to be size-prepended";
+  conf.addOption("sizeprepended", opt);
   opt.null();
 }
 
@@ -21,6 +25,7 @@ bool AnalyserDTSC::open(const std::string &filename){
 
 AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
   headLess = conf.getBool("headless");
+  sizePrepended = conf.getBool("sizeprepended");
 }
 
 bool AnalyserDTSC::parsePacket(){
@@ -60,10 +65,19 @@ bool AnalyserDTSC::parsePacket(){
       char *payDat;
       size_t payLen;
       P.getString("data", payDat, payLen);
+      uint32_t currLen = 0;
+      uint64_t byteCounter = 0;
       for (uint64_t i = 0; i < payLen; ++i){
-        if ((i % 32) == 0){std::cout << std::endl;}
+        if (sizePrepended && !currLen){
+          currLen = 4+Bit::btohl(payDat+i);
+          byteCounter = 0;
+        }
+        if ((byteCounter % 32) == 0){std::cout << std::endl;}
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)payDat[i];
+        ++byteCounter;
+        --currLen;
       }
+      std::cout << std::dec << std::endl;
     }
     break;
   }

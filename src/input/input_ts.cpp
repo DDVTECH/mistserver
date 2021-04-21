@@ -463,7 +463,7 @@ namespace Mist{
     tmpIdx = meta.addTrack(0, 0, 0, 0);
   }
 
-  std::string inputTS::streamMainLoop(){
+  void inputTS::streamMainLoop(){
     meta.removeTrack(tmpIdx);
     INFO_MSG("Removed temptrack %zu", tmpIdx);
     Comms::Statistics statComm;
@@ -495,7 +495,8 @@ namespace Mist{
         }
         if (!tcpCon){
           config->is_active = false;
-          return "end of streamed input";
+          Util::logExitReason("end of streamed input");
+          return;
         }
       }else{
         std::string leftData;
@@ -557,17 +558,19 @@ namespace Mist{
         if (statComm){
           if (!statComm.isAlive()){
             config->is_active = false;
-            return "received shutdown request from controller";
+            Util::logExitReason("received shutdown request from controller");
+            return;
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
           statComm.setCRC(getpid());
           statComm.setStream(streamName);
-          statComm.setConnector("INPUT");
+          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setUp(0);
           statComm.setDown(downCounter + tcpCon.dataDown());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
+          statComm.setHost(getConnectedBinHost());
           statComm.keepAlive();
         }
 
@@ -577,7 +580,8 @@ namespace Mist{
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
-              return "no active threads and we had input in the past";
+              Util::logExitReason("no active threads and we had input in the past");
+              return;
             }else{
               hasStarted = false;
             }
@@ -607,13 +611,13 @@ namespace Mist{
       if (Util::bootSecs() - noDataSince > 20){
         if (!isAlwaysOn()){
           config->is_active = false;
-          return "No packets received for 20 seconds - terminating";
+          Util::logExitReason("no packets received for 20 seconds");
+          return;
         }else{
           noDataSince = Util::bootSecs();
         }
       }
     }
-    return "received shutdown request";
   }
 
   void inputTS::finish(){

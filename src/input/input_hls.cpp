@@ -525,8 +525,7 @@ namespace Mist{
         std::string test = root.link(entry.filename).getFilePath();
         fileSource.open(test.c_str(), std::ios::ate | std::ios::binary);
         if (!fileSource.good()){WARN_MSG("file: %s, error: %s", test.c_str(), strerror(errno));}
-        entry.byteEnd = fileSource.tellg();
-        totalBytes += entry.byteEnd;
+        totalBytes += fileSource.tellg();
     }
 
     entry.timestamp = lastTimestamp + startTime;
@@ -592,12 +591,9 @@ namespace Mist{
   void inputHLS::parseStreamHeader(){
     if (!initPlaylist(config->getString("input"))){
       FAIL_MSG("Failed to load HLS playlist, aborting");
-      myMeta = DTSC::Meta();
       return;
     }
-    myMeta = DTSC::Meta();
-    myMeta.live = true;
-    myMeta.vod = false;
+    meta.reInit(config->getString("streamname"), false);
     INFO_MSG("Parsing live stream to create header...");
     TS::Packet packet; // to analyse and extract data
     int counter = 1;
@@ -612,7 +608,7 @@ namespace Mist{
 
       for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
            entryIt != pListIt->second.end(); ++entryIt){
-        nProxy.userClient.keepAlive();
+        keepAlive();
         if (!segDowner.loadSegment(*entryIt)){
           WARN_MSG("Skipping segment that could not be loaded in an attempt to recover");
           tsStream.clear();
@@ -633,21 +629,24 @@ namespace Mist{
               tsStream.getEarliestPacket(headerPack);
               int tmpTrackId = headerPack.getTrackId();
               uint64_t packetId = pidMapping[(((uint64_t)pListIt->first) << 32) + tmpTrackId];
-
+              
               if (packetId == 0){
                 pidMapping[(((uint64_t)pListIt->first) << 32) + headerPack.getTrackId()] = counter;
                 pidMappingR[counter] = (((uint64_t)pListIt->first) << 32) + headerPack.getTrackId();
                 packetId = counter;
-                VERYHIGH_MSG("Added file %s, trackid: %zu, mapped to: %d",
-                             entryIt->filename.c_str(), headerPack.getTrackId(), counter);
+                VERYHIGH_MSG("Added file %s, trackid: %zu, mapped to: %d", entryIt->filename.c_str(),
+                             headerPack.getTrackId(), counter);
                 counter++;
               }
 
-              if ((!myMeta.tracks.count(packetId) || !myMeta.tracks[packetId].codec.size())){
-                tsStream.initializeMetadata(myMeta, tmpTrackId, packetId);
-                myMeta.tracks[packetId].minKeepAway = globalWaitTime * 2000;
-                VERYHIGH_MSG("setting minKeepAway = %d for track: %" PRIu64,
-                             myMeta.tracks[packetId].minKeepAway, packetId);
+              size_t idx = M.trackIDToIndex(packetId, getpid());
+              if ((idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
+                tsStream.initializeMetadata(meta, tmpTrackId, packetId);
+                idx = M.trackIDToIndex(packetId, getpid());
+                if (idx != INVALID_TRACK_ID){
+                  meta.setMinKeepAway(idx, globalWaitTime * 2000);
+                  VERYHIGH_MSG("setting minKeepAway = %" PRIu32 " for track: %zu", globalWaitTime * 2000, idx);
+                }
               }
             }
             break; // we have all tracks discovered, next playlist!
@@ -655,8 +654,6 @@ namespace Mist{
         }while (!segDowner.atEnd());
         if (preCounter < counter){break;}// We're done reading this playlist!
       }
-
-      in.close();
     }
     tsStream.clear();
     currentPlaylist = 0;
@@ -672,8 +669,6 @@ namespace Mist{
     // See whether a separate header file exists.
     meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
     hasHeader = (bool)M;
-
-    if (M){return true;}
 
     if (!hasHeader){meta.reInit(config->getString("streamname"), true);}
 
@@ -704,7 +699,7 @@ namespace Mist{
             DTSC::Packet headerPack;
             tsStream.getEarliestPacket(headerPack);
 
-            int tmpTrackId = headerPack.getTrackId();
+            size_t tmpTrackId = headerPack.getTrackId();
             uint64_t packetId = pidMapping[(((uint64_t)pListIt->first) << 32) + tmpTrackId];
 
             if (packetId == 0){
@@ -717,10 +712,8 @@ namespace Mist{
             }
 
             size_t idx = M.trackIDToIndex(packetId, getpid());
-            INFO_MSG("PacketID: %" PRIu64 ", pid: %d, mapped to %zu", packetId, getpid(), idx);
             if (!hasHeader && (idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
               tsStream.initializeMetadata(meta, tmpTrackId, packetId);
-              INFO_MSG("InitializingMeta for track %zu -> %zu", tmpTrackId, packetId);
               idx = M.trackIDToIndex(packetId, getpid());
             }
 
@@ -757,6 +750,7 @@ namespace Mist{
             counter++;
           }
 
+          size_t idx = M.trackIDToIndex(packetId, getpid());
           if (!hasHeader && (idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
             tsStream.initializeMetadata(meta, tmpTrackId, packetId);
             idx = M.trackIDToIndex(packetId, getpid());
@@ -781,7 +775,6 @@ namespace Mist{
 
     INFO_MSG("write header file...");
     M.toFile((config->getString("input") + ".dtsh").c_str());
-    in.close();
 
     return true;
   }
@@ -794,26 +787,29 @@ namespace Mist{
     INSANE_MSG("Getting next");
     uint32_t tid = 0;
     bool finished = false;
-    if (userSelect.size()){tid = userSelect.begin()->first;}
     thisPacket.null();
     while (config->is_active && (needsLock() || keepAlive())){
 
       // Check if we have a packet
       bool hasPacket = false;
-      if (streamIsLive){
+      if (idx == INVALID_TRACK_ID){
         hasPacket = tsStream.hasPacketOnEachTrack() || (segDowner.atEnd() && tsStream.hasPacket());
       }else{
-        hasPacket = tsStream.hasPacket(M.getID(idx) & 0xFFFF);
+        hasPacket = tsStream.hasPacket(getMappedTrackId(M.getID(idx)));
       }
 
       // Yes? Excellent! Read and return it.
       if (hasPacket){
         // Read
-        if (M.getLive()){
+        if (idx == INVALID_TRACK_ID){
           tsStream.getEarliestPacket(thisPacket);
-          tid = M.trackIDToIndex((((uint64_t)currentPlaylist) << 16) + thisPacket.getTrackId(), getpid());
+          tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
+          if (!tid){
+            INFO_MSG("Track %" PRIu64 " on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
+            continue;
+          }
         }else{
-          tsStream.getPacket(M.getID(idx) & 0xFFFF, thisPacket);
+          tsStream.getPacket(getMappedTrackId(M.getID(idx)), thisPacket);
         }
         if (!thisPacket){
           FAIL_MSG("Could not getNext TS packet!");
@@ -850,8 +846,8 @@ namespace Mist{
                 plsTimeOffset[currentPlaylist] +=
                     (int64_t)(plsLastTime[currentPlaylist] + plsInterval[currentPlaylist]) - (int64_t)newTime;
                 newTime = thisPacket.getTime() + plsTimeOffset[currentPlaylist];
-                INFO_MSG("[Guess; New offset: %" PRId64 " -> %" PRId64 "] Packet %" PRIu32
-                         "@%" PRIu64 "ms -> %" PRIu64 "ms",
+                INFO_MSG("[Guess; New offset: %" PRId64 " -> %" PRId64 "] Packet %" PRIu32 "@%" PRIu64
+                         "ms -> %" PRIu64 "ms",
                          prevOffset, plsTimeOffset[currentPlaylist], tid, thisPacket.getTime(), newTime);
               }
             }
@@ -891,24 +887,28 @@ namespace Mist{
       // No? Then we want to try reading the next file.
 
       // No segments? Wait until next playlist reloading time.
-      currentPlaylist = firstSegment();
+      if (idx != INVALID_TRACK_ID){
+        currentPlaylist = getMappedTrackPlaylist(M.getID(idx));
+      }else{
+        currentPlaylist = firstSegment();
+      }
       if (currentPlaylist < 0){
         VERYHIGH_MSG("Waiting for segments...");
-        if (nProxy.userClient.isAlive()){nProxy.userClient.keepAlive();}
+        keepAlive();
         Util::wait(500);
         continue;
       }
 
       // Now that we know our playlist is up-to-date, actually try to read the file.
-      VERYHIGH_MSG("Moving on to next TS segment (variant %" PRIu32 ")", currentPlaylist);
+      VERYHIGH_MSG("Moving on to next TS segment (variant %" PRIu64 ")", currentPlaylist);
       if (readNextFile()){
         MEDIUM_MSG("Next segment read successfully");
         finished = false;
         continue; // Success! Continue regular parsing.
       }else{
-        if (selectedTracks.size() > 1){
+        if (userSelect.size() > 1){
           // failed to read segment for playlist, dropping it
-          WARN_MSG("Dropping variant %" PRIu32 " because we couldn't read anything from it", currentPlaylist);
+          WARN_MSG("Dropping variant %" PRIu64 " because we couldn't read anything from it", currentPlaylist);
           tthread::lock_guard<tthread::mutex> guard(entryMutex);
           listEntries.erase(currentPlaylist);
           if (listEntries.size()){continue;}
@@ -946,17 +946,17 @@ namespace Mist{
 
     currentIndex = plistEntry - 1;
     currentPlaylist = getMappedTrackPlaylist(trackId);
-    INFO_MSG("Seeking to index %d on playlist %d", currentIndex, currentPlaylist);
+    INFO_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
 
     {// Lock mutex for listEntries
       tthread::lock_guard<tthread::mutex> guard(entryMutex);
       if (!listEntries.count(currentPlaylist)){
-        WARN_MSG("Playlist %d not loaded, aborting seek", currentPlaylist);
+        WARN_MSG("Playlist %" PRIu64 " not loaded, aborting seek", currentPlaylist);
         return;
       }
       std::deque<playListEntries> &curPlaylist = listEntries[currentPlaylist];
       if (curPlaylist.size() <= currentIndex){
-        WARN_MSG("Playlist %d has %zu <= %d entries, aborting seek", currentPlaylist,
+        WARN_MSG("Playlist %" PRIu64 " has %zu <= %zu entries, aborting seek", currentPlaylist,
                  curPlaylist.size(), currentIndex);
         return;
       }
@@ -1179,7 +1179,7 @@ namespace Mist{
       tthread::lock_guard<tthread::mutex> guard(entryMutex);
       std::deque<playListEntries> &curList = listEntries[currentPlaylist];
       if (!curList.size()){
-        WARN_MSG("no entries found in playlist: %d!", currentPlaylist);
+        WARN_MSG("no entries found in playlist: %" PRIu64 "!", currentPlaylist);
         return false;
       }
       if (!streamIsLive){
@@ -1204,7 +1204,7 @@ namespace Mist{
         if (Util::bootSecs() < ntry.timestamp){
           VERYHIGH_MSG("Slowing down to realtime...");
           while (Util::bootSecs() < ntry.timestamp){
-            if (nProxy.userClient.isAlive()){nProxy.userClient.keepAlive();}
+            keepAlive();
             Util::wait(250);
           }
         }
@@ -1228,7 +1228,7 @@ namespace Mist{
   /// this will keep the playlists in sync while reading segments.
   size_t inputHLS::firstSegment(){
     // Only one selected? Immediately return the right playlist.
-    if (userSelect.size() == 1){return ((M.getID(userSelect.begin()->first) >> 16) & 0xFFFF);}
+    if (userSelect.size() == 1){return getMappedTrackPlaylist(M.getID(userSelect.begin()->first));}
     uint64_t firstTimeStamp = 0;
     int tmpId = -1;
     int segCount = 0;

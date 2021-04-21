@@ -13,6 +13,8 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 
+uint64_t bootMsOffset;
+
 namespace Mist{
 
   OutCMAF::OutCMAF(Socket::Connection &conn) : HTTPOutput(conn){
@@ -68,6 +70,8 @@ namespace Mist{
 
   void OutCMAF::onHTTP(){
     initialize();
+    bootMsOffset = 0;
+    if (M.getLive()){bootMsOffset = M.getBootMsOffset();}
 
     if (H.url.size() < streamName.length() + 7){
       H.Clean();
@@ -440,6 +444,12 @@ namespace Mist{
   }
 
   void hlsSegment(uint64_t start, uint64_t duration, std::stringstream &s, bool first){
+    if (bootMsOffset){
+      uint64_t unixMs = start + bootMsOffset + (Util::unixMS() - Util::bootMS());
+      time_t uSecs = unixMs/1000;
+      struct tm * tVal = gmtime(&uSecs);
+      s << "#EXT-X-PROGRAM-DATE-TIME: " << (tVal->tm_year+1900) << "-" << std::setw(2) << std::setfill('0') << (tVal->tm_mon+1) << "-" << std::setw(2) << std::setfill('0') << tVal->tm_mday << "T" << std::setw(2) << std::setfill('0') << tVal->tm_hour << ":" << std::setw(2) << std::setfill('0') << tVal->tm_min << ":" << std::setw(2) << std::setfill('0') << tVal->tm_sec << "." << std::setw(3) << std::setfill('0') << (unixMs%1000) << "Z" << std::endl;
+    }
     s << "#EXTINF:" << (((double)duration) / 1000) << ",\r\nchunk_" << start << ".m4s" << std::endl;
   }
 
@@ -537,7 +547,6 @@ namespace Mist{
 
     result << "#EXTM3U\r\n"
               "#EXT-X-VERSION:7\r\n"
-              "#EXT-X-DISCONTINUITY\r\n"
               "#EXT-X-TARGETDURATION:"
            << targetDuration << "\r\n";
     if (M.getLive()){result << "#EXT-X-MEDIA-SEQUENCE:" << firstFragment << "\r\n";}

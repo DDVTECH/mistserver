@@ -115,7 +115,7 @@ namespace Comms{
     do{
       for (size_t i = firstValid(); i < endValid(); i++){
         if (getStatus(i) == COMM_STATUS_INVALID){continue;}
-        setStatus(COMM_STATUS_DISCONNECT, i);
+        setStatus(COMM_STATUS_REQDISCONNECT, i);
       }
       while (getStatus(firstValid()) == COMM_STATUS_INVALID){deleteFirst();}
     }while (firstValid() < endValid() && ++c < 10);
@@ -174,7 +174,7 @@ namespace Comms{
         dataAccX.addField("lastsecond", RAX_64UINT);
         dataAccX.addField("down", RAX_64UINT);
         dataAccX.addField("up", RAX_64UINT);
-        dataAccX.addField("host", RAX_STRING, 16);
+        dataAccX.addField("host", RAX_RAW, 16);
         dataAccX.addField("stream", RAX_STRING, 100);
         dataAccX.addField("connector", RAX_STRING, 20);
         dataAccX.addField("crc", RAX_32UINT);
@@ -277,8 +277,13 @@ namespace Comms{
     up.set(_up, idx);
   }
 
-  std::string Statistics::getHost() const{return host.string(index);}
-  std::string Statistics::getHost(size_t idx) const{return (master ? host.string(idx) : "");}
+  std::string Statistics::getHost() const{
+    return std::string(host.ptr(index), 16);
+  }
+  std::string Statistics::getHost(size_t idx) const{
+    if (!master){return std::string((size_t)16, (char)'\000');}
+    return std::string(host.ptr(idx), 16);
+  }
   void Statistics::setHost(std::string _host){host.set(_host, index);}
   void Statistics::setHost(std::string _host, size_t idx){
     if (!master){return;}

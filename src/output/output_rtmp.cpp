@@ -1229,7 +1229,7 @@ namespace Mist{
         static std::map<size_t, AMF::Object> pushMeta;
         static std::map<size_t, uint64_t> lastTagTime;
         static std::map<size_t, size_t> reTrackToID;
-        if (!isInitialized){
+        if (!isInitialized || !meta){
           MEDIUM_MSG("Received useless media data");
           onFinish();
           break;

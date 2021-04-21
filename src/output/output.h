@@ -65,6 +65,7 @@ namespace Mist{
     /// This function is called whenever a packet is ready for sending.
     /// Inside it, thisPacket is guaranteed to contain a valid packet.
     virtual void sendNext(){}// REQUIRED! Others are optional.
+    virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
     bool getKeyFrame();
     bool prepareNext();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
@@ -105,6 +106,7 @@ namespace Mist{
     std::set<sortedPageInfo> buffer; ///< A sorted list of next-to-be-loaded packets.
     bool sought; ///< If a seek has been done, this is set to true. Used for seeking on
                  ///< prepareNext().
+    std::string prevHost; ///< Old value for getConnectedBinHost, for caching
   protected:     // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
@@ -128,6 +130,7 @@ namespace Mist{
     Comms::Statistics statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.
     uint32_t crc;    ///< Checksum, if any, for usage in the stats.
+    uint64_t nextKeyTime();
 
     // stream delaying variables
     uint64_t maxSkipAhead;   ///< Maximum ms that we will go ahead of the intended timestamps.
@@ -148,7 +151,6 @@ namespace Mist{
     virtual bool isPushing(){return pushing;};
     bool allowPush(const std::string &passwd);
     void waitForStreamPushReady();
-    bool pushIsOngoing;
 
     uint64_t firstPacketTime;
     uint64_t lastPacketTime;

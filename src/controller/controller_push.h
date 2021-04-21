@@ -8,6 +8,9 @@ namespace Controller{
   void startPush(const std::string &streamname, std::string &target);
   void stopPush(unsigned int ID);
   void listPush(JSON::Value &output);
+  void pushLogMessage(uint64_t id, const JSON::Value & msg);
+  void setPushStatus(uint64_t id, const JSON::Value & status);
+  bool isPushActive(uint64_t id);
 
   // Functions for automated pushes, add/remove
   void addPush(JSON::Value &request);

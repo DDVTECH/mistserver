@@ -12,6 +12,8 @@ namespace SDP{
       return "H264";
     }else if (codec == "VP8"){
       return "VP8";
+    }else if (codec == "VP9"){
+      return "VP9";
     }else if (codec == "AC3"){
       return "AC3";
     }else if (codec == "PCMA"){
@@ -49,6 +51,8 @@ namespace SDP{
       return "H264";
     }else if (codec == "VP8"){
       return "VP8";
+    }else if (codec == "VP9"){
+      return "VP9";
     }else if (codec == "AC3"){
       return "AC3";
     }else if (codec == "ALAW"){
@@ -184,7 +188,7 @@ namespace SDP{
       return 90000;
     }else if (encodingName == "VP8"){
       return 90000;
-    }else if (encodingName == "vp9"){
+    }else if (encodingName == "VP9"){
       return 90000;
     }
 

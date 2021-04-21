@@ -20,7 +20,7 @@ namespace Util{
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){
-      INFO_MSG("default callback, size: %llu", size);
+      INFO_MSG("default callback, size: %zu", size);
     }
   };
 
@@ -54,7 +54,7 @@ namespace Util{
   };
 
   void logParser(int in, int out, bool colored,
-                 void callback(const std::string &, const std::string &, const std::string &, bool) = 0);
+                 void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool) = 0);
   void redirectLogsIfNeeded();
 
   /// Holds type, size and offset for RelAccX class internal data fields.
@@ -194,6 +194,7 @@ namespace Util{
     FieldAccX(RelAccX *_src = NULL, RelAccXFieldData _field = RelAccXFieldData());
     uint64_t uint(size_t recordNo) const;
     std::string string(size_t recordNo) const;
+    const char * ptr(size_t recordNo) const;
     void set(uint64_t val, size_t recordNo = 0);
     void set(const std::string &val, size_t recordNo = 0);
 

@@ -354,7 +354,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
 
   switch (headertype){
   case 0x00:
-    if (!buffer.available(i + 11)){return false;}// can't read whole header
+    if (!buffer.available(i + 11)){
+      DONTEVEN_MSG("Cannot read whole header");
+      return false;
+    }// can't read whole header
     indata = buffer.copy(i + 11);
     timestamp = indata[i++] * 256 * 256;
     timestamp += indata[i++] * 256;
@@ -372,7 +375,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
     msg_stream_id += indata[i++] * 256 * 256 * 256;
     break;
   case 0x40:
-    if (!buffer.available(i + 7)){return false;}// can't read whole header
+    if (!buffer.available(i + 7)){
+      DONTEVEN_MSG("Cannot read whole header");
+      return false;
+    }// can't read whole header
     indata = buffer.copy(i + 7);
     if (!allow_short){WARN_MSG("Warning: Header type 0x40 with no valid previous chunk!");}
     timestamp = indata[i++] * 256 * 256;
@@ -391,7 +397,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
     msg_stream_id = prev.msg_stream_id;
     break;
   case 0x80:
-    if (!buffer.available(i + 3)){return false;}// can't read whole header
+    if (!buffer.available(i + 3)){
+      DONTEVEN_MSG("Cannot read whole header");
+      return false;
+    }// can't read whole header
     indata = buffer.copy(i + 3);
     if (!allow_short){WARN_MSG("Warning: Header type 0x80 with no valid previous chunk!");}
     timestamp = indata[i++] * 256 * 256;
@@ -435,7 +444,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
 
   // read extended timestamp, if necessary
   if (ts_header == 0x00ffffff){
-    if (!buffer.available(i + 4)){return false;}// can't read timestamp
+    if (!buffer.available(i + 4)){
+      DONTEVEN_MSG("Cannot read timestamp");
+      return false;
+    }// can't read timestamp
     indata = buffer.copy(i + 4);
     timestamp += indata[i++] * 256 * 256 * 256;
     timestamp += indata[i++] * 256 * 256;
@@ -447,7 +459,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
 
   // read data if length > 0, and allocate it
   if (real_len > 0){
-    if (!buffer.available(i + real_len)){return false;}// can't read all data (yet)
+    if (!buffer.available(i + real_len)){
+      DONTEVEN_MSG("Cannot read all data yet");
+      return false;
+    }// can't read all data (yet)
     buffer.remove(i);                                      // remove the header
     if (prev.len_left > 0){
       data = prev.data + buffer.remove(real_len); // append the data and remove from buffer

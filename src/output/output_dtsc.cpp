@@ -63,7 +63,7 @@ namespace Mist{
     config = cfg;
   }
 
-  std::string OutDTSC::getStatsName(){return (pushing ? "INPUT" : "OUTPUT");}
+  std::string OutDTSC::getStatsName(){return (pushing ? "INPUT:DTSC" : "OUTPUT:DTSC");}
 
   /// Seeks to the first sync'ed keyframe of the main track.
   /// Aborts if there is no main track or it has no keyframes.

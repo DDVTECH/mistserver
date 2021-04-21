@@ -10,6 +10,7 @@ public:
 
 private:
   bool headLess;
+  bool sizePrepended;
   DTSC::Packet P;
   Socket::Connection conn;
   uint64_t totalBytes;

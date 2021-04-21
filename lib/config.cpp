@@ -33,13 +33,22 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdarg.h> // for va_list
 
 bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::Config::printDebugLevel = DEBUG; //
 std::string Util::Config::streamName;
-std::string Util::Config::exitReason;
+char Util::exitReason[256] = {0};
+
+void Util::logExitReason(const char *format, ...){
+  if (exitReason[0]){return;}
+  va_list args;
+  va_start(args, format);
+  vsnprintf(exitReason, 255, format, args);
+  va_end(args);
+}
 
 std::string Util::listenInterface;
 uint32_t Util::listenPort = 0;
@@ -450,7 +459,16 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}
 #endif
-    logExitReason("Setting is_active to false due to received signal interrupt");
+    switch (sigInfo->si_code){
+    case SI_USER:
+    case SI_QUEUE:
+    case SI_TIMER:
+    case SI_ASYNCIO:
+    case SI_MESGQ:
+      logExitReason("signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
+      break;
+    default: logExitReason("signal %s (%d)", strsignal(signum), signum);
+    }
     is_active = false;
   default:
     switch (sigInfo->si_code){

@@ -17,6 +17,11 @@ namespace Mist{
     void incoming(const DTSC::Packet &pkt);
     void incomingRTP(const uint64_t track, const RTP::Packet &p);
 
+    virtual std::string getConnectedBinHost(){
+      if (tcpCon){return tcpCon.getBinHost();}
+      return Input::getConnectedBinHost();
+    }
+
   protected:
     // Private Functions
     bool checkArguments();
@@ -29,7 +34,7 @@ namespace Mist{
                      const std::map<std::string, std::string> *extraHeaders = 0, bool reAuth = true);
     bool parsePacket(bool mustHave = false);
     bool handleUDP();
-    std::string streamMainLoop();
+    void streamMainLoop();
     Socket::Connection tcpCon;
     HTTP::Parser sndH, recH;
     HTTP::URL url;

@@ -276,7 +276,7 @@ namespace Util{
   /// Parses log messages from the given file descriptor in, printing them to out, optionally
   /// calling the given callback for each valid message. Closes the file descriptor on read error
   void logParser(int in, int out, bool colored,
-                 void callback(const std::string &, const std::string &, const std::string &, bool)){
+                 void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool)){
 
     char buf[1024];
     FILE *output = fdopen(in, "r");
@@ -347,7 +347,7 @@ namespace Util{
       while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
       buf[j] = 0;
       // print message
-      if (callback){callback(kind, message, strmNm, true);}
+      if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
       color_msg = color_end;
       if (colored){
         if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
@@ -386,9 +386,11 @@ namespace Util{
   uint64_t FieldAccX::uint(size_t recordNo) const{return src->getInt(field, recordNo);}
 
   std::string FieldAccX::string(size_t recordNo) const{
-    std::string res(src->getPointer(field, recordNo));
-    if (res.size() > field.size){res.resize(field.size);}
-    return res;
+    return std::string(src->getPointer(field, recordNo));
+  }
+
+  const char * FieldAccX::ptr(size_t recordNo) const{
+    return src->getPointer(field, recordNo);
   }
 
   void FieldAccX::set(uint64_t val, size_t recordNo){src->setInt(field, val, recordNo);}
@@ -396,7 +398,9 @@ namespace Util{
   void FieldAccX::set(const std::string &val, size_t recordNo){
     char *place = src->getPointer(field, recordNo);
     memcpy(place, val.data(), std::min((size_t)field.size, val.size()));
-    place[std::min((size_t)field.size - 1, val.size())] = 0;
+    if ((field.type & 0xF0) == RAX_STRING){
+      place[std::min((size_t)field.size - 1, val.size())] = 0;
+    }
   }
 
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.
@@ -597,7 +601,7 @@ namespace Util{
           char *ptr = getPointer(it->first, i);
           size_t sz = getSize(it->first, i);
           size_t zeroCount = 0;
-          for (size_t j = 0; j < sz && j < 100 && zeroCount < 10; ++j){
+          for (size_t j = 0; j < sz && j < 100 && zeroCount < 16; ++j){
             r << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
             if (ptr[j] == 0x00){
               zeroCount++;
@@ -770,13 +774,13 @@ namespace Util{
   }
 
   void RelAccX::setString(const RelAccXFieldData &fd, const std::string &val, uint64_t recordNo){
-    if ((fd.type & 0xF0) != RAX_STRING){
-      WARN_MSG("Setting non-string");
+    if ((fd.type & 0xF0) != RAX_STRING && (fd.type & 0xF0) != RAX_RAW){
+      WARN_MSG("Setting non-string data type to a string value");
       return;
     }
     char *ptr = RECORD_POINTER;
     memcpy(ptr, val.data(), std::min((uint32_t)val.size(), fd.size));
-    ptr[std::min((uint32_t)val.size(), fd.size - 1)] = 0;
+    if ((fd.type & 0xF0) == RAX_STRING){ptr[std::min((uint32_t)val.size(), fd.size - 1)] = 0;}
   }
 
   /// Writes the given int to the given field in the given record.

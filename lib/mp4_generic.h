@@ -241,7 +241,7 @@ namespace MP4{
   class ESDS : public fullBox{
   public:
     ESDS();
-    ESDS(std::string init);
+    ESDS(const DTSC::Meta & M, size_t idx);
     ESDescriptor getESDescriptor();
     bool isAAC();
     std::string getCodec();

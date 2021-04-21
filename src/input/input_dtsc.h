@@ -27,6 +27,11 @@ namespace Mist{
     inputDTSC(Util::Config *cfg);
     bool needsLock();
 
+    virtual std::string getConnectedBinHost(){
+      if (srcConn){return srcConn.getBinHost();}
+      return Input::getConnectedBinHost();
+    }
+
   protected:
     // Private Functions
     bool openStreamSource();

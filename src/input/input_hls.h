@@ -121,7 +121,7 @@ namespace Mist{
     Socket::Connection conn;
     TS::Packet tsBuf;
 
-    int firstSegment();
+    size_t firstSegment();
     void waitForNextSegment();
     void readPMT();
     bool checkArguments();
@@ -130,7 +130,6 @@ namespace Mist{
     bool needHeader(){return true;}
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
-
     FILE *inFile;
     FILE *tsFile;
 
@@ -141,6 +140,9 @@ namespace Mist{
 
     void parseStreamHeader();
 
+    uint32_t getMappedTrackId(uint64_t id);
+    uint32_t getMappedTrackPlaylist(uint64_t id);
+    uint64_t getOriginalTrackId(uint32_t playlistId, uint32_t id);
     size_t getEntryId(uint32_t playlistId, uint64_t bytePos);
   };
 }// namespace Mist

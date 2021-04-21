@@ -1,5 +1,6 @@
 #include "controller_capabilities.h"
 #include "controller_storage.h"
+#include "controller_push.h" //LTS
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -41,7 +42,7 @@ namespace Controller{
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
-  void Log(const std::string &kind, const std::string &message, const std::string &stream, bool noWriteToLog){
+  void Log(const std::string &kind, const std::string &message, const std::string &stream, uint64_t progPid, bool noWriteToLog){
     if (noWriteToLog){
       tthread::lock_guard<tthread::mutex> guard(logMutex);
       JSON::Value m;
@@ -52,6 +53,7 @@ namespace Controller{
       m.append(stream);
       Storage["log"].append(m);
       Storage["log"].shrink(100); // limit to 100 log messages
+      if (isPushActive(progPid)){pushLogMessage(progPid, m);} //LTS
       logCounter++;
       if (rlxLogs && rlxLogs->isReady()){
         if (!firstLog){firstLog = logCounter;}

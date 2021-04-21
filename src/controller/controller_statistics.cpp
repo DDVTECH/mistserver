@@ -50,6 +50,7 @@ bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
 unsigned int Controller::maxConnsPerIP = 0;
 uint64_t Controller::statDropoff = 0;
+static uint64_t cpu_use = 0;
 
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
@@ -74,6 +75,21 @@ void Controller::updateBandwidthConfig(){
           offset += newbins.size();
         }
       }
+    }
+  }
+  //Localhost is always excepted from counts
+  {
+    std::string newbins = Socket::getBinForms("::1");
+    if (offset + newbins.size() < 1700){
+      memcpy(noBWCountMatches + offset, newbins.data(), newbins.size());
+      offset += newbins.size();
+    }
+  }
+  {
+    std::string newbins = Socket::getBinForms("127.0.0.1/8");
+    if (offset + newbins.size() < 1700){
+      memcpy(noBWCountMatches + offset, newbins.data(), newbins.size());
+      offset += newbins.size();
     }
   }
 }
@@ -107,7 +123,7 @@ Controller::sessIndex::sessIndex(){
 /// into strings. This extracts the host, stream name, connector and crc field, ignoring everything
 /// else.
 Controller::sessIndex::sessIndex(const Comms::Statistics &statComm, size_t id){
-  host = statComm.getHost(id);
+  Socket::hostBytesToStr(statComm.getHost(id).data(), 16, host);
   streamName = statComm.getStream(id);
   connector = statComm.getConnector(id);
   crc = statComm.getCRC(id);
@@ -336,6 +352,28 @@ void Controller::SharedMemStats(void *config){
   bool firstRun = true;
   while (((Util::Config *)config)->is_active){
     {
+      std::ifstream cpustat("/proc/stat");
+      if (cpustat){
+        char line[300];
+        while (cpustat.getline(line, 300)){
+          static unsigned long long cl_total = 0, cl_idle = 0;
+          unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
+          if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
+            c_total = c_user + c_nice + c_syst + c_idle;
+            if (c_total > cl_total){
+              cpu_use = (long long)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
+            }else{
+              cpu_use = 0;
+            }
+            cl_total = c_total;
+            cl_idle = c_idle;
+            break;
+          }
+        }
+      }
+    }
+    {
+
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       tthread::lock_guard<tthread::mutex> guard2(statsMutex);
       cacheLock->wait(); /*LTS*/
@@ -522,7 +560,8 @@ uint32_t Controller::statSession::kill(){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm){
-  std::string myHost = statComm.getHost(index);
+  std::string myHost;
+  Socket::hostBytesToStr(statComm.getHost(index).data(), 16, myHost);
   std::string myStream = statComm.getStream(index);
   std::string myConnector = statComm.getConnector(index);
   // update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 2 =
@@ -613,12 +652,12 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
   }
   if (currDown + currUp >= COUNTABLE_BYTES){
     if (sessionType == SESS_UNSET){
-      if (myConnector == "INPUT"){
+      if (myConnector.size() >= 5 && myConnector.substr(0, 5) == "INPUT"){
         ++servInputs;
         streamStats[myStream].inputs++;
         streamStats[myStream].currIns++;
         sessionType = SESS_INPUT;
-      }else if (myConnector == "OUTPUT"){
+      }else if (myConnector.size() >= 6 && myConnector.substr(0, 6) == "OUTPUT"){
         ++servOutputs;
         streamStats[myStream].outputs++;
         streamStats[myStream].currOuts++;
@@ -632,19 +671,21 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
     }
     // If previous < COUNTABLE_BYTES, we haven't counted any data so far.
     // We need to count all the data in that case, otherwise we only count the difference.
-    if (prevUp + prevDown < COUNTABLE_BYTES){
-      if (!myStream.size() || myStream[0] == 0){
-        if (streamStats.count(myStream)){streamStats.erase(myStream);}
+    if (noBWCount != 2){ //only count connections that are countable
+      if (prevUp + prevDown < COUNTABLE_BYTES){
+        if (!myStream.size() || myStream[0] == 0){
+          if (streamStats.count(myStream)){streamStats.erase(myStream);}
+        }else{
+          streamStats[myStream].upBytes += currUp;
+          streamStats[myStream].downBytes += currDown;
+        }
       }else{
-        streamStats[myStream].upBytes += currUp;
-        streamStats[myStream].downBytes += currDown;
-      }
-    }else{
-      if (!myStream.size() || myStream[0] == 0){
-        if (streamStats.count(myStream)){streamStats.erase(myStream);}
-      }else{
-        streamStats[myStream].upBytes += currUp - prevUp;
-        streamStats[myStream].downBytes += currDown - prevDown;
+        if (!myStream.size() || myStream[0] == 0){
+          if (streamStats.count(myStream)){streamStats.erase(myStream);}
+        }else{
+          streamStats[myStream].upBytes += currUp - prevUp;
+          streamStats[myStream].downBytes += currDown - prevDown;
+        }
       }
     }
   }
@@ -1437,29 +1478,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   H.StartResponse("200", "OK", H, conn, true);
 
   // Collect core server stats
-  uint64_t cpu_use = 0;
   uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0;
   uint64_t bw_up_total = 0, bw_down_total = 0;
   {
-    std::ifstream cpustat("/proc/stat");
-    if (cpustat){
-      char line[300];
-      while (cpustat.getline(line, 300)){
-        static unsigned long long cl_total = 0, cl_idle = 0;
-        unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
-        if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
-          c_total = c_user + c_nice + c_syst + c_idle;
-          if (c_total > cl_total){
-            cpu_use = (long long int)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));
-          }else{
-            cpu_use = 0;
-          }
-          cl_total = c_total;
-          cl_idle = c_idle;
-          break;
-        }
-      }
-    }
     std::ifstream meminfo("/proc/meminfo");
     if (meminfo){
       char line[300];

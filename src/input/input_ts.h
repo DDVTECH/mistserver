@@ -14,6 +14,11 @@ namespace Mist{
     ~inputTS();
     bool needsLock();
 
+    virtual std::string getConnectedBinHost(){
+      if (tcpCon){return tcpCon.getBinHost();}
+      /// \TODO Handle UDP
+      return Input::getConnectedBinHost();
+    }
   protected:
     // Private Functions
     bool checkArguments();
@@ -25,7 +30,7 @@ namespace Mist{
     void readPMT();
     bool openStreamSource();
     void parseStreamHeader();
-    std::string streamMainLoop();
+    void streamMainLoop();
     void finish();
     FILE *inFile;        ///< The input file with ts data
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream

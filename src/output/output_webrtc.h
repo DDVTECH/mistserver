@@ -67,6 +67,7 @@
 #include <mist/stun.h>
 #include <mist/tinythread.h>
 #include <mist/websocket.h>
+#include <fstream>
 
 #define NACK_BUFFER_SIZE 1024
 
@@ -130,6 +131,7 @@ namespace Mist{
     virtual void sendNext();
     virtual void onWebsocketFrame();
     virtual void preWebsocketConnect();
+    virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
     void onIdle();
     bool onFinish();
     bool doesWebsockets(){return true;}
@@ -142,6 +144,8 @@ namespace Mist{
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
 
   private:
+    uint64_t lastPackMs;
+    std::ofstream jitterLog;
     std::string externalAddr;
     void ackNACK(uint32_t SSRC, uint16_t seq);
     bool handleWebRTCInputOutput(); ///< Reads data from the UDP socket. Returns true when we read
@@ -198,6 +202,7 @@ namespace Mist{
                            ///< the signaling channel. Defaults to 6mbit.
 
     size_t audTrack, vidTrack, prevVidTrack;
+    double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
 
     bool didReceiveKeyFrame; /* TODO burst delay */
     int64_t packetOffset;    ///< For timestamp rewrite with BMO

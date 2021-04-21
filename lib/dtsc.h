@@ -63,6 +63,8 @@ namespace DTSC{
     Scan getMember(const std::string &indice) const;
     Scan getMember(const char *indice) const;
     Scan getMember(const char *indice, size_t ind_len) const;
+      void nullMember(const std::string & indice);
+      void nullMember(const char * indice, size_t ind_len);
     Scan getIndice(size_t num) const;
     std::string getIndiceName(size_t num) const;
     size_t getSize() const;
@@ -111,6 +113,7 @@ namespace DTSC{
     void setKeyFrame(bool kf);
     virtual uint64_t getTime() const;
     void setTime(uint64_t _time);
+      void nullMember(const std::string & memb);
     size_t getTrackId() const;
     char *getData() const;
     size_t getDataLen() const;

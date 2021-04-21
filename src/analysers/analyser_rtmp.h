@@ -18,4 +18,5 @@ public:
   static void init(Util::Config &conf);
   bool parsePacket();
   virtual bool open(const std::string &filename);
+  virtual bool isOpen();
 };

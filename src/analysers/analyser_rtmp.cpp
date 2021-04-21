@@ -16,6 +16,11 @@ void AnalyserRTMP::init(Util::Config &conf){
   opt.null();
 }
 
+/// Checks if standard input is still valid.
+bool AnalyserRTMP::isOpen(){
+  return (*isActive) && (std::cin.good() || strbuf.size());
+}
+
 AnalyserRTMP::AnalyserRTMP(Util::Config &conf) : Analyser(conf){
   if (conf.getString("reconstruct") != ""){
     reconstruct.open(conf.getString("reconstruct").c_str());
@@ -43,7 +48,10 @@ bool AnalyserRTMP::parsePacket(){
   // While we can't parse a packet,
   while (!next.Parse(strbuf)){
     // fill our internal buffer "strbuf" in (up to) 1024 byte chunks
-    if (!std::cin.good()){return false;}
+    if (!std::cin.good()){
+      strbuf.clear();
+      return false;
+    }
     size_t charCount = 0;
     std::string tmpbuffer;
     tmpbuffer.reserve(1024);

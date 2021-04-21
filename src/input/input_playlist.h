@@ -11,9 +11,10 @@ namespace Mist{
   protected:
     bool checkArguments();
     bool readHeader(){return true;}
-    virtual void parseStreamHeader(){myMeta.tracks[1].codec = "PLACEHOLDER";}
-    std::string streamMainLoop();
+    virtual void parseStreamHeader(){}
+    void streamMainLoop();
     virtual bool needHeader(){return false;}
+    virtual bool publishesTracks(){return false;}
 
   private:
     void reloadPlaylist();

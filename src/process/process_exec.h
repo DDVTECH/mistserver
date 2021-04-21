@@ -21,7 +21,9 @@ namespace Mist{
 
   class ProcessSink : public InputEBML{
   public:
-    ProcessSink(Util::Config *cfg) : InputEBML(cfg){};
+    ProcessSink(Util::Config *cfg) : InputEBML(cfg){
+      capa["name"] = "MKVExec";
+    };
     void getNext(size_t idx = INVALID_TRACK_ID){
       static bool recurse = false;
       if (recurse){return InputEBML::getNext(idx);}
@@ -52,7 +54,15 @@ namespace Mist{
 
   class ProcessSource : public OutEBML{
   public:
-    ProcessSource(Socket::Connection &c) : OutEBML(c){realTime = 1000;};
+    bool isRecording(){return false;}
+    ProcessSource(Socket::Connection &c) : OutEBML(c){
+      capa["name"] = "MKVExec";
+      realTime = 0;
+    };
+    void sendHeader(){
+      realTime = 0;
+      OutEBML::sendHeader();
+    };
     void sendNext(){
       extraKeepAway = 0;
       needsLookAhead = 0;

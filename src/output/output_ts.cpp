@@ -189,7 +189,7 @@ namespace Mist{
 
   std::string OutTS::getStatsName(){
     if (!parseData){
-      return "INPUT";
+      return "INPUT:" + capa["name"].asStringRef();
     }else{
       return Output::getStatsName();
     }

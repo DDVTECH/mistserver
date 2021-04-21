@@ -30,6 +30,7 @@ namespace Mist{
 
     capa["optional"].removeMember("realtime");
 
+    lastReTime = 0; /*LTS*/
     finalMillis = 0;
     liveMeta = 0;
     capa["name"] = "Buffer";
@@ -118,6 +119,7 @@ namespace Mist{
     cutTime = 0;
     segmentSize = 1900;
     hasPush = false;
+    everHadPush = false;
     resumeMode = false;
   }
 
@@ -360,7 +362,7 @@ namespace Mist{
       if (!(users.getStatus(i) & COMM_STATUS_SOURCE)){continue;}
       if (users.getTrack(i) != tid){continue;}
       // We have found the right track here (pid matches, and COMM_STATUS_SOURCE set)
-      users.setStatus(COMM_STATUS_DISCONNECT, i);
+      users.setStatus(COMM_STATUS_REQDISCONNECT, i);
       break;
     }
 
@@ -450,7 +452,7 @@ namespace Mist{
       // firstVideo = 1 happens when there are no tracks, in which case we don't care any more
       uint32_t firstKey = keys.getFirstValid();
       uint32_t endKey = keys.getEndValid();
-      if (type != "video"){
+      if (type != "video" && videoFirstms != 0xFFFFFFFFFFFFFFFFull){
         if ((endKey - firstKey) < 2 || keys.getTime(firstKey + 1) > videoFirstms){continue;}
       }
       // Buffer cutting
@@ -464,19 +466,6 @@ namespace Mist{
       }
     }
     updateMeta();
-    if (config->is_active){
-      if (streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
-    }
-    static bool everHadPush = false;
-    if (hasPush){
-      hasPush = false;
-      everHadPush = true;
-    }else if (everHadPush && !resumeMode && config->is_active){
-      INFO_MSG("Shutting down buffer because resume mode is disabled and the source disconnected");
-      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
-      config->is_active = false;
-      userSelect.clear();
-    }
   }
 
   void inputBuffer::userLeadIn(){
@@ -487,22 +476,21 @@ namespace Mist{
     /*LTS-END*/
     connectedUsers = 0;
 
+    //Store child process PIDs in generatePids.
+    //These are controlled by the buffer (usually processes) and should not count towards incoming pushes
     generatePids.clear();
     for (std::map<std::string, pid_t>::iterator it = runningProcs.begin(); it != runningProcs.end(); it++){
       generatePids.insert(it->second);
     }
+    hasPush = false;
   }
   void inputBuffer::userOnActive(size_t id){
     ///\todo Add tracing of earliest watched keys, to prevent data going out of memory for
     /// still-watching viewers
     if (users.getStatus(id) != COMM_STATUS_DISCONNECT && users.getStatus(id) & COMM_STATUS_SOURCE){
       sourcePids[users.getPid(id)].insert(users.getTrack(id));
-      if (!M.trackValid(users.getTrack(id))){
-        users.setStatus(COMM_STATUS_DISCONNECT, id);
-        return;
-      }
       // GeneratePids holds the pids of the process that generate data, so ignore those for determining if a push is ingested.
-      if (!generatePids.count(users.getPid(id))){hasPush = true;}
+      if (M.trackValid(users.getTrack(id)) && !generatePids.count(users.getPid(id))){hasPush = true;}
     }
 
     if (!(users.getStatus(id) & COMM_STATUS_DONOTTRACK)){++connectedUsers;}
@@ -516,11 +504,20 @@ namespace Mist{
     }
   }
   void inputBuffer::userLeadOut(){
+    if (config->is_active && streamStatus){streamStatus.mapped[0] = hasPush ? STRMSTAT_READY : STRMSTAT_WAIT;}
+    if (hasPush){everHadPush = true;}
+    if (!hasPush && everHadPush && !resumeMode && config->is_active){
+      Util::logExitReason("source disconnected for non-resumable stream");
+      if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
+      config->is_active = false;
+      userSelect.clear();
+    }
     /*LTS-START*/
     static std::set<size_t> prevValidTracks;
 
     std::set<size_t> validTracks = M.getValidTracks();
     if (validTracks != prevValidTracks){
+      MEDIUM_MSG("Valid tracks count changed from %lu to %lu", prevValidTracks.size(), validTracks.size());
       prevValidTracks = validTracks;
       if (Triggers::shouldTrigger("LIVE_TRACK_LIST")){
         JSON::Value triggerPayload;
@@ -545,7 +542,6 @@ namespace Mist{
 
   bool inputBuffer::preRun(){
     // This function gets run periodically to make sure runtime updates of the config get parsed.
-    lastReTime = Util::epoch(); /*LTS*/
     std::string strName = config->getString("streamname");
     Util::sanitizeName(strName);
     strName = strName.substr(0, (strName.find_first_of("+ ")));
@@ -553,16 +549,21 @@ namespace Mist{
     snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, strName.c_str());
     Util::DTSCShmReader rStrmConf(tmpBuf);
     DTSC::Scan streamCfg = rStrmConf.getScan();
+    if (streamCfg){
+      JSON::Value configuredProcesses = streamCfg.getMember("processes").asJSON();
+      checkProcesses(configuredProcesses);
+    }
 
+    //Check if bufferTime setting is correct
     uint64_t tmpNum = retrieveSetting(streamCfg, "DVR", "bufferTime");
     if (tmpNum < 1000){tmpNum = 1000;}
-    // if the new value is different, print a message and apply it
     if (bufferTime != tmpNum){
       DEVEL_MSG("Setting bufferTime from %" PRIu64 " to new value of %" PRIu64, bufferTime, tmpNum);
       bufferTime = tmpNum;
     }
 
     /*LTS-START*/
+    //Check if cutTime setting is correct
     tmpNum = retrieveSetting(streamCfg, "cut");
     // if the new value is different, print a message and apply it
     if (cutTime != tmpNum){
@@ -570,28 +571,27 @@ namespace Mist{
       cutTime = tmpNum;
     }
 
+    //Check if resume setting is correct
     tmpNum = retrieveSetting(streamCfg, "resume");
-    // if the new value is different, print a message and apply it
     if (resumeMode != (bool)tmpNum){
       INFO_MSG("Setting resume mode from %s to new value of %s",
                resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
       resumeMode = tmpNum;
     }
 
+    if (!meta){return true;}//abort the rest if we can't write metadata
+    lastReTime = Util::epoch(); /*LTS*/
+
+    //Check if segmentsize setting is correct
     tmpNum = retrieveSetting(streamCfg, "segmentsize");
-    if (M && tmpNum < M.biggestFragment() / 2){tmpNum = M.biggestFragment() / 2;}
-    // if the new value is different, print a message and apply it
+    if (tmpNum < meta.biggestFragment() / 2){tmpNum = meta.biggestFragment() / 2;}
+    segmentSize = meta.getMinimumFragmentDuration();
     if (segmentSize != tmpNum){
       INFO_MSG("Setting segmentSize from %" PRIu64 " to new value of %" PRIu64, segmentSize, tmpNum);
       segmentSize = tmpNum;
-      if (M && M.getMinimumFragmentDuration() == 0){
-        meta.setMinimumFragmentDuration(segmentSize);
-      }
+      meta.setMinimumFragmentDuration(segmentSize);
     }
-    if (streamCfg){
-      JSON::Value configuredProcesses = streamCfg.getMember("processes").asJSON();
-      checkProcesses(configuredProcesses);
-    }
+
     /*LTS-END*/
     return true;
   }
@@ -643,11 +643,8 @@ namespace Mist{
   void inputBuffer::checkProcesses(const JSON::Value &procs){
     if (!M.getValidTracks().size()){return;}
     std::set<std::string> newProcs;
-    std::map<std::string, std::string> wouldSelect;
 
     // used for building args
-    int zero = 0;
-    int out = fileno(stdout);
     int err = fileno(stderr);
     char *argarr[3];
 
@@ -660,22 +657,14 @@ namespace Mist{
         continue;
       }
       if (tmp.isMember("source_track")){
-        std::string sourceTrack = tmp["source_track"].asString();
-        if (sourceTrack != "null" && findTrack(sourceTrack) == INVALID_TRACK_ID){
-          // No match - skip this process
-          continue;
-        }
+        std::set<size_t> wouldSelect = Util::findTracks(M, JSON::Value(), "", tmp["source_track"].asStringRef());
+        // No match - skip this process
+        if (!wouldSelect.size()){continue;}
       }
-      std::stringstream s;
       if (tmp.isMember("track_select")){
         std::set<size_t> wouldSelect = Util::wouldSelect(M, tmp["track_select"].asStringRef());
-        if (!wouldSelect.size()){
-          // No match - skip this process
-          continue;
-        }
-        for (std::set<size_t>::iterator it = wouldSelect.begin(); it != wouldSelect.end(); it++){
-          s << *it << " ";
-        }
+        // No match - skip this process
+        if (!wouldSelect.size()){continue;}
       }
       if (tmp.isMember("track_inhibit")){
         std::set<size_t> wouldSelect = Util::wouldSelect(
@@ -693,7 +682,6 @@ namespace Mist{
         }
       }
       newProcs.insert(tmp.toString());
-      wouldSelect[tmp.toString()] = s.str();
     }
 
     // shut down deleted/changed processes
@@ -722,8 +710,7 @@ namespace Mist{
         argarr[1] = (char *)config.c_str();
         argarr[2] = 0;
         INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
-        INFO_MSG("  WouldSelect is %s", wouldSelect.at(*newProcs.begin()).c_str());
-        runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, &zero, &out, &err);
+        runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
       }
       newProcs.erase(newProcs.begin());
     }

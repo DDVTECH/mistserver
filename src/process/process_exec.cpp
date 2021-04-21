@@ -9,7 +9,7 @@
 #include <sys/types.h> //for stat
 #include <unistd.h>    //for stat
 
-int pipein[2], pipeout[2], pipeerr[2];
+int pipein[2], pipeout[2];
 
 Util::Config co;
 Util::Config conf;
@@ -134,8 +134,14 @@ int main(int argc, char *argv[]){
   }
 
   // create pipe pair before thread
-  pipe(pipein);
-  pipe(pipeout);
+  if (pipe(pipein) || pipe(pipeout)){
+    FAIL_MSG("Could not create pipes for process!");
+    return 1;
+  }
+  Util::Procs::socketList.insert(pipeout[0]);
+  Util::Procs::socketList.insert(pipeout[1]);
+  Util::Procs::socketList.insert(pipein[0]);
+  Util::Procs::socketList.insert(pipein[1]);
 
   // stream which connects to input
   tthread::thread source(sourceThread, 0);
@@ -188,9 +194,18 @@ namespace Mist{
     int ffer = 2;
     pid_t execd_proc = -1;
 
+
+    std::string streamName = opt["sink"].asString();
+    if (!streamName.size()){streamName = opt["source"].asStringRef();}
+    Util::streamVariables(streamName, opt["source"].asStringRef());
+    
+    //Do variable substitution on command
+    std::string tmpCmd = opt["exec"].asStringRef();
+    Util::streamVariables(tmpCmd, streamName, opt["source"].asStringRef());
+
     // exec command
     char exec_cmd[10240];
-    strncpy(exec_cmd, opt["exec"].asString().c_str(), 10240);
+    strncpy(exec_cmd, tmpCmd.c_str(), 10240);
     INFO_MSG("Executing command: %s", exec_cmd);
     uint8_t argCnt = 0;
     char *startCh = 0;

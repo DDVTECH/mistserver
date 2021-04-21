@@ -802,4 +802,6 @@ target_link_libraries(resolvetest mist)
 add_executable(bitwritertest test/bitwriter.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(bitwritertest mist)
 add_test(BitWriterTest COMMAND bitwritertest)
+add_executable(streamstatustest test/status.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(streamstatustest mist)
 

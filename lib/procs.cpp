@@ -325,42 +325,50 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
   pid = fork();
   if (pid == 0){// child
     handler_set = false;
+    if (!fdin){
+      dup2(devnull, 100);
+    }else if (*fdin == -1){
+      close(pipein[1]); // close unused write end
+      dup2(pipein[0], 100);
+      close(pipein[0]);
+    }else{
+      dup2(*fdin, 100);
+    }
+    if (!fdout){
+      dup2(devnull, 101);
+    }else if (*fdout == -1){
+      close(pipeout[0]); // close unused read end
+      dup2(pipeout[1], 101);
+      close(pipeout[1]);
+    }else{
+      dup2(*fdout, 101);
+    }
+    if (!fderr){
+      dup2(devnull, 102);
+    }else if (*fderr == -1){
+      close(pipeerr[0]); // close unused read end
+      dup2(pipeerr[1], 102);
+      close(pipeerr[1]);
+    }else{
+      dup2(*fderr, 102);
+    }
+    if (fdin && *fdin != -1){close(*fdin);}
+    if (fdout && *fdout != -1){close(*fdout);}
+    if (fderr && *fderr != -1){close(*fderr);}
+    if (devnull != -1){close(devnull);}
     // Close all sockets in the socketList
     for (std::set<int>::iterator it = Util::Procs::socketList.begin();
          it != Util::Procs::socketList.end(); ++it){
       close(*it);
     }
-    if (!fdin){
-      dup2(devnull, STDIN_FILENO);
-    }else if (*fdin == -1){
-      close(pipein[1]); // close unused write end
-      dup2(pipein[0], STDIN_FILENO);
-      close(pipein[0]);
-    }else if (*fdin != STDIN_FILENO){
-      dup2(*fdin, STDIN_FILENO);
-    }
-    if (!fdout){
-      dup2(devnull, STDOUT_FILENO);
-    }else if (*fdout == -1){
-      close(pipeout[0]); // close unused read end
-      dup2(pipeout[1], STDOUT_FILENO);
-      close(pipeout[1]);
-    }else if (*fdout != STDOUT_FILENO){
-      dup2(*fdout, STDOUT_FILENO);
-    }
-    if (!fderr){
-      dup2(devnull, STDERR_FILENO);
-    }else if (*fderr == -1){
-      close(pipeerr[0]); // close unused read end
-      dup2(pipeerr[1], STDERR_FILENO);
-      close(pipeerr[1]);
-    }else if (*fderr != STDERR_FILENO){
-      dup2(*fderr, STDERR_FILENO);
-    }
-    if (fdin && *fdin != -1 && *fdin != STDIN_FILENO){close(*fdin);}
-    if (fdout && *fdout != -1 && *fdout != STDOUT_FILENO){close(*fdout);}
-    if (fderr && *fderr != -1 && *fderr != STDERR_FILENO){close(*fderr);}
-    if (devnull != -1){close(devnull);}
+    //Black magic to make sure if 0/1/2 are not what we think they are, we end up with them not mixed up and weird.
+    dup2(100, 0);
+    dup2(101, 1);
+    dup2(102, 2);
+    close(100);
+    close(101);
+    close(102);
+    //There! Now we normalized our stdio
     // Because execvp requires a char* const* and we have a const char* const*
     execvp(argv[0], (char *const *)argv);
     /*LTS-START*/

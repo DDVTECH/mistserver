@@ -16,6 +16,73 @@ namespace Mist{
     capa["source_match"] = "balance:*";
     capa["priority"] = 9;
     capa["morphic"] = 1;
+
+    JSON::Value option;
+    option["arg"] = "integer";
+    option["long"] = "buffer";
+    option["short"] = "b";
+    option["help"] = "DVR buffer time in ms";
+    option["value"].append(50000);
+    config->addOption("bufferTime", option);
+    capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
+    capa["optional"]["DVR"]["help"] =
+        "The target available buffer time for this live stream, in milliseconds. This is the time "
+        "available to seek around in, and will automatically be extended to fit whole keyframes as "
+        "well as the minimum duration needed for stable playback.";
+    capa["optional"]["DVR"]["option"] = "--buffer";
+    capa["optional"]["DVR"]["type"] = "uint";
+    capa["optional"]["DVR"]["default"] = 50000;
+
+    option.null();
+    option["arg"] = "integer";
+    option["long"] = "cut";
+    option["short"] = "c";
+    option["help"] = "Any timestamps before this will be cut from the live buffer";
+    option["value"].append(0);
+    config->addOption("cut", option);
+    capa["optional"]["cut"]["name"] = "Cut time (ms)";
+    capa["optional"]["cut"]["help"] =
+        "Any timestamps before this will be cut from the live buffer.";
+    capa["optional"]["cut"]["option"] = "--cut";
+    capa["optional"]["cut"]["type"] = "uint";
+    capa["optional"]["cut"]["default"] = 0;
+
+    option.null();
+
+    option["arg"] = "integer";
+    option["long"] = "resume";
+    option["short"] = "R";
+    option["help"] = "Enable resuming support (1) or disable resuming support (0, default)";
+    option["value"].append(0);
+    config->addOption("resume", option);
+    capa["optional"]["resume"]["name"] = "Resume support";
+    capa["optional"]["resume"]["help"] =
+        "If enabled, the buffer will linger after source disconnect to allow resuming the stream "
+        "later. If disabled, the buffer will instantly close on source disconnect.";
+    capa["optional"]["resume"]["option"] = "--resume";
+    capa["optional"]["resume"]["type"] = "select";
+    capa["optional"]["resume"]["select"][0u][0u] = "0";
+    capa["optional"]["resume"]["select"][0u][1u] = "Disabled";
+    capa["optional"]["resume"]["select"][1u][0u] = "1";
+    capa["optional"]["resume"]["select"][1u][1u] = "Enabled";
+    capa["optional"]["resume"]["default"] = 0;
+
+    option.null();
+
+    option["arg"] = "integer";
+    option["long"] = "segment-size";
+    option["short"] = "S";
+    option["help"] = "Target time duration in milliseconds for segments";
+    option["value"].append(5000);
+    config->addOption("segmentsize", option);
+    capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
+    capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
+    capa["optional"]["segmentsize"]["option"] = "--segment-size";
+    capa["optional"]["segmentsize"]["type"] = "uint";
+    capa["optional"]["segmentsize"]["default"] = 5000;
+    capa["codecs"][0u][0u].append("*");
+    capa["codecs"][0u][1u].append("*");
+    capa["codecs"][0u][2u].append("*");
   }
 
   int inputBalancer::boot(int argc, char *argv[]){

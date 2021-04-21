@@ -110,11 +110,13 @@ int SRTPReader::shutdown(){
 
   int r = 0;
 
-  srtp_err_status_t status = srtp_dealloc(session);
-  if (srtp_err_status_ok != status){
-    ERROR_MSG("Failed to cleanly shutdown the SRTP session. Status: %s",
-              srtp_status_to_string(status).c_str());
-    r -= 5;
+  if (session){
+    srtp_err_status_t status = srtp_dealloc(session);
+    if (srtp_err_status_ok != status){
+      ERROR_MSG("Failed to cleanly shutdown the SRTP session. Status: %s",
+                srtp_status_to_string(status).c_str());
+      r -= 5;
+    }
   }
 
   memset((void *)&policy, 0x00, sizeof(policy));
@@ -292,12 +294,14 @@ error:
 int SRTPWriter::shutdown(){
 
   int r = 0;
-
-  srtp_err_status_t status = srtp_dealloc(session);
-  if (srtp_err_status_ok != status){
-    ERROR_MSG("Failed to cleanly shutdown the SRTP session. Status: %s",
-              srtp_status_to_string(status).c_str());
-    r -= 5;
+  
+  if (session){
+    srtp_err_status_t status = srtp_dealloc(session);
+    if (srtp_err_status_ok != status){
+      ERROR_MSG("Failed to cleanly shutdown the SRTP session. Status: %s",
+                srtp_status_to_string(status).c_str());
+      r -= 5;
+    }
   }
 
   memset((char *)&policy, 0x00, sizeof(policy));

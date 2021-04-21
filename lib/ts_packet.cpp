@@ -1162,6 +1162,14 @@ namespace TS{
     return output.str();
   }
 
+
+  size_t getUniqTrackID(const DTSC::Meta &M, size_t idx){
+    return idx+255;
+    //size_t ret = M.getID(idx);
+    //if (ret < 255){ret += 255;}
+    //return ret;
+  }
+
   /// Construct a PMT (special 188B ts packet) from a set of selected tracks and metadata.
   /// This function is not part of the packet class, but it is in the TS namespace.
   /// It uses an internal static TS packet for PMT storage.
@@ -1201,16 +1209,12 @@ namespace TS{
       }
     }
     if (vidTrack == -1){vidTrack = *(selectedTracks.begin());}
-    size_t pcrPid = M.getID(vidTrack);
-    if (pcrPid < 255){pcrPid += 255;}
-    PMT.setPCRPID(pcrPid);
+    PMT.setPCRPID(getUniqTrackID(M, vidTrack));
     PMT.setProgramInfoLength(0);
     ProgramMappingEntry entry = PMT.getEntry(0);
     for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
-      size_t pkgId = M.getID(*it);
-      if (pkgId < 255){pkgId += 255;}
-      entry.setElementaryPid(pkgId);
+      entry.setElementaryPid(getUniqTrackID(M, *it));
       entry.setESInfo("");
       if (codec == "H264"){
         entry.setStreamType(0x1B);

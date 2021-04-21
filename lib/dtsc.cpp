@@ -11,10 +11,6 @@
 #include <fstream>
 #include <iomanip>
 
-#define AUDIO_KEY_INTERVAL                                                                         \
-  5000 ///< This define controls the keyframe interval for non-video tracks, such as audio and
-       ///< metadata tracks.
-
 namespace DTSC{
   char Magic_Header[] = "DTSC";
   char Magic_Packet[] = "DTPD";
@@ -448,6 +444,14 @@ namespace DTSC{
     Bit::htobll(data + 12, _time);
   }
 
+  void Packet::nullMember(const std::string & memb){
+    if (!master){
+      INFO_MSG("Can't null '%s' for this packet, as it is not master.", memb.c_str());
+      return;
+    }
+    getScan().nullMember(memb);
+  }
+
   ///\brief Returns the track id of the packet.
   ///\return The track id of this packet.
   size_t Packet::getTrackId() const{
@@ -542,6 +546,32 @@ namespace DTSC{
       if (!i){return Scan();}
     }
     return Scan();
+  }
+
+  /// If this is an object type and contains the given indice/len, sets the indice name to all zeroes.
+  void Scan::nullMember(const std::string & indice){
+    nullMember(indice.data(), indice.size());
+  }
+
+  /// If this is an object type and contains the given indice/len, sets the indice name to all zeroes.
+  void Scan::nullMember(const char * indice, const size_t ind_len){
+    if (getType() != DTSC_OBJ && getType() != DTSC_CON){return;}
+    char * i = p + 1;
+    //object, scan contents
+    while (i[0] + i[1] != 0 && i < p + len) { //while not encountering 0x0000 (we assume 0x0000EE)
+      if (i + 2 >= p + len) {
+        return;//out of packet!
+      }
+      uint16_t strlen = Bit::btohs(i);
+      i += 2;
+      if (ind_len == strlen && strncmp(indice, i, strlen) == 0) {
+        memset(i, 0, strlen);
+        return;
+      }
+      i = skipDTSC(i + strlen, p + len);
+      if (!i) {return;}
+    }
+    return;
   }
 
   /// Returns an object representing the named indice of this object.
@@ -1153,7 +1183,7 @@ namespace DTSC{
   /// Does not clear "tracks" beforehand, so it may contain stale information afterwards if it was
   /// already populated.
   void Meta::refresh(){
-    if (!stream.getPointer("tracks")){
+    if (!stream.isReady() || !stream.getPointer("tracks")){
       INFO_MSG("No track pointer, not refreshing.");
       return;
     }
@@ -1480,6 +1510,15 @@ namespace DTSC{
   /// Adds a track to the metadata structure.
   /// To be called from the various inputs/outputs whenever they want to add a track.
   size_t Meta::addTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, bool setValid){
+    char pageName[NAME_BUFFER_SIZE];
+
+    snprintf(pageName, NAME_BUFFER_SIZE, SEM_TRACKLIST, streamName.c_str());
+    IPC::semaphore trackLock(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+    if (!trackLock){
+      FAIL_MSG("Could not open semaphore to add track!");
+      return -1;
+    }
+    trackLock.wait();
     size_t pageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE +
                       (TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount)) +
                       (TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount)) +
@@ -1488,7 +1527,6 @@ namespace DTSC{
 
     size_t tNumber = trackList.getPresent();
 
-    char pageName[NAME_BUFFER_SIZE];
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_TM, streamName.c_str(), getpid(), tNumber);
 
     Track &t = tracks[tNumber];
@@ -1511,7 +1549,7 @@ namespace DTSC{
     trackList.setInt(trackPidField, getpid(), tNumber);
     trackList.setInt(trackSourceTidField, INVALID_TRACK_ID, tNumber);
     if (setValid){validateTrack(tNumber);}
-
+    trackLock.post();
     return tNumber;
   }
 
@@ -1740,6 +1778,7 @@ namespace DTSC{
   }
   std::string Meta::getLang(size_t trackIdx) const{
     const DTSC::Track &t = tracks.at(trackIdx);
+    if (!t.track.isReady()){return "";}
     return t.track.getPointer(t.trackLangField);
   }
 
@@ -1864,8 +1903,14 @@ namespace DTSC{
       if (getType(*it) != "video"){continue;}
       DTSC::Parts p(parts(*it));
       size_t ctr = 0;
+      int64_t prevOffset = 0;
+      bool firstOffset = true;
       for (size_t i = p.getFirstValid(); i < p.getEndValid(); ++i){
-        if (p.getOffset(i)){return true;}
+        if (firstOffset){
+          firstOffset = false;
+          prevOffset = p.getOffset(i);
+        }
+        if (p.getOffset(i) != prevOffset){return true;}
         if (++ctr >= 100){break;}
       }
     }
@@ -1903,7 +1948,7 @@ namespace DTSC{
           std::string(trackList.getPointer(trackEncryptionField, i)) != ""){
         res.erase(trackList.getInt(trackSourceTidField, i));
       }
-      if (!tracks.count(i)){res.erase(i);}
+      if (!tracks.count(i) || !tracks.at(i).track.isReady()){res.erase(i);}
       if (skipEmpty){
         if (res.count(i) && !tracks.at(i).parts.getPresent()){res.erase(i);}
       }
@@ -2032,10 +2077,12 @@ namespace DTSC{
         curJitter = 0;
       }
       if (t > lastTime + 2500){
-        if ((x % 4) == 0 && maxJitter > 50 && curJitter < maxJitter - 50){
-          HIGH_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
-          maxJitter = curJitter;
-          curJitter = 0;
+        if ((x % 4) == 0){
+          if (maxJitter > 50 && curJitter < maxJitter - 50){
+            MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
+            maxJitter = curJitter;
+          }
+          curJitter = maxJitter*0.75;
         }
         ++x;
         trueTime[x % 8] = curMs;
@@ -2055,7 +2102,11 @@ namespace DTSC{
         // Postive jitter = packets arriving too late.
         // We need to delay playback at least by this amount to account for it.
         if ((uint64_t)jitter > maxJitter){
-          HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+          if (jitter - maxJitter > 420){
+            INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+          }else{
+            HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+          }
           maxJitter = (uint64_t)jitter;
         }
         if (curJitter < (uint64_t)jitter){curJitter = (uint64_t)jitter;}
@@ -2291,6 +2342,8 @@ namespace DTSC{
       if (streamPage.mapped && stream.isReady()){stream.setExit();}
       streamPage.master = true;
     }
+    stream = Util::RelAccX();
+    trackList = Util::RelAccX();
     streamPage.close();
     tM.clear();
     tracks.clear();
@@ -2875,6 +2928,7 @@ namespace DTSC{
     const Util::RelAccX &pages = tracks.at(idx).pages;
     size_t res = pages.getStartPos();
     for (size_t i = pages.getStartPos(); i < pages.getEndPos(); ++i){
+      if (pages.getInt("avail", i) == 0){continue;}
       if (pages.getInt("firsttime", i) > time){break;}
       res = i;
     }
@@ -2887,6 +2941,7 @@ namespace DTSC{
     const Util::RelAccX &pages = tracks.at(idx).pages;
     size_t res = pages.getStartPos();
     for (size_t i = pages.getStartPos(); i < pages.getEndPos(); ++i){
+      if (pages.getInt("avail", i) == 0){continue;}
       if (pages.getInt("firstkey", i) > keyNum){break;}
       res = i;
     }

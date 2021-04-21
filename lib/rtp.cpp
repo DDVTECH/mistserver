@@ -58,12 +58,13 @@ namespace RTP{
     if ((payload[0] & 0x1F) == 12){return;}
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 2 <= maxDataLen){
+      data[1] &= 0x7F; // setting the RTP marker bit to 0
       if (lastOfAccesUnit){
         data[1] |= 0x80; // setting the RTP marker bit to 1
       }
       uint8_t nal_type = (payload[0] & 0x1F);
       if (nal_type < 1 || nal_type > 5){
-        data[1] &= ~0x80; // but not for non-vlc types
+        data[1] &= 0x7F; // but not for non-vlc types
       }
       memcpy(data + getHsize(), payload, payloadlen);
       callBack(socket, data, getHsize() + payloadlen, channel);
@@ -236,6 +237,10 @@ namespace RTP{
       return;
     }
     if (codec == "VP8"){
+      sendVP8(socket, callBack, payload, payloadlen, channel);
+      return;
+    }
+    if (codec == "VP9"){
       sendVP8(socket, callBack, payload, payloadlen, channel);
       return;
     }
@@ -414,6 +419,18 @@ namespace RTP{
     data = (char *)dat;
   }
 
+  /// Describes a packet in human-readable terms
+  std::string Packet::toString() const{
+    std::stringstream ret;
+    ret << maxDataLen << "b RTP packet ";
+    if (getMarker()){ret << "(marked) ";}
+    ret << "payload type " << getPayloadType() << ", #" << getSequence() << ", @" << getTimeStamp();
+    ret << " (" << getHsize() << "b header, " << getPayloadSize() << "b payload, " << getPadding() << "b padding)";
+    return ret.str();
+  }
+
+
+
   MPEGVideoHeader::MPEGVideoHeader(char *d){data = d;}
 
   uint16_t MPEGVideoHeader::getTotalLen() const{
@@ -481,8 +498,8 @@ namespace RTP{
   /// Calls the callback with packets in sorted order, whenever it becomes possible to do so.
   void Sorter::addPacket(const Packet &pack){
     if (!rtpSeq){rtpSeq = pack.getSequence();}
-    // packet is very early - assume dropped after 30 packets
-    while ((int16_t)(rtpSeq - ((uint16_t)pack.getSequence())) < -30){
+    // packet is very early - assume dropped after 150 packets
+    while ((int16_t)(rtpSeq - ((uint16_t)pack.getSequence())) < -150){
       WARN_MSG("Giving up on packet %u", rtpSeq);
       ++rtpSeq;
       ++lostTotal;
@@ -574,7 +591,10 @@ namespace RTP{
     if (M.getType(tid) == "video" || M.getCodec(tid) == "MP2" || M.getCodec(tid) == "MP3"){
       m = 90.0;
     }
-    setProperties(tid, M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
+    if (M.getCodec(tid) == "opus"){
+      m = 48.0;
+    }
+    setProperties(M.getID(tid), M.getCodec(tid), M.getType(tid), M.getInit(tid), m);
   }
 
   void toDTSC::setCallbacks(void (*cbP)(const DTSC::Packet &pkt),
@@ -625,6 +645,9 @@ namespace RTP{
     if (codec == "HEVC"){return handleHEVC(msTime, pl, plSize, missed);}
     if (codec == "MPEG2"){return handleMPEG2(msTime, pl, plSize);}
     if (codec == "VP8"){
+      return handleVP8(msTime, pl, plSize, missed, (pkt.getPadding() == 1) ? true : false);
+    }
+    if (codec == "VP9"){
       return handleVP8(msTime, pl, plSize, missed, (pkt.getPadding() == 1) ? true : false);
     }
     // Trivial codecs just fill a packet with raw data and continue. Easy peasy, lemon squeezy.
@@ -902,6 +925,51 @@ namespace RTP{
     // Header data? Compare to init, set if needed, and throw away
     uint8_t nalType = (buffer[4] & 0x1F);
     if (nalType == 9 && len < 20){return;}// ignore delimiter-only packets
+    if (!h264OutBuffer.size()){
+      currH264Time = ts;
+      h264BufferWasKey = isKey;
+    }
+
+    //Send an outPacket every time the timestamp updates
+    if (currH264Time != ts){
+      //calculate the "packet" (which might be more than one actual packet) timestamp
+      uint32_t offset = 0;
+      uint64_t newTs = currH264Time;
+
+      if (fps > 1){
+        // Assume a steady frame rate, clip the timestamp based on frame number.
+        uint64_t frameNo = (currH264Time / (1000.0 / fps)) + 0.5;
+        while (frameNo < packCount){packCount--;}
+        // More than 32 frames behind? We probably skipped something, somewhere...
+        if ((frameNo - packCount) > 32){packCount = frameNo;}
+        // After some experimentation, we found that the time offset is the difference between the
+        // frame number and the packet counter, times the frame rate in ms
+        offset = (frameNo - packCount) * (1000.0 / fps);
+        //... and the timestamp is the packet counter times the frame rate in ms.
+        newTs = packCount * (1000.0 / fps);
+        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
+                     " -> +%" PRIu64 "/%" PRIu32,
+                     ts, isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
+      }else{
+        // For non-steady frame rate, assume no offsets are used and the timestamp is already
+        // correct
+        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", currH264Time,
+                     isKey ? "key" : "i", packCount);
+      }
+      // Fill the new DTSC packet, buffer it.
+      DTSC::Packet nextPack;
+      nextPack.genericFill(newTs, offset, trackId, h264OutBuffer, h264OutBuffer.size(), 0, h264BufferWasKey);
+      packCount++;
+      outPacket(nextPack);
+
+      //Clear the buffers, reset the time to current
+      h264OutBuffer.assign(0, 0);
+      currH264Time = ts;
+      h264BufferWasKey = isKey;
+    }
+    h264BufferWasKey |= isKey;
+
+
     switch (nalType){
     case 6: // SEI
       return;
@@ -950,80 +1018,26 @@ namespace RTP{
       }
       return;
     case 5:{
-      // @todo add check if ppsData and spsData are not empty?
-      static Util::ResizeablePointer tmp;
-      tmp.assign(0, 0);
+      //If this is a keyframe and we have no buffer yet, prepend the SPS/PPS
+      if (!h264OutBuffer.size()){
+        char sizeBuffer[4];
+        Bit::htobl(sizeBuffer, spsData.size());
+        h264OutBuffer.append(sizeBuffer, 4);
+        h264OutBuffer.append(spsData.data(), spsData.size());
 
-      char sizeBuffer[4];
-      Bit::htobl(sizeBuffer, spsData.size());
-      tmp.append(sizeBuffer, 4);
-      tmp.append(spsData.data(), spsData.size());
-
-      Bit::htobl(sizeBuffer, ppsData.size());
-      tmp.append(sizeBuffer, 4);
-      tmp.append(ppsData.data(), ppsData.size());
-      tmp.append(buffer, len);
-
-      uint32_t offset = 0;
-      uint64_t newTs = ts;
-
-      if (fps > 1){
-        // Assume a steady frame rate, clip the timestamp based on frame number.
-        uint64_t frameNo = (ts / (1000.0 / fps)) + 0.5;
-        while (frameNo < packCount){packCount--;}
-        // More than 32 frames behind? We probably skipped something, somewhere...
-        if ((frameNo - packCount) > 32){packCount = frameNo;}
-        // After some experimentation, we found that the time offset is the difference between the
-        // frame number and the packet counter, times the frame rate in ms
-        offset = (frameNo - packCount) * (1000.0 / fps);
-        //... and the timestamp is the packet counter times the frame rate in ms.
-        newTs = packCount * (1000.0 / fps);
-        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
-                     " -> +%" PRIu64 "/%" PRIu32,
-                     ts, isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
-      }else{
-        // For non-steady frame rate, assume no offsets are used and the timestamp is already
-        // correct
-        VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", ts,
-                     isKey ? "key" : "i", packCount);
+        Bit::htobl(sizeBuffer, ppsData.size());
+        h264OutBuffer.append(sizeBuffer, 4);
+        h264OutBuffer.append(ppsData.data(), ppsData.size());
       }
-      // Fill the new DTSC packet, buffer it.
-      DTSC::Packet nextPack;
-      nextPack.genericFill(newTs, offset, trackId, tmp, tmp.size(), 0, isKey);
-      packCount++;
-      outPacket(nextPack);
-      return;
+      //Note: no return, we still want to buffer the packet itself, below!
     }
     default: // others, continue parsing
       break;
     }
 
-    uint32_t offset = 0;
-    uint64_t newTs = ts;
-    if (fps > 1){
-      // Assume a steady frame rate, clip the timestamp based on frame number.
-      uint64_t frameNo = (ts / (1000.0 / fps)) + 0.5;
-      while (frameNo < packCount){packCount--;}
-      // More than 32 frames behind? We probably skipped something, somewhere...
-      if ((frameNo - packCount) > 32){packCount = frameNo;}
-      // After some experimentation, we found that the time offset is the difference between the
-      // frame number and the packet counter, times the frame rate in ms
-      offset = (frameNo - packCount) * (1000.0 / fps);
-      //... and the timestamp is the packet counter times the frame rate in ms.
-      newTs = packCount * (1000.0 / fps);
-      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (%.2f FPS). Expected %" PRIu64
-                   " -> +%" PRIu64 "/%" PRIu32,
-                   ts, isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
-    }else{
-      // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %" PRIu64 " = %sframe %" PRIu64 " (variable rate)", ts,
-                   isKey ? "key" : "i", packCount);
-    }
-    // Fill the new DTSC packet, buffer it.
-    DTSC::Packet nextPack;
-    nextPack.genericFill(newTs, offset, trackId, buffer, len, 0, isKey);
-    packCount++;
-    outPacket(nextPack);
+    //Buffer the packet
+    h264OutBuffer.append(buffer, len);
+
   }
 
   /// Handles a single H264 packet, checking if others are appended at the end in Annex B format.

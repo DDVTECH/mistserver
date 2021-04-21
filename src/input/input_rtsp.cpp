@@ -45,6 +45,8 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
     capa["codecs"][0u][0u].append("MPEG2");
+    capa["codecs"][0u][0u].append("VP8");
+    capa["codecs"][0u][0u].append("VP9");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");
@@ -194,45 +196,45 @@ namespace Mist{
     tcpCon.close();
   }
 
-  std::string InputRTSP::streamMainLoop(){
-    IPC::sharedClient statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
+  void InputRTSP::streamMainLoop(){
+    Comms::Statistics statComm;
     uint64_t startTime = Util::epoch();
     uint64_t lastPing = Util::bootSecs();
+    uint64_t lastSecs = 0;
     while (keepAlive() && parsePacket()){
+      uint64_t currSecs = Util::bootSecs();
       handleUDP();
       if (Util::bootSecs() - lastPing > 30){
         sendCommand("GET_PARAMETER", url.getUrl(), "");
         lastPing = Util::bootSecs();
       }
       if (lastSecs != currSecs){
-        if (!statsPage.getData()){
-          statsPage = IPC::sharedClient(SHM_STATISTICS, STAT_EX_SIZE, true);
-        }
-        if (statsPage.getData()){
-          if (!statsPage.isAlive()){
+        lastSecs = currSecs;
+        // Connect to stats for INPUT detection
+        statComm.reload();
+        if (statComm){
+          if (!statComm.isAlive()){
             config->is_active = false;
-            statsPage.finish();
-            return "received shutdown request from controller";
+            Util::logExitReason("received shutdown request from controller");
+            return;
           }
-          uint64_t now = Util::epoch();
-          IPC::statExchange tmpEx(statsPage.getData());
-          tmpEx.now(now);
-          tmpEx.crc(getpid());
-          tmpEx.streamName(streamName);
-          tmpEx.connector("INPUT");
-          tmpEx.up(tcpCon.dataUp());
-          tmpEx.down(tcpCon.dataDown());
-          tmpEx.time(now - startTime);
-          tmpEx.lastSecond(0);
-          statsPage.keepAlive();
+          uint64_t now = Util::bootSecs();
+          statComm.setNow(now);
+          statComm.setCRC(getpid());
+          statComm.setStream(streamName);
+          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
+          statComm.setUp(tcpCon.dataUp());
+          statComm.setDown(tcpCon.dataDown());
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          statComm.setHost(getConnectedBinHost());
+          statComm.keepAlive();
         }
       }
     }
-    statsPage.finish();
-    if (!tcpCon){return "TCP connection closed";}
-    if (!config->is_active){return "received deactivate signal";}
-    if (!keepAlive()){return "buffer shutdown";}
-    return "Unknown";
+    if (!tcpCon){
+      Util::logExitReason("TCP connection closed");
+    }
   }
 
   bool InputRTSP::parsePacket(bool mustHave){

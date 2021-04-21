@@ -13,7 +13,7 @@
 
 int ofin = -1, ofout = 1, oferr = 2;
 int ifin = -1, ifout = -1, iferr = 2;
-int pipein[2], pipeout[2], pipeerr[2];
+int pipein[2], pipeout[2];
 
 Util::Config co;
 Util::Config conf;
@@ -307,8 +307,12 @@ int main(int argc, char *argv[]){
   }
 
   // create pipe pair before thread
-  pipe(pipein);
-  pipe(pipeout);
+  if (pipe(pipein) || pipe(pipeout)){
+    FAIL_MSG("Could not create pipes for process!");
+    return 1;
+  }
+  Util::Procs::socketList.insert(pipeout[0]);
+  Util::Procs::socketList.insert(pipein[1]);
 
   // stream which connects to input
   tthread::thread source(sourceThread, 0);
@@ -384,14 +388,14 @@ namespace Mist{
   std::string EncodeOutputEBML::getTrackType(int tid){return M.getType(tid);}
 
   void EncodeOutputEBML::setVideoTrack(std::string tid){
-    std::set<size_t> tracks = Util::findTracks(M, "video", tid);
+    std::set<size_t> tracks = Util::findTracks(M, capa, "video", tid);
     for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
       userSelect[*it].reload(streamName, *it);
     }
   }
 
   void EncodeOutputEBML::setAudioTrack(std::string tid){
-    std::set<size_t> tracks = Util::findTracks(M, "audio", tid);
+    std::set<size_t> tracks = Util::findTracks(M, capa, "audio", tid);
     for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
       userSelect[*it].reload(streamName, *it);
     }
@@ -571,7 +575,7 @@ namespace Mist{
 
     if (!preset.empty()){options.append(" -preset " + preset);}
 
-    snprintf(ffcmd, 10240, "ffmpeg -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ",
+    snprintf(ffcmd, 10240, "ffmpeg -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -force_key_frames source -f matroska - ",
              res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(),
              getBitrateSetting().c_str(), flags.c_str());
 
@@ -681,16 +685,26 @@ namespace Mist{
     }else{
       // sources array missing, create empty object in array
       opt["sources"][0u]["src"] = "-";
-
-      WARN_MSG("No stdin input set in config, adding input stream with default settings");
+      if (opt.isMember("resolution")){
+        opt["sources"][0u]["width"] = -1;
+        opt["sources"][0u]["height"] = res_y;
+        opt["sources"][0u]["anchor"] = "center";
+      }
+      INFO_MSG("Default source: input stream at preserved-aspect same height");
       stdinSource = true;
     }
 
     if (!stdinSource){
       // no stdin source item found in sources configuration, add source object at the beginning
-      opt["sources"].prepend(JSON::fromString("{\"src\':\"-\"}"));
-      WARN_MSG("No stdin input stream found in 'inputs' config, adding stdin input stream at the "
-               "beginning of the array");
+      JSON::Value nOpt;
+      nOpt["src"] = "-";
+      if (opt.isMember("resolution")){
+        nOpt["width"] = -1;
+        nOpt["height"] = res_y;
+        nOpt["anchor"] = "center";
+      }
+      opt["sources"].prepend(nOpt);
+      WARN_MSG("Source is not used: adding source stream at preserved-aspect same height");
     }
 
     return true;
@@ -799,7 +813,6 @@ namespace Mist{
     }
 
     prepareCommand();
-    MEDIUM_MSG("Starting ffmpeg process...");
     ffout = p.StartPiped(args, &pipein[0], &pipeout[1], &ffer);
 
     while (conf.is_active && p.isRunning(ffout)){Util::sleep(200);}

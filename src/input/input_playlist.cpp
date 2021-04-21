@@ -39,17 +39,19 @@ namespace Mist{
     return true;
   }
 
-  std::string inputPlaylist::streamMainLoop(){
+  void inputPlaylist::streamMainLoop(){
     bool seenValidEntry = true;
     uint64_t startTime = Util::bootMS();
-    while (config->is_active && nProxy.userClient.isAlive()){
+    while (config->is_active){
       struct tm *wTime;
       time_t nowTime = time(0);
       wTime = localtime(&nowTime);
       wallTime = wTime->tm_hour * 60 + wTime->tm_min;
-      nProxy.userClient.keepAlive();
       reloadPlaylist();
-      if (!playlist.size()){return "No entries in playlist";}
+      if (!playlist.size()){
+        Util::logExitReason("No entries in playlist");
+        return;
+      }
       ++playlistIndex;
       if (playlistIndex >= playlist.size()){
         if (!seenValidEntry){
@@ -103,7 +105,7 @@ namespace Mist{
         continue;
       }
       seenValidEntry = true;
-      while (Util::Procs::isRunning(spawn_pid) && nProxy.userClient.isAlive() && config->is_active){
+      while (Util::Procs::isRunning(spawn_pid) && config->is_active){
         Util::sleep(1000);
         if (reloadOn != 0xFFFF){
           time_t nowTime = time(0);
@@ -117,13 +119,9 @@ namespace Mist{
             Util::Procs::Stop(spawn_pid);
           }
         }
-        nProxy.userClient.keepAlive();
       }
       if (!config->is_active && Util::Procs::isRunning(spawn_pid)){Util::Procs::Stop(spawn_pid);}
     }
-    if (!config->is_active){return "received deactivate signal";}
-    if (!nProxy.userClient.isAlive()){return "buffer shutdown";}
-    return "Unknown";
   }
 
   void inputPlaylist::reloadPlaylist(){

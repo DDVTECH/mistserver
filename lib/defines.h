@@ -163,7 +163,7 @@ static inline void show_stackframe(){}
                                              // assumed
 #define DEFAULT_PAGE_COUNT DEFAULT_KEY_COUNT // Assume every page is a key to ensure enough space
 
-#define DEFAULT_FRAGMENT_DURATION 5000
+#define DEFAULT_FRAGMENT_DURATION 1900
 
 #define META_META_OFFSET 104
 #define META_META_RECORDSIZE 576
@@ -214,6 +214,7 @@ static inline void show_stackframe(){}
 #define SHM_TRIGGER "MstTRGR%s" //%s trigger name
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
+#define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
@@ -242,6 +243,9 @@ static inline void show_stackframe(){}
 // The amount of milliseconds a simulated live stream is allowed to be "behind".
 // Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
 #define SIMULATED_LIVE_BUFFER 7000
+
+/// The time between virtual audio "keyframes"
+#define AUDIO_KEY_INTERVAL 2047
 
 #define STAT_EX_SIZE 177
 #define PLAY_EX_SIZE 2 + 6 * SIMUL_TRACKS

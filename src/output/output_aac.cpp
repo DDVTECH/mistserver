@@ -24,8 +24,6 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
-  bool OutAAC::isRecording(){return config->getString("target").size();}
-
   void OutAAC::initialSeek(){
     if (!meta){return;}
     maxSkipAhead = 30000;
@@ -42,40 +40,20 @@ namespace Mist{
   void OutAAC::sendNext(){
     char *dataPointer = 0;
     size_t len = 0;
-
     thisPacket.getString("data", dataPointer, len);
     std::string head = TS::getAudioHeader(len, M.getInit(thisIdx));
     myConn.SendNow(head);
     myConn.SendNow(dataPointer, len);
   }
 
-  void OutAAC::sendHeader(){
-    if (!isRecording()){
-      H.Clean();
-      H.SetHeader("Content-Type", "audio/aac");
-      H.SetHeader("Accept-Ranges", "none");
-      H.protocol = "HTTP/1.0";
-      H.setCORSHeaders();
-      H.SendResponse("200", "OK", myConn);
+  void OutAAC::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    HTTPOutput::respondHTTP(req, headersOnly);
+    H.protocol = "HTTP/1.0";
+    H.SendResponse("200", "OK", myConn);
+    if (!headersOnly){
+      parseData = true;
+      wantRequest = false;
     }
-    sentHeader = true;
-  }
-
-  void OutAAC::onHTTP(){
-    std::string method = H.method;
-    if (method == "OPTIONS" || method == "HEAD"){
-      H.Clean();
-      H.SetHeader("Content-Type", "audio/aac");
-      H.SetHeader("Accept-Ranges", "none");
-      H.protocol = "HTTP/1.0";
-      H.setCORSHeaders();
-      H.SendResponse("200", "OK", myConn);
-      H.Clean();
-      return;
-    }
-
-    parseData = true;
-    wantRequest = false;
   }
 
 }// namespace Mist

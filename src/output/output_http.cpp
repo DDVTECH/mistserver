@@ -1,5 +1,6 @@
 #include "output_http.h"
 #include <mist/checksum.h>
+#include <mist/encode.h>
 #include <mist/langcodes.h>
 #include <mist/stream.h>
 #include <mist/util.h>
@@ -221,8 +222,6 @@ namespace Mist{
         myConn.close();
         return;
       }
-      std::string connHeader = H.GetHeader("Connection");
-      Util::stringToLower(connHeader);
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
@@ -263,8 +262,12 @@ namespace Mist{
       if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
       if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
       if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
-      if (H.GetVar("buffer") != ""){targetParams["buffer"] = H.GetVar("buffer");}
-      // allow setting of play back rate through buffer variable.
+      // allow setting of max lead time through buffer variable.
+      // max lead time is set in MS, but the variable is in integer seconds for simplicity.
+      if (H.GetVar("buffer") != ""){
+        maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;
+      }
+      // allow setting of play back rate through rate variable or custom HTTP header.
       // play back rate is set in MS per second, but the variable is a simple multiplier.
       if (H.GetVar("rate") != ""){
         long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
@@ -301,16 +304,56 @@ namespace Mist{
       }
       responded = false;
       preHTTP();
+      if (!myConn){return;}
       onHTTP();
       idleLast = Util::bootMS();
       if (!H.bufferChunks){H.Clean();}
     }
   }
 
+  /// Default HTTP handler.
+  /// Only takes care of OPTIONS and HEAD, saving the original request, and calling respondHTTP
+  void HTTPOutput::onHTTP(){
+    const HTTP::Parser reqH = H;
+    bool headersOnly = (reqH.method == "OPTIONS" || reqH.method == "HEAD");
+    H.Clean();
+    respondHTTP(reqH, headersOnly);
+  }
+
   /// Default implementation of preHTTP simply calls initialize and selectDefaultTracks.
   void HTTPOutput::preHTTP(){
     initialize();
     selectDefaultTracks();
+  }
+
+  /// Sets common HTTP headers. Virtual, so child classes can/will implement further behaviour if needed.
+  /// Child classes are suggested to call the parent implementation and then add their own logic afterwards.
+  void HTTPOutput::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    //We generally want the CORS headers to be set for all responses
+    H.setCORSHeaders();
+    //Set attachment header to force download, if applicable
+    if (req.GetVar("dl").size()){
+      //If we want to download, and the string contains a dot, use as-is.
+      std::string dl = req.GetVar("dl");
+      //Without a dot, we use the last segment of the bare URL
+      if (dl.find('.') == std::string::npos){
+        dl = HTTP::URL(req.url).getFilePath();
+        size_t lSlash = dl.rfind('/');
+        if (lSlash != std::string::npos){dl = dl.substr(lSlash+1);}
+      }
+      H.SetHeader("Content-Disposition", "attachment; filename=" + Encodings::URL::encode(dl) + ";");
+      //Force max download speed when downloading
+      realTime = 0;
+    }
+    //If there is a method defined, and the first method has a type with two slashes in it,
+    //assume the last two sections are the content type.
+    if (capa.isMember("methods") && capa["methods"].isArray() && capa["methods"].size() && capa["methods"][0u].isMember("type")){
+      const std::string & cType = capa["methods"][0u]["type"].asStringRef();
+      size_t fSlash = cType.find('/');
+      if (fSlash != std::string::npos && cType.rfind('/') != fSlash){
+        H.SetHeader("Content-Type", cType.substr(fSlash+1));
+      }
+    }
   }
 
   static inline void builPipedPart(JSON::Value &p, char *argarr[], int &argnum, JSON::Value &argset){
@@ -488,8 +531,7 @@ namespace Mist{
   /// Parses a "Range: " header, setting byteStart and byteEnd.
   /// Assumes byteStart and byteEnd are initialized to their minimum respectively maximum values
   /// when the function is called. On error, byteEnd is set to zero and the function return false.
-  bool HTTPOutput::parseRange(uint64_t &byteStart, uint64_t &byteEnd){
-    std::string header = H.GetHeader("Range");
+  bool HTTPOutput::parseRange(std::string header, uint64_t &byteStart, uint64_t &byteEnd){
     if (header.size() < 6 || header.substr(0, 6) != "bytes="){
       byteEnd = 0;
       WARN_MSG("Invalid range header: %s", header.c_str());

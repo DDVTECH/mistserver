@@ -6,7 +6,7 @@ namespace Mist{
   public:
     OutEBML(Socket::Connection &conn);
     static void init(Util::Config *cfg);
-    void onHTTP();
+    void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendNext();
     void sendHeader();
     size_t clusterSize(uint64_t start, uint64_t end);

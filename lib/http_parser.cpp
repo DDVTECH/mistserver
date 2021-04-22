@@ -274,7 +274,7 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 /// a zero-content-length HTTP/1.0 response. \param code The HTTP response code. Usually you want
 /// 200. \param message The HTTP response message. Usually you want "OK". \param request The HTTP
 /// request to respond to. \param conn The connection to send over.
-void HTTP::Parser::StartResponse(std::string code, std::string message, HTTP::Parser &request,
+void HTTP::Parser::StartResponse(std::string code, std::string message, const HTTP::Parser &request,
                                  Socket::Connection &conn, bool bufferAllChunks){
   std::string prot = request.protocol;
   sendingChunks =

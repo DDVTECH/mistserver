@@ -12,7 +12,8 @@ namespace Mist{
     virtual ~HTTPOutput();
     static void init(Util::Config *cfg);
     virtual void onFail(const std::string &msg, bool critical = false);
-    virtual void onHTTP(){};
+    virtual void onHTTP();
+    virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     virtual void onIdle(){};
     virtual void onWebsocketFrame(){};
     virtual void onWebsocketConnect(){};
@@ -23,7 +24,7 @@ namespace Mist{
     virtual bool doesWebsockets(){return false;}
     void reConnector(std::string &connector);
     std::string getHandler();
-    bool parseRange(uint64_t &byteStart, uint64_t &byteEnd);
+    bool parseRange(std::string header, uint64_t &byteStart, uint64_t &byteEnd);
 
   protected:
     bool firstRun;

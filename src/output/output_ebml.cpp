@@ -391,17 +391,15 @@ namespace Mist{
     // End of file. This probably won't work right, but who cares, it's the end of the file.
   }
 
-  void OutEBML::onHTTP(){
-    std::string method = H.method;
-    if (method == "OPTIONS" || method == "HEAD"){
-      H.Clean();
-      H.setCORSHeaders();
-      H.SetHeader("Content-Type", "video/MP4");
-      H.SetHeader("Accept-Ranges", "bytes, parsec");
-      H.SendResponse("200", "OK", myConn);
-      return;
-    }
-    if (H.url.find(".webm") != std::string::npos){
+  void OutEBML::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    //Set global defaults, first
+    HTTPOutput::respondHTTP(req, headersOnly);
+
+    //If non-live, we accept range requests
+    if (!M.getLive()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
+
+    //We change the header's document type based on file extension
+    if (req.url.find(".webm") != std::string::npos){
       doctype = "webm";
     }else{
       doctype = "matroska";
@@ -417,72 +415,46 @@ namespace Mist{
 
     size_t byteEnd = totalSize - 1;
     size_t byteStart = 0;
-
-    /*LTS-START*/
-    // allow setting of max lead time through buffer variable.
-    // max lead time is set in MS, but the variable is in integer seconds for simplicity.
-    if (H.GetVar("buffer") != ""){maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;}
-    // allow setting of play back rate through buffer variable.
-    // play back rate is set in MS per second, but the variable is a simple multiplier.
-    if (H.GetVar("rate") != ""){
-      long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-    if (H.GetHeader("X-Mist-Rate") != ""){
-      long long int multiplier = JSON::Value(H.GetHeader("X-Mist-Rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-    /*LTS-END*/
-
-    char rangeType = ' ';
-    if (M.getVod()){
-      if (H.GetHeader("Range") != ""){
-        if (parseRange(byteStart, byteEnd)){
-          if (H.GetVar("buffer") == ""){
-            size_t idx = getMainSelectedTrack();
-            maxSkipAhead = (M.getLastms(idx) - M.getFirstms(idx)) / 20 + 7500;
-          }
+    if (!M.getLive() && req.GetHeader("Range") != ""){
+      //Range request
+      if (parseRange(req.GetHeader("Range"), byteStart, byteEnd)){
+        if (!req.GetVar("buffer").size()){
+          size_t idx = getMainSelectedTrack();
+          maxSkipAhead = (M.getLastms(idx) - M.getFirstms(idx)) / 20 + 7500;
         }
-        rangeType = H.GetHeader("Range")[0];
       }
-    }
-    H.Clean(); // make sure no parts of old requests are left in any buffers
-    H.setCORSHeaders();
-    H.SetHeader("Content-Type", "video/webm");
-    if (M.getVod()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
-    if (rangeType != ' '){
+      //Failed range request
       if (!byteEnd){
-        if (rangeType == 'p'){
-          H.SetBody("Starsystem not in communications range");
+        if (req.GetHeader("Range")[0] == 'p'){
+          if (!headersOnly){H.SetBody("Starsystem not in communications range");}
           H.SendResponse("416", "Starsystem not in communications range", myConn);
           return;
         }
-        H.SetBody("Requested Range Not Satisfiable");
+        if (!headersOnly){H.SetBody("Requested Range Not Satisfiable");}
         H.SendResponse("416", "Requested Range Not Satisfiable", myConn);
         return;
       }
+      //Successful range request
       std::stringstream rangeReply;
       rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << totalSize;
       H.SetHeader("Content-Length", byteEnd - byteStart + 1);
       H.SetHeader("Content-Range", rangeReply.str());
       /// \todo Switch to chunked?
       H.SendResponse("206", "Partial content", myConn);
-      byteSeek(byteStart);
+      if (!headersOnly){
+        byteSeek(byteStart);
+      }
     }else{
-      if (M.getVod()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
+      //Non-range request
+      if (!M.getLive()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
       /// \todo Switch to chunked?
       H.SendResponse("200", "OK", myConn);
     }
-    parseData = true;
-    wantRequest = false;
+    //Start outputting data
+    if (!headersOnly){
+      parseData = true;
+      wantRequest = false;
+    }
   }
 
   void OutEBML::calcVodSizes(){

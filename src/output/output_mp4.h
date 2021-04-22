@@ -100,7 +100,7 @@ namespace Mist{
     void findSeekPoint(uint64_t byteStart, uint64_t &seekPoint, uint64_t headerSize);
     void appendSinglePacketMoof(Util::ResizeablePointer& moofOut, size_t extraBytes = 0); 
     size_t fragmentHeaderSize(std::deque<size_t>& sortedTracks, std::set<keyPart>& trunOrder, uint64_t startFragmentTime, uint64_t endFragmentTime);
-    void onHTTP();
+    void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendNext();
     void sendHeader();
     bool doesWebsockets() { return true; }

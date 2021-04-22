@@ -1060,60 +1060,17 @@ namespace Mist{
     H.Chunkify(mdatHeader, 8, myConn);
   }
 
-  void OutMP4::onHTTP(){
+  void OutMP4::respondHTTP(const HTTP::Parser & req, bool headersOnly){
+    //Set global defaults, first
+    HTTPOutput::respondHTTP(req, headersOnly);
 
-    if (webSock) {
-      return;
-    }
-    
-    std::string dl;
-    if (H.GetVar("dl").size()){
-      dl = H.GetVar("dl");
-      if (dl.find('.') == std::string::npos){dl = streamName + ".mp4";}
-    }
-    if (H.method == "OPTIONS" || H.method == "HEAD"){
-      H.Clean();
-      H.setCORSHeaders();
-      if (dl.size()){
-        H.SetHeader("Content-Disposition", "attachment; filename=" + Encodings::URL::encode(dl) + ";");
-      }
-      H.SetHeader("Content-Type", "video/MP4");
-      H.SetHeader("Accept-Ranges", "bytes, parsec");
-      H.StartResponse(H, myConn);
-      return;
-    }
+    H.SetHeader("Content-Type", "video/MP4");
+    if (!M.getLive()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
 
-    chromeWorkaround = (H.GetHeader("User-Agent").find("Chrome") != std::string::npos &&
-                        H.GetHeader("User-Agent").find("Edge") == std::string::npos &&
-                        H.GetHeader("User-Agent").find("OPR/") == std::string::npos);
+    chromeWorkaround = (req.GetHeader("User-Agent").find("Chrome") != std::string::npos &&
+                        req.GetHeader("User-Agent").find("Edge") == std::string::npos &&
+                        req.GetHeader("User-Agent").find("OPR/") == std::string::npos);
 
-    /*LTS-START*/
-    // allow setting of max lead time through buffer variable.
-    // max lead time is set in MS, but the variable is in integer seconds for simplicity.
-    if (H.GetVar("buffer") != ""){maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;}
-    // allow setting of play back rate through buffer variable.
-    // play back rate is set in MS per second, but the variable is a simple multiplier.
-    if (H.GetVar("rate") != ""){
-      long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-    if (H.GetHeader("X-Mist-Rate") != ""){
-      long long int multiplier = JSON::Value(H.GetHeader("X-Mist-Rate")).asInt();
-      if (multiplier){
-        realTime = 1000 / multiplier;
-      }else{
-        realTime = 0;
-      }
-    }
-
-    /*LTS-END*/
-    // Always initialize before anything else, and break if this failed.
-    initialize();
-    if (!myConn){return;}
     uint32_t mainTrack = M.mainTrack();
     if (mainTrack == INVALID_TRACK_ID){
       onFail("No main track found", true);
@@ -1122,9 +1079,9 @@ namespace Mist{
 
     DTSC::Fragments fragments(M.fragments(mainTrack));
 
-    if (H.GetVar("startfrag") != ""){
+    if (req.GetVar("startfrag") != ""){
       realTime = 0;
-      size_t startFrag = JSON::Value(H.GetVar("startfrag")).asInt();
+      size_t startFrag = JSON::Value(req.GetVar("startfrag")).asInt();
       if (startFrag >= fragments.getFirstValid() && startFrag < fragments.getEndValid()){
         startTime = M.getTimeForFragmentIndex(mainTrack, startFrag);
 
@@ -1140,8 +1097,8 @@ namespace Mist{
       }
     }
 
-    if (H.GetVar("endfrag") != ""){
-      size_t endFrag = JSON::Value(H.GetVar("endfrag")).asInt();
+    if (req.GetVar("endfrag") != ""){
+      size_t endFrag = JSON::Value(req.GetVar("endfrag")).asInt();
       if (endFrag < fragments.getEndValid()){
         endTime = M.getTimeForFragmentIndex(mainTrack, endFrag);
       }else{
@@ -1149,18 +1106,13 @@ namespace Mist{
       }
     }
 
-    if (H.GetVar("starttime") != ""){
-      startTime = std::max((uint64_t)JSON::Value(H.GetVar("starttime")).asInt(), M.getFirstms(mainTrack));
+    if (req.GetVar("starttime") != ""){
+      startTime = std::max((uint64_t)JSON::Value(req.GetVar("starttime")).asInt(), M.getFirstms(mainTrack));
     }
 
-    if (H.GetVar("endtime") != ""){
-      endTime = std::min((uint64_t)JSON::Value(H.GetVar("endtime")).asInt(), M.getLastms(mainTrack));
+    if (req.GetVar("endtime") != ""){
+      endTime = std::min((uint64_t)JSON::Value(req.GetVar("endtime")).asInt(), M.getLastms(mainTrack));
     }
-
-    // Make sure we start receiving data after this function
-    parseData = true;
-    wantRequest = false;
-    sentHeader = false;
 
     // Check if the url contains .3gp --> if yes, we will send a 3gp header
     sending3GP = (H.url.find(".3gp") != std::string::npos);
@@ -1169,14 +1121,9 @@ namespace Mist{
     headerSize = mp4HeaderSize(fileSize, M.getLive());
 
     seekPoint = 0;
-    if (M.getLive()){
-      // for live we use fragmented mode
-      fragSeqNum = 0;
-    }
-    byteStart = 0;
-    byteEnd = fileSize - 1;
-    char rangeType = ' ';
-    currPos = 0;
+    // for live we use fragmented mode
+    if (M.getLive()){fragSeqNum = 0;}
+
     sortSet.clear();
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
@@ -1186,23 +1133,14 @@ namespace Mist{
       temp.index = 0;
       sortSet.insert(temp);
     }
-    if (M.getVod() && H.GetHeader("Range") != ""){
-      if (parseRange(byteStart, byteEnd)){findSeekPoint(byteStart, seekPoint, headerSize);}
-      rangeType = H.GetHeader("Range")[0];
-    }
-    HTTP::Parser request = H;
-    H.Clean(); // make sure no parts of old requests are left in any buffers
-    H.setCORSHeaders();
-    if (dl.size()){
-      H.SetHeader("Content-Disposition", "attachment; filename=" + Encodings::URL::encode(dl) + ";");
-      realTime = 0; // force max download speed when downloading
-    }
-    H.SetHeader("Content-Type", "video/MP4"); // Send the correct content-type for MP4 files
-    if (M.getVod()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
 
-    if (rangeType != ' '){
+    byteStart = 0;
+    byteEnd = fileSize - 1;
+    currPos = 0;
+    if (!M.getLive() && req.GetHeader("Range") != ""){
+      if (parseRange(req.GetHeader("Range"), byteStart, byteEnd)){findSeekPoint(byteStart, seekPoint, headerSize);}
       if (!byteEnd){
-        if (rangeType == 'p'){
+        if (req.GetHeader("Range")[0] == 'p'){
           H.SetBody("Starsystem not in communications range");
           H.SendResponse("416", "Starsystem not in communications range", myConn);
           parseData = false;
@@ -1220,12 +1158,21 @@ namespace Mist{
         rangeReply << "bytes " << byteStart << "-" << byteEnd << "/" << fileSize;
         H.SetHeader("Content-Length", byteEnd - byteStart + 1);
         H.SetHeader("Content-Range", rangeReply.str());
-        H.StartResponse("206", "Partial content", request, myConn);
+        H.StartResponse("206", "Partial content", req, myConn);
       }
     }else{
       if (M.getVod()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
-      H.StartResponse("200", "OK", request, myConn);
+      H.StartResponse("200", "OK", req, myConn);
     }
+
+    if (headersOnly){return;}
+
+    //Start sending data
+    parseData = true;
+    wantRequest = false;
+    sentHeader = false;
+
+    //Send MP4 header if needed
     leftOver = byteEnd - byteStart + 1; // add one byte, because range "0-0" = 1 byte of data
     byteEnd++;
     if (byteStart < headerSize){

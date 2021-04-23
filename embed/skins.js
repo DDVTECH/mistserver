@@ -785,11 +785,42 @@ MistSkins["default"] = {
       };
       
       //obey video states
+      var lastBufferUpdate = 0;
+      var bufferTimer = false;
       MistUtil.event.addListener(video,"progress",function(){
-        container.updateBuffers(api.buffered);
+        function updateBuffers(){
+          //limit fire to once per second
+          if (new Date().getTime() - lastBufferUpdate > 1e3) {
+            container.updateBuffers(api.buffered);
+            lastBufferUpdate = new Date().getTime();  
+          }
+          else if (!bufferTimer) {
+            bufferTimer = MistVideo.timers.start(function(){
+              updateBuffers();
+              bufferTimer = false;
+            },1e3);
+          }
+        }
+        updateBuffers();
       },container);
+      var lastBarUpdate = 0;
+      var barTimer = false;
       MistUtil.event.addListener(video,"timeupdate",function(){
-        if (!dragging) { container.updateBar(api.currentTime); }
+        function updateBar(){
+          //console.log(video.currentTime,"timeupdate");
+          //limit fire to once per 0.2 second
+          if ((new Date().getTime() - lastBarUpdate > 200) && (!dragging)) {
+            container.updateBar(api.currentTime);
+            lastBarUpdate = new Date().getTime();
+          }
+          else if (!barTimer) {
+            barTimer = MistVideo.timers.start(function(){
+              updateBar();
+              barTimer = false;
+            },1e3);
+          }
+        }
+        updateBar();
       },container);
       MistUtil.event.addListener(video,"seeking",function(){
         container.updateBar(api.currentTime);
@@ -1698,7 +1729,7 @@ MistSkins["default"] = {
           },icon);
         }
         //remove loading icon
-        var events = ["seeked","playing","canplay","paused"];
+        var events = ["seeked","playing","canplay","paused","ended"];
         for (var i in events) {
           MistUtil.event.addListener(MistVideo.video,events[i],function(e){
             if ("container" in MistVideo) {

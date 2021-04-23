@@ -73,7 +73,7 @@ svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;trans
 .mistvideo-progress>*{height:2px;background-color:$progressBackground;opacity:.95;position:relative}
 .mistvideo-novideo .mistvideo-progress>*,.mistvideo-progress:hover>*{height:10px}
 .mistvideo-progress:not(:hover)>*{transition:height .25s ease-in .5s}
-.mistvideo-progress .bar{height:inherit;width:0;position:absolute;border-right:inherit;background-color:$accent;z-index:2}
+.mistvideo-progress .bar{height:inherit;width:0;position:absolute;border-right:inherit;background-color:$accent;z-index:2;transition:width .2s}
 .mistvideo-progress .buffer{height:inherit;width:0;position:absolute;background-color:$semiFill}
 .mistvideo-progress .bar:after{content:'';border:5px solid $accent;border-radius:5px;position:absolute;right:-5px;top:50%;transform:translateY(-50%)}
 .mistvideo-play[data-state=playing] svg.play{display:none}

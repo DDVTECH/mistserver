@@ -482,6 +482,7 @@ add_executable(MistOutHTTP
   generated/dashjs.js.h
   generated/videojs.js.h
   generated/webrtc.js.h
+  generated/mews.js.h
   generated/player_dash.js.h
   generated/player_dash_lic.js.h
   generated/player_video.js.h
@@ -573,6 +574,10 @@ add_custom_command(OUTPUT generated/videojs.js.h
 add_custom_command(OUTPUT generated/webrtc.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js webrtc_js generated/webrtc.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js
+)
+add_custom_command(OUTPUT generated/mews.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/mews.js mews_js generated/mews.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/mews.js
 )
 # players
 add_custom_command(OUTPUT generated/player_dash_lic.js.h

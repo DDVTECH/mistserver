@@ -734,13 +734,12 @@ MistSkins["default"] = {
       container.appendChild(container.kids.bar);
       
       var video = this.video;
-      var api = this.player.api;
       var MistVideo = this;
       
       //these functions update the states
       container.updateBar = function(currentTime){
         if (this.kids.bar) {
-          if (!isFinite(api.duration)) { this.kids.bar.style.display = "none"; return; }
+          if (!isFinite(MistVideo.player.api.duration)) { this.kids.bar.style.display = "none"; return; }
           else { this.kids.bar.style.display = ""; }
           
           w = Math.min(1,Math.max(0,this.time2perc(currentTime)));
@@ -748,14 +747,14 @@ MistSkins["default"] = {
         }
       };
       container.time2perc = function(time) {
-        if (!isFinite(api.duration)) { return 0; }
+        if (!isFinite(MistVideo.player.api.duration)) { return 0; }
         var result = 0;
         if (MistVideo.info.type == "live") {
           var buffer_window = MistVideo.info.meta.buffer_window * 1e-3;
-          result =  (time - api.duration + buffer_window) / buffer_window;
+          result =  (time - MistVideo.player.api.duration + buffer_window) / buffer_window;
         }
         else {
-          result =  time / api.duration;
+          result =  time / MistVideo.player.api.duration;
         }
         return Math.min(1,Math.max(0,result));
       }
@@ -823,7 +822,7 @@ MistSkins["default"] = {
         updateBar();
       },container);
       MistUtil.event.addListener(video,"seeking",function(){
-        container.updateBar(api.currentTime);
+        container.updateBar(MistVideo.player.api.currentTime);
       },container);
       
       //control video states
@@ -837,14 +836,14 @@ MistSkins["default"] = {
         }
         else {
           //VOD mode
-          if (!isFinite(api.duration)) { return false; }
-          return perc * api.duration;
+          if (!isFinite(MistVideo.player.api.duration)) { return false; }
+          return perc * MistVideo.player.api.duration;
         }
       };
       //seeking
       container.seek = function(e){
         var pos = this.getPos(e);
-        api.currentTime = pos;
+        MistVideo.player.api.currentTime = pos;
       };
       MistUtil.event.addListener(margincontainer,"mouseup",function(e){
         if (e.which != 1) { return;} //only respond to left mouse clicks
@@ -1282,40 +1281,73 @@ MistSkins["default"] = {
     fullscreen: function(){
       if ((!("setSize" in this.player)) || (!this.info.hasVideo) || (this.source.type.split("/")[1] == "audio")) { return; }
       
-      //determine which functions to use.. 
-      var requestfuncs = ["requestFullscreen","webkitRequestFullscreen","mozRequestFullScreen","msRequestFullscreen"];
-      var funcs = false;
-      for (var i in requestfuncs) {
-        if (requestfuncs[i] in document.body) {
-          funcs = {};
-          funcs.request = requestfuncs[i];
-          
-          var cancelfuncs = ["exitFullscreen","webkitCancelFullScreen","mozCancelFullScreen","msExitFullscreen"];
-          var elementfuncs = ["fullscreenElement","webkitFullscreenElement","mozFullScreenElement","msFullscreenElement"];
-          var eventname = ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"];
-          funcs.cancel = cancelfuncs[i];
-          funcs.element = elementfuncs[i];
-          funcs.event = eventname[i];
-          break;
-        }
-      }
-      if (!funcs) { return;}
-      
-      var button = this.skin.icons.build("fullscreen");
       var MistVideo = this;
       
+      //determine which functions to use.. 
+      var requestfuncs = ["requestFullscreen","webkitRequestFullscreen","mozRequestFullScreen","msRequestFullscreen","webkitEnterFullscreen"];
+      var fullscreenableElements = [function(){ return MistVideo.container;},function(){ return MistVideo.video;}]; //if the functions are not available on the container div, try them again on the video element (for iphone)
+      var funcs = false;
+      main:
+      for (var j in fullscreenableElements) {
+        for (var i in requestfuncs) {
+          if (requestfuncs[i] in fullscreenableElements[j]()) {
+            funcs = {};
+            funcs.request = function(){ return funcs.fullscreenableElement()[requestfuncs[i]](); }
+            
+            var cancelfuncs = ["exitFullscreen","webkitCancelFullScreen","mozCancelFullScreen","msExitFullscreen","webkitExitFullscreen"];
+            var elementfuncs = ["fullscreenElement","webkitFullscreenElement","mozFullScreenElement","msFullscreenElement","webkitFullscreenElement"];
+            var eventname = ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange","webkitfullscreenchange"];
+            funcs.cancel = function() { return document[cancelfuncs[i]](); };
+            funcs.element = function() { return document[elementfuncs[i]]; };
+            funcs.event = eventname[i];
+            funcs.fullscreenableElement = fullscreenableElements[j];
+            break main; //break to the main loop
+          }
+        }
+      }
+      if (!funcs) {
+        //fake fullscreen mode!
+        funcs = {
+          event: "fakefullscreenchange",
+          fullscreenableElement: function (){ return MistVideo.container; },
+        };
+        var keydownfunc = function(e){
+          switch (e.key) {
+            case "Escape": {
+              funcs.cancel();
+              break;
+            }
+          }
+        };
+        funcs.request = function(){
+          funcs.element = function(){ return MistVideo.container; };
+          MistUtil.event.send(funcs.event,null,document);
+          document.addEventListener("keydown",keydownfunc);
+          return true;
+        }
+        funcs.cancel = function(){
+          funcs.element = function(){ return null; }
+          document.removeEventListener("keydown",keydownfunc);
+          MistUtil.event.send(funcs.event,null,document);
+          return true;
+        }
+        funcs.element = function(){ return null; }
+      }
+      
+      var button = this.skin.icons.build("fullscreen");
+      
       function onclick(){
-        if (document[funcs.element]) {
-          document[funcs.cancel]();
+        if (funcs.element()) {
+          funcs.cancel();
         }
         else {
-          MistVideo.container[funcs.request]();
+          funcs.request();
         }
       }
       MistUtil.event.addListener(button,"click",onclick);
       MistUtil.event.addListener(MistVideo.video,"dblclick",onclick);
-      MistUtil.event.addListener(document,funcs.event, function() {
-        if (document[funcs.element] == MistVideo.container) {
+      MistUtil.event.addListener(document,funcs.event,function() {
+        if (funcs.element() == funcs.fullscreenableElement()) {
           MistVideo.container.setAttribute("data-fullscreen","");
         }
         else if (MistVideo.container.hasAttribute("data-fullscreen")) {
@@ -2377,7 +2409,7 @@ MistSkins.dev = {
                     var r = [];
                     for (var i in result) {
                       if (result[i]) {
-                        r.push(i[0]+Math.round(result[i]*1e3));
+                        r.push(i[0]+":"+Math.round(result[i]*1e3));
                       }
                     }
                     if (r.length) { resolve(r.join(" ")); }

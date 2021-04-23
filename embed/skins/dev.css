@@ -68,6 +68,9 @@
 .mistvideo-decodingIssues label {
   position: relative;
 }
+.mistvideo-decodingIssues label .mistvideo-description {
+  font-size: 0.9em;
+}
 .mistvideo-decodingIssues label .value {
   font-size: 0.8em;
 }

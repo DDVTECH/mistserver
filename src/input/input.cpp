@@ -652,6 +652,7 @@ namespace Mist{
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef();
       if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
+        Util::logExitReason("STREAM_READY trigger returned false");
         config->is_active = false;
       }
     }
@@ -941,8 +942,8 @@ namespace Mist{
         if (!statComm){statComm.reload();}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
-            config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
+            config->is_active = false;
             return;
           }
           uint64_t now = Util::bootSecs();

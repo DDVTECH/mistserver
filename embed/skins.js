@@ -790,7 +790,7 @@ MistSkins["default"] = {
         function updateBuffers(){
           //limit fire to once per second
           if (new Date().getTime() - lastBufferUpdate > 1e3) {
-            container.updateBuffers(api.buffered);
+            container.updateBuffers(MistVideo.player.api.buffered);
             lastBufferUpdate = new Date().getTime();  
           }
           else if (!bufferTimer) {
@@ -809,7 +809,7 @@ MistSkins["default"] = {
           //console.log(video.currentTime,"timeupdate");
           //limit fire to once per 0.2 second
           if ((new Date().getTime() - lastBarUpdate > 200) && (!dragging)) {
-            container.updateBar(api.currentTime);
+            container.updateBar(MistVideo.player.api.currentTime);
             lastBarUpdate = new Date().getTime();
           }
           else if (!barTimer) {

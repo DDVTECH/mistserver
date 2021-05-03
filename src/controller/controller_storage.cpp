@@ -1,6 +1,7 @@
 #include "controller_capabilities.h"
 #include "controller_storage.h"
 #include "controller_push.h" //LTS
+#include "controller_streams.h" //LTS
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -261,7 +262,14 @@ namespace Controller{
 
   void writeCapabilities(){
     std::string temp = capabilities.toPacked();
-    static IPC::sharedPage mistCapaOut(SHM_CAPA, temp.size() + 100, true, false);
+    static IPC::sharedPage mistCapaOut(SHM_CAPA, temp.size() + 100, false, false);
+    if (mistCapaOut){
+      Util::RelAccX tmpA(mistCapaOut.mapped, false);
+      if (tmpA.isReady()){tmpA.setReload();}
+      mistCapaOut.master = true;
+      mistCapaOut.close();
+    }
+    mistCapaOut.init(SHM_CAPA, temp.size() + 100, true, false);
     if (!mistCapaOut.mapped){
       FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your "
                "system?");
@@ -294,6 +302,13 @@ namespace Controller{
       proxy_written = tmpProxy;
       static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size() + 100, true, false);
       mistProxOut.close();
+      mistProxOut.init(SHM_PROXY, proxy_written.size() + 100, false, false);
+      if (mistProxOut){
+        Util::RelAccX tmpA(mistProxOut.mapped, false);
+        if (tmpA.isReady()){tmpA.setReload();}
+        mistProxOut.master = true;
+        mistProxOut.close();
+      }
       mistProxOut.init(SHM_PROXY, proxy_written.size() + 100, true, false);
       if (!mistProxOut.mapped){
         FAIL_MSG("Could not open trusted proxy config for writing! Is shared memory enabled on "
@@ -316,8 +331,13 @@ namespace Controller{
     if (Storage["config"]["protocols"].compareExcept(proto_written, skip)){return;}
     proto_written.assignFrom(Storage["config"]["protocols"], skip);
     std::string temp = proto_written.toPacked();
-    static IPC::sharedPage mistProtoOut(SHM_PROTO, temp.size() + 100, true, false);
-    mistProtoOut.close();
+    static IPC::sharedPage mistProtoOut(SHM_PROTO, temp.size() + 100, false, false);
+    if (mistProtoOut){
+      Util::RelAccX tmpA(mistProtoOut.mapped, false);
+      if (tmpA.isReady()){tmpA.setReload();}
+      mistProtoOut.master = true;
+      mistProtoOut.close();
+    }
     mistProtoOut.init(SHM_PROTO, temp.size() + 100, true, false);
     if (!mistProtoOut.mapped){
       FAIL_MSG(
@@ -357,6 +377,13 @@ namespace Controller{
       P.close();
       char tmpBuf[NAME_BUFFER_SIZE];
       snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, sName.c_str());
+      P.init(tmpBuf, temp.size() + 100, false, false);
+      if (P){
+        Util::RelAccX tmpA(P.mapped, false);
+        if (tmpA.isReady()){tmpA.setReload();}
+        P.master = true;
+        P.close();
+      }
       P.init(tmpBuf, temp.size() + 100, true, false);
       if (!P){
         writtenStrms.erase(sName);
@@ -418,6 +445,13 @@ namespace Controller{
       if (Storage["config"]["triggers"].size()){
         jsonForEach(Storage["config"]["triggers"], it){
           snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_TRIGGER, (it.key()).c_str());
+          pageForType[it.key()].init(tmpBuf, 32 * 1024, false, false);
+          if (pageForType[it.key()]){
+            Util::RelAccX tmpA(pageForType[it.key()].mapped, false);
+            if (tmpA.isReady()){tmpA.setReload();}
+            pageForType[it.key()].master = true;
+            pageForType[it.key()].close();
+          }
           pageForType[it.key()].init(tmpBuf, 32 * 1024, true, false);
           Util::RelAccX tPage(pageForType[it.key()].mapped, false);
           tPage.addField("url", RAX_128STRING);

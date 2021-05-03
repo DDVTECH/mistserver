@@ -501,7 +501,6 @@ int main_loop(int argc, char **argv){
     }
   }
 
-  Controller::Log("CONF", "Controller started");
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){
     srand(mix(clock(), time(0), getpid()));
@@ -509,17 +508,6 @@ int main_loop(int argc, char **argv){
       Controller::instanceId += (char)(64 + rand() % 62);
     }while (Controller::instanceId.size() < 16);
   }
-
-/*LTS-START*/
-#ifdef UPDATER
-  if (Controller::conf.getBool("update")){Controller::checkUpdates();}
-#endif
-#ifdef LICENSING
-  Controller::initLicense();
-  // start license checking thread
-  tthread::thread licenseThread(Controller::licenseLoop, 0);
-#endif
-  /*LTS-END*/
 
   // start stats thread
   tthread::thread statsThread(Controller::SharedMemStats, &Controller::conf);
@@ -535,6 +523,18 @@ int main_loop(int argc, char **argv){
   // start updater thread
   tthread::thread updaterThread(Controller::updateThread, 0);
 #endif
+
+  Controller::Log("CONF", "Controller started");
+  /*LTS-START*/
+#ifdef UPDATER
+  if (Controller::conf.getBool("update")){Controller::checkUpdates();}
+#endif
+#ifdef LICENSING
+  Controller::initLicense();
+  // start license checking thread
+  tthread::thread licenseThread(Controller::licenseLoop, 0);
+#endif
+  /*LTS-END*/
 
   // start main loop
   while (Controller::conf.is_active){

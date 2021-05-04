@@ -20,6 +20,7 @@ JSON::Value & pData = pStat["proc_status_update"]["status"];
 tthread::mutex statsMutex;
 uint64_t statSinkMs = 0;
 uint64_t statSourceMs = 0;
+uint64_t bootMsOffset = 0;
 
 namespace Mist{
 
@@ -54,6 +55,7 @@ namespace Mist{
         char *data = thisPacket.getData();
         Bit::htobll(data + 12, pTime);
         if (pTime >= statSinkMs){statSinkMs = pTime;}
+        if (meta && meta.getBootMsOffset() != bootMsOffset){meta.setBootMsOffset(bootMsOffset);}
       }
     }
     void setInFile(int stdin_val){
@@ -125,6 +127,7 @@ namespace Mist{
       maxSkipAhead = 0;
       if (!sendFirst){
         sendPacketTime = thisPacket.getTime();
+        bootMsOffset = M.getBootMsOffset();
         sendFirst = true;
         /*
         uint64_t maxJitter = 1;

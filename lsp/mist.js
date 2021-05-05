@@ -1452,6 +1452,8 @@ var UI = {
             case 'clients':
             case 'upbps':
             case 'downbps':
+            case 'perc_lost':
+            case 'perc_retrans':
               switch (set.origin[0]) {
                 case 'total':     reqobj['totals'].push({fields: [set.datatype], end: -15});                               break;
                 case 'stream':    reqobj['totals'].push({fields: [set.datatype], streams: [set.origin[1]], end: -15});     break;
@@ -1827,6 +1829,16 @@ var UI = {
           label: 'Bandwidth down',
           yaxistype: 'bytespersec',
           basecolor: [148,64,237]
+        },
+        perc_lost: {
+          label: 'Lost packages',
+          yaxistype: 'percentage',
+          basecolor: [255,33,234]
+        },
+        perc_retrans: {
+          label: 'Re-transmitted packages',
+          yaxistype: 'percentage',
+          basecolor: [255,87,34]
         }
       }
     },
@@ -6150,7 +6162,9 @@ var UI = {
               ['downbps','Bandwidth (down)'],
               ['cpuload','CPU use'],
               ['memload','Memory load'],
-              ['coords','Client location']
+              ['coords','Client location'],
+              ['perc_lost','Lost packages'],
+              ['perc_retrans','Re-transmitted packages']
             ],
             pointer: {
               main: saveas,

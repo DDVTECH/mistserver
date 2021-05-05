@@ -829,6 +829,29 @@ var UI = {
           $c.append($itemsettings);
           break;
         }
+        case "json":
+          $field = $("<textarea>").on('keydown',function(e){
+            e.stopPropagation();
+          }).on('keyup change',function(e){
+            this.style.height = "";
+            this.style.height = (this.scrollHeight ? this.scrollHeight + 20 : this.value.split("\n").length*14 + 20)+"px";
+          }).css("min-height","3em");
+          var f = function (val,me){
+            if ($(me).val() == "") { return; }
+            if (val === null) {
+              return {
+                msg: 'Invalid json',
+                classes: ['red']
+              }
+            }
+          };
+          if ('validate' in e) {
+            e.validate.push(f);
+          }
+          else {
+            e.validate = [f];
+          }
+          break;
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -6965,8 +6988,10 @@ var mist = {
             if ("max" in ele) { obj.max = ele.max; }
             if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
             break;
+          case 'json':
           case 'debug':
-            obj.type = 'debug';
+          case 'inputlist':
+            obj.type = ele.type;
             break;
           case 'radioselect':
             obj.type = 'radioselect';
@@ -6979,10 +7004,6 @@ var mist = {
               obj.select.unshift(["",("placeholder" in obj ? "Default ("+obj.placeholder+")" : "" )]);
             }
             break;
-          case 'inputlist': {
-            obj.type = "inputlist";
-            break;
-          }
           case 'sublist': {
             obj.type = 'sublist';
             //var subele = Object.assign({},ele);
@@ -7192,6 +7213,14 @@ $.fn.getval = function(){
       case "sublist":
         val = $(this).data("savelist");
         break;
+      case "json":
+        try {
+          val = JSON.parse($(this).val());
+        }
+        catch (e) {
+          val = null;
+        }
+        break;
     }
   }
   return val;
@@ -7336,6 +7365,9 @@ $.fn.setval = function(val){
         }
         $field.data("savelist",val);
         break;
+      case "json": {
+        $(this).val(val === null ? "" : JSON.stringify(val,null,2));
+      }
     }
   }
   $(this).trigger('change');

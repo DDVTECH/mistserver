@@ -647,7 +647,7 @@ var MistUtil = {
         this.list[src].subscribers.push(onevent.onerror);
         //execute onload
         if ("onload" in onevent) {
-          if (this.hasLoaded) {
+          if (this.list[src].tag.hasLoaded) {
             onevent.onload(); 
           }
           else {

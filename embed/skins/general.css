@@ -232,6 +232,7 @@ svg.icon.spin, svg.icon .spin {
 .vjs-controls-disabled .vjs-control-bar,
 .vjs-using-native-controls .vjs-control-bar,
 .vjs-error .vjs-control-bar,
+.vjs-error-display,
 .vjs-hidden {
   display: none !important;
 }

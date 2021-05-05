@@ -102,9 +102,21 @@ p.prototype.build = function (MistVideo,callback) {
         MistVideo.log("Videojs initialized");
       });
       
+      MistUtil.event.addListener(ele,"error",function(e){
+        if (e.target.error.message.indexOf("NS_ERROR_DOM_MEDIA_OVERFLOW_ERR") >= 0) {
+          //there is a problem with a certain segment, try reloading
+          MistVideo.timers.start(function(){
+            MistVideo.log("Reloading player because of NS_ERROR_DOM_MEDIA_OVERFLOW_ERR");
+            MistVideo.reload();
+          },1e3);
+        }
+      });
+      
       me.api.unload = function(){
         if (me.videojs) {
-          videojs(ele).dispose();
+          me.videojs.autoplay(false); //don't play again ffs
+          me.videojs.pause(); //pause goddamn
+          me.videojs.dispose(); //and now die, bitch
           me.videojs = false;
           MistVideo.log("Videojs instance disposed");
         }
@@ -260,11 +272,11 @@ p.prototype.build = function (MistVideo,callback) {
     
     var timer = false;
     function reloadVJSrateLimited(){
+      
       try {
         MistVideo.video.pause();
       } catch (e) {}
       MistVideo.showError("Error in videojs player");
-      
       
       //rate limit the reload
       if (!window.mistplayer_videojs_failures) {
@@ -301,15 +313,17 @@ p.prototype.build = function (MistVideo,callback) {
     };
     window.addEventListener("error",f);
     
-    var old_console_error = console.error;
+    //disabled for now because it seemed to cause more issues than it solved
+    /*var old_console_error = console.error;
     console.error = function(){
       if (arguments[0] == "VIDEOJS:") {
+        if ((arguments.length > 3) && arguments[4] && (arguments[4].code == 3)) { return; } //it's a decoding  error, nothing in videojs itself
         //videojs reports an error
         console.error = old_console_error;
         reloadVJSrateLimited();
       }
       return old_console_error.apply(this,arguments);
-    };
+    };*/
     
     scripttag = MistUtil.scripts.insert(scripturl,{
       onerror: function(e){

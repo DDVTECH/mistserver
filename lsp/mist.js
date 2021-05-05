@@ -1838,7 +1838,7 @@ var UI = {
         perc_retrans: {
           label: 'Re-transmitted packages',
           yaxistype: 'percentage',
-          basecolor: [255,87,34]
+          basecolor: [0,0,255]
         }
       }
     },
@@ -2055,7 +2055,7 @@ var UI = {
       num = Math.round(num * mult) / mult;
       
       //thousand seperation
-      if (num > 1e4) {
+      if (num >= 1e4) {
         var seperator = ' ';
         number = num.toString().split('.');
         var regex = /(\d+)(\d{3})/;
@@ -5112,6 +5112,20 @@ var UI = {
                     "Media time transfered: "+UI.format.duration(stats.mediatime*1e-3)
                   )
                 );
+                if ("pkt_retrans_count" in stats) {
+                  $logs.append(
+                    $("<div>").append(
+                      "Packets retransmitted: "+UI.format.number(stats.pkt_retrans_count || 0)
+                    )
+                  );
+                }
+                if ("pkt_loss_count" in stats) {
+                  $logs.append(
+                    $("<div>").append(
+                      "Packets lost: "+UI.format.number(stats.pkt_loss_count || 0)+" ("+UI.format.addUnit(UI.format.number(stats.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")"
+                    )
+                  );
+                }
               }
               if (push.length >= 5) {
                 //there are logs

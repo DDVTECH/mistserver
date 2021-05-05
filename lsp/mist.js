@@ -527,6 +527,9 @@ var UI = {
           if ('max' in e) {
             $field.attr('max',e.max);
           }
+          if ('step' in e) {
+            $field.attr('step',e.step);
+          }
           if ('validate' in e) {
             e.validate.push('int');
           }
@@ -1209,12 +1212,6 @@ var UI = {
                     }
                     return {
                       msg: msg+msgs.join(' and')+'.',
-                      classes: ['red']
-                    };
-                  }
-                  if (parseInt(Number(val)) != val) {
-                    return {
-                      msg: 'Please enter an integer.',
                       classes: ['red']
                     };
                   }
@@ -2402,7 +2399,8 @@ var UI = {
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
           defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy
+          trustedproxy: mist.data.config.trustedproxy,
+          location: "location" in mist.data.config ? mist.data.config.location : {}
         };
         var b = {};
         if ("bandwidth" in mist.data) {
@@ -2564,6 +2562,35 @@ var UI = {
               index: "exceptions"
             },
             help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
+            LTSonly: true
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server latitude",
+            pointer: {
+              main: s.location,
+              index: "lat"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
+            LTSonly: true
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server longitude",
+            pointer: {
+              main: s.location,
+              index: "lon"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
+            LTSonly: true
+          },{
+            type: "str",
+            label: "Server location name",
+            pointer: {
+              main: s.location,
+              index: "name"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
             LTSonly: true
           },{
             type: "str",

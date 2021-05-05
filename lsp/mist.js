@@ -829,6 +829,29 @@ var UI = {
           $c.append($itemsettings);
           break;
         }
+        case "json":
+          $field = $("<textarea>").on('keydown',function(e){
+            e.stopPropagation();
+          }).on('keyup change',function(e){
+            this.style.height = "";
+            this.style.height = (this.scrollHeight ? this.scrollHeight + 20 : this.value.split("\n").length*14 + 20)+"px";
+          }).css("min-height","3em");
+          var f = function (val,me){
+            if ($(me).val() == "") { return; }
+            if (val === null) {
+              return {
+                msg: 'Invalid json',
+                classes: ['red']
+              }
+            }
+          };
+          if ('validate' in e) {
+            e.validate.push(f);
+          }
+          else {
+            e.validate = [f];
+          }
+          break;
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -1452,6 +1475,8 @@ var UI = {
             case 'clients':
             case 'upbps':
             case 'downbps':
+            case 'perc_lost':
+            case 'perc_retrans':
               switch (set.origin[0]) {
                 case 'total':     reqobj['totals'].push({fields: [set.datatype], end: -15});                               break;
                 case 'stream':    reqobj['totals'].push({fields: [set.datatype], streams: [set.origin[1]], end: -15});     break;
@@ -1827,6 +1852,16 @@ var UI = {
           label: 'Bandwidth down',
           yaxistype: 'bytespersec',
           basecolor: [148,64,237]
+        },
+        perc_lost: {
+          label: 'Lost packages',
+          yaxistype: 'percentage',
+          basecolor: [255,33,234]
+        },
+        perc_retrans: {
+          label: 'Re-transmitted packages',
+          yaxistype: 'percentage',
+          basecolor: [0,0,255]
         }
       }
     },
@@ -2043,7 +2078,7 @@ var UI = {
       num = Math.round(num * mult) / mult;
       
       //thousand seperation
-      if (num > 1e4) {
+      if (num >= 1e4) {
         var seperator = ' ';
         number = num.toString().split('.');
         var regex = /(\d+)(\d{3})/;
@@ -4212,6 +4247,8 @@ var UI = {
         );
         var $tracktable = $('<span>').text('Loading..');
         $trackinfo.append($tracktable);
+        var $processinfo = $("<div>").addClass("process_info");
+        $trackinfo.append($processinfo);
         $cont.append($trackinfo);
         function buildTrackinfo(info) {
           var meta = info.meta;
@@ -4360,6 +4397,101 @@ var UI = {
               $tracktable.html('Error while retrieving stream info.');
             }
           });
+          function updateProcessInfo() {
+            var req = {proc_list: other};
+            if (!mist.data.capabilities) { req.capabilities = true; }
+            mist.send(function(data){
+              if (data.proc_list) {
+                var $processes = $("<table>").css("width","auto");
+                var layout = {
+                  "Process type:": function(d){ return $("<b>").text(d.process); },
+                      "Source:": function(d){
+                        var $s = $("<span>").text(d.source);
+                        if (d.source_tracks && d.source_tracks.length) {
+                          $s.append(
+                            $("<span>").addClass("description").text(" track "+(d.source_tracks.slice(0,-2).concat(d.source_tracks.slice(-2).join(" and "))).join(", "))
+                          );
+                        } 
+                        return $s;
+                      },
+                      "Sink:": function(d){
+                        var $s = $("<span>").text(d.sink);
+                        if (d.sink_tracks && d.sink_tracks.length) {
+                          $s.append(
+                            $("<span>").addClass("description").text(" track "+(d.sink_tracks.slice(0,-2).concat(d.sink_tracks.slice(-2).join(" and "))).join(", "))
+                          );
+                        } 
+                        return $s;
+                      },
+                      "Active for:": function(d){
+                        var since = new Date().setSeconds(new Date().getSeconds() - d.active_seconds);
+                        return $("<span>").append(
+                          $("<span>").text(UI.format.duration(d.active_seconds))
+                        ).append(
+                          $("<span>").addClass("description").text(" since "+UI.format.time(since/1e3))
+                        ); 
+                      },
+                      "Pid:": function(d,i){ return i; },
+                      "Logs:": function(d){
+                        var $logs = $("<div>").text("None.");
+                        if (d.logs && d.logs.length) {
+                          $logs.html("").addClass("description").css({overflow: "auto", maxHeight: "6em", display: "flex", flexFlow: "column-reverse nowrap"});
+                          for (var i in d.logs) {
+                            var item = d.logs[i];
+                            $logs.prepend(
+                              $("<div>").append(
+                                UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
+                              )
+                            );
+                          }
+                        }
+                        return $logs;
+                      },
+                      "Additional info:": function(d){
+                        var $t;
+                        if (d.ainfo && Object.keys(d.ainfo).length) {
+                          $t = $("<table>");
+                          for (var i in d.ainfo) {
+                            var legend = mist.data.capabilities.processes[d.process].ainfo[i];
+                            if (!legend) {
+                              legend = {
+                                name: i
+                              };
+                            }
+                            $t.append(
+                              $("<tr>").append(
+                                $("<th>").text(legend.name+":")
+                              ).append(
+                                $("<td>").html(d.ainfo[i]).append(legend.unit ? $("<span>").addClass("unit").text(legend.unit) : "")
+                              )
+                            );
+                          }
+                        }
+                        else { $t = $("<span>").addClass("description").text("N/A"); }
+                        return $t;
+                      }
+                };
+                $processinfo.html(
+                  $("<h4>").text("Stream processes")
+                ).append($processes);
+                for (var i in layout) {
+                  var $tr = $("<tr>");
+                  $processes.append($tr);
+                  $tr.append(
+                    $("<th>").text(i).css("vertical-align","top")
+                  );
+                  for (var j in data.proc_list) {
+                    $out = layout[i](data.proc_list[j],j);
+                    $tr.append($("<td>").html($out).css("vertical-align","top"));
+                  }
+                }
+              }
+            },req);
+          }
+          UI.interval.set(function(){
+            updateProcessInfo();
+          },5e3);
+          updateProcessInfo();
         }
         
         break;
@@ -5100,6 +5232,20 @@ var UI = {
                     "Media time transfered: "+UI.format.duration(stats.mediatime*1e-3)
                   )
                 );
+                if ("pkt_retrans_count" in stats) {
+                  $logs.append(
+                    $("<div>").append(
+                      "Packets retransmitted: "+UI.format.number(stats.pkt_retrans_count || 0)
+                    )
+                  );
+                }
+                if ("pkt_loss_count" in stats) {
+                  $logs.append(
+                    $("<div>").append(
+                      "Packets lost: "+UI.format.number(stats.pkt_loss_count || 0)+" ("+UI.format.addUnit(UI.format.number(stats.pkt_loss_perc || 0),"%")+" over the last "+UI.format.addUnit(5,"s")+")"
+                    )
+                  );
+                }
               }
               if (push.length >= 5) {
                 //there are logs
@@ -5346,10 +5492,12 @@ var UI = {
           
           //retrieve a list of valid targets
           var target_match = [];
+          var connector2target_match = {};
           for (var i in mist.data.capabilities.connectors) {
             var conn = mist.data.capabilities.connectors[i];
             if ('push_urls' in conn) {
               target_match = target_match.concat(conn.push_urls);
+              connector2target_match[i] = conn.push_urls;
             }
           }
           
@@ -5357,12 +5505,28 @@ var UI = {
             $main.find('h2').text('Add automatic push');
           }
           
-          var saveas = {};
+          //FOR NOW, ASSUME PROTOCOL SETTINGS BUILDSETTINGS ARE USED
+          
+          var saveas = {params:{}};
           if ((other == "auto") && (typeof edit != "undefined")) {
             saveas = {
               "stream": edit[0],
-              "target": edit[1]
+              "target": edit[1],
+              "params": {}
             };
+            
+            var parts = saveas.target.split("?");
+            if (parts.length > 1) {
+              params = parts.pop(); //contains the part that comes after the ?, eg recstartunix=123&scheduletime=456
+              saveas.target = parts.join("?"); //the rest of the url string can go back into the target
+              params = params.split("&");
+              for (var i in params) {
+                var param = params[i].split("=");
+                saveas.params[param.shift()] = param.join("=");
+              }
+            }
+            
+            /*
             if (edit.length >= 3) { saveas.scheduletime = edit[2]; }
             if (edit.length >= 4) { saveas.completetime = edit[3]; }
             if (saveas.target.indexOf("recstartunix=") > -1) {
@@ -5375,8 +5539,9 @@ var UI = {
               saveas.target = saveas.target.replace("recstartunix="+saveas.recstartunix,"").replace("?&","?").replace("&&","&");
               if (saveas.target[saveas.target.length-1] == "?") { saveas.target = saveas.target.slice(0,-1); }
               
-            }
+            }*/
           }
+          var $additional_params = $("<div>").css("margin","1em 0");
           var build = [{
             label: 'Stream name',
             type: 'str',
@@ -5443,9 +5608,38 @@ var UI = {
                 classes: ['red']
               }
             }],
+            "function": function(){
+              //find what kind of target this is
+              var match = false;
+              for (connector in connector2target_match) {
+                for (var i in connector2target_match[connector]) {
+                  if (mist.inputMatch(connector2target_match[connector][i],$(this).getval())) {
+                    match = connector;
+                    break;
+                  }
+                }
+              }
+              if (!match) {
+                $additional_params.html(
+                  $("<h4>").addClass("red").text("Unrecognized target.")
+                ).append(
+                  $("<span>").text("Please edit the push target.")
+                );
+                return;
+              }
+              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly));
+              var capa = {
+                desc: mist.data.capabilities.connectors[match].desc,
+                optional: mist.data.capabilities.connectors[match].push_parameters
+              };
+              $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
+            },
             LTSonly: 1
-          }];
+          },$additional_params];
           
+          
+          
+          /*
           if (other == "auto") { //options only for automatic pushes
             
             build.push($("<h4>").text("Optional parameters"),{
@@ -5477,7 +5671,7 @@ var UI = {
               }
             });
             
-          }
+          }*/
           
           build.push({
             type: 'buttons',
@@ -5491,15 +5685,20 @@ var UI = {
               type: 'save',
               label: 'Save',
               'function': function(){
-                var params = {};
-                if (saveas.recstartunix) {
+                var params = saveas.params;
+                for (var i in params) {
+                  if (params[i] === null) {
+                    delete params[i];
+                  }
+                }
+                /*if (saveas.recstartunix) {
                   //append recstartunix to target
                   params["recstartunix"] = "recstartunix="+saveas.recstartunix;
                 }
                 else if (saveas.scheduletime) {
                   params["recstartunix"] = "recstartunix="+saveas.scheduletime;
                 }
-                delete saveas.recstartunix;
+                delete saveas.recstartunix;*/
                 if (Object.keys(params).length) {
                   var append = "?";
                   var curparams = saveas.target.split("?");
@@ -5513,7 +5712,11 @@ var UI = {
                     }
                   }
                   if (Object.keys(params).length) {
-                    append += Object.values(params).join("&");
+                    var str = [];
+                    for (var i in params) {
+                      str.push(i+"="+params[i]);
+                    }
+                    append += str.join("&");
                     saveas.target += append;
                   }
                 }
@@ -6093,7 +6296,9 @@ var UI = {
               ['downbps','Bandwidth (down)'],
               ['cpuload','CPU use'],
               ['memload','Memory load'],
-              ['coords','Client location']
+              ['coords','Client location'],
+              ['perc_lost','Lost packages'],
+              ['perc_retrans','Re-transmitted packages']
             ],
             pointer: {
               main: saveas,
@@ -6783,8 +6988,10 @@ var mist = {
             if ("max" in ele) { obj.max = ele.max; }
             if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
             break;
+          case 'json':
           case 'debug':
-            obj.type = 'debug';
+          case 'inputlist':
+            obj.type = ele.type;
             break;
           case 'radioselect':
             obj.type = 'radioselect';
@@ -6797,10 +7004,6 @@ var mist = {
               obj.select.unshift(["",("placeholder" in obj ? "Default ("+obj.placeholder+")" : "" )]);
             }
             break;
-          case 'inputlist': {
-            obj.type = "inputlist";
-            break;
-          }
           case 'sublist': {
             obj.type = 'sublist';
             //var subele = Object.assign({},ele);
@@ -7010,6 +7213,14 @@ $.fn.getval = function(){
       case "sublist":
         val = $(this).data("savelist");
         break;
+      case "json":
+        try {
+          val = JSON.parse($(this).val());
+        }
+        catch (e) {
+          val = null;
+        }
+        break;
     }
   }
   return val;
@@ -7154,6 +7365,9 @@ $.fn.setval = function(val){
         }
         $field.data("savelist",val);
         break;
+      case "json": {
+        $(this).val(val === null ? "" : JSON.stringify(val,null,2));
+      }
     }
   }
   $(this).trigger('change');

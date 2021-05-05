@@ -263,7 +263,14 @@ p.prototype.build = function (MistVideo,callback) {
         MistVideo.log("Beware: this device does not seem to be able to play H264.");
       }).finally(function(){
         thisWebRTCPlayer.signaling = new WebRTCSignaling(thisWebRTCPlayer.on_event);
-        thisWebRTCPlayer.peerConn = new RTCPeerConnection();
+        var opts = {};
+        if (MistVideo.options.RTCIceServers) {
+          opts.iceServers = MistVideo.options.RTCIceServers;
+        }
+        else if (MistVideo.source.RTCIceServers) {
+          opts.iceServers = MistVideo.source.RTCIceServers;
+        }
+        thisWebRTCPlayer.peerConn = new RTCPeerConnection(opts);
         thisWebRTCPlayer.peerConn.ontrack = function(ev) {
           video.srcObject = ev.streams[0];
           if (callback) { callback(); }

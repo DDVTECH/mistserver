@@ -62,7 +62,7 @@ svg.icon .stroke,svg.icon.stroke{stroke:$stroke;vector-effect:non-scaling-stroke
 svg.icon.off .toggle .fill,svg.icon.off .toggle .semiFill,svg.icon.off .toggle.fill,svg.icon.off .toggle.semiFill{fill:none}
 svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .vjs-text-track-display{pointer-events:none}
-.vjs-controls-disabled .vjs-control-bar,.vjs-error .vjs-control-bar,.vjs-hidden,.vjs-using-native-controls .vjs-control-bar{display:none!important}
+.vjs-controls-disabled .vjs-control-bar,.vjs-error .vjs-control-bar,.vjs-error-display,.vjs-hidden,.vjs-using-native-controls .vjs-control-bar{display:none!important}
 .vjs-controls-disabled .vjs-big-play-button,.vjs-controls-disabled .vjs-loading-spinner,.vjs-error .vjs-big-play-button,.vjs-has-started .vjs-big-play-button,.vjs-using-native-controls .vjs-big-play-button{display:none}
 .mistvideo{line-height:1.2;font-size:14.5px}
 .mistvideo svg{margin:2.5px}

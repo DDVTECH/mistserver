@@ -4224,6 +4224,8 @@ var UI = {
         );
         var $tracktable = $('<span>').text('Loading..');
         $trackinfo.append($tracktable);
+        var $processinfo = $("<div>").addClass("process_info");
+        $trackinfo.append($processinfo);
         $cont.append($trackinfo);
         function buildTrackinfo(info) {
           var meta = info.meta;
@@ -4372,6 +4374,101 @@ var UI = {
               $tracktable.html('Error while retrieving stream info.');
             }
           });
+          function updateProcessInfo() {
+            var req = {proc_list: other};
+            if (!mist.data.capabilities) { req.capabilities = true; }
+            mist.send(function(data){
+              if (data.proc_list) {
+                var $processes = $("<table>").css("width","auto");
+                var layout = {
+                  "Process type:": function(d){ return $("<b>").text(d.process); },
+                      "Source:": function(d){
+                        var $s = $("<span>").text(d.source);
+                        if (d.source_tracks && d.source_tracks.length) {
+                          $s.append(
+                            $("<span>").addClass("description").text(" track "+(d.source_tracks.slice(0,-2).concat(d.source_tracks.slice(-2).join(" and "))).join(", "))
+                          );
+                        } 
+                        return $s;
+                      },
+                      "Sink:": function(d){
+                        var $s = $("<span>").text(d.sink);
+                        if (d.sink_tracks && d.sink_tracks.length) {
+                          $s.append(
+                            $("<span>").addClass("description").text(" track "+(d.sink_tracks.slice(0,-2).concat(d.sink_tracks.slice(-2).join(" and "))).join(", "))
+                          );
+                        } 
+                        return $s;
+                      },
+                      "Active for:": function(d){
+                        var since = new Date().setSeconds(new Date().getSeconds() - d.active_seconds);
+                        return $("<span>").append(
+                          $("<span>").text(UI.format.duration(d.active_seconds))
+                        ).append(
+                          $("<span>").addClass("description").text(" since "+UI.format.time(since/1e3))
+                        ); 
+                      },
+                      "Pid:": function(d,i){ return i; },
+                      "Logs:": function(d){
+                        var $logs = $("<div>").text("None.");
+                        if (d.logs && d.logs.length) {
+                          $logs.html("").addClass("description").css({overflow: "auto", maxHeight: "6em", display: "flex", flexFlow: "column-reverse nowrap"});
+                          for (var i in d.logs) {
+                            var item = d.logs[i];
+                            $logs.prepend(
+                              $("<div>").append(
+                                UI.format.time(item[0])+' ['+item[1]+'] '+item[2]
+                              )
+                            );
+                          }
+                        }
+                        return $logs;
+                      },
+                      "Additional info:": function(d){
+                        var $t;
+                        if (d.ainfo && Object.keys(d.ainfo).length) {
+                          $t = $("<table>");
+                          for (var i in d.ainfo) {
+                            var legend = mist.data.capabilities.processes[d.process].ainfo[i];
+                            if (!legend) {
+                              legend = {
+                                name: i
+                              };
+                            }
+                            $t.append(
+                              $("<tr>").append(
+                                $("<th>").text(legend.name+":")
+                              ).append(
+                                $("<td>").html(d.ainfo[i]).append(legend.unit ? $("<span>").addClass("unit").text(legend.unit) : "")
+                              )
+                            );
+                          }
+                        }
+                        else { $t = $("<span>").addClass("description").text("N/A"); }
+                        return $t;
+                      }
+                };
+                $processinfo.html(
+                  $("<h4>").text("Stream processes")
+                ).append($processes);
+                for (var i in layout) {
+                  var $tr = $("<tr>");
+                  $processes.append($tr);
+                  $tr.append(
+                    $("<th>").text(i).css("vertical-align","top")
+                  );
+                  for (var j in data.proc_list) {
+                    $out = layout[i](data.proc_list[j],j);
+                    $tr.append($("<td>").html($out).css("vertical-align","top"));
+                  }
+                }
+              }
+            },req);
+          }
+          UI.interval.set(function(){
+            updateProcessInfo();
+          },5e3);
+          updateProcessInfo();
         }
         
         break;

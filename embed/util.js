@@ -453,19 +453,30 @@ var MistUtil = {
       else {
         //retrieve file contents
         cache[url] = [onCSSLoad];
-        MistUtil.http.get(url,function(d){
-          for (var i in cache[url]) {
-            cache[url][i](d);
-          }
-          cache[url] = d;
-        },function(){
-          var d = "/*Failed to load*/";
-          for (var i in cache[url]) {
-            cache[url][i](d);
-          }
-          cache[url] = d;
-          
-        });
+        
+        //try to load 3 times, then give up
+        var attempts = 3;
+        function retry() {
+          MistUtil.http.get(url,function(d){
+            for (var i in cache[url]) {
+              cache[url][i](d);
+            }
+            cache[url] = d;
+          },function(){
+            if (attempts > 0) {
+              attempts--;
+              setTimeout(retry,2e3);
+            }
+            else {
+              var d = "/*Failed to load*/";
+              for (var i in cache[url]) {
+                cache[url][i](d);
+              }
+              cache[url] = d;
+            }
+          });
+        }
+        retry();
       }
       
       return style; //its empty now, but will be filled on load

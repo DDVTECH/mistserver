@@ -530,6 +530,9 @@ namespace Mist{
       if (streamCfg){
         JSON::Value configuredProcesses = streamCfg.getMember("processes").asJSON();
         checkProcesses(configuredProcesses);
+      }else{
+        //If there is no config, we assume all processes are running, since, well, there can't be any
+        allProcsRunning = true;
       }
     }
     /*LTS-END*/

@@ -117,6 +117,7 @@ void parseThread(void *mistIn){
           }
         }
         lastTimeStamp = adjustTime;
+        if (!meta.getBootMsOffset()){meta.setBootMsOffset(Util::bootMS() - adjustTime);}
         {
           tthread::lock_guard<tthread::mutex> guard(threadClaimMutex);
           //If the main thread's local metadata doesn't have this track yet, reload metadata

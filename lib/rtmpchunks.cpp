@@ -498,7 +498,7 @@ bool RTMPStream::doHandshake(){
   char Version;
   // Read C0
   if (handshake_in.size() < 1537){
-    FAIL_MSG("Handshake wasn't filled properly (%lu/1537) - aborting!", handshake_in.size());
+    FAIL_MSG("Handshake wasn't filled properly (%zu/1537) - aborting!", handshake_in.size());
     return false;
   }
   Version = RTMPStream::handshake_in[0];

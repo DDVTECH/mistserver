@@ -430,7 +430,7 @@ namespace Mist{
       }
       tmpPos.segmentNo = backChrs - (loc - buffer);
       tmpPos.bytepos -= tmpPos.segmentNo;
-      INFO_MSG("Track %zu, segment %zu found at bytepos %" PRIu64, it->first, tmpPos.segmentNo,
+      INFO_MSG("Track %zu, segment %" PRIu64 " found at bytepos %" PRIu64, it->first, tmpPos.segmentNo,
                tmpPos.bytepos);
 
       currentPositions.insert(tmpPos);

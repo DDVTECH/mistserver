@@ -123,9 +123,9 @@ namespace DTSC{
       void nullMember(const std::string & memb);
     size_t getTrackId() const;
     char *getData() const;
-    size_t getDataLen() const;
-    size_t getPayloadLen() const;
-    size_t getDataStringLen();
+    uint32_t getDataLen() const;
+    uint32_t getPayloadLen() const;
+    uint32_t getDataStringLen();
     size_t getDataStringLenOffset();
     JSON::Value toJSON() const;
     std::string toSummary() const;
@@ -136,8 +136,8 @@ namespace DTSC{
     packType version;
     void resize(size_t size);
     char *data;
-    size_t bufferLen;
-    size_t dataLen;
+    uint32_t bufferLen;
+    uint32_t dataLen;
 
     uint64_t prevNalSize;
   };

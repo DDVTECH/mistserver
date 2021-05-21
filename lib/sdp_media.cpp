@@ -847,7 +847,7 @@ namespace SDP{
     M.setType(tid, "video");
     M.setRate(tid, answerVideoFormat.getVideoRate());
     M.setID(tid, answerVideoFormat.payloadType);
-    INFO_MSG("Setup video track %zu for payload type %zu", tid, answerVideoFormat.payloadType);
+    INFO_MSG("Setup video track %zu for payload type %" PRIu64, tid, answerVideoFormat.payloadType);
     return true;
   }
 
@@ -869,7 +869,7 @@ namespace SDP{
     M.setChannels(tid, answerAudioFormat.getAudioNumChannels());
     M.setSize(tid, answerAudioFormat.getAudioBitSize());
     M.setID(tid, answerAudioFormat.payloadType);
-    INFO_MSG("Setup audio track %zu for payload time %zu", tid, answerAudioFormat.payloadType);
+    INFO_MSG("Setup audio track %zu for payload time %" PRIu64, tid, answerAudioFormat.payloadType);
     return true;
   }
 
@@ -1017,8 +1017,8 @@ namespace SDP{
           usedProfile = "42e01f";
         }
 
-        addLine("a=fmtp:%u profile-level-id=%s;level-asymmetry-allowed=1;packetization-mode=1",
-                fmtMedia->payloadType, usedProfile.c_str());
+        addLine("a=fmtp:%u profile-level-id=42e01f;level-asymmetry-allowed=1;packetization-mode=1",
+                fmtMedia->payloadType);
       }else if (fmtMedia->encodingName == "OPUS"){
         addLine("a=fmtp:%u minptime=10;useinbandfec=1", fmtMedia->payloadType);
       }

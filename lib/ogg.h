@@ -45,8 +45,8 @@ namespace OGG{
     void setHeaderType(char newVal);
     long long unsigned int getGranulePosition();
     void setGranulePosition(long long unsigned int newVal);
-    long unsigned int getBitstreamSerialNumber();
-    void setBitstreamSerialNumber(long unsigned int newVal);
+    uint32_t getBitstreamSerialNumber();
+    void setBitstreamSerialNumber(uint32_t newVal);
     long unsigned int getCRCChecksum();
     void setCRCChecksum(long unsigned int newVal);
     long unsigned int getPageSequenceNumber();

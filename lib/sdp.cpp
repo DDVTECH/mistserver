@@ -607,10 +607,10 @@ namespace SDP{
   }
 
   /// Calculates H265 track metadata from sps and pps data stored in tracks[trackNo]
-  void State::updateH265Init(size_t tid){
+  void State::updateH265Init(uint64_t tid){
     SDP::Track &RTrk = tracks[tid];
     if (!RTrk.hevcInfo.haveRequired()){
-      MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", tid);
+      MEDIUM_MSG("Aborted meta fill for hevc track %" PRIu64 ": no info nal unit", tid);
       return;
     }
     myMeta->setInit(tid, RTrk.hevcInfo.generateHVCC());
@@ -647,7 +647,7 @@ namespace SDP{
   }
 
   size_t State::getTrackNoForChannel(uint8_t chan){
-    for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+    for (std::map<uint64_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
       if (chan == it->second.channel){return it->first;}
     }
     return INVALID_TRACK_ID;
@@ -671,7 +671,7 @@ namespace SDP{
 
     while (loop){
       if (tracks.size()){
-        for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
+        for (std::map<uint64_t, Track>::iterator it = tracks.begin(); it != tracks.end(); ++it){
           if (!it->second.control.size()){
             it->second.control = "/track" + JSON::Value(it->first).asString();
             INFO_MSG("Control track: %s", it->second.control.c_str());
@@ -681,7 +681,7 @@ namespace SDP{
                urlString.substr(urlString.size() - it->second.control.size()) == it->second.control) ||
               (pw.size() >= it->second.control.size() &&
                pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
-            INFO_MSG("Parsing SETUP against track %lu", it->first);
+            INFO_MSG("Parsing SETUP against track %" PRIu64, it->first);
             if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src, myMeta, it->first)){
               return INVALID_TRACK_ID;
             }
@@ -720,7 +720,7 @@ namespace SDP{
     return ((double)M->getRate(tid) / 1000.0);
   }
 
-  void State::updateInit(const size_t tid, const std::string &initData){
+  void State::updateInit(const uint64_t tid, const std::string &initData){
     myMeta->setInit(tid, initData.data(), initData.size());
   }
 

@@ -670,7 +670,7 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
   uint64_t currPktLost = getPktLost();
   uint64_t currPktRetrans = getPktRetransmit();
   if (currUp - prevUp < 0 || currDown - prevDown < 0){
-    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp - prevUp,
+    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%" PRIu64, currUp - prevUp,
              currDown - prevDown, prevUp, currUp, myStream.c_str(), myConnector.c_str(), index);
   }else{
     if (!noBWCount){

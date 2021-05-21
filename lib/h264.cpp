@@ -38,10 +38,10 @@ namespace h264{
     return false;
   }
 
-  std::deque<nalu::nalData> analysePackets(const char *data, unsigned long len){
+  std::deque<nalu::nalData> analysePackets(const char *data, size_t len){
     std::deque<nalu::nalData> res;
 
-    int offset = 0;
+    size_t offset = 0;
     // Make sure entire packet is within len
     while (offset + 5 < len && Bit::btohl(data + offset) + offset + 4 <= len){
       nalu::nalData entry;

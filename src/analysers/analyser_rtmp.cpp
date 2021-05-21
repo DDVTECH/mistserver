@@ -67,17 +67,17 @@ bool AnalyserRTMP::parsePacket(){
   }
 
   // We now know for sure that we've parsed a packet
-  DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u",
+  DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %" PRIu64 ", len %u, type ID %u, Stream ID %u",
             next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
   switch (next.msg_type_id){
   case 0: // does not exist
-    DETAIL_LOW("Error chunk @ %lu - CS%i, T%i, L%i, LL%i, MID%i", read_in - strbuf.size(),
+    DETAIL_LOW("Error chunk @ %zu - CS%u, T%" PRIu64 ", L%i, LL%i, MID%i", read_in - strbuf.size(),
                next.cs_id, next.timestamp, next.real_len, next.len_left, next.msg_stream_id);
     return 0;
     break; // happens when connection breaks unexpectedly
   case 1:  // set chunk size
     RTMPStream::chunk_rec_max = ntohl(*(int *)next.data.c_str());
-    DETAIL_MED("CTRL: Set chunk size: %" PRIu64, RTMPStream::chunk_rec_max);
+    DETAIL_MED("CTRL: Set chunk size: %zu", RTMPStream::chunk_rec_max);
     break;
   case 2: // abort message - we ignore this one
     DETAIL_MED("CTRL: Abort message: %" PRIu32, Bit::btohl(next.data.data()));
@@ -85,7 +85,7 @@ bool AnalyserRTMP::parsePacket(){
     break;
   case 3: // ack
     RTMPStream::snd_window_at = Bit::btohl(next.data.data());
-    DETAIL_MED("CTRL: Acknowledgement: %" PRIu64, RTMPStream::snd_window_at);
+    DETAIL_MED("CTRL: Acknowledgement: %zu", RTMPStream::snd_window_at);
     break;
   case 4:{
     int16_t ucmtype = Bit::btohs(next.data.data());
@@ -124,12 +124,12 @@ bool AnalyserRTMP::parsePacket(){
   case 5: // window size of other end
     RTMPStream::rec_window_size = Bit::btohl(next.data.data());
     RTMPStream::rec_window_at = RTMPStream::rec_cnt;
-    DETAIL_MED("CTRL: Window size: %" PRIu64, RTMPStream::rec_window_size);
+    DETAIL_MED("CTRL: Window size: %zu", RTMPStream::rec_window_size);
     break;
   case 6:
     RTMPStream::snd_window_size = Bit::btohl(next.data.data());
     // 4 bytes window size, 1 byte limit type (ignored)
-    DETAIL_MED("CTRL: Set peer bandwidth: %" PRIu64, RTMPStream::snd_window_size);
+    DETAIL_MED("CTRL: Set peer bandwidth: %zu", RTMPStream::snd_window_size);
     break;
   case 8:
   case 9:

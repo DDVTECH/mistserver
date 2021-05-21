@@ -857,7 +857,7 @@ namespace Mist{
           }
           if (mainTrack == ti->first){continue;}// skip self
           if (!M.trackValid(ti->first)){
-            HIGH_MSG("Skipping track %lu, not in tracks", ti->first);
+            HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
             continue;
           }// ignore missing tracks
           if (M.getLastms(ti->first) < seekPos + needsLookAhead + extraKeepAway + M.getMinKeepAway(ti->first)){
@@ -865,7 +865,7 @@ namespace Mist{
             break;
           }
           if (meta.getLastms(ti->first) == M.getFirstms(ti->first)){
-            HIGH_MSG("Skipping track %lu, last equals first", ti->first);
+            HIGH_MSG("Skipping track %zu, last equals first", ti->first);
             continue;
           }// ignore point-tracks
           if (meta.getLastms(ti->first) < seekPos){
@@ -881,7 +881,7 @@ namespace Mist{
     /*LTS-START*/
     if (isRecordingToFile){
       if (M.getLive()){
-        MEDIUM_MSG("Stream currently contains data from %lu ms to %lu ms", startTime(), endTime());
+        MEDIUM_MSG("Stream currently contains data from %" PRIu64 " ms to %" PRIu64 " ms", startTime(), endTime());
       }
       // Overwrite recstart/recstop with recstartunix/recstopunix if set
       if (M.getLive() &&
@@ -952,7 +952,7 @@ namespace Mist{
         INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
       }
       else{
-        INFO_MSG("Recording will start at timestamp %lu ms", endTime()); 
+        INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime()); 
       }
       if (targetParams.count("recstop")){
         INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
@@ -988,12 +988,12 @@ namespace Mist{
             int64_t origStartUnix = startUnix;
             startUnix += Util::epoch();
             if (startUnix < unixStreamBegin){
-              INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
+              INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
               while (startUnix < Util::epoch() - (endTime() / 1000) && keepGoing()){
                 Util::wait(1000);
                 stats();
                 startUnix = origStartUnix + Util::epoch();
-                HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
+                HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
               }
             }
           }
@@ -1034,11 +1034,11 @@ namespace Mist{
           }
           int64_t streamAvail = M.getLastms(mainTrack);
           int64_t lastUpdated = Util::getMS();
-          INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
+          INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
             if (M.getLastms(mainTrack) > streamAvail){
-              HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%lu'", streamAvail);
+              HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
               stats();
               streamAvail = M.getLastms(mainTrack);
               lastUpdated = Util::getMS();
@@ -1064,7 +1064,7 @@ namespace Mist{
       MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
       seek(seekPos);
     }else{
-      ERROR_MSG("Aborting seek to %" PRIu64 " since stream only has available from %lu ms to %lu ms", seekPos, startTime(), endTime());
+      ERROR_MSG("Aborting seek to %" PRIu64 " since stream only has available from %" PRIu64 " ms to %" PRIu64 " ms", seekPos, startTime(), endTime());
     }
   }
 
@@ -1116,7 +1116,7 @@ namespace Mist{
         }
       }
       if (realTime != newSpeed){
-        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA, %lu eKA)", realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
+        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA, %" PRIu64 " eKA)", realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
         firstTime = Util::bootMS() - (cTime * newSpeed / 1000);
         realTime = newSpeed;
       }
@@ -1144,15 +1144,15 @@ namespace Mist{
         }
         if (mainTrack == ti->first){continue;}// skip self
         if (meta.getLastms(ti->first) == meta.getFirstms(ti->first)){
-          HIGH_MSG("Skipping track %lu, last equals first", ti->first);
+          HIGH_MSG("Skipping track %zu, last equals first", ti->first);
           continue;
         }// ignore point-tracks
-        HIGH_MSG("Track %lu is good", ti->first);
+        HIGH_MSG("Track %zu is good", ti->first);
       }
       // if yes, seek here
       if (good){
         HIGH_MSG("Skipping forward %" PRIu64 "ms (%" PRIu64 " ms LA, %" PRIu64
-                 " ms mKA, %lu eKA, > %" PRIu32 "ms, mSa %" PRIu64 " ms)",
+                 " ms mKA, %" PRIu64 " eKA, > %" PRIu32 "ms, mSa %" PRIu64 " ms)",
                  seekPos - cTime, needsLookAhead, mKa, extraKeepAway, seekCount * 100, maxSkipAhead);
         if (seekCount < 20){++seekCount;}
         seek(seekPos);
@@ -1316,7 +1316,7 @@ namespace Mist{
             // delay the stream until metadata has caught up, if needed
             if (needsLookAhead && M.getLive()){
               // we sleep in 20ms increments, or less if the lookahead time itself is less
-              uint32_t sleepTime = std::min(20ul, needsLookAhead);
+              uint32_t sleepTime = std::min((uint64_t)20, needsLookAhead);
               // wait at most double the look ahead time, plus ten seconds
               uint64_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
               uint64_t needsTime = thisTime + needsLookAhead;
@@ -1346,7 +1346,7 @@ namespace Mist{
                 meta.reloadReplacedPagesIfNeeded();
               }
               if (!timeoutTries){
-                WARN_MSG("Waiting for lookahead (%zums in %zu tracks) timed out - resetting lookahead!", needsLookAhead, userSelect.size());
+                WARN_MSG("Waiting for lookahead (%" PRIu64 "ms in %zu tracks) timed out - resetting lookahead!", needsLookAhead, userSelect.size());
                 needsLookAhead = 0;
               }
             }
@@ -1452,8 +1452,8 @@ namespace Mist{
     // depending on whether this is probably bad and the current debug level, print a message
     size_t printLevel = (probablyBad ? DLVL_WARN : DLVL_INFO);
     const Comms::Users &usr = userSelect.at(trackId);
-    DEBUG_MSG(printLevel, "Dropping %s (%s) track %zu@k%zu (nextP=%zu, lastP=%zu): %s",
-              streamName.c_str(), meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
+    DEBUG_MSG(printLevel, "Dropping %s track %zu@k%zu (nextP=%" PRIu64 ", lastP=%" PRIu64 "): %s",
+              meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
               pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
     // now actually drop the track from the buffer
     buffer.dropTrack(trackId);
@@ -1651,7 +1651,7 @@ namespace Mist{
           }
           //every ~16 seconds, reconnect to metadata
           if (emptyCount % 1600 == 0){
-            INFO_MSG("Reconnecting to input; track %" PRIu64 " key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
+            INFO_MSG("Reconnecting to input; track %zu key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
             reconnect();
             if (!meta){
               onFail("Could not connect to stream data", true);
@@ -1768,7 +1768,7 @@ namespace Mist{
 
     lastStats = now;
 
-    VERYHIGH_MSG("Writing stats: %s, %s, %u, %lu, %lu", getConnectedHost().c_str(), streamName.c_str(),
+    VERYHIGH_MSG("Writing stats: %s, %s, %u, %" PRIu64 ", %" PRIu64, getConnectedHost().c_str(), streamName.c_str(),
              crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
     if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){

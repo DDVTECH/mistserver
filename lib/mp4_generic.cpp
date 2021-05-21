@@ -2772,7 +2772,7 @@ namespace MP4{
     if (count == index){
       setBox(box, offset);
     }else{
-      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %zu",
+      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %" PRIu64,
                index, count, offset, payloadSize());
     }
   }
@@ -2916,7 +2916,7 @@ namespace MP4{
     if (count == index){
       setBox(box, offset);
     }else{
-      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %zu",
+      INFO_MSG("Should not be here! Index is %zu, count is %zu, offset is %zu, payloadSize is %" PRIu64,
                index, count, offset, payloadSize());
     }
   }

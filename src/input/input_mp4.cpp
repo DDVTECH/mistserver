@@ -484,7 +484,7 @@ namespace Mist{
       malSize = curPart.size;
     }
     if (fread(data, curPart.size, 1, inFile) != 1){
-      FAIL_MSG("read unsuccessful at %" PRIu64, ftell(inFile));
+      FAIL_MSG("read unsuccessful at %ld", ftell(inFile));
       thisPacket.null();
       return;
     }

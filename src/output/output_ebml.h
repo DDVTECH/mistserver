@@ -24,7 +24,7 @@ namespace Mist{
     uint64_t newClusterTime;
     // VoD-only
     void calcVodSizes();
-    size_t segmentSize;                    // size of complete segment contents (excl. header)
+    uint64_t segmentSize;                    // size of complete segment contents (excl. header)
     size_t tracksSize;                     // size of Tracks (incl. header)
     size_t infoSize;                       // size of Info (incl. header)
     size_t cuesSize;                       // size of Cues (excl. header)

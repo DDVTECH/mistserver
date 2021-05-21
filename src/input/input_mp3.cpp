@@ -63,7 +63,7 @@ namespace Mist{
       size_t id3size = (((int)header[6] & 0x7F) << 21) | (((int)header[7] & 0x7F) << 14) |
                        (((int)header[8] & 0x7F) << 7) |
                        ((header[9] & 0x7F) + 10 + ((header[5] & 0x10) ? 10 : 0));
-      INFO_MSG("id3 size: %lu bytes", id3size);
+      INFO_MSG("id3 size: %zu bytes", id3size);
       fseek(inFile, id3size, SEEK_SET);
     }else{
       fseek(inFile, 0, SEEK_SET);

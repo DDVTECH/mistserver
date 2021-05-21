@@ -506,7 +506,7 @@ namespace Mist{
   /// Reads and handles RTP packets over UDP, if needed
   void OutRTSP::handleUDP(){
     if (!isPushing()){return;}
-    for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+    for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       it->second.sorter.setCallback(it->first, insertRTP);

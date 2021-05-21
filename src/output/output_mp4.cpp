@@ -836,7 +836,7 @@ namespace Mist{
        segfaults.
     */
     if (!thisPacket.getData()) {
-      FAIL_MSG("Current packet has no data, lookahead: %lu.", needsLookAhead);
+      FAIL_MSG("Current packet has no data, lookahead: %" PRIu64, needsLookAhead);
       return;
     }
     
@@ -1185,7 +1185,7 @@ namespace Mist{
           H.SendResponse("500", "Error generating MP4 header", myConn);
           return;
         }
-        INFO_MSG("Have %zu bytes, sending %zu bytes", headerData.size(), std::min(headerSize, byteEnd) - byteStart);
+        INFO_MSG("Have %zu bytes, sending %" PRIu64 " bytes", headerData.size(), std::min(headerSize, byteEnd) - byteStart);
         H.Chunkify(headerData + byteStart, std::min(headerSize, byteEnd) - byteStart, myConn);
         leftOver -= std::min(headerSize, byteEnd) - byteStart;
       }

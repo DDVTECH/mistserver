@@ -587,7 +587,7 @@ namespace Mist{
           for (std::set<size_t>::iterator it = activeTracks.begin(); it != activeTracks.end(); it++){
             if (!liveStream.isDataTrack(*it)){continue;}
             if (threadTimer.count(*it) && ((Util::bootSecs() - threadTimer[*it]) > (2 * THREAD_TIMEOUT))){
-              WARN_MSG("Thread for track %" PRIu64 " timed out %" PRIu64
+              WARN_MSG("Thread for track %zu timed out %" PRIu64
                        " seconds ago without a clean shutdown.",
                        *it, Util::bootSecs() - threadTimer[*it]);
               threadTimer.erase(*it);

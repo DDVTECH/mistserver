@@ -28,10 +28,10 @@ bool AnalyserOGG::parsePacket(){
       sn2Codec[oggPage.getBitstreamSerialNumber()] = "Opus";
     }
     if (sn2Codec[oggPage.getBitstreamSerialNumber()] != ""){
-      INFO_MSG("Bitstream %" PRIu64 " recognized as %s", oggPage.getBitstreamSerialNumber(),
+      INFO_MSG("Bitstream %" PRIu32 " recognized as %s", oggPage.getBitstreamSerialNumber(),
                sn2Codec[oggPage.getBitstreamSerialNumber()].c_str());
     }else{
-      WARN_MSG("Bitstream %" PRIu64 " not recognized!", oggPage.getBitstreamSerialNumber());
+      WARN_MSG("Bitstream %" PRIu32 " not recognized!", oggPage.getBitstreamSerialNumber());
     }
   }
 

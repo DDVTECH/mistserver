@@ -99,7 +99,7 @@ int main(int argc, char **argv){
                   for (uint64_t j = pages.getDeleted(); j < pages.getEndPos(); j++){
                     char thisPageName[NAME_BUFFER_SIZE];
                     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA,
-                             Util::streamName, i, pages.getInt("firstkey", j));
+                             Util::streamName, i, (uint32_t)pages.getInt("firstkey", j));
                     IPC::sharedPage p(thisPageName, 0);
                     p.master = true;
                   }

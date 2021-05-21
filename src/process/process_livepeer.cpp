@@ -230,7 +230,7 @@ namespace Mist{
               trackId = (S.ID << 16) + thisPacket.getTrackId();
               size_t idx = M.trackIDToIndex(trackId, getpid());
               if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
-                INFO_MSG("Initializing track %zi as %" PRIu64 " for playlist %" PRIu64, thisPacket.getTrackId(), trackId, S.ID);
+                INFO_MSG("Initializing track %zi as %" PRIu64 " for playlist %zu", thisPacket.getTrackId(), trackId, S.ID);
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
               }
             }

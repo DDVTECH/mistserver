@@ -529,7 +529,7 @@ namespace Mist{
     if (M && M.getVod()){
       meta.removeEmptyTracks();
       parseHeader();
-      INFO_MSG("Header parsed, %lu tracks", M.getValidTracks().size());
+      INFO_MSG("Header parsed, %zu tracks", M.getValidTracks().size());
     }
 
     if (!streamName.size()){
@@ -1121,7 +1121,7 @@ namespace Mist{
         WARN_MSG("No pages for track %zu found", *it);
         continue;
       }
-      MEDIUM_MSG("Track %zu (%s) split into %zu pages", *it, M.getCodec(*it).c_str(), tPages.getEndPos());
+      MEDIUM_MSG("Track %zu (%s) split into %" PRIu64 " pages", *it, M.getCodec(*it).c_str(), tPages.getEndPos());
       for (size_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
         size_t pageNumber = tPages.getInt("firstkey", j);
         size_t pageKeys = tPages.getInt("keycount", j);

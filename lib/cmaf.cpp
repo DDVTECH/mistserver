@@ -410,7 +410,10 @@ namespace CMAF{
         trunBox.setSampleInformation(sampleInfo, trunOffset++);
       }
     }else{
-      WARN_MSG("Empty CMAF header for track %zu: %zu-%zu contains no packets (first: %" PRIu64 ", last: %" PRIu64 "), firstPart=%zu, lastPart=%zu", track, startTime, endTime, M.getFirstms(track), M.getLastms(track), firstPart, endPart);
+      WARN_MSG("Empty CMAF header for track %zu: %" PRIu64 "-%" PRIu64 " contains no packets (first: %" PRIu64
+               ", last: %" PRIu64 "), firstPart=%zu, lastPart=%zu",
+               track, startTime, endTime, M.getFirstms(track), M.getLastms(track), firstPart,
+               endPart);
     }
     trafBox.setContent(trunBox, 2);
 

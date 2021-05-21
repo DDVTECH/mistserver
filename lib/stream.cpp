@@ -331,7 +331,7 @@ void Util::packetSorter::getTrackList(std::set<size_t> &toFill) const{
 JSON::Value Util::getStreamConfig(const std::string &streamname){
   JSON::Value result;
   if (streamname.size() > 100){
-    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(),
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%zu).", streamname.c_str(),
              streamname.size());
     return result;
   }
@@ -408,7 +408,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
                       const std::map<std::string, std::string> &overrides, pid_t *spawn_pid){
   sanitizeName(streamname);
   if (streamname.size() > 100){
-    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%lu).", streamname.c_str(),
+    FAIL_MSG("Stream opening denied: %s is longer than 100 characters (%zu).", streamname.c_str(),
              streamname.size());
     return false;
   }

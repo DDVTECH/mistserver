@@ -1329,7 +1329,7 @@ namespace Mist{
         break; // happens when connection breaks unexpectedly
       case 1:  // set chunk size
         RTMPStream::chunk_rec_max = Bit::btohl(next.data.data());
-        MEDIUM_MSG("CTRL: Set chunk size: %" PRIu64, RTMPStream::chunk_rec_max);
+        MEDIUM_MSG("CTRL: Set chunk size: %zu", RTMPStream::chunk_rec_max);
         break;
       case 2: // abort message - we ignore this one
         MEDIUM_MSG("CTRL: Abort message");
@@ -1438,7 +1438,7 @@ namespace Mist{
               tagTime -= (tagTime - ltt) - 1;
             }
           }
-          uint64_t idx = reTrackToID[reTrack];
+          size_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){
             userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
           }

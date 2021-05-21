@@ -635,7 +635,7 @@ namespace TS{
           offset += pesPayload[offset] + 1;
         }
         if (realPayloadSize < offset+packSize){
-          WARN_MSG("Encountered invalid Opus frame (%zu > %zu) - discarding!", offset+packSize, realPayloadSize);
+          WARN_MSG("Encountered invalid Opus frame (%zu > %" PRIu64 ") - discarding!", offset+packSize, realPayloadSize);
           break;
         }
         out.push_back(DTSC::Packet());
@@ -783,7 +783,7 @@ namespace TS{
     }
 
     if (!packetReady){
-      ERROR_MSG("Track %lu: PES without valid packets?", tid);
+      ERROR_MSG("Track %zu: PES without valid packets?", tid);
       return;
     }
 
@@ -955,7 +955,7 @@ namespace TS{
       switch (it->second){
       case H264:{
         if (!spsInfo.count(it->first) || !ppsInfo.count(it->first)){
-          MEDIUM_MSG("Aborted meta fill for h264 track %lu: no SPS/PPS", it->first);
+          MEDIUM_MSG("Aborted meta fill for h264 track %zu: no SPS/PPS", it->first);
           continue;
         }
         // First generate needed data
@@ -984,7 +984,7 @@ namespace TS{
       }break;
       case H265:{
         if (!hevcInfo.count(it->first) || !hevcInfo[it->first].haveRequired()){
-          MEDIUM_MSG("Aborted meta fill for hevc track %lu: no info nal unit", it->first);
+          MEDIUM_MSG("Aborted meta fill for hevc track %zu: no info nal unit", it->first);
           continue;
         }
         addNewTrack = true;
@@ -1123,7 +1123,7 @@ namespace TS{
           entry.advance();
         }
       }
-      MEDIUM_MSG("Initialized track %lu as %s %s", idx, codec.c_str(), type.c_str());
+      MEDIUM_MSG("Initialized track %zu as %s %s", idx, codec.c_str(), type.c_str());
     }
   }
 

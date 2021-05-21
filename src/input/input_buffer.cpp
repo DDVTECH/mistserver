@@ -499,7 +499,7 @@ namespace Mist{
 
     std::set<size_t> validTracks = M.getValidTracks();
     if (validTracks != prevValidTracks){
-      MEDIUM_MSG("Valid tracks count changed from %lu to %lu", prevValidTracks.size(), validTracks.size());
+      MEDIUM_MSG("Valid tracks count changed from %zu to %zu", prevValidTracks.size(), validTracks.size());
       prevValidTracks = validTracks;
       if (Triggers::shouldTrigger("LIVE_TRACK_LIST")){
         JSON::Value triggerPayload;
@@ -566,7 +566,7 @@ namespace Mist{
     if (tmpNum < meta.biggestFragment() / 2){tmpNum = meta.biggestFragment() / 2;}
     segmentSize = meta.getMinimumFragmentDuration();
     if (segmentSize != tmpNum){
-      INFO_MSG("Setting segmentSize from %" PRIu64 " to new value of %" PRIu64, segmentSize, tmpNum);
+      INFO_MSG("Setting segmentSize from %zu to new value of %" PRIu64, segmentSize, tmpNum);
       segmentSize = tmpNum;
       meta.setMinimumFragmentDuration(segmentSize);
     }

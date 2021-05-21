@@ -493,14 +493,14 @@ bool FLV::Tag::DTSCAudioInit(const std::string & codec, unsigned int sampleRate,
   return true;
 }
 
-bool FLV::Tag::DTSCMetaInit(const DTSC::Meta &M, std::set<long unsigned int> &selTracks){
+bool FLV::Tag::DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks){
   AMF::Object amfdata("root", AMF::AMF0_DDV_CONTAINER);
   amfdata.addContent(AMF::Object("", "onMetaData"));
   amfdata.addContent(AMF::Object("", AMF::AMF0_ECMA_ARRAY));
   AMF::Object trinfo = AMF::Object("trackinfo", AMF::AMF0_STRICT_ARRAY);
   int i = 0;
   uint64_t mediaLen = 0;
-  for (std::set<long unsigned int>::iterator it = selTracks.begin(); it != selTracks.end(); it++){
+  for (std::set<size_t>::iterator it = selTracks.begin(); it != selTracks.end(); it++){
     if (M.getLastms(*it) - M.getFirstms(*it) > mediaLen){
       mediaLen = M.getLastms(*it) - M.getFirstms(*it);
     }

@@ -134,7 +134,7 @@ namespace Mist{
         while (i + 4 < (unsigned int)dataLen){
           ThisNaluSize = Bit::btohl(dataPointer + i);
           if (ThisNaluSize + i + 4 > dataLen){
-            WARN_MSG("Too big NALU detected (%" PRIu32 " > %" PRIu64 ") - skipping!",
+            WARN_MSG("Too big NALU detected (%" PRIu32 " > %zu) - skipping!",
                      ThisNaluSize + i + 4, dataLen);
             break;
           }

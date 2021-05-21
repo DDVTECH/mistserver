@@ -47,8 +47,8 @@ namespace SDP{
     void (*incomingPacketCallback)(const DTSC::Packet &pkt);
     void parseSDP(const std::string &sdp);
     void parseSDPEx(const std::string &sdp);
-    void updateH264Init(size_t trackNo);
-    void updateH265Init(size_t tid);
+    void updateH264Init(uint64_t trackNo);
+    void updateH265Init(uint64_t trackNo);
     void updateInit(const uint64_t trackNo, const std::string &initData);
     size_t getTrackNoForChannel(uint8_t chan);
     size_t parseSetup(HTTP::Parser &H, const std::string &host, const std::string &source);
@@ -56,8 +56,8 @@ namespace SDP{
 
   public:
     DTSC::Meta *myMeta;
-    std::map<size_t, RTP::toDTSC> tConv; ///< Converters to DTSC
-    std::map<size_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
+    std::map<uint64_t, RTP::toDTSC> tConv; ///< Converters to DTSC
+    std::map<uint64_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
   };
 
   std::string mediaDescription(const DTSC::Meta *M, size_t tid);

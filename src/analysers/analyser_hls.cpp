@@ -105,7 +105,7 @@ bool AnalyserHLS::parsePacket(){
       if (!DL.get(part.uri)){return false;}
       if (DL.getHeader("Content-Length") != ""){
         if (DL.data().size() != atoi(DL.getHeader("Content-Length").c_str())){
-          FAIL_MSG("Expected %s bytes of data, but only received %lu.",
+          FAIL_MSG("Expected %s bytes of data, but only received %zu.",
                    DL.getHeader("Content-Length").c_str(), DL.data().size());
           return false;
         }

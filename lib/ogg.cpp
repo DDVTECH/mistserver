@@ -98,8 +98,8 @@ namespace OGG{
 
   /// Reads an OGG Page from the source and if valid, removes it from source.
   bool Page::read(std::string &newData){
-    int len = newData.size();
-    int total = 0;
+    size_t len = newData.size();
+    size_t total = 0;
     segments.clear();
     if (newData.size() < 27){return false;}
     if (newData.substr(0, 4) != "OggS"){
@@ -127,7 +127,7 @@ namespace OGG{
       newData.erase(0, *it);
     }
 
-    INFO_MSG("Erased %lu bytes from the input", len - newData.size());
+    INFO_MSG("Erased %zu bytes from the input", len - newData.size());
     return true;
   }
 
@@ -203,12 +203,12 @@ namespace OGG{
 
   void Page::setGranulePosition(long long unsigned int newVal){set_64(data + 6, newVal);}
 
-  long unsigned int Page::getBitstreamSerialNumber(){
+  uint32_t Page::getBitstreamSerialNumber(){
     // return ntohl(((long unsigned int*)(data+14))[0]);
     return get_32(data + 14);
   }
 
-  void Page::setBitstreamSerialNumber(long unsigned int newVal){set_32(data + 14, newVal);}
+  void Page::setBitstreamSerialNumber(uint32_t newVal){set_32(data + 14, newVal);}
 
   long unsigned int Page::getPageSequenceNumber(){return get_32(data + 18);}
 

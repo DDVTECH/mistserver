@@ -348,7 +348,7 @@ namespace Mist{
       EBML::sendElemHead(myConn, EBML::EID_CUES, cuesSize);
       uint64_t tmpsegSize = infoSize + tracksSize + seekheadSize + cuesSize +
                             EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
-      for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
+      for (std::map<size_t, size_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
         EBML::sendElemCuePoint(myConn, it->first, idx + 1, tmpsegSize, 0);
         tmpsegSize += it->second;
       }
@@ -358,8 +358,8 @@ namespace Mist{
 
   /// Seeks to the given byte position by doing a regular seek and remembering the byte offset from
   /// that point
-  void OutEBML::byteSeek(uint64_t startPos){
-    INFO_MSG("Seeking to %" PRIu64 " bytes", startPos);
+  void OutEBML::byteSeek(size_t startPos){
+    INFO_MSG("Seeking to %zu bytes", startPos);
     sentHeader = false;
     newClusterTime = 0;
     if (startPos == 0){
@@ -377,10 +377,10 @@ namespace Mist{
     }
     startPos -= headerSize;
     sentHeader = true; // skip the header
-    for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
-      VERYHIGH_MSG("Cluster %" PRIu64 " (%" PRIu64 " bytes) -> %" PRIu64 " to go", it->first, it->second, startPos);
+    for (std::map<size_t, size_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
+      VERYHIGH_MSG("Cluster %zu (%zu bytes) -> %zu to go", it->first, it->second, startPos);
       if (startPos < it->second){
-        HIGH_MSG("Seek to fragment at %" PRIu64 " ms", it->first);
+        HIGH_MSG("Seek to fragment at %zu ms", it->first);
         myConn.skipBytes(startPos);
         seek(it->first);
         newClusterTime = it->first;
@@ -413,8 +413,8 @@ namespace Mist{
       totalSize = EBML::sizeElemEBML(doctype) + EBML::sizeElemHead(EBML::EID_SEGMENT, segmentSize) + segmentSize;
     }
 
-    size_t byteEnd = totalSize - 1;
-    size_t byteStart = 0;
+    uint64_t byteEnd = totalSize - 1;
+    uint64_t byteStart = 0;
     if (!M.getLive() && req.GetHeader("Range") != ""){
       //Range request
       if (parseRange(req.GetHeader("Range"), byteStart, byteEnd)){
@@ -521,7 +521,7 @@ namespace Mist{
       segmentSize = infoSize + tracksSize + seekheadSize + cuesSize +
                     EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
       uint32_t cuesInside = 0;
-      for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
+      for (std::map<size_t, size_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
         cuesInside += EBML::sizeElemCuePoint(it->first, idx + 1, segmentSize, 0);
         segmentSize += it->second;
       }

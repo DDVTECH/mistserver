@@ -771,7 +771,7 @@ namespace RTP{
         return;
       }
       if (fuaBuffer.size() && ((pl[2] & 0x80) || missed)){
-        WARN_MSG("H265 FU packet incompleted: %lu", fuaBuffer.size());
+        WARN_MSG("H265 FU packet incompleted: %zu", fuaBuffer.size());
         Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
         fuaBuffer[4] |= 0x80;                        // set error bit
         handleHEVCSingle(msTime, fuaBuffer, fuaBuffer.size(),
@@ -794,7 +794,7 @@ namespace RTP{
       }
 
       if (pl[2] & 0x40){// last packet
-        VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %lu",
+        VERYHIGH_MSG("H265 FU packet type %s (%u) completed: %zu",
                      h265::typeToStr((fuaBuffer[4] & 0x7E) >> 1),
                      (uint8_t)((fuaBuffer[4] & 0x7E) >> 1), fuaBuffer.size());
         Bit::htobl(fuaBuffer, fuaBuffer.size() - 4); // size-prepend
@@ -923,7 +923,7 @@ namespace RTP{
       }
       if (fuaBuffer.size() && ((pl[1] & 0x80) || missed)){
         WARN_MSG("Ending unfinished FU-A");
-        INSANE_MSG("H264 FU-A packet incompleted: %lu", fuaBuffer.size());
+        INSANE_MSG("H264 FU-A packet incompleted: %zu", fuaBuffer.size());
         fuaBuffer.truncate(0);
         return;
       }
@@ -941,7 +941,7 @@ namespace RTP{
       }
 
       if (pl[1] & 0x40){// last packet
-        INSANE_MSG("H264 FU-A packet type %u completed: %lu", (unsigned int)(fuaBuffer[4] & 0x1F),
+        INSANE_MSG("H264 FU-A packet type %u completed: %zu", (unsigned int)(fuaBuffer[4] & 0x1F),
                    fuaBuffer.size());
         uint8_t nalType = (fuaBuffer[4] & 0x1F);
         if (nalType == 7 || nalType == 8){

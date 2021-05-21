@@ -1369,13 +1369,13 @@ namespace TS{
   ///\param selectedTracks tracks to include in PMT creation
   ///\param myMeta
   ///\returns character pointer to a static 188B TS packet
-  const char *createPMT(std::set<unsigned long> &selectedTracks, const DTSC::Meta &M, int contCounter){
+  const char *createPMT(std::set<size_t> &selectedTracks, const DTSC::Meta &M, int contCounter){
     static ProgramMappingTable PMT;
     PMT.setPID(4096);
     PMT.setTableId(2);
     // section length met 2 tracks: 0xB017
     int sectionLen = 0;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
       sectionLen += 5;
       if (codec == "ID3" || codec == "RAW"){sectionLen += M.getInit(*it).size();}
@@ -1394,7 +1394,7 @@ namespace TS{
     PMT.setLastSectionNumber(0);
     PMT.setContinuityCounter(contCounter);
     int vidTrack = -1;
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (M.getType(*it) == "video"){
         vidTrack = *it;
         break;
@@ -1404,7 +1404,7 @@ namespace TS{
     PMT.setPCRPID(getUniqTrackID(M, vidTrack));
     PMT.setProgramInfoLength(0);
     ProgramMappingEntry entry = PMT.getEntry(0);
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+    for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string codec = M.getCodec(*it);
       entry.setElementaryPid(getUniqTrackID(M, *it));
       std::string es_info;

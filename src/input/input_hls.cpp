@@ -809,7 +809,7 @@ namespace Mist{
           tsStream.getEarliestPacket(thisPacket);
           tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
           if (!tid){
-            INFO_MSG("Track %" PRIu64 " on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
+            INFO_MSG("Track %zu on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
             continue;
           }
         }else{
@@ -1243,7 +1243,7 @@ namespace Mist{
          pListIt != listEntries.end(); pListIt++){
       segCount += pListIt->second.size();
       if (pListIt->second.size()){
-        INSANE_MSG("Playlist %u contains %lu segments, with the earliest segment starting @%zu ms", pListIt->first, pListIt->second.size(), firstTimeStamp);
+        INSANE_MSG("Playlist %u contains %zu segments, with the earliest segment starting @%" PRIu64 " ms", pListIt->first, pListIt->second.size(), firstTimeStamp);
         if (pListIt->second.front().timestamp < firstTimeStamp || tmpId < 0){
           firstTimeStamp = pListIt->second.front().timestamp;
           tmpId = pListIt->first;

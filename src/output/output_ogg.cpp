@@ -66,7 +66,7 @@ namespace Mist{
     size_t index = 0;
     if (initData[0] == 0x02){//"special" case, requires interpretation similar to table
       if (initData.size() < 7){
-        FAIL_MSG("initData size too tiny (size: %lu)", initData.size());
+        FAIL_MSG("initData size too tiny (size: %zu)", initData.size());
         return false;
       }
       size_t len1 = 0;
@@ -94,7 +94,7 @@ namespace Mist{
       output.push_back(initData.substr(index));
     }else{
       if (initData.size() < 7){
-        FAIL_MSG("initData size too tiny (size: %lu)", initData.size());
+        FAIL_MSG("initData size too tiny (size: %zu)", initData.size());
         return false;
       }
       unsigned int len = 0;

@@ -52,7 +52,7 @@ namespace FLV{
     bool DTSCLoader(DTSC::Packet &packData, const DTSC::Meta &M, size_t idx);
     bool DTSCVideoInit(DTSC::Meta &meta, uint32_t vTrack);
     bool DTSCAudioInit(const std::string & codec, unsigned int sampleRate, unsigned int sampleSize, unsigned int channels, const std::string & initData);
-    bool DTSCMetaInit(const DTSC::Meta &M, std::set<long unsigned int> &selTracks);
+    bool DTSCMetaInit(const DTSC::Meta &M, std::set<size_t> &selTracks);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage);
     void toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrack, const std::map<std::string, std::string> &targetParams);
     bool MemLoader(char *D, unsigned int S, unsigned int &P);

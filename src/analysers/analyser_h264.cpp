@@ -39,7 +39,7 @@ bool AnalyserH264::parsePacket(){
     FAIL_MSG("Could not read a NAL unit at position %" PRIu64, prePos);
     return false;
   }
-  HIGH_MSG("Read a %lu-byte NAL unit at position %" PRIu64, size, prePos);
+  HIGH_MSG("Read a %zu-byte NAL unit at position %" PRIu64, size, prePos);
   if (detail >= 2){nalPtr->toPrettyString(std::cout);}
   //SPS unit? Find the FPS, if any.
   if (nalPtr->getType() == 7){

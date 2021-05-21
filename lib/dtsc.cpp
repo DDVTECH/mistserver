@@ -318,7 +318,7 @@ namespace DTSC{
     Bit::htobl(data + offset, Bit::btohl(data + offset) + appendLen);
   }
 
-  size_t Packet::getDataStringLen(){return Bit::btohl(data + getDataStringLenOffset());}
+  uint32_t Packet::getDataStringLen(){return Bit::btohl(data + getDataStringLenOffset());}
 
   /// Method can only be used when using internal functions to build the data.
   size_t Packet::getDataStringLenOffset(){
@@ -472,11 +472,11 @@ namespace DTSC{
 
   ///\brief Returns the size of this packet.
   ///\return The size of this packet.
-  uint64_t Packet::getDataLen() const{return dataLen;}
+  uint32_t Packet::getDataLen() const{return dataLen;}
 
   ///\brief Returns the size of the payload of this packet.
   ///\return The size of the payload of this packet.
-  size_t Packet::getPayloadLen() const{
+  uint32_t Packet::getPayloadLen() const{
     if (version == DTSC_V2){
       return dataLen - 20;
     }else{

@@ -55,7 +55,7 @@ namespace Comms{
 
   protected:
     bool master;
-    size_t index;
+    uint64_t index;
     size_t currentSize;
     IPC::semaphore sem;
     IPC::sharedPage dataPage;

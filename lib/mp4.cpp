@@ -110,7 +110,7 @@ namespace MP4{
         fseek(newData, 0, SEEK_END);
         return true;
       }
-      DONTEVEN_MSG("skipping size 0x%.8lX", size);
+      DONTEVEN_MSG("skipping box of size %" PRIu64, size);
       if (fseek(newData, pos + size, SEEK_SET) == 0){
         return true;
       }else{

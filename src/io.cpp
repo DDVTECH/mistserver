@@ -220,7 +220,7 @@ namespace Mist{
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     // Do nothing when there is not enough free space on the page to add the packet.
     if (pageSize - pageOffset < packDataLen){
-      FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %" PRIu64 "b exceeds size %" PRIu64 " @ bpos %" PRIu64,
+      FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64,
                packTrack, currPagNum, packTime, packDataLen, pageSize, pageOffset);
       return;
     }
@@ -386,7 +386,7 @@ namespace Mist{
         }
         // Create the book keeping data for the new page
         nextPageNum = tPages.getInt("firstkey", endPage - 1) + tPages.getInt("keycount", endPage - 1);
-        HIGH_MSG("Live page transition from %" PRIu32 ":%zu to %" PRIu32 ":%" PRIu32, packTrack,
+        HIGH_MSG("Live page transition from %" PRIu32 ":%" PRIu64 " to %" PRIu32 ":%" PRIu32, packTrack,
                  tPages.getInt("firstkey", endPage - 1), packTrack, nextPageNum);
         tPages.setInt("firstkey", nextPageNum, endPage);
         tPages.setInt("firsttime", packTime, endPage);

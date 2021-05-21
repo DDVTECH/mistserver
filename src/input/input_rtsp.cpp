@@ -157,7 +157,7 @@ namespace Mist{
     }
     if (sdpState.tracks.size()){
       bool atLeastOne = false;
-      for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+      for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
            it != sdpState.tracks.end(); ++it){
         transportSet = false;
         extraHeaders.clear();
@@ -358,7 +358,7 @@ namespace Mist{
   bool InputRTSP::handleUDP(){
     if (TCPmode){return false;}
     bool r = false;
-    for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+    for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
       Socket::UDPConnection &s = it->second.data;
       it->second.sorter.setCallback(it->first, insertRTP);

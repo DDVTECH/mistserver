@@ -266,6 +266,8 @@ namespace TS{
             std::string reg = desc.getRegistration();
             if (reg == "Opus"){
               pidToCodec[pid] = OPUS;
+            }else{
+              pidToCodec.erase(pid);
             }
           }
         } break;
@@ -457,8 +459,8 @@ namespace TS{
 
       // Check for large enough buffer
       if ((paySize - offset) < 9 || (paySize - offset) < 9 + pesHeader[8]){
-        INFO_MSG("Not enough data on track %zu (%d / %d), discarding remainder of data", tid,
-                 paySize - offset, 9 + pesHeader[8]);
+        INFO_MSG("Not enough data (%d / %d) on track %zu (%" PRIu32 "), discarding remainder of data",
+                 paySize - offset, 9 + pesHeader[8], tid, pidToCodec[tid]);
         break;
       }
 

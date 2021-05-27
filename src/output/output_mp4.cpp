@@ -1350,7 +1350,7 @@ namespace Mist{
 
     // The remainder of this function handles non-live situations
     if (M.getLive()){
-      sortSet.erase(sortSet.begin());
+      if (sortSet.size()){sortSet.erase(sortSet.begin());}
       return;
     }
 

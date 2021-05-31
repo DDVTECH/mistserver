@@ -775,6 +775,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (trackLow.find("kbps") != std::string::npos && sscanf(trackLow.c_str(), ">%ukbps", &bpsVal) == 1){targetBps = bpsVal*1024;}
     if (trackLow.find("mbps") != std::string::npos && sscanf(trackLow.c_str(), ">%umbps", &bpsVal) == 1){targetBps = bpsVal*1024*1024;}
     if (targetBps){
+      targetBps /= 8;
       // select all tracks of this type that match the requirements
       std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
@@ -802,6 +803,40 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     }
   }
   //approx bitrate matching
+  if (trackLow.size() > 7 && trackLow.substr(0, 4) == "max<"){
+    unsigned int bpsVal;
+    uint64_t targetBps = 0;
+    if (trackLow.find("bps") != std::string::npos && sscanf(trackLow.c_str(), "max<%ubps", &bpsVal) == 1){targetBps = bpsVal;}
+    if (trackLow.find("kbps") != std::string::npos && sscanf(trackLow.c_str(), "max<%ukbps", &bpsVal) == 1){targetBps = bpsVal*1024;}
+    if (trackLow.find("mbps") != std::string::npos && sscanf(trackLow.c_str(), "max<%umbps", &bpsVal) == 1){targetBps = bpsVal*1024*1024;}
+    if (targetBps){
+      targetBps /= 8;
+      // select nearest bit rate track of this type
+      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
+      size_t currVal = INVALID_TRACK_ID;
+      uint32_t currDist = 0;
+      bool foundUnder = false;
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+          if (M.getBps(*it) <= targetBps){
+            if (!foundUnder || currDist > (targetBps-M.getBps(*it))){
+              currVal = *it;
+              currDist = (M.getBps(*it) >= targetBps)?(M.getBps(*it)-targetBps):(targetBps-M.getBps(*it));
+            }
+            foundUnder = true;
+          }else if(!foundUnder){
+            if (currVal == INVALID_TRACK_ID || currDist > (M.getBps(*it)-targetBps)){
+              currVal = *it;
+              currDist = (M.getBps(*it) >= targetBps)?(M.getBps(*it)-targetBps):(targetBps-M.getBps(*it));
+            }
+          }
+        }
+      }
+      if (currVal != INVALID_TRACK_ID){result.insert(currVal);}
+      return result;
+    }
+  }
+  //approx bitrate matching
   {
     unsigned int bpsVal;
     uint64_t targetBps = 0;
@@ -809,6 +844,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (trackLow.find("kbps") != std::string::npos && sscanf(trackLow.c_str(), "%ukbps", &bpsVal) == 1){targetBps = bpsVal*1024;}
     if (trackLow.find("mbps") != std::string::npos && sscanf(trackLow.c_str(), "%umbps", &bpsVal) == 1){targetBps = bpsVal*1024*1024;}
     if (targetBps){
+      targetBps /= 8;
       // select nearest bit rate track of this type
       std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       size_t currVal = INVALID_TRACK_ID;

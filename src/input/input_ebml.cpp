@@ -15,6 +15,8 @@ namespace Mist{
     capa["source_match"].append("/*.mk3d");
     capa["source_match"].append("/*.mks");
     capa["source_match"].append("/*.webm");
+    capa["source_match"].append("mkv-exec:*");
+    capa["always_match"].append("mkv-exec:*");
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"].append("H264");
@@ -92,11 +94,41 @@ namespace Mist{
 
   bool InputEBML::needsLock(){
     // Standard input requires no lock, otherwise default behaviour.
-    if (config->getString("input") == "-"){return false;}
+    if (config->getString("input") == "-" || config->getString("input").substr(0, 9) == "mkv-exec:"){return false;}
     return Input::needsLock();
   }
 
   bool InputEBML::preRun(){
+    if (config->getString("input").substr(0, 9) == "mkv-exec:"){
+      standAlone = false;
+      std::string input = config->getString("input").substr(9);
+      char *args[128];
+      uint8_t argCnt = 0;
+      char *startCh = 0;
+      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
+        if (!*i){
+          if (startCh){args[argCnt++] = startCh;}
+          break;
+        }
+        if (*i == ' '){
+          if (startCh){
+            args[argCnt++] = startCh;
+            startCh = 0;
+            *i = 0;
+          }
+        }else{
+          if (!startCh){startCh = i;}
+        }
+      }
+      args[argCnt] = 0;
+
+      int fin = -1, fout = -1;
+      Util::Procs::StartPiped(args, &fin, &fout, 0);
+      if (fout == -1){return false;}
+      dup2(fout, 0);
+      inFile = stdin;
+      return true;
+    }
     if (config->getString("input") == "-"){
       inFile = stdin;
     }else{

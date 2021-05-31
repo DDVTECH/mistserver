@@ -15,6 +15,36 @@ namespace Mist{
     seekSize = 0;
     doctype = "matroska";
     if (config->getString("target").size()){
+      if (config->getString("target").substr(0, 9) == "mkv-exec:"){
+        std::string input = config->getString("target").substr(9);
+        char *args[128];
+        uint8_t argCnt = 0;
+        char *startCh = 0;
+        for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
+          if (!*i){
+            if (startCh){args[argCnt++] = startCh;}
+            break;
+          }
+          if (*i == ' '){
+            if (startCh){
+              args[argCnt++] = startCh;
+              startCh = 0;
+              *i = 0;
+            }
+          }else{
+            if (!startCh){startCh = i;}
+          }
+        }
+        args[argCnt] = 0;
+
+        int fin = -1;
+        Util::Procs::StartPiped(args, &fin, 0, 0);
+        myConn.open(fin, -1);
+
+        wantRequest = false;
+        parseData = true;
+        return;
+      }
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
       if (!M.getLive()){calcVodSizes();}
@@ -96,6 +126,7 @@ namespace Mist{
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
+    capa["push_urls"].append("mkv-exec:*");
 
     JSON::Value opt;
     opt["arg"] = "string";

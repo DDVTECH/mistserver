@@ -37,7 +37,7 @@ var MistUtil = {
       return string.charAt(0).toUpperCase()+string.slice(1);
     },
     number: function(num) {
-      if ((isNaN(Number(num))) || (num == 0)) { return num; }
+      if ((isNaN(Number(num))) || (Number(num) == 0)) { return num; }
       
       //rounding
       //use a significance of three, but don't round "visible" digits
@@ -58,10 +58,10 @@ var MistUtil = {
       
       return num;
     },
-    bytes: function(val){
+    bytes: function(val,bits){
       if (isNaN(Number(val))) { return val; }
       
-      var suffix = ["bytes","KB","MB","GB","TB","PB"];
+      var suffix = bits ? ["bits","Kb","Mb","Gb","Tb","Pb"] : ["bytes","KB","MB","GB","TB","PB"];
       if (val == 0) {
         unit = suffix[0];
       }
@@ -77,6 +77,7 @@ var MistUtil = {
       }
       return this.number(val)+unit;
     },
+    bits: function(val) { return this.bytes(val,true); },
     mime2human: function(mime){
       switch (mime) {
         case "html5/video/webm": {

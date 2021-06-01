@@ -388,18 +388,13 @@ namespace IPC{
 #ifdef SHM_ENABLED
 
   /// Returns true if the open file still exists.
-  /// \TODO Not implemented under Windows.
   bool sharedPage::exists(){
 #if defined(__CYGWIN__) || defined(_WIN32)
-    return true; // Not implemented under Windows...
+    return true; // Not implemented under Windows: shared memory ALWAYS exists if open!
 #else
-#ifdef SHM_ENABLED
     struct stat sb;
     if (fstat(handle, &sb)){return false;}
     return (sb.st_nlink > 0);
-#else
-    return true;
-#endif
 #endif
   }
 

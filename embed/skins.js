@@ -357,9 +357,12 @@ MistSkins["default"] = {
                   
                   var promise = MistVideo.player.api.play();
                   if (promise) {
-                    promise.catch(function(){
+                    promise.then(function(){
+                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "success"; }
+                    }).catch(function(){
                       if (MistVideo.destroyed) { return; }
                       MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
+                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
                       MistVideo.player.api.muted = false;
                       
                       //play has failed
@@ -387,6 +390,8 @@ MistSkins["default"] = {
                       if (MistVideo.destroyed) { return; }
                       
                       MistVideo.log("Autoplay worked! Video will be unmuted on mouseover if the page has been interacted with.");
+                      
+                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "muted"; }
                       
                       //show large "muted" icon
                       var largeMutedButton = MistVideo.skin.icons.build("muted",100);
@@ -432,9 +437,11 @@ MistSkins["default"] = {
                     },function(){});
                   }
                 }
+                else if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
               });
             }
           }
+          else if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "success"; }
         });
       }
       
@@ -1953,7 +1960,7 @@ MistSkins["default"] = {
             type: "button",
             label: "Reload player",
             onclick: function(){
-              MistVideo.reload();
+              MistVideo.reload("Reloading because reload button was clicked.");
             }
           };
           if (!isNaN(options.reload+"")) { obj.delay = options.reload; }
@@ -2470,7 +2477,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forcePlayer = (this.value == "" ? false : this.value);
         if (MistVideo.options.forcePlayer != MistVideo.playerName) { //only reload if there is a change
-          MistVideo.reload();
+          MistVideo.reload("Reloading to force player.");
         }
       });
       
@@ -2512,7 +2519,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forceType = (this.value == "" ? false : this.value);
         if ((!MistVideo.source) || (MistVideo.options.forceType != MistVideo.source.type)) { //only reload if there is a change
-          MistVideo.reload();
+          MistVideo.reload("Reloading to force new type.");
         }
       });
       
@@ -2546,7 +2553,7 @@ MistSkins.dev = {
       MistUtil.event.addListener(select,"change",function(){
         MistVideo.options.forceSource = (this.value == "" ? false : this.value);
         if (MistVideo.options.forceSource != MistVideo.source.index) { //only reload if there is a change
-          MistVideo.reload();
+          MistVideo.reload("Reloading to force new source.");
         }
       });
       
@@ -2601,7 +2608,7 @@ MistSkins.dev.structure.submenu.children.unshift({
               title: "Build MistVideo again",
               label: "MistVideo.reload();",
               onclick: function(){
-                this.reload();
+                this.reload("Dev-reload button clicked.");
               }
             },{
               type: "button",

@@ -157,6 +157,10 @@ p.prototype.build = function (MistVideo,callback) {
 
         currenttracks = ev.tracks;
       }
+      
+      if (MistVideo.reporting && ev.tracks) {
+        MistVideo.reporting.stats.d.tracks = ev.tracks.join(",");
+      }
     },
     on_seek: function(e){
       var thisPlayer = this;

@@ -467,6 +467,11 @@ p.prototype.build = function (MistVideo,callback) {
                   }
                 }
               }
+
+              if (MistVideo.reporting && msg.data.tracks) {
+                MistVideo.reporting.stats.d.tracks = msg.data.tracks.join(",");
+              }
+
               break;
             }
             case "tracks": {

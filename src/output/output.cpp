@@ -45,6 +45,43 @@ namespace Mist{
     option["help"] = "Do not start input if not already started";
     option["value"].append(0);
     cfg->addOption("noinput", option);
+    option.null();
+
+
+    capa["optional"]["default_track_sorting"]["name"] = "Default track sorting";
+    capa["optional"]["default_track_sorting"]["help"] = "What tracks are selected first when no specific track selector is used for playback.";
+    capa["optional"]["default_track_sorting"]["default"] = "";
+    capa["optional"]["default_track_sorting"]["type"] = "select";
+    capa["optional"]["default_track_sorting"]["option"] = "--default_track_sorting";
+    capa["optional"]["default_track_sorting"]["short"] = "S";
+    option.append("");
+    option.append("Default (last added for live, first added for VoD)");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("bps_lth");
+    option.append("Bit rate, low to high");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("bps_htl");
+    option.append("Bit rate, high to low");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("id_lth");
+    option.append("Track ID, low to high");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("id_htl");
+    option.append("Track ID, high to low");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("res_lth");
+    option.append("Resolution, low to high");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+    option.null();
+    option.append("res_htl");
+    option.append("Resolution, high to low");
+    capa["optional"]["default_track_sorting"]["select"].append(option);
+
     config = cfg;
   }
 

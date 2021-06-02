@@ -3,6 +3,7 @@
 #include <mist/defines.h>
 #include <mist/socket.h>
 #include <mist/util.h>
+#include <mist/stream.h>
 
 int spawnForked(Socket::Connection &S){
   mistOut tmp(S);
@@ -26,6 +27,20 @@ int main(int argc, char *argv[]){
       mistOut::capa["version"] = PACKAGE_VERSION;
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
+    }
+    {
+      std::string defTrkSrt = conf.getString("default_track_sorting");
+      if (!defTrkSrt.size()){
+        //defTrkSrt = Util::getGlobalConfig("default_track_sorting").asString();
+      }
+      if (defTrkSrt.size()){
+        if (defTrkSrt == "bps_lth"){Util::defaultTrackSortOrder = Util::TRKSORT_BPS_LTH;}
+        if (defTrkSrt == "bps_htl"){Util::defaultTrackSortOrder = Util::TRKSORT_BPS_HTL;}
+        if (defTrkSrt == "id_lth"){Util::defaultTrackSortOrder = Util::TRKSORT_ID_LTH;}
+        if (defTrkSrt == "id_htl"){Util::defaultTrackSortOrder = Util::TRKSORT_ID_HTL;}
+        if (defTrkSrt == "res_lth"){Util::defaultTrackSortOrder = Util::TRKSORT_RES_LTH;}
+        if (defTrkSrt == "res_htl"){Util::defaultTrackSortOrder = Util::TRKSORT_RES_HTL;}
+      }
     }
     conf.activate();
     if (mistOut::listenMode()){

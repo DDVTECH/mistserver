@@ -20,6 +20,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+enum Util::trackSortOrder Util::defaultTrackSortOrder = TRKSORT_DEFAULT;
+
 /// Calls strftime using the current local time, returning empty string on any error.
 static std::string strftime_now(const std::string &format){
   time_t rawtime;
@@ -1222,6 +1224,10 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   }
 
   HIGH_MSG("Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
+
+  std::list<size_t> srtTrks;
+  Util::sortTracks(validTracks, M, Util::defaultTrackSortOrder, srtTrks);
+
   // try to fill as many codecs simultaneously as possible
   if (capa["codecs"][bestSoFar].size() > 0){
     jsonForEachConst(capa["codecs"][bestSoFar], itb){
@@ -1274,66 +1280,35 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               ++shift;
             }
             if (found && !multiSel){continue;}
-            if (M.getLive()){
-              for (std::set<size_t>::reverse_iterator trit = validTracks.rbegin();
-                   trit != validTracks.rend(); trit++){
-                if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
-                    (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                  // user-agent-check
-                  bool problems = false;
-                  if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
-                      capa["exceptions"].size()){
-                    jsonForEachConst(capa["exceptions"], ex){
-                      if (ex.key() == "codec:" + strRef.substr(shift)){
-                        problems = !Util::checkException(*ex, UA);
-                        break;
-                      }
+
+            for (std::list<size_t>::iterator trit = srtTrks.begin();
+                 trit != srtTrks.end(); trit++){
+              if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
+                  (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                // user-agent-check
+                bool problems = false;
+                if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
+                    capa["exceptions"].size()){
+                  jsonForEachConst(capa["exceptions"], ex){
+                    if (ex.key() == "codec:" + strRef.substr(shift)){
+                      problems = !Util::checkException(*ex, UA);
+                      break;
                     }
                   }
-                  if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
-                  if (problems){break;}
-                  /*LTS-START*/
-                  if (noSelAudio && M.getType(*trit) == "audio"){continue;}
-                  if (noSelVideo && M.getType(*trit) == "video"){continue;}
-                  if (noSelSub &&
-                      (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
-                    continue;
-                  }
-                  /*LTS-END*/
-                  result.insert(*trit);
-                  found = true;
-                  if (!multiSel){break;}
                 }
-              }
-            }else{
-              for (std::set<size_t>::iterator trit = validTracks.begin(); trit != validTracks.end(); trit++){
-                if ((!byType && M.getCodec(*trit) == strRef.substr(shift)) ||
-                    (byType && M.getType(*trit) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
-                  // user-agent-check
-                  bool problems = false;
-                  if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
-                      capa["exceptions"].size()){
-                    jsonForEachConst(capa["exceptions"], ex){
-                      if (ex.key() == "codec:" + strRef.substr(shift)){
-                        problems = !Util::checkException(*ex, UA);
-                        break;
-                      }
-                    }
-                  }
-                  if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
-                  if (problems){break;}
-                  /*LTS-START*/
-                  if (noSelAudio && M.getType(*trit) == "audio"){continue;}
-                  if (noSelVideo && M.getType(*trit) == "video"){continue;}
-                  if (noSelSub &&
-                      (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
-                    continue;
-                  }
-                  /*LTS-END*/
-                  result.insert(*trit);
-                  found = true;
-                  if (!multiSel){break;}
+                if (!allowBFrames && M.hasBFrames(*trit)){problems = true;}
+                if (problems){break;}
+                /*LTS-START*/
+                if (noSelAudio && M.getType(*trit) == "audio"){continue;}
+                if (noSelVideo && M.getType(*trit) == "video"){continue;}
+                if (noSelSub &&
+                    (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
+                  continue;
                 }
+                /*LTS-END*/
+                result.insert(*trit);
+                found = true;
+                if (!multiSel){break;}
               }
             }
           }
@@ -1357,3 +1332,65 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   }
   return result;
 }
+
+/// Sorts the given set of track IDs by the given sort order, according to the given metadata, and returns it by reference as the given list.
+/// Will clear the list automatically if not empty.
+void Util::sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, Util::trackSortOrder sorting, std::list<size_t> & srtTrks){
+  srtTrks.clear();
+  if (sorting == TRKSORT_DEFAULT){
+    if (M.getLive()){
+      sorting = TRKSORT_ID_HTL;
+    }else{
+      sorting = TRKSORT_ID_LTH;
+    }
+  }
+  if (!validTracks.size()){return;}
+  for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+    //The first element is always at the beginning of the list. Yeah. That makes sense.
+    if (!srtTrks.size()){
+      srtTrks.push_front(*it);
+      continue;
+    }
+    if (sorting == TRKSORT_ID_LTH){
+      //ID low to high needs no comparison, already sorted
+      srtTrks.push_back(*it);
+      continue;
+    }else if (sorting == TRKSORT_ID_HTL){
+      //ID high to low needs no comparison either, already sorted in reverse
+      srtTrks.push_front(*it);
+      continue;
+    }
+    bool inserted = false;
+    for (std::list<size_t>::iterator lt = srtTrks.begin(); lt != srtTrks.end(); ++lt){
+      if (sorting == TRKSORT_BPS_LTH){
+        if (M.getBps(*it) <= M.getBps(*lt)){
+          srtTrks.insert(lt, *it);
+          inserted = true;
+          break;
+        }
+      }else if (sorting == TRKSORT_BPS_HTL){
+        if (M.getBps(*it) >= M.getBps(*lt)){
+          srtTrks.insert(lt, *it);
+          inserted = true;
+          break;
+        }
+      }else if (sorting == TRKSORT_RES_LTH){
+        if (M.getWidth(*it) * M.getHeight(*it) < M.getWidth(*lt) * M.getHeight(*lt) || M.getRate(*it) < M.getRate(*lt)){
+          srtTrks.insert(lt, *it);
+          inserted = true;
+          break;
+        }
+      }else if (sorting == TRKSORT_RES_HTL){
+        if (M.getWidth(*it) * M.getHeight(*it) > M.getWidth(*lt) * M.getHeight(*lt) || M.getRate(*it) > M.getRate(*lt)){
+          srtTrks.insert(lt, *it);
+          inserted = true;
+          break;
+        }
+      }
+    }
+    //Insert at end of list if not inserted yet
+    if (!inserted){srtTrks.push_back(*it);}
+  }
+
+}
+

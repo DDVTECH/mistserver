@@ -8,6 +8,7 @@
 #include "socket.h"
 #include "util.h"
 #include <string>
+#include <list>
 
 const JSON::Value empty;
 
@@ -36,6 +37,19 @@ namespace Util{
                                const JSON::Value &capa = empty, const std::string &UA = "");
   std::set<size_t> wouldSelect(const DTSC::Meta &M, const std::map<std::string, std::string> &targetParams,
                                const JSON::Value &capa = empty, const std::string &UA = "", uint64_t seekTarget = 0);
+
+  enum trackSortOrder{
+    TRKSORT_DEFAULT = 0,
+    TRKSORT_BPS_LTH,
+    TRKSORT_BPS_HTL,
+    TRKSORT_ID_LTH,
+    TRKSORT_ID_HTL,
+    TRKSORT_RES_LTH,
+    TRKSORT_RES_HTL
+  };
+  extern trackSortOrder defaultTrackSortOrder;
+  void sortTracks(std::set<size_t> & validTracks, const DTSC::Meta & M, trackSortOrder sorting, std::list<size_t> & srtTrks);
+
 
   class DTSCShmReader{
   public:

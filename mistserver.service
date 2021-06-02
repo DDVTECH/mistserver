@@ -4,12 +4,14 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/MistController -c /etc/mistserver.conf
 Restart=always
 RestartSec=2
 TasksMax=infinity
 TimeoutStopSec=8
+Environment=MIST_LOG_SYSTEMD=1
+ExecStart=/usr/bin/MistController -c /etc/mistserver.conf
 ExecStopPost=/bin/bash -c "rm -f /dev/shm/*Mst*"
+ExecReload=/bin/kill -s USR1 $MAINPID
 
 [Install]
 WantedBy=multi-user.target

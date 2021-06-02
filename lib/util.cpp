@@ -277,7 +277,8 @@ namespace Util{
   /// calling the given callback for each valid message. Closes the file descriptor on read error
   void logParser(int in, int out, bool colored,
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool)){
-
+    if (getenv("MIST_COLOR")){colored = true;}
+    bool sysd_log = getenv("MIST_LOG_SYSTEMD");
     char buf[1024];
     FILE *output = fdopen(in, "r");
     char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg,
@@ -356,14 +357,25 @@ namespace Util{
         if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
         if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
       }
-      time_t rawtime;
-      struct tm *timeinfo;
-      struct tm timetmp;
-      char buffer[100];
-      time(&rawtime);
-      timeinfo = localtime_r(&rawtime, &timetmp);
-      strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-      dprintf(out, "%s[%s] ", color_time, buffer);
+      if (sysd_log){
+        if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
+        if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
+        if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
+        if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
+        if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
+        if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
+          dprintf(out, "<7>");
+        }
+      }else{
+        time_t rawtime;
+        struct tm *timeinfo;
+        struct tm timetmp;
+        char buffer[100];
+        time(&rawtime);
+        timeinfo = localtime_r(&rawtime, &timetmp);
+        strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+        dprintf(out, "%s[%s] ", color_time, buffer);
+      }
       if (progname && progpid && strlen(progname) && strlen(progpid)){
         if (strmNm && strlen(strmNm)){
           dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);

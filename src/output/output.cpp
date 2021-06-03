@@ -99,8 +99,6 @@ namespace Mist{
         INFO_MSG("Stripping target options: %s", tgt.substr(tgt.rfind('?') + 1).c_str());
         HTTP::parseVars(tgt.substr(tgt.rfind('?') + 1), targetParams);
         config->getOption("target", true).append(tgt.substr(0, tgt.rfind('?')));
-      }else{
-        INFO_MSG("Not modifying target (%s), no options present", tgt.c_str());
       }
     }
     if (targetParams.count("rate")){

@@ -447,6 +447,9 @@ JSON::Value Util::getGlobalConfig(const std::string &optionName){
   case RAX_STRING:
     // String types, return JSON::Value string
     return JSON::Value(std::string(cfgData.getPointer(dataField), cfgData.getSize(optionName)));
+  case 0:
+    //Field not found, return blank value
+    return JSON::Value();
   default:
     // Unimplemented types
     FAIL_MSG("Global configuration setting for '%s' is not an implemented datatype!", optionName.c_str());

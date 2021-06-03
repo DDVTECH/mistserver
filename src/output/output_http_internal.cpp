@@ -8,6 +8,45 @@
 #include <mist/url.h>
 #include <mist/websocket.h>
 #include <sys/stat.h>
+#include <mist/ptvtmp.h>
+
+struct Interval {double high; double low;};
+std::string geohash(double lat, double lng, int precision = 3){
+  if (lat > 90.0 || lat < -90.0 || lng > 180.0 || lng < -180.0){return "";}
+
+  std::string ret; 
+  precision *= 5;
+  Interval lat_interval = {90.0, -90.0};
+  Interval lng_interval = {180.0, -180.0};
+  Interval *interval;
+  double coord, mid;
+  bool is_even = true;
+  unsigned int hashChar = 0;
+  static char char_map[33] = "0123456789bcdefghjkmnpqrstuvwxyz";
+  for(int i = 1; i <= precision; i++) {
+    if(is_even) {
+      interval = &lng_interval;
+      coord = lng;                
+    }else{
+      interval = &lat_interval;
+      coord = lat;   
+    }
+    mid = (interval->low + interval->high) / 2.0;
+    hashChar <<= 1;
+    if(coord > mid) {
+      interval->low = mid;
+      hashChar |= 0x01;
+    }else{
+      interval->high = mid;
+    }
+    if(!(i % 5)){
+      ret += char_map[hashChar];
+      hashChar = 0;
+    }
+    is_even = !is_even;
+  }
+  return ret;
+}
 
 namespace Mist{
   /// Helper function to find the protocol entry for a given port number
@@ -189,6 +228,14 @@ namespace Mist{
     capa["optional"]["pubaddr"]["default"] = "";
     capa["optional"]["pubaddr"]["type"] = "inputlist";
     capa["optional"]["pubaddr"]["option"] = "--public-address";
+
+    cfg->addOption("playbacklog", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"L\",\"long\":\"playbacklog\",\"help\":\"Write playback log CSV to given file\"}"));
+    capa["optional"]["playbacklog"]["name"] = "Playback log (CSV)";
+    capa["optional"]["playbacklog"]["help"] =
+        "Writes CSV to the given filename with detailed information on playback performance/quality.";
+    capa["optional"]["playbacklog"]["default"] = "";
+    capa["optional"]["playbacklog"]["type"] = "str";
+    capa["optional"]["playbacklog"]["option"] = "--playbacklog";
   }
 
   /// Sorts the JSON::Value objects that hold source information by preference.
@@ -1111,6 +1158,24 @@ namespace Mist{
     H.Clean();
   }
 
+  /// Helper function that checks if a value is set, follows increases and ignores decreases with a WARN message.
+  void onlyIncrease(const JSON::Value & data, const char * memberName, size_t & counterVar, int64_t & offsetVar){
+    if (data.isMember(memberName)){
+      if (data[memberName].asInt()+offsetVar < counterVar || data[memberName].asInt()+offsetVar > counterVar+6000){
+        if (data[memberName].asInt() > counterVar){
+          //WARN_MSG("%s increased from %zu to %" PRIu64 "..? Adjusted.", memberName, counterVar, data[memberName].asInt());
+          offsetVar -= (data[memberName].asInt() - counterVar);
+          //if (data.isMember("logs") && data["logs"].size()){WARN_MSG("Related logs: %s", data["logs"].toString().c_str());}
+        }else{
+          //WARN_MSG("%s decreased from %zu to %" PRIu64 "..? Adjusted.", memberName, counterVar, data[memberName].asInt());
+          if (data.isMember("logs") && data["logs"].size()){WARN_MSG("Related logs: %s", data["logs"].toString().c_str());}
+          //offsetVar += (counterVar - data[memberName].asInt());
+        }
+      }
+      counterVar = data[memberName].asInt()+offsetVar;
+    }
+  }
+
   bool OutHTTP::websocketHandler(const HTTP::Parser & req, bool headersOnly){
     stayConnected = true;
     std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
@@ -1118,11 +1183,35 @@ namespace Mist{
     std::string useragent = req.GetVar("ua");
     if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
     std::string upgradeHeader = req.GetHeader("Upgrade");
+
+    double lat = 0;
+    double lon = 0;
+    if (H.GetVar("lat") != ""){
+      lat = atof(H.GetVar("lat").c_str());
+      H.SetVar("lat", "");
+    }
+    if (H.GetVar("lon") != ""){
+      lon = atof(H.GetVar("lon").c_str());
+      H.SetVar("lon", "");
+    }
+    if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+    if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){return false;}
     HTTP::Websocket ws(myConn, req, H);
     if (!ws){return false;}
     setBlocking(false);
+
+    Comms::PlayerUX pUX;
+    pUX.reload();
+    if (pUX){
+      pUX.setStream(streamName);
+      if (lat || lon){pUX.setGeohash(geohash(lat, lon));}
+    }else{
+      INFO_MSG("No UX? :-(");
+    }
+
     // start the stream, if needed
     Util::startInput(streamName, "", true, false);
 
@@ -1134,6 +1223,22 @@ namespace Mist{
     uint8_t prevState, newState, pingCounter = 0;
     std::set<size_t> prevTracks;
     prevState = newState = STRMSTAT_INVALID;
+    std::string statPlayer = "?";
+    std::string statProto = "?";
+    std::string statURL = "?";
+    std::string statUnload = "?";
+    std::string statPage = "?";
+    std::string statAutoplay = "No";
+    bool statIsKeyOnly = false;
+    uint64_t startingTime = Util::bootMS();
+    size_t statPlaytime = 0, statLogs = 0, statErrors = 0, statFirstFrame = 0, statWaits = 0, statWaitTime = 0, statStalls = 0, statStallTime = 0;
+    int64_t statPlaytimeAdj = 0, statLogsAdj = 0, statErrorsAdj = 0, statWaitsAdj = 0, statWaitTimeAdj = 0, statStallsAdj = 0, statStallTimeAdj = 0;
+    uint64_t currHeight = 0;
+    uint64_t maxHeight = 0;
+    uint64_t lastHeightChange = 0;
+    uint8_t trueScore = 100;
+    uint8_t currScore = 0;
+    std::map<uint64_t, uint64_t> heightTimes;
     while (keepGoing()){
       if (!streamStatus || !streamStatus.exists()){streamStatus.init(pageName, 1, false, false);}
       if (!streamStatus){
@@ -1171,13 +1276,157 @@ namespace Mist{
         prevState = newState;
       }else{
         if (newState == STRMSTAT_READY){stats();}
-        if (myConn.spool() && ws.readFrame()){
-          onWebsocketFrame();
+        if (myConn.spool()){
+          while (ws.readFrame()){
+            JSON::Value incData = JSON::fromString(ws.data, ws.data.size());
+            if (incData){
+              //Log these members at most once, ignore further changes
+              if (!statFirstFrame && incData.isMember("firstPlayback")){statFirstFrame = incData["firstPlayback"].asInt();}
+              if (incData.isMember("player") && statPlayer == "?"){statPlayer = incData["player"].toString();}
+              if (incData.isMember("sourceType") && statProto == "?"){
+                statProto = incData["sourceType"].toString();
+                if (pUX){
+                  std::string prot = incData["sourceType"].asStringRef();
+                  Util::sanitizeName(prot);
+                  pUX.setProto(prot);
+                }
+              }
+              if (incData.isMember("sourceUrl") && statURL == "?"){statURL = incData["sourceUrl"].toString();}
+              if (incData.isMember("pageUrl") && statPage == "?"){statPage = incData["pageUrl"].toString();}
+              if (incData.isMember("unload") && statUnload == "?"){statUnload = incData["unload"].toString();}
+              if (incData.isMember("autoplay") && statAutoplay == "No"){statAutoplay = incData["autoplay"].toString();}
+              //These members can only increase, use helper function to check them one by one.
+              onlyIncrease(incData, "nWaiting", statWaits, statWaitsAdj);
+              onlyIncrease(incData, "timeWaiting", statWaitTime, statWaitTimeAdj);
+              onlyIncrease(incData, "nStalled", statStalls, statStallsAdj);
+              onlyIncrease(incData, "timeStalled", statStallTime, statStallTimeAdj);
+              onlyIncrease(incData, "timeUnpaused", statPlaytime, statPlaytimeAdj);
+              onlyIncrease(incData, "nError", statErrors, statErrorsAdj);
+              onlyIncrease(incData, "nLog", statLogs, statLogsAdj);
+              if (pUX){
+                if (pUX.getBadness() < statErrors+statStalls+statWaits){
+                  currScore /= 2;
+                  pUX.setExperience(currScore);
+                }
+                pUX.setBadness(statErrors+statStalls+statWaits);
+              }
+              //current status related
+              if (incData.isMember("videoHeight") && incData["videoHeight"].asInt()){
+                DTSC::Meta M(streamName, false);
+                if (M){
+                  std::set<size_t> trks = M.getValidTracks();
+                  if (trks.size()){
+                    for (std::set<size_t>::iterator it = trks.begin(); it != trks.end(); ++it){
+                      if (M.getType(*it) != "video"){continue;}
+                      if (M.getHeight(*it) > maxHeight){
+                        maxHeight = M.getHeight(*it);
+                      }
+                    }
+                  }
+                }
+                if (currHeight){
+                  if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
+                  heightTimes[currHeight] += (statPlaytime - lastHeightChange);
+                }
+                currHeight = incData["videoHeight"].asInt();
+                lastHeightChange = statPlaytime;
+              }
+              if (incData.isMember("keyonly")){statIsKeyOnly = incData["keyonly"].asBool();}
+              //These members indicate some event has happened, print a log message about it.
+              if (incData.isMember("lastError")){
+                WARN_MSG("Playback error (%s, %s): %s", statPlayer.c_str(), statProto.c_str(), incData["lastError"].asStringRef().c_str());
+              }
+              if (pUX && statFirstFrame && incData.isMember("playbackScore")){
+                trueScore = incData["playbackScore"].asDouble()*100;
+                if (trueScore < currScore){currScore = trueScore;}
+                pUX.setExperience(currScore);
+              }
+            }
+          }
         }else{
           Util::sleep(250);
         }
+        if (pUX && (pingCounter % 4) == 0){
+          if (trueScore > currScore){
+            currScore += (trueScore-currScore)*0.1 + 1;
+            if (currScore > trueScore){currScore = trueScore;}
+            pUX.setExperience(currScore);
+          }
+          if (pUX){
+            if (statIsKeyOnly){
+              if (currHeight == maxHeight){
+                pUX.setQuality(2);
+              }else{
+                pUX.setQuality(3);
+              }
+            }else{
+              if (currHeight == maxHeight){
+                pUX.setQuality(0);
+              }else{
+                pUX.setQuality(1);
+              }
+            }
+          }
+        }
         if ((++pingCounter % 40) == 0){ws.sendFrame("", 0, 0x9);}
       }
+    }
+    startingTime = Util::bootMS() - startingTime;
+    INFO_MSG("Closed info socket: %s (%s) was playing in %s over %s via %s for %" PRIu64 "ms. Playing for %zums, %zu logs, %zu errors, time to first frame %zu. There were %zu waits for a combined time of %zums (= %.1f%%). There were %zu stalls for a combined time of %zums. Unload reason was %s", useragent.c_str(), myConn.getHost().c_str(), statPlayer.c_str(), statProto.c_str(), statURL.c_str(), startingTime, statPlaytime, statLogs, statErrors, statFirstFrame, statWaits, statWaitTime, (statWaitTime*100.0) / (double)statPlaytime, statStalls, statStallTime, statUnload.c_str());
+    if (config->getString("playbacklog").size()){
+      std::string logFile = config->getString("playbacklog");
+      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || statIsKeyOnly){
+        logFile += "_adj";
+      }
+      int plog = open(logFile.c_str(), O_APPEND | O_CREAT | O_WRONLY, ACCESSPERMS);
+      if (plog < 0){
+        WARN_MSG("Could not write playback log to %s: %s", config->getString("playbacklog").c_str(), strerror(errno));
+        return true;
+      }
+      //sanitize user agent
+      useragent = JSON::Value(useragent).toString();
+      char logLine[2048];
+      //prepare time
+      time_t rawtime;
+      struct tm *timeinfo;
+      struct tm timetmp;
+      char timeStr[100];
+      time(&rawtime);
+      timeinfo = gmtime_r(&rawtime, &timetmp);
+      strftime(timeStr, 100, "%F %H:%M:%S", timeinfo);
+      //write log line:
+      // V1: time, ip, protocol, player, streamname, playtime, firstframe, waits, waittime, stalls, stalltime, logs, errors, unloadreason, useragent
+      // V2: V2, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, unloadreason, pageUrl, useragent
+      // V2_adj: V2_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, unloadreason, pageUrl, useragent
+      // V3: V3, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent
+      // V3_adj: V3_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent
+      // Starting with V4, time is UTC instead of local
+      // V4: V4, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis
+      // V4_adj: V4_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis
+      size_t chars = 0;
+      uint64_t maxHeightMillis = 0;
+      uint64_t nomaxHeightMillis = 0;
+      if (currHeight && statPlaytime > lastHeightChange){
+        if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
+        heightTimes[currHeight] += (statPlaytime - lastHeightChange);
+      }
+      if (heightTimes.size()){
+      for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
+        if (it->first == maxHeight){
+          maxHeightMillis += it->second;
+        }else{
+          nomaxHeightMillis += it->second;
+        }
+      }
+      }
+      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj){
+        chars = snprintf(logLine, 2048, "V4_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %" PRId64 ", %zu, %s, %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 "\n", (size_t)getpid(), timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statPlaytimeAdj, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitsAdj, statWaitTime, statWaitTimeAdj, statStalls, statStallsAdj, statStallTime, statStallTimeAdj, statLogs, statLogsAdj, statErrors, statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis);
+      }else{
+        chars = snprintf(logLine, 2048, "V4, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %zu, %s, %zu, %zu, %zu, %zu, %zu, %zu, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 "\n", timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitTime, statStalls, statStallTime, statLogs, statErrors, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis);
+      }
+      //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
+      write(plog, logLine, chars);
+      close(plog);
     }
     return true;
   }

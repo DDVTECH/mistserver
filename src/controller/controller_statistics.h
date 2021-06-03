@@ -42,6 +42,45 @@ namespace Controller{
 
   enum sessType{SESS_UNSET = 0, SESS_INPUT, SESS_OUTPUT, SESS_VIEWER, SESS_UNSPECIFIED};
 
+  class uxInfo{
+    public:
+      uxInfo(){
+        bad = 0;
+        good = 0;
+        great = 0;
+      };
+      size_t bad;
+      size_t good;
+      size_t great;
+      void add(uint8_t q){
+        if (q >= 100){
+          ++great;
+        }else if (q >= 75){
+          ++good;
+        }else{
+          ++bad;
+        }
+
+      }
+  };
+
+  class uxIndex{
+  public:
+    uxIndex();
+    uxIndex(const std::string & stream, const std::string & proto, const std::string & geo, uint8_t qual);
+    std::string stream;
+    std::string proto;
+    std::string geo;
+    uint8_t qual;
+    bool operator==(const uxIndex &o) const;
+    bool operator!=(const uxIndex &o) const;
+    bool operator>(const uxIndex &o) const;
+    bool operator<=(const uxIndex &o) const;
+    bool operator<(const uxIndex &o) const;
+    bool operator>=(const uxIndex &o) const;
+  };
+
+
   class statStorage{
   public:
     void update(Comms::Sessions &statComm, size_t index);
@@ -111,6 +150,8 @@ namespace Controller{
   void statLeadIn();
   void statOnActive(size_t id);
   void statOnDisconnect(size_t id);
+  void uxOnActive(size_t id);
+  void uxOnDisconnect(size_t id);
   void statLeadOut();
 
   std::set<std::string> getActiveStreams(const std::string &prefix = "");

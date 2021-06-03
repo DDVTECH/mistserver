@@ -454,6 +454,9 @@ namespace Mist{
           std::string pubAddrs = getenv("MIST_HTTP_pubaddr");
           p["pubaddr"] = JSON::fromString(pubAddrs);
         }
+        if (config->hasOption("playbacklog") && config->getString("playbacklog").size()){
+          p["playbacklog"] = config->getString("playbacklog");
+        }
       }else{
         // find connector in config
         for (unsigned int i = 0; i < prots_ctr; ++i){

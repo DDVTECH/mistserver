@@ -1333,7 +1333,7 @@ namespace Mist{
             if (currPos){
               size_t keySize = keys.getSize(keyNum);
               if (currPos-prevPos != keySize){
-                WARN_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+                INFO_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
               }else{
                 VERYHIGH_MSG("Key %" PRIu32 " was %zu bytes", keyNum, currPos-prevPos);
               }
@@ -1345,7 +1345,7 @@ namespace Mist{
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
           if (dataLen != parts.getSize(partNo)){
-            WARN_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
+            INFO_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
           }
           ++partNo;
           bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), idx, data, dataLen,
@@ -1362,7 +1362,7 @@ namespace Mist{
         if (currPos){
           size_t keySize = keys.getSize(keyNum);
           if (currPos-prevPos != keySize){
-            WARN_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+            INFO_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
           }
           ++keyNum;
           prevPos = currPos;

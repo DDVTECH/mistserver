@@ -755,6 +755,7 @@ p.prototype.build = function (MistVideo,callback) {
           }
           else if (e.data.current > video.currentTime) {
             player.sb.paused = false;
+            video.currentTime = e.data.current*1e-3;
             video.play().then(resolve).catch(reject);
             player.ws.removeListener("on_time",f);
           }

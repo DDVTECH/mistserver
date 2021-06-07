@@ -111,14 +111,7 @@ function MistVideo(streamName,options) {
     
     var source = false;
     var mistPlayer = false;
-    
-    if (options.startCombo) {
-      options.startCombo.started = {
-        player: false,
-        source: false
-      };
-    }
-    
+        
     //retrieve the sources we can loop over
     var sources;
     if (options.forceSource) {
@@ -199,6 +192,20 @@ function MistVideo(streamName,options) {
         current: false
       }
     };
+
+    if (options.startCombo) {
+      options.startCombo.started = {
+        player: false,
+        source: false
+      };
+      for (var i = 0; i < players.length; i++) {
+        if (players[i].shortname == options.startCombo.player) {
+          options.startCombo.player = i;
+          break;
+        }
+      }
+    }
+
     
     function checkStartCombo(which) {
       if ((options.startCombo) && (!options.startCombo.started[which])) {
@@ -952,6 +959,7 @@ function MistVideo(streamName,options) {
       socket.die = false;
       socket.destroy = function(){
         this.die = true;
+        this.onclose = function(){};
         this.close();
       };
       socket.onopen = function(e){
@@ -1045,7 +1053,6 @@ function MistVideo(streamName,options) {
               MistVideo.reporting.stats.set("lastError",e.message);
             });
 
-            
             if (Object && Object.defineProperty) {
               var timeWaiting = 0;
               var waitingSince = false;

@@ -1017,9 +1017,13 @@ namespace RTP{
       return;
     case 7: // SPS
       if (spsData.size() != len - 4 || memcmp(buffer + 4, spsData.data(), len - 4) != 0){
-        HIGH_MSG("Updated SPS from RTP data");
+        h264::sequenceParameterSet sps(buffer + 4, len - 4);
+        if (!sps.validate()){
+          WARN_MSG("Ignoring invalid SPS packet! (%" PRIu32 "b)", len-4);
+          return;
+        }
+        HIGH_MSG("Updated SPS from RTP data: %" PRIu32 "b", len-4);
         spsData.assign(buffer + 4, len - 4);
-        h264::sequenceParameterSet sps(spsData.data(), spsData.size());
         h264::SPSMeta hMeta = sps.getCharacteristics();
         fps = hMeta.fps;
 
@@ -1041,7 +1045,11 @@ namespace RTP{
       return;
     case 8: // PPS
       if (ppsData.size() != len - 4 || memcmp(buffer + 4, ppsData.data(), len - 4) != 0){
-        HIGH_MSG("Updated PPS from RTP data");
+        if (!h264::ppsValidate(buffer+4, len-4)){
+          WARN_MSG("Ignoring invalid PPS packet! (%" PRIu32 "b)", len-4);
+          return;
+        }
+        HIGH_MSG("Updated PPS from RTP data: %" PRIu32 "b", len-4);
         ppsData.assign(buffer + 4, len - 4);
         MP4::AVCC avccBox;
         avccBox.setVersion(1);

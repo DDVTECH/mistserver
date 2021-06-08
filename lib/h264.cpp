@@ -75,6 +75,91 @@ namespace h264{
     }
   }
 
+  bool sequenceParameterSet::validate() const{
+    Utils::bitstream bs;
+    for (size_t i = 1; i < dataLen; i++){
+      if (i + 2 < dataLen && (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
+        // Yes, we increase i here
+        bs.append(data + i, 2);
+        i += 2;
+      }else{
+        // No we don't increase i here
+        bs.append(data + i, 1);
+      }
+    }
+    if (bs.size() < 24){return false;}//static size data
+    char profileIdc = bs.get(8);
+    bs.skip(16);
+    bs.getUExpGolomb();//ID
+    if (profileIdc == 100 || profileIdc == 110 || profileIdc == 122 || profileIdc == 244 ||
+        profileIdc == 44 || profileIdc == 83 || profileIdc == 86 || profileIdc == 118 || profileIdc == 128){
+      // chroma format idc
+      char chromaFormatIdc = bs.getUExpGolomb();
+      if (chromaFormatIdc == 3){bs.get(1);}
+      bs.getUExpGolomb(); // luma
+      bs.getUExpGolomb(); // chroma
+      bs.skip(1);         // transform bypass
+      if (bs.get(1)){// Scaling matrix is present
+        char listSize = (chromaFormatIdc == 3 ? 12 : 8);
+        for (size_t i = 0; i < listSize; i++){
+          bool thisListPresent = bs.get(1);
+          if (thisListPresent){
+            if (i < 6){
+              skipScalingList(bs, 16);
+            }else{
+              skipScalingList(bs, 64);
+            }
+          }
+        }
+      }
+    }
+    bs.getUExpGolomb();
+    size_t cnt_type = bs.getUExpGolomb();
+    if (!cnt_type){
+      bs.getUExpGolomb();
+    }else if (cnt_type == 1){
+      ERROR_MSG("This part of the implementation is incomplete(2), to be continued. If this "
+                "message is shown, contact developers immediately.");
+    }
+    if (!bs.size()){return false;}
+    bs.getUExpGolomb(); // max_num_ref_frames
+    bs.get(1);
+    bs.getUExpGolomb();
+    bs.getUExpGolomb();
+    if (!bs.size()){return false;}
+    bool mbs_only = (bs.get(1) == 1); // Gets used in height calculation
+    if (!mbs_only){bs.skip(1);}
+    bs.skip(1);
+    // cropping flag
+    if (bs.get(1)){
+      bs.getUExpGolomb();  // leftOffset
+      bs.getUExpGolomb(); // rightOffset
+      bs.getUExpGolomb();    // topOffset
+      bs.getUExpGolomb();   // bottomOffset
+    }
+
+    if (!bs.size()){return false;}
+    if (bs.get(1)){
+      if (bs.get(1)){bs.skip(8);}
+      if (bs.get(1)){bs.skip(1);}
+      if (bs.get(1)){
+        bs.skip(4);
+        if (bs.get(1)){bs.skip(24);}
+      }
+      if (bs.get(1)){
+        bs.getUExpGolomb();
+        bs.getUExpGolomb();
+      }
+
+      // Decode timing info
+      if (!bs.size()){return false;}
+      if (bs.get(1)){
+        return (bs.size() >= 65);
+      }
+    }
+    return true;
+  }
+
   SPSMeta sequenceParameterSet::getCharacteristics() const{
     SPSMeta result;
     result.sep_col_plane = false;
@@ -662,6 +747,45 @@ namespace h264{
       lastScale = scalingList[i];
     }
   }
+
+  bool ppsValidate(const char *data, size_t len){
+    Utils::bitstream bs;
+    for (size_t i = 1; i < len; i++){
+      if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
+        // Yes, we increase i here
+        bs.append(data + i, 2);
+        i += 2;
+      }else{
+        // No we don't increase i here
+        bs.append(data + i, 1);
+      }
+    }
+    bs.getUExpGolomb();
+    bs.getUExpGolomb();
+    bs.get(2);
+    if (bs.getUExpGolomb() > 0){
+      WARN_MSG("num_slice_groups_minus1 > 0, unimplemented structure");
+      return false;
+    }
+    bs.getUExpGolomb();
+    bs.getUExpGolomb();
+    bs.get(3);
+    bs.getExpGolomb();
+    bs.getExpGolomb();
+    bs.getExpGolomb();
+    bs.get(2);
+    if (!bs.size()){return false;}
+    bs.get(1);
+    if (!more_rbsp_data(bs)){return true;}
+    bs.get(1);
+    if (bs.get(1)){
+      //tricky scaling stuff, assume we're good.
+      /// \TODO Maybe implement someday? Do we care? Doubt.
+      return true;
+    }
+    return bs.size();
+  }
+
   ppsUnit::ppsUnit(const char *data, size_t len, uint8_t chromaFormatIdc) : nalUnit(data, len){
     picScalingMatrixPresentFlags = NULL;
     Utils::bitstream bs;

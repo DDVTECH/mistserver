@@ -67,6 +67,7 @@ namespace h264{
     sequenceParameterSet(const char *_data = NULL, size_t _dataLen = 0);
     void fromDTSCInit(const std::string &dtscInit);
     SPSMeta getCharacteristics() const;
+    bool validate() const;
 
   private:
     const char *data;
@@ -234,6 +235,7 @@ namespace h264{
     size_t derived_scalingList4x4Amount;
     size_t derived_scalingList8x8Amount;
   };
+  bool ppsValidate(const char *data, size_t len);
   class ppsUnit : public nalUnit{
   public:
     ppsUnit(const char *data, size_t len, uint8_t chromaFormatIdc = 0);

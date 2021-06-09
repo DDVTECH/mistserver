@@ -1053,7 +1053,7 @@ MistSkins["default"] = {
       },button);
       
       //apply initial video state
-      var initevent = MistUtil.event.addListener(video,"loadstart",function(){
+      var initevent = MistUtil.event.addListener(video,"loadedmetadata",function(){
         if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
           MistVideo.player.api.volume = localStorage['mistVolume'];
         }

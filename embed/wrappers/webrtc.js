@@ -280,7 +280,7 @@ p.prototype.build = function (MistVideo,callback) {
           if (callback) { callback(); }
         };
         thisWebRTCPlayer.peerConn.onconnectionstatechange = function(e){
-          if (this.destroyed) { return; } //the player doesn't exist any more
+          if (MistVideo.destroyed) { return; } //the player doesn't exist any more
           switch (this.connectionState) {
             case "failed": {
               //WebRTC will never work (firewall maybe?)
@@ -300,7 +300,7 @@ p.prototype.build = function (MistVideo,callback) {
           }
         };
         thisWebRTCPlayer.peerConn.oniceconnectionstatechange = function(e){
-          if (this.destroyed) { return; } //the player doesn't exist any more
+          if (MistVideo.destroyed) { return; } //the player doesn't exist any more
           switch (this.iceConnectionState) {
             case "failed": {
               MistVideo.showError("ICE connection "+this.iceConnectionState);
@@ -726,6 +726,7 @@ p.prototype.build = function (MistVideo,callback) {
     try {
       me.webrtc.stop();
       me.webrtc.signaling.ws.close();
+      me.webrtc.peerConn.close();
     } catch (e) {}
   };
   

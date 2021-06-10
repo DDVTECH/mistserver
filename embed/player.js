@@ -171,7 +171,7 @@ function MistVideo(streamName,options) {
         MistUtil.array.multiSort(players,sortoptions.player);
       }
       if ("first" in options.forcePriority) {
-        sortopions.first = options.forcePriority.first; //overwrite
+        sortoptions.first = options.forcePriority.first; //overwrite
       }
       
       

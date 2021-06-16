@@ -560,7 +560,7 @@ namespace Mist{
         // Connect to stats for INPUT detection
         statComm.reload();
         if (statComm){
-          if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
+          if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
             Util::logExitReason("received shutdown request from controller");
             return;

@@ -113,7 +113,6 @@ namespace Mist{
         myConn.setHost(srtConn.remotehost);
         if (!allowPush("")){
           onFinish();
-          srtConn.close();
           return;
         }
         parseData = false;
@@ -123,6 +122,12 @@ namespace Mist{
     }
     lastTimeStamp = 0;
     timeStampOffset = 0;
+  }
+
+  bool OutTSSRT::onFinish(){
+    myConn.close();
+    srtConn.close();
+    return false;
   }
 
   OutTSSRT::~OutTSSRT(){}
@@ -305,6 +310,7 @@ namespace Mist{
     if (!recvSize){
       if (!srtConn){
         myConn.close();
+        srtConn.close();
         wantRequest = false;
       }else{
         Util::sleep(50);
@@ -318,6 +324,7 @@ namespace Mist{
       if (!thisPacket){
         INFO_MSG("Could not get TS packet");
         myConn.close();
+        srtConn.close();
         wantRequest = false;
         return;
       }
@@ -342,6 +349,13 @@ namespace Mist{
       thisPacket.setTime(adjustTime);
       bufferLivePacket(thisPacket);
     }
+  }
+
+  bool OutTSSRT::dropPushTrack(uint32_t trackId, const std::string & dropReason){
+    Util::logExitReason("track dropped by buffer");
+    myConn.close();
+    srtConn.close();
+    return Output::dropPushTrack(trackId, dropReason);
   }
 
   void OutTSSRT::connStats(uint64_t now, Comms::Connections &statComm){

@@ -130,7 +130,7 @@ namespace HTTP{
     while (true){
       // Check if we can receive the minimum frame size (2 header bytes, 0 payload)
       if (!C.Received().available(2)){
-        if (C.spool()){continue;}
+        if (C.spool(true)){continue;}
         return false;
       }
       std::string head = C.Received().copy(2);
@@ -141,7 +141,7 @@ namespace HTTP{
       if (headSize > 2){
         // Check if we can receive the whole header
         if (!C.Received().available(headSize)){
-          if (C.spool()){continue;}
+          if (C.spool(true)){continue;}
           return false;
         }
         // Read entire header, re-read real payload length
@@ -154,7 +154,7 @@ namespace HTTP{
       }
       // Check if we can receive the whole frame (header + payload)
       if (!C.Received().available(headSize + payLen)){
-        if (C.spool()){continue;}
+        if (C.spool(true)){continue;}
         return false;
       }
       C.Received().remove(headSize); // delete the header

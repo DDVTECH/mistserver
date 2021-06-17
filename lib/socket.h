@@ -139,7 +139,7 @@ namespace Socket{
     bool isAddress(const std::string &addr);
     bool isLocal(); ///< Returns true if remote address is a local address.
     // buffered i/o methods
-    bool spool();                   ///< Updates the downbufferinternal variables.
+    bool spool(bool strictMode = false);                   ///< Updates the downbufferinternal variables.
     bool peek();                    ///< Clears the downbuffer and fills it with peek
     Buffer &Received();             ///< Returns a reference to the download buffer.
     const Buffer &Received() const; ///< Returns a reference to the download buffer.

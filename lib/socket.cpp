@@ -932,9 +932,9 @@ uint64_t Socket::Connection::dataDown(){
 
 /// Updates the downbuffer internal variable.
 /// Returns true if new data was received, false otherwise.
-bool Socket::Connection::spool(){
+bool Socket::Connection::spool(bool strictMode){
   /// \todo Provide better mechanism to prevent overbuffering.
-  if (downbuffer.size() > 10000){
+  if (!strictMode && downbuffer.size() > 10000){
     return true;
   }else{
     return iread(downbuffer);

@@ -203,6 +203,15 @@ namespace Triggers{
         if ((streamName.size() == stringLen || splitter == stringLen) &&
             strncmp(strPtr + bPos + 4, streamName.data(), stringLen) == 0){
           isHandled = true;
+          break;
+        }
+        // Tag-based? Check tags for this stream
+        if (strPtr[bPos + 4] == '#'){
+          std::set<std::string> tags = Util::streamTags(streamName);
+          if (tags.count(std::string(strPtr + bPos + 5, stringLen - 1))){
+            isHandled = true;
+            break;
+          }
         }
         bPos += stringLen + 4;
       }

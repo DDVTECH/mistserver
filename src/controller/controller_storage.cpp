@@ -188,10 +188,10 @@ namespace Controller{
     }
     maxAccsRecs = (1024 * 1024 - rlxAccs->getOffset()) / rlxAccs->getRSize();
 
-    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, false, false); // max 1M of stream data
+    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 5*1024 * 1024, false, false); // max 5M of stream data
     if (!shmStrm || !shmStrm->mapped){
       if (shmStrm){delete shmStrm;}
-      shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, true); // max 1M of stream data
+      shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 5*1024 * 1024, true); // max 5M of stream data
     }
     if (!shmStrm->mapped){
       FAIL_MSG("Could not open memory page for stream data");
@@ -205,6 +205,7 @@ namespace Controller{
       rlxStrm->addField("inputs", RAX_64UINT);
       rlxStrm->addField("outputs", RAX_64UINT);
       rlxStrm->addField("unspecified", RAX_64UINT);
+      rlxStrm->addField("tags", RAX_512STRING);
       rlxStrm->setReady();
     }
     rlxStrm->setRCount((1024 * 1024 - rlxStrm->getOffset()) / rlxStrm->getRSize());

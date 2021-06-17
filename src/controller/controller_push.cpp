@@ -333,19 +333,17 @@ namespace Controller{
               for (std::set<std::string>::iterator jt = activeStreams.begin();
                     jt != activeStreams.end(); ++jt){
                 std::string streamname = *jt;
-                if (stream == streamname || (*stream.rbegin() == '+' && streamname.substr(0, stream.size()) == stream)){
-                  if (!isPushActive(streamname, target)){
-                    if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
-                      waitingPushes[streamname].erase(target);
-                      if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
-                      MEDIUM_MSG("Conditions of push `%s->%s` evaluate to true. Starting push...", stream.c_str(), target.c_str());
-                      startPush(streamname, target);
-                      curCount++;
-                      // If no end time is given but there is a start time, remove the push after starting it
-                      if (startTime && !endTime){
-                        removePush(*it);
-                        break;
-                      }
+                if (!isPushActive(streamname, target)){
+                  if (waitingPushes[streamname][target]++ >= waittime && (curCount < maxspeed || !maxspeed)){
+                    waitingPushes[streamname].erase(target);
+                    if (!waitingPushes[streamname].size()){waitingPushes.erase(streamname);}
+                    MEDIUM_MSG("Conditions of push `%s->%s` evaluate to true. Starting push...", stream.c_str(), target.c_str());
+                    startPush(streamname, target);
+                    curCount++;
+                    // If no end time is given but there is a start time, remove the push after starting it
+                    if (startTime && !endTime){
+                      removePush(*it);
+                      break;
                     }
                   }
                 }
@@ -537,9 +535,7 @@ namespace Controller{
       for (std::set<std::string>::iterator jt = activeStreams.begin();
             jt != activeStreams.end(); ++jt){
         std::string streamname = *jt;
-        if (stream == streamname || (*stream.rbegin() == '+' && streamname.substr(0, stream.size()) == stream)){
-          startPush(streamname, target);
-        }
+        startPush(streamname, target);
       }
     }
     // Return push list
@@ -588,7 +584,7 @@ namespace Controller{
     jsonForEach(Controller::Storage["autopushes"], it){
       if ((*it)[2u].asInt() && (*it)[2u].asInt() < Util::epoch()){continue;}
       const std::string &pStr = (*it)[0u].asStringRef();
-      if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
+      if (Controller::streamMatches(streamname, pStr)){
         std::string stream = streamname;
         Util::sanitizeName(stream);
         // Check variable condition if it exists

@@ -471,6 +471,43 @@ bool Util::streamAlive(std::string &streamname){
   }
 }
 
+/// Returns active tags for an exact-matching (already sanitized) streamname
+std::set<std::string> Util::streamTags(const std::string &streamname){
+  std::set<std::string> ret;
+
+  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 0, false, false);
+  // Abort silently if page cannot be loaded
+  if (!shmStreams){return ret;}
+
+  Util::RelAccX rlxStreams(shmStreams.mapped);
+  // Abort silently if page cannot be loaded
+  if (!rlxStreams.isReady()){return ret;}
+
+  uint64_t startPos = rlxStreams.getDeleted();
+  uint64_t endPos = rlxStreams.getEndPos();
+  for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+    const std::string & strm = rlxStreams.getPointer("stream", cPos);
+    if (strm != streamname){continue;}
+
+    // Found it! Fill and break, since only one match can exist.
+    std::string tags = rlxStreams.getPointer("tags", cPos);
+    while (tags.size()){
+      size_t endPos = tags.find(' ');
+      if (!endPos){
+        //extra space, ignore
+        tags.erase(0, 1);
+        continue;
+      }
+      if (endPos == std::string::npos){endPos = tags.size();}
+      ret.insert(tags.substr(0, endPos));
+      if (endPos == tags.size()){break;}
+      tags.erase(0, endPos+1);
+    }
+    break;
+  }
+  return ret;
+}
+
 /// Assures the input for the given stream name is active.
 /// Does stream name sanitation first, followed by a stream name length check (<= 100 chars).
 /// Then, checks if an input is already active by running streamAlive(). If yes, return true.

@@ -175,15 +175,17 @@ public:
     viewers = rlx.getInt("viewers", entry);
     inputs = rlx.getInt("inputs", entry);
     outputs = rlx.getInt("outputs", entry);
+    tags = rlx.getPointer("tags", entry);
   }
   bool operator==(const streamStat &b) const{
-    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs);
+    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs && tags == b.tags);
   }
   bool operator!=(const streamStat &b) const{return !(*this == b);}
   uint8_t status;
   uint64_t viewers;
   uint64_t inputs;
   uint64_t outputs;
+  std::string tags;
 };
 
 void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
@@ -292,6 +294,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
           tmp[1u].append(tmpStat.viewers);
           tmp[1u].append(tmpStat.inputs);
           tmp[1u].append(tmpStat.outputs);
+          tmp[1u].append(tmpStat.tags);
           W.sendFrame(tmp.toString());
         }
       }
@@ -305,6 +308,7 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
         tmp[1u].append(0u);
         tmp[1u].append(0u);
         tmp[1u].append(0u);
+        tmp[1u].append("");
         W.sendFrame(tmp.toString());
         strmRemove.erase(strm);
         lastStrmStat.erase(strm);
@@ -1160,6 +1164,69 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     if (Request["tag_sessid"].isObject()){
       jsonForEach(Request["tag_sessid"], it){
         Controller::sessId_tag(it.key(), it->asStringRef());
+      }
+    }
+  }
+
+  if (Request.isMember("tag_stream")){
+    if (Request["tag_stream"].isObject()){
+      jsonForEach(Request["tag_stream"], it){
+        if (it->isString()){
+          Controller::stream_tag(it.key(), it->asStringRef());
+        }else if (it->isArray()){
+          jsonForEach(*it, jt){
+            if (jt->isString()){
+              Controller::stream_tag(it.key(), jt->asStringRef());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Request.isMember("untag_stream")){
+    if (Request["untag_stream"].isObject()){
+      jsonForEach(Request["untag_stream"], it){
+        if (it->isString()){
+          Controller::stream_untag(it.key(), it->asStringRef());
+        }else if (it->isArray()){
+          jsonForEach(*it, jt){
+            if (jt->isString()){
+              Controller::stream_untag(it.key(), jt->asStringRef());
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (Request.isMember("stream_tags")){
+    JSON::Value & rT = Response["stream_tags"];
+    if (Request["stream_tags"].isArray()){
+      jsonForEach(Request["stream_tags"], it){
+        if (it->isString()){
+          std::set<std::string> tags = Controller::stream_tags(it->asStringRef());
+          JSON::Value & tRef = rT[it->asStringRef()];
+          for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+        }
+      }
+    }else if (Request["stream_tags"].isObject()){
+      jsonForEach(Request["stream_tags"], it){
+        std::set<std::string> tags = Controller::stream_tags(it.key());
+        JSON::Value & tRef = rT[it.key()];
+        for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+      }
+    }else if (Request["stream_tags"].isString() && Request["stream_tags"].asStringRef().size()){
+      std::set<std::string> tags = Controller::stream_tags(Request["stream_tags"].asStringRef());
+      JSON::Value & tRef = rT[Request["stream_tags"].asStringRef()];
+      for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
+    }else{
+      JSON::Value nullPkt, resp;
+      Controller::fillActive(nullPkt, resp);
+      jsonForEach(resp, it){
+        std::set<std::string> tags = Controller::stream_tags(it->asStringRef());
+        JSON::Value & tRef = rT[it->asStringRef()];
+        for (std::set<std::string>::iterator ti = tags.begin(); ti != tags.end(); ++ti){tRef.append(*ti);}
       }
     }
   }

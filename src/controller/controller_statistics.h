@@ -7,7 +7,6 @@
 #include <mist/shared_memory.h>
 #include <mist/socket.h>
 #include <mist/timing.h>
-#include <mist/tinythread.h>
 #include <string>
 
 /// The STAT_CUTOFF define sets how many seconds of statistics history is kept.
@@ -97,7 +96,6 @@ namespace Controller{
     uint64_t getBpsUp(uint64_t start, uint64_t end);
   };
 
-  extern tthread::mutex statsMutex;
   extern uint64_t statDropoff;
 
   struct triggerLog{
@@ -125,10 +123,15 @@ namespace Controller{
   void sessId_shutdown(const std::string &sessId);
   void tag_shutdown(const std::string &tag);
   void sessId_tag(const std::string &sessId, const std::string &tag);
+  bool stream_tag(const std::string &stream, const std::string &tag);
+  std::set<std::string> stream_tags(const std::string &stream);
+  bool stream_untag(const std::string &stream, const std::string &tag);
   void sessions_shutdown(const std::string &streamname, const std::string &protocol = "");
   bool hasViewers(std::string streamName);
   void writeSessionCache(); /*LTS*/
   void killConnections(std::string sessId);
+
+  bool streamMatches(const std::string &stream, const std::string &matchString);
 
 #define PROMETHEUS_TEXT 0
 #define PROMETHEUS_JSON 1

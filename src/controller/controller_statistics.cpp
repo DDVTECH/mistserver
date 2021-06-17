@@ -51,12 +51,36 @@ std::map<std::string, Controller::statSession> sessions;
 
 std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Holds prometheus stats for trigger executions
 bool Controller::killOnExit = KILL_ON_EXIT;
-tthread::mutex Controller::statsMutex;
+tthread::recursive_mutex statsMutex;
 uint64_t Controller::statDropoff = 0;
 static uint64_t cpu_use = 0;
 
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
+
+class tagQueueItem{
+  public:
+    uint64_t lastChange;
+    std::set<std::string> tags;
+    tagQueueItem(){
+      lastChange = Util::bootSecs();
+    }
+    tagQueueItem(const std::string & initialTag){
+      lastChange = Util::bootSecs();
+      tags.insert(initialTag);
+    }
+    void add(const std::string & newTag){
+      lastChange = Util::bootSecs();
+      tags.insert(newTag);
+    }
+    void remove(const std::string & delTag){
+      lastChange = Util::bootSecs();
+      tags.erase(delTag);
+      if (!tags.size()){lastChange = 0;}
+    }
+};
+
+std::map<std::string, tagQueueItem> tagQueue;
 
 const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0 ,0 ,0, "", nullAddress, ""};
@@ -81,6 +105,7 @@ struct streamTotals{
   uint64_t packSent;
   uint64_t packLoss;
   uint64_t packRetrans;
+  std::set<std::string> tags;
 };
 
 Comms::Sessions statComm;
@@ -161,6 +186,14 @@ void Controller::updateBandwidthConfig(){
 /// This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
   INFO_MSG("Stream %s became active", stream.c_str());
+  if (tagQueue.count(stream)){
+    tagQueueItem & q = tagQueue[stream];
+    for (std::set<std::string>::iterator it = q.tags.begin(); it != q.tags.end(); ++it){
+      streamStats[stream].tags.insert(*it);
+    }
+    INFO_MSG("Applied %zu tags to stream %s retroactively",q.tags.size() , stream.c_str());
+    tagQueue.erase(stream);
+  }
   Controller::doAutoPush(stream);
 }
 
@@ -214,13 +247,73 @@ void Controller::sessId_shutdown(const std::string &sessId){
   INFO_MSG("Shut down session with session ID %s", sessId.c_str());
 }
 
+///Checks if the given stream is matched by the given matchString.
+///Currently checks exact matches, wildcard matches (when ending in '+') and tag matches (when starting with '#')
+bool Controller::streamMatches(const std::string &stream, const std::string &matchString){
+  //Exact match check
+  if (stream == matchString){return true;}
+  //Wildcard match, when ending in '+'
+  if (*matchString.rbegin() == '+' && stream.substr(0, matchString.size()) == matchString){return true;}
+  if (matchString[0] == '#'){
+    tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+    return streamStats.at(stream).tags.count(matchString.substr(1));//true if tag set, false otherwise
+  }
+  return false;//fallback response
+}
+
+/// Retrieves a copy of the stream's tags
+std::set<std::string> Controller::stream_tags(const std::string &stream){
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+  if (!streamStats.count(stream)){return std::set<std::string>();}
+  return streamStats[stream].tags;
+}
+
+/// Tags the given stream
+bool Controller::stream_tag(const std::string &stream, const std::string &tag){
+  if (!statCommActive){
+    FAIL_MSG("In controller shutdown procedure - cannot tag streams.");
+    return false;
+  }
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+  if (!streamStats.count(stream)){
+    FAIL_MSG("Cannot tag stream '%s' with '%s': stream is not currently active -> adding to tag queue", stream.c_str(), tag.c_str());
+
+    tagQueue[stream].add(tag);
+    return false;
+  }
+  streamStats[stream].tags.insert(tag);
+  return true;
+}
+
+/// Untags the given stream
+bool Controller::stream_untag(const std::string &stream, const std::string &tag){
+  if (!statCommActive){
+    FAIL_MSG("In controller shutdown procedure - cannot tag streams.");
+    return false;
+  }
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
+  if (!streamStats.count(stream)){
+    // If a tag was queued, remove matching tag (if any)
+    if (tagQueue.count(stream)){
+      tagQueue[stream].remove(tag);
+      // And also clean up the entry if it is now empty
+      if (!tagQueue[stream].lastChange){tagQueue.erase(stream);}
+      return true;
+    }
+    FAIL_MSG("Cannot untag stream '%s' with '%s': stream is not currently active", stream.c_str(), tag.c_str());
+    return false;
+  }
+  streamStats[stream].tags.erase(tag);
+  return true;
+}
+
 /// Tags the given session
 void Controller::sessId_tag(const std::string &sessId, const std::string &tag){
   if (!statCommActive){
     FAIL_MSG("In controller shutdown procedure - cannot tag sessions.");
     return;
   }
-  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
   for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
     if (it->first == sessId){
       it->second.tags.insert(tag);
@@ -240,7 +333,7 @@ void Controller::tag_shutdown(const std::string &tag){
     return;
   }
   unsigned int sessCount = 0;
-  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
   for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
     if (it->second.tags.count(tag)){
       sessCount++;
@@ -258,7 +351,7 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
     return;
   }
   unsigned int sessCount = 0;
-  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
   // Find all matching streams in statComm and get their sessId
   for (size_t i = 0; i < statComm.recordCount(); i++){
     if (statComm.getStatus(i) == COMM_STATUS_INVALID || (statComm.getStatus(i) & COMM_STATUS_DISCONNECT)){continue;}
@@ -311,7 +404,7 @@ void Controller::SharedMemStats(void *config){
     }
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      tthread::lock_guard<tthread::mutex> guard2(statsMutex);
+      tthread::lock_guard<tthread::recursive_mutex> guard2(statsMutex);
       // parse current users
       statLeadIn();
       COMM_LOOP(statComm, statOnActive(id), statOnDisconnect(id));
@@ -335,6 +428,32 @@ void Controller::SharedMemStats(void *config){
           it->second.packSent = 0;
           it->second.packLoss = 0;
           it->second.packRetrans = 0;
+        }
+        Util::RelAccX *strmStats = streamsAccessor();
+        if (!strmStats || !strmStats->isReady()){strmStats = 0;}
+        if (strmStats){
+          uint64_t startPos = strmStats->getDeleted();
+          uint64_t endPos = strmStats->getEndPos();
+          for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
+            std::string strm = strmStats->getPointer("stream", cPos);
+            std::string tags = strmStats->getPointer("tags", cPos);
+            if (tags.size() && streamStats.count(strm)){
+              INFO_MSG("Restoring stream tags: %s -> %s", strm.c_str(), tags.c_str());
+              streamTotals & st = streamStats[strm];
+              while (tags.size()){
+                size_t endPos = tags.find(' ');
+                if (!endPos){
+                  //extra space, ignore
+                  tags.erase(0, 1);
+                  continue;
+                }
+                if (endPos == std::string::npos){endPos = tags.size();}
+                st.tags.insert(tags.substr(0, endPos));
+                if (endPos == tags.size()){break;}
+                tags.erase(0, endPos+1);
+              }
+            }
+          }
         }
       }
       unsigned int tOut = Util::bootSecs() - STATS_DELAY;
@@ -430,7 +549,31 @@ void Controller::SharedMemStats(void *config){
             strmStats->setInt("inputs", it->second.currIns, strmPos);
             strmStats->setInt("outputs", it->second.currOuts, strmPos);
             strmStats->setInt("unspecified", it->second.currUnspecified, strmPos);
+            if (it->second.tags.size()){
+              std::string tags;
+              for (std::set<std::string>::iterator jt = it->second.tags.begin(); jt != it->second.tags.end(); ++jt){
+                if (tags.size()){tags += " ";}
+                tags += *jt;
+              }
+              strmStats->setString("tags", tags, strmPos);
+            }else{
+              strmStats->setString("tags", "", strmPos);
+            }
             ++strmPos;
+          }
+        }
+      }
+      if (tagQueue.size()){
+        bool updatedTagQueue = true;
+        while (updatedTagQueue){
+          updatedTagQueue = false;
+          for (std::map<std::string, tagQueueItem>::iterator it = tagQueue.begin(); it != tagQueue.end(); ++it){
+            if (it->second.lastChange + 60 < Util::bootSecs()){
+              WARN_MSG("Erasing %zu not-applied tags for offline stream %s since it did not show up for a minute", it->second.tags.size(), it->first.c_str());
+              tagQueue.erase(it);
+              updatedTagQueue = true;
+              break;
+            }
           }
         }
       }
@@ -472,7 +615,8 @@ void Controller::SharedMemStats(void *config){
   Controller::deinitState(Util::Config::is_restarting);
 }
 
-/// Gets a complete list of all streams currently in active state, with optional prefix matching
+/// Gets a complete list of all streams currently in active state, with optional stream matching
+/// Stream matching uses Controller::streamMatches internally, thus providing the same matching features.
 std::set<std::string> Controller::getActiveStreams(const std::string &prefix){
   std::set<std::string> ret;
   Util::RelAccX *strmStats = streamsAccessor();
@@ -482,7 +626,7 @@ std::set<std::string> Controller::getActiveStreams(const std::string &prefix){
     for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
       if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
       const char *S = strmStats->getPointer("stream", i);
-      if (!strncmp(S, prefix.data(), prefix.size())){ret.insert(S);}
+      if (streamMatches(S, prefix)){ret.insert(S);}
     }
   }else{
     for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
@@ -1036,7 +1180,7 @@ bool Controller::hasViewers(std::string streamName){
 /// ~~~~~~~~~~~~~~~
 /// In case of the second method, the response is an array in the same order as the requests.
 void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
-  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
   // first, figure out the timestamp wanted
   int64_t reqTime = 0;
   uint64_t epoch = Util::epoch();
@@ -1187,7 +1331,7 @@ void Controller::fillHasStats(JSON::Value &req, JSON::Value &rep){
   std::map<std::string, uint64_t> clients;
   // check all sessions
   {
-    tthread::lock_guard<tthread::mutex> guard(statsMutex);
+    tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
     if (sessions.size()){
       for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
         if (it->second.getSessType() == SESS_INPUT){
@@ -1278,7 +1422,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
   }
   DTSC::Meta M;
   {
-    tthread::lock_guard<tthread::mutex> guard(statsMutex);
+    tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
     for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
       //If specific streams were requested, match and skip non-matching
       if (streams.size()){
@@ -1415,7 +1559,7 @@ public:
 
 /// This takes a "totals" request, and fills in the response data.
 void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
-  tthread::lock_guard<tthread::mutex> guard(statsMutex);
+  tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
   // first, figure out the timestamps wanted
   int64_t reqStart = 0;
   int64_t reqEnd = 0;
@@ -1705,7 +1849,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     }
 
     {// Scope for shortest possible blocking of statsMutex
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
 
       response << "# HELP mist_sessions_total Number of sessions active right now, server-wide, by type.\n";
       response << "# TYPE mist_sessions_total gauge\n";
@@ -1783,7 +1927,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     resp["pkts"].append(servPackRetrans);
     resp["bwlimit"] = bwLimit;
     {// Scope for shortest possible blocking of statsMutex
-      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      tthread::lock_guard<tthread::recursive_mutex> guard(statsMutex);
       resp["curr"].append((uint64_t)sessions.size());
 
       if (Controller::triggerStats.size()){

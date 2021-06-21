@@ -117,6 +117,26 @@ struct streamTotals{
   uint64_t packRetrans;
 };
 static std::map<std::string, struct streamTotals> streamStats;
+
+static void createEmptyStatsIfNeeded(const std::string & strm){
+  if (streamStats.count(strm)){return;}
+  streamTotals & sT = streamStats[strm];
+  sT.upBytes = 0;
+  sT.downBytes = 0;
+  sT.inputs = 0;
+  sT.outputs = 0;
+  sT.viewers = 0;
+  sT.currIns = 0;
+  sT.currOuts = 0;
+  sT.currViews = 0;
+  sT.status = 0;
+  sT.viewSeconds = 0;
+  sT.packSent = 0;
+  sT.packLoss = 0;
+  sT.packRetrans = 0;
+}
+
+
 static uint64_t servUpBytes = 0;
 static uint64_t servDownBytes = 0;
 static uint64_t servUpOtherBytes = 0;
@@ -685,16 +705,19 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
     if (sessionType == SESS_UNSET){
       if (myConnector.size() >= 5 && myConnector.substr(0, 5) == "INPUT"){
         ++servInputs;
+        createEmptyStatsIfNeeded(myStream);
         streamStats[myStream].inputs++;
         streamStats[myStream].currIns++;
         sessionType = SESS_INPUT;
       }else if (myConnector.size() >= 6 && myConnector.substr(0, 6) == "OUTPUT"){
         ++servOutputs;
+        createEmptyStatsIfNeeded(myStream);
         streamStats[myStream].outputs++;
         streamStats[myStream].currOuts++;
         sessionType = SESS_OUTPUT;
       }else{
         ++servViewers;
+        createEmptyStatsIfNeeded(myStream);
         streamStats[myStream].viewers++;
         streamStats[myStream].currViews++;
         sessionType = SESS_VIEWER;
@@ -707,6 +730,7 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
         if (!myStream.size() || myStream[0] == 0){
           if (streamStats.count(myStream)){streamStats.erase(myStream);}
         }else{
+          createEmptyStatsIfNeeded(myStream);
           streamStats[myStream].upBytes += currUp;
           streamStats[myStream].downBytes += currDown;
           streamStats[myStream].packSent += currPktSent;
@@ -718,6 +742,7 @@ void Controller::statSession::update(uint64_t index, Comms::Statistics &statComm
         if (!myStream.size() || myStream[0] == 0){
           if (streamStats.count(myStream)){streamStats.erase(myStream);}
         }else{
+          createEmptyStatsIfNeeded(myStream);
           streamStats[myStream].upBytes += currUp - prevUp;
           streamStats[myStream].downBytes += currDown - prevDown;
           streamStats[myStream].packSent += currPktSent - prevPktSent;
@@ -772,13 +797,13 @@ void Controller::statSession::dropSession(const Controller::sessIndex &index){
   if (!tracked || curConns.size()){return;}
   switch (sessionType){
   case SESS_INPUT:
-    if (streamStats[index.streamName].currIns){streamStats[index.streamName].currIns--;}
+    if (streamStats.count(index.streamName) && streamStats[index.streamName].currIns){streamStats[index.streamName].currIns--;}
     break;
   case SESS_OUTPUT:
-    if (streamStats[index.streamName].currOuts){streamStats[index.streamName].currOuts--;}
+    if (streamStats.count(index.streamName) && streamStats[index.streamName].currOuts){streamStats[index.streamName].currOuts--;}
     break;
   case SESS_VIEWER:
-    if (streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
+    if (streamStats.count(index.streamName) && streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
     break;
   default: break;
   }

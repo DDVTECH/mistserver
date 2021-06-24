@@ -908,7 +908,7 @@ function MistVideo(streamName,options) {
       //try again without a startCombo
       delete MistVideo.options.startCombo;
       MistVideo.unload("No compatible players found - retrying without startCombo.");
-      MistVideo = mistPlay(MistVideo.stream,MistVideo.options);
+      mistPlay(MistVideo.stream,MistVideo.options);
     }
     else {
       MistVideo.showError("No compatible player/source combo found.",{reload:true});
@@ -966,178 +966,180 @@ function MistVideo(streamName,options) {
         this.wasConnected = true;
 
         //report player status to MistServer
-        MistVideo.reporting = {
-          stats: {
-            set: function(key,value){
-              this.d[key] = value;
-            },
-            add: function(key,add){
-              if (typeof add == "undefined") { add = 1; }
-              this.d[key] += add;
-            },
-            d: {
-              nWaiting: 0,
-              timeWaiting: 0,
-              nStalled: 0,
-              timeStalled: 0,
-              timeUnpaused: 0,
-              nError: 0,
-              nLog: 0,
-              videoHeight: null,
-              videoWidth: null,
-              playerHeight: null,
-              playerWidth: null
-            },
-            last: {
-              firstPlayback: null,
-              nWaiting: 0,
-              timeWaiting: 0,
-              nStalled: 0,
-              timeStalled: 0,
-              timeUnpaused: 0,
-              nError: 0,
-              lastError: null,
-              playbackScore: 1,
-              nLog: 0,
-              autoplay: null,
-              videoHeight: null,
-              videoWidth: null,
-              playerHeight: null,
-              playerWidth: null
-            }
-          },
-          report: function(d){
-            socket.send(JSON.stringify(d));
-          },
-          reportStats: function(){
-            var d = {};
-            var report = false;
-            var newlogs = MistVideo.logs.slice(this.stats.last.nLog);
-            for (var i in this.stats.d) {
-              if (this.stats.d[i] != this.stats.last[i]) {
-                d[i] = this.stats.d[i];
-                this.stats.last[i] = d[i];
-                report = true;
+        if (!MistVideo.reporting) {
+          MistVideo.reporting = {
+            stats: {
+              set: function(key,value){
+                this.d[key] = value;
+              },
+              add: function(key,add){
+                if (typeof add == "undefined") { add = 1; }
+                this.d[key] += add;
+              },
+              d: {
+                nWaiting: 0,
+                timeWaiting: 0,
+                nStalled: 0,
+                timeStalled: 0,
+                timeUnpaused: 0,
+                nError: 0,
+                nLog: 0,
+                videoHeight: null,
+                videoWidth: null,
+                playerHeight: null,
+                playerWidth: null
+              },
+              last: {
+                firstPlayback: null,
+                nWaiting: 0,
+                timeWaiting: 0,
+                nStalled: 0,
+                timeStalled: 0,
+                timeUnpaused: 0,
+                nError: 0,
+                lastError: null,
+                playbackScore: 1,
+                nLog: 0,
+                autoplay: null,
+                videoHeight: null,
+                videoWidth: null,
+                playerHeight: null,
+                playerWidth: null
               }
-            }
-            if (report) {
-              if (newlogs.length) {
-                d.logs = [];
-                for (var i in newlogs) {
-                  d.logs.push(newlogs[i].message);
+            },
+            report: function(d){
+              MistVideo.socket.send(JSON.stringify(d));
+            },
+            reportStats: function(){
+              var d = {};
+              var report = false;
+              var newlogs = MistVideo.logs.slice(this.stats.last.nLog);
+              for (var i in this.stats.d) {
+                if (this.stats.d[i] != this.stats.last[i]) {
+                  d[i] = this.stats.d[i];
+                  this.stats.last[i] = d[i];
+                  report = true;
                 }
               }
-              this.report(d);
-            }
-            MistVideo.timers.start(function(){
-              MistVideo.reporting.reportStats();
-            },5e3);
-          },
-          init: function(){
-            var video = MistVideo.video;
+              if (report) {
+                if (newlogs.length) {
+                  d.logs = [];
+                  for (var i in newlogs) {
+                    d.logs.push(newlogs[i].message);
+                  }
+                }
+                this.report(d);
+              }
+              MistVideo.timers.start(function(){
+                MistVideo.reporting.reportStats();
+              },5e3);
+            },
+            init: function(){
+              var video = MistVideo.video;
 
-            var firstPlay = MistUtil.event.addListener(video,"playing",function(){
-              MistVideo.reporting.stats.set("firstPlayback",new Date().getTime() - MistVideo.bootMs);
-              MistUtil.event.removeListener(firstPlay);
-            });
-
-            //set listeners for player reporting
-            MistUtil.event.addListener(video,"waiting",function(){
-              MistVideo.reporting.stats.add("nWaiting");
-            });
-            MistUtil.event.addListener(video,"stalled",function(){
-              MistVideo.reporting.stats.add("nStalled");
-            });
-            MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
-              MistVideo.reporting.stats.add("nError");
-              MistVideo.reporting.stats.set("lastError",e.message);
-            });
-
-            if (Object && Object.defineProperty) {
-              var timeWaiting = 0;
-              var waitingSince = false;
-              var timeStalled = 0;
-              var stalledSince = false;
-              var timeUnpaused = 0;
-              var unpausedSince = false;
-              var d = MistVideo.reporting.stats.d;
-              Object.defineProperty(d,"timeWaiting",{
-                get: function(){
-                  return timeWaiting + (waitingSince ? (new Date()).getTime() - waitingSince : 0);
-                }
-              });
-              Object.defineProperty(d,"timeStalled",{
-                get: function(){
-                  return timeStalled + (stalledSince ? (new Date()).getTime() - stalledSince : 0);
-                }
-              });
-              Object.defineProperty(d,"timeUnpaused",{
-                get: function(){
-                  return timeUnpaused + (unpausedSince ? (new Date()).getTime() - unpausedSince : 0);
-                }
-              });
-              Object.defineProperty(d,"nLog",{
-                get: function(){
-                  return MistVideo.logs.length;
-                }
-              });
-              Object.defineProperty(d,"videoHeight",{
-                get: function(){
-                  return MistVideo.video.videoHeight;
-                }
-              });
-              Object.defineProperty(d,"videoWidth",{
-                get: function(){
-                  return MistVideo.video.videoWidth;
-                }
-              });
-              Object.defineProperty(d,"playerHeight",{
-                get: function(){
-                  return MistVideo.video.clientHeight;
-                }
-              });
-              Object.defineProperty(d,"playerWidth",{
-                get: function(){
-                  return MistVideo.video.clientWidth;
-                }
+              var firstPlay = MistUtil.event.addListener(video,"playing",function(){
+                MistVideo.reporting.stats.set("firstPlayback",new Date().getTime() - MistVideo.bootMs);
+                MistUtil.event.removeListener(firstPlay);
               });
 
+              //set listeners for player reporting
               MistUtil.event.addListener(video,"waiting",function(){
-                timeWaiting = d.timeWaiting; //in case we get waiting several times in a row
-                waitingSince = (new Date()).getTime();
+                MistVideo.reporting.stats.add("nWaiting");
               });
               MistUtil.event.addListener(video,"stalled",function(){
-                timeStalled = d.timeStalled; //in case we get stalled several times in a row
-                stalledSince = (new Date()).getTime();
+                MistVideo.reporting.stats.add("nStalled");
               });
-              var events = ["playing","pause"];
-              for (var i in events) {
-                MistUtil.event.addListener(video,events[i],function(){
-                  timeWaiting = d.timeWaiting;
-                  timeStalled = d.timeStalled;
-                  waitingSince = false;
-                  stalledSince = false;
+              MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
+                MistVideo.reporting.stats.add("nError");
+                MistVideo.reporting.stats.set("lastError",e.message);
+              });
+
+              if (Object && Object.defineProperty) {
+                var timeWaiting = 0;
+                var waitingSince = false;
+                var timeStalled = 0;
+                var stalledSince = false;
+                var timeUnpaused = 0;
+                var unpausedSince = false;
+                var d = MistVideo.reporting.stats.d;
+                Object.defineProperty(d,"timeWaiting",{
+                  get: function(){
+                    return timeWaiting + (waitingSince ? (new Date()).getTime() - waitingSince : 0);
+                  }
                 });
+                Object.defineProperty(d,"timeStalled",{
+                  get: function(){
+                    return timeStalled + (stalledSince ? (new Date()).getTime() - stalledSince : 0);
+                  }
+                });
+                Object.defineProperty(d,"timeUnpaused",{
+                  get: function(){
+                    return timeUnpaused + (unpausedSince ? (new Date()).getTime() - unpausedSince : 0);
+                  }
+                });
+                Object.defineProperty(d,"nLog",{
+                  get: function(){
+                    return MistVideo.logs.length;
+                  }
+                });
+                Object.defineProperty(d,"videoHeight",{
+                  get: function(){
+                    return MistVideo.video.videoHeight;
+                  }
+                });
+                Object.defineProperty(d,"videoWidth",{
+                  get: function(){
+                    return MistVideo.video.videoWidth;
+                  }
+                });
+                Object.defineProperty(d,"playerHeight",{
+                  get: function(){
+                    return MistVideo.video.clientHeight;
+                  }
+                });
+                Object.defineProperty(d,"playerWidth",{
+                  get: function(){
+                    return MistVideo.video.clientWidth;
+                  }
+                });
+
+                MistUtil.event.addListener(video,"waiting",function(){
+                  timeWaiting = d.timeWaiting; //in case we get waiting several times in a row
+                  waitingSince = (new Date()).getTime();
+                });
+                MistUtil.event.addListener(video,"stalled",function(){
+                  timeStalled = d.timeStalled; //in case we get stalled several times in a row
+                  stalledSince = (new Date()).getTime();
+                });
+                var events = ["playing","pause"];
+                for (var i in events) {
+                  MistUtil.event.addListener(video,events[i],function(){
+                    timeWaiting = d.timeWaiting;
+                    timeStalled = d.timeStalled;
+                    waitingSince = false;
+                    stalledSince = false;
+                  });
+                }
+                MistUtil.event.addListener(video,"playing",function(){
+                  timeUnpaused = d.timeUnpaused; //in case we get playing several times in a row
+                  unpausedSince = (new Date()).getTime();
+                });
+                MistUtil.event.addListener(video,"pause",function(){
+                  timeUnpaused = d.timeUnpaused;
+                  unpausedSince = false;
+                });
+
+
+
               }
-              MistUtil.event.addListener(video,"playing",function(){
-                timeUnpaused = d.timeUnpaused; //in case we get playing several times in a row
-                unpausedSince = (new Date()).getTime();
-              });
-              MistUtil.event.addListener(video,"pause",function(){
-                timeUnpaused = d.timeUnpaused;
-                unpausedSince = false;
-              });
 
 
+              //periodically send the gathered stats
+              this.reportStats();
 
             }
-
-
-            //periodically send the gathered stats
-            this.reportStats();
-
-          }
-        };
+          };
+        }
 
       };
       socket.onclose = function(e){
@@ -1384,13 +1386,13 @@ function MistVideo(streamName,options) {
     var time = ("player" in this && "api" in this.player ? this.player.api.currentTime : false);
     
     this.unload(reason);
-    MistVideo = mistPlay(this.stream,this.options);
+    var NewMistVideo = mistPlay(this.stream,this.options);
     
     if ((time) && (this.info.type != "live")) {
       //after load, try to restore the video position
       var f = function(){
-        if (MistVideo.player && MistVideo.player.api) {
-          MistVideo.player.api.currentTime = time;
+        if (NewMistVideo.player && NewMistVideo.player.api) {
+          NewMistVideo.player.api.currentTime = time;
         }
         this.removeEventListener("initialized",f);
       };

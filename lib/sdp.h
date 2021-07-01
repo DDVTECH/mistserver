@@ -19,6 +19,8 @@ namespace SDP{
     bool parseTransport(const std::string &transport, const std::string &host,
                         const std::string &source, const DTSC::Meta *M, size_t tid);
     std::string rtpInfo(const DTSC::Meta &M, size_t tid, const std::string &source, uint64_t currentTime);
+    bool prepareSockets(const std::string dest, uint32_t port);
+    bool setPackCodec(const DTSC::Meta *M, size_t tid);
 
   public:
     Socket::UDPConnection data;
@@ -60,5 +62,5 @@ namespace SDP{
     std::map<uint64_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
   };
 
-  std::string mediaDescription(const DTSC::Meta *M, size_t tid);
+  std::string mediaDescription(const DTSC::Meta *M, size_t tid, uint64_t port = 0);
 }// namespace SDP

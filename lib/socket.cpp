@@ -1692,6 +1692,12 @@ Socket::UDPConnection::~UDPConnection(){
   }
 }
 
+// Sets socket family type (to IPV4 or IPV6) (AF_INET=2, AF_INET6=10)
+void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
+  INFO_MSG("Switching UDP socket from %s to %s", addrFam(family), addrFam(AF_TYPE));
+  family = AF_TYPE;
+}
+
 /// Stores the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){

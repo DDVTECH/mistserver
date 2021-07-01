@@ -172,41 +172,14 @@ namespace Mist{
     if (reqUrl.size() && lastAnnounce + 5 < Util::bootSecs()){
       INFO_MSG("Sending announce");
       lastAnnounce = Util::bootSecs();
-      std::stringstream transportString;
-      transportString.precision(3);
-      transportString << std::fixed
-                      << "v=0\r\n"
-                         "o=- "
-                      << Util::getMS()
-                      << " 1 IN IP4 127.0.0.1\r\n"
-                         "s="
-                      << streamName
-                      << "\r\n"
-                         "c=IN IP4 0.0.0.0\r\n"
-                         "i="
-                      << streamName
-                      << "\r\n"
-                         "u="
-                      << reqUrl
-                      << "\r\n"
-                         "t=0 0\r\n"
-                         "a=tool:" APPIDENT "\r\n"
-                         "a=type:broadcast\r\n"
-                         "a=control:*\r\n"
-                      << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
-                      << ((double)endTime()) / 1000.0 << "\r\n";
-
-      std::set<size_t> validTracks = M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        transportString << SDP::mediaDescription(&M, *it);
-      }
+      std::string transportString = generateSDP(reqUrl);
       HTTP_S.Clean();
       HTTP_S.SetHeader("Content-Type", "application/sdp");
       HTTP_S.SetHeader("Content-Base", reqUrl);
       HTTP_S.method = "ANNOUNCE";
       HTTP_S.url = reqUrl;
       HTTP_S.protocol = "RTSP/1.0";
-      HTTP_S.SendRequest(myConn, transportString.str());
+      HTTP_S.SendRequest(myConn, transportString);
       HTTP_R.Clean();
     }
   }
@@ -320,38 +293,11 @@ namespace Mist{
         reqUrl = HTTP::URL(HTTP_R.url).link(streamName).getProxyUrl();
         initialize();
         userSelect.clear();
-        std::stringstream transportString;
-        transportString.precision(3);
-        transportString << std::fixed
-                        << "v=0\r\n"
-                           "o=- "
-                        << Util::getMS()
-                        << " 1 IN IP4 127.0.0.1\r\n"
-                           "s="
-                        << streamName
-                        << "\r\n"
-                           "c=IN IP4 0.0.0.0\r\n"
-                           "i="
-                        << streamName
-                        << "\r\n"
-                           "u="
-                        << reqUrl
-                        << "\r\n"
-                           "t=0 0\r\n"
-                           "a=tool:" APPIDENT "\r\n"
-                           "a=type:broadcast\r\n"
-                           "a=control:*\r\n"
-                        << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-"
-                        << ((double)endTime()) / 1000.0 << "\r\n";
-
-        std::set<size_t> validTracks = Util::wouldSelect(M, targetParams, capa, UA);
-        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-          transportString << SDP::mediaDescription(&M, *it);
-        }
-        HIGH_MSG("Reply: %s", transportString.str().c_str());
+        std::string transportString = generateSDP(reqUrl);
+        HIGH_MSG("Reply: %s", transportString.c_str());
         HTTP_S.SetHeader("Content-Base", reqUrl);
         HTTP_S.SetHeader("Content-Type", "application/sdp");
-        HTTP_S.SetBody(transportString.str());
+        HTTP_S.SetBody(transportString);
         HTTP_S.SendResponse("200", "OK", myConn);
         HTTP_R.Clean();
         continue;
@@ -477,6 +423,35 @@ namespace Mist{
   bool OutRTSP::onFinish(){
     if (myConn){myConn.close();}
     return false;
+  }
+
+  /// \param reqUrl: URI to additional session information
+  std::string OutRTSP::generateSDP(std::string reqUrl){
+    std::stringstream transportString;
+    transportString.precision(3);
+    // Add session description & time description
+    transportString << std::fixed <<
+      "v=0\r\n"
+      "o=- " << Util::getMS() << " 1 IN IP4 127.0.0.1\r\n"
+      "s=" << streamName << "\r\n"
+      "c=IN IP4 0.0.0.0\r\n"
+      "i=" << streamName << "\r\n"
+      "u=" << reqUrl << "\r\n"
+      "t=0 0\r\n"
+      "a=tool:" APPIDENT "\r\n"
+      "a=type:broadcast\r\n"
+      "a=control:*\r\n";
+     if (M.getLive()){
+       transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-\r\n";
+     }else{
+       transportString << "a=range:npt=" << ((double)startTime()) / 1000.0 << "-" << ((double)endTime()) / 1000.0 << "\r\n";
+     }
+    // Add Media description
+    std::set<size_t> validTracks = M.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      transportString << SDP::mediaDescription(&M, *it);
+    }
+    return transportString.str();
   }
 
   /// Attempts to parse TCP RTP packets at the beginning of the header.

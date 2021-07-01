@@ -30,6 +30,7 @@ namespace Mist{
     int64_t packetOffset;
     bool expectTCP;
     bool checkPort;
+    std::string generateSDP(std::string reqUrl);
     bool handleTCP();
     void handleUDP();
   };

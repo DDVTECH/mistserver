@@ -223,5 +223,6 @@ namespace Socket{
     void SendNow(const std::string &data);
     void SendNow(const char *data);
     void SendNow(const char *data, size_t len);
+    void setSocketFamily(int AF_TYPE);
   };
 }// namespace Socket

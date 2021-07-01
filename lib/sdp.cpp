@@ -7,6 +7,7 @@
 #include "sdp.h"
 #include "url.h"
 #include "util.h"
+#include <sys/socket.h>
 
 //Dynamic types we hardcode:
 //96 = AAC
@@ -58,7 +59,8 @@ namespace SDP{
   }
 
   /// Gets the SDP contents for sending out a particular given DTSC::Track.
-  std::string mediaDescription(const DTSC::Meta *meta, size_t tid){
+  /// \param port UDP port we are sending data to. Defaults to 0
+  std::string mediaDescription(const DTSC::Meta *meta, size_t tid, uint64_t port){
     const DTSC::Meta &M = *meta;
     std::stringstream mediaDesc;
 
@@ -68,7 +70,7 @@ namespace SDP{
     if (codec == "H264"){
       MP4::AVCC avccbox;
       avccbox.setPayload(init);
-      mediaDesc << "m=video 0 RTP/AVP 97\r\n"
+      mediaDesc << "m=video " << port << " RTP/AVP 97\r\n"
                    "a=rtpmap:97 H264/90000\r\n"
                    "a=cliprect:0,0,"
                 << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:97 "
@@ -94,7 +96,7 @@ namespace SDP{
                 << ((double)M.getFpks(tid)) / 1000.0 << "\r\na=control:track" << tid << "\r\n";
     }else if (codec == "HEVC"){
       h265::initData iData(init);
-      mediaDesc << "m=video 0 RTP/AVP 104\r\n"
+      mediaDesc << "m=video " << port << " RTP/AVP 104\r\n"
                    "a=rtpmap:104 H265/90000\r\n"
                    "a=cliprect:0,0,"
                 << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:104 "
@@ -126,7 +128,7 @@ namespace SDP{
       mediaDesc << "\r\na=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\na=control:track"
                 << tid << "\r\n";
     }else if (codec == "VP8"){
-      mediaDesc << "m=video 0 RTP/AVP 98\r\n"
+      mediaDesc << "m=video " << port << " RTP/AVP 98\r\n"
                    "a=rtpmap:98 VP8/90000\r\n"
                    "a=cliprect:0,0,"
                 << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:98 "
@@ -134,7 +136,7 @@ namespace SDP{
                 << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "VP9"){
-      mediaDesc << "m=video 0 RTP/AVP 99\r\n"
+      mediaDesc << "m=video " << port << " RTP/AVP 99\r\n"
                    "a=rtpmap:99 VP8/90000\r\n"
                    "a=cliprect:0,0,"
                 << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:99 "
@@ -142,13 +144,13 @@ namespace SDP{
                 << "a=framerate:" << ((double)M.getFpks(tid)) / 1000.0 << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "MPEG2"){
-      mediaDesc << "m=video 0 RTP/AVP 32\r\n"
+      mediaDesc << "m=video " << port << " RTP/AVP 32\r\n"
                    "a=cliprect:0,0,"
                 << M.getHeight(tid) << "," << M.getWidth(tid) << "\r\na=framesize:32 " << M.getWidth(tid)
                 << '-' << M.getHeight(tid) << "\r\na=framerate:" << ((double)M.getFpks(tid)) / 1000.0
                 << "\r\na=control:track" << tid << "\r\n";
     }else if (codec == "AAC"){
-      mediaDesc << "m=audio 0 RTP/AVP 96"
+      mediaDesc << "m=audio " << port << " RTP/AVP 96"
                 << "\r\n"
                    "a=rtpmap:96 mpeg4-generic/"
                 << M.getRate(tid) << "/" << M.getChannels(tid)
@@ -162,53 +164,53 @@ namespace SDP{
                    "a=control:track"
                 << tid << "\r\n";
     }else if (codec == "MP3" || codec == "MP2"){
-      mediaDesc << "m=" << M.getType(tid) << " 0 RTP/AVP 14"
+      mediaDesc << "m=" << M.getType(tid) << " " << port << " RTP/AVP 14"
                 << "\r\n"
                    "a=rtpmap:14 MPA/90000/"
                 << M.getChannels(tid) << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "AC3"){
-      mediaDesc << "m=audio 0 RTP/AVP 100"
+      mediaDesc << "m=audio " << port << " RTP/AVP 100"
                 << "\r\n"
                    "a=rtpmap:100 AC3/"
                 << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
                 << "a=control:track" << tid << "\r\n";
     }else if (codec == "ALAW"){
       if (M.getChannels(tid) == 1 && M.getRate(tid) == 8000){
-        mediaDesc << "m=audio 0 RTP/AVP 8"
+        mediaDesc << "m=audio " << port << " RTP/AVP 8"
                   << "\r\n";
       }else{
-        mediaDesc << "m=audio 0 RTP/AVP 101"
+        mediaDesc << "m=audio " << port << " RTP/AVP 101"
                   << "\r\n";
         mediaDesc << "a=rtpmap:101 PCMA/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
       mediaDesc << "a=control:track" << tid << "\r\n";
     }else if (codec == "ULAW"){
       if (M.getChannels(tid) == 1 && M.getRate(tid) == 8000){
-        mediaDesc << "m=audio 0 RTP/AVP 0"
+        mediaDesc << "m=audio " << port << " RTP/AVP 0"
                   << "\r\n";
       }else{
-        mediaDesc << "m=audio 0 RTP/AVP 105"
+        mediaDesc << "m=audio " << port << " RTP/AVP 105"
                   << "\r\n";
         mediaDesc << "a=rtpmap:105 PCMU/" << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n";
       }
       mediaDesc << "a=control:track" << tid << "\r\n";
     }else if (codec == "PCM"){
       if (M.getSize(tid) == 16 && M.getChannels(tid) == 2 && M.getRate(tid) == 44100){
-        mediaDesc << "m=audio 0 RTP/AVP 10"
+        mediaDesc << "m=audio " << port << " RTP/AVP 10"
                   << "\r\n";
       }else if (M.getSize(tid) == 16 && M.getChannels(tid) == 1 && M.getRate(tid) == 44100){
-        mediaDesc << "m=audio 0 RTP/AVP 11"
+        mediaDesc << "m=audio " << port << " RTP/AVP 11"
                   << "\r\n";
       }else{
-        mediaDesc << "m=audio 0 RTP/AVP 103"
+        mediaDesc << "m=audio " << port << " RTP/AVP 103"
                   << "\r\n";
         mediaDesc << "a=rtpmap:103 L" << M.getSize(tid) << "/" << M.getRate(tid) << "/"
                   << M.getChannels(tid) << "\r\n";
       }
       mediaDesc << "a=control:track" << tid << "\r\n";
     }else if (codec == "opus"){
-      mediaDesc << "m=audio 0 RTP/AVP 102"
+      mediaDesc << "m=audio " << port << " RTP/AVP 102"
                 << "\r\n"
                    "a=rtpmap:102 opus/"
                 << M.getRate(tid) << "/" << M.getChannels(tid) << "\r\n"
@@ -243,13 +245,43 @@ namespace SDP{
     }
   }
 
-  /// Sets the TCP/UDP connection details from a given transport string.
-  /// Sets the transportString member to the current transport string on success.
-  /// \param host The host connecting to us.
-  /// \source The source identifier.
-  /// \return True if successful, false otherwise.
-  bool Track::parseTransport(const std::string &transport, const std::string &host,
-                             const std::string &source, const DTSC::Meta *M, size_t tid){
+  /// Prepares data and RTP control UDP sockets for multicast delivery
+  /// \param dest: IP address to where we want to push RTP packets to
+  /// \param port: port which will receive DATA. port+1 will receive RTCP
+  /// \return True if we have bound the correct ports, False if we need to abort
+  bool Track::prepareSockets(const std::string dest, uint32_t port){
+    HIGH_MSG("Preparing sockets for pushing towards '%s' port '%" PRIu32 "'", dest.c_str(), port);
+    int sendbuff = 4 * 1024 * 1024;
+    setsockopt(data.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+    setsockopt(rtcp.getSock(), SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
+    data.setSocketFamily(AF_UNSPEC);
+    rtcp.setSocketFamily(AF_UNSPEC);
+    data.SetDestination(dest, 1337);
+    rtcp.SetDestination(dest, 1337);
+
+    // If no explicit port was set, we will bind to anything that works for us
+    // We only need to bind the RTCP UDP port, since we are not receiving data
+    if (!port){
+      int retries = 0;
+      while (!portB && retries < 10){
+        portB = rtcp.bind(0);
+      }
+      portA = portB-1;
+    }else{
+      portA = port;
+      portB = rtcp.bind(portA + 1);
+    }
+    data.SetDestination(dest, portA);
+    rtcp.SetDestination(dest, portB);
+
+    if(portB != portA + 1 || !portA || !portB){
+      return false;
+    }
+    return true;
+  }
+
+  /// \brief Determines the codec of the current track
+  bool Track::setPackCodec(const DTSC::Meta *M, size_t tid){
     std::string codec = M->getCodec(tid);
     if (codec == "H264"){
       pack = RTP::Packet(97, 1, 0, mySSRC);
@@ -293,6 +325,17 @@ namespace SDP{
       ERROR_MSG("Unsupported codec %s for RTSP on track %zu", codec.c_str(), tid);
       return false;
     }
+    return true;
+  }
+
+  /// Sets the TCP/UDP connection details from a given transport string.
+  /// Sets the transportString member to the current transport string on success.
+  /// \param host The host connecting to us.
+  /// \source The source identifier.
+  /// \return True if successful, false otherwise.
+  bool Track::parseTransport(const std::string &transport, const std::string &host,
+                             const std::string &source, const DTSC::Meta *M, size_t tid){
+    if (!setPackCodec(M, tid)){return false;}
     if (transport.find("TCP") != std::string::npos){
       std::string chanE = transport.substr(transport.find("interleaved=") + 12,
                                            (transport.size() - transport.rfind('-') - 1)); // extract channel ID

@@ -562,6 +562,7 @@ makeOutput(CMAF cmaf           http)#LTS
 makeOutput(EBML ebml)
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
+makeOutput(SDP sdp             http)
 
 add_executable(MistProcFFMPEG
   ${BINARY_DIR}/mist/.headers

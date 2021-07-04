@@ -10,22 +10,10 @@
 #include <mist/shared_memory.h>
 #include <mist/socket.h>
 #include <mist/timing.h>
+#include <mist/stream.h>
 #include <set>
 
 namespace Mist{
-
-  /// This struct keeps packet information sorted in playback order, so the
-  /// Mist::Output class knows when to buffer which packet.
-  struct sortedPageInfo{
-    bool operator<(const sortedPageInfo &rhs) const{
-      if (time < rhs.time){return true;}
-      return (time == rhs.time && tid < rhs.tid);
-    }
-    size_t tid;
-    uint64_t time;
-    uint64_t offset;
-    size_t partIndex;
-  };
 
   /// The output class is intended to be inherited by MistOut process classes.
   /// It contains all generic code and logic, while the child classes implement
@@ -85,6 +73,9 @@ namespace Mist{
 
     void selectAllTracks();
 
+    /// Accessor for buffer.setSyncMode.
+    void setSyncMode(bool synced){buffer.setSyncMode(synced);}
+
   private: // these *should* not be messed with in child classes.
     /*LTS-START*/
     void Log(std::string type, std::string message);
@@ -102,7 +93,7 @@ namespace Mist{
     bool isRecordingToFile;
     uint64_t lastStats; ///< Time of last sending of stats.
 
-    std::set<sortedPageInfo> buffer; ///< A sorted list of next-to-be-loaded packets.
+    Util::packetSorter buffer; ///< A sorted list of next-to-be-loaded packets.
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
                           ///< prepareNext().
     std::string prevHost; ///< Old value for getConnectedBinHost, for caching

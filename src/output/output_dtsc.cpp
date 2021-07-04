@@ -12,6 +12,7 @@
 namespace Mist{
   OutDTSC::OutDTSC(Socket::Connection &conn) : Output(conn){
     JSON::Value prep;
+    setSyncMode(false);
     if (config->getString("target").size()){
       streamName = config->getString("streamname");
       pushUrl = HTTP::URL(config->getString("target"));

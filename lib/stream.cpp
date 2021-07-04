@@ -201,6 +201,133 @@ void Util::sanitizeName(std::string &streamname){
   }
 }
 
+/// Initalizes the packetSorter in sync mode.
+Util::packetSorter::packetSorter(){
+  dequeMode = false;
+}
+
+/// Sets sync mode on if true (sync), off if false (async).
+void Util::packetSorter::setSyncMode(bool synced){
+  if (dequeMode != !synced){
+    dequeMode = !synced;
+    if (!dequeMode){
+      //we've switched away from deque
+      for (std::deque<Util::sortedPageInfo>::iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+        insert(*it);
+      }
+      dequeBuffer.clear();
+    }else{
+      //we've switched away from set
+      for (std::set<Util::sortedPageInfo>::iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+        insert(*it);
+      }
+      setBuffer.clear();
+    }
+  }
+}
+
+/// Returns true if we're synced, false if async.
+bool Util::packetSorter::getSyncMode() const{return !dequeMode;}
+
+/// Returns the amount of packets currently in the sorter.
+size_t Util::packetSorter::size() const{
+  if (dequeMode){return dequeBuffer.size();}else{return setBuffer.size();}
+}
+
+/// Clears all packets from the sorter; does not reset mode.
+void Util::packetSorter::clear(){
+  dequeBuffer.clear();
+  setBuffer.clear();
+}
+
+/// Returns a pointer to the first packet in the sorter.
+const Util::sortedPageInfo * Util::packetSorter::begin() const{
+  if (dequeMode){
+    return &*dequeBuffer.begin();
+  }else{
+    return &*setBuffer.begin();
+  }
+}
+
+/// Inserts a new packet in the sorter.
+void Util::packetSorter::insert(const sortedPageInfo &pInfo){
+  if (dequeMode){
+    dequeBuffer.push_back(pInfo);
+  }else{
+    setBuffer.insert(pInfo);
+  }
+}
+
+/// Removes the given track ID packet from the sorter. Removes at most one packet, make sure to prevent duplicates elsewhere!
+void Util::packetSorter::dropTrack(size_t tid){
+  if (dequeMode){
+    for (std::deque<Util::sortedPageInfo>::iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+      if (it->tid == tid){
+        dequeBuffer.erase(it);
+        return;
+      }
+    }
+  }else{
+    for (std::set<Util::sortedPageInfo>::iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+      if (it->tid == tid){
+        setBuffer.erase(it);
+        return;
+      }
+    }
+  }
+}
+
+/// Removes the first packet from the sorter and inserts the given packet.
+void Util::packetSorter::replaceFirst(const sortedPageInfo &pInfo){
+  if (dequeMode){
+    dequeBuffer.pop_front();
+    if (dequeBuffer.size() && dequeBuffer.front().time > pInfo.time){
+      dequeBuffer.push_front(pInfo);
+    }else{
+      dequeBuffer.push_back(pInfo);
+    }
+  }else{
+    setBuffer.erase(setBuffer.begin());
+    setBuffer.insert(pInfo);
+  }
+}
+
+/// Removes the first packet from the sorter and inserts it back at the end. No-op for sync mode.
+void Util::packetSorter::moveFirstToEnd(){
+  if (dequeMode){
+    dequeBuffer.push_back(dequeBuffer.front());
+    dequeBuffer.pop_front();
+  }
+}
+
+/// Returns true if there is an entry in the sorter for the given track ID.
+bool Util::packetSorter::hasEntry(size_t tid) const{
+  if (dequeMode){
+    for (std::deque<Util::sortedPageInfo>::const_iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+      if (it->tid == tid){return true;}
+    }
+  }else{
+    for (std::set<Util::sortedPageInfo>::const_iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+      if (it->tid == tid){return true;}
+    }
+  }
+  return false;
+}
+
+/// Fills toFill with track IDs of tracks that are in the sorter.
+void Util::packetSorter::getTrackList(std::set<size_t> &toFill) const{
+  toFill.clear();
+  if (dequeMode){
+    for (std::deque<Util::sortedPageInfo>::const_iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+      toFill.insert(it->tid);
+    }
+  }else{
+    for (std::set<Util::sortedPageInfo>::const_iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+      toFill.insert(it->tid);
+    }
+  }
+}
+
 JSON::Value Util::getStreamConfig(const std::string &streamname){
   JSON::Value result;
   if (streamname.size() > 100){

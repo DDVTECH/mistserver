@@ -788,7 +788,7 @@ namespace Mist{
       userSelect.erase(tid);
       return false;
     }
-    sortedPageInfo tmp;
+    Util::sortedPageInfo tmp;
     tmp.tid = tid;
     tmp.offset = 0;
     tmp.partIndex = 0;
@@ -1456,12 +1456,7 @@ namespace Mist{
               streamName.c_str(), meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
               pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
     // now actually drop the track from the buffer
-    for (std::set<sortedPageInfo>::iterator it = buffer.begin(); it != buffer.end(); ++it){
-      if (it->tid == trackId){
-        buffer.erase(it);
-        break;
-      }
-    }
+    buffer.dropTrack(trackId);
     userSelect.erase(trackId);
   }
 
@@ -1471,7 +1466,7 @@ namespace Mist{
   /// prepareNext continues as if this function was never called.
   bool Output::getKeyFrame(){
     // store copy of current state
-    std::set<sortedPageInfo> tmp_buffer = buffer;
+    Util::packetSorter tmp_buffer = buffer;
     std::map<size_t, Comms::Users> tmp_userSelect = userSelect;
     std::map<size_t, uint32_t> tmp_currentPage = currentPage;
 
@@ -1528,26 +1523,13 @@ namespace Mist{
       if (buffer.size() < userSelect.size()){
         // prepare to drop any selectedTrack without buffer entry
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
-          bool found = false;
-          for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
-            if (bi->tid == it->first){
-              found = true;
-              break;
-            }
-          }
-          if (!found){dropTracks.insert(it->first);}
+          if (!buffer.hasEntry(it->first)){dropTracks.insert(it->first);}
         }
       }else{
-        std::set<size_t> seen;
         // prepare to drop any buffer entry without selectedTrack
-        for (std::set<sortedPageInfo>::iterator bi = buffer.begin(); bi != buffer.end(); ++bi){
-          if (!userSelect.count(bi->tid)){dropTracks.insert(bi->tid);}
-          if (seen.count(bi->tid)){
-            INFO_MSG("Dropping duplicate buffer entry for track %zu", bi->tid);
-            buffer.erase(bi);
-            return false;
-          }
-          seen.insert(bi->tid);
+        buffer.getTrackList(dropTracks);
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
+          dropTracks.erase(it->first);
         }
       }
       if (!dropTracks.size()){
@@ -1565,118 +1547,129 @@ namespace Mist{
       return false;
     }
 
-    sortedPageInfo nxt = *(buffer.begin());
-
-    if (meta.reloadReplacedPagesIfNeeded()){return false;}
-    if (!M.getValidTracks().count(nxt.tid)){
-      dropTrack(nxt.tid, "disappeared from metadata");
-      return false;
-    }
-
-    // if we're going to read past the end of the data page, load the next page
-    // this only happens for VoD
-    if (nxt.offset >= curPage[nxt.tid].len ||
-        (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
-      if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
-        dropTrack(nxt.tid, "end of VoD track reached", false);
-        return false;
-      }
-      if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
-        loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
-        nxt.offset = 0;
-        //Only read the next time if the page load succeeded and there is a packet to read from
-        if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
-          nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
-        }
-        buffer.erase(buffer.begin());
-        buffer.insert(nxt);
-        return false;
-      }
-      dropTrack(nxt.tid, "VoD page load failure");
-      return false;
-    }
-
-    // We know this packet will be valid, pre-load it so we know its length
-    DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
-
+    Util::sortedPageInfo nxt;
     uint64_t nextTime = 0;
+    //In case we're not in sync mode, we might have to retry a few times
+    for (size_t trackTries = 0; trackTries < buffer.size(); ++trackTries){
 
-    // Check if we have a next valid packet
-    if (curPage[nxt.tid].len > nxt.offset+preLoad.getDataLen()+20 && memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
-      nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
-      if (!nextTime){
-        WARN_MSG("Next packet is available (offset %" PRIu64 " / %" PRIu64 " on %s), but has no time. Please warn the developers if you see this message!", nxt.offset, curPage[nxt.tid].len, curPage[nxt.tid].name.c_str());
-        dropTrack(nxt.tid, "EOP: invalid next packet");
+      nxt = *(buffer.begin());
+
+      if (meta.reloadReplacedPagesIfNeeded()){return false;}
+      if (!M.getValidTracks().count(nxt.tid)){
+        dropTrack(nxt.tid, "disappeared from metadata");
         return false;
       }
-      if (nextTime < nxt.time){
-        std::stringstream errMsg;
-        errMsg << "next packet has timestamp " << nextTime << " but current timestamp is " << nxt.time;
-        dropTrack(nxt.tid, errMsg.str().c_str());
+
+      // if we're going to read past the end of the data page, load the next page
+      // this only happens for VoD
+      if (nxt.offset >= curPage[nxt.tid].len ||
+          (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
+        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+          dropTrack(nxt.tid, "end of VoD track reached", false);
+          return false;
+        }
+        if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+          loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
+          nxt.offset = 0;
+          //Only read the next time if the page load succeeded and there is a packet to read from
+          if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
+            nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+          }
+          buffer.replaceFirst(nxt);
+          return false;
+        }
+        INFO_MSG("Invalid packet: no data @%" PRIu64 " for time %" PRIu64 " on track %zu", nxt.offset, nxt.time, nxt.tid);
+        dropTrack(nxt.tid, "VoD page load failure");
         return false;
       }
-    }else{
-      //no next packet yet!
-      //Check if this is the last packet of a VoD stream. Return success and drop the track.
-      if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
-        thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
-        thisIdx = nxt.tid;
-        dropTrack(nxt.tid, "end of VoD track reached", false);
-        return true;
-      }
-      uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
-      //Check if there exists a different page for the next key
-      uint32_t nextKeyPage = INVALID_KEY_NUM;
-      //Make sure we only try to read the page for the next key if it actually should be available
-      DTSC::Keys keys(M.keys(nxt.tid));
-      if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
-      if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
-        // If so, the next key is our next packet
-        nextTime = keys.getTime(thisKey + 1);
 
-        //If the next packet should've been before the current packet, something is wrong. Abort, abort!
+      // We know this packet will be valid, pre-load it so we know its length
+      DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+
+      nextTime = 0;
+
+      // Check if we have a next valid packet
+      if (curPage[nxt.tid].len > nxt.offset+preLoad.getDataLen()+20 && memcmp(curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen(), "\000\000\000\000", 4)){
+        nextTime = getDTSCTime(curPage[nxt.tid].mapped, nxt.offset + preLoad.getDataLen());
+        if (!nextTime){
+          WARN_MSG("Next packet is available (offset %" PRIu64 " / %" PRIu64 " on %s), but has no time. Please warn the developers if you see this message!", nxt.offset, curPage[nxt.tid].len, curPage[nxt.tid].name.c_str());
+          dropTrack(nxt.tid, "EOP: invalid next packet");
+          return false;
+        }
         if (nextTime < nxt.time){
           std::stringstream errMsg;
-          errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
-          errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
-          errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
+          errMsg << "next packet has timestamp " << nextTime << " but current timestamp is " << nxt.time;
           dropTrack(nxt.tid, errMsg.str().c_str());
           return false;
         }
       }else{
-        //Okay, there's no next page yet, and no next packet on this page either.
-        //That means we're waiting for data to show up, somewhere.
-        // after ~25 seconds, give up and drop the track.
-        if (++emptyCount >= 2500){
-          dropTrack(nxt.tid, "EOP: data wait timeout");
-          return false;
-        }
-        //every ~1 second, check if the stream is not offline
-        if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
-          Util::logExitReason("Stream source shut down");
-          thisPacket.null();
+        //no next packet yet!
+        //Check if this is the last packet of a VoD stream. Return success and drop the track.
+        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+          thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+          thisIdx = nxt.tid;
+          dropTrack(nxt.tid, "end of VoD track reached", false);
           return true;
         }
-        //every ~16 seconds, reconnect to metadata
-        if (emptyCount % 1600 == 0){
-          INFO_MSG("Reconnecting to input; track %" PRIu64 " key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
-          reconnect();
-          if (!meta){
-            onFail("Could not connect to stream data", true);
+        uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
+        //Check if there exists a different page for the next key
+        uint32_t nextKeyPage = INVALID_KEY_NUM;
+        //Make sure we only try to read the page for the next key if it actually should be available
+        DTSC::Keys keys(M.keys(nxt.tid));
+        if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
+        if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
+          // If so, the next key is our next packet
+          nextTime = keys.getTime(thisKey + 1);
+
+          //If the next packet should've been before the current packet, something is wrong. Abort, abort!
+          if (nextTime < nxt.time){
+            std::stringstream errMsg;
+            errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
+            errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
+            errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
+            dropTrack(nxt.tid, errMsg.str().c_str());
+            return false;
+          }
+        }else{
+          if (!buffer.getSyncMode() && trackTries < buffer.size()-1){
+            //We shuffle the just-tried packet back to the end of the queue, then retry up to buffer.size() times
+            buffer.moveFirstToEnd();
+            continue;
+          }
+          //Okay, there's no next page yet, and no next packet on this page either.
+          //That means we're waiting for data to show up, somewhere.
+          // after ~25 seconds, give up and drop the track.
+          if (++emptyCount >= 2500){
+            dropTrack(nxt.tid, "EOP: data wait timeout");
+            return false;
+          }
+          //every ~1 second, check if the stream is not offline
+          if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+            Util::logExitReason("Stream source shut down");
             thisPacket.null();
             return true;
           }
-          // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
-          if (!meta){
-            Util::logExitReason("Attempted reconnect to source failed");
-            thisPacket.null();
-            return true;
+          //every ~16 seconds, reconnect to metadata
+          if (emptyCount % 1600 == 0){
+            INFO_MSG("Reconnecting to input; track %" PRIu64 " key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
+            reconnect();
+            if (!meta){
+              onFail("Could not connect to stream data", true);
+              thisPacket.null();
+              return true;
+            }
+            // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
+            if (!meta){
+              Util::logExitReason("Attempted reconnect to source failed");
+              thisPacket.null();
+              return true;
+            }
+            return false;//no sleep after reconnect
           }
-          return false;//no sleep after reconnect
+          //Fine! We didn't want a packet, anyway. Let's try again later.
+          playbackSleep(10);
+          return false;
         }
-        //Fine! We didn't want a packet, anyway. Let's try again later.
-        playbackSleep(10);
-        return false;
       }
     }
 
@@ -1693,7 +1686,7 @@ namespace Mist{
     emptyCount = 0; // valid packet - reset empty counter
 
     if (!userSelect[nxt.tid]){
-      INFO_MSG("Track %zu is not alive!", nxt.tid);
+      dropTrack(nxt.tid, "track is not alive!");
       return false;
     }
 
@@ -1710,9 +1703,7 @@ namespace Mist{
     ++nxt.partIndex;
 
     // exchange the current packet in the buffer for the next one
-    buffer.erase(buffer.begin());
-    buffer.insert(nxt);
-
+    buffer.replaceFirst(nxt);
     return true;
   }
 

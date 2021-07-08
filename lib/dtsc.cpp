@@ -2294,7 +2294,7 @@ namespace DTSC{
             MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
             maxJitter = curJitter;
           }
-          curJitter = maxJitter*0.75;
+          curJitter = maxJitter*0.90;
         }
         ++x;
         trueTime[x % 8] = curMs;

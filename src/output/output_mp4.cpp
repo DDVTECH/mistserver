@@ -1243,7 +1243,6 @@ namespace Mist{
         dropTrack(prevVidTrack, "Smoothly switching to new video track", false);
         prevVidTrack = INVALID_TRACK_ID;
         onIdle();
-        sendWebsocketCodecData("tracks");
         sendHeader();
 
 /*
@@ -1281,7 +1280,7 @@ namespace Mist{
       webBuf.append(dataPointer, len);
       webSock->sendFrame(webBuf, webBuf.size(), 2);
 
-      if (stayLive && thisPacket.getFlag("keyframe")){liveSeek();}
+      if (stayLive && thisPacket.getFlag("keyframe")){liveSeek(true);}
       // We must return here, the rest of this function won't work for websockets. 
       return;
     }
@@ -1395,7 +1394,11 @@ namespace Mist{
   void OutMP4::sendHeader(){
 
     if (webSock) {
-
+      if (!sentHeader){
+        sendWebsocketCodecData("codec_data");
+      }else{
+        sendWebsocketCodecData("tracks");
+      }
       JSON::Value r;
       r["type"] = "info";
       r["data"]["msg"] = "Sending header";
@@ -1445,9 +1448,11 @@ namespace Mist{
 
   void OutMP4::onWebsocketConnect() {
     capa["name"] = "MP4/WS";
+    capa["maxdelay"] = 5000;
     fragSeqNum = 0;
     idleInterval = 1000;
     maxSkipAhead = 0;
+    dataWaitTimeout = 450;
   }
 
   void OutMP4::onWebsocketFrame() {
@@ -1482,7 +1487,7 @@ namespace Mist{
         }
       }
       selectDefaultTracks();
-      sendWebsocketCodecData("codec_data");
+      sendHeader();
     }else if (command["type"] == "seek") {
       handleWebsocketSeek(command);
     }else if (command["type"] == "pause") {
@@ -1513,71 +1518,11 @@ namespace Mist{
           targetParams.erase("video");
         }
       }
-      // Remember the previous video track, if any.
-      std::set<size_t> prevSelTracks;
-      prevVidTrack = INVALID_TRACK_ID;
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        prevSelTracks.insert(it->first);
-        if (M.getType(it->first) == "video"){
-          prevVidTrack = it->first;
-        }
-      }
-      if (selectDefaultTracks()) {
-        uint64_t seekTarget = currentTime();
-        if (command.isMember("seek_time")){
-          seekTarget = command["seek_time"].asInt();
-          prevVidTrack = INVALID_TRACK_ID;
-        }
-        // Add the previous video track back, if we had one.
-        if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
-          userSelect[prevVidTrack].reload(streamName, prevVidTrack);
-          seek(seekTarget);
-          std::set<size_t> newSelTracks;
-          newSelTracks.insert(prevVidTrack);
-          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            if (M.getType(it->first) != "video"){
-              newSelTracks.insert(it->first);
-            }
-          }
-          if (prevSelTracks != newSelTracks){
-            seek(seekTarget, true);
-            realTime = 0;
-            forwardTo = seekTarget;
-            sendWebsocketCodecData(command["type"]);
-            sendHeader();
-            JSON::Value r;
-            r["type"] = "set_speed";
-            if (target_rate == 0.0){
-              r["data"]["play_rate_prev"] = "auto";
-            }else{
-              r["data"]["play_rate_prev"] = target_rate;
-            }
-            r["data"]["play_rate_curr"] = "fast-forward";
-            webSock->sendFrame(r.toString());
-          }
-        }else{
-          prevVidTrack = INVALID_TRACK_ID;
-          seek(seekTarget, true);
-          realTime = 0;
-          forwardTo = seekTarget;
-          sendWebsocketCodecData(command["type"]);
-          sendHeader();
-          JSON::Value r;
-          r["type"] = "set_speed";
-          if (target_rate == 0.0){
-            r["data"]["play_rate_prev"] = "auto";
-          }else{
-            r["data"]["play_rate_prev"] = target_rate;
-          }
-          r["data"]["play_rate_curr"] = "fast-forward";
-          webSock->sendFrame(r.toString());
-        }
-        onIdle();
-        return;
+      if (command.isMember("seek_time")){
+        possiblyReselectTracks(command["seek_time"].asInt());
       }else{
-        prevVidTrack = INVALID_TRACK_ID;
+        possiblyReselectTracks(currentTime());
       }
-      onIdle();
       return;
     }else if (command["type"] == "set_speed") {
       handleWebsocketSetSpeed(command);
@@ -1588,6 +1533,68 @@ namespace Mist{
       parseData = true;
       if (command.isMember("seek_time")){handleWebsocketSeek(command);}
     }
+  }
+
+  bool OutMP4::possiblyReselectTracks(uint64_t seekTarget){
+    // Remember the previous video track, if any.
+    std::set<size_t> prevSelTracks;
+    prevVidTrack = INVALID_TRACK_ID;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      prevSelTracks.insert(it->first);
+      if (M.getType(it->first) == "video"){
+        prevVidTrack = it->first;
+      }
+    }
+    if (!selectDefaultTracks()) {
+      prevVidTrack = INVALID_TRACK_ID;
+      onIdle();
+      return false;
+    }
+    if (seekTarget != currentTime()){prevVidTrack = INVALID_TRACK_ID;}
+    // Add the previous video track back, if we had one.
+    if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
+      userSelect[prevVidTrack].reload(streamName, prevVidTrack);
+      seek(seekTarget);
+      std::set<size_t> newSelTracks;
+      newSelTracks.insert(prevVidTrack);
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (M.getType(it->first) != "video"){
+          newSelTracks.insert(it->first);
+        }
+      }
+      if (prevSelTracks != newSelTracks){
+        seek(seekTarget, true);
+        realTime = 0;
+        forwardTo = seekTarget;
+        sendHeader();
+        JSON::Value r;
+        r["type"] = "set_speed";
+        if (target_rate == 0.0){
+          r["data"]["play_rate_prev"] = "auto";
+        }else{
+          r["data"]["play_rate_prev"] = target_rate;
+        }
+        r["data"]["play_rate_curr"] = "fast-forward";
+        webSock->sendFrame(r.toString());
+      }
+    }else{
+      prevVidTrack = INVALID_TRACK_ID;
+      seek(seekTarget, true);
+      realTime = 0;
+      forwardTo = seekTarget;
+      sendHeader();
+      JSON::Value r;
+      r["type"] = "set_speed";
+      if (target_rate == 0.0){
+        r["data"]["play_rate_prev"] = "auto";
+      }else{
+        r["data"]["play_rate_prev"] = target_rate;
+      }
+      r["data"]["play_rate_curr"] = "fast-forward";
+      webSock->sendFrame(r.toString());
+    }
+    onIdle();
+    return true;
   }
 
   void OutMP4::sendWebsocketCodecData(const std::string& type) {
@@ -1717,9 +1724,14 @@ namespace Mist{
         r["data"]["play_rate_curr"] = target_rate;
       }
     }
+    uint64_t jitter = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       r["data"]["tracks"].append(it->first);
+      if (jitter < M.getMinKeepAway(it->first)){jitter = M.getMinKeepAway(it->first);}
     }
+    r["data"]["jitter"] = jitter;
+    if (dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
+    if (capa["maxdelay"].asInt() < jitter*1.5){capa["maxdelay"] = jitter*1.5;}
     webSock->sendFrame(r.toString());
   }
 
@@ -1737,6 +1749,13 @@ namespace Mist{
     webSock->sendFrame(r.toString());
     parseData = false;
     return false;
+  }
+
+  void OutMP4::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
+    if (webSock && (reason == "EOP: data wait timeout" || reason == "disappeared from metadata") && possiblyReselectTracks(currentTime())){
+      return;
+    }
+    return Output::dropTrack(trackId, reason, probablyBad);
   }
 
 }// namespace Mist

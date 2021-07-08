@@ -62,7 +62,7 @@ namespace Mist{
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
     virtual void initialSeek();
     uint64_t getMinKeepAway();
-    virtual bool liveSeek();
+    virtual bool liveSeek(bool rateOnly = false);
     virtual bool onFinish(){return false;}
     void reconnect();
     void disconnect();
@@ -115,6 +115,7 @@ namespace Mist{
     uint64_t uaDelay;                                ///< Seconds to wait before setting the UA.
     uint64_t lastRecv;
     uint64_t extraKeepAway;
+    uint64_t dataWaitTimeout; ///< How long to wait for new packets before dropping a track, in tens of milliseconds.
     uint64_t firstTime; ///< Time of first packet after last seek. Used for real-time sending.
     virtual std::string getConnectedHost();
     virtual std::string getConnectedBinHost();

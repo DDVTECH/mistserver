@@ -1139,7 +1139,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::string &track
 std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                           const std::string &type, const std::string &UA){
   std::set<size_t> validTracks = M.getValidTracks();
-
+  uint64_t maxLastMs = 0;
   std::set<size_t> toRemove;
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
     // Remove unrequested tracks
@@ -1208,9 +1208,26 @@ std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value
         toRemove.insert(*it);
       }
     }
+    //not removing this track? Keep track of highest lastMs
+    if (capa.isMember("maxdelay")){
+      uint64_t lMs = M.getLastms(*it);
+      if (lMs > maxLastMs){maxLastMs = lMs;}
+    }
   }
   for (std::set<size_t>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
     validTracks.erase(*it);
+  }
+  //if there is a max delay configured, remove tracks that are further behind than this
+  if (capa.isMember("maxdelay")){
+    uint64_t maxDelay = capa["maxdelay"].asInt();
+    if (maxDelay > maxLastMs){maxDelay = maxLastMs;}
+    toRemove.clear();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      if (M.getLastms(*it) < maxLastMs - maxDelay){toRemove.insert(*it);}
+    }
+    for (std::set<size_t>::iterator it = toRemove.begin(); it != toRemove.end(); it++){
+      validTracks.erase(*it);
+    }
   }
   return validTracks;
 }

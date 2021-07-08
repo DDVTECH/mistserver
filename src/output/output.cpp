@@ -86,6 +86,7 @@ namespace Mist{
   }
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
+    dataWaitTimeout = 2500;
     pushing = false;
     recursingSync = false;
     firstTime = 0;
@@ -1097,7 +1098,7 @@ namespace Mist{
   /// This function attempts to forward playback in live streams to a more live point.
   /// It seeks to the last sync'ed keyframe of the main track, no closer than needsLookAhead+minKeepAway ms from the end.
   /// Aborts if not live, there is no main track or it has no keyframes.
-  bool Output::liveSeek(){
+  bool Output::liveSeek(bool rateOnly){
     if (!realTime){return false;}//Makes no sense when playing in turbo mode
     uint64_t seekPos = 0;
     if (!meta.getLive()){return false;}
@@ -1113,7 +1114,7 @@ namespace Mist{
       if (lMs - mKa - needsLookAhead - extraKeepAway > cTime + 50){
         // We need to speed up!
         uint64_t diff = (lMs - mKa - needsLookAhead - extraKeepAway) - cTime;
-        if (diff > 3000){
+        if (!rateOnly && diff > 3000){
           noReturn = true;
           newSpeed = 1000;
         }else if (diff > 1000){
@@ -1687,7 +1688,7 @@ namespace Mist{
           //Okay, there's no next page yet, and no next packet on this page either.
           //That means we're waiting for data to show up, somewhere.
           // after ~25 seconds, give up and drop the track.
-          if (++emptyCount >= 2500){
+          if (++emptyCount >= dataWaitTimeout){
             dropTrack(nxt.tid, "EOP: data wait timeout");
             return false;
           }

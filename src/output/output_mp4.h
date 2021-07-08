@@ -108,7 +108,9 @@ namespace Mist{
     void onWebsocketFrame();
     void onIdle();
     virtual bool onFinish();
+    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
   protected:
+    bool possiblyReselectTracks(uint64_t seekTarget);
     void sendWebsocketCodecData(const std::string& type);
     bool handleWebsocketSeek(JSON::Value& command);
     bool handleWebsocketSetSpeed(JSON::Value& command);

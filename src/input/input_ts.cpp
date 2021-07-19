@@ -344,7 +344,7 @@ namespace Mist{
   ///\todo Find errors, perhaps parts can be made more modular
   bool inputTS::readHeader(){
     if (!inFile){return false;}
-    meta.reInit(streamName);
+    meta.reInit(isSingular() ? streamName : "");
     TS::Packet packet; // to analyse and extract data
     DTSC::Packet headerPack;
     fseek(inFile, 0, SEEK_SET); // seek to beginning
@@ -430,7 +430,8 @@ namespace Mist{
       return;
     }
     tsStream.initializeMetadata(meta);
-    size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+    thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+    thisTime = thisPacket.getTime();
     if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
   }
 

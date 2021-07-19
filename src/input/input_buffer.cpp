@@ -476,9 +476,13 @@ namespace Mist{
   }
   void inputBuffer::userOnDisconnect(size_t id){
     if (sourcePids.count(id)){
-      INFO_MSG("Disconnected track %zu", sourcePids[id]);
-      meta.reloadReplacedPagesIfNeeded();
-      removeTrack(sourcePids[id]);
+      if (!resumeMode){
+        INFO_MSG("Disconnected track %zu", sourcePids[id]);
+        meta.reloadReplacedPagesIfNeeded();
+        removeTrack(sourcePids[id]);
+      }else{
+        INFO_MSG("Track %zu lost its source, keeping it around for resume", sourcePids[id]);
+      }
       sourcePids.erase(id);
     }
   }

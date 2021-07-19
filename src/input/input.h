@@ -77,7 +77,6 @@ namespace Mist{
 
     JSON::Value capa;
 
-    int64_t timeOffset;
     std::map<size_t, std::set<uint64_t> > keyTimes;
 
     // Create server for user pages

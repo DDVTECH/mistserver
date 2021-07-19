@@ -79,7 +79,8 @@ namespace Mist{
 
   bool inputFLV::readHeader(){
     if (!inFile){return false;}
-    meta.reInit(config->getString("streamname"));
+    if (readExistingHeader()){return true;}
+    meta.reInit(isSingular() ? streamName : "");
     // Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);
     AMF::Object amf_storage;
@@ -142,8 +143,9 @@ namespace Mist{
     if (!tmpTag.getDataLen() || (tmpTag.needsInitData() && tmpTag.isInitData())){
       return getNext(idx);
     }
-    size_t tNumber = meta.trackIDToIndex(tmpTag.getTrackID(), getpid());
-    thisPacket.genericFill(tmpTag.tagTime(), tmpTag.offset(), tNumber, tmpTag.getData(),
+    thisIdx = meta.trackIDToIndex(tmpTag.getTrackID(), getpid());
+    thisTime = tmpTag.tagTime();
+    thisPacket.genericFill(thisTime, tmpTag.offset(), thisIdx, tmpTag.getData(),
                            tmpTag.getDataLen(), lastBytePos, tmpTag.isKeyframe);
 
     if (M.getCodec(idx) == "PCM" && M.getSize(idx) == 16){

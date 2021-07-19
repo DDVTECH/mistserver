@@ -182,7 +182,7 @@ namespace Mist{
     // Create header file from file
     uint64_t bench = Util::getMicros();
     if (!meta || (needsLock() && isSingular())){
-      meta.reInit(streamName);
+      meta.reInit(isSingular() ? streamName : "");
     }
 
     while (readElement()){
@@ -404,7 +404,7 @@ namespace Mist{
             frameSize = assStr.size();
           }
           if (frameSize){
-            TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
+            TP.add(newTime * timeScale, idx, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
           }
         }
         while (TP.hasPackets()){
@@ -481,6 +481,8 @@ namespace Mist{
     }
     thisPacket.genericFill(C.time, C.offset, C.track, C.ptr, C.dsize,
                            C.bpos, C.key);
+    thisTime = C.time;
+    thisIdx = C.track;
   }
 
   void InputEBML::getNext(size_t idx){
@@ -533,10 +535,10 @@ namespace Mist{
     uint64_t tNum = B.getTrackNum();
     uint64_t newTime = lastClusterTime + B.getTimecode();
     trackPredictor &TP = packBuf[tNum];
-    size_t trackIdx = M.trackIDToIndex(tNum, getpid());
-    bool isVideo = (M.getType(trackIdx) == "video");
-    bool isAudio = (M.getType(trackIdx) == "audio");
-    bool isASS = (M.getCodec(trackIdx) == "subtitle" && M.getInit(trackIdx).size());
+    thisIdx = M.trackIDToIndex(tNum, getpid());
+    bool isVideo = (M.getType(thisIdx) == "video");
+    bool isAudio = (M.getType(thisIdx) == "audio");
+    bool isASS = (M.getCodec(thisIdx) == "subtitle" && M.getInit(thisIdx).size());
 
     // If this is a new video keyframe, flush the corresponding trackPredictor
     if (isVideo && B.isKeyframe() && bufferedPacks){
@@ -546,7 +548,7 @@ namespace Mist{
         fillPacket(C);
         TP.remove();
         --bufferedPacks;
-        if (singleTrack && trackIdx != idx){getNext(idx);}
+        if (singleTrack && thisIdx != idx){getNext(idx);}
         return;
       }
     }
@@ -555,19 +557,19 @@ namespace Mist{
 
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
-        if (M.getCodec(trackIdx) == "AAC"){
-          newTime += (1000000 / M.getRate(trackIdx)) / timeScale; // assume ~1000 samples per frame
-        }else if (M.getCodec(trackIdx) == "MP3"){
-          newTime += (1152000 / M.getRate(trackIdx)) / timeScale; // 1152 samples per frame
-        }else if (M.getCodec(trackIdx) == "DTS"){
+        if (M.getCodec(thisIdx) == "AAC"){
+          newTime += (1000000 / M.getRate(thisIdx)) / timeScale; // assume ~1000 samples per frame
+        }else if (M.getCodec(thisIdx) == "MP3"){
+          newTime += (1152000 / M.getRate(thisIdx)) / timeScale; // 1152 samples per frame
+        }else if (M.getCodec(thisIdx) == "DTS"){
           // Assume 512 samples per frame (DVD default)
           // actual amount can be calculated from data, but data
           // is not available during header generation...
           // See: http://www.stnsoft.com/DVD/dtshdr.html
-          newTime += (512000 / M.getRate(trackIdx)) / timeScale;
+          newTime += (512000 / M.getRate(thisIdx)) / timeScale;
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!",
-                    M.getCodec(trackIdx).c_str());
+                    M.getCodec(thisIdx).c_str());
         }
       }
       uint32_t frameSize = B.getFrameSize(frameNo);
@@ -579,7 +581,7 @@ namespace Mist{
           memcpy(ptr, assStr.data(), frameSize);
         }
         if (frameSize){
-          TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos,
+          TP.add(newTime * timeScale, thisIdx, frameSize, lastClusterBPos,
                  B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
           ++bufferedPacks;
         }
@@ -590,7 +592,7 @@ namespace Mist{
       fillPacket(C);
       TP.remove();
       --bufferedPacks;
-      if (singleTrack && trackIdx != idx){getNext(idx);}
+      if (singleTrack && thisIdx != idx){getNext(idx);}
     }else{
       // We didn't set thisPacket yet. Read another.
       // Recursing is fine, this can only happen a few times in a row.

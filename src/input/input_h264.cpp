@@ -122,6 +122,8 @@ namespace Mist{
         if (M.getFpks(tNumber)){ts = frameCount * (1000000 / M.getFpks(tNumber));}
         thisPacket.genericFill(ts, 0, tNumber, 0, 0, 0, h264::isKeyframe(NAL.data(), nalSize));
         thisPacket.appendNal(NAL.data(), nalSize);
+        thisTime = ts;
+        thisIdx = tNumber;
         ++frameCount;
         return;
       }

@@ -41,8 +41,14 @@ namespace Mist{
 
   void inputPlaylist::streamMainLoop(){
     bool seenValidEntry = true;
-    uint64_t startTime = Util::bootMS();
+    Comms::Users killSwitch;
+    killSwitch.reload(streamName, (size_t)INVALID_TRACK_ID, (uint8_t)(COMM_STATUS_ACTIVE | COMM_STATUS_DONOTTRACK));
     while (config->is_active){
+      if (killSwitch && killSwitch.getStatus() & COMM_STATUS_REQDISCONNECT){
+        Util::logExitReason("buffer requested shutdown");
+        config->is_active = false;
+        break;
+      }
       struct tm *wTime;
       time_t nowTime = time(0);
       wTime = localtime(&nowTime);
@@ -77,7 +83,6 @@ namespace Mist{
       std::map<std::string, std::string> overrides;
       overrides["realtime"] = "1";
       overrides["alwaysStart"] = ""; // Just making this value "available" is enough
-      overrides["simulated-starttime"] = JSON::Value(startTime).asString();
       std::string srcPath = config->getString("input");
       if ((currentSource.size() && currentSource[0] == '/') || srcPath.rfind('/') == std::string::npos){
         srcPath = currentSource;
@@ -106,6 +111,11 @@ namespace Mist{
       }
       seenValidEntry = true;
       while (Util::Procs::isRunning(spawn_pid) && config->is_active){
+        if (killSwitch && killSwitch.getStatus() & COMM_STATUS_REQDISCONNECT){
+          Util::logExitReason("buffer requested shutdown");
+          config->is_active = false;
+          break;
+        }
         Util::sleep(1000);
         if (reloadOn != 0xFFFF){
           time_t nowTime = time(0);

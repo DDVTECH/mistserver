@@ -209,6 +209,7 @@ namespace Mist{
       INFO_MSG("inFile failed!");
       return false;
     }
+    if (readExistingHeader()){return true;}
 
     // first we get the necessary header parts
     size_t tNumber = 0;
@@ -238,7 +239,7 @@ namespace Mist{
     if (readExistingHeader()){return true;}
     HIGH_MSG("Not read existing header");
 
-    meta.reInit(streamName);
+    meta.reInit(isSingular() ? streamName : "");
 
     tNumber = 0;
     // Create header file from MP4 data
@@ -508,6 +509,8 @@ namespace Mist{
     }else{
       thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, data, curPart.size, 0, isKeyframe);
     }
+    thisTime = curPart.time;
+    thisIdx = curPart.trackID;
 
     // get the next part for this track
     curPart.index++;

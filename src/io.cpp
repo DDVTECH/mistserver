@@ -37,15 +37,15 @@ namespace Mist{
   /// Buffering itself is done by bufferNext().
   ///\param tid The trackid of the page to start buffering
   ///\param pageNumber The number of the page to start buffering
-  bool InOutBase::bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page){
+  bool InOutBase::bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page, DTSC::Meta & aMeta){
     VERYHIGH_MSG("bufferStart for stream %s, track %zu, page %" PRIu32, streamName.c_str(), idx, pageNumber);
     // Initialize the stream metadata if it does not yet exist
 #ifndef TSLIVE_INPUT
-    if (!meta){meta.reInit(streamName);}
+    if (!aMeta){aMeta.reInit(streamName);}
 #endif
 
-    if (!meta.getValidTracks().size()){
-      meta.clear();
+    if (!aMeta.getValidTracks().size()){
+      aMeta.clear();
       return false;
     }
 
@@ -56,7 +56,7 @@ namespace Mist{
       page.close();
     }
 
-    Util::RelAccX &tPages = meta.pages(idx);
+    Util::RelAccX &tPages = aMeta.pages(idx);
 
     uint32_t pageIdx = INVALID_KEY_NUM;
     for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -79,7 +79,7 @@ namespace Mist{
     }
 
     // If the page is already buffered, ignore this request
-    if (isBuffered(idx, pageNumber)){
+    if (isBuffered(idx, pageNumber, aMeta)){
       INFO_MSG("Page %" PRIu32 " on track %zu already buffered", pageNumber, idx);
       ///\return false if the page was already buffered.
       return false;
@@ -171,16 +171,16 @@ namespace Mist{
   /// Checks whether a key is buffered
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  bool InOutBase::isBuffered(size_t idx, uint32_t keyNum){
+  bool InOutBase::isBuffered(size_t idx, uint32_t keyNum, DTSC::Meta & aMeta){
     ///\return The result of bufferedOnPage(tid, keyNum)
-    return bufferedOnPage(idx, keyNum) != INVALID_KEY_NUM;
+    return bufferedOnPage(idx, keyNum, aMeta) != INVALID_KEY_NUM;
   }
 
   /// Returns the pagenumber where this key is buffered on
   ///\param tid The trackid on which to locate the key
   ///\param keyNum The number of the keyframe to find
-  uint32_t InOutBase::bufferedOnPage(size_t idx, uint32_t keyNum){
-    Util::RelAccX &tPages = meta.pages(idx);
+  uint32_t InOutBase::bufferedOnPage(size_t idx, uint32_t keyNum, DTSC::Meta & aMeta){
+    Util::RelAccX &tPages = aMeta.pages(idx);
 
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       uint64_t pageNum = tPages.getInt("firstkey", i);
@@ -198,6 +198,13 @@ namespace Mist{
   ///\param pack The packet to buffer
   void InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                              size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page){
+    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, page, meta);
+  }
+
+  /// Buffers the next packet on the currently opened page
+  ///\param pack The packet to buffer
+  void InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+                             size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page, DTSC::Meta & aMeta){
     size_t packDataLen =
         24 + (packOffset ? 17 : 0) + (packBytePos ? 15 : 0) + (isKeyframe ? 19 : 0) + packDataSize + 11;
 
@@ -209,10 +216,10 @@ namespace Mist{
     }
 
     // these checks were already done in bufferSinglePacket, but we check again just to be sure
-    if (!meta.getVod() && packTime < meta.getLastms(packTrack)){
+    if (!aMeta.getVod() && packTime < aMeta.getLastms(packTrack)){
       DEBUG_MSG(((multiWrong == 0) ? DLVL_WARN : DLVL_HIGH),
                 "Wrong order on track %" PRIu32 " ignored: %" PRIu64 " < %" PRIu64, packTrack,
-                packTime, meta.getLastms(packTrack));
+                packTime, aMeta.getLastms(packTrack));
       multiWrong = true;
       return;
     }
@@ -223,7 +230,7 @@ namespace Mist{
     }
     multiWrong = false;
 
-    Util::RelAccX &tPages = meta.pages(packTrack);
+    Util::RelAccX &tPages = aMeta.pages(packTrack);
     uint32_t pageIdx = 0;
     uint32_t currPagNum = atoi(page.name.data() + page.name.rfind('_') + 1);
     Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
@@ -286,9 +293,7 @@ namespace Mist{
   }
 
   /// Wraps up the buffering of a shared memory data page
-  ///
-  /// Registers the data page on the track index page as well
-  ///\param tid The trackid of the page to finalize
+  /// \param idx The track index of the page to finalize
   void InOutBase::bufferFinalize(size_t idx, IPC::sharedPage & page){
     // If no page is open, do nothing
     if (!page){
@@ -318,11 +323,7 @@ namespace Mist{
   }
 
   /// Buffers a live packet to a page.
-  ///
-  /// Handles both buffering and creation of new pages
-  ///
-  /// Initiates/continues negotiation with the buffer as well
-  ///\param packet The packet to buffer
+  /// Calls bufferLivePacket with full arguments internally.
   void InOutBase::bufferLivePacket(const DTSC::Packet &packet){
     size_t idx = M.trackIDToIndex(packet.getTrackId(), getpid());
     if (idx == INVALID_TRACK_ID){
@@ -337,19 +338,28 @@ namespace Mist{
     /// \TODO META Build something that should actually be able to deal with "extra" values
   }
 
+  /// Calls bufferLivePacket with additional argument for internal metadata reference internally.
   void InOutBase::bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe){
-    meta.reloadReplacedPagesIfNeeded();
-    meta.setLive(true);
+    bufferLivePacket(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, meta);
+  }
+  
+  ///Buffers the given packet data into the given metadata structure.
+  ///Uses class member variables livePage and curPageNum internally for bookkeeping.
+  ///These member variables are not (and should not, in the future) be accessed anywhere else.
+  void InOutBase::bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
+                                   size_t packDataSize, uint64_t packBytePos, bool isKeyframe, DTSC::Meta &aMeta){
+    aMeta.reloadReplacedPagesIfNeeded();
+    aMeta.setLive(true);
 
     // Store the trackid for easier access
     // Do nothing if the trackid is invalid
     if (packTrack == INVALID_TRACK_ID){return;}
 
     // Store the trackid for easier access
-    Util::RelAccX &tPages = meta.pages(packTrack);
+    Util::RelAccX &tPages = aMeta.pages(packTrack);
 
-    if (M.getType(packTrack) != "video"){
+    if (aMeta.getType(packTrack) != "video"){
       isKeyframe = false;
       if (!tPages.getEndPos() || !livePage[packTrack]){
         // Assume this is the first packet on the track
@@ -363,20 +373,20 @@ namespace Mist{
 
     // For live streams, ignore packets that make no sense
     // This also happens in bufferNext, with the same rules
-    if (M.getLive()){
-      if (packTime < M.getLastms(packTrack)){
+    if (aMeta.getLive()){
+      if (packTime < aMeta.getLastms(packTrack)){
         HIGH_MSG("Wrong order on track %" PRIu32 " ignored: %" PRIu64 " < %" PRIu64, packTrack,
-                 packTime, M.getLastms(packTrack));
+                 packTime, aMeta.getLastms(packTrack));
         return;
       }
-      if (packTime > M.getLastms(packTrack) + 30000 && M.getLastms(packTrack)){
-        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, M.getLastms(packTrack), packTime);
+      if (packTime > aMeta.getLastms(packTrack) + 30000 && aMeta.getLastms(packTrack)){
+        WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, aMeta.getLastms(packTrack), packTime);
       }
     }
     
     // Determine if we need to open the next page
     if (isKeyframe){
-      updateTrackFromKeyframe(packTrack, packData, packDataSize);
+      updateTrackFromKeyframe(packTrack, packData, packDataSize, aMeta);
       uint64_t endPage = tPages.getEndPos();
       size_t curPage = 0;
       size_t currPagNum = atoi(livePage[packTrack].name.data() + livePage[packTrack].name.rfind('_') + 1);
@@ -390,15 +400,15 @@ namespace Mist{
 
       // If there is no page, create it
       if (!livePage[packTrack]){
-        size_t keyNum = M.getKeyNumForTime(packTrack, packTime);
+        size_t keyNum = aMeta.getKeyNumForTime(packTrack, packTime);
         if (keyNum == INVALID_KEY_NUM){
           curPageNum[packTrack] = 0;
         }else{
-          curPageNum[packTrack] = M.getKeyNumForTime(packTrack, packTime) + 1;
+          curPageNum[packTrack] = aMeta.getKeyNumForTime(packTrack, packTime) + 1;
         }
 
         if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
-          meta.resizeTrack(packTrack, M.fragments(packTrack).getRCount(), M.keys(packTrack).getRCount(), M.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
+          aMeta.resizeTrack(packTrack, aMeta.fragments(packTrack).getRCount(), aMeta.keys(packTrack).getRCount(), aMeta.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
         }
 
         tPages.addRecords(1);
@@ -409,7 +419,7 @@ namespace Mist{
         tPages.setInt("avail", 0, endPage);
         curPage = endPage;
         DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
-        if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack])){
+        if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack], aMeta)){
           // if this fails, return instantly without actually buffering the packet
           WARN_MSG("Dropping packet %s:%" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
           return;
@@ -424,7 +434,7 @@ namespace Mist{
                   tPages.getInt("firstkey", curPage), packTrack, curPageNum[packTrack]);
 
           if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
-            meta.resizeTrack(packTrack, M.fragments(packTrack).getRCount(), M.keys(packTrack).getRCount(), M.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
+            aMeta.resizeTrack(packTrack, aMeta.fragments(packTrack).getRCount(), aMeta.keys(packTrack).getRCount(), aMeta.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
           }
 
           tPages.addRecords(1);
@@ -436,7 +446,7 @@ namespace Mist{
           curPage = endPage;
           if (livePage[packTrack]){bufferFinalize(packTrack, livePage[packTrack]);}
           DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
-          if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack])){
+          if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack], aMeta)){
             // if this fails, return instantly without actually buffering the packet
             WARN_MSG("Dropping packet %s:%" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
             return;
@@ -462,13 +472,13 @@ namespace Mist{
 
     // Buffer the packet
     DONTEVEN_MSG("Buffering live packet (%zuB) @%" PRIu64 " ms on track %" PRIu32 " with offset %" PRIu64, packDataSize, packTime, packTrack, packOffset);
-    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, livePage[packTrack]);
-    meta.update(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe);
+    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, livePage[packTrack], aMeta);
+    aMeta.update(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe);
   }
 
   ///Handles updating track metadata from a new keyframe, if applicable
-  void InOutBase::updateTrackFromKeyframe(uint32_t packTrack, const char *packData, size_t packDataSize){
-    if (meta.getCodec(packTrack) == "H264"){
+  void InOutBase::updateTrackFromKeyframe(uint32_t packTrack, const char *packData, size_t packDataSize, DTSC::Meta & aMeta){
+    if (aMeta.getCodec(packTrack) == "H264"){
       //H264 packets are 4-byte size-prepended NAL units
       size_t offset = 0;
       while (offset+4 < packDataSize){
@@ -480,14 +490,14 @@ namespace Mist{
         uint8_t nalType = (packData[offset+4] & 0x1F);
         if (nalType == 7){//SPS, update width/height/FPS
           h264::SPSMeta hMeta =  h264::sequenceParameterSet(packData+offset+4, nalLen).getCharacteristics();
-          meta.setWidth(packTrack, hMeta.width);
-          meta.setHeight(packTrack, hMeta.height);
-          meta.setFpks(packTrack, hMeta.fps*1000);
+          aMeta.setWidth(packTrack, hMeta.width);
+          aMeta.setHeight(packTrack, hMeta.height);
+          aMeta.setFpks(packTrack, hMeta.fps*1000);
         }
         offset += nalLen+4;
       }
     }
-    if (meta.getCodec(packTrack) == "VP8"){
+    if (aMeta.getCodec(packTrack) == "VP8"){
       //VP8 packets have a simple header for keyframes
       //Reference: https://www.rfc-editor.org/rfc/rfc6386.html#section-9.1
       if (packData[3] == 0x9d && packData[4] == 0x01 && packData[5] == 0x2a){
@@ -506,8 +516,8 @@ namespace Mist{
           case 2: h *= 5/3; break;
           case 3: h *= 2; break;
         }
-        meta.setWidth(packTrack, w);
-        meta.setHeight(packTrack, h);
+        aMeta.setWidth(packTrack, w);
+        aMeta.setHeight(packTrack, h);
       }
     }
   }

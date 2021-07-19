@@ -51,7 +51,7 @@ namespace Mist{
 
   bool inputMP3::readHeader(){
     if (!inFile){return false;}
-    meta.reInit(config->getString("streamname"));
+    meta.reInit(isSingular() ? streamName : "");
     size_t tNum = meta.addTrack();
     meta.setID(tNum, tNum);
     meta.setType(tNum, "audio");
@@ -142,13 +142,16 @@ namespace Mist{
     fseek(inFile, filePos + dataSize, SEEK_SET);
 
     // Create a json value with the right data
-    thisPacket.genericFill(timestamp, 0, idx, packHeader, dataSize, filePos, false);
+    thisPacket.genericFill(timestamp, 0, 0, packHeader, dataSize, filePos, false);
+    thisTime = timestamp;
+    thisIdx = 0;
 
     // Update the internal timestamp
     timestamp += (sampleCount / (sampleRate / 1000));
   }
 
   void inputMP3::seek(uint64_t seekTime, size_t idx){
+    idx = 0;
     DTSC::Keys keys(M.keys(idx));
     uint32_t keyNum = M.getKeyNumForTime(idx, seekTime);
     fseek(inFile, keys.getBpos(keyNum), SEEK_SET);

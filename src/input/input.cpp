@@ -170,21 +170,7 @@ namespace Mist{
     capa["optional"]["realtime"]["name"] = "Simulated Live";
     capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
     capa["optional"]["realtime"]["option"] = "--realtime";
-
     option.null();
-    option["long"] = "simulated-starttime";
-    option["arg"] = "integer";
-    option["short"] = "S";
-    option["help"] = "Unix timestamp on which the simulated start of the stream is based.";
-    option["value"].append(0);
-    config->addOption("simulated-starttime", option);
-    capa["optional"]["simulated-starttime"]["name"] = "Simulated start time";
-    capa["optional"]["simulated-starttime"]["help"] =
-        "The unix timestamp on which this stream is assumed to have started playback, or 0 for "
-        "automatic";
-    capa["optional"]["simulated-starttime"]["option"] = "--simulated-starttime";
-    capa["optional"]["simulated-starttime"]["type"] = "uint";
-    capa["optional"]["simulated-starttime"]["default"] = 0;
 
     /*LTS-END*/
     capa["optional"]["debug"]["name"] = "debug";
@@ -761,6 +747,15 @@ namespace Mist{
     }
 
     INFO_MSG("Input started");
+
+    //Simulated real time inputs bypass most normal logic
+    if (config->getBool("realtime")){
+      realtimeMainLoop();
+      finish();
+      INFO_MSG("Real-time input closing clean; reason: %s", Util::exitReason);
+      return;
+    }
+
     meta.reInit(streamName, false);
 
     if (!openStreamSource()){
@@ -769,10 +764,8 @@ namespace Mist{
     }
     parseStreamHeader();
 
-    std::set<size_t> validTracks;
-
     if (publishesTracks()){
-      validTracks = M.getMySourceTracks(getpid());
+      std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       if (!validTracks.size()){
         userSelect.clear();
         finish();
@@ -781,72 +774,9 @@ namespace Mist{
       }
     }
 
-    timeOffset = 0;
-    uint64_t minFirstMs = 0;
-
-    // If resume mode is on, find matching tracks and set timeOffset values to make sure we append to the tracks.
-    if (publishesTracks() && config->getBool("realtime")){
-      seek(0);
-
-      minFirstMs = 0xFFFFFFFFFFFFFFFFull;
-      uint64_t maxFirstMs = 0;
-      uint64_t minLastMs = 0xFFFFFFFFFFFFFFFFull;
-      uint64_t maxLastMs = 0;
-
-      // track lowest firstms value
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        if (meta.getFirstms(*it) < minFirstMs){minFirstMs = meta.getFirstms(*it);}
-        if (meta.getFirstms(*it) > maxFirstMs){maxFirstMs = meta.getFirstms(*it);}
-        if (meta.getLastms(*it) < minLastMs){minLastMs = meta.getLastms(*it);}
-        if (meta.getLastms(*it) > maxLastMs){maxLastMs = meta.getLastms(*it);}
-      }
-      if (maxFirstMs - minFirstMs > 500){
-        WARN_MSG("Begin timings of tracks for this file are %" PRIu64
-                 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64
-                 "ms - %" PRIu64 "ms)",
-                 maxFirstMs - minFirstMs, minFirstMs, maxFirstMs);
-      }
-      if (maxLastMs - minLastMs > 500){
-        WARN_MSG("Stop timings of tracks for this file are %" PRIu64
-                 " ms apart. This may mess up playback to some degree. (Range: %" PRIu64
-                 "ms - %" PRIu64 "ms)",
-                 maxLastMs - minLastMs, minLastMs, maxLastMs);
-      }
-      // find highest current time
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        timeOffset = std::max(timeOffset, (int64_t)meta.getLastms(*it));
-      }
-
-      if (timeOffset){
-        if (minFirstMs == 0xFFFFFFFFFFFFFFFFull){minFirstMs = 0;}
-        MEDIUM_MSG("Offset is %" PRId64
-                   "ms, adding 40ms and subtracting the start time of %" PRIu64,
-                   timeOffset, minFirstMs);
-        timeOffset += 40; // Add an artificial frame at 25 FPS to make sure we append, not overwrite
-        timeOffset -= minFirstMs; // we don't need to add the lowest firstms value to the offset, as it's already there
-      }
-    }
-    if (publishesTracks()){
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        meta.setFirstms(*it, meta.getFirstms(*it)+timeOffset);
-        meta.setLastms(*it, 0);
-      }
-    }
-
-    simStartTime = config->getInteger("simulated-starttime");
-    if (!simStartTime){simStartTime = Util::bootMS();}
-
-    std::string reason;
-    if (config->getBool("realtime")){
-      realtimeMainLoop();
-    }else{
-      streamMainLoop();
-    }
-
+    streamMainLoop();
     closeStreamSource();
-
     userSelect.clear();
-
     finish();
     INFO_MSG("Input closing clean; reason: %s", Util::exitReason);
     return;
@@ -855,30 +785,24 @@ namespace Mist{
   void Input::streamMainLoop(){
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
-    size_t tid;
-    size_t idx;
     Comms::Statistics statComm;
     getNext();
-    tid = thisPacket.getTrackId();
-    idx = M.trackIDToIndex(tid, getpid());
-    if (thisPacket && !userSelect.count(idx)){
-      userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+    if (thisPacket && !userSelect.count(thisIdx)){
+      userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
     }
-    while (thisPacket && config->is_active && userSelect[idx]){
-      if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
+    while (thisPacket && config->is_active && userSelect[thisIdx]){
+      if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
         Util::logExitReason("buffer requested shutdown");
         break;
       }
       bufferLivePacket(thisPacket);
       getNext();
       if (!thisPacket){
-        Util::logExitReason("invalid packet from getNext");
+        Util::logExitReason("no more data");
         break;
       }
-      tid = thisPacket.getTrackId();
-      idx = M.trackIDToIndex(tid, getpid());
-      if (thisPacket && !userSelect.count(idx)){
-        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      if (thisPacket && !userSelect.count(thisIdx)){
+        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
       if (Util::bootSecs() - statTimer > 1){
@@ -912,39 +836,147 @@ namespace Mist{
   }
 
   void Input::realtimeMainLoop(){
+    MEDIUM_MSG("Starting real-time main loop!");
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
+    size_t idx;
     Comms::Statistics statComm;
-    getNext();
-    if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
-      size_t tid = thisPacket.getTrackId();
-      userSelect[tid].reload(streamName, tid, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+
+
+    DTSC::Meta liveMeta(config->getString("streamname"), false);
+    DTSC::veryUglyJitterOverride = SIMULATED_LIVE_BUFFER;
+
+
+    uint64_t minFirstMs = 0xFFFFFFFFFFFFFFFFull;
+    uint64_t maxFirstMs = 0;
+    uint64_t minLastMs = 0xFFFFFFFFFFFFFFFFull;
+    uint64_t maxLastMs = 0;
+
+    // track lowest firstms value
+    std::set<size_t> validTracks = M.getValidTracks();
+    INFO_MSG("VoD metadata has %zu valid tracks", validTracks.size());
+    if (!validTracks.size()){
+      FAIL_MSG("No valid tracks! Aborting!");
+      return;
     }
-    while (thisPacket && config->is_active && userSelect[thisPacket.getTrackId()]){
-      thisPacket.nullMember("bpos");
-      while (config->is_active && userSelect[thisPacket.getTrackId()] &&
-             Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisPacket.getTime() + timeOffset) + simStartTime){
-        Util::sleep(std::min(((thisPacket.getTime() + timeOffset) + simStartTime) - (Util::getMS() + SIMULATED_LIVE_BUFFER),
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      if (M.getFirstms(*it) < minFirstMs){minFirstMs = M.getFirstms(*it);}
+      if (M.getFirstms(*it) > maxFirstMs){maxFirstMs = M.getFirstms(*it);}
+      if (M.getLastms(*it) < minLastMs){minLastMs = M.getLastms(*it);}
+      if (M.getLastms(*it) > maxLastMs){maxLastMs = M.getLastms(*it);}
+    }
+    if (maxFirstMs - minFirstMs > 500){
+      WARN_MSG("Begin timings of tracks for this file are %" PRIu64
+               " ms apart. This may mess up playback to some degree. (Range: %" PRIu64
+               "ms - %" PRIu64 "ms)",
+               maxFirstMs - minFirstMs, minFirstMs, maxFirstMs);
+    }
+    if (maxLastMs - minLastMs > 500){
+      WARN_MSG("Stop timings of tracks for this file are %" PRIu64
+               " ms apart. This may mess up playback to some degree. (Range: %" PRIu64
+               "ms - %" PRIu64 "ms)",
+               maxLastMs - minLastMs, minLastMs, maxLastMs);
+    }
+    if (minFirstMs == 0xFFFFFFFFFFFFFFFFull){minFirstMs = 0;}
+
+    // find highest current time
+    int64_t timeOffset = 0;
+    validTracks = liveMeta.getValidTracks();
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+      timeOffset = std::max(timeOffset, (int64_t)liveMeta.getLastms(*it));
+    }
+    INFO_MSG("Live metadata has %zu valid tracks, last timestamp %" PRIu64, validTracks.size(), timeOffset);
+    if (timeOffset){
+      MEDIUM_MSG("Offset is %" PRId64
+                 "ms, adding 40ms and subtracting the start time of %" PRIu64,
+                 timeOffset, minFirstMs);
+      timeOffset += 40; // Add an artificial frame at 25 FPS to make sure we append, not overwrite
+    }
+    timeOffset -= minFirstMs; // we don't need to add the lowest firstms value to the offset, as it's already there
+
+    /// This maps local track offsets to stream track offsets
+    std::map<uint64_t, uint64_t> realTimeTrackMap;
+
+    //No time offset and/or no currently valid tracks?
+    //That means this must be the first entry in this realtime stream. Create the tracks!
+    if (!timeOffset || !validTracks.size()){
+      liveMeta.setBootMsOffset(Util::bootMS());
+      validTracks = M.getValidTracks();
+      size_t newID = 0;
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        size_t newIdx = liveMeta.addTrack();
+        realTimeTrackMap[*it] = newIdx;
+        MEDIUM_MSG("Gonna write track %zu to %zu", *it, newIdx);
+        liveMeta.setID(newIdx, newID++);
+        liveMeta.setType(newIdx, M.getType(*it));
+        liveMeta.setCodec(newIdx, M.getCodec(*it));
+        liveMeta.setFpks(newIdx, M.getFpks(*it));
+        liveMeta.setInit(newIdx, M.getInit(*it));
+        liveMeta.setLang(newIdx, M.getLang(*it));
+        liveMeta.setRate(newIdx, M.getRate(*it));
+        liveMeta.setSize(newIdx, M.getSize(*it));
+        liveMeta.setWidth(newIdx, M.getWidth(*it));
+        liveMeta.setHeight(newIdx, M.getHeight(*it));
+      }
+    }else{
+      validTracks = M.getValidTracks();
+      std::set<size_t> validLive = liveMeta.getValidTracks();
+      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
+        for (std::set<size_t>::iterator lit = validLive.begin(); lit != validLive.end(); ++lit){
+          if (liveMeta.isClaimed(*lit)){continue;}
+          if (liveMeta.getType(*lit) != M.getType(*it)){continue;}
+          if (liveMeta.getCodec(*lit) != M.getCodec(*it)){continue;}
+          if (liveMeta.getInit(*lit) != M.getInit(*it)){continue;}
+          //Matching type/codec/init! Use it!
+          realTimeTrackMap[*it] = *lit;
+          liveMeta.claimTrack(*lit);
+          MEDIUM_MSG("Gonna write track %zu to existing track %zu", *it, *lit);
+          break;
+        }
+      }
+    }
+    int64_t bootMsOffset = liveMeta.getBootMsOffset();
+    validTracks.clear();
+
+    seek(0);/// \TODO Is this actually needed?
+    while (config->is_active){
+      getNext();
+      if (!thisPacket){
+        Util::logExitReason("no more data");
+        break;
+      }
+      idx = realTimeTrackMap.count(thisIdx) ? realTimeTrackMap[thisIdx] : INVALID_TRACK_ID;
+      if (thisPacket && !userSelect.count(idx)){
+        userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      }
+      if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
+        Util::logExitReason("buffer requested shutdown");
+        break;
+      }
+      while (config->is_active && userSelect[idx] &&
+             Util::bootMS() + SIMULATED_LIVE_BUFFER < (thisTime + timeOffset) + bootMsOffset){
+        Util::sleep(std::min(((thisTime + timeOffset) + bootMsOffset) - (Util::getMS() + SIMULATED_LIVE_BUFFER),
                              (uint64_t)1000));
       }
-      uint64_t originalTime = thisPacket.getTime();
-      thisPacket.setTime(originalTime + timeOffset);
-      bufferLivePacket(thisPacket);
-      thisPacket.setTime(originalTime);
 
-      getNext();
-      if (thisPacket && !userSelect.count(thisPacket.getTrackId())){
-        size_t tid = thisPacket.getTrackId();
-        userSelect[tid].reload(streamName, tid, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+      //Buffer the packet
+      if (idx == INVALID_TRACK_ID){
+        INFO_MSG("Packet for track %zu has no valid index!", thisIdx);
+      }else{
+        char *data;
+        size_t dataLen;
+        thisPacket.getString("data", data, dataLen);
+        bufferLivePacket(thisTime+timeOffset, thisPacket.getInt("offset"), idx, data, dataLen, 0, thisPacket.getFlag("keyframe"), liveMeta);
       }
+
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload();}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
-            Util::logExitReason("received shutdown request from controller");
             config->is_active = false;
+            Util::logExitReason("received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -952,21 +984,16 @@ namespace Mist{
           statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
-          statComm.setUp(0);
-          statComm.setDown(streamByteCount());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
+          connStats(statComm);
         }
 
         statTimer = Util::bootSecs();
       }
     }
-    if (!thisPacket){
-      Util::logExitReason("invalid packet from getNext");
-    }
-    if (thisPacket && !userSelect[thisPacket.getTrackId()]){
-      Util::logExitReason("buffer shutdown");
+    for (std::map<uint64_t, uint64_t>::iterator it = realTimeTrackMap.begin(); it != realTimeTrackMap.end(); ++it){
+      liveMeta.abandonTrack(it->second);
     }
   }
 
@@ -1249,7 +1276,7 @@ namespace Mist{
       pageIdx = i;
     }
     uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
-    if (isBuffered(idx, pageNumber)){
+    if (isBuffered(idx, pageNumber, meta)){
       // Mark the page for removal after 15 seconds of no one watching it
       pageCounter[idx][pageNumber] = DEFAULT_PAGE_TIMEOUT;
       DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32
@@ -1261,7 +1288,7 @@ namespace Mist{
     uint64_t bufferTimer = Util::bootMS();
     keyNum = pageNumber;
     IPC::sharedPage page;
-    if (!bufferStart(idx, pageNumber, page)){
+    if (!bufferStart(idx, pageNumber, page, meta)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
       return false;
     }
@@ -1288,7 +1315,7 @@ namespace Mist{
     }else{
       getNext(sourceIdx);
       // in case earlier seeking was imprecise, seek to the exact point
-      while (thisPacket && thisPacket.getTime() < keyTime){getNext(sourceIdx);}
+      while (thisPacket && thisTime < keyTime){getNext(sourceIdx);}
     }
     uint64_t lastBuffered = 0;
     uint32_t packCounter = 0;
@@ -1313,8 +1340,8 @@ namespace Mist{
       size_t partNo = 0;
       for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
       DTSC::Parts parts(M.parts(idx));
-      while (thisPacket && thisPacket.getTime() < stopTime){
-        if (thisPacket.getTime() >= lastBuffered){
+      while (thisPacket && thisTime < stopTime){
+        if (thisTime >= lastBuffered){
           if (sourceIdx != idx){
             if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){
               if (encryption == ""){
@@ -1325,11 +1352,11 @@ namespace Mist{
               }
               if (encryption.substr(0, encryption.find('/')) == "CTR128"){
                 DTSC::Packet encPacket = aesCipher.encryptPacketCTR(
-                    M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisPacket.getTime(), idx), idx);
+                    M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisTime, idx), idx);
                 thisPacket = encPacket;
               }else if (encryption.substr(0, encryption.find('/')) == "CBC128"){
                 char ivec[] ={0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-                Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisPacket.getTime(), idx));
+                Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisTime, idx));
                 DTSC::Packet encPacket = aesCipher.encryptPacketCBC(M, thisPacket, ivec, idx);
                 thisPacket = encPacket;
               }
@@ -1358,12 +1385,12 @@ namespace Mist{
             INFO_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
           }
           ++partNo;
-          HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisPacket.getTime(), idx, thisPacket.getInt("offset"));
-          bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), idx, data, dataLen,
+          HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisTime, idx, thisPacket.getInt("offset"));
+          bufferNext(thisTime, thisPacket.getInt("offset"), idx, data, dataLen,
                      thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page);
           ++packCounter;
           byteCounter += thisPacket.getDataLen();
-          lastBuffered = thisPacket.getTime();
+          lastBuffered = thisTime;
         }
         getNext(sourceIdx);
       }
@@ -1383,7 +1410,7 @@ namespace Mist{
     bufferFinalize(idx, page);
     bufferTimer = Util::bootMS() - bufferTimer;
     INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
-             idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisPacket.getTime(), bufferTimer);
+             idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
     INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
              tPages.getInt("parts", pageIdx), byteCounter);
     pageCounter[idx][pageNumber] = DEFAULT_PAGE_TIMEOUT;
@@ -1392,17 +1419,25 @@ namespace Mist{
 
   bool Input::atKeyFrame(){
     static std::map<size_t, uint64_t> lastSeen;
-    size_t idx = thisPacket.getTrackId();
     // not in keyTimes? We're not at a keyframe.
-    if (!keyTimes[idx].count(thisPacket.getTime())){return false;}
+    if (!keyTimes[thisIdx].count(thisTime)){return false;}
     // skip double times
-    if (lastSeen.count(idx) && lastSeen[idx] == thisPacket.getTime()){return false;}
+    if (lastSeen.count(thisIdx) && lastSeen[thisIdx] == thisTime){return false;}
     // set last seen, and return true
-    lastSeen[idx] = thisPacket.getTime();
+    lastSeen[thisIdx] = thisTime;
     return true;
   }
 
   bool Input::readExistingHeader(){
+    if (config->getBool("realtime")){
+      meta.reInit("", config->getString("input") + ".dtsh");
+      if (!meta){return false;}
+      if (meta.version != DTSH_VERSION){
+        INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
+        return false;
+      }
+      return meta;
+    }
     char pageName[NAME_BUFFER_SIZE];
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
     IPC::sharedPage sp(pageName, 0, false, false);

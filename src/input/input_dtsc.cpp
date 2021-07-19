@@ -262,7 +262,7 @@ namespace Mist{
           moreHeader = S.getMember("moreheader").asInt();
         }else{
           moreHeader = 0;
-          meta.reInit(streamName, moreHeader);
+          meta.reInit(isSingular() ? streamName : "", S);
         }
 
         free(pkt);
@@ -329,6 +329,8 @@ namespace Mist{
       return;
     }
     thisPacket.reInit(pBuf.data(), pBuf.size());
+    thisTime = thisPacket.getTime();
+    thisIdx = thisPacket.getTrackId();
     seekNext(thisPos.seekTime, thisPos.trackID);
     fseek(F, thisPos.bytePos, SEEK_SET);
   }
@@ -361,6 +363,8 @@ namespace Mist{
         thisPacket.reInit(srcConn); // read the next packet before continuing
         continue;                   // parse the next packet before returning
       }
+      thisTime = thisPacket.getTime();
+      thisIdx = thisPacket.getTrackId();
       return; // we have a packet
     }
   }

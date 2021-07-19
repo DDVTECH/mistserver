@@ -150,7 +150,7 @@ namespace Mist{
     bool readExistingHeader();
     void parseStreamHeader(){readHeader();}
     bool openStreamSource(){return true;}
-    bool needHeader(){return needsLock() && !readExistingHeader();}
+    bool needHeader(){return (config->getBool("realtime") || needsLock()) && !readExistingHeader();}
     double timeScale;
     bool wantBlocks;
     size_t totalBytes;

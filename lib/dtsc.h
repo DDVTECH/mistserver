@@ -382,6 +382,10 @@ namespace DTSC{
     void setMaxKeepAway(uint64_t maxKeepAway);
     uint64_t getMaxKeepAway() const;
 
+    void claimTrack(size_t trackIdx);
+    bool isClaimed(size_t trackIdx) const;
+    void abandonTrack(size_t trackIdx);
+
     /*LTS-START*/
     void setSourceTrack(size_t trackIdx, size_t sourceTrack);
     uint64_t getSourceTrack(size_t trackIdx) const;

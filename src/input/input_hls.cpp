@@ -629,7 +629,7 @@ namespace Mist{
       FAIL_MSG("Failed to load HLS playlist, aborting");
       return;
     }
-    meta.reInit(config->getString("streamname"), false);
+    meta.reInit(isSingular() ? streamName : "", false);
     INFO_MSG("Parsing live stream to create header...");
     TS::Packet packet; // to analyse and extract data
     int pidCounter = 1;
@@ -758,7 +758,7 @@ namespace Mist{
     char *data;
     size_t dataLen;
     bool hasPacket = false;
-    meta.reInit(config->getString("streamname"), true);
+    meta.reInit(isSingular() ? streamName : "");
 
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
@@ -832,7 +832,6 @@ namespace Mist{
         // Finally save the offset as part of the TS segment. This is required for bufferframe
         // to work correctly, since not every segment might have an UTC timestamp tag
         std::deque<playListEntries> &curList = listEntries[pListIt->first];
-        INFO_MSG("Saving offset of '%" PRId64 "' to current TS segment", plsTimeOffset[pListIt->first]);
         curList.at(entId-1).timeOffset = plsTimeOffset[pListIt->first];
       }
     }
@@ -852,6 +851,7 @@ namespace Mist{
   }
 
   bool inputHLS::needsLock(){
+    if (config->getBool("realtime")){return false;}
     if (isLiveDVR){
       return true;
     }
@@ -1013,6 +1013,8 @@ namespace Mist{
         // overwrite trackId on success
         Bit::htobl(thisPacket.getData() + 8, tid);
         Bit::htobll(thisPacket.getData() + 12, packetTime);
+        thisTime = packetTime;
+        thisIdx = tid;
         return; // Success!
       }
 
@@ -1071,6 +1073,7 @@ namespace Mist{
 
   // Note: bpos is overloaded here for playlist entry!
   void inputHLS::seek(uint64_t seekTime, size_t idx){
+    if (idx == INVALID_TRACK_ID){return;}
     plsTimeOffset.clear();
     plsLastTime.clear();
     plsInterval.clear();

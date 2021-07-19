@@ -1452,12 +1452,12 @@ namespace DTSC{
   /// Resizes a given track to be able to hold the given amount of fragments, keys, parts and pages.
   /// Currently called exclusively from Meta::update(), to resize the internal structures.
   void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason){
-    char pageName[NAME_BUFFER_SIZE];
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
-      snprintf(pageName, NAME_BUFFER_SIZE, "/" SHM_STREAM_TM, streamName.c_str(), getpid(), source);
-      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      std::string pageName = "/";
+      pageName += trackList.getPointer(trackPageField, source);
+      resizeLock.open(pageName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
       resizeLock.wait();
     }
 
@@ -1492,9 +1492,8 @@ namespace DTSC{
       memset(tMemBuf[source], 0, newPageSize);
       t.track = Util::RelAccX(tMemBuf[source], false);
     }else{
-      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_TM, streamName.c_str(), getpid(), source);
       tM[source].master = true;
-      tM[source].init(pageName, newPageSize, true);
+      tM[source].init(trackList.getPointer(trackPageField, source), newPageSize, true);
       if (!tM[source].mapped){
         FAIL_MSG("Failed to re-allocate shared memory for track %zu: %s", source, strerror(errno));
         resizeLock.unlink();
@@ -1709,6 +1708,26 @@ namespace DTSC{
     if (setValid){validateTrack(tNumber, trackValidDefault);}
     if (!isMemBuf){trackLock.post();}
     return tNumber;
+  }
+
+  bool Meta::isClaimed(size_t trackIdx) const{
+    return (trackList.getInt(trackPidField, trackIdx) != 0);
+  }
+  
+  void Meta::claimTrack(size_t trackIdx){
+    if (trackList.getInt(trackPidField, trackIdx) != 0){
+      FAIL_MSG("Cannot claim track: already claimed by PID %" PRIu64, trackList.getInt(trackPidField, trackIdx));
+      return;
+    }
+    trackList.setInt(trackPidField, getpid(), trackIdx);
+  }
+  
+  void Meta::abandonTrack(size_t trackIdx){
+    if (trackList.getInt(trackPidField, trackIdx) != getpid()){
+      FAIL_MSG("Cannot abandon track: is claimed by PID %" PRIu64 ", not us", trackList.getInt(trackPidField, trackIdx));
+      return;
+    }
+    trackList.setInt(trackPidField, 0, trackIdx);
   }
 
   /// Internal function that is called whenever a track is (re)written to the memory structures.
@@ -2178,12 +2197,10 @@ namespace DTSC{
   /// Removes the first key from the memory structure and caches.
   bool Meta::removeFirstKey(size_t trackIdx){
 
-    char pageName[NAME_BUFFER_SIZE];
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
-      __pid_t trPid = trackList.getInt(trackPidField, trackIdx);
-      snprintf(pageName, NAME_BUFFER_SIZE, "/" SHM_STREAM_TM, streamName.c_str(), trPid, trackIdx);
+      const char * pageName = trackList.getPointer(trackPageField, trackIdx);
       resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!resizeLock.tryWait()){
         MEDIUM_MSG("Metadata is busy, delaying deletion of key a bit");

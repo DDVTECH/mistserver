@@ -155,9 +155,6 @@ namespace Mist{
     uint64_t firstPacketTime;
     uint64_t lastPacketTime;
 
-    size_t thisIdx;
-    uint64_t thisTime;
-
     std::map<size_t, IPC::sharedPage> curPage; ///< For each track, holds the page that is currently being written.
   };
 

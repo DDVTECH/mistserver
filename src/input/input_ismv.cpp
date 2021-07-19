@@ -108,6 +108,8 @@ namespace Mist{
 
     thisPacket.genericFill(thisPos.time / 10000, thisPos.offset / 10000, thisPos.trackId,
                            dataPointer, thisPos.size, 0, thisPos.isKeyFrame);
+    thisTime = thisPos.time/1000;
+    thisIdx = thisPos.trackId;
 
     if (buffered.size() < 2 * (idx == INVALID_TRACK_ID ? M.getValidTracks().size() : 1)){
       std::set<size_t> validTracks = M.getValidTracks();

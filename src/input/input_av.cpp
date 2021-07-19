@@ -144,14 +144,14 @@ namespace Mist{
       long long packOffset = 0;
       bool isKey = false;
       if (packTime < 0){packTime = 0;}
-      size_t idx = meta.trackIDToIndex(packet.stream_index + 1);
+      size_t idx = meta.trackIDToIndex(packet.stream_index);
       if (packet.flags & AV_PKT_FLAG_KEY && M.getType(idx) != "audio"){
         isKey = true;
       }
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
         packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
-      meta.update(packTime, packOffset, packet.stream_index + 1, packet.size, packet.pos, isKey);
+      meta.update(packTime, packOffset, idx, packet.size, packet.pos, isKey);
       av_packet_unref(&packet);
     }
     return true;
@@ -161,11 +161,11 @@ namespace Mist{
     AVPacket packet;
     while (av_read_frame(pFormatCtx, &packet) >= 0){
       // filter tracks we don't care about
-      size_t idx = meta.trackIDToIndex(packet.stream_index + 1);
+      size_t idx = meta.trackIDToIndex(packet.stream_index);
       if (idx == INVALID_TRACK_ID){continue;}
       if (wantIdx != INVALID_TRACK_ID && idx != wantIdx){continue;}
       if (!userSelect.count(idx)){
-        HIGH_MSG("Track %u not selected", packet.stream_index + 1);
+        HIGH_MSG("Track %u not selected", packet.stream_index);
         continue;
       }
       AVStream *strm = pFormatCtx->streams[packet.stream_index];
@@ -179,7 +179,9 @@ namespace Mist{
       if (packet.pts != AV_NOPTS_VALUE && packet.pts != packet.dts){
         packOffset = ((packet.pts - packet.dts) * 1000 * strm->time_base.num / strm->time_base.den);
       }
-      thisPacket.genericFill(packTime, packOffset, packet.stream_index + 1,
+      thisTime = packTime;
+      thisIdx = idx;
+      thisPacket.genericFill(packTime, packOffset, thisIdx,
                              (const char *)packet.data, packet.size, 0, isKey);
       av_packet_unref(&packet);
       return; // success!

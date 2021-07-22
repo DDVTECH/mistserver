@@ -28,7 +28,7 @@ function MistVideo(streamName,options) {
     reloadDelay: false,   //don't override default reload delay
     urlappend: false,     //don't add this to urls
     setTracks: false,     //don't set tracks
-    fillSpace: false,      //don't fill parent container
+    fillSpace: false,     //don't fill parent container
     width: false,         //no set width
     height: false,        //no set height
     maxwidth: false,      //no max width (apart from targets dimensions)
@@ -62,6 +62,7 @@ function MistVideo(streamName,options) {
     return event;
   };
   this.log("Initializing..");
+  this.bootMs = new Date().getTime();
   
   this.timers = {
     list: {}, //will contain the timeouts, format timeOutIndex: endTime
@@ -110,14 +111,7 @@ function MistVideo(streamName,options) {
     
     var source = false;
     var mistPlayer = false;
-    
-    if (options.startCombo) {
-      options.startCombo.started = {
-        player: false,
-        source: false
-      };
-    }
-    
+        
     //retrieve the sources we can loop over
     var sources;
     if (options.forceSource) {
@@ -177,7 +171,7 @@ function MistVideo(streamName,options) {
         MistUtil.array.multiSort(players,sortoptions.player);
       }
       if ("first" in options.forcePriority) {
-        sortopions.first = options.forcePriority.first; //overwrite
+        sortoptions.first = options.forcePriority.first; //overwrite
       }
       
       
@@ -198,6 +192,20 @@ function MistVideo(streamName,options) {
         current: false
       }
     };
+
+    if (options.startCombo) {
+      options.startCombo.started = {
+        player: false,
+        source: false
+      };
+      for (var i = 0; i < players.length; i++) {
+        if (players[i].shortname == options.startCombo.player) {
+          options.startCombo.player = i;
+          break;
+        }
+      }
+    }
+
     
     function checkStartCombo(which) {
       if ((options.startCombo) && (!options.startCombo.started[which])) {
@@ -401,7 +409,16 @@ function MistVideo(streamName,options) {
     
     
     if (MistVideo.choosePlayer()) {
-      
+     
+      if (MistVideo.reporting) {
+        MistVideo.reporting.report({
+          player: MistVideo.playerName,
+          sourceType: MistVideo.source.type,
+          sourceUrl: MistVideo.source.url,
+          pageUrl: location.href
+        });
+      }
+
       //build player
       MistVideo.player = new mistplayers[MistVideo.playerName].player();
       
@@ -416,6 +433,10 @@ function MistVideo(streamName,options) {
         
         MistVideo.container.removeAttribute("data-loading");
         MistVideo.video = video;
+
+        if (MistVideo.reporting) {
+          MistVideo.reporting.init();
+        }
         
         if ("api" in MistVideo.player) {
           
@@ -495,6 +516,11 @@ function MistVideo(streamName,options) {
               score = Math.max(score,list[list.length-1].score);
               
               this.vars.score = score;
+
+              if (MistVideo.reporting) {
+                MistVideo.reporting.stats.set("playbackScore",Math.round(score*10)/10);
+              }
+
               return score;
             },
             valueToScore: function(a,b){  //calculate the moving average
@@ -567,8 +593,7 @@ function MistVideo(streamName,options) {
             MistUtil.event.addListener(MistVideo.video,events[i],function(){
               if (MistVideo.monitor) { MistVideo.monitor.reset(); }
             });
-          }
-          
+          }          
         }
         
         //remove placeholder and add UI structure
@@ -874,6 +899,7 @@ function MistVideo(streamName,options) {
         
         MistUtil.event.send("initialized",null,options.target);
         MistVideo.log("Initialized");
+
         if (MistVideo.options.callback) { options.callback(MistVideo); }
         
       });
@@ -881,8 +907,8 @@ function MistVideo(streamName,options) {
     else if (MistVideo.options.startCombo) {
       //try again without a startCombo
       delete MistVideo.options.startCombo;
-      MistVideo.unload();
-      MistVideo = mistPlay(MistVideo.stream,MistVideo.options);
+      MistVideo.unload("No compatible players found - retrying without startCombo.");
+      mistPlay(MistVideo.stream,MistVideo.options);
     }
     else {
       MistVideo.showError("No compatible player/source combo found.",{reload:true});
@@ -933,10 +959,188 @@ function MistVideo(streamName,options) {
       socket.die = false;
       socket.destroy = function(){
         this.die = true;
+        this.onclose = function(){};
         this.close();
       };
       socket.onopen = function(e){
         this.wasConnected = true;
+
+        //report player status to MistServer
+        if (!MistVideo.reporting) {
+          MistVideo.reporting = {
+            stats: {
+              set: function(key,value){
+                this.d[key] = value;
+              },
+              add: function(key,add){
+                if (typeof add == "undefined") { add = 1; }
+                this.d[key] += add;
+              },
+              d: {
+                nWaiting: 0,
+                timeWaiting: 0,
+                nStalled: 0,
+                timeStalled: 0,
+                timeUnpaused: 0,
+                nError: 0,
+                nLog: 0,
+                videoHeight: null,
+                videoWidth: null,
+                playerHeight: null,
+                playerWidth: null
+              },
+              last: {
+                firstPlayback: null,
+                nWaiting: 0,
+                timeWaiting: 0,
+                nStalled: 0,
+                timeStalled: 0,
+                timeUnpaused: 0,
+                nError: 0,
+                lastError: null,
+                playbackScore: 1,
+                nLog: 0,
+                autoplay: null,
+                videoHeight: null,
+                videoWidth: null,
+                playerHeight: null,
+                playerWidth: null
+              }
+            },
+            report: function(d){
+              MistVideo.socket.send(JSON.stringify(d));
+            },
+            reportStats: function(){
+              var d = {};
+              var report = false;
+              var newlogs = MistVideo.logs.slice(this.stats.last.nLog);
+              for (var i in this.stats.d) {
+                if (this.stats.d[i] != this.stats.last[i]) {
+                  d[i] = this.stats.d[i];
+                  this.stats.last[i] = d[i];
+                  report = true;
+                }
+              }
+              if (report) {
+                if (newlogs.length) {
+                  d.logs = [];
+                  for (var i in newlogs) {
+                    d.logs.push(newlogs[i].message);
+                  }
+                }
+                this.report(d);
+              }
+              MistVideo.timers.start(function(){
+                MistVideo.reporting.reportStats();
+              },5e3);
+            },
+            init: function(){
+              var video = MistVideo.video;
+
+              var firstPlay = MistUtil.event.addListener(video,"playing",function(){
+                MistVideo.reporting.stats.set("firstPlayback",new Date().getTime() - MistVideo.bootMs);
+                MistUtil.event.removeListener(firstPlay);
+              });
+
+              //set listeners for player reporting
+              MistUtil.event.addListener(video,"waiting",function(){
+                MistVideo.reporting.stats.add("nWaiting");
+              });
+              MistUtil.event.addListener(video,"stalled",function(){
+                MistVideo.reporting.stats.add("nStalled");
+              });
+              MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
+                MistVideo.reporting.stats.add("nError");
+                MistVideo.reporting.stats.set("lastError",e.message);
+              });
+
+              if (Object && Object.defineProperty) {
+                var timeWaiting = 0;
+                var waitingSince = false;
+                var timeStalled = 0;
+                var stalledSince = false;
+                var timeUnpaused = 0;
+                var unpausedSince = false;
+                var d = MistVideo.reporting.stats.d;
+                Object.defineProperty(d,"timeWaiting",{
+                  get: function(){
+                    return timeWaiting + (waitingSince ? (new Date()).getTime() - waitingSince : 0);
+                  }
+                });
+                Object.defineProperty(d,"timeStalled",{
+                  get: function(){
+                    return timeStalled + (stalledSince ? (new Date()).getTime() - stalledSince : 0);
+                  }
+                });
+                Object.defineProperty(d,"timeUnpaused",{
+                  get: function(){
+                    return timeUnpaused + (unpausedSince ? (new Date()).getTime() - unpausedSince : 0);
+                  }
+                });
+                Object.defineProperty(d,"nLog",{
+                  get: function(){
+                    return MistVideo.logs.length;
+                  }
+                });
+                Object.defineProperty(d,"videoHeight",{
+                  get: function(){
+                    return MistVideo.video.videoHeight;
+                  }
+                });
+                Object.defineProperty(d,"videoWidth",{
+                  get: function(){
+                    return MistVideo.video.videoWidth;
+                  }
+                });
+                Object.defineProperty(d,"playerHeight",{
+                  get: function(){
+                    return MistVideo.video.clientHeight;
+                  }
+                });
+                Object.defineProperty(d,"playerWidth",{
+                  get: function(){
+                    return MistVideo.video.clientWidth;
+                  }
+                });
+
+                MistUtil.event.addListener(video,"waiting",function(){
+                  timeWaiting = d.timeWaiting; //in case we get waiting several times in a row
+                  waitingSince = (new Date()).getTime();
+                });
+                MistUtil.event.addListener(video,"stalled",function(){
+                  timeStalled = d.timeStalled; //in case we get stalled several times in a row
+                  stalledSince = (new Date()).getTime();
+                });
+                var events = ["playing","pause"];
+                for (var i in events) {
+                  MistUtil.event.addListener(video,events[i],function(){
+                    timeWaiting = d.timeWaiting;
+                    timeStalled = d.timeStalled;
+                    waitingSince = false;
+                    stalledSince = false;
+                  });
+                }
+                MistUtil.event.addListener(video,"playing",function(){
+                  timeUnpaused = d.timeUnpaused; //in case we get playing several times in a row
+                  unpausedSince = (new Date()).getTime();
+                });
+                MistUtil.event.addListener(video,"pause",function(){
+                  timeUnpaused = d.timeUnpaused;
+                  unpausedSince = false;
+                });
+
+
+
+              }
+
+
+              //periodically send the gathered stats
+              this.reportStats();
+
+            }
+          };
+        }
+
       };
       socket.onclose = function(e){
         if (this.die) {
@@ -1063,7 +1267,7 @@ function MistVideo(streamName,options) {
             
             if ("source" in diff) {
               if ("error" in MistVideo.info) {
-                MistVideo.reload();
+                MistVideo.reload("Reloading, stream info has error");
               }
               return;
             }
@@ -1090,11 +1294,11 @@ function MistVideo(streamName,options) {
                   }
                   break;
                 }
-                      case "width":
-                      case "height": {
-                        resized = true;
-                        break;
-                      }
+                case "width":
+                case "height": {
+                  resized = true;
+                  break;
+                }
               }
             }
             
@@ -1111,6 +1315,8 @@ function MistVideo(streamName,options) {
         }
         
       });
+      
+
     }
     openSocket();
   }
@@ -1118,7 +1324,7 @@ function MistVideo(streamName,options) {
     openWithGet();
   }
   
-  this.unload = function(){
+  this.unload = function(reason){
     if (this.destroyed) { return; }
     
     this.log("Unloading..");
@@ -1138,6 +1344,9 @@ function MistVideo(streamName,options) {
       MistVideo.monitor.destroy();
     }
     if (this.socket) {
+      if (this.reporting) {
+        this.reporting.report({unload:reason ? reason : null});
+      }
       this.socket.destroy();
     }
     if ((this.player) && (this.player.api)) {
@@ -1173,17 +1382,17 @@ function MistVideo(streamName,options) {
     delete this.video;
     
   };
-  this.reload = function(){
+  this.reload = function(reason){
     var time = ("player" in this && "api" in this.player ? this.player.api.currentTime : false);
     
-    this.unload();
-    MistVideo = mistPlay(this.stream,this.options);
+    this.unload(reason);
+    var NewMistVideo = mistPlay(this.stream,this.options);
     
     if ((time) && (this.info.type != "live")) {
       //after load, try to restore the video position
       var f = function(){
-        if (MistVideo.player && MistVideo.player.api) {
-          MistVideo.player.api.currentTime = time;
+        if (NewMistVideo.player && NewMistVideo.player.api) {
+          NewMistVideo.player.api.currentTime = time;
         }
         this.removeEventListener("initialized",f);
       };
@@ -1212,7 +1421,7 @@ function MistVideo(streamName,options) {
       }
     }
     
-    this.unload();
+    this.unload("nextCombo");
     var opts = this.options;
     opts.startCombo = startCombo;
     MistVideo = mistPlay(this.stream,opts);

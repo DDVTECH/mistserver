@@ -333,14 +333,45 @@ p.prototype.build = function (MistVideo,callback) {
       this.ws = new WebSocket(MistVideo.source.url);
       this.ws.binaryType = "arraybuffer";
       
+      this.ws.s = this.ws.send;
+      this.ws.send = function(){
+        if (this.readyState == 1) {
+          return this.s.apply(this,arguments);
+        }
+        return false;
+      };
       this.ws.onopen = function(){
+        this.wasConnected = true;
         resolve();
       };
       this.ws.onerror = function(e){
         MistVideo.showError("MP4 over WS: websocket error");
-      }
+      };
       this.ws.onclose = function(e){
         MistVideo.log("MP4 over WS: websocket closed");
+        if (this.wasConnected && (!MistVideo.destroyed)) {
+          MistVideo.log("MP4 over WS: reopening websocket");
+          player.wsconnect().then(function(){
+            if (!player.sb) {
+              //retrieve codec info
+              var f = function(msg){
+                //got codec data, set up source buffer
+
+                if (!player.sb) { player.sbinit(msg.data.codecs); }
+                else { player.api.play(); }
+
+                player.ws.removeListener("codec_data",f);
+              };
+              player.ws.addListener("codec_data",f);
+              send({type:"request_codec_data",supported_codecs:MistVideo.source.supportedCodecs});
+            }
+            else {
+              player.api.play();
+            }
+          },function(){
+            Mistvideo.error("Lost connection to the Media Server");
+          });
+        }
       };
       this.ws.listeners = {}; //kind of event listener list for websocket messages
       this.ws.addListener = function(type,f){
@@ -367,6 +398,7 @@ p.prototype.build = function (MistVideo,callback) {
               //the last fragment has been added to the buffer
               var eObj;
               eObj = MistUtil.event.addListener(video,"waiting",function(e){
+                player.sb.paused = true;
                 MistUtil.event.send("ended",null,video);
                 MistUtil.event.removeListener(eObj);
               });
@@ -378,7 +410,7 @@ p.prototype.build = function (MistVideo,callback) {
               var serverDelay = player.ws.serverDelay.get();
               var desiredBuffer = Math.max(500+serverDelay,serverDelay*2);
               if (MistVideo.info.type != "live") { desiredBuffer += 2000; } //if VoD, keep an extra 2 seconds of buffer
-              if (player.debugging) console.log("on_time received",msg.data.current/1e3,"currtime",video.currentTime,requested_rate+"x","buffer",Math.round(buffer),"/",Math.round(desiredBuffer),(MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),"listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,"msgqueue",player.msgqueue ? player.msgqueue.length : 0,msg.data);
+              if (player.debugging) console.log("on_time received",msg.data.current/1e3,"currtime",video.currentTime,requested_rate+"x","buffer",Math.round(buffer),"/",Math.round(desiredBuffer),(MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),"bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s","listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,"msgqueue",player.msgqueue ? player.msgqueue.length : 0,msg.data);
 
               if (!player.sb) {
                 MistVideo.log("Received on_time, but the source buffer is being cleared right now. Ignoring.");
@@ -466,6 +498,11 @@ p.prototype.build = function (MistVideo,callback) {
                   }
                 }
               }
+
+              if (MistVideo.reporting && msg.data.tracks) {
+                MistVideo.reporting.stats.d.tracks = msg.data.tracks.join(",");
+              }
+
               break;
             }
             case "tracks": {
@@ -605,6 +642,9 @@ p.prototype.build = function (MistVideo,callback) {
         }
         var data = new Uint8Array(e.data);
         if (data) {
+          for (var i in player.monitor.bitCounter) {
+            player.monitor.bitCounter[i] += e.data.byteLength*8;
+          }
           if ((player.sb) && (!player.msgqueue)) {
             if (player.sb.updating || player.sb.queue.length || player.sb._busy) {
               player.sb.queue.push(data);
@@ -755,6 +795,7 @@ p.prototype.build = function (MistVideo,callback) {
           }
           else if (e.data.current > video.currentTime) {
             player.sb.paused = false;
+            video.currentTime = e.data.current*1e-3;
             video.play().then(resolve).catch(reject);
             player.ws.removeListener("on_time",f);
           }
@@ -768,15 +809,13 @@ p.prototype.build = function (MistVideo,callback) {
     },
     pause: function(){
       video.pause();
-      send({type: "hold",});
+      send({type: "hold"});
       if (player.sb) { player.sb.paused = true; }
     },
     setTracks: function(obj){
       obj.type = "tracks";
       obj = MistUtil.object.extend({
         type: "tracks",
-        audio: null,
-        video: null,
         seek_time:  Math.max(0,video.currentTime*1e3-(500+player.ws.serverDelay.get()))
       },obj);
       send(obj);
@@ -791,9 +830,7 @@ p.prototype.build = function (MistVideo,callback) {
           //it's okay if it fails
         } catch (e) {  }
       });
-       player.ws.close();
-      delete window.mistMewsOnVisibilityChange;
-      document.removeEventListener("visibilitychange",onVisibilityChange);
+      player.ws.close();
     }
   };
  
@@ -881,32 +918,6 @@ p.prototype.build = function (MistVideo,callback) {
       });
     }
   });
-  //pause if tab is hidden to prevent buildup of frames
-  var autopaused = false;
-  //only add this once!
-  function onVisibilityChange() {
-    if (document.hidden) {
-      //check if we are playing (not video.paused! that already returns true)
-      if (!player.sb.paused) {
-        player.api.pause();
-        autopaused = true;
-        if (MistVideo.info.type == "live") {
-          autopaused = "live"; //go to live point
-          //NB: even if the player wasn't near the live point when it was paused, we've likely exited the buffer while we were paused, so the current position probably won't exist anymore. Just skip to live.
-        }
-        MistVideo.log("Pausing the player as the tab is inactive.");
-      }
-    }
-    else if (autopaused) {
-      player.api.play(autopaused == "live");
-      autopaused = false;
-      MistVideo.log("Restarting the player as the tab is now active again.");
-    }
-  }
-  if (!window.mistMewsOnVisibilityChange) {
-    window.mistMewsOnVisibilityChange = true;
-    document.addEventListener("visibilitychange",onVisibilityChange);
-  }
   
   var seeking = false;
   MistUtil.event.addListener(video,"seeking",function(){
@@ -926,6 +937,19 @@ p.prototype.build = function (MistVideo,callback) {
         video.currentTime = video.buffered.start(buffern+1);
       }
     } 
+  });
+  MistUtil.event.addListener(video,"pause",function(){
+    if (player.sb && !player.sb.paused) {
+      MistVideo.log("The browser paused the vid - probably because it has no audio and the tab is no longer visible. Pausing download.");
+      send({type:"hold"});
+      player.sb.paused = true;
+      var p = MistUtil.event.addListener(video,"play",function(){
+        if (player.sb && player.sb.paused) {
+          send({type:"play"});
+        }
+        MistUtil.event.removeListener(p);
+      });
+    }
   });
 
   if (player.debugging) {
@@ -949,4 +973,54 @@ p.prototype.build = function (MistVideo,callback) {
       
     });
   }
+
+  //ABR: monitor playback issues and switch to lower bitrate track if available
+  this.monitor = {
+    bitCounter: [],
+    bitsSince: [],
+    currentBps: null,
+    nWaiting: 0,
+    nWaitingThreshold: 3,
+    listener: MistUtil.event.addListener(video,"waiting",function(){
+      player.monitor.nWaiting++;
+
+      if (player.monitor.nWaiting >= player.monitor.nWaitingThreshold) {
+        player.monitor.nWaiting = 0;
+        MistVideo.log("ABR threshold triggered, requesting lower quality");
+        player.monitor.action();
+      }
+    }),
+    getBitRate: function(){
+      if (player.sb && !player.sb.paused) {
+
+        this.bitCounter.push(0);
+        this.bitsSince.push(new Date().getTime());
+
+        //calculate current bitrate
+        var bits, since;
+        if (this.bitCounter.length > 5) {
+          bits = player.monitor.bitCounter.shift();
+          since = this.bitsSince.shift();
+        }
+        else {
+          bits = player.monitor.bitCounter[0];
+          since = this.bitsSince[0];
+        }
+        var dt = new Date().getTime() - since;
+        this.currentBps = bits / (dt*1e-3);
+
+        //console.log(MistUtil.format.bytes(this.currentBps)+"its/s");
+
+      }
+
+      MistVideo.timers.start(function(){
+        player.monitor.getBitRate();
+      },500);
+    },
+    action: function(){
+      player.api.setTracks({video:"max<"+Math.round(this.currentBps)+"bps"});
+    }
+  };
+
+  this.monitor.getBitRate();
 };

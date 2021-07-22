@@ -40,6 +40,9 @@ function MistVideo(streamName,options) {
   this.options = options;
   this.stream = streamName;
   this.info = false;
+  if (!window.MistInstances) { window.MistInstances = 0;}
+  window.MistInstances++;
+  this.n = window.MistInstances;
   this.logs = [];
   this.log = function(message,type){
     if (!type) { type = "log"; }
@@ -54,7 +57,7 @@ function MistVideo(streamName,options) {
     });
     if (this.options.skin == "dev") {
       try {
-        var msg = "["+(type ? type :"log")+"] "+(MistVideo.destroyed ? "[DESTROYED] " : "")+(this.player && this.player.api ? MistUtil.format.time(this.player.api.currentTime,{ms:true})+" " : "")+message;
+        var msg = "["+(type ? type :"log")+"] "+(MistVideo.destroyed ? "[DESTROYED] " : "")+"[#"+(MistVideo.n)+"] "+(this.player && this.player.api ? MistUtil.format.time(this.player.api.currentTime,{ms:true})+" " : "")+message;
         if (type && (type != "log")) { console.warn(msg); }
         else { console.log(msg); }
       } catch(e){}

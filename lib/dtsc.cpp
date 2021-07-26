@@ -3192,6 +3192,92 @@ namespace DTSC{
     return res;
   }
 
+  /// By reference, returns a JSON object with health information on the stream
+  void Meta::getHealthJSON(JSON::Value &retRef) const{
+    // clear the reference of old data, first
+    retRef.null();
+    bool hasH264 = false;
+    bool hasAAC = false;
+    std::stringstream issues;
+    std::set<size_t> validTracks = getValidTracks();
+    uint64_t jitter = 0;
+    uint64_t buffer = 0;
+    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      size_t i = *it;
+      JSON::Value &track = retRef[getTrackIdentifier(i)];
+      uint64_t minKeep = getMinKeepAway(*it);
+      track["jitter"] = minKeep;
+      if (jitter < minKeep){jitter = minKeep;}
+      std::string codec = getCodec(i);
+      std::string type = getType(i);
+      track["kbits"] = getBps(i) * 8 / 1024;
+      track["codec"] = codec;
+      uint32_t shrtest_key = 0xFFFFFFFFul;
+      uint32_t longest_key = 0;
+      uint32_t shrtest_prt = 0xFFFFFFFFul;
+      uint32_t longest_prt = 0;
+      uint32_t shrtest_cnt = 0xFFFFFFFFul;
+      uint32_t longest_cnt = 0;
+      DTSC::Keys Mkeys(keys(i));
+      uint32_t firstKey = Mkeys.getFirstValid();
+      uint32_t endKey = Mkeys.getEndValid() - 1;
+      for (int k = firstKey; k < endKey; k++){
+        uint64_t kDur = Mkeys.getDuration(k);
+        uint64_t kParts = Mkeys.getParts(k);
+        if (!kDur){continue;}
+        if (kDur > longest_key){longest_key = kDur;}
+        if (kDur < shrtest_key){shrtest_key = kDur;}
+        if (kParts > longest_cnt){longest_cnt = kParts;}
+        if (kParts < shrtest_cnt){shrtest_cnt = kParts;}
+        if ((kDur / kParts) > longest_prt){longest_prt = (kDur / kParts);}
+        if ((kDur / kParts) < shrtest_prt){shrtest_prt = (kDur / kParts);}
+      }
+      track["keys"]["ms_min"] = shrtest_key;
+      track["keys"]["ms_max"] = longest_key;
+      track["keys"]["frame_ms_min"] = shrtest_prt;
+      track["keys"]["frame_ms_max"] = longest_prt;
+      track["keys"]["frames_min"] = shrtest_cnt;
+      track["keys"]["frames_max"] = longest_cnt;
+      uint64_t trBuffer = getLastms(i) - getFirstms(i);
+      track["buffer"] = trBuffer;
+      if (buffer < trBuffer){buffer = trBuffer;}
+      if (longest_prt > 500){
+        issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
+      }
+      if (shrtest_cnt < 6){
+        issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
+      }
+      if (longest_key > shrtest_key*1.30){
+        issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
+      }
+      if (codec == "AAC"){hasAAC = true;}
+      if (codec == "H264"){hasH264 = true;}
+      if (type == "video"){
+        track["width"] = getWidth(i);
+        track["height"] = getHeight(i);
+        track["fpks"] = getFpks(i);
+        track["bframes"] = hasBFrames(i);
+      }
+      if (type == "audio"){
+        track["rate"] = getRate(i);
+        track["channels"] = getChannels(i);
+      }
+    }
+    if (jitter > 500){
+      issues << "High jitter (" << jitter << "ms)! ";
+    }
+    retRef["jitter"] = jitter;
+    retRef["buffer"] = buffer;
+    if (getMaxKeepAway()){
+      retRef["maxkeepaway"] = getMaxKeepAway();
+    }
+    if ((hasAAC || hasH264) && validTracks.size() > 1){
+      if (!hasAAC){issues << "HLS no audio!";}
+      if (!hasH264){issues << "HLS no video!";}
+    }
+    if (issues.str().size()){retRef["issues"] = issues.str();}
+    // return is by reference
+  }
 
   Parts::Parts(const Util::RelAccX &_parts) : parts(_parts){
     sizeField = parts.getFieldData("size");

@@ -467,6 +467,8 @@ namespace DTSC{
 
     uint8_t version;
 
+    void getHealthJSON(JSON::Value & returnReference) const;
+
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true);

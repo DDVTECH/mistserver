@@ -143,7 +143,8 @@ namespace Controller{
   std::set<std::string> getActiveStreams(const std::string &prefix = "");
   void killStatistics(char *data, size_t len, unsigned int id);
   void fillClients(JSON::Value &req, JSON::Value &rep);
-  void fillActive(JSON::Value &req, JSON::Value &rep, bool onlyNow = false);
+  void fillActive(JSON::Value &req, JSON::Value &rep);
+  void fillHasStats(JSON::Value &req, JSON::Value &rep);
   void fillTotals(JSON::Value &req, JSON::Value &rep);
   void SharedMemStats(void *config);
   void sessions_invalidate(const std::string &streamname);

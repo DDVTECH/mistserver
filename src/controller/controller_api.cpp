@@ -1028,10 +1028,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
   if (Request.isMember("active_streams")){
-    Controller::fillActive(Request["active_streams"], Response["active_streams"], true);
+    Controller::fillActive(Request["active_streams"], Response["active_streams"]);
   }
   if (Request.isMember("stats_streams")){
-    Controller::fillActive(Request["stats_streams"], Response["stats_streams"]);
+    Controller::fillHasStats(Request["stats_streams"], Response["stats_streams"]);
   }
 
   if (Request.isMember("api_endpoint")){
@@ -1067,7 +1067,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("no_unconfigured_streams")){
     JSON::Value emptyRequest;
     JSON::Value currStreams;
-    Controller::fillActive(emptyRequest, currStreams, true);
+    Controller::fillActive(emptyRequest, currStreams);
     jsonForEach(currStreams, strm){
       std::string S = strm->asStringRef();
       //Remove wildcard, if any

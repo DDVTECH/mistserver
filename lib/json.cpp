@@ -1212,6 +1212,18 @@ void JSON::Value::append(const JSON::Value &rhs){
   arrVal.push_back(new JSON::Value(rhs));
 }
 
+/// Appends a null value to the end of this JSON::Value array.
+/// Turns this value into an array if it is not already one.
+/// Returns a reference to the appended element.
+JSON::Value & JSON::Value::append(){
+  if (myType != ARRAY){
+    null();
+    myType = ARRAY;
+  }
+  arrVal.push_back(new JSON::Value());
+  return **arrVal.rbegin();
+}
+
 /// Prepends the given value to the beginning of this JSON::Value array.
 /// Turns this value into an array if it is not already one.
 void JSON::Value::prepend(const JSON::Value &rhs){

@@ -92,6 +92,7 @@ namespace JSON{
     std::string toString() const;
     std::string toPrettyString(size_t indent = 0) const;
     void append(const Value &rhs);
+    Value & append();
     void prepend(const Value &rhs);
     void shrink(uint32_t size);
     void removeMember(const std::string &name);

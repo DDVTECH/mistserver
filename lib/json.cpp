@@ -66,15 +66,17 @@ uint32_t JSON::Iter::num() const{
 }
 
 /// Delete the current indice from the parent JSON::Value.
+/// Resets the iterator to restart from the beginning
 void JSON::Iter::remove(){
   if (*this){
+    i = 0;
     if (myType == JSON::ARRAY){
       r->removeMember(aIt);
-      return;
+      aIt = r->arrVal.begin();
     }
     if (myType == JSON::OBJECT){
       r->removeMember(oIt);
-      return;
+      oIt = r->objVal.begin();
     }
   }
 }

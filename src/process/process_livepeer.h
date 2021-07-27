@@ -7,7 +7,6 @@
 namespace Mist{
   bool getFirst = false;
   bool sendFirst = false;
-  bool doingSetup = true;
 
   uint64_t packetTimeDiff;
   uint64_t sendPacketTime;
@@ -74,14 +73,6 @@ namespace Mist{
   JSON::Value lpBroad;
   std::string currBroadAddr;
   std::string lpID;
-
-  class ProcLivepeer{
-  public:
-    std::string api_url;
-    ProcLivepeer(){};
-    bool CheckConfig();
-    void Run();
-  };
 
 }// namespace Mist
 

@@ -55,7 +55,13 @@ MistSkins["default"] = {
         ],
       }
     },
-    videocontainer: {type: "video"},
+    videocontainer: {
+      type: "container",
+      children: [
+        {type: "videobackground", alwaysDisplay: false, delay: 5 },
+        {type: "video"}
+      ]
+    },
     controls: {
       if: function(){
         return !!(this.player && this.player.api && this.player.api.play)
@@ -2122,6 +2128,64 @@ MistSkins["default"] = {
       button.appendChild(document.createTextNode(options.label));
       
       return button;
+   },
+   videobackground: function(options) {
+      /* options.alwaysDisplay : if true, always draw the video on the canvas */
+      /* options.delay         : delay of the draw timeout in seconds */
+      if (!options) { options = {}; }
+      if (!options.delay) { options.delay = 5; }
+
+      var ele = document.createElement("div");
+      var MistVideo = this;
+      
+      var canvasses = [];
+      for (var n = 0; n < 2; n++) {
+        var c = document.createElement("canvas");
+        c._context = c.getContext("2d");
+        ele.appendChild(c);
+        canvasses.push(c);
+      }
+      
+      var index = 0;
+      var drawing = false;
+      function draw() {
+        //only draw if the element is visible, don't waste cpu
+        if (options.alwaysDisplay || (MistVideo.video.videoWidth/MistVideo.video.videoHeight != ele.clientWidth / ele.clientHeight)) {
+
+          canvasses[index].removeAttribute("data-front"); //put last one behind again
+          //console.log(new Date().toLocaleTimeString(),"draw");
+
+          index++;
+          if (index >= canvasses.length) { index = 0; }
+
+          var c = canvasses[index];
+          var ctx = c._context;
+
+          c.width = MistVideo.video.videoWidth;
+          c.height = MistVideo.video.videoHeight;
+          ctx.drawImage(MistVideo.video,0,0);
+          c.setAttribute("data-front","");
+        }
+        
+        if (!MistVideo.player.api.paused) {
+          MistVideo.timers.start(function(){
+            draw();
+          },options.delay * 1e3);
+        }
+        else {
+          drawing = false;
+        }
+
+      }
+      MistUtil.event.addListener(MistVideo.video,"playing",function(){
+        if (!drawing) {
+          draw();
+          drawing = true;
+        }
+      });
+
+
+      return ele;
     }
     
   },

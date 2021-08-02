@@ -22,10 +22,12 @@ namespace Mist{
     capa["codecs"][0u][0u].append("@+meta");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/javascript";
+    capa["methods"][0u]["hrn"] = "JSON progressive";
     capa["methods"][0u]["priority"] = 0;
     capa["methods"][0u]["url_rel"] = "/$.json";
     capa["methods"][1u]["handler"] = "ws";
     capa["methods"][1u]["type"] = "html5/text/javascript";
+    capa["methods"][1u]["hrn"] = "JSON WebSocket";
     capa["methods"][1u]["priority"] = 0;
     capa["methods"][1u]["url_rel"] = "/$.json";
   }

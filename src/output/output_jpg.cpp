@@ -105,6 +105,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("H264");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/image/jpeg";
+    capa["methods"][0u]["hrn"] = "JPEG";
     capa["methods"][0u]["priority"] = 0;
     capa["push_urls"].append("/*.jpg");
 

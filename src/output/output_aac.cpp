@@ -14,6 +14,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("AAC");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/aac";
+    capa["methods"][0u]["hrn"] = "AAC progressive";
     capa["methods"][0u]["priority"] = 8;
 
     JSON::Value opt;

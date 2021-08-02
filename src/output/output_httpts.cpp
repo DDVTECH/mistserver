@@ -137,6 +137,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+opus");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mpeg";
+    capa["methods"][0u]["hrn"] = "TS HTTP progressive";
     capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");

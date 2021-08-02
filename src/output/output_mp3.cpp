@@ -13,6 +13,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("MP3");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/mp3";
+    capa["methods"][0u]["hrn"] = "MP3 progressive";
     capa["methods"][0u]["priority"] = 8;
 
     JSON::Value opt;

@@ -104,6 +104,7 @@ namespace Mist{
 
     capa["methods"][0u]["handler"] = "rtsp";
     capa["methods"][0u]["type"] = "rtsp";
+    capa["methods"][0u]["hrn"] = "RTSP";
     capa["methods"][0u]["priority"] = 2;
 
     capa["optional"]["maxsend"]["name"] = "Max RTP packet size";

@@ -19,6 +19,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("FLOAT");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/audio/wav";
+    capa["methods"][0u]["hrn"] = "WAV progressive";
     capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.wav");
 

@@ -312,6 +312,7 @@ namespace Mist{
           }
           JSON::Value tmp;
           tmp["type"] = (*it)["type"];
+          if (it->isMember("hrn")){tmp["hrn"] = (*it)["hrn"];}
           tmp["relurl"] = relurl;
           tmp["priority"] = (*it)["priority"];
           if ((*it).isMember("player_url")){

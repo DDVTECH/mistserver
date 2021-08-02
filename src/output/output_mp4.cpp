@@ -134,10 +134,12 @@ namespace Mist{
     jsonForEach(capa["codecs"][0u][1u], i){supportedAudio.insert(i->asStringRef());}
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/mp4";
+    capa["methods"][0u]["hrn"] = "MP4 progressive";
     capa["methods"][0u]["priority"] = 9;
     capa["methods"][0u]["url_rel"] = "/$.mp4";
     capa["methods"][1u]["handler"] = "ws";
     capa["methods"][1u]["type"] = "ws/video/mp4";
+    capa["methods"][1u]["hrn"] = "MP4 WebSocket";
     capa["methods"][1u]["priority"] = 10;
     capa["methods"][1u]["url_rel"] = "/$.mp4";
     // MP4 live is broken on Apple

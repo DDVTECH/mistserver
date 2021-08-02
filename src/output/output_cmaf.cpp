@@ -126,16 +126,19 @@ namespace Mist{
 
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "dash/video/mp4";
+    capa["methods"][0u]["hrn"] = "DASH";
     capa["methods"][0u]["url_rel"] = "/cmaf/$/index.mpd";
     capa["methods"][0u]["priority"] = 8;
 
     capa["methods"][1u]["handler"] = "http";
     capa["methods"][1u]["type"] = "html5/application/vnd.apple.mpegurl;version=7";
+    capa["methods"][1u]["hrn"] = "HLS (CMAF)";
     capa["methods"][1u]["url_rel"] = "/cmaf/$/index.m3u8";
     capa["methods"][1u]["priority"] = 8;
 
     capa["methods"][2u]["handler"] = "http";
     capa["methods"][2u]["type"] = "html5/application/vnd.ms-sstr+xml";
+    capa["methods"][2u]["hrn"] = "MS Smooth Streaming";
     capa["methods"][2u]["url_rel"] = "/cmaf/$/Manifest";
     capa["methods"][2u]["priority"] = 8;
 

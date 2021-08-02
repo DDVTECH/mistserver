@@ -74,6 +74,7 @@ namespace Mist{
     capa["codecs"][0u][2u].append("+JSON");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
+    capa["methods"][0u]["hrn"] = "MKV progressive";
     capa["methods"][0u]["priority"] = 9;
     // Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
     JSON::Value blacklistNonChrome = JSON::fromString(

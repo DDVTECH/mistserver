@@ -187,6 +187,7 @@ namespace Mist{
     capa["codecs"][0u][6u].append("+subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/application/vnd.apple.mpegurl";
+    capa["methods"][0u]["hrn"] = "HLS (TS)";
     capa["methods"][0u]["priority"] = 9;
     // MP3 only works on Edge/Apple
     capa["exceptions"]["codec:MP3"] = JSON::fromString(

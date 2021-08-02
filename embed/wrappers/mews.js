@@ -411,7 +411,7 @@ p.prototype.build = function (MistVideo,callback) {
               var desiredBuffer = Math.max(500+serverDelay,serverDelay*2);
               if (MistVideo.info.type != "live") { desiredBuffer += 2000; } //if VoD, keep an extra 2 seconds of buffer
               
-              if (player.sb.keyonly != msg.data.keyonly) {
+              if (player.sb && (player.sb.keyonly != msg.data.keyonly)) {
                 player.sb.keyonly = msg.data.keyonly;
                 MistUtil.event.send("slideshowchange",null,video);
               }
@@ -514,6 +514,12 @@ p.prototype.build = function (MistVideo,callback) {
               break;
             }
             case "tracks": {
+              
+              
+              MistVideo.player.api.slideshow_available = !!msg.data.keyonly_supported;
+              MistUtil.event.send("slideshowavailable",(!!msg.data.keyonly_supported),video);
+
+
               //check if all codecs are equal to the ones we were using before
               function checkEqual(arr1,arr2) {
                 if (!arr2) { return false; }
@@ -735,6 +741,10 @@ p.prototype.build = function (MistVideo,callback) {
       
       player.sbinit(msg.data.codecs);
       
+      //emit event containing whether or not slideshow mode is supported for these tracks
+      MistVideo.player.api.slideshow_available = !!msg.data.keyonly_supported;
+      MistUtil.event.send("slideshowavailable",(!!msg.data.keyonly_supported),video);
+
       checkReady();
       player.ws.removeListener("codec_data",f);
     };
@@ -855,6 +865,7 @@ p.prototype.build = function (MistVideo,callback) {
       });
       return value;
     };
+    this.api.slideshow_available = false;
   }
  
   //override seeking

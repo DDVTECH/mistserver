@@ -2149,7 +2149,20 @@ MistSkins["default"] = {
         this.set(api.slideshow(!api.slideshow()));
       });
       button.set(api.slideshow());
+
+      //do not show button until the "slideshowavailable" event is detected
+      MistUtil.event.addListener(MistVideo.video,"slideshowavailable",function(e){
+        if (e.message) {
+          button.style.display = "";
+        }
+        else {
+          button.style.display = "none";
+        }
+      });
+      button.style.display = (MistVideo.player.api.slideshow_available ? "" : "none");
+
       
+
       return button;
     },
   },

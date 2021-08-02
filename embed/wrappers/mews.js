@@ -408,7 +408,10 @@ p.prototype.build = function (MistVideo,callback) {
             case "on_time": {              
               var buffer = msg.data.current - video.currentTime*1e3;
               var serverDelay = player.ws.serverDelay.get();
-              var desiredBuffer = Math.max(500+serverDelay,serverDelay*2);
+              var desiredBuffer = Math.max(100+serverDelay,serverDelay*2);
+              var desiredBufferwithJitter = desiredBuffer+(msg.data.jitter ? msg.data.jitter : 0);
+
+
               if (MistVideo.info.type != "live") { desiredBuffer += 2000; } //if VoD, keep an extra 2 seconds of buffer
               
               if (player.sb && (player.sb.keyonly != msg.data.keyonly)) {
@@ -436,21 +439,21 @@ p.prototype.build = function (MistVideo,callback) {
                     if (msg.data.play_rate_curr == "auto") {
                       if (video.currentTime > 0) { //give it some time to seek to live first when starting up
                         //assume we want to be as live as possible
-                        if (buffer - desiredBuffer > desiredBuffer) {
-                          requested_rate = 1.1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.15;
+                        if (buffer > desiredBufferwithJitter*2) {
+                          requested_rate = 1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.08;
                           video.playbackRate *= requested_rate;
-                          MistVideo.log("Our buffer is big, so increase the playback speed to catch up.");
+                          MistVideo.log("Our buffer is big, so increase the playback speed to "+(Math.round(requested_rate*100)/100)+" to catch up.");
                         }
                         else if (buffer < desiredBuffer/2) {
-                          requested_rate = 0.9;
+                          requested_rate = 1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.08;
                           video.playbackRate *= requested_rate;
-                          MistVideo.log("Our buffer is small, so decrease the playback speed to catch up.");
+                          MistVideo.log("Our buffer is small, so decrease the playback speed to "+(Math.round(requested_rate*100)/100)+" to catch up.");
                         }
                       }
                     }
                   }
                   else if (requested_rate > 1) {
-                    if (buffer < desiredBuffer) {
+                    if (buffer < desiredBufferwithJitter) {
                       video.playbackRate /= requested_rate;
                       requested_rate = 1;
                       MistVideo.log("Our buffer is small enough, so return to real time playback.");

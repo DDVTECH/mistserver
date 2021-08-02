@@ -828,19 +828,6 @@ p.prototype.build = function (MistVideo,callback) {
       },obj);
       send(obj);
     },
-    slideshow: function(value){
-      //when called without a value: return the current state: is slideshow mode on (true) or not (false)?
-      if (typeof value == "undefined") {
-        return player && player.sb && player.sb.keyonly ? true : false;
-      }
-      //when called with a value: set slideshow mode
-      value = value ? true : false;
-      send({
-        type: "tracks",
-        keyonly: value
-      });
-      return value;
-    },
     unload: function(){
       player.api.pause();
       player.sb._do(function(){
@@ -854,6 +841,21 @@ p.prototype.build = function (MistVideo,callback) {
       player.ws.close();
     }
   };
+  if (MistUtil.getBrowser() != "firefox") {
+    this.api.slideshow = function(value){
+      //when called without a value: return the current state: is slideshow mode on (true) or not (false)?
+      if (typeof value == "undefined") {
+        return player && player.sb ? (player.sb.keyonly ? player.sb.keyonly : false) : null;
+      }
+      //when called with a value: set slideshow mode
+      value = value ? true : false;
+      send({
+        type: "tracks",
+        keyonly: value
+      });
+      return value;
+    };
+  }
  
   //override seeking
   Object.defineProperty(this.api,"currentTime",{

@@ -990,7 +990,8 @@ function MistVideo(streamName,options) {
                 videoHeight: null,
                 videoWidth: null,
                 playerHeight: null,
-                playerWidth: null
+                playerWidth: null,
+                keyonly: null
               },
               last: {
                 firstPlayback: null,
@@ -1007,7 +1008,8 @@ function MistVideo(streamName,options) {
                 videoHeight: null,
                 videoWidth: null,
                 playerHeight: null,
-                playerWidth: null
+                playerWidth: null,
+                keyonly: null
               }
             },
             report: function(d){
@@ -1105,6 +1107,12 @@ function MistVideo(streamName,options) {
                     return MistVideo.video.clientWidth;
                   }
                 });
+                Object.defineProperty(d,"keyonly",{
+                  get: function(){
+                    return MistVideo.player && MistVideo.player.api && MistVideo.player.api.slideshow ? MistVideo.player.api.slideshow() : null;
+                  }
+                });
+
 
                 MistUtil.event.addListener(video,"waiting",function(){
                   timeWaiting = d.timeWaiting; //in case we get waiting several times in a row

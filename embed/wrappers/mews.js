@@ -410,7 +410,13 @@ p.prototype.build = function (MistVideo,callback) {
               var serverDelay = player.ws.serverDelay.get();
               var desiredBuffer = Math.max(500+serverDelay,serverDelay*2);
               if (MistVideo.info.type != "live") { desiredBuffer += 2000; } //if VoD, keep an extra 2 seconds of buffer
-              if (player.debugging) console.log("on_time received",msg.data.current/1e3,"currtime",video.currentTime,requested_rate+"x","buffer",Math.round(buffer),"/",Math.round(desiredBuffer),(MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),"bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s","listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,"msgqueue",player.msgqueue ? player.msgqueue.length : 0,msg.data);
+              
+              if (player.sb.keyonly != msg.data.keyonly) {
+                player.sb.keyonly = msg.data.keyonly;
+                MistUtil.event.send("slideshowchange",null,video);
+              }
+
+              if (player.debugging) console.log("on_time received",msg.data.current/1e3,"currtime",video.currentTime,requested_rate+"x","buffer",Math.round(buffer),"/",Math.round(desiredBuffer),(MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),"bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s","listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,"msgqueue",player.msgqueue ? player.msgqueue.length : 0,"readyState",MistVideo.video.readyState,msg.data);
 
               if (!player.sb) {
                 MistVideo.log("Received on_time, but the source buffer is being cleared right now. Ignoring.");
@@ -424,77 +430,79 @@ p.prototype.build = function (MistVideo,callback) {
               MistVideo.info.meta.buffer_window = msg.data.end - msg.data.begin;
               player.sb.paused = false;
 
-              if (MistVideo.info.type == "live") {
-                if (requested_rate == 1) {
-                  if (msg.data.play_rate_curr == "auto") {
-                    if (video.currentTime > 0) { //give it some time to seek to live first when starting up
-                      //assume we want to be as live as possible
-                      if (buffer - desiredBuffer > desiredBuffer) {
-                        requested_rate = 1.1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.15;
-                        video.playbackRate *= requested_rate;
-                        MistVideo.log("Our buffer is big, so increase the playback speed to catch up.");
-                      }
-                      else if (buffer < desiredBuffer/2) {
-                        requested_rate = 0.9;
-                        video.playbackRate *= requested_rate;
-                        MistVideo.log("Our buffer is small, so decrease the playback speed to catch up.");
+              if (!msg.data.keyonly) {
+                if (MistVideo.info.type == "live") {
+                  if (requested_rate == 1) {
+                    if (msg.data.play_rate_curr == "auto") {
+                      if (video.currentTime > 0) { //give it some time to seek to live first when starting up
+                        //assume we want to be as live as possible
+                        if (buffer - desiredBuffer > desiredBuffer) {
+                          requested_rate = 1.1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.15;
+                          video.playbackRate *= requested_rate;
+                          MistVideo.log("Our buffer is big, so increase the playback speed to catch up.");
+                        }
+                        else if (buffer < desiredBuffer/2) {
+                          requested_rate = 0.9;
+                          video.playbackRate *= requested_rate;
+                          MistVideo.log("Our buffer is small, so decrease the playback speed to catch up.");
+                        }
                       }
                     }
                   }
-                }
-                else if (requested_rate > 1) {
-                  if (buffer < desiredBuffer) {
-                    video.playbackRate /= requested_rate;
-                    requested_rate = 1;
-                    MistVideo.log("Our buffer is small enough, so return to real time playback.");
+                  else if (requested_rate > 1) {
+                    if (buffer < desiredBuffer) {
+                      video.playbackRate /= requested_rate;
+                      requested_rate = 1;
+                      MistVideo.log("Our buffer is small enough, so return to real time playback.");
+                    }
+                  }
+                  else {
+                    //requested rate < 1
+                    if (buffer > desiredBuffer) {
+                      video.playbackRate /= requested_rate;
+                      requested_rate = 1;
+                      MistVideo.log("Our buffer is big enough, so return to real time playback.");
+                    }
                   }
                 }
                 else {
-                  //requested rate < 1
-                  if (buffer > desiredBuffer) {
-                    video.playbackRate /= requested_rate;
-                    requested_rate = 1;
-                    MistVideo.log("Our buffer is big enough, so return to real time playback.");
-                  }
-                }
-              }
-              else {
-                //it's VoD, change the rate at which the server sends data to try and keep the buffer small
-                if (requested_rate == 1) {
-                  if (msg.data.play_rate_curr == "auto") {
-                    if (buffer < desiredBuffer/2) {
-                      if (buffer < -10e3) {
-                        //seek to play point
-                        send({type: "seek", seek_time: video.currentTime*1e3});
+                  //it's VoD, change the rate at which the server sends data to try and keep the buffer small
+                  if (requested_rate == 1) {
+                    if (msg.data.play_rate_curr == "auto") {
+                      if (buffer < desiredBuffer/2) {
+                        if (buffer < -10e3) {
+                          //seek to play point
+                          send({type: "seek", seek_time: video.currentTime*1e3});
+                        }
+                        else {
+                          //negative buffer? ask for faster delivery
+                          requested_rate = 2;
+                          MistVideo.log("Our buffer is negative, so request a faster download rate.");
+                          send({type: "set_speed", play_rate: requested_rate});
+                        }
                       }
-                      else {
-                        //negative buffer? ask for faster delivery
-                        requested_rate = 2;
-                        MistVideo.log("Our buffer is negative, so request a faster download rate.");
+                      else if (buffer - desiredBuffer > desiredBuffer) {
+                        MistVideo.log("Our buffer is big, so request a slower download rate.");
+                        requested_rate = 0.5;
                         send({type: "set_speed", play_rate: requested_rate});
                       }
                     }
-                    else if (buffer - desiredBuffer > desiredBuffer) {
-                      MistVideo.log("Our buffer is big, so request a slower download rate.");
-                      requested_rate = 0.5;
-                      send({type: "set_speed", play_rate: requested_rate});
+                  }
+                  else if (requested_rate > 1) {
+                    if (buffer > desiredBuffer) {
+                      //we have enough buffer, ask for real time delivery
+                      send({type: "set_speed", play_rate: "auto"});
+                      requested_rate = 1;
+                      MistVideo.log("The buffer is big enough, so ask for realtime download rate.");
                     }
                   }
-                }
-                else if (requested_rate > 1) {
-                  if (buffer > desiredBuffer) {
-                    //we have enough buffer, ask for real time delivery
-                    send({type: "set_speed", play_rate: "auto"});
-                    requested_rate = 1;
-                    MistVideo.log("The buffer is big enough, so ask for realtime download rate.");
-                  }
-                }
-                else { //requested_rate < 1
-                  if (buffer < desiredBuffer) {
-                    //we have a small enough bugger, ask for real time delivery
-                    send({type: "set_speed", play_rate: "auto"});
-                    requested_rate = 1;
-                    MistVideo.log("The buffer is small enough, so ask for realtime download rate.");
+                  else { //requested_rate < 1
+                    if (buffer < desiredBuffer) {
+                      //we have a small enough bugger, ask for real time delivery
+                      send({type: "set_speed", play_rate: "auto"});
+                      requested_rate = 1;
+                      MistVideo.log("The buffer is small enough, so ask for realtime download rate.");
+                    }
                   }
                 }
               }
@@ -819,6 +827,19 @@ p.prototype.build = function (MistVideo,callback) {
         seek_time:  Math.max(0,video.currentTime*1e3-(500+player.ws.serverDelay.get()))
       },obj);
       send(obj);
+    },
+    slideshow: function(value){
+      //when called without a value: return the current state: is slideshow mode on (true) or not (false)?
+      if (typeof value == "undefined") {
+        return player && player.sb && player.sb.keyonly ? true : false;
+      }
+      //when called with a value: set slideshow mode
+      value = value ? true : false;
+      send({
+        type: "tracks",
+        keyonly: value
+      });
+      return value;
     },
     unload: function(){
       player.api.pause();

@@ -113,6 +113,9 @@ MistSkins["default"] = {
                   then: {
                     type: "container",
                     children: [{
+                      type: "slideshow_mode",
+                      classes: ["mistvideo-pointer"]
+                    },{
                       type: "loop",
                       classes: ["mistvideo-pointer"]
                     },
@@ -287,6 +290,10 @@ MistSkins["default"] = {
       switchvideo: {
         size: 45,
         svg: '<path d="m8.4925 18.786c-3.9578 1.504-6.4432 3.632-6.4434 5.9982 2.183e-4 4.1354 7.5562 7.5509 17.399 8.1467v4.7777l10.718-6.2573-10.718-6.2529v4.5717c-6.9764-0.4712-12.229-2.5226-12.227-4.9859 6.693e-4 -0.72127 0.45868-1.4051 1.2714-2.0267zm28.015 0v3.9715c0.81164 0.62126 1.2685 1.3059 1.2692 2.0267-0.0014 1.4217-1.791 2.75-4.8021 3.6968-2.0515 0.82484-0.93693 3.7696 1.2249 2.9659 5.3088-1.8593 8.7426-3.8616 8.7514-6.6627-1.26e-4 -2.3662-2.4856-4.4942-6.4434-5.9982z" class="fill"/><rect rect x="10.166" y="7.7911" width="24.668" height="15.432" class="stroke"/>'
+      },
+      slideshow: {
+        size: 45,
+        svg: '<defs><mask id="slideshow_89wfhs"><rect height="100%" width="100%" fill="white"/><rect style="fill:white;stroke:black;stroke-width:1" width="38" height="4" x="3.5" y="5.75" ry="2" rx="2" /></mask></defs><rect class="stroke semiFill toggle" width="30" height="20" x="7" y="7" ry="3" rx="3" mask="url(#slideshow_89wfhs)" /><rect class="fill" width="38" height="3" x="3.5" y="6.25" ry="1.5" rx="1.5" /><path class="stroke" style="stroke-linecap:round;stroke-linejoin:round" d="m 28.55,38 c -4.6,-1.74 -5.45,-5.87 -6.05,-10.16 -0.6,4.3 -1.46,8.42 -6.05,10.16" />'
       }
     }
   },
@@ -2118,8 +2125,33 @@ MistSkins["default"] = {
       button.appendChild(document.createTextNode(options.label));
       
       return button;
-    }
-    
+    },
+    slideshow_mode: function(){
+      if (!this.player || !this.player.api || !this.player.api.slideshow) { return; }
+      
+      var MistVideo = this;
+      var button = this.skin.icons.build("slideshow");
+      
+      var api = this.player.api;
+      button.set = function(value){
+        if (value) {
+          MistUtil.class.remove(this,"off");
+        }
+        else {
+          MistUtil.class.add(this,"off");
+        }
+      };
+      
+      MistUtil.event.addListener(MistVideo.video,"slideshowchange",function(e){
+        button.set(api.slideshow());
+      });
+      MistUtil.event.addListener(button,"click",function(e){
+        this.set(api.slideshow(!api.slideshow()));
+      });
+      button.set(api.slideshow());
+      
+      return button;
+    },
   },
   colors: {
     fill: "#fff",

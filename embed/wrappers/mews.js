@@ -408,9 +408,25 @@ p.prototype.build = function (MistVideo,callback) {
             case "on_time": {              
               var buffer = msg.data.current - video.currentTime*1e3;
               var serverDelay = player.ws.serverDelay.get();
-              var desiredBuffer = Math.max(500+serverDelay,serverDelay*2);
+              var desiredBuffer = Math.max(100+serverDelay,serverDelay*2);
+              var desiredBufferwithJitter = desiredBuffer+(msg.data.jitter ? msg.data.jitter : 0);
+
+
               if (MistVideo.info.type != "live") { desiredBuffer += 2000; } //if VoD, keep an extra 2 seconds of buffer
-              if (player.debugging) console.log("on_time received",msg.data.current/1e3,"currtime",video.currentTime,requested_rate+"x","buffer",Math.round(buffer),"/",Math.round(desiredBuffer),(MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),"bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s","listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,"msgqueue",player.msgqueue ? player.msgqueue.length : 0,msg.data);
+
+              if (player.debugging) {
+                console.log(
+                  "on_time received", msg.data.current/1e3,
+                  "currtime", video.currentTime,
+                  requested_rate+"x",
+                  "buffer",Math.round(buffer),"/",Math.round(desiredBuffer),
+                  (MistVideo.info.type == "live" ? "latency:"+Math.round(msg.data.end-video.currentTime*1e3)+"ms" : ""),
+                  (player.monitor ? "bitrate:"+MistUtil.format.bits(player.monitor.currentBps)+"/s" : ""),
+                  "listeners",player.ws.listeners && player.ws.listeners.on_time ? player.ws.listeners.on_time : 0,
+                  "msgqueue",player.msgqueue ? player.msgqueue.length : 0,
+                  "readyState",MistVideo.video.readyState,msg.data
+                );
+              }
 
               if (!player.sb) {
                 MistVideo.log("Received on_time, but the source buffer is being cleared right now. Ignoring.");
@@ -429,32 +445,32 @@ p.prototype.build = function (MistVideo,callback) {
                   if (msg.data.play_rate_curr == "auto") {
                     if (video.currentTime > 0) { //give it some time to seek to live first when starting up
                       //assume we want to be as live as possible
-                      if (buffer - desiredBuffer > desiredBuffer) {
-                        requested_rate = 1.1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.15;
+                      if (buffer > desiredBufferwithJitter*2) {
+                        requested_rate = 1 + Math.min(1,((buffer-desiredBufferwithJitter)/desiredBufferwithJitter))*0.08;
                         video.playbackRate *= requested_rate;
-                        MistVideo.log("Our buffer is big, so increase the playback speed to catch up.");
+                        MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is big (>"+Math.round(desiredBufferwithJitter*2)+"ms), so increase the playback speed to "+(Math.round(requested_rate*100)/100)+" to catch up.");
                       }
                       else if (buffer < desiredBuffer/2) {
-                        requested_rate = 0.9;
+                        requested_rate = 1 + Math.min(1,((buffer-desiredBuffer)/desiredBuffer))*0.08;
                         video.playbackRate *= requested_rate;
-                        MistVideo.log("Our buffer is small, so decrease the playback speed to catch up.");
+                        MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is small (<"+Math.round(desiredBuffer/2)+"ms), so decrease the playback speed to "+(Math.round(requested_rate*100)/100)+" to catch up.");
                       }
                     }
                   }
                 }
                 else if (requested_rate > 1) {
-                  if (buffer < desiredBuffer) {
+                  if (buffer < desiredBufferwithJitter) {
                     video.playbackRate /= requested_rate;
                     requested_rate = 1;
-                    MistVideo.log("Our buffer is small enough, so return to real time playback.");
+                    MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is small enough (<"+Math.round(desiredBufferwithJitter)+"ms), so return to real time playback.");
                   }
                 }
                 else {
                   //requested rate < 1
-                  if (buffer > desiredBuffer) {
+                  if (buffer > desiredBufferwithJitter) {
                     video.playbackRate /= requested_rate;
                     requested_rate = 1;
-                    MistVideo.log("Our buffer is big enough, so return to real time playback.");
+                    MistVideo.log("Our buffer ("+Math.round(buffer)+"ms) is big enough (>"+Math.round(desiredBufferwithJitter)+"ms), so return to real time playback.");
                   }
                 }
               }
@@ -465,7 +481,7 @@ p.prototype.build = function (MistVideo,callback) {
                     if (buffer < desiredBuffer/2) {
                       if (buffer < -10e3) {
                         //seek to play point
-                        send({type: "seek", seek_time: video.currentTime*1e3});
+                        send({type: "seek", seek_time: Math.round(video.currentTime*1e3)});
                       }
                       else {
                         //negative buffer? ask for faster delivery
@@ -841,7 +857,7 @@ p.prototype.build = function (MistVideo,callback) {
     },
     set: function(value){
       MistUtil.event.send("seeking",value,video);
-      send({type: "seek", seek_time: Math.max(0,value*1e3-(250+player.ws.serverDelay.get()))}); //safety margin for server latency
+      send({type: "seek", seek_time: Math.round(Math.max(0,value*1e3-(250+player.ws.serverDelay.get())))}); //safety margin for server latency
       //set listener "seek"
       var onseek = function(e){
         player.ws.removeListener("seek",onseek);

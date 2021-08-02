@@ -557,6 +557,21 @@ namespace Mist{
       return;
     }
 
+    if (command["type"] == "hold") {
+      parseData = false;
+      JSON::Value commandResult;
+      commandResult["type"] = "on_time";
+      commandResult["paused"] = !parseData;
+      commandResult["current"] = currentTime();
+      commandResult["begin"] = startTime();
+      commandResult["end"] = endTime();
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        commandResult["tracks"].append(it->first);
+      }
+      webSock->sendFrame(commandResult.toString());
+      return;
+    }
+
     if (command["type"] == "stop"){
       INFO_MSG("Received stop() command.");
       myConn.close();

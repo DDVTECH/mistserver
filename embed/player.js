@@ -33,6 +33,8 @@ function MistVideo(streamName,options) {
     height: false,        //no set height
     maxwidth: false,      //no max width (apart from targets dimensions)
     maxheight: false,     //no max height (apart from targets dimensions)
+    ABR_resize: true,     //for supporting wrappers: when the player resizes, request a video track that matches the resolution best
+    ABR_bitrate: true,    //for supporting wrappers: when there are playback issues, request a lower bitrate video track
     MistVideoObject: false//no reference object is passed
   },options);
   if (options.host) { options.host = MistUtil.http.url.sanitizeHost(options.host); }
@@ -417,6 +419,11 @@ function MistVideo(streamName,options) {
       }
     }
     
+    //check MistServer version if combined track selection is supported
+    if (MistVideo.options.ABR_bitrate && MistVideo.options.ABR_resize && (MistVideo.info && !MistVideo.info.selver)) {
+      //having both won't work, disable bitrate based ABR
+      MistVideo.options.ABR_bitrate = false;
+    }
     
     if (MistVideo.choosePlayer()) {
      
@@ -720,8 +727,14 @@ function MistVideo(streamName,options) {
             };
             
           }
-          MistVideo.player.resize = function(options){
+          MistVideo.player.resize = function(options,oldsize){
             var container = MistVideo.video.currentTarget.querySelector(".mistvideo");
+            if (!oldsize) {
+              oldsize = {
+                width: MistVideo.video.clientWidth,
+                height: MistVideo.video.clientHeight
+              };
+            }
             if (!container.hasAttribute("data-fullscreen")) {
               //if ((!document.fullscreenElement) || (document.fullscreenElement.parentElement != MistVideo.video.currentTarget)) {
               //first, base the size on the video dimensions
@@ -737,7 +750,7 @@ function MistVideo(streamName,options) {
                   width:window.innerWidth,
                   height: false,
                   reiterating: true
-                });
+                },oldsize);
               }
               
               //check if the container is smaller than the video, if so, set the max size to the current container dimensions and reiterate
@@ -747,7 +760,7 @@ function MistVideo(streamName,options) {
                   width: false,
                   height: MistVideo.video.currentTarget.clientHeight,
                   reiterating: true
-                });
+                },oldsize);
               }
               if ((MistVideo.video.currentTarget.clientWidth) && (MistVideo.video.currentTarget.clientWidth < size.width)) {
                 //console.log("current w:",size.width,"target w:",MistVideo.video.currentTarget.clientWidth);
@@ -755,20 +768,23 @@ function MistVideo(streamName,options) {
                   width: MistVideo.video.currentTarget.clientWidth,
                   height: false,
                   reiterating: true
-                });
+                },oldsize);
               }
-              MistVideo.log("Player size calculated: "+size.width+" x "+size.height+" px");
-              return true;
+
             }
             else {
-              
               //this is the video that is in the main container, and resize this one to the screen dimensions
-              this.setSize({
-                height: window.innerHeight,
-                width: window.innerWidth
-              });
-              return true;
+              size = {
+                width: window.innerWidth,
+                height: window.innerHeight
+              }
+              this.setSize(size);
             }
+            if ((size.width != oldsize.width) || (size.height != oldsize.height)) {
+              MistVideo.log("Player size calculated: "+size.width+" x "+size.height+" px"); 
+              MistUtil.event.send("player_resize",size,MistVideo.video);
+            }
+            return true;
           };
           
           //if this is the main video
@@ -901,6 +917,43 @@ function MistVideo(streamName,options) {
             }
           }
           
+          if (MistVideo.player.api.ABR_resize && MistVideo.options.ABR_resize) {
+            var resizeratelimiter = false;
+            var newsize = false;
+            MistUtil.event.addListener(MistVideo.video,"player_resize",function(e){
+              if (MistVideo.options.setTracks && MistVideo.options.setTracks.video) {
+                //trackselection is not set to 'automatic'
+                return; 
+              }
+
+              //Whenever the player resizes, start a timer. When the timer ends, request the correct video track. When the player resizes before the timer ends, stop it: track request is sent 1s after the player has the new size
+
+              if (resizeratelimiter) {
+                MistVideo.timers.stop(resizeratelimiter);
+              }
+              resizeratelimiter = MistVideo.timers.start(function(){
+                MistVideo.player.api.ABR_resize(e.message);
+                resizeratelimiter = false;
+              },1e3);
+              
+            });
+
+            MistUtil.event.addListener(MistVideo.video,"trackSetToAuto",function(e){
+              //the user selected automatic track selection, update the track resolution
+              if (e.message == "video") {
+                MistVideo.player.api.ABR_resize({
+                  width: MistVideo.video.clientWidth,
+                  height: MistVideo.video.clientHeight
+                });
+              }
+            });
+            //initialize
+            MistVideo.player.api.ABR_resize({
+              width: MistVideo.video.clientWidth,
+              height: MistVideo.video.clientHeight
+            });
+
+          }
         }
         
         for (var i in MistVideo.player.onreadylist) {

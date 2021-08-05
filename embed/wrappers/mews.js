@@ -1023,7 +1023,6 @@ p.prototype.build = function (MistVideo,callback) {
 
       if (player.monitor.nWaiting >= player.monitor.nWaitingThreshold) {
         player.monitor.nWaiting = 0;
-        MistVideo.log("ABR threshold triggered, requesting lower quality");
         player.monitor.action();
       }
     }),
@@ -1055,6 +1054,11 @@ p.prototype.build = function (MistVideo,callback) {
       },500);
     },
     action: function(){
+      if (MistVideo.options.setTracks && MistVideo.options.setTracks.video) {
+        //a video track was selected by the user, do not change it
+        return;
+      }
+      MistVideo.log("ABR threshold triggered, requesting lower quality");
       player.api.setTracks({video:"max<"+Math.round(this.currentBps)+"bps"});
     }
   };

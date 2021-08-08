@@ -235,19 +235,22 @@ void Util::Procs::childsig_handler(int signum){
 
 /// Runs the given command and returns the stdout output as a string.
 std::string Util::Procs::getOutputOf(char *const *argv){
-  std::string ret;
   int fin = 0, fout = -1, ferr = 0;
   pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
-  while (childRunning(myProc)){Util::sleep(100);}
-  FILE *outFile = fdopen(fout, "r");
-  char *fileBuf = 0;
-  size_t fileBufLen = 0;
-  while (!(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
-    ret += fileBuf;
+  Socket::Connection O(-1, fout);
+  Util::ResizeablePointer ret;
+  while (childRunning(myProc) || O){
+    if (O.spool() || O.Received().size()){
+      while (O.Received().size()){
+        std::string & t = O.Received().get();
+        ret.append(t);
+        t.clear();
+      }
+    }else{
+      Util::sleep(50);
+    }
   }
-  fclose(outFile);
-  free(fileBuf);
-  return ret;
+  return std::string(ret, ret.size());
 }
 
 /// This function prepares a deque for getOutputOf and automatically inserts a NULL at the end of the char* const*

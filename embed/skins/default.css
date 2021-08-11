@@ -126,6 +126,11 @@ svg.icon.timeout {
 .mistvideo[data-show-submenu] .mistvideo-controls {
   bottom: 0;
 }
+.mistvideo-currentTime {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .mistvideo-videobackground {
   position: absolute;
   width: 100%;

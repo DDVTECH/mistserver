@@ -83,7 +83,16 @@ MistSkins["default"] = {
               classes: ["mistvideo-pointer"]
             },
             {type: "currentTime"},
-            {type: "totalTime"},
+            {
+              if: function(){
+                //show the total time if the player size is larger than 300px
+                if (("size" in this) && (this.size.width > 300) || ((!this.info.hasVideo || (this.source.type.split("/")[1] == "audio")))) {
+                  return true;
+                }
+                return false;
+              },
+              then: {type: "totalTime"}
+            },
             {
               type: "container",
               classes: ["mistvideo-align-right"],
@@ -110,8 +119,8 @@ MistSkins["default"] = {
                 },
                 {
                   if: function(){
-                    //show the fullscreen and loop buttons here if the player size is larger than 200px
-                    if (("size" in this) && (this.size.width > 200) || ((!this.info.hasVideo || (this.source.type.split("/")[1] == "audio")))) {
+                    //show the fullscreen and loop buttons here if the player size is larger than 300px
+                    if (("size" in this) && (this.size.width > 300) || ((!this.info.hasVideo || (this.source.type.split("/")[1] == "audio")))) {
                       return true;
                     }
                     return false;
@@ -176,7 +185,7 @@ MistSkins["default"] = {
         {
           if: function(){
             //only show the fullscreen and loop buttons here if the player size is less than 200px
-            if (("size" in this) && (this.size.width <= 200)) {
+            if (("size" in this) && (this.size.width <= 300)) {
               return true;
             }
             return false;
@@ -611,7 +620,7 @@ MistSkins["default"] = {
         MistUtil.class.add(this.container,"hasControls");
         
         var container = this.UI.buildStructure(this.skin.structure.controls);
-        if (MistUtil.isTouchDevice()) {
+        if (MistUtil.isTouchDevice() && (this.size.width > 300)) {
           container.style.zoom = 1.5;
         }
         return container;
@@ -1172,6 +1181,7 @@ MistSkins["default"] = {
       container.set = function(){
         var v = MistVideo.player.api.currentTime;
         text.nodeValue = formatTime(v);
+        container.setAttribute("title",text.nodeValue);
       };
       container.set();
       

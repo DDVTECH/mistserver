@@ -2396,7 +2396,7 @@ namespace DTSC{
         t.keys.setInt(t.keyFirstPartField, 0, newKeyNum);
       }
       t.keys.addRecords(1);
-      if (packBytePos){t.track.setInt(t.trackFirstmsField, t.keys.getInt(t.keyTimeField, 0));}
+      t.track.setInt(t.trackFirstmsField, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
 
       uint32_t newFragNum = t.fragments.getEndPos();
       if (newFragNum == 0 ||

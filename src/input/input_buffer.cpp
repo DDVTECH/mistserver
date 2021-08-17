@@ -225,25 +225,27 @@ namespace Mist{
         }
       }
     }
-    if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
-      JSON::Value stream_details;
-      M.getHealthJSON(stream_details);
-      if (lastFragCount == 0xFFFFull){
-        std::string payload = streamName + "\nFULL\n" + stream_details.toString();
-        Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-      }else{
-        if (stream_details.isMember("issues") != wentDry){
-          if (stream_details.isMember("issues")){
-            std::string payload = streamName + "\nDRY\n" + stream_details.toString();
-            Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-          }else{
-            std::string payload = streamName + "\nRECOVER\n" + stream_details.toString();
-            Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+    if (config->getString("input").find("INTERNAL_ONLY:dtsc") == std::string::npos){
+      if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
+        JSON::Value stream_details;
+        M.getHealthJSON(stream_details);
+        if (lastFragCount == 0xFFFFull){
+          std::string payload = streamName + "\nFULL\n" + stream_details.toString();
+          Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+        }else{
+          if (stream_details.isMember("issues") != wentDry){
+            if (stream_details.isMember("issues")){
+              std::string payload = streamName + "\nDRY\n" + stream_details.toString();
+              Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+            }else{
+              std::string payload = streamName + "\nRECOVER\n" + stream_details.toString();
+              Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+            }
           }
         }
+        wentDry = stream_details.isMember("issues");
+        lastFragCount = fragCount;
       }
-      wentDry = stream_details.isMember("issues");
-      lastFragCount = fragCount;
     }
     /*LTS-END*/
     finalMillis = lastms;
@@ -291,10 +293,12 @@ namespace Mist{
     if (M.getValidTracks().size()){
       /*LTS-START*/
       if (M.getBufferWindow()){
-        if (Triggers::shouldTrigger("STREAM_BUFFER")){
-          std::string payload =
-              config->getString("streamname") + "\nEMPTY\n" + JSON::Value(finalMillis).asString();
-          Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        if (config->getString("input").find("INTERNAL_ONLY:dtsc") == std::string::npos){
+          if (Triggers::shouldTrigger("STREAM_BUFFER")){
+            std::string payload =
+                config->getString("streamname") + "\nEMPTY\n" + JSON::Value(finalMillis).asString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+          }
         }
       }
       /*LTS-END*/
@@ -319,9 +323,11 @@ namespace Mist{
     meta.removeTrack(tid);
     /*LTS-START*/
     if (!M.getValidTracks().size()){
-      if (Triggers::shouldTrigger("STREAM_BUFFER")){
-        std::string payload = config->getString("streamname") + "\nEMPTY";
-        Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+      if (config->getString("input").find("INTERNAL_ONLY:dtsc") == std::string::npos){
+        if (Triggers::shouldTrigger("STREAM_BUFFER")){
+          std::string payload = config->getString("streamname") + "\nEMPTY";
+          Triggers::doTrigger("STREAM_BUFFER", payload, config->getString("streamname"));
+        }
       }
     }
     /*LTS-END*/
@@ -629,6 +635,7 @@ namespace Mist{
   void inputBuffer::checkProcesses(const JSON::Value &procs){
     allProcsRunning = true;
     if (!M.getValidTracks().size()){return;}
+    if (config->getString("input").find("INTERNAL_ONLY:dtsc") != std::string::npos){return;}
     std::set<std::string> newProcs;
 
     // used for building args

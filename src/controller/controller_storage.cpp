@@ -135,6 +135,10 @@ namespace Controller{
   ///\param Filename The full path of the file to write to.
   ///\param contents The data to be written to the file.
   bool WriteFile(std::string Filename, std::string contents){
+    if (!Util::createPathFor(Filename)){
+      ERROR_MSG("Could not create parent folder for file %s!", Filename.c_str());
+      return false;
+    }
     std::ofstream File;
     File.open(Filename.c_str());
     File << contents << std::endl;
@@ -254,6 +258,22 @@ namespace Controller{
     skip.insert("online");
     skip.insert("error");
     tmp.assignFrom(Controller::Storage, skip);
+
+    if (Controller::Storage.isMember("config_split")){
+      jsonForEach(Controller::Storage["config_split"], cs){
+        if (cs->isString() && tmp.isMember(cs.key())){
+          JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
+          tmpConf[cs.key()] = tmp[cs.key()];
+          if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toString())){
+            ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
+            std::cout << "**config." << cs.key() <<"**" << std::endl;
+            std::cout << tmp[cs.key()].toString() << std::endl;
+            std::cout << "**End config." << cs.key() << "**" << std::endl;
+          }
+          if (cs.key() != "config_split"){tmp.removeMember(cs.key());}
+        }
+      }
+    }
     if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
       ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
       std::cout << "**Config**" << std::endl;

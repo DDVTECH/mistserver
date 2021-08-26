@@ -259,6 +259,20 @@ int main_loop(int argc, char **argv){
     setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }
 
+  if (Controller::Storage.isMember("config_split")){
+    jsonForEach(Controller::Storage["config_split"], cs){
+      if (cs->isString()){
+        JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
+        if (tmpConf.isMember(cs.key())){
+          INFO_MSG("Loading '%s' section of config from file %s", cs.key().c_str(), cs->asStringRef().c_str());
+          Controller::Storage[cs.key()] = tmpConf[cs.key()];
+        }else{
+          WARN_MSG("There is no '%s' section in file %s; skipping load", cs.key().c_str(), cs->asStringRef().c_str());
+        }
+      }
+    }
+  }
+
   if (Controller::conf.getOption("debug", true).size() > 1){
     Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");
   }

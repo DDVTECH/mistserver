@@ -117,6 +117,7 @@ namespace Mist{
                                ///< with separate SSRC/payload type)
     void gotPacket(uint32_t ts);
     uint32_t lastTransit;
+    uint32_t lastPktCount;
     double jitter;
   };
 

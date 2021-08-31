@@ -36,6 +36,7 @@ namespace Mist{
     RTXPayloadType = 0;
     lastTransit = 0;
     jitter = 0;
+    lastPktCount = 0;
   }
 
   void WebRTCTrack::gotPacket(uint32_t ts){
@@ -1301,7 +1302,26 @@ namespace Mist{
             uint64_t ntpTime = Bit::btohll(udp.data + 8);
             uint32_t rtpTime = Bit::btohl(udp.data + 16);
             uint32_t packets = Bit::btohl(udp.data + 20);
-            totalPkts += packets;
+            if (packets > it->second.lastPktCount){
+              //counter went up; check if it was less than half the range
+              if ((packets - it->second.lastPktCount) <= 0x7FFFFFFF){
+                //It was; great; let's trust it and move on
+                totalPkts += packets - it->second.lastPktCount;
+                it->second.lastPktCount = packets;
+              }
+              //The else case is a no-op:
+              //If it went up too much we likely just received an older packet from before last wraparound.
+            }else{
+              //counter decreased; could be a wraparound!
+              //if our new number is in the first 25% and the old number in the last 25%, we assume it was
+              if (packets <= 0x3FFFFFFF && it->second.lastPktCount >= 0xBFFFFFFF){
+                //Account for the wraparound, save the new packet counter
+                totalPkts += (packets - it->second.lastPktCount);
+                it->second.lastPktCount = packets;
+              }
+              //The else case is a no-op:
+              //If it went down outside those ranges, this is an older packet we should just ignore
+            }
             uint32_t bytes = Bit::btohl(udp.data + 24);
             HIGH_MSG("Received sender report for track %s (%" PRIu32 " pkts, %" PRIu32 "b) time: %" PRIu32 " RTP = %" PRIu64 " NTP", it->second.rtpToDTSC.codec.c_str(), packets, bytes, rtpTime, ntpTime);
             if (rtpTime && ntpTime){

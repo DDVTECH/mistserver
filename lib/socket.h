@@ -91,10 +91,10 @@ namespace Socket{
     bool iread(Buffer &buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
     bool iwrite(std::string &buffer); ///< Write call that is compatible with std::string.
     void setBoundAddr();
-#ifdef SSL
-    /// optional extension that uses mbedtls for SSL
   protected:
     std::string lastErr; ///< Stores last error, if any.
+#ifdef SSL
+    /// optional extension that uses mbedtls for SSL
     bool sslConnected;
     int ssl_iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
     unsigned int ssl_iwrite(const void *buffer, int len); ///< Incremental write call.

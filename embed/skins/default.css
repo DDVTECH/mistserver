@@ -114,7 +114,6 @@ svg.icon.timeout {
 }
 .mistvideo:not([data-hide-submenu]) .mistvideo-hoverWindow:hover >svg.icon.settings .fill,
 .mistvideo[data-show-submenu] svg.icon.settings .fill,
-
 .mistvideo[data-fullscreen] svg.icon.fullscreen .fill {
   fill: $accent;
 }

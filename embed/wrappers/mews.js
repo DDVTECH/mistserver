@@ -278,7 +278,29 @@ p.prototype.build = function (MistVideo,callback) {
       }
       player.sb._busy = true;
       //console.log("appendBuffer");
-      player.sb.appendBuffer(data);
+      try {
+        player.sb.appendBuffer(data);
+      }
+      catch(e){
+        if (e.name == "QuotaExceededError") {
+          if (video.buffered.length) {
+            if (video.currentTime - video.buffered.start(0) > 1) {
+              //clear as much from the buffer as we can
+              MistVideo.log("Triggered QuotaExceededError: cleaning up "+(Math.round((video.currentTime - video.buffered.start(0) - 1)*10)/10)+"s");
+              player.sb._clean(1);
+            }
+            else {
+              var bufferEnd = video.buffered.end(video.buffered.length-1);
+              MistVideo.log("Triggered QuotaExceededError but there is nothing to clean: skipping ahead "+(Math.round((bufferEnd - video.currentTime)*10)/10)+"s");
+              video.currentTime = bufferEnd;
+            }
+            player.sb._busy = false;
+            player.sb._append(data); //now try again
+            return;
+          }
+        }
+        MistVideo.showError(e.message);
+      }
     }
     
     //we're initing the source buffer and there is a msg queue of data built up before the buffer was ready. Start by adding these data fragments to the source buffer

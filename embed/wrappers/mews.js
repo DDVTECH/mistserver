@@ -406,6 +406,13 @@ p.prototype.build = function (MistVideo,callback) {
           });
         }
       };
+      this.ws.timeOut = MistVideo.timers.start(function(){
+        if (player.ws.readyState == 0) {
+          MistVideo.log("MP4 over WS: socket timeout - try next combo");
+          MistVideo.nextCombo();
+        }
+      },5e3);
+
       this.ws.listeners = {}; //kind of event listener list for websocket messages
       this.ws.addListener = function(type,f){
         if (!(type in this.listeners)) { this.listeners[type] = []; }

@@ -435,6 +435,14 @@ p.prototype.build = function (MistVideo,callback) {
     this.ws.onopen = function() {
       onEvent({type: "on_connected"});
     };
+
+    this.ws.timeOut = MistVideo.timers.start(function(){
+      if (MistVideo.player.webrtc.signaling.ws.readyState == 0) {
+        MistVideo.log("WebRTC: socket timeout - try next combo");
+        MistVideo.nextCombo();
+      }
+    },5e3);
+
     
     this.ws.onmessage = function(e) {
       try {

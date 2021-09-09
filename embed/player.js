@@ -1022,9 +1022,21 @@ function MistVideo(streamName,options) {
       socket.die = false;
       socket.destroy = function(){
         this.die = true;
+        if (MistVideo.reporting) {
+          MistVideo.reporting.reportStats();
+          MistVideo.reporting = false;
+        }
         this.onclose = function(){};
         this.close();
       };
+      //add a timeout: if the websocket does not connect, switch to http polling
+      socket.timeOut = MistVideo.timers.start(function(){
+        if (socket.readyState <= 1) {
+          //either it hasn't opened yet, or it is open but we've not received a message so this timer hasn't been removed yet
+          socket.destroy();
+          openWithGet();
+        }
+      },5e3);
       socket.onopen = function(e){
         this.wasConnected = true;
 
@@ -1096,7 +1108,7 @@ function MistVideo(streamName,options) {
                 this.report(d);
               }
               MistVideo.timers.start(function(){
-                MistVideo.reporting.reportStats();
+                if (MistVideo.reporting) { MistVideo.reporting.reportStats(); }
               },5e3);
             },
             init: function(){
@@ -1224,6 +1236,11 @@ function MistVideo(streamName,options) {
       var on_ended_show_state = false;
       var on_waiting_show_state = false;
       socket.addEventListener("message",function(e){
+        if (socket.timeOut) {
+          MistVideo.timers.stop(socket.timeOut);
+          socket.timeOut = false;
+        }
+
         var data = JSON.parse(e.data);
         if (!data) { MistVideo.showError("Error while parsing stream status stream. Obtained: "+e.data.toString(),{reload:true}); }
         

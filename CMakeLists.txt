@@ -604,7 +604,7 @@ add_custom_command(OUTPUT generated/player_webrtc.js.h
 )
 add_custom_command(OUTPUT generated/player_flv.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/players/flv.min.js player_flv_js generated/player_flv.js.h
-  DEPENDS sourcery ${SOURCE_DIR}/embed/players/flv.js
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/flv.min.js
 )
 # css
 add_custom_command(OUTPUT generated/skin_default.css.h

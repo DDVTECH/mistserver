@@ -371,7 +371,7 @@ p.prototype.build = function (MistVideo,callback) {
       };
       this.ws.onclose = function(e){
         MistVideo.log("MP4 over WS: websocket closed");
-        if (this.wasConnected && (!MistVideo.destroyed)) {
+        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online")) {
           MistVideo.log("MP4 over WS: reopening websocket");
           player.wsconnect().then(function(){
             if (!player.sb) {
@@ -424,7 +424,7 @@ p.prototype.build = function (MistVideo,callback) {
                 MistUtil.event.send("ended",null,video);
                 MistUtil.event.removeListener(eObj);
               });
-              
+              player.ws.onclose = function(){}; //don't reopen websocket, just close, it's okay, rly
               break;
             }
             case "on_time": {              

@@ -681,8 +681,10 @@ p.prototype.build = function (MistVideo,callback) {
         }
         var data = new Uint8Array(e.data);
         if (data) {
-          for (var i in player.monitor.bitCounter) {
-            player.monitor.bitCounter[i] += e.data.byteLength*8;
+          if (player.monitor && player.monitor.bitCounter) {
+            for (var i in player.monitor.bitCounter) {
+              player.monitor.bitCounter[i] += e.data.byteLength*8;
+            }
           }
           if ((player.sb) && (!player.msgqueue)) {
             if (player.sb.updating || player.sb.queue.length || player.sb._busy) {
@@ -1033,57 +1035,58 @@ p.prototype.build = function (MistVideo,callback) {
     });
   }
 
+  player.ABR = false;
   //ABR: monitor playback issues and switch to lower bitrate track if available
-  this.monitor = {
-    bitCounter: [],
-    bitsSince: [],
-    currentBps: null,
-    nWaiting: 0,
-    nWaitingThreshold: 3,
-    listener: MistUtil.event.addListener(video,"waiting",function(){
-      player.monitor.nWaiting++;
+  if (player.ABR) {
+    this.monitor = {
+      bitCounter: [],
+      bitsSince: [],
+      currentBps: null,
+      nWaiting: 0,
+      nWaitingThreshold: 3,
+      listener: MistUtil.event.addListener(video,"waiting",function(){
+        player.monitor.nWaiting++;
 
-      if (player.monitor.nWaiting >= player.monitor.nWaitingThreshold) {
-        player.monitor.nWaiting = 0;
-        player.monitor.action();
-      }
-    }),
-    getBitRate: function(){
-      if (player.sb && !player.sb.paused) {
-
-        this.bitCounter.push(0);
-        this.bitsSince.push(new Date().getTime());
-
-        //calculate current bitrate
-        var bits, since;
-        if (this.bitCounter.length > 5) {
-          bits = player.monitor.bitCounter.shift();
-          since = this.bitsSince.shift();
+        if (player.monitor.nWaiting >= player.monitor.nWaitingThreshold) {
+          player.monitor.nWaiting = 0;
+          player.monitor.action();
         }
-        else {
-          bits = player.monitor.bitCounter[0];
-          since = this.bitsSince[0];
+      }),
+      getBitRate: function(){
+        if (player.sb && !player.sb.paused) {
+
+          this.bitCounter.push(0);
+          this.bitsSince.push(new Date().getTime());
+
+          //calculate current bitrate
+          var bits, since;
+          if (this.bitCounter.length > 5) {
+            bits = player.monitor.bitCounter.shift();
+            since = this.bitsSince.shift();
+          }
+          else {
+            bits = player.monitor.bitCounter[0];
+            since = this.bitsSince[0];
+          }
+          var dt = new Date().getTime() - since;
+          this.currentBps = bits / (dt*1e-3);
+
+          //console.log(MistUtil.format.bytes(this.currentBps)+"its/s");
         }
-        var dt = new Date().getTime() - since;
-        this.currentBps = bits / (dt*1e-3);
 
-        //console.log(MistUtil.format.bytes(this.currentBps)+"its/s");
-
+        MistVideo.timers.start(function(){
+          player.monitor.getBitRate();
+        },500);
+      },
+      action: function(){
+        if (MistVideo.options.setTracks && MistVideo.options.setTracks.video) {
+          //a video track was selected by the user, do not change it
+          return;
+        }
+        MistVideo.log("ABR threshold triggered, requesting lower quality");
+        player.api.setTracks({video:"max<"+Math.round(this.currentBps)+"bps"});
       }
-
-      MistVideo.timers.start(function(){
-        player.monitor.getBitRate();
-      },500);
-    },
-    action: function(){
-      if (MistVideo.options.setTracks && MistVideo.options.setTracks.video) {
-        //a video track was selected by the user, do not change it
-        return;
-      }
-      MistVideo.log("ABR threshold triggered, requesting lower quality");
-      player.api.setTracks({video:"max<"+Math.round(this.currentBps)+"bps"});
-    }
-  };
-
-  this.monitor.getBitRate();
+    };
+    this.monitor.getBitRate();
+  }
 };

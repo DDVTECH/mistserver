@@ -47,7 +47,7 @@ p.prototype.build = function (MistVideo,callback) {
     }
     
     var source = document.createElement("source");
-    source.setAttribute("src",MistVideo.source.url);
+    source.setAttribute("src",MistUtil.http.url.addParam(MistVideo.source.url,{video:"maxbps"}));
     me.source = source;
     ele.appendChild(source);
     source.type = shortmime.join("/");

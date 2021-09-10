@@ -118,8 +118,7 @@ namespace EBML{
 
   void sendElemInfo(Socket::Connection &C, const std::string &appName, double duration){
     sendElemHead(C, EID_INFO,
-                 13 + 2 * appName.size() +
-                     (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
+                 13 + 2 * appName.size() + (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
     sendElemUInt(C, EID_TIMECODESCALE, 1000000);
     if (duration > 0){sendElemDbl(C, EID_DURATION, duration);}
     sendElemStr(C, EID_MUXINGAPP, appName);
@@ -136,8 +135,7 @@ namespace EBML{
                                       (duration > 0 ? sizeElemDbl(EID_DURATION, duration) : 0));
   }
 
-  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime,
-                       bool forceKeyframe){
+  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime, bool forceKeyframe){
     size_t dataLen = 0;
     char *dataPointer = 0;
     pkt.getString("data", dataPointer, dataLen);
@@ -170,8 +168,7 @@ namespace EBML{
     return sizeElemHead(EID_SEEK, elems) + elems;
   }
 
-  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos,
-                        uint64_t relaPos){
+  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos, uint64_t relaPos){
     uint32_t elemsA = 0, elemsB = 0;
     elemsA += sizeElemUInt(EID_CUETRACK, track);
     elemsA += sizeElemUInt(EID_CUECLUSTERPOSITION, clusterPos);
@@ -196,4 +193,3 @@ namespace EBML{
   }
 
 }// namespace EBML
-

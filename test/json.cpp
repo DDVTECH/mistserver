@@ -1,9 +1,9 @@
 #include "../lib/json.cpp"
 #include <iostream>
-#include <string>
 #include <sstream>
+#include <string>
 
-int main(int argc, char ** argv){
+int main(int argc, char **argv){
   std::string line;
   std::stringstream jData;
   while (getline(std::cin, line)){jData << line;}
@@ -11,4 +11,3 @@ int main(int argc, char ** argv){
   std::cout << J.toPrettyString() << std::endl;
   return 0;
 }
-

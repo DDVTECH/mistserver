@@ -1,19 +1,19 @@
-#include <cstdio>
-#include <list>
-#include <fstream>
-#include <sys/statvfs.h>//for fstatvfs
-#include <mist/config.h>
-#include <mist/shared_memory.h>
-#include <mist/dtsc.h>
-#include <mist/procs.h>
-#include <mist/stream.h>
-#include <mist/bitfields.h>
-#include <mist/url.h>
-#include "controller_statistics.h"
+#include "controller_capabilities.h"
 #include "controller_limits.h"
 #include "controller_push.h"
+#include "controller_statistics.h"
 #include "controller_storage.h"
-#include "controller_capabilities.h"
+#include <cstdio>
+#include <fstream>
+#include <list>
+#include <mist/bitfields.h>
+#include <mist/config.h>
+#include <mist/dtsc.h>
+#include <mist/procs.h>
+#include <mist/shared_memory.h>
+#include <mist/stream.h>
+#include <mist/url.h>
+#include <sys/statvfs.h> //for fstatvfs
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -39,8 +39,7 @@
 #define STAT_TOT_OUTPUTS 16
 #define STAT_TOT_ALL 0xFF
 
-#define COUNTABLE_BYTES 128*1024
-
+#define COUNTABLE_BYTES 128 * 1024
 
 std::map<Controller::sessIndex, Controller::statSession> Controller::sessions; ///< list of sessions that have statistics data available
 std::map<unsigned long, Controller::sessIndex> Controller::connToSession; ///< Map of socket IDs to session info.
@@ -50,27 +49,25 @@ bool Controller::killOnExit = KILL_ON_EXIT;
 tthread::mutex Controller::statsMutex;
 unsigned int Controller::maxConnsPerIP = 0;
 char noBWCountMatches[1717];
-uint64_t bwLimit = 128*1024*1024;//gigabit default limit
+uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
 
 /// Session cache shared memory page
-IPC::sharedPage * shmSessions = 0;
+IPC::sharedPage *shmSessions = 0;
 /// Lock for the session cache shared memory page
-IPC::semaphore * cacheLock = 0;
+IPC::semaphore *cacheLock = 0;
 
 /// Convert bandwidth config into memory format
 void Controller::updateBandwidthConfig(){
   size_t offset = 0;
-  bwLimit = 128*1024*1024;//gigabit default limit
+  bwLimit = 128 * 1024 * 1024; // gigabit default limit
   memset(noBWCountMatches, 0, 1717);
   if (Storage.isMember("bandwidth")){
-    if (Storage["bandwidth"].isMember("limit")){
-      bwLimit = Storage["bandwidth"]["limit"].asInt();
-    }
+    if (Storage["bandwidth"].isMember("limit")){bwLimit = Storage["bandwidth"]["limit"].asInt();}
     if (Storage["bandwidth"].isMember("exceptions")){
       jsonForEach(Storage["bandwidth"]["exceptions"], j){
         std::string newbins = Socket::getBinForms(j->asStringRef());
         if (offset + newbins.size() < 1700){
-          memcpy(noBWCountMatches+offset, newbins.data(), newbins.size());
+          memcpy(noBWCountMatches + offset, newbins.data(), newbins.size());
           offset += newbins.size();
         }
       }
@@ -78,8 +75,8 @@ void Controller::updateBandwidthConfig(){
   }
 }
 
-//For server-wide totals. Local to this file only.
-struct streamTotals {
+// For server-wide totals. Local to this file only.
+struct streamTotals{
   uint64_t upBytes;
   uint64_t downBytes;
   uint64_t inputs;
@@ -99,7 +96,8 @@ static uint64_t servInputs = 0;
 static uint64_t servOutputs = 0;
 static uint64_t servViewers = 0;
 
-Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName, std::string dconnector){
+Controller::sessIndex::sessIndex(std::string dhost, unsigned int dcrc, std::string dstreamName,
+                                 std::string dconnector){
   ID = "UNSET";
   host = dhost;
   crc = dcrc;
@@ -117,9 +115,9 @@ std::string Controller::sessIndex::toStr(){
   return s.str();
 }
 
-/// Initializes a sessIndex from a statExchange object, converting binary format IP addresses into strings.
-/// This extracts the host, stream name, connector and crc field, ignoring everything else.
-Controller::sessIndex::sessIndex(IPC::statExchange & data){
+/// Initializes a sessIndex from a statExchange object, converting binary format IP addresses into
+/// strings. This extracts the host, stream name, connector and crc field, ignoring everything else.
+Controller::sessIndex::sessIndex(IPC::statExchange &data){
   Socket::hostBytesToStr(data.host().c_str(), 16, host);
   streamName = data.streamName();
   connector = data.connector();
@@ -127,48 +125,53 @@ Controller::sessIndex::sessIndex(IPC::statExchange & data){
   ID = data.getSessId();
 }
 
-
-bool Controller::sessIndex::operator== (const Controller::sessIndex &b) const{
+bool Controller::sessIndex::operator==(const Controller::sessIndex &b) const{
   return (host == b.host && crc == b.crc && streamName == b.streamName && connector == b.connector);
 }
 
-bool Controller::sessIndex::operator!= (const Controller::sessIndex &b) const{
+bool Controller::sessIndex::operator!=(const Controller::sessIndex &b) const{
   return !(*this == b);
 }
 
-bool Controller::sessIndex::operator> (const Controller::sessIndex &b) const{
-  return host > b.host || (host == b.host && (crc > b.crc || (crc == b.crc && (streamName > b.streamName || (streamName == b.streamName && connector > b.connector)))));
+bool Controller::sessIndex::operator>(const Controller::sessIndex &b) const{
+  return host > b.host ||
+         (host == b.host &&
+          (crc > b.crc || (crc == b.crc && (streamName > b.streamName ||
+                                            (streamName == b.streamName && connector > b.connector)))));
 }
 
-bool Controller::sessIndex::operator< (const Controller::sessIndex &b) const{
-  return host < b.host || (host == b.host && (crc < b.crc || (crc == b.crc && (streamName < b.streamName || (streamName == b.streamName && connector < b.connector)))));
+bool Controller::sessIndex::operator<(const Controller::sessIndex &b) const{
+  return host < b.host ||
+         (host == b.host &&
+          (crc < b.crc || (crc == b.crc && (streamName < b.streamName ||
+                                            (streamName == b.streamName && connector < b.connector)))));
 }
 
-bool Controller::sessIndex::operator<= (const Controller::sessIndex &b) const{
+bool Controller::sessIndex::operator<=(const Controller::sessIndex &b) const{
   return !(*this > b);
 }
 
-bool Controller::sessIndex::operator>= (const Controller::sessIndex &b) const{
+bool Controller::sessIndex::operator>=(const Controller::sessIndex &b) const{
   return !(*this < b);
 }
 
-///This function is ran whenever a stream becomes active.
+/// This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
   INFO_MSG("Stream %s became active", stream.c_str());
   Controller::doAutoPush(stream);
 }
 
-///This function is ran whenever a stream becomes active.
+/// This function is ran whenever a stream becomes active.
 void Controller::streamStopped(std::string stream){
   INFO_MSG("Stream %s became inactive", stream.c_str());
 }
 
 /// \todo Make this prettier.
-IPC::sharedServer * statPointer = 0;
+IPC::sharedServer *statPointer = 0;
 
-///Invalidates all current sessions for the given streamname
-///Updates the session cache, afterwards.
-void Controller::sessions_invalidate(const std::string & streamname){
+/// Invalidates all current sessions for the given streamname
+/// Updates the session cache, afterwards.
+void Controller::sessions_invalidate(const std::string &streamname){
   if (!statPointer){
     FAIL_MSG("In shutdown procedure - cannot invalidate sessions.");
     return;
@@ -185,29 +188,27 @@ void Controller::sessions_invalidate(const std::string & streamname){
   }
   Controller::writeSessionCache();
   if (cacheLock){cacheLock->post();}
-  INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount, streamname.c_str());
+  INFO_MSG("Invalidated %u connections in %u sessions for stream %s", invalidated, sessCount,
+           streamname.c_str());
 }
 
-
-///Shuts down all current sessions for the given streamname
-///Updates the session cache, afterwards. (if any action was taken)
-void Controller::sessions_shutdown(JSON::Iter & i){
+/// Shuts down all current sessions for the given streamname
+/// Updates the session cache, afterwards. (if any action was taken)
+void Controller::sessions_shutdown(JSON::Iter &i){
   if (i->isArray() || i->isObject()){
-    jsonForEach(*i, it){
-      sessions_shutdown(it);
-    }
+    jsonForEach(*i, it){sessions_shutdown(it);}
     return;
   }
   if (i->isString()){
     sessions_shutdown(i.key(), i->asStringRef());
     return;
   }
-  //not handled, ignore
+  // not handled, ignore
 }
 
-///Shuts down the given session
-///Updates the session cache, afterwards.
-void Controller::sessId_shutdown(const std::string & sessId){
+/// Shuts down the given session
+/// Updates the session cache, afterwards.
+void Controller::sessId_shutdown(const std::string &sessId){
   if (!statPointer){
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
@@ -228,8 +229,8 @@ void Controller::sessId_shutdown(const std::string & sessId){
   INFO_MSG("Shut down %u connections in %u session(s) for ID %s", murdered, sessCount, sessId.c_str());
 }
 
-///Tags the given session
-void Controller::sessId_tag(const std::string & sessId, const std::string & tag){
+/// Tags the given session
+void Controller::sessId_tag(const std::string &sessId, const std::string &tag){
   if (!statPointer){
     FAIL_MSG("In controller shutdown procedure - cannot tag sessions.");
     return;
@@ -246,9 +247,9 @@ void Controller::sessId_tag(const std::string & sessId, const std::string & tag)
   }
 }
 
-///Shuts down sessions with the given tag set
-///Updates the session cache, afterwards.
-void Controller::tag_shutdown(const std::string & tag){
+/// Shuts down sessions with the given tag set
+/// Updates the session cache, afterwards.
+void Controller::tag_shutdown(const std::string &tag){
   if (!statPointer){
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
@@ -268,9 +269,9 @@ void Controller::tag_shutdown(const std::string & tag){
   INFO_MSG("Shut down %u connections in %u session(s) for tag %s", murdered, sessCount, tag.c_str());
 }
 
-///Shuts down all current sessions for the given streamname
-///Updates the session cache, afterwards.
-void Controller::sessions_shutdown(const std::string & streamname, const std::string & protocol){
+/// Shuts down all current sessions for the given streamname
+/// Updates the session cache, afterwards.
+void Controller::sessions_shutdown(const std::string &streamname, const std::string &protocol){
   if (!statPointer){
     FAIL_MSG("In controller shutdown procedure - cannot shutdown sessions.");
     return;
@@ -280,14 +281,16 @@ void Controller::sessions_shutdown(const std::string & streamname, const std::st
   unsigned int sessCount = 0;
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
   for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-    if ((!streamname.size() || it->first.streamName == streamname) && (!protocol.size() || it->first.connector == protocol)){
+    if ((!streamname.size() || it->first.streamName == streamname) &&
+        (!protocol.size() || it->first.connector == protocol)){
       sessCount++;
       murdered += it->second.kill();
     }
   }
   Controller::writeSessionCache();
   if (cacheLock){cacheLock->post();}
-  INFO_MSG("Shut down %u connections in %u sessions for stream %s/%s", murdered, sessCount, streamname.c_str(), protocol.c_str());
+  INFO_MSG("Shut down %u connections in %u sessions for stream %s/%s", murdered, sessCount,
+           streamname.c_str(), protocol.c_str());
 }
 
 /// Writes the session cache to shared memory.
@@ -300,27 +303,27 @@ void Controller::writeSessionCache(){
     if (sessions.size()){
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
         if (it->second.hasData()){
-          //store an entry in the shmSessions page, if it fits
+          // store an entry in the shmSessions page, if it fits
           if (it->second.sync > 2 && shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
-            *((uint32_t*)(shmSessions->mapped+shmOffset)) = it->first.crc;
-            strncpy(shmSessions->mapped+shmOffset+4, it->first.streamName.c_str(), 100);
-            strncpy(shmSessions->mapped+shmOffset+104, it->first.connector.c_str(), 20);
-            strncpy(shmSessions->mapped+shmOffset+124, it->first.host.c_str(), 40);
-            shmSessions->mapped[shmOffset+164] = it->second.sync;
+            *((uint32_t *)(shmSessions->mapped + shmOffset)) = it->first.crc;
+            strncpy(shmSessions->mapped + shmOffset + 4, it->first.streamName.c_str(), 100);
+            strncpy(shmSessions->mapped + shmOffset + 104, it->first.connector.c_str(), 20);
+            strncpy(shmSessions->mapped + shmOffset + 124, it->first.host.c_str(), 40);
+            shmSessions->mapped[shmOffset + 164] = it->second.sync;
             shmOffset += SHM_SESSIONS_ITEM;
           }
         }
       }
     }
-    //set a final shmSessions entry to all zeroes
-    memset(shmSessions->mapped+shmOffset, 0, SHM_SESSIONS_ITEM);
+    // set a final shmSessions entry to all zeroes
+    memset(shmSessions->mapped + shmOffset, 0, SHM_SESSIONS_ITEM);
   }
 }
 
 /// This function runs as a thread and roughly once per second retrieves
 /// statistics from all connected clients, as well as wipes
 /// old statistics that have disconnected over 10 minutes ago.
-void Controller::SharedMemStats(void * config){
+void Controller::SharedMemStats(void *config){
   HIGH_MSG("Starting stats thread");
   IPC::sharedServer statServer(SHM_STATISTICS, STAT_EX_SIZE, true);
   statPointer = &statServer;
@@ -332,12 +335,12 @@ void Controller::SharedMemStats(void * config){
   Controller::initState();
   bool shiftWrites = true;
   bool firstRun = true;
-  while(((Util::Config*)config)->is_active){
+  while (((Util::Config *)config)->is_active){
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       tthread::lock_guard<tthread::mutex> guard2(statsMutex);
       cacheLock->wait(); /*LTS*/
-      //parse current users
+      // parse current users
       statServer.parseEach(parseStatistics);
       if (firstRun){
         firstRun = false;
@@ -345,35 +348,34 @@ void Controller::SharedMemStats(void * config){
         servDownOtherBytes = 0;
         servUpBytes = 0;
         servDownBytes = 0;
-        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
+             it != streamStats.end(); ++it){
           it->second.upBytes = 0;
           it->second.downBytes = 0;
         }
       }
-      //wipe old statistics
+      // wipe old statistics
       if (sessions.size()){
         std::list<sessIndex> mustWipe;
         unsigned long long cutOffPoint = Util::epoch() - STAT_CUTOFF;
         unsigned long long disconnectPointIn = Util::epoch() - STATS_INPUT_DELAY;
         unsigned long long disconnectPointOut = Util::epoch() - STATS_DELAY;
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          unsigned long long dPoint = it->second.getSessType() == SESS_INPUT ? disconnectPointIn : disconnectPointOut; 
+          unsigned long long dPoint = it->second.getSessType() == SESS_INPUT ? disconnectPointIn : disconnectPointOut;
           it->second.ping(it->first, dPoint);
           if (it->second.sync == 100){
             it->second.wipeOld(dPoint);
           }else{
             it->second.wipeOld(cutOffPoint);
           }
-          if (!it->second.hasData()){
-            mustWipe.push_back(it->first);
-          }
+          if (!it->second.hasData()){mustWipe.push_back(it->first);}
         }
         while (mustWipe.size()){
           sessions.erase(mustWipe.front());
           mustWipe.pop_front();
         }
       }
-      Util::RelAccX * strmStats = streamsAccessor();
+      Util::RelAccX *strmStats = streamsAccessor();
       if (!strmStats || !strmStats->isReady()){strmStats = 0;}
       uint64_t strmPos = 0;
       if (strmStats){
@@ -385,7 +387,8 @@ void Controller::SharedMemStats(void * config){
         }
       }
       if (streamStats.size()){
-        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+        for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
+             it != streamStats.end(); ++it){
           uint8_t newState = Util::getStreamStatus(it->first);
           uint8_t oldState = it->second.status;
           if (newState != oldState){
@@ -393,18 +396,12 @@ void Controller::SharedMemStats(void * config){
             if (newState == STRMSTAT_READY){
               streamStarted(it->first);
             }else{
-              if (oldState == STRMSTAT_READY){
-                streamStopped(it->first);
-              }
+              if (oldState == STRMSTAT_READY){streamStopped(it->first);}
             }
           }
-          if (newState == STRMSTAT_OFF){
-            inactiveStreams.insert(it->first);
-          }
+          if (newState == STRMSTAT_OFF){inactiveStreams.insert(it->first);}
           if (strmStats){
-            if (shiftWrites){
-              strmStats->setString("stream", it->first, strmPos);
-            }
+            if (shiftWrites){strmStats->setString("stream", it->first, strmPos);}
             strmStats->setInt("status", it->second.status, strmPos);
             strmStats->setInt("viewers", it->second.currViews, strmPos);
             strmStats->setInt("inputs", it->second.currIns, strmPos);
@@ -452,18 +449,16 @@ void Controller::SharedMemStats(void * config){
 }
 
 /// Gets a complete list of all streams currently in active state, with optional prefix matching
-std::set<std::string> Controller::getActiveStreams(const std::string & prefix){
+std::set<std::string> Controller::getActiveStreams(const std::string &prefix){
   std::set<std::string> ret;
-  Util::RelAccX * strmStats = streamsAccessor();
+  Util::RelAccX *strmStats = streamsAccessor();
   if (!strmStats || !strmStats->isReady()){return ret;}
   uint64_t endPos = strmStats->getEndPos();
   if (prefix.size()){
     for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
       if (strmStats->getInt("status", i) != STRMSTAT_READY){continue;}
-      const char * S = strmStats->getPointer("stream", i);
-      if (!strncmp(S, prefix.data(), prefix.size())){
-        ret.insert(S);
-      }
+      const char *S = strmStats->getPointer("stream", i);
+      if (!strncmp(S, prefix.data(), prefix.size())){ret.insert(S);}
     }
   }else{
     for (uint64_t i = strmStats->getDeleted(); i < endPos; ++i){
@@ -481,7 +476,7 @@ uint32_t Controller::statSession::invalidate(){
   sync = 1;
   if (curConns.size() && statPointer){
     for (std::map<uint64_t, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
-      char * data = statPointer->getIndex(jt->first);
+      char *data = statPointer->getIndex(jt->first);
       if (data){
         IPC::statExchange tmpEx(data);
         tmpEx.setSync(2);
@@ -499,7 +494,7 @@ uint32_t Controller::statSession::kill(){
   sync = 100;
   if (curConns.size() && statPointer){
     for (std::map<uint64_t, statStorage>::iterator jt = curConns.begin(); jt != curConns.end(); ++jt){
-      char * data = statPointer->getIndex(jt->first);
+      char *data = statPointer->getIndex(jt->first);
       if (data){
         IPC::statExchange tmpEx(data);
         tmpEx.setSync(100);
@@ -516,18 +511,25 @@ uint32_t Controller::statSession::kill(){
 }
 
 /// Updates the given active connection with new stats data.
-void Controller::statSession::update(uint64_t index, IPC::statExchange & data){
-  //update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 2 = state known (100=denied, 10=accepted)
+void Controller::statSession::update(uint64_t index, IPC::statExchange &data){
+  // update the sync byte: 0 = requesting fill, 2 = requesting refill, 1 = needs checking, > 2 = state known (100=denied, 10=accepted)
   if (!data.getSync()){
     sessIndex tmpidx(data);
     std::string myHost = tmpidx.host;
-    //if we have a maximum connection count per IP, enforce it
+    // if we have a maximum connection count per IP, enforce it
     if (maxConnsPerIP && !data.getSync()){
       unsigned int currConns = 1;
       long long shortly = Util::epoch();
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
 
-        if (&it->second != this && it->first.host == myHost && (it->second.hasDataFor(shortly-STATS_DELAY) || it->second.hasDataFor(shortly) || it->second.hasDataFor(shortly-1) || it->second.hasDataFor(shortly-2) || it->second.hasDataFor(shortly-3) || it->second.hasDataFor(shortly-4) || it->second.hasDataFor(shortly-5)) && ++currConns > maxConnsPerIP){break;}
+        if (&it->second != this && it->first.host == myHost &&
+            (it->second.hasDataFor(shortly - STATS_DELAY) || it->second.hasDataFor(shortly) ||
+             it->second.hasDataFor(shortly - 1) || it->second.hasDataFor(shortly - 2) ||
+             it->second.hasDataFor(shortly - 3) || it->second.hasDataFor(shortly - 4) ||
+             it->second.hasDataFor(shortly - 5)) &&
+            ++currConns > maxConnsPerIP){
+          break;
+        }
       }
       if (currConns > maxConnsPerIP){
         WARN_MSG("Disconnecting session from %s: exceeds max connection count of %u", myHost.c_str(), maxConnsPerIP);
@@ -535,31 +537,29 @@ void Controller::statSession::update(uint64_t index, IPC::statExchange & data){
       }
     }
     if (data.getSync() != 100){
-      //only set the sync if this is the first connection in the list
-      //we also catch the case that there are no connections, which is an error-state
+      // only set the sync if this is the first connection in the list
+      // we also catch the case that there are no connections, which is an error-state
       if (!sessions[tmpidx].curConns.size() || sessions[tmpidx].curConns.begin()->first == index){
-        MEDIUM_MSG("Requesting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
+        MEDIUM_MSG("Requesting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(),
+                   data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
         data.setSync(sync);
       }
-      //and, always set the sync if it is > 2
+      // and, always set the sync if it is > 2
       if (sync > 2){
-        MEDIUM_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(), data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
+        MEDIUM_MSG("Setting sync to %u for %s, %s, %s, %lu", sync, data.streamName().c_str(),
+                   data.connector().c_str(), myHost.c_str(), data.crc() & 0xFFFFFFFFu);
         data.setSync(sync);
       }
     }
   }else{
-    if (sync < 2 && data.getSync() > 2){
-      sync = data.getSync();
-    }
+    if (sync < 2 && data.getSync() > 2){sync = data.getSync();}
   }
   long long prevDown = getDown();
   long long prevUp = getUp();
   curConns[index].update(data);
-  //store timestamp of first received data, if older
-  if (firstSec > data.now()){
-    firstSec = data.now();
-  }
-  //store timestamp of last received data, if newer
+  // store timestamp of first received data, if older
+  if (firstSec > data.now()){firstSec = data.now();}
+  // store timestamp of last received data, if newer
   if (data.now() > lastSec){
     lastSec = data.now();
     if (!tracked){
@@ -569,14 +569,16 @@ void Controller::statSession::update(uint64_t index, IPC::statExchange & data){
   }
   long long currDown = getDown();
   long long currUp = getUp();
-  if (currUp - prevUp < 0 || currDown-prevDown < 0){
-    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp-prevUp, currDown-prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
+  if (currUp - prevUp < 0 || currDown - prevDown < 0){
+    INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%lu", currUp - prevUp,
+             currDown - prevDown, prevUp, currUp, data.streamName().c_str(), data.connector().c_str(), index);
   }else{
     if (!noBWCount){
       size_t bwMatchOffset = 0;
       noBWCount = 1;
-      while (noBWCountMatches[bwMatchOffset+16] != 0 && bwMatchOffset < 1700){
-        if (Socket::matchIPv6Addr(data.host(), std::string(noBWCountMatches+bwMatchOffset, 16), noBWCountMatches[bwMatchOffset+16])){
+      while (noBWCountMatches[bwMatchOffset + 16] != 0 && bwMatchOffset < 1700){
+        if (Socket::matchIPv6Addr(data.host(), std::string(noBWCountMatches + bwMatchOffset, 16),
+                                  noBWCountMatches[bwMatchOffset + 16])){
           noBWCount = 2;
           break;
         }
@@ -616,8 +618,8 @@ void Controller::statSession::update(uint64_t index, IPC::statExchange & data){
         sessionType = SESS_VIEWER;
       }
     }
-    //If previous < COUNTABLE_BYTES, we haven't counted any data so far.
-    //We need to count all the data in that case, otherwise we only count the difference.
+    // If previous < COUNTABLE_BYTES, we haven't counted any data so far.
+    // We need to count all the data in that case, otherwise we only count the difference.
     if (prevUp + prevDown < COUNTABLE_BYTES){
       if (!streamName.size() || streamName[0] == 0){
         if (streamStats.count(streamName)){streamStats.erase(streamName);}
@@ -642,9 +644,7 @@ Controller::sessType Controller::statSession::getSessType(){
 
 /// Archives the given connection.
 void Controller::statSession::wipeOld(uint64_t cutOff){
-  if (firstSec > cutOff){
-    return;
-  }
+  if (firstSec > cutOff){return;}
   firstSec = 0xFFFFFFFFFFFFFFFFull;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
@@ -656,14 +656,10 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
         it->log.erase(it->log.begin());
       }
       if (it->log.size()){
-        if (firstSec > it->log.begin()->first){
-          firstSec = it->log.begin()->first;
-        }
+        if (firstSec > it->log.begin()->first){firstSec = it->log.begin()->first;}
       }
     }
-    while (oldConns.size() && !oldConns.begin()->log.size()){
-      oldConns.pop_front();
-    }
+    while (oldConns.size() && !oldConns.begin()->log.size()){oldConns.pop_front();}
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
@@ -671,29 +667,26 @@ void Controller::statSession::wipeOld(uint64_t cutOff){
         it->second.log.erase(it->second.log.begin());
       }
       if (it->second.log.size()){
-        if (firstSec > it->second.log.begin()->first){
-          firstSec = it->second.log.begin()->first;
-        }
+        if (firstSec > it->second.log.begin()->first){firstSec = it->second.log.begin()->first;}
       }
     }
   }
 }
 
-void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t disconnectPoint){
+void Controller::statSession::ping(const Controller::sessIndex &index, uint64_t disconnectPoint){
   if (!tracked || curConns.size()){return;}
   if (lastSec < disconnectPoint){
     switch (sessionType){
-      case SESS_INPUT:
-        if (streamStats[index.streamName].currIns){streamStats[index.streamName].currIns--;}
-        break;
-      case SESS_OUTPUT:
-        if (streamStats[index.streamName].currOuts){streamStats[index.streamName].currOuts--;}
-        break;
-      case SESS_VIEWER:
-        if (streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
-        break;
-      default:
-        break;
+    case SESS_INPUT:
+      if (streamStats[index.streamName].currIns){streamStats[index.streamName].currIns--;}
+      break;
+    case SESS_OUTPUT:
+      if (streamStats[index.streamName].currOuts){streamStats[index.streamName].currOuts--;}
+      break;
+    case SESS_VIEWER:
+      if (streamStats[index.streamName].currViews){streamStats[index.streamName].currViews--;}
+      break;
+    default: break;
     }
     uint64_t duration = lastSec - firstActive;
     if (duration < 1){duration = 1;}
@@ -703,11 +696,14 @@ void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t
         tagStream << "[" << *it << "]";
       }
     }
-    Controller::logAccess(index.ID, index.streamName, index.connector, index.host, duration, getUp(), getDown(), tagStream.str());
+    Controller::logAccess(index.ID, index.streamName, index.connector, index.host, duration,
+                          getUp(), getDown(), tagStream.str());
     if (Controller::accesslog.size()){
       if (Controller::accesslog == "LOG"){
         std::stringstream accessStr;
-        accessStr << "Session <" << index.ID << "> " << index.streamName << " (" << index.connector << ") from " << index.host << " ended after " << duration << "s, avg " << getUp()/duration/1024 << "KB/s up " << getDown()/duration/1024 << "KB/s down.";
+        accessStr << "Session <" << index.ID << "> " << index.streamName << " (" << index.connector
+                  << ") from " << index.host << " ended after " << duration << "s, avg "
+                  << getUp() / duration / 1024 << "KB/s up " << getDown() / duration / 1024 << "KB/s down.";
         if (tags.size()){accessStr << " Tags: " << tagStream.str();}
         Controller::Log("ACCS", accessStr.str());
       }else{
@@ -730,7 +726,9 @@ void Controller::statSession::ping(const Controller::sessIndex & index, uint64_t
           time(&rawtime);
           timeinfo = localtime_r(&rawtime, &tmptime);
           strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-          accLogFile << buffer << ", " << index.ID << ", " << index.streamName << ", " << index.connector << ", " << index.host << ", " << duration << ", " << getUp()/duration/1024 << ", " << getDown()/duration/1024 << ", ";
+          accLogFile << buffer << ", " << index.ID << ", " << index.streamName << ", "
+                     << index.connector << ", " << index.host << ", " << duration << ", "
+                     << getUp() / duration / 1024 << ", " << getDown() / duration / 1024 << ", ";
           if (tags.size()){accLogFile << tagStream.str();}
           accLogFile << std::endl;
         }
@@ -767,10 +765,10 @@ Controller::statSession::statSession(){
 }
 
 /// Moves the given connection to the given session
-void Controller::statSession::switchOverTo(statSession & newSess, uint64_t index){
-  //add to the given session first
+void Controller::statSession::switchOverTo(statSession &newSess, uint64_t index){
+  // add to the given session first
   newSess.curConns[index] = curConns[index];
-  //if this connection has data, update firstSec/lastSec if needed
+  // if this connection has data, update firstSec/lastSec if needed
   if (curConns[index].log.size()){
     if (newSess.firstSec > curConns[index].log.begin()->first){
       newSess.firstSec = curConns[index].log.begin()->first;
@@ -779,21 +777,17 @@ void Controller::statSession::switchOverTo(statSession & newSess, uint64_t index
       newSess.lastSec = curConns[index].log.rbegin()->first;
     }
   }
-  //remove from current session
+  // remove from current session
   curConns.erase(index);
-  //if there was any data, recalculate this session's firstSec and lastSec.
+  // if there was any data, recalculate this session's firstSec and lastSec.
   if (newSess.curConns[index].log.size()){
     firstSec = 0xFFFFFFFFFFFFFFFFull;
     lastSec = 0;
     if (oldConns.size()){
       for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
         if (it->log.size()){
-          if (firstSec > it->log.begin()->first){
-            firstSec = it->log.begin()->first;
-          }
-          if (lastSec < it->log.rbegin()->first){
-            lastSec = it->log.rbegin()->first;
-          }
+          if (firstSec > it->log.begin()->first){firstSec = it->log.begin()->first;}
+          if (lastSec < it->log.rbegin()->first){lastSec = it->log.rbegin()->first;}
         }
       }
     }
@@ -862,7 +856,7 @@ bool Controller::statSession::isViewerOn(uint64_t t){
 
 /// Returns true if this session should count as a viewer
 bool Controller::statSession::isViewer(){
-  long long upTotal = wipedUp+wipedDown;
+  long long upTotal = wipedUp + wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
       if (it->log.size()){
@@ -887,16 +881,12 @@ uint64_t Controller::statSession::getConnTime(uint64_t t){
   uint64_t retVal = 0;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
-      if (it->hasDataFor(t)){
-        retVal += it->getDataFor(t).time;
-      }
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).time;}
     }
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.hasDataFor(t)){
-        retVal += it->second.getDataFor(t).time;
-      }
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).time;}
     }
   }
   return retVal;
@@ -906,16 +896,12 @@ uint64_t Controller::statSession::getConnTime(uint64_t t){
 uint64_t Controller::statSession::getLastSecond(uint64_t t){
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.hasDataFor(t)){
-        return it->second.getDataFor(t).lastSecond;
-      }
+      if (it->second.hasDataFor(t)){return it->second.getDataFor(t).lastSecond;}
     }
   }
   if (oldConns.size()){
     for (std::deque<statStorage>::reverse_iterator it = oldConns.rbegin(); it != oldConns.rend(); ++it){
-      if (it->hasDataFor(t)){
-        return it->getDataFor(t).lastSecond;
-      }
+      if (it->hasDataFor(t)){return it->getDataFor(t).lastSecond;}
     }
   }
   return 0;
@@ -926,16 +912,12 @@ uint64_t Controller::statSession::getDown(uint64_t t){
   uint64_t retVal = wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
-      if (it->hasDataFor(t)){
-        retVal += it->getDataFor(t).down;
-      }
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).down;}
     }
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.hasDataFor(t)){
-        retVal += it->second.getDataFor(t).down;
-      }
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).down;}
     }
   }
   return retVal;
@@ -946,16 +928,12 @@ uint64_t Controller::statSession::getUp(uint64_t t){
   uint64_t retVal = wipedUp;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
-      if (it->hasDataFor(t)){
-        retVal += it->getDataFor(t).up;
-      }
+      if (it->hasDataFor(t)){retVal += it->getDataFor(t).up;}
     }
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.hasDataFor(t)){
-        retVal += it->second.getDataFor(t).up;
-      }
+      if (it->second.hasDataFor(t)){retVal += it->second.getDataFor(t).up;}
     }
   }
   return retVal;
@@ -966,16 +944,12 @@ uint64_t Controller::statSession::getDown(){
   uint64_t retVal = wipedDown;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
-      if (it->log.size()){
-        retVal += it->log.rbegin()->second.down;
-      }
+      if (it->log.size()){retVal += it->log.rbegin()->second.down;}
     }
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.log.size()){
-        retVal += it->second.log.rbegin()->second.down;
-      }
+      if (it->second.log.size()){retVal += it->second.log.rbegin()->second.down;}
     }
   }
   return retVal;
@@ -986,16 +960,12 @@ uint64_t Controller::statSession::getUp(){
   uint64_t retVal = wipedUp;
   if (oldConns.size()){
     for (std::deque<statStorage>::iterator it = oldConns.begin(); it != oldConns.end(); ++it){
-      if (it->log.size()){
-        retVal += it->log.rbegin()->second.up;
-      }
+      if (it->log.size()){retVal += it->log.rbegin()->second.up;}
     }
   }
   if (curConns.size()){
     for (std::map<uint64_t, statStorage>::iterator it = curConns.begin(); it != curConns.end(); ++it){
-      if (it->second.log.size()){
-        retVal += it->second.log.rbegin()->second.up;
-      }
+      if (it->second.log.size()){retVal += it->second.log.rbegin()->second.up;}
     }
   }
   return retVal;
@@ -1004,12 +974,8 @@ uint64_t Controller::statSession::getUp(){
 /// Returns the cumulative downloaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsDown(uint64_t t){
   uint64_t aTime = t - 5;
-  if (aTime < firstSec){
-    aTime = firstSec;
-  }
-  if (t <= aTime){
-    return 0;
-  }
+  if (aTime < firstSec){aTime = firstSec;}
+  if (t <= aTime){return 0;}
   uint64_t valA = getDown(aTime);
   uint64_t valB = getDown(t);
   return (valB - valA) / (t - aTime);
@@ -1018,25 +984,21 @@ uint64_t Controller::statSession::getBpsDown(uint64_t t){
 /// Returns the cumulative uploaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsUp(uint64_t t){
   uint64_t aTime = t - 5;
-  if (aTime < firstSec){
-    aTime = firstSec;
-  }
-  if (t <= aTime){
-    return 0;
-  }
+  if (aTime < firstSec){aTime = firstSec;}
+  if (t <= aTime){return 0;}
   uint64_t valA = getUp(aTime);
   uint64_t valB = getUp(t);
   return (valB - valA) / (t - aTime);
 }
 
 /// Returns true if there is data available for timestamp t.
-bool Controller::statStorage::hasDataFor(unsigned long long t) {
+bool Controller::statStorage::hasDataFor(unsigned long long t){
   if (!log.size()){return false;}
   return (t >= log.begin()->first);
 }
 
 /// Returns a reference to the most current data available at timestamp t.
-Controller::statLog & Controller::statStorage::getDataFor(unsigned long long t) {
+Controller::statLog &Controller::statStorage::getDataFor(unsigned long long t){
   static statLog empty;
   if (!log.size()){
     empty.time = 0;
@@ -1046,58 +1008,54 @@ Controller::statLog & Controller::statStorage::getDataFor(unsigned long long t) 
     return empty;
   }
   std::map<unsigned long long, statLog>::iterator it = log.upper_bound(t);
-  if (it != log.begin()){
-    it--;
-  }
+  if (it != log.begin()){it--;}
   return it->second;
 }
 
 /// This function is called by parseStatistics.
 /// It updates the internally saved statistics data.
-void Controller::statStorage::update(IPC::statExchange & data) {
+void Controller::statStorage::update(IPC::statExchange &data){
   statLog tmp;
   tmp.time = data.time();
   tmp.lastSecond = data.lastSecond();
   tmp.down = data.down();
   tmp.up = data.up();
   log[data.now()] = tmp;
-  //wipe data older than approx. STAT_CUTOFF seconds
+  // wipe data older than approx. STAT_CUTOFF seconds
   /// \todo Remove least interesting data first.
-  if (log.size() > STAT_CUTOFF){
-    log.erase(log.begin());
-  }
+  if (log.size() > STAT_CUTOFF){log.erase(log.begin());}
 }
-  
+
 /// This function is called by the shared memory page that holds statistics.
 /// It updates the internally saved statistics data, moving across sessions or archiving when necessary.
-void Controller::parseStatistics(char * data, size_t len, uint32_t id){
-  //retrieve stats data
+void Controller::parseStatistics(char *data, size_t len, uint32_t id){
+  // retrieve stats data
   IPC::statExchange tmpEx(data);
-  //calculate the current session index, store as idx.
+  // calculate the current session index, store as idx.
   sessIndex idx(tmpEx);
-  //if the connection was already indexed and it has changed, move it
+  // if the connection was already indexed and it has changed, move it
   if (connToSession.count(id) && connToSession[id] != idx){
     if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
-        INFO_MSG("Switching connection %" PRIu32 " from active session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection %" PRIu32 " from active session %s over to %s", id,
+               connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }else{
-        INFO_MSG("Switching connection %" PRIu32 " from inactive session %s over to %s", id, connToSession[id].toStr().c_str(), idx.toStr().c_str());
+      INFO_MSG("Switching connection %" PRIu32 " from inactive session %s over to %s", id,
+               connToSession[id].toStr().c_str(), idx.toStr().c_str());
     }
     sessions[connToSession[id]].switchOverTo(sessions[idx], id);
-    if (!sessions[connToSession[id]].hasData()){
-      sessions.erase(connToSession[id]);
-    }
+    if (!sessions[connToSession[id]].hasData()){sessions.erase(connToSession[id]);}
   }
   if (!connToSession.count(id)){
-      INSANE_MSG("New connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
+    INSANE_MSG("New connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
   }
-  //store the index for later comparison
+  // store the index for later comparison
   connToSession[id] = idx;
-  //update the session with the latest data
+  // update the session with the latest data
   sessions[idx].update(id, tmpEx);
-  //check validity of stats data
+  // check validity of stats data
   char counter = (*(data - 1)) & 0x7F;
   if (counter == 126 || counter == 127){
-    //the data is no longer valid - connection has gone away, store for later
+    // the data is no longer valid - connection has gone away, store for later
     INSANE_MSG("Ended connection: %" PRIu32 " as %s", id, idx.toStr().c_str());
     sessions[idx].finish(id);
     connToSession.erase(id);
@@ -1109,7 +1067,8 @@ bool Controller::hasViewers(std::string streamName){
   if (sessions.size()){
     long long currTime = Util::epoch();
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      if (it->first.streamName == streamName && (it->second.hasDataFor(currTime) || it->second.hasDataFor(currTime-1))){
+      if (it->first.streamName == streamName &&
+          (it->second.hasDataFor(currTime) || it->second.hasDataFor(currTime - 1))){
         return true;
       }
     }
@@ -1118,11 +1077,11 @@ bool Controller::hasViewers(std::string streamName){
 }
 
 /// This takes a "clients" request, and fills in the response data.
-/// 
+///
 /// \api
 /// `"clients"` requests take the form of:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
+///{
 ///   //array of streamnames to accumulate. Empty means all.
 ///   "streams": ["streama", "streamb", "streamc"],
 ///   //array of protocols to accumulate. Empty means all.
@@ -1131,47 +1090,43 @@ bool Controller::hasViewers(std::string streamName){
 ///   "fields": ["host", "stream", "protocol", "conntime", "position", "down", "up", "downbps", "upbps"],
 ///   //unix timestamp of measuring moment. Negative means X seconds ago. Empty means now.
 ///   "time": 1234567
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// OR
 /// ~~~~~~~~~~~~~~~{.js}
 /// [
-///   {},//request object as above
-///   {}//repeat the structure as many times as wanted
+///{},//request object as above
+///{}//repeat the structure as many times as wanted
 /// ]
 /// ~~~~~~~~~~~~~~~
 /// and are responded to as:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
+///{
 ///   //unix timestamp of data. Always present, always absolute.
 ///   "time": 1234567,
 ///   //array of actually represented data fields.
 ///   "fields": [...]
 ///   //for all clients, the data in the order they appear in the "fields" field.
 ///   "data": [[x, y, z], [x, y, z], [x, y, z]]
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// In case of the second method, the response is an array in the same order as the requests.
-void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
+void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
-  //first, figure out the timestamp wanted
+  // first, figure out the timestamp wanted
   uint64_t reqTime = 0;
-  if (req.isMember("time")){
-    reqTime = req["time"].asInt();
-  }
-  //to make sure no nasty timing business takes place, we store the case "now" as a bool.
+  if (req.isMember("time")){reqTime = req["time"].asInt();}
+  // to make sure no nasty timing business takes place, we store the case "now" as a bool.
   bool now = (reqTime == 0);
-  //add the current time, if negative or zero.
-  if (reqTime <= 0){
-    reqTime += Util::epoch();
-  }
-  //at this point, reqTime is the absolute timestamp.
-  rep["time"] = reqTime; //fill the absolute timestamp
-  
+  // add the current time, if negative or zero.
+  if (reqTime <= 0){reqTime += Util::epoch();}
+  // at this point, reqTime is the absolute timestamp.
+  rep["time"] = reqTime; // fill the absolute timestamp
+
   unsigned int fields = 0;
-  //next, figure out the fields wanted
+  // next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    jsonForEach(req["fields"], it) {
+    jsonForEach(req["fields"], it){
       if ((*it).asStringRef() == "host"){fields |= STAT_CLI_HOST;}
       if ((*it).asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
       if ((*it).asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
@@ -1183,23 +1138,19 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
       if ((*it).asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
     }
   }
-  //select all, if none selected
+  // select all, if none selected
   if (!fields){fields = STAT_CLI_ALL;}
-  //figure out what streams are wanted
+  // figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    jsonForEach(req["streams"], it) {
-      streams.insert((*it).asStringRef());
-    }
+    jsonForEach(req["streams"], it){streams.insert((*it).asStringRef());}
   }
-  //figure out what protocols are wanted
+  // figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    jsonForEach(req["protocols"], it) {
-      protos.insert((*it).asStringRef());
-    }
+    jsonForEach(req["protocols"], it){protos.insert((*it).asStringRef());}
   }
-  //output the selected fields
+  // output the selected fields
   rep["fields"].null();
   if (fields & STAT_CLI_HOST){rep["fields"].append("host");}
   if (fields & STAT_CLI_STREAM){rep["fields"].append("stream");}
@@ -1211,15 +1162,17 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   if (fields & STAT_CLI_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_CLI_BPS_UP){rep["fields"].append("upbps");}
   if (fields & STAT_CLI_CRC){rep["fields"].append("crc");}
-  //output the data itself
+  // output the data itself
   rep["data"].null();
-  //loop over all sessions
+  // loop over all sessions
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
       unsigned long long time = reqTime;
       if (now && reqTime - it->second.getEnd() < 5){time = it->second.getEnd();}
-      //data present and wanted? insert it!
-      if ((it->second.getEnd() >= time && it->second.getStart() <= time) && (!streams.size() || streams.count(it->first.streamName)) && (!protos.size() || protos.count(it->first.connector))){
+      // data present and wanted? insert it!
+      if ((it->second.getEnd() >= time && it->second.getStart() <= time) &&
+          (!streams.size() || streams.count(it->first.streamName)) &&
+          (!protos.size() || protos.count(it->first.connector))){
         if (it->second.hasDataFor(time)){
           JSON::Value d;
           if (fields & STAT_CLI_HOST){d.append(it->first.host);}
@@ -1237,13 +1190,14 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
       }
     }
   }
-  //all done! return is by reference, so no need to return anything here.
+  // all done! return is by reference, so no need to return anything here.
 }
 
 /// This takes a "active_streams" request, and fills in the response data.
-/// 
+///
 /// \api
-/// `"active_streams"` and `"stats_streams"` requests may either be empty, in which case the response looks like this:
+/// `"active_streams"` and `"stats_streams"` requests may either be empty, in which case the
+/// response looks like this:
 /// ~~~~~~~~~~~~~~~{.js}
 /// [
 ///   //Array of stream names
@@ -1252,8 +1206,9 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 ///   "streamC"
 /// ]
 /// ~~~~~~~~~~~~~~~
-/// `"stats_streams"` will list all streams that any statistics data is available for, and only those. `"active_streams"` only lists streams that are currently active, and only those.
-/// If the request is an array, which may contain any of the following elements:
+/// `"stats_streams"` will list all streams that any statistics data is available for, and only
+/// those. `"active_streams"` only lists streams that are currently active, and only those. If the
+/// request is an array, which may contain any of the following elements:
 /// ~~~~~~~~~~~~~~~{.js}
 /// [
 ///   //Array of requested data types
@@ -1263,9 +1218,9 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 /// ~~~~~~~~~~~~~~~
 /// In which case the response is changed into this format:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
-///   //Object of stream names, containing arrays in the same order as the request, with the same data
-///   "streamA":[
+///{
+///   //Object of stream names, containing arrays in the same order as the request, with the same
+///   data "streamA":[
 ///     0,
 ///     60000
 ///   ]
@@ -1273,16 +1228,16 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
 ///      //....
 ///   ]
 ///   //...
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// All streams that any statistics data is available for are listed, and only those streams.
-void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
-  //collect the data first
+void Controller::fillActive(JSON::Value &req, JSON::Value &rep, bool onlyNow){
+  // collect the data first
   std::set<std::string> streams;
   std::map<std::string, uint64_t> clients;
   unsigned int tOut = Util::epoch() - STATS_DELAY;
   unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
-  //check all sessions
+  // check all sessions
   {
     tthread::lock_guard<tthread::mutex> guard(statsMutex);
     if (sessions.size()){
@@ -1294,23 +1249,19 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
         }else{
           if (!onlyNow || (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut))){
             streams.insert(it->first.streamName);
-            if (it->second.getSessType() == SESS_VIEWER){
-              clients[it->first.streamName]++;
-            }
+            if (it->second.getSessType() == SESS_VIEWER){clients[it->first.streamName]++;}
           }
         }
       }
     }
   }
-  //Good, now output what we found...
+  // Good, now output what we found...
   rep.null();
   for (std::set<std::string>::iterator it = streams.begin(); it != streams.end(); it++){
     if (req.isArray()){
       rep[*it].null();
       jsonForEach(req, j){
-        if (j->asStringRef() == "clients"){
-          rep[*it].append(clients[*it]);
-        }
+        if (j->asStringRef() == "clients"){rep[*it].append(clients[*it]);}
         if (j->asStringRef() == "lastms"){
           char pageId[NAME_BUFFER_SIZE];
           IPC::sharedPage streamIndex;
@@ -1319,7 +1270,7 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
           if (streamIndex.mapped){
             static char liveSemName[NAME_BUFFER_SIZE];
             snprintf(liveSemName, NAME_BUFFER_SIZE, SEM_LIVE, it->c_str());
-            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU|S_IRWXG|S_IRWXO), 8);
+            IPC::semaphore metaLocker(liveSemName, O_CREAT | O_RDWR, (S_IRWXU | S_IRWXG | S_IRWXO), 8);
             metaLocker.wait();
             DTSC::Scan strm = DTSC::Packet(streamIndex.mapped, streamIndex.len, true).getScan();
             uint64_t lms = 0;
@@ -1341,63 +1292,53 @@ void Controller::fillActive(JSON::Value & req, JSON::Value & rep, bool onlyNow){
       rep.append(*it);
     }
   }
-  //all done! return is by reference, so no need to return anything here.
+  // all done! return is by reference, so no need to return anything here.
 }
 
-class totalsData {
-  public:
-    totalsData(){
-      clients = 0;
-      inputs = 0;
-      outputs = 0;
-      downbps = 0;
-      upbps = 0;
+class totalsData{
+public:
+  totalsData(){
+    clients = 0;
+    inputs = 0;
+    outputs = 0;
+    downbps = 0;
+    upbps = 0;
+  }
+  void add(uint64_t down, uint64_t up, Controller::sessType sT){
+    switch (sT){
+    case Controller::SESS_VIEWER: clients++; break;
+    case Controller::SESS_INPUT: inputs++; break;
+    case Controller::SESS_OUTPUT: outputs++; break;
+    default: break;
     }
-    void add(uint64_t down, uint64_t up, Controller::sessType sT){
-      switch (sT){
-        case Controller::SESS_VIEWER: clients++; break;
-        case Controller::SESS_INPUT: inputs++; break;
-        case Controller::SESS_OUTPUT: outputs++; break;
-        default: break;
-      }
-      downbps += down;
-      upbps += up;
-    }
-    uint64_t clients;
-    uint64_t inputs;
-    uint64_t outputs;
-    uint64_t downbps;
-    uint64_t upbps;
+    downbps += down;
+    upbps += up;
+  }
+  uint64_t clients;
+  uint64_t inputs;
+  uint64_t outputs;
+  uint64_t downbps;
+  uint64_t upbps;
 };
 
 /// This takes a "totals" request, and fills in the response data.
-void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
+void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   tthread::lock_guard<tthread::mutex> guard(statsMutex);
-  //first, figure out the timestamps wanted
+  // first, figure out the timestamps wanted
   long long int reqStart = 0;
   long long int reqEnd = 0;
-  if (req.isMember("start")){
-    reqStart = req["start"].asInt();
-  }
-  if (req.isMember("end")){
-    reqEnd = req["end"].asInt();
-  }
-  //add the current time, if negative or zero.
-  if (reqStart < 0){
-    reqStart += Util::epoch();
-  }
-  if (reqStart == 0){
-    reqStart = Util::epoch() - STAT_CUTOFF;
-  }
-  if (reqEnd <= 0){
-    reqEnd += Util::epoch();
-  }
-  //at this point, reqStart and reqEnd are the absolute timestamp.
-  
+  if (req.isMember("start")){reqStart = req["start"].asInt();}
+  if (req.isMember("end")){reqEnd = req["end"].asInt();}
+  // add the current time, if negative or zero.
+  if (reqStart < 0){reqStart += Util::epoch();}
+  if (reqStart == 0){reqStart = Util::epoch() - STAT_CUTOFF;}
+  if (reqEnd <= 0){reqEnd += Util::epoch();}
+  // at this point, reqStart and reqEnd are the absolute timestamp.
+
   unsigned int fields = 0;
-  //next, figure out the fields wanted
+  // next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    jsonForEach(req["fields"], it) {
+    jsonForEach(req["fields"], it){
       if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
       if ((*it).asStringRef() == "inputs"){fields |= STAT_TOT_INPUTS;}
       if ((*it).asStringRef() == "outputs"){fields |= STAT_TOT_OUTPUTS;}
@@ -1405,37 +1346,36 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
     }
   }
-  //select all, if none selected
+  // select all, if none selected
   if (!fields){fields = STAT_TOT_ALL;}
-  //figure out what streams are wanted
+  // figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    jsonForEach(req["streams"], it) {
-      streams.insert((*it).asStringRef());
-    }
+    jsonForEach(req["streams"], it){streams.insert((*it).asStringRef());}
   }
-  //figure out what protocols are wanted
+  // figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    jsonForEach(req["protocols"], it) {
-      protos.insert((*it).asStringRef());
-    }
+    jsonForEach(req["protocols"], it){protos.insert((*it).asStringRef());}
   }
-  //output the selected fields
+  // output the selected fields
   rep["fields"].null();
   if (fields & STAT_TOT_CLIENTS){rep["fields"].append("clients");}
   if (fields & STAT_TOT_INPUTS){rep["fields"].append("inputs");}
   if (fields & STAT_TOT_OUTPUTS){rep["fields"].append("outputs");}
   if (fields & STAT_TOT_BPS_DOWN){rep["fields"].append("downbps");}
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
-  //start data collection
+  // start data collection
   std::map<uint64_t, totalsData> totalsCount;
-  //loop over all sessions
+  // loop over all sessions
   /// \todo Make the interval configurable instead of 1 second
   if (sessions.size()){
     for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-      //data present and wanted? insert it!
-      if ((it->second.getEnd() >= (unsigned long long)reqStart || it->second.getStart() <= (unsigned long long)reqEnd) && (!streams.size() || streams.count(it->first.streamName)) && (!protos.size() || protos.count(it->first.connector))){
+      // data present and wanted? insert it!
+      if ((it->second.getEnd() >= (unsigned long long)reqStart ||
+           it->second.getStart() <= (unsigned long long)reqEnd) &&
+          (!streams.size() || streams.count(it->first.streamName)) &&
+          (!protos.size() || protos.count(it->first.connector))){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
             totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType());
@@ -1444,16 +1384,16 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
       }
     }
   }
-  //output the data itself
+  // output the data itself
   if (!totalsCount.size()){
-    //Oh noes! No data. We'll just reply with a bunch of nulls.
+    // Oh noes! No data. We'll just reply with a bunch of nulls.
     rep["start"].null();
     rep["end"].null();
     rep["data"].null();
     rep["interval"].null();
     return;
   }
-  //yay! We have data!
+  // yay! We have data!
   rep["start"] = totalsCount.begin()->first;
   rep["end"] = totalsCount.rbegin()->first;
   rep["data"].null();
@@ -1488,27 +1428,24 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
     rep["interval"].append(i);
     i.null();
   }
-  //all done! return is by reference, so no need to return anything here.
+  // all done! return is by reference, so no need to return anything here.
 }
 
-void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, int mode){
+void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int mode){
   std::string jsonp;
   switch (mode){
-    case PROMETHEUS_TEXT:
-      H.SetHeader("Content-Type", "text/plain; version=0.0.4");
-      break;
-    case PROMETHEUS_JSON:
-      H.SetHeader("Content-Type", "text/json");
-      H.setCORSHeaders();
-      if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
-      if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
-      break;
+  case PROMETHEUS_TEXT: H.SetHeader("Content-Type", "text/plain; version=0.0.4"); break;
+  case PROMETHEUS_JSON:
+    H.SetHeader("Content-Type", "text/json");
+    H.setCORSHeaders();
+    if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
+    if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
+    break;
   }
   H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
   H.StartResponse("200", "OK", H, conn, true);
 
-
-  //Collect core server stats
+  // Collect core server stats
   uint64_t cpu_use = 0;
   uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0;
   uint64_t bw_up_total = 0, bw_down_total = 0;
@@ -1538,26 +1475,18 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       while (meminfo.good()){
         meminfo.getline(line, 300);
         if (meminfo.fail()){
-          //empty lines? ignore them, clear flags, continue
-          if ( !meminfo.eof()){
+          // empty lines? ignore them, clear flags, continue
+          if (!meminfo.eof()){
             meminfo.ignore();
             meminfo.clear();
           }
           continue;
         }
         long long int i;
-        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){
-          mem_total = i;
-        }
-        if (sscanf(line, "MemFree : %lli kB", &i) == 1){
-          mem_free = i;
-        }
-        if (sscanf(line, "Buffers : %lli kB", &i) == 1){
-          mem_bufcache += i;
-        }
-        if (sscanf(line, "Cached : %lli kB", &i) == 1){
-          mem_bufcache += i;
-        }
+        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){mem_total = i;}
+        if (sscanf(line, "MemFree : %lli kB", &i) == 1){mem_free = i;}
+        if (sscanf(line, "Buffers : %lli kB", &i) == 1){mem_bufcache += i;}
+        if (sscanf(line, "Cached : %lli kB", &i) == 1){mem_bufcache += i;}
       }
     }
     std::ifstream netUsage("/proc/net/dev");
@@ -1582,14 +1511,13 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
     if (tmpCapa.mapped && tmpCapa.handle){
       fstatvfs(tmpCapa.handle, &shmd);
-      shm_free = (shmd.f_bfree*shmd.f_frsize)/1024;
-      shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
+      shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
+      shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
     }
   }
 #endif
 
-
-  if (mode == PROMETHEUS_TEXT){ 
+  if (mode == PROMETHEUS_TEXT){
     std::stringstream response;
     response << "# HELP mist_logs Count of log messages since server start.\n";
     response << "# TYPE mist_logs counter\n";
@@ -1614,90 +1542,95 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       response << "# HELP mist_trigger_count Total executions for the given trigger\n";
       response << "# HELP mist_trigger_time Total execution time in millis for the given trigger\n";
       response << "# HELP mist_trigger_fails Total failed executions for the given trigger\n";
-      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin(); it != Controller::triggerStats.end(); it++){
-        response << "mist_trigger_count{trigger=\"" << it->first << "\"} " << it->second.totalCount << "\n";
-        response << "mist_trigger_time{trigger=\"" << it->first << "\"} " << it->second.ms << "\n";
-        response << "mist_trigger_fails{trigger=\"" << it->first << "\"} " << it->second.failCount << "\n";
+      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin();
+           it != Controller::triggerStats.end(); it++){
+        response << "mist_trigger_count{trigger=\"" << it->first << "\"}" << it->second.totalCount << "\n";
+        response << "mist_trigger_time{trigger=\"" << it->first << "\"}" << it->second.ms << "\n";
+        response << "mist_trigger_fails{trigger=\"" << it->first << "\"}" << it->second.failCount << "\n";
       }
       response << "\n";
     }
 
-    {//Scope for shortest possible blocking of statsMutex
+    {// Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
-      //collect the data first
+      // collect the data first
       std::map<std::string, uint32_t> outputs;
       unsigned long totViewers = 0, totInputs = 0, totOutputs = 0;
       unsigned int tOut = Util::epoch() - STATS_DELAY;
       unsigned int tIn = Util::epoch() - STATS_INPUT_DELAY;
-      //check all sessions
+      // check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           switch (it->second.getSessType()){
-            case SESS_UNSET:
-              break;
-            case SESS_VIEWER:
-              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                outputs[it->first.connector]++;
-                totViewers++;
-              }
-              break;
-            case SESS_INPUT:
-              if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
-                totInputs++;
-              }
-              break;
-            case SESS_OUTPUT:
-              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                totOutputs++;
-              }
-              break;
+          case SESS_UNSET: break;
+          case SESS_VIEWER:
+            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
+              outputs[it->first.connector]++;
+              totViewers++;
+            }
+            break;
+          case SESS_INPUT:
+            if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){totInputs++;}
+            break;
+          case SESS_OUTPUT:
+            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){totOutputs++;}
+            break;
           }
         }
       }
 
-      response << "# HELP mist_sessions_total Number of sessions active right now, server-wide, by type.\n";
+      response << "# HELP mist_sessions_total Number of sessions active right now, server-wide, by "
+                  "type.\n";
       response << "# TYPE mist_sessions_total gauge\n";
-      response << "mist_sessions_total{sessType=\"viewers\"} " << totViewers << "\n";
-      response << "mist_sessions_total{sessType=\"incoming\"} " << totInputs << "\n";
-      response << "mist_sessions_total{sessType=\"outgoing\"} " << totOutputs << "\n";
-      response << "mist_sessions_total{sessType=\"cached\"} " << sessions.size() << "\n\n";
+      response << "mist_sessions_total{sessType=\"viewers\"}" << totViewers << "\n";
+      response << "mist_sessions_total{sessType=\"incoming\"}" << totInputs << "\n";
+      response << "mist_sessions_total{sessType=\"outgoing\"}" << totOutputs << "\n";
+      response << "mist_sessions_total{sessType=\"cached\"}" << sessions.size() << "\n\n";
 
-      response << "# HELP mist_outputs Number of viewers active right now, server-wide, by output type.\n";
+      response << "# HELP mist_outputs Number of viewers active right now, server-wide, by output "
+                  "type.\n";
       response << "# TYPE mist_outputs gauge\n";
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){
-        response << "mist_outputs{output=\"" << it->first << "\"} " << it->second << "\n";
+        response << "mist_outputs{output=\"" << it->first << "\"}" << it->second << "\n";
       }
       response << "\n";
 
-      response << "# HELP mist_sessions_count Counts of unique sessions by type since server start.\n";
+      response << "# HELP mist_sessions_count Counts of unique sessions by type since server "
+                  "start.\n";
       response << "# TYPE mist_sessions_count counter\n";
-      response << "mist_sessions_count{sessType=\"viewers\"} " << servViewers << "\n";
-      response << "mist_sessions_count{sessType=\"incoming\"} " << servInputs << "\n";
-      response << "mist_sessions_count{sessType=\"outgoing\"} " << servOutputs << "\n\n";
+      response << "mist_sessions_count{sessType=\"viewers\"}" << servViewers << "\n";
+      response << "mist_sessions_count{sessType=\"incoming\"}" << servInputs << "\n";
+      response << "mist_sessions_count{sessType=\"outgoing\"}" << servOutputs << "\n\n";
 
       response << "# HELP mist_bw_total Count of bytes handled since server start, by direction.\n";
       response << "# TYPE mist_bw_total counter\n";
-      response << "stat_bw_total{direction=\"up\"} " << bw_up_total << "\n";
-      response << "stat_bw_total{direction=\"down\"} " << bw_down_total << "\n\n";
-      response << "mist_bw_total{direction=\"up\"} " << servUpBytes << "\n";
-      response << "mist_bw_total{direction=\"down\"} " << servDownBytes << "\n\n";
-      response << "mist_bw_other{direction=\"up\"} " << servUpOtherBytes << "\n";
-      response << "mist_bw_other{direction=\"down\"} " << servDownOtherBytes << "\n\n";
+      response << "stat_bw_total{direction=\"up\"}" << bw_up_total << "\n";
+      response << "stat_bw_total{direction=\"down\"}" << bw_down_total << "\n\n";
+      response << "mist_bw_total{direction=\"up\"}" << servUpBytes << "\n";
+      response << "mist_bw_total{direction=\"down\"}" << servDownBytes << "\n\n";
+      response << "mist_bw_other{direction=\"up\"}" << servUpOtherBytes << "\n";
+      response << "mist_bw_other{direction=\"down\"}" << servDownOtherBytes << "\n\n";
       response << "mist_bw_limit " << bwLimit << "\n\n";
 
       response << "\n# HELP mist_viewers Number of sessions by type and stream active right now.\n";
       response << "# TYPE mist_viewers gauge\n";
-      response << "# HELP mist_viewcount Count of unique viewer sessions since stream start, per stream.\n";
+      response << "# HELP mist_viewcount Count of unique viewer sessions since stream start, per "
+                  "stream.\n";
       response << "# TYPE mist_viewcount counter\n";
       response << "# HELP mist_bw Count of bytes handled since stream start, by direction.\n";
       response << "# TYPE mist_bw counter\n";
-      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"viewers\"} " << it->second.currViews << "\n";
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"incoming\"} " << it->second.currIns << "\n";
-        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"} " << it->second.currOuts << "\n";
-        response << "mist_viewcount{stream=\"" << it->first << "\"} " << it->second.viewers << "\n";
-        response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"} " << it->second.upBytes << "\n";
-        response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"} " << it->second.downBytes << "\n";
+      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
+           it != streamStats.end(); ++it){
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"viewers\"}"
+                 << it->second.currViews << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"incoming\"}"
+                 << it->second.currIns << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"}"
+                 << it->second.currOuts << "\n";
+        response << "mist_viewcount{stream=\"" << it->first << "\"}" << it->second.viewers << "\n";
+        response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"}" << it->second.upBytes << "\n";
+        response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"}"
+                 << it->second.downBytes << "\n";
       }
     }
     H.Chunkify(response.str(), conn);
@@ -1711,42 +1644,38 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
     resp["shm_used"] = (shm_total - shm_free);
     resp["logs"] = Controller::logCounter;
     if (Controller::triggerStats.size()){
-      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin(); it != Controller::triggerStats.end(); it++){
-        JSON::Value & tVal = resp["triggers"][it->first];
+      for (std::map<std::string, Controller::triggerLog>::iterator it = Controller::triggerStats.begin();
+           it != Controller::triggerStats.end(); it++){
+        JSON::Value &tVal = resp["triggers"][it->first];
         tVal["count"] = it->second.totalCount;
         tVal["ms"] = it->second.ms;
         tVal["fails"] = it->second.failCount;
       }
     }
-    {//Scope for shortest possible blocking of statsMutex
+    {// Scope for shortest possible blocking of statsMutex
       tthread::lock_guard<tthread::mutex> guard(statsMutex);
-      //collect the data first
+      // collect the data first
       std::map<std::string, uint32_t> outputs;
       uint64_t totViewers = 0, totInputs = 0, totOutputs = 0;
       uint64_t tOut = Util::epoch() - STATS_DELAY;
       uint64_t tIn = Util::epoch() - STATS_INPUT_DELAY;
-      //check all sessions
+      // check all sessions
       if (sessions.size()){
         for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           switch (it->second.getSessType()){
-            case SESS_UNSET:
-              break;
-            case SESS_VIEWER:
-              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                outputs[it->first.connector]++;
-                totViewers++;
-              }
-              break;
-            case SESS_INPUT:
-              if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
-                totInputs++;
-              }
-              break;
-            case SESS_OUTPUT:
-              if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-                totOutputs++;
-              }
-              break;
+          case SESS_UNSET: break;
+          case SESS_VIEWER:
+            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
+              outputs[it->first.connector]++;
+              totViewers++;
+            }
+            break;
+          case SESS_INPUT:
+            if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){totInputs++;}
+            break;
+          case SESS_OUTPUT:
+            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){totOutputs++;}
+            break;
           }
         }
       }
@@ -1766,8 +1695,8 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       resp["obw"].append(servUpOtherBytes);
       resp["obw"].append(servDownOtherBytes);
 
-
-      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it){
+      for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
+           it != streamStats.end(); ++it){
         resp["streams"][it->first]["tot"].append(it->second.viewers);
         resp["streams"][it->first]["tot"].append(it->second.inputs);
         resp["streams"][it->first]["tot"].append(it->second.outputs);
@@ -1782,31 +1711,25 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
       }
     }
 
-    jsonForEach(Storage["streams"], sIt){
-      resp["conf_streams"].append(sIt.key());
-    }
+    jsonForEach(Storage["streams"], sIt){resp["conf_streams"].append(sIt.key());}
 
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      //Loop over connectors
+      // Loop over connectors
       const JSON::Value &caps = capabilities["connectors"];
       jsonForEachConst(Storage["config"]["protocols"], prtcl){
         if (!(*prtcl).isMember("connector")){continue;}
         const std::string &cName = (*prtcl)["connector"].asStringRef();
         if (!(*prtcl).isMember("online") || (*prtcl)["online"].asInt() != 1){continue;}
         if (!caps.isMember(cName)){continue;}
-        const JSON::Value & capa = caps[cName];
+        const JSON::Value &capa = caps[cName];
         if (!capa.isMember("optional") || !capa["optional"].isMember("port")){continue;}
-        //We now know it's configured, online and has a listening port
+        // We now know it's configured, online and has a listening port
         HTTP::URL outURL("HOST");
-        //get the default port if none is set
-        if (prtcl->isMember("port")){
-          outURL.port = (*prtcl)["port"].asString();
-        }
-        if (!outURL.port.size()){
-          outURL.port = capa["optional"]["port"]["default"].asString();
-        }
-        //set the protocol
+        // get the default port if none is set
+        if (prtcl->isMember("port")){outURL.port = (*prtcl)["port"].asString();}
+        if (!outURL.port.size()){outURL.port = capa["optional"]["port"]["default"].asString();}
+        // set the protocol
         if (capa.isMember("protocol")){
           outURL.protocol = capa["protocol"].asString();
         }else{
@@ -1817,7 +1740,7 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
         if (outURL.protocol.find(':') != std::string::npos){
           outURL.protocol.erase(outURL.protocol.find(':'));
         }
-        //set the public access, if needed
+        // set the public access, if needed
         if (prtcl->isMember("pubaddr") && (*prtcl)["pubaddr"].asString().size()){
           HTTP::URL altURL((*prtcl)["pubaddr"].asString());
           outURL.protocol = altURL.protocol;
@@ -1825,35 +1748,31 @@ void Controller::handlePrometheus(HTTP::Parser & H, Socket::Connection & conn, i
           outURL.port = altURL.port;
           outURL.path = altURL.path;
         }
-        //Add the URL, if present
+        // Add the URL, if present
         if (capa.isMember("url_rel")){
-          resp["outputs"][cName] = outURL.link("./"+capa["url_rel"].asStringRef()).getUrl();
+          resp["outputs"][cName] = outURL.link("./" + capa["url_rel"].asStringRef()).getUrl();
         }
 
-        //if this connector can be depended upon by other connectors, loop over the rest
+        // if this connector can be depended upon by other connectors, loop over the rest
         if (capa.isMember("provides")){
           const std::string &cProv = capa["provides"].asStringRef();
           jsonForEachConst(Storage["config"]["protocols"], chld){
             const std::string &child = (*chld)["connector"].asStringRef();
             if (!caps.isMember(child) || !caps[child].isMember("deps")){continue;}
-            if (caps[child].isMember("deps") && caps[child]["deps"].asStringRef() == cProv && caps[child].isMember("url_rel")){
-              resp["outputs"][child] = outURL.link("./"+caps[child]["url_rel"].asStringRef()).getUrl();
+            if (caps[child].isMember("deps") && caps[child]["deps"].asStringRef() == cProv &&
+                caps[child].isMember("url_rel")){
+              resp["outputs"][child] = outURL.link("./" + caps[child]["url_rel"].asStringRef()).getUrl();
             }
           }
         }
       }
     }
 
-    if (jsonp.size()){
-      H.Chunkify(jsonp + "(", conn);
-    }
+    if (jsonp.size()){H.Chunkify(jsonp + "(", conn);}
     H.Chunkify(resp.toString(), conn);
-    if (jsonp.size()){
-      H.Chunkify(");\n", conn);
-    }
+    if (jsonp.size()){H.Chunkify(");\n", conn);}
   }
 
   H.Chunkify("", conn);
   H.Clean();
 }
-

@@ -1,5 +1,5 @@
-#include "downloader.h"
 #include "defines.h"
+#include "downloader.h"
 #include "encode.h"
 #include "timing.h"
 
@@ -136,7 +136,8 @@ namespace HTTP{
   }
 
   /// Sends a request for the given URL, does no waiting.
-  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const void * body, const size_t bodyLen){
+  void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const void *body,
+                             const size_t bodyLen){
     prepareRequest(link, method);
     H.sendRequest(getSocket(), body, bodyLen, false);
     H.Clean();
@@ -146,7 +147,6 @@ namespace HTTP{
   void Downloader::doRequest(const HTTP::URL &link, const std::string &method, const std::string &body){
     doRequest(link, method, body.data(), body.size());
   }
-
 
   /// Do a HEAD request to download the HTTP headers only, returns true on success
   bool Downloader::head(const HTTP::URL &link, uint8_t maxRecursiveDepth){
@@ -190,9 +190,7 @@ namespace HTTP{
             }
           }
 
-          if(H.protocol == "HTTP/1.0"){
-            getSocket().close();
-          }
+          if (H.protocol == "HTTP/1.0"){getSocket().close();}
 
           H.headerOnly = false;
           return true; // Success!
@@ -218,9 +216,11 @@ namespace HTTP{
         getSocket().close();
       }else{
         if (retryCount - loop + 1 > 2){
-          INFO_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
+          INFO_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
+                   retryCount - loop + 1, retryCount);
         }else{
-          MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), retryCount - loop + 1, retryCount);
+          MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(),
+                     retryCount - loop + 1, retryCount);
         }
         H.Clean();
       }
@@ -230,7 +230,8 @@ namespace HTTP{
     return false;
   }
 
-  bool Downloader::getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb){
+  bool Downloader::getRangeNonBlocking(const HTTP::URL &link, size_t byteStart, size_t byteEnd,
+                                       Util::DataCallback &cb){
     char tmp[32];
     if (byteEnd <= 0){// get range from byteStart til eof
       sprintf(tmp, "bytes=%zu-", byteStart);
@@ -256,11 +257,11 @@ namespace HTTP{
   /// Makes at most 5 attempts, and will wait no longer than 5 seconds without receiving data.
   bool Downloader::get(const HTTP::URL &link, uint8_t maxRecursiveDepth, Util::DataCallback &cb){
     if (!getNonBlocking(link, maxRecursiveDepth)){return false;}
-    
+
     while (!continueNonBlocking(cb)){Util::sleep(100);}
-    
+
     if (isComplete){return true;}
-    
+
     FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
     return false;
   }
@@ -277,9 +278,7 @@ namespace HTTP{
     return true;
   }
 
-  const HTTP::URL & Downloader::lastURL(){
-    return nbLink;
-  }
+  const HTTP::URL &Downloader::lastURL(){return nbLink;}
 
   // continue handling a request, originally set up by the getNonBlocking() function
   // returns true if the request is complete
@@ -368,14 +367,15 @@ namespace HTTP{
       }
     }
     WARN_MSG("Invalid connection state for HTTP request");
-    return false; //we should never get here
+    return false; // we should never get here
   }
 
   bool Downloader::post(const HTTP::URL &link, const std::string &payload, bool sync, uint8_t maxRecursiveDepth){
     return post(link, payload.data(), payload.size(), sync, maxRecursiveDepth);
   }
 
-  bool Downloader::post(const HTTP::URL &link, const void * payload, const size_t payloadLen, bool sync, uint8_t maxRecursiveDepth){
+  bool Downloader::post(const HTTP::URL &link, const void *payload, const size_t payloadLen,
+                        bool sync, uint8_t maxRecursiveDepth){
     if (!canRequest(link)){return false;}
     size_t loop = retryCount; // max 5 attempts
     while (--loop){// loop while we are unsuccessful
@@ -499,4 +499,3 @@ namespace HTTP{
   }
 
 }// namespace HTTP
-

@@ -101,11 +101,9 @@ namespace Encodings{
     std::string escaped = "";
     int max = c.length();
     for (int i = 0; i < max; i++){
-      if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') ||
-          ('A' <= c[i] && c[i] <= 'Z') ||
+      if (('0' <= c[i] && c[i] <= '9') || ('a' <= c[i] && c[i] <= 'z') || ('A' <= c[i] && c[i] <= 'Z') ||
           (c[i] == '$' || c[i] == '-' || c[i] == '_' || c[i] == '.' || c[i] == ',' || c[i] == '!' ||
-           c[i] == '~' || c[i] == ';' || c[i] == '*' || c[i] == '(' || c[i] == ')' ||
-           c[i] == '\'') ||
+           c[i] == '~' || c[i] == ';' || c[i] == '*' || c[i] == '(' || c[i] == ')' || c[i] == '\'') ||
           (ign.size() && ign.find(c[i]) != std::string::npos)){
         escaped.append(&c[i], 1);
       }else{
@@ -143,4 +141,3 @@ namespace Encodings{
   }
 
 }// namespace Encodings
-

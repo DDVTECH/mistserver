@@ -13,4 +13,3 @@ private:
   OGG::Page oggPage;
   int kfgshift;
 };
-

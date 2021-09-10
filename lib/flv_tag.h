@@ -18,8 +18,7 @@ namespace FLV{
   extern char Header[13];  ///< Holds the last FLV header parsed.
   extern bool Parse_Error; ///< This variable is set to true if a problem is encountered while
                            ///< parsing the FLV.
-  extern std::string
-      Error_Str; ///< This variable is set if a problem is encountered while parsing the FLV.
+  extern std::string Error_Str; ///< This variable is set if a problem is encountered while parsing the FLV.
 
   // functions
   bool check_header(char *header); ///< Checks a FLV Header for validness.
@@ -43,10 +42,9 @@ namespace FLV{
     void tagTime(uint64_t T);
     int64_t offset();
     void offset(int64_t o);
-    Tag();             ///< Constructor for a new, empty, tag.
-    Tag(const Tag &O); ///< Copy constructor, copies the contents of an existing tag.
-    Tag &
-    operator=(const Tag &O); ///< Assignment operator - works exactly like the copy constructor.
+    Tag();                        ///< Constructor for a new, empty, tag.
+    Tag(const Tag &O);            ///< Copy constructor, copies the contents of an existing tag.
+    Tag &operator=(const Tag &O); ///< Assignment operator - works exactly like the copy constructor.
     Tag(const RTMPStream::Chunk &O); ///< Copy constructor from a RTMP chunk.
     ~Tag();                          ///< Generic destructor.
     // loader functions
@@ -76,4 +74,3 @@ namespace FLV{
   // Tag
 
 }// namespace FLV
-

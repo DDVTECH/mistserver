@@ -22,5 +22,4 @@ namespace Controller{
 
   // for storing/retrieving settings
   void pushSettings(const JSON::Value &request, JSON::Value &response);
-}
-
+}// namespace Controller

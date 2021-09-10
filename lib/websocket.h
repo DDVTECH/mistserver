@@ -10,13 +10,13 @@ namespace HTTP{
     operator bool() const;
     bool readFrame();
     bool readLoop();
-    void sendFrame(const char * data, unsigned int len, unsigned int frameType = 1);
-    void sendFrame(const std::string & data);
+    void sendFrame(const char *data, unsigned int len, unsigned int frameType = 1);
+    void sendFrame(const std::string &data);
     Util::ResizeablePointer data;
     uint8_t frameType;
+
   private:
     Socket::Connection &C;
     HTTP::Parser &H;
   };
 }// namespace HTTP
-

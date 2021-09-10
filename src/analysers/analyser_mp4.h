@@ -14,4 +14,3 @@ private:
   uint64_t curPos;
   uint64_t prePos;
 };
-

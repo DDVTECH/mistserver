@@ -14,4 +14,3 @@ private:
   Socket::Connection conn;
   uint64_t totalBytes;
 };
-

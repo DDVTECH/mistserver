@@ -1,10 +1,10 @@
 #include OUTPUTTYPE
 #include <mist/config.h>
-#include <mist/socket.h>
 #include <mist/defines.h>
+#include <mist/socket.h>
 #include <mist/util.h>
 
-int spawnForked(Socket::Connection & S){
+int spawnForked(Socket::Connection &S){
   mistOut tmp(S);
   return tmp.run();
 }
@@ -15,12 +15,12 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   Util::Config::is_active = false;
 }
 
-int main(int argc, char * argv[]) {
+int main(int argc, char *argv[]){
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
   mistOut::init(&conf);
-  if (conf.parseArgs(argc, argv)) {
-    if (conf.getBool("json")) {
+  if (conf.parseArgs(argc, argv)){
+    if (conf.getBool("json")){
       mistOut::capa["version"] = PACKAGE_VERSION;
       std::cout << mistOut::capa.toString() << std::endl;
       return -1;
@@ -41,7 +41,7 @@ int main(int argc, char * argv[]) {
         FAIL_MSG("Error reloading: %s", strerror(errno));
       }
     }else{
-      Socket::Connection S(fileno(stdout),fileno(stdin) );
+      Socket::Connection S(fileno(stdout), fileno(stdin));
       mistOut tmp(S);
       return tmp.run();
     }

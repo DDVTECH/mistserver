@@ -1,48 +1,46 @@
-#include <dirent.h> //for browse API call
-#include <sys/stat.h> //for browse API call
-#include <fstream>
-#include <mist/http_parser.h>
-#include <mist/url.h>
-#include <mist/auth.h>
-#include <mist/stream.h>
-#include <mist/config.h>
-#include <mist/defines.h>
-#include <mist/timing.h>
-#include <mist/procs.h>
-#include <mist/bitfields.h>
 #include "controller_api.h"
+#include "controller_capabilities.h"
+#include "controller_connectors.h"
+#include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
-#include "controller_connectors.h"
-#include "controller_capabilities.h"
-#include "controller_statistics.h"
+#include <dirent.h> //for browse API call
+#include <fstream>
+#include <mist/auth.h>
+#include <mist/bitfields.h>
+#include <mist/config.h>
+#include <mist/defines.h>
+#include <mist/http_parser.h>
+#include <mist/procs.h>
+#include <mist/stream.h>
+#include <mist/timing.h>
+#include <mist/url.h>
+#include <sys/stat.h> //for browse API call
 /*LTS-START*/
-#include "controller_updater.h"
+#include "controller_license.h"
 #include "controller_limits.h"
 #include "controller_push.h"
-#include "controller_license.h"
+#include "controller_updater.h"
 /*LTS-END*/
 
 /// Returns the challenge string for authentication, given the socket connection.
-std::string getChallenge(Socket::Connection & conn){
+std::string getChallenge(Socket::Connection &conn){
   time_t Time = time(0);
   tm tmptime;
-  tm * TimeInfo = localtime_r( &Time, &tmptime);
+  tm *TimeInfo = localtime_r(&Time, &tmptime);
   std::stringstream Date;
   Date << TimeInfo->tm_mday << "-" << TimeInfo->tm_mon << "-" << TimeInfo->tm_year + 1900;
   return Secure::md5(Date.str().c_str() + conn.getHost());
 }
 
 /// Executes a single Playlist-based API command. Recurses if necessary.
-static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines){
+static void executePlsCommand(JSON::Value &cmd, std::deque<std::string> &lines){
   if (!cmd.isArray() || !cmd.size()){
     FAIL_MSG("Not a valid playlist API command: %s", cmd.toString().c_str());
     return;
   }
   if (cmd[0u].isArray()){
-    jsonForEach(cmd, it){
-      executePlsCommand(*it, lines);
-    }
+    jsonForEach(cmd, it){executePlsCommand(*it, lines);}
     return;
   }
   if (!cmd[0u].isString()){
@@ -58,11 +56,9 @@ static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines
     return;
   }
   if (cmd[0u].asStringRef() == "remove" && cmd.size() == 2 && cmd[1u].isString()){
-    const std::string & toRemove = cmd[1u].asStringRef();
+    const std::string &toRemove = cmd[1u].asStringRef();
     for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); ++it){
-      if ((*it) == toRemove){
-        (*it) = "";
-      }
+      if ((*it) == toRemove){(*it) = "";}
     }
     return;
   }
@@ -75,11 +71,9 @@ static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines
     return;
   }
   if (cmd[0u].asStringRef() == "replace" && cmd.size() == 3 && cmd[1u].isString() && cmd[2u].isString()){
-    const std::string & toReplace = cmd[1u].asStringRef();
+    const std::string &toReplace = cmd[1u].asStringRef();
     for (std::deque<std::string>::iterator it = lines.begin(); it != lines.end(); ++it){
-      if ((*it) == toReplace){
-        (*it) = cmd[2u].asStringRef();
-      }
+      if ((*it) == toReplace){(*it) = cmd[2u].asStringRef();}
     }
     return;
   }
@@ -93,11 +87,13 @@ static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines
 ///\return True on successfull authorization, false otherwise.
 ///
 /// \api
-/// To login, an `"authorize"` request must be sent. Since HTTP does not use persistent connections, you are required to re-sent authentication with every API request made. To prevent plaintext sending of the password, a random challenge string is sent first, and then the password is hashed together with this challenge string to create a one-time-use string to login with.
+/// To login, an `"authorize"` request must be sent. Since HTTP does not use persistent connections,
+/// you are required to re-sent authentication with every API request made. To prevent plaintext sending
+/// of the password, a random challenge string is sent first, and then the password is hashed together with this challenge string to create a one-time-use string to login with.
 /// If the user is not authorized, this request is the only request the server will respond to until properly authorized.
 /// `"authorize"` requests take the form of:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
+///{
 ///   //username to login as
 ///   "username": "test",
 ///   //hash of password to login with. Send empty value when no challenge for the hash is known yet.
@@ -105,38 +101,40 @@ static void executePlsCommand(JSON::Value & cmd, std::deque<std::string> & lines
 ///   //   MD5( MD5("secret") + challenge)
 ///   //Where "secret" is the plaintext password.
 ///   "password": ""
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// and are responded to as:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
+///{
 ///   //current login status. Either "OK", "CHALL", "NOACC" or "ACC_MADE".
 ///   "status": "CHALL",
 ///   //Random value to be used in hashing the password.
 ///   "challenge": "abcdef1234567890"
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// The challenge string is sent for all statuses, except `"NOACC"`, where it is left out.
 /// A status of `"OK"` means you are currently logged in and have access to all other API requests.
 /// A status of `"CHALL"` means you are not logged in, and a challenge has been provided to login with.
-/// A status of `"NOACC"` means there are no valid accounts to login with. In this case - and ONLY in this case - it is possible to create a initial login through the API itself. To do so, send a request as follows:
+/// A status of `"NOACC"` means there are no valid accounts to login with. In this case - and ONLY
+/// in this case - it is possible to create a initial login through the API itself. To do so, send a request as follows:
 /// ~~~~~~~~~~~~~~~{.js}
-/// {
+///{
 ///   //username to create, as plain text
 ///   "new_username": "test",
 ///   //password to set, as plain text
 ///   "new_password": "secret"
-/// }
+///}
 /// ~~~~~~~~~~~~~~~
 /// Please note that this is NOT secure. At all. Never use this mechanism over a public network!
 /// A status of `"ACC_MADE"` indicates the account was created successfully and can now be used to login as normal.
-bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket::Connection & conn){
+bool Controller::authorize(JSON::Value &Request, JSON::Value &Response, Socket::Connection &conn){
   std::string Challenge = getChallenge(conn);
   std::string retval;
   if (Request.isMember("authorize") && Request["authorize"]["username"].asString() != ""){
     std::string UserID = Request["authorize"]["username"];
     if (Storage["account"].isMember(UserID)){
-      if (Secure::md5(Storage["account"][UserID]["password"].asString() + Challenge) == Request["authorize"]["password"].asString()){
+      if (Secure::md5(Storage["account"][UserID]["password"].asString() + Challenge) ==
+          Request["authorize"]["password"].asString()){
         Response["authorize"]["status"] = "OK";
         return true;
       }
@@ -147,57 +145,56 @@ bool Controller::authorize(JSON::Value & Request, JSON::Value & Response, Socket
   }
   Response["authorize"]["status"] = "CHALL";
   Response["authorize"]["challenge"] = Challenge;
-  //the following is used to add the first account through the LSP
+  // the following is used to add the first account through the LSP
   if (!Storage["account"]){
     Response["authorize"]["status"] = "NOACC";
     if (Request["authorize"]["new_username"] && Request["authorize"]["new_password"]){
-      //create account
+      // create account
       Controller::Log("CONF", "Created account " + Request["authorize"]["new_username"].asString() + " through API");
-      Controller::Storage["account"][Request["authorize"]["new_username"].asString()]["password"] = Secure::md5(Request["authorize"]["new_password"].asString());
+      Controller::Storage["account"][Request["authorize"]["new_username"].asString()]["password"] =
+          Secure::md5(Request["authorize"]["new_password"].asString());
       Response["authorize"]["status"] = "ACC_MADE";
     }else{
       Response["authorize"].removeMember("challenge");
     }
   }
   return false;
-}//Authorize
+}// Authorize
 
 class streamStat{
-  public:
-    streamStat(){
-      status = 0;
-      viewers = 0;
-      inputs = 0;
-      outputs = 0;
-    }
-    streamStat(const Util::RelAccX & rlx, uint64_t entry){
-      status = rlx.getInt("status", entry);
-      viewers = rlx.getInt("viewers", entry);
-      inputs = rlx.getInt("inputs", entry);
-      outputs = rlx.getInt("outputs", entry);
-    }
-    bool operator ==(const streamStat &b) const{
-      return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs);
-    }
-    bool operator !=(const streamStat &b) const{
-      return !(*this == b);
-    }
-    uint8_t status;
-    uint64_t viewers;
-    uint64_t inputs;
-    uint64_t outputs;
+public:
+  streamStat(){
+    status = 0;
+    viewers = 0;
+    inputs = 0;
+    outputs = 0;
+  }
+  streamStat(const Util::RelAccX &rlx, uint64_t entry){
+    status = rlx.getInt("status", entry);
+    viewers = rlx.getInt("viewers", entry);
+    inputs = rlx.getInt("inputs", entry);
+    outputs = rlx.getInt("outputs", entry);
+  }
+  bool operator==(const streamStat &b) const{
+    return (status == b.status && viewers == b.viewers && inputs == b.inputs && outputs == b.outputs);
+  }
+  bool operator!=(const streamStat &b) const{return !(*this == b);}
+  uint8_t status;
+  uint64_t viewers;
+  uint64_t inputs;
+  uint64_t outputs;
 };
 
-void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
+void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
   std::string logs = H.GetVar("logs");
   std::string accs = H.GetVar("accs");
   bool doStreams = H.GetVar("streams").size();
   HTTP::Websocket W(C, H);
   if (!W){return;}
 
-  IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024*1024);
-  IPC::sharedPage shmAccs(SHM_STATE_ACCS, 1024*1024);
-  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 1024*1024);
+  IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024 * 1024);
+  IPC::sharedPage shmAccs(SHM_STATE_ACCS, 1024 * 1024);
+  IPC::sharedPage shmStreams(SHM_STATE_STREAMS, 1024 * 1024);
   Util::RelAccX rlxStreams(shmStreams.mapped);
   Util::RelAccX rlxLog(shmLogs.mapped);
   Util::RelAccX rlxAccs(shmAccs.mapped);
@@ -228,7 +225,9 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
     if (accs.substr(0, 6) == "since:"){
       uint64_t startAccs = JSON::Value(accs.substr(6)).asInt();
       accsPos = rlxAccs.getDeleted();
-      while (accsPos < rlxAccs.getEndPos() && rlxAccs.getInt("time", accsPos) < startAccs){++accsPos;}
+      while (accsPos < rlxAccs.getEndPos() && rlxAccs.getInt("time", accsPos) < startAccs){
+        ++accsPos;
+      }
     }else{
       uint64_t numAccs = JSON::Value(accs).asInt();
       if (accsPos <= numAccs){
@@ -270,7 +269,8 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
       accsPos++;
     }
     if (doStreams){
-      for (std::map<std::string, streamStat>::iterator it = lastStrmStat.begin(); it != lastStrmStat.end(); ++it){
+      for (std::map<std::string, streamStat>::iterator it = lastStrmStat.begin();
+           it != lastStrmStat.end(); ++it){
         strmRemove.insert(it->first);
       }
       uint64_t startPos = rlxStreams.getDeleted();
@@ -307,33 +307,31 @@ void Controller::handleWebSocket(HTTP::Parser & H, Socket::Connection & C){
         lastStrmStat.erase(strm);
       }
     }
-    if (!sent){
-      Util::sleep(500);
-    }
+    if (!sent){Util::sleep(500);}
   }
 }
 
 /// Handles a single incoming API connection.
 /// Assumes the connection is unauthorized and will allow for 4 requests without authorization before disconnecting.
-int Controller::handleAPIConnection(Socket::Connection & conn){
-  //set up defaults
+int Controller::handleAPIConnection(Socket::Connection &conn){
+  // set up defaults
   unsigned int logins = 0;
   bool authorized = false;
   bool isLocal = false;
   HTTP::Parser H;
-  //while connected and not past login attempt limit
+  // while connected and not past login attempt limit
   while (conn && logins < 4){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
-      //Are we local and not forwarded? Instant-authorized.
+      // Are we local and not forwarded? Instant-authorized.
       if (!authorized && !H.hasHeader("X-Real-IP") && conn.isLocal()){
         MEDIUM_MSG("Local API access automatically authorized");
         isLocal = true;
         authorized = true;
       }
-      #ifdef NOAUTH
-      //If auth is disabled, always allow access.
+#ifdef NOAUTH
+      // If auth is disabled, always allow access.
       authorized = true;
-      #endif
+#endif
       if (!authorized && H.hasHeader("Authorization")){
         std::string auth = H.GetHeader("Authorization");
         if (auth.substr(0, 5) == "json "){
@@ -347,7 +345,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               H.Clean();
               H.body = "Please login first or provide a valid token authentication.";
               H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
-              H.SetHeader("WWW-Authenticate", "json "+req["authorize"].toString());
+              H.SetHeader("WWW-Authenticate", "json " + req["authorize"].toString());
               H.SendResponse("403", "Not authorized", conn);
               H.Clean();
               continue;
@@ -355,7 +353,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
           }
         }
       }
-      //Catch websocket requests
+      // Catch websocket requests
       if (H.url == "/ws"){
         if (!authorized){
           H.Clean();
@@ -369,14 +367,14 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         H.Clean();
         continue;
       }
-      //Catch prometheus requests
+      // Catch prometheus requests
       if (Controller::prometheus.size()){
-        if (H.url == "/"+Controller::prometheus){
+        if (H.url == "/" + Controller::prometheus){
           handlePrometheus(H, conn, PROMETHEUS_TEXT);
           H.Clean();
           continue;
         }
-        if (H.url.substr(0, Controller::prometheus.size()+6) == "/"+Controller::prometheus+".json"){
+        if (H.url.substr(0, Controller::prometheus.size() + 6) == "/" + Controller::prometheus + ".json"){
           handlePrometheus(H, conn, PROMETHEUS_JSON);
           H.Clean();
           continue;
@@ -384,26 +382,24 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       }
       JSON::Value Response;
       JSON::Value Request = JSON::fromString(H.GetVar("command"));
-      //invalid request? send the web interface, unless requested as "/api"
-      if ( !Request.isObject() && H.url != "/api" && H.url != "/api2"){
-        #include "server.html.h"
+      // invalid request? send the web interface, unless requested as "/api"
+      if (!Request.isObject() && H.url != "/api" && H.url != "/api2"){
+#include "server.html.h"
         H.Clean();
         H.SetHeader("Content-Type", "text/html");
         H.SetHeader("X-Info", "To force an API response, request the file /api");
         H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
         H.SetHeader("Content-Length", server_html_len);
-        H.SetHeader("X-UA-Compatible","IE=edge;chrome=1");
+        H.SetHeader("X-UA-Compatible", "IE=edge;chrome=1");
         H.SendResponse("200", "OK", conn);
         conn.SendNow(server_html, server_html_len);
         H.Clean();
         break;
       }
-      if (H.url == "/api2"){
-        Request["minimal"] = true;
-      }
-      {//lock the config mutex here - do not unlock until done processing
+      if (H.url == "/api2"){Request["minimal"] = true;}
+      {// lock the config mutex here - do not unlock until done processing
         tthread::lock_guard<tthread::mutex> guard(configMutex);
-        //if already authorized, do not re-check for authorization
+        // if already authorized, do not re-check for authorization
         if (authorized && Storage["account"]){
           Response["authorize"]["status"] = "OK";
           if (isLocal){Response["authorize"]["local"] = true;}
@@ -412,20 +408,16 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
         }
         if (authorized){
           handleAPICommands(Request, Response);
-        }else{//unauthorized
-          Util::sleep(1000);//sleep a second to prevent bruteforcing 
+        }else{// unauthorized
+          Util::sleep(1000); // sleep a second to prevent bruteforcing
           logins++;
         }
         Controller::checkServerLimits(); /*LTS*/
-      }//config mutex lock
-      //send the response, either normally or through JSONP callback.
+      }// config mutex lock
+      // send the response, either normally or through JSONP callback.
       std::string jsonp = "";
-      if (H.GetVar("callback") != ""){
-        jsonp = H.GetVar("callback");
-      }
-      if (H.GetVar("jsonp") != ""){
-        jsonp = H.GetVar("jsonp");
-      }
+      if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
+      if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
       H.Clean();
       H.SetHeader("Content-Type", "text/javascript");
       H.setCORSHeaders();
@@ -436,12 +428,12 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
       }
       H.SendResponse("200", "OK", conn);
       H.Clean();
-    }//if HTTP request received
-  }//while connected
+    }// if HTTP request received
+  }// while connected
   return 0;
 }
 
-void Controller::handleUDPAPI(void * np){
+void Controller::handleUDPAPI(void *np){
   Socket::UDPConnection uSock(true);
   if (!uSock.bind(UDP_API_PORT, UDP_API_HOST)){
     FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
@@ -472,10 +464,8 @@ void Controller::handleUDPAPI(void * np){
 
 /// Local-only helper function that checks for duplicate protocols and removes them
 static void removeDuplicateProtocols(){
-  JSON::Value & P = Controller::Storage["config"]["protocols"];
-  jsonForEach(P, it){
-    it->removeNullMembers();
-  }
+  JSON::Value &P = Controller::Storage["config"]["protocols"];
+  jsonForEach(P, it){it->removeNullMembers();}
   std::set<std::string> ignores;
   ignores.insert("online");
   bool reloop = true;
@@ -495,13 +485,13 @@ static void removeDuplicateProtocols(){
   }
 }
 
-void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response){
+void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   /*LTS-START*/
-  //These are only used internally. We abort further processing if encountered.
+  // These are only used internally. We abort further processing if encountered.
   if (Request.isMember("trigger_stat")){
-    JSON::Value & tStat = Request["trigger_stat"];
+    JSON::Value &tStat = Request["trigger_stat"];
     if (tStat.isMember("name") && tStat.isMember("ms")){
-      Controller::triggerLog & tLog = Controller::triggerStats[tStat["name"].asStringRef()];
+      Controller::triggerLog &tLog = Controller::triggerStats[tStat["name"].asStringRef()];
       tLog.totalCount++;
       tLog.ms += tStat["ms"].asInt();
       if (!tStat.isMember("ok") || !tStat["ok"].asBool()){tLog.failCount++;}
@@ -513,14 +503,14 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     return;
   }
   /*LTS-END*/
-  //Parse config and streams from the request.
+  // Parse config and streams from the request.
   if (Request.isMember("config") && Request["config"].isObject()){
-    const JSON::Value & in = Request["config"];
-    JSON::Value & out = Controller::Storage["config"];
+    const JSON::Value &in = Request["config"];
+    JSON::Value &out = Controller::Storage["config"];
     if (in.isMember("debug")){
       out["debug"] = in["debug"];
-      if (Util::Config::printDebugLevel != (out["debug"].isInt()?out["debug"].asInt():DEBUG)){
-        Util::Config::printDebugLevel = (out["debug"].isInt()?out["debug"].asInt():DEBUG);
+      if (Util::Config::printDebugLevel != (out["debug"].isInt() ? out["debug"].asInt() : DEBUG)){
+        Util::Config::printDebugLevel = (out["debug"].isInt() ? out["debug"].asInt() : DEBUG);
         INFO_MSG("Debug level set to %u", Util::Config::printDebugLevel);
       }
     }
@@ -532,12 +522,8 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       out["trustedproxy"] = in["trustedproxy"];
       Controller::normalizeTrustedProxies(out["trustedproxy"]);
     }
-    if (in.isMember("controller")){
-      out["controller"] = in["controller"];
-    }
-    if (in.isMember("serverid")){
-      out["serverid"] = in["serverid"];
-    }
+    if (in.isMember("controller")){out["controller"] = in["controller"];}
+    if (in.isMember("serverid")){out["serverid"] = in["serverid"];}
     if (in.isMember("triggers")){
       out["triggers"] = in["triggers"];
       if (!out["triggers"].isObject()){
@@ -545,9 +531,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       }else{
         jsonForEach(out["triggers"], it){
           if (it->isArray()){
-            jsonForEach((*it), jt){
-              jt->removeNullMembers();
-            }
+            jsonForEach((*it), jt){jt->removeNullMembers();}
           }
         }
       }
@@ -560,9 +544,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       out["prometheus"] = in["prometheus"];
       Controller::prometheus = out["prometheus"].asStringRef();
     }
-    if (in.isMember("defaultStream")){
-      out["defaultStream"] = in["defaultStream"];
-    }
+    if (in.isMember("defaultStream")){out["defaultStream"] = in["defaultStream"];}
   }
   if (Request.isMember("bandwidth")){
     if (Request["bandwidth"].isObject()){
@@ -583,94 +565,72 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     Controller::AddStreams(Request["addstream"], Controller::Storage["streams"]);
   }
   if (Request.isMember("deletestream")){
-    //if array, delete all elements
-    //if object, delete all entries
-    //if string, delete just the one
+    // if array, delete all elements
+    // if object, delete all entries
+    // if string, delete just the one
     if (Request["deletestream"].isString()){
-      Controller::deleteStream(Request["deletestream"].asStringRef(), Controller::Storage["streams"]); 
+      Controller::deleteStream(Request["deletestream"].asStringRef(),
+                               Controller::Storage["streams"]);
     }
     if (Request["deletestream"].isArray()){
       jsonForEach(Request["deletestream"], it){
-        Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]); 
+        Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"]);
       }
     }
     if (Request["deletestream"].isObject()){
       jsonForEach(Request["deletestream"], it){
-        Controller::deleteStream(it.key(), Controller::Storage["streams"]); 
+        Controller::deleteStream(it.key(), Controller::Storage["streams"]);
       }
     }
   }
   if (Request.isMember("deletestreamsource")){
-    //if array, delete all elements
-    //if object, delete all entries
-    //if string, delete just the one
+    // if array, delete all elements
+    // if object, delete all entries
+    // if string, delete just the one
     if (Request["deletestreamsource"].isString()){
-      switch (Controller::deleteStream(Request["deletestreamsource"].asStringRef(), Controller::Storage["streams"], true)){
-        case 0:
-          Response["deletestreamsource"] = "0: No action taken";
-          break;
-        case 1:
-          Response["deletestreamsource"] = "1: Source file deleted";
-          break;
-        case 2:
-          Response["deletestreamsource"] = "2: Source file and dtsh deleted";
-          break;
-        case -1:
-          Response["deletestreamsource"] = "-1: Stream deleted, source remains";
-          break;
-        case -2:
-          Response["deletestreamsource"] = "-2: Stream and source file deleted";
-          break;
-        case -3:
-          Response["deletestreamsource"] = "-3: Stream, source file and dtsh deleted";
-          break;
+      switch (Controller::deleteStream(Request["deletestreamsource"].asStringRef(),
+                                       Controller::Storage["streams"], true)){
+      case 0: Response["deletestreamsource"] = "0: No action taken"; break;
+      case 1: Response["deletestreamsource"] = "1: Source file deleted"; break;
+      case 2: Response["deletestreamsource"] = "2: Source file and dtsh deleted"; break;
+      case -1: Response["deletestreamsource"] = "-1: Stream deleted, source remains"; break;
+      case -2: Response["deletestreamsource"] = "-2: Stream and source file deleted"; break;
+      case -3: Response["deletestreamsource"] = "-3: Stream, source file and dtsh deleted"; break;
       }
     }
     if (Request["deletestreamsource"].isArray()){
       jsonForEach(Request["deletestreamsource"], it){
         switch (Controller::deleteStream(it->asStringRef(), Controller::Storage["streams"], true)){
-          case 0:
-            Response["deletestreamsource"][it.num()] = "0: No action taken";
-            break;
-          case 1:
-            Response["deletestreamsource"][it.num()] = "1: Source file deleted";
-            break;
-          case 2:
-            Response["deletestreamsource"][it.num()] = "2: Source file and dtsh deleted";
-            break;
-          case -1:
-            Response["deletestreamsource"][it.num()] = "-1: Stream deleted, source remains";
-            break;
-          case -2:
-            Response["deletestreamsource"][it.num()] = "-2: Stream and source file deleted";
-            break;
-          case -3:
-            Response["deletestreamsource"][it.num()] = "-3: Stream, source file and dtsh deleted";
-            break;
+        case 0: Response["deletestreamsource"][it.num()] = "0: No action taken"; break;
+        case 1: Response["deletestreamsource"][it.num()] = "1: Source file deleted"; break;
+        case 2: Response["deletestreamsource"][it.num()] = "2: Source file and dtsh deleted"; break;
+        case -1:
+          Response["deletestreamsource"][it.num()] = "-1: Stream deleted, source remains";
+          break;
+        case -2:
+          Response["deletestreamsource"][it.num()] = "-2: Stream and source file deleted";
+          break;
+        case -3:
+          Response["deletestreamsource"][it.num()] = "-3: Stream, source file and dtsh deleted";
+          break;
         }
       }
     }
     if (Request["deletestreamsource"].isObject()){
       jsonForEach(Request["deletestreamsource"], it){
         switch (Controller::deleteStream(it.key(), Controller::Storage["streams"], true)){
-          case 0:
-            Response["deletestreamsource"][it.key()] = "0: No action taken";
-            break;
-          case 1:
-            Response["deletestreamsource"][it.key()] = "1: Source file deleted";
-            break;
-          case 2:
-            Response["deletestreamsource"][it.key()] = "2: Source file and dtsh deleted";
-            break;
-          case -1:
-            Response["deletestreamsource"][it.key()] = "-1: Stream deleted, source remains";
-            break;
-          case -2:
-            Response["deletestreamsource"][it.key()] = "-2: Stream and source file deleted";
-            break;
-          case -3:
-            Response["deletestreamsource"][it.key()] = "-3: Stream, source file and dtsh deleted";
-            break;
+        case 0: Response["deletestreamsource"][it.key()] = "0: No action taken"; break;
+        case 1: Response["deletestreamsource"][it.key()] = "1: Source file deleted"; break;
+        case 2: Response["deletestreamsource"][it.key()] = "2: Source file and dtsh deleted"; break;
+        case -1:
+          Response["deletestreamsource"][it.key()] = "-1: Stream deleted, source remains";
+          break;
+        case -2:
+          Response["deletestreamsource"][it.key()] = "-2: Stream and source file deleted";
+          break;
+        case -3:
+          Response["deletestreamsource"][it.key()] = "-3: Stream, source file and dtsh deleted";
+          break;
         }
       }
     }
@@ -699,18 +659,14 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
             break;
           }
         }
-        if (add){
-          newProtocols.append(*it);
-        }
+        if (add){newProtocols.append(*it);}
       }
       Controller::Storage["config"]["protocols"] = newProtocols;
     }
     if (Request["deleteprotocol"].isObject()){
       JSON::Value newProtocols;
       jsonForEach(Controller::Storage["config"]["protocols"], it){
-        if (!(*it).compareExcept(Request["deleteprotocol"], ignores)){
-          newProtocols.append(*it);
-        }
+        if (!(*it).compareExcept(Request["deleteprotocol"], ignores)){newProtocols.append(*it);}
       }
       Controller::Storage["config"]["protocols"] = newProtocols;
     }
@@ -721,7 +677,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     if (Request["updateprotocol"].isArray() && Request["updateprotocol"].size() == 2){
       jsonForEach(Controller::Storage["config"]["protocols"], it){
         if ((*it).compareExcept(Request["updateprotocol"][0u], ignores)){
-          //If the connector type didn't change, mark it as needing a reload
+          // If the connector type didn't change, mark it as needing a reload
           if ((*it)["connector"] == Request["updateprotocol"][1u]["connector"]){
             reloadProtocol(it.num());
           }
@@ -739,32 +695,29 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     Response["capabilities"] = capabilities;
   }
 
-
-  if(Request.isMember("browse")){                    
-    if(Request["browse"] == ""){
-      Request["browse"] = ".";
-    }
+  if (Request.isMember("browse")){
+    if (Request["browse"] == ""){Request["browse"] = ".";}
     DIR *dir;
     struct dirent *ent;
     struct stat filestat;
-    char* rpath = realpath(Request["browse"].asString().c_str(),0);
-    if(rpath == NULL){
+    char *rpath = realpath(Request["browse"].asString().c_str(), 0);
+    if (rpath == NULL){
       Response["browse"]["path"].append(Request["browse"].asString());
     }else{
-      Response["browse"]["path"].append(rpath);//Request["browse"].asString());
-      if ((dir = opendir (Request["browse"].asString().c_str())) != NULL) {
-        while ((ent = readdir (dir)) != NULL) {
-          if(strcmp(ent->d_name,".")!=0 && strcmp(ent->d_name,"..")!=0 ){
+      Response["browse"]["path"].append(rpath); // Request["browse"].asString());
+      if ((dir = opendir(Request["browse"].asString().c_str())) != NULL){
+        while ((ent = readdir(dir)) != NULL){
+          if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0){
             std::string filepath = Request["browse"].asString() + "/" + std::string(ent->d_name);
-            if (stat( filepath.c_str(), &filestat )) continue;
-            if (S_ISDIR( filestat.st_mode)){
+            if (stat(filepath.c_str(), &filestat)) continue;
+            if (S_ISDIR(filestat.st_mode)){
               Response["browse"]["subdirectories"].append(ent->d_name);
             }else{
               Response["browse"]["files"].append(ent->d_name);
             }
           }
         }
-        closedir (dir);
+        closedir(dir);
       }
     }
     free(rpath);
@@ -781,18 +734,24 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       ERROR_MSG("Playlist API call requires object payload, no object given");
     }else{
       jsonForEach(Request["playlist"], it){
-        if (!Controller::Storage["streams"].isMember(it.key()) || !Controller::Storage["streams"][it.key()].isMember("source")){
-          FAIL_MSG("Playlist API call (partially) not executed: stream '%s' not configured", it.key().c_str());
+        if (!Controller::Storage["streams"].isMember(it.key()) ||
+            !Controller::Storage["streams"][it.key()].isMember("source")){
+          FAIL_MSG("Playlist API call (partially) not executed: stream '%s' not configured",
+                   it.key().c_str());
         }else{
           std::string src = Controller::Storage["streams"][it.key()]["source"].asString();
           if (src.substr(src.size() - 4) != ".pls"){
-            FAIL_MSG("Playlist API call (partially) not executed: stream '%s' is not playlist-based", it.key().c_str());
+            FAIL_MSG(
+                "Playlist API call (partially) not executed: stream '%s' is not playlist-based",
+                it.key().c_str());
           }else{
             bool readFirst = true;
             struct stat fileinfo;
             if (stat(src.c_str(), &fileinfo) != 0){
               if (errno == EACCES){
-                FAIL_MSG("Playlist API call (partially) not executed: stream '%s' playlist '%s' cannot be accessed (no file permissions)", it.key().c_str(), src.c_str());
+                FAIL_MSG("Playlist API call (partially) not executed: stream '%s' playlist '%s' "
+                         "cannot be accessed (no file permissions)",
+                         it.key().c_str(), src.c_str());
                 break;
               }
               if (errno == ENOENT){
@@ -804,24 +763,24 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
             if (readFirst){
               std::ifstream plsRead(src.c_str());
               if (!plsRead.good()){
-                FAIL_MSG("Playlist (%s) for stream '%s' could not be opened for reading; aborting command(s)", src.c_str(), it.key().c_str());
+                FAIL_MSG("Playlist (%s) for stream '%s' could not be opened for reading; aborting "
+                         "command(s)",
+                         src.c_str(), it.key().c_str());
                 break;
               }
               std::string line;
-              do {
+              do{
                 std::getline(plsRead, line);
                 if (line.size() || plsRead.good()){lines.push_back(line);}
-              } while(plsRead.good());
+              }while (plsRead.good());
             }
             unsigned int plsNo = 0;
             for (std::deque<std::string>::iterator plsIt = lines.begin(); plsIt != lines.end(); ++plsIt){
               MEDIUM_MSG("Before playlist command item %u: %s", plsNo, plsIt->c_str());
               ++plsNo;
             }
-            if (!it->isBool()){
-              executePlsCommand(*it, lines);
-            }
-            JSON::Value & outPls = Response["playlist"][it.key()];
+            if (!it->isBool()){executePlsCommand(*it, lines);}
+            JSON::Value &outPls = Response["playlist"][it.key()];
             std::ofstream plsOutFile(src.c_str(), std::ios_base::trunc);
             if (!plsOutFile.good()){
               FAIL_MSG("Could not open playlist for writing: %s", src.c_str());
@@ -832,9 +791,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
               MEDIUM_MSG("After playlist command item %u: %s", plsNo, plsIt->c_str());
               ++plsNo;
               outPls.append(*plsIt);
-              if (plsNo < lines.size() || (*plsIt).size()){
-                plsOutFile << (*plsIt) << "\n";
-              }
+              if (plsNo < lines.size() || (*plsIt).size()){plsOutFile << (*plsIt) << "\n";}
             }
           }
         }
@@ -848,32 +805,30 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   }
 
   if (Request.isMember("ui_settings")){
-    if (Request["ui_settings"].isObject()){
-      Storage["ui_settings"] = Request["ui_settings"];
-    }
+    if (Request["ui_settings"].isObject()){Storage["ui_settings"] = Request["ui_settings"];}
     Response["ui_settings"] = Storage["ui_settings"];
   }
   /*LTS-START*/
-  /// 
+  ///
   /// \api
   /// LTS builds will always include an `"LTS"` response, set to 1.
-  /// 
+  ///
   Response["LTS"] = 1;
-  /// 
-  /// \api
-  /// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
-  /// 
-  #ifdef UPDATER
-  if (Request.isMember("autoupdate")){
-    Controller::checkUpdates();
-  }
+///
+/// \api
+/// `"autoupdate"` requests (LTS-only) will cause MistServer to apply a rolling update to itself, and are not responded to.
+///
+#ifdef UPDATER
+  if (Request.isMember("autoupdate")){Controller::checkUpdates();}
   if (Request.isMember("update") || Request.isMember("checkupdate") || Request.isMember("autoupdate")){
     Controller::insertUpdateInfo(Response["update"]);
   }
-  #endif
+#endif
   /*LTS-END*/
-  if (!Request.isMember("minimal") || Request.isMember("streams") || Request.isMember("addstream") || Request.isMember("deletestream")){
-    if (!Request.isMember("streams") && (Request.isMember("addstream") || Request.isMember("deletestream"))){
+  if (!Request.isMember("minimal") || Request.isMember("streams") ||
+      Request.isMember("addstream") || Request.isMember("deletestream")){
+    if (!Request.isMember("streams") &&
+        (Request.isMember("addstream") || Request.isMember("deletestream"))){
       Response["streams"]["incomplete list"] = 1u;
       if (Request.isMember("addstream")){
         jsonForEach(Request["addstream"], jit){
@@ -886,24 +841,22 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       Response["streams"] = Controller::Storage["streams"];
     }
   }
-  //sent current configuration, if not minimal or was changed/requested
+  // sent current configuration, if not minimal or was changed/requested
   if (!Request.isMember("minimal") || Request.isMember("config")){
     Response["config"] = Controller::Storage["config"];
     Response["config"]["iid"] = instanceId;
     Response["config"]["version"] = PACKAGE_VERSION " " RELEASE;
-    /*LTS-START*/
-    #ifdef LICENSING
+/*LTS-START*/
+#ifdef LICENSING
     Response["config"]["license"] = getLicense();
-    #endif
+#endif
     /*LTS-END*/
-    //add required data to the current unix time to the config, for syncing reasons
+    // add required data to the current unix time to the config, for syncing reasons
     Response["config"]["time"] = Util::epoch();
-    if ( !Response["config"].isMember("serverid")){
-      Response["config"]["serverid"] = "";
-    }
+    if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}
   }
-  //sent any available logs and statistics
-  /// 
+  // sent any available logs and statistics
+  ///
   /// \api
   /// `"log"` responses are always sent, and cannot be requested:
   /// ~~~~~~~~~~~~~~~{.js}
@@ -911,22 +864,20 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
   ///   [
   ///     1398978357, //unix timestamp of this log message
   ///     "CONF", //shortcode indicating the type of log message
-  ///     "Starting connector: {\"connector\":\"HTTP\"}" //string containing the log message itself
+  ///     "Starting connector:{\"connector\":\"HTTP\"}" //string containing the log message itself
   ///   ],
   ///   //the above structure repeated for all logs
   /// ]
   /// ~~~~~~~~~~~~~~~
   /// It's possible to clear the stored logs by sending an empty `"clearstatlogs"` request.
-  /// 
+  ///
   if (Request.isMember("clearstatlogs") || Request.isMember("log") || !Request.isMember("minimal")){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
     if (!Request.isMember("minimal") || Request.isMember("log")){
       Response["log"] = Controller::Storage["log"];
     }
-    //clear log if requested
-    if (Request.isMember("clearstatlogs")){
-      Controller::Storage["log"].null();
-    }
+    // clear log if requested
+    if (Request.isMember("clearstatlogs")){Controller::Storage["log"].null();}
   }
   if (Request.isMember("clients")){
     if (Request["clients"].isArray()){
@@ -991,9 +942,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
 
   if (Request.isMember("stop_sessions")){
     if (Request["stop_sessions"].isArray() || Request["stop_sessions"].isObject()){
-      jsonForEach(Request["stop_sessions"], it){
-        Controller::sessions_shutdown(it);
-      }
+      jsonForEach(Request["stop_sessions"], it){Controller::sessions_shutdown(it);}
     }else{
       Controller::sessions_shutdown(Request["stop_sessions"].asStringRef());
     }
@@ -1001,9 +950,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
 
   if (Request.isMember("stop_sessid")){
     if (Request["stop_sessid"].isArray() || Request["stop_sessid"].isObject()){
-      jsonForEach(Request["stop_sessid"], it){
-        Controller::sessId_shutdown(it->asStringRef());
-      }
+      jsonForEach(Request["stop_sessid"], it){Controller::sessId_shutdown(it->asStringRef());}
     }else{
       Controller::sessId_shutdown(Request["stop_sessid"].asStringRef());
     }
@@ -1011,9 +958,7 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
 
   if (Request.isMember("stop_tag")){
     if (Request["stop_tag"].isArray() || Request["stop_tag"].isObject()){
-      jsonForEach(Request["stop_tag"], it){
-        Controller::tag_shutdown(it->asStringRef());
-      }
+      jsonForEach(Request["stop_tag"], it){Controller::tag_shutdown(it->asStringRef());}
     }else{
       Controller::tag_shutdown(Request["stop_tag"].asStringRef());
     }
@@ -1026,7 +971,6 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
       }
     }
   }
-
 
   if (Request.isMember("push_start")){
     std::string stream;
@@ -1053,29 +997,21 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     }
   }
 
-  if (Request.isMember("push_list")){
-    Controller::listPush(Response["push_list"]);
-  }
-  
+  if (Request.isMember("push_list")){Controller::listPush(Response["push_list"]);}
+
   if (Request.isMember("push_stop")){
     if (Request["push_stop"].isArray()){
-      jsonForEach(Request["push_stop"], it){
-        Controller::stopPush(it->asInt());
-      }
+      jsonForEach(Request["push_stop"], it){Controller::stopPush(it->asInt());}
     }else{
       Controller::stopPush(Request["push_stop"].asInt());
     }
   }
 
-  if (Request.isMember("push_auto_add")){
-    Controller::addPush(Request["push_auto_add"]);
-  }
+  if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"]);}
 
   if (Request.isMember("push_auto_remove")){
     if (Request["push_auto_remove"].isArray()){
-      jsonForEach(Request["push_auto_remove"], it){
-        Controller::removePush(*it);
-      }
+      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it);}
     }else{
       Controller::removePush(Request["push_auto_remove"]);
     }
@@ -1089,8 +1025,6 @@ void Controller::handleAPICommands(JSON::Value & Request, JSON::Value & Response
     Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
   }
 
-
   Controller::writeConfig();
   Controller::configChanged = false;
 }
-

@@ -2,16 +2,16 @@
 /// Holds all headers for DDVTECH Stream Container parsing/generation.
 
 #pragma once
-#include <vector>
-#include <iostream>
-#include <stdint.h> //for uint64_t
-#include <string>
-#include <deque>
-#include <set>
-#include <stdio.h> //for FILE
 #include "json.h"
 #include "socket.h"
 #include "timing.h"
+#include <deque>
+#include <iostream>
+#include <set>
+#include <stdint.h> //for uint64_t
+#include <stdio.h>  //for FILE
+#include <string>
+#include <vector>
 
 #define DTSC_INT 0x01
 #define DTSC_STR 0x02
@@ -19,187 +19,179 @@
 #define DTSC_ARR 0x0A
 #define DTSC_CON 0xFF
 
-//Increase this value every time the DTSH file format changes in an incompatible way
-//Changelog:
+// Increase this value every time the DTSH file format changes in an incompatible way
+// Changelog:
 //  Version 0-2: Undocumented changes
 //  Version 3: switched to bigMeta-style by default, Parts layout switched from 3/2/4 to 3/3/3 bytes
 //  Version 4: renamed bps to maxbps (peak bit rate) and added new value bps (average bit rate)
 #define DTSH_VERSION 4
 
-namespace DTSC {
+namespace DTSC{
 
   ///\brief This enum holds all possible datatypes for DTSC packets.
-  enum datatype {
-    AUDIO, ///< Stream Audio data
-    VIDEO, ///< Stream Video data
-    META, ///< Stream Metadata
-    PAUSEMARK, ///< Pause marker
+  enum datatype{
+    AUDIO,          ///< Stream Audio data
+    VIDEO,          ///< Stream Video data
+    META,           ///< Stream Metadata
+    PAUSEMARK,      ///< Pause marker
     MODIFIEDHEADER, ///< Modified header data.
-    INVALID ///< Anything else or no data available.
+    INVALID         ///< Anything else or no data available.
   };
 
-  extern char Magic_Header[]; ///< The magic bytes for a DTSC header
-  extern char Magic_Packet[]; ///< The magic bytes for a DTSC packet
+  extern char Magic_Header[];  ///< The magic bytes for a DTSC header
+  extern char Magic_Packet[];  ///< The magic bytes for a DTSC packet
   extern char Magic_Packet2[]; ///< The magic bytes for a DTSC packet version 2
   extern char Magic_Command[]; ///< The magic bytes for a DTCM packet
 
   ///\brief A simple structure used for ordering byte seek positions.
-  struct seekPos {
+  struct seekPos{
     ///\brief Less-than comparison for seekPos structures.
     ///\param rhs The seekPos to compare with.
     ///\return Whether this object is smaller than rhs.
-    bool operator < (const seekPos & rhs) const {
-      if (seekTime < rhs.seekTime) {
+    bool operator<(const seekPos &rhs) const{
+      if (seekTime < rhs.seekTime){
         return true;
-      } else {
-        if (seekTime == rhs.seekTime) {
-          if (trackID < rhs.trackID) {
-            return true;
-          }
+      }else{
+        if (seekTime == rhs.seekTime){
+          if (trackID < rhs.trackID){return true;}
         }
       }
       return false;
     }
-    long long unsigned int seekTime;///< Stores the timestamp of the DTSC packet referenced by this structure.
-    long long unsigned int bytePos;///< Stores the byteposition of the DTSC packet referenced by this structure.
-    unsigned int trackID;///< Stores the track the DTSC packet referenced by this structure is associated with.
+    long long unsigned int seekTime; ///< Stores the timestamp of the DTSC packet referenced by this structure.
+    long long unsigned int bytePos; ///< Stores the byteposition of the DTSC packet referenced by this structure.
+    unsigned int trackID; ///< Stores the track the DTSC packet referenced by this structure is associated with.
   };
 
-  enum packType {
-    DTSC_INVALID,
-    DTSC_HEAD,
-    DTSC_V1,
-    DTSC_V2,
-    DTCM
-  };
+  enum packType{DTSC_INVALID, DTSC_HEAD, DTSC_V1, DTSC_V2, DTCM};
 
   /// This class allows scanning through raw binary format DTSC data.
   /// It can be used as an iterator or as a direct accessor.
-  class Scan {
-    public:
-      Scan();
-      Scan(char * pointer, size_t len);
-      operator bool() const;
-      std::string toPrettyString(size_t indent = 0) const;
-      bool hasMember(const std::string & indice) const;
-      bool hasMember(const char * indice, size_t ind_len) const;
-      Scan getMember(const std::string & indice) const;
-      Scan getMember(const char * indice) const;
-      Scan getMember(const char * indice, size_t ind_len) const;
-      void nullMember(const std::string & indice);
-      void nullMember(const char * indice, size_t ind_len);
-      Scan getIndice(size_t num) const;
-      std::string getIndiceName(size_t num) const;
-      size_t getSize() const;
+  class Scan{
+  public:
+    Scan();
+    Scan(char *pointer, size_t len);
+    operator bool() const;
+    std::string toPrettyString(size_t indent = 0) const;
+    bool hasMember(const std::string &indice) const;
+    bool hasMember(const char *indice, size_t ind_len) const;
+    Scan getMember(const std::string &indice) const;
+    Scan getMember(const char *indice) const;
+    Scan getMember(const char *indice, size_t ind_len) const;
+    void nullMember(const std::string &indice);
+    void nullMember(const char *indice, size_t ind_len);
+    Scan getIndice(size_t num) const;
+    std::string getIndiceName(size_t num) const;
+    size_t getSize() const;
 
-      char getType() const;
-      bool asBool() const;
-      int64_t asInt() const;
-      std::string asString() const;
-      void getString(char *& result, size_t & len) const;
-      JSON::Value asJSON() const;
-    private:
-      char * p;
-      size_t len;
+    char getType() const;
+    bool asBool() const;
+    int64_t asInt() const;
+    std::string asString() const;
+    void getString(char *&result, size_t &len) const;
+    JSON::Value asJSON() const;
+
+  private:
+    char *p;
+    size_t len;
   };
 
   /// DTSC::Packets can currently be three types:
   /// DTSC_HEAD packets are the "DTSC" header string, followed by 4 bytes len and packed content.
   /// DTSC_V1 packets are "DTPD", followed by 4 bytes len and packed content.
-  /// DTSC_V2 packets are "DTP2", followed by 4 bytes len, 4 bytes trackID, 8 bytes time, and packed content.
-  /// The len is always without the first 8 bytes counted.
-  class Packet {
-    public:
-      Packet();
-      Packet(const Packet & rhs);
-      Packet(const char * data_, unsigned int len, bool noCopy = false);
-      virtual ~Packet();
-      void null();
-      void operator = (const Packet & rhs);
-      operator bool() const;
-      packType getVersion() const;
-      void reInit(Socket::Connection & src);
-      void reInit(const char * data_, unsigned int len, bool noCopy = false);
-      void genericFill(long long packTime, long long packOffset, long long packTrack, const char * packData, long long packDataSize, uint64_t packBytePos, bool isKeyframe, int64_t bootMsOffset = 0);
-      void appendData(const char * appendData, uint32_t appendLen);
-      void getString(const char * identifier, char *& result, size_t & len) const;
-      void getString(const char * identifier, std::string & result) const;
-      void getInt(const char * identifier, uint64_t & result) const;
-      uint64_t getInt(const char * identifier) const;
-      void getFlag(const char * identifier, bool & result) const;
-      bool getFlag(const char * identifier) const;
-      bool hasMember(const char * identifier) const;
-      void appendNal(const char * appendData, uint32_t appendLen);
-      void upgradeNal(const char * appendData, uint32_t appendLen);
-      void setKeyFrame(bool kf);
-      virtual uint64_t getTime() const;
-      void setTime(uint64_t _time);
-      void nullMember(const std::string & memb);
-      size_t getTrackId() const;
-      char * getData() const;
-      size_t getDataLen() const;
-      size_t getPayloadLen() const;
-      size_t getDataStringLen();
-      size_t getDataStringLenOffset();
-      JSON::Value toJSON() const;
-      std::string toSummary() const;
-      Scan getScan() const;
-      Scan getScan();
-    protected:
-      bool master;
-      packType version;
-      void resize(size_t size);
-      char * data;
-      size_t bufferLen;
-      size_t dataLen;
+  /// DTSC_V2 packets are "DTP2", followed by 4 bytes len, 4 bytes trackID, 8 bytes time, and packed
+  /// content. The len is always without the first 8 bytes counted.
+  class Packet{
+  public:
+    Packet();
+    Packet(const Packet &rhs);
+    Packet(const char *data_, unsigned int len, bool noCopy = false);
+    virtual ~Packet();
+    void null();
+    void operator=(const Packet &rhs);
+    operator bool() const;
+    packType getVersion() const;
+    void reInit(Socket::Connection &src);
+    void reInit(const char *data_, unsigned int len, bool noCopy = false);
+    void genericFill(long long packTime, long long packOffset, long long packTrack,
+                     const char *packData, long long packDataSize, uint64_t packBytePos,
+                     bool isKeyframe, int64_t bootMsOffset = 0);
+    void appendData(const char *appendData, uint32_t appendLen);
+    void getString(const char *identifier, char *&result, size_t &len) const;
+    void getString(const char *identifier, std::string &result) const;
+    void getInt(const char *identifier, uint64_t &result) const;
+    uint64_t getInt(const char *identifier) const;
+    void getFlag(const char *identifier, bool &result) const;
+    bool getFlag(const char *identifier) const;
+    bool hasMember(const char *identifier) const;
+    void appendNal(const char *appendData, uint32_t appendLen);
+    void upgradeNal(const char *appendData, uint32_t appendLen);
+    void setKeyFrame(bool kf);
+    virtual uint64_t getTime() const;
+    void setTime(uint64_t _time);
+    void nullMember(const std::string &memb);
+    size_t getTrackId() const;
+    char *getData() const;
+    size_t getDataLen() const;
+    size_t getPayloadLen() const;
+    size_t getDataStringLen();
+    size_t getDataStringLenOffset();
+    JSON::Value toJSON() const;
+    std::string toSummary() const;
+    Scan getScan() const;
+    Scan getScan();
 
-      uint64_t prevNalSize;
+  protected:
+    bool master;
+    packType version;
+    void resize(size_t size);
+    char *data;
+    size_t bufferLen;
+    size_t dataLen;
+
+    uint64_t prevNalSize;
   };
 
   /// A child class of DTSC::Packet, which allows overriding the packet time efficiently.
-  class RetimedPacket : public Packet {
-    public:
-      RetimedPacket(uint64_t reTime){
-        timeOverride = reTime;
-      }
-      RetimedPacket(uint64_t reTime, const Packet & rhs) : Packet(rhs){
-        timeOverride = reTime;
-      }
-      RetimedPacket(uint64_t reTime, const char * data_, unsigned int len, bool noCopy = false) : Packet(data_, len, noCopy){
-        timeOverride = reTime;
-      }
-      virtual uint64_t getTime() const{return timeOverride;}
-    protected:
-      uint64_t timeOverride;
+  class RetimedPacket : public Packet{
+  public:
+    RetimedPacket(uint64_t reTime){timeOverride = reTime;}
+    RetimedPacket(uint64_t reTime, const Packet &rhs) : Packet(rhs){timeOverride = reTime;}
+    RetimedPacket(uint64_t reTime, const char *data_, unsigned int len, bool noCopy = false)
+        : Packet(data_, len, noCopy){
+      timeOverride = reTime;
+    }
+    virtual uint64_t getTime() const{return timeOverride;}
+
+  protected:
+    uint64_t timeOverride;
   };
 
   /// A simple structure used for ordering byte seek positions.
-  struct livePos {
-    livePos() {
+  struct livePos{
+    livePos(){
       seekTime = 0;
       trackID = 0;
     }
-    livePos(const livePos & rhs) {
+    livePos(const livePos &rhs){
       seekTime = rhs.seekTime;
       trackID = rhs.trackID;
     }
-    void operator = (const livePos & rhs) {
+    void operator=(const livePos &rhs){
       seekTime = rhs.seekTime;
       trackID = rhs.trackID;
     }
-    bool operator == (const livePos & rhs) {
+    bool operator==(const livePos &rhs){
       return seekTime == rhs.seekTime && trackID == rhs.trackID;
     }
-    bool operator != (const livePos & rhs) {
+    bool operator!=(const livePos &rhs){
       return seekTime != rhs.seekTime || trackID != rhs.trackID;
     }
-    bool operator < (const livePos & rhs) const {
-      if (seekTime < rhs.seekTime) {
+    bool operator<(const livePos &rhs) const{
+      if (seekTime < rhs.seekTime){
         return true;
-      } else {
-        if (seekTime > rhs.seekTime) {
-          return false;
-        }
+      }else{
+        if (seekTime > rhs.seekTime){return false;}
       }
       return (trackID < rhs.trackID);
     }
@@ -210,261 +202,274 @@ namespace DTSC {
   /*LTS-START*/
   ///\brief Basic class supporting initialization Vectors.
   ///
-  ///These are used for encryption of data.
-  class Ivec {
-    public:
-      Ivec();
-      Ivec(long long int iVec);
-      void setIvec(long long int iVec);
-      void setIvec(std::string iVec);
-      void setIvec(const char * iVec, int len);
-      long long int asInt();
-      char * getData();
-    private:
-      ///\brief Data storage for this initialization vector.
-      ///
-      /// - 8 bytes: MSB storage of the initialization vector.
-      char data[8];
+  /// These are used for encryption of data.
+  class Ivec{
+  public:
+    Ivec();
+    Ivec(long long int iVec);
+    void setIvec(long long int iVec);
+    void setIvec(std::string iVec);
+    void setIvec(const char *iVec, int len);
+    long long int asInt();
+    char *getData();
+
+  private:
+    ///\brief Data storage for this initialization vector.
+    ///
+    /// - 8 bytes: MSB storage of the initialization vector.
+    char data[8];
   };
   /*LTS-END*/
 
   ///\brief Basic class for storage of data associated with single DTSC packets, a.k.a. parts.
-  class Part {
-    public:
-      uint32_t getSize();
-      void setSize(uint32_t newSize);
-      uint32_t getDuration();
-      void setDuration(uint32_t newDuration);
-      uint32_t getOffset();
-      void setOffset(uint32_t newOffset);
-      char * getData();
-      void toPrettyString(std::ostream & str, int indent = 0);
-    private:
+  class Part{
+  public:
+    uint32_t getSize();
+    void setSize(uint32_t newSize);
+    uint32_t getDuration();
+    void setDuration(uint32_t newDuration);
+    uint32_t getOffset();
+    void setOffset(uint32_t newOffset);
+    char *getData();
+    void toPrettyString(std::ostream &str, int indent = 0);
+
+  private:
 #define PACKED_PART_SIZE 9
-      ///\brief Data storage for this Part.
-      ///
-      /// - 3 bytes: MSB storage of the payload size of this packet in bytes.
-      /// - 3 bytes: MSB storage of the duration of this packet in milliseconds.
-      /// - 3 bytes: MSB storage of the presentation time offset of this packet in milliseconds.
-      char data[PACKED_PART_SIZE];
+    ///\brief Data storage for this Part.
+    ///
+    /// - 3 bytes: MSB storage of the payload size of this packet in bytes.
+    /// - 3 bytes: MSB storage of the duration of this packet in milliseconds.
+    /// - 3 bytes: MSB storage of the presentation time offset of this packet in milliseconds.
+    char data[PACKED_PART_SIZE];
   };
 
   ///\brief Basic class for storage of data associated with keyframes.
   ///
   /// When deleting this object, make sure to remove all DTSC::Part associated with it, if any. If you fail doing this, it *will* cause data corruption.
-  class Key {
-    public:
-      unsigned long long getBpos();
-      void setBpos(unsigned long long newBpos);
-      unsigned long getLength();
-      void setLength(unsigned long newLength);
-      unsigned long getNumber();
-      void setNumber(unsigned long newNumber);
-      unsigned short getParts();
-      void setParts(unsigned short newParts);
-      unsigned long long getTime();
-      void setTime(unsigned long long newTime);
-      char * getData();
-      void toPrettyString(std::ostream & str, int indent = 0);
-    private:
+  class Key{
+  public:
+    unsigned long long getBpos();
+    void setBpos(unsigned long long newBpos);
+    unsigned long getLength();
+    void setLength(unsigned long newLength);
+    unsigned long getNumber();
+    void setNumber(unsigned long newNumber);
+    unsigned short getParts();
+    void setParts(unsigned short newParts);
+    unsigned long long getTime();
+    void setTime(unsigned long long newTime);
+    char *getData();
+    void toPrettyString(std::ostream &str, int indent = 0);
+
+  private:
 #define PACKED_KEY_SIZE 25
-      ///\brief Data storage for this Key.
-      ///
-      /// - 8 bytes: MSB storage of the position of the first packet of this keyframe within the file.
-      /// - 3 bytes: MSB storage of the duration of this keyframe.
-      /// - 4 bytes: MSB storage of the number of this keyframe.
-      /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
-      /// - 8 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
-      char data[PACKED_KEY_SIZE];
+    ///\brief Data storage for this Key.
+    ///
+    /// - 8 bytes: MSB storage of the position of the first packet of this keyframe within the file.
+    /// - 3 bytes: MSB storage of the duration of this keyframe.
+    /// - 4 bytes: MSB storage of the number of this keyframe.
+    /// - 2 bytes: MSB storage of the amount of parts in this keyframe.
+    /// - 8 bytes: MSB storage of the timestamp associated with this keyframe's first packet.
+    char data[PACKED_KEY_SIZE];
   };
 
   ///\brief Basic class for storage of data associated with fragments.
-  class Fragment {
-    public:
-      unsigned long getDuration();
-      void setDuration(unsigned long newDuration);
-      char getLength();
-      void setLength(char newLength);
-      unsigned long getNumber();
-      void setNumber(unsigned long newNumber);
-      unsigned long getSize();
-      void setSize(unsigned long newSize);
-      char * getData();
-      void toPrettyString(std::ostream & str, int indent = 0);
-    private:
+  class Fragment{
+  public:
+    unsigned long getDuration();
+    void setDuration(unsigned long newDuration);
+    char getLength();
+    void setLength(char newLength);
+    unsigned long getNumber();
+    void setNumber(unsigned long newNumber);
+    unsigned long getSize();
+    void setSize(unsigned long newSize);
+    char *getData();
+    void toPrettyString(std::ostream &str, int indent = 0);
+
+  private:
 #define PACKED_FRAGMENT_SIZE 13
-      ///\brief Data storage for this Fragment.
-      ///
-      /// - 4 bytes: duration (in milliseconds)
-      /// - 1 byte: length (amount of keyframes)
-      /// - 4 bytes: number of first keyframe in fragment
-      /// - 4 bytes: size of fragment in bytes
-      char data[PACKED_FRAGMENT_SIZE];
+    ///\brief Data storage for this Fragment.
+    ///
+    /// - 4 bytes: duration (in milliseconds)
+    /// - 1 byte: length (amount of keyframes)
+    /// - 4 bytes: number of first keyframe in fragment
+    /// - 4 bytes: size of fragment in bytes
+    char data[PACKED_FRAGMENT_SIZE];
   };
 
   ///\brief Class for storage of track data
-  class Track {
-    public:
-      Track();      
-      Track(JSON::Value & trackRef);
-      Track(Scan & trackRef);
-      void clearParts();
-            
-      inline operator bool() const {
-        return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
-      }
-      /*
-      void update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 1900);
-      */
-      void update(long long packTime, long long packOffset, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 1900, const char * iVec = 0);
-      int getSendLen(bool skipDynamic = false);
-      void send(Socket::Connection & conn, bool skipDynamic = false);
-      void writeTo(char *& p);
-      JSON::Value toJSON(bool skipDynamic = false);
-      std::deque<Fragment> fragments;
-      std::deque<Key> keys;
-      std::deque<unsigned long> keySizes;
-      std::deque<Part> parts;
-      std::deque<Ivec> ivecs; /*LTS*/
-      Key & getKey(unsigned int keyNum);
-      Fragment & getFrag(unsigned int fragNum);
-      unsigned int timeToKeynum(unsigned int timestamp);
-      uint32_t timeToFragnum(uint64_t timestamp);
-      void reset();
-      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
-      void finalize();
-      uint32_t biggestFragment();
-      
-      std::string getIdentifier();
-      std::string getWritableIdentifier();
-      unsigned int trackID;
-      uint64_t firstms;
-      uint64_t lastms;
-      int bps;
-      int max_bps;
-      int missedFrags;
-      std::string init;
-      std::string codec;
-      std::string type;
-      std::string lang;///< ISO 639-2 Language of track, empty or und if unknown.
-      uint32_t minKeepAway;///<Time in MS to never seek closer than live point to
-      //audio only
-      int rate;
-      int size;
-      int channels;
-      //video only
-      int width;
-      int height;
-      int fpks;
-      void removeFirstKey();
-      uint32_t secsSinceFirstFragmentInsert();
-    private:
-      std::string cachedIdent;
-      std::deque<uint32_t> fragInsertTime;
+  class Track{
+  public:
+    Track();
+    Track(JSON::Value &trackRef);
+    Track(Scan &trackRef);
+    void clearParts();
+
+    inline operator bool() const{
+      return (parts.size() && keySizes.size() && (keySizes.size() == keys.size()));
+    }
+    /*
+    void update(long long packTime, long long packOffset, long long packDataSize, uint64_t
+    packBytePos, bool isKeyframe, long long packSendSize, unsigned long segment_size = 1900);
+    */
+    void update(long long packTime, long long packOffset, long long packDataSize,
+                uint64_t packBytePos, bool isKeyframe, long long packSendSize,
+                unsigned long segment_size = 1900, const char *iVec = 0);
+    int getSendLen(bool skipDynamic = false);
+    void send(Socket::Connection &conn, bool skipDynamic = false);
+    void writeTo(char *&p);
+    JSON::Value toJSON(bool skipDynamic = false);
+    std::deque<Fragment> fragments;
+    std::deque<Key> keys;
+    std::deque<unsigned long> keySizes;
+    std::deque<Part> parts;
+    std::deque<Ivec> ivecs; /*LTS*/
+    Key &getKey(unsigned int keyNum);
+    Fragment &getFrag(unsigned int fragNum);
+    unsigned int timeToKeynum(unsigned int timestamp);
+    uint32_t timeToFragnum(uint64_t timestamp);
+    void reset();
+    void toPrettyString(std::ostream &str, int indent = 0, int verbosity = 0);
+    void finalize();
+    uint32_t biggestFragment();
+
+    std::string getIdentifier();
+    std::string getWritableIdentifier();
+    unsigned int trackID;
+    uint64_t firstms;
+    uint64_t lastms;
+    int bps;
+    int max_bps;
+    int missedFrags;
+    std::string init;
+    std::string codec;
+    std::string type;
+    std::string lang;     ///< ISO 639-2 Language of track, empty or und if unknown.
+    uint32_t minKeepAway; ///< Time in MS to never seek closer than live point to
+    // audio only
+    int rate;
+    int size;
+    int channels;
+    // video only
+    int width;
+    int height;
+    int fpks;
+    void removeFirstKey();
+    uint32_t secsSinceFirstFragmentInsert();
+
+  private:
+    std::string cachedIdent;
+    std::deque<uint32_t> fragInsertTime;
   };
 
   ///\brief Class for storage of meta data
   class Meta{
-      /// \todo Make toJSON().toNetpacked() shorter
-    public:
-      Meta();
-      Meta(const DTSC::Packet & source);
-      Meta(JSON::Value & meta);
-      bool nextIsKey;
+    /// \todo Make toJSON().toNetpacked() shorter
+  public:
+    Meta();
+    Meta(const DTSC::Packet &source);
+    Meta(JSON::Value &meta);
+    bool nextIsKey;
 
-      inline operator bool() const { //returns if the object contains valid meta data BY LOOKING AT vod/live FLAGS
-        return vod || live;
-      }
-      void reinit(const DTSC::Packet & source);
-      void update(const DTSC::Packet & pack, unsigned long segment_size = 1900);
-      void updatePosOverride(DTSC::Packet & pack, uint64_t bpos);
-      void update(JSON::Value & pack, unsigned long segment_size = 1900);
-      /*LTS
-      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 1900);
-      LTS*/
-      void update(long long packTime, long long packOffset, long long packTrack, long long packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long segment_size = 1900, const char * iVec = 0);
-      unsigned int getSendLen(bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
-      void send(Socket::Connection & conn, bool skipDynamic = false, std::set<unsigned long> selectedTracks = std::set<unsigned long>());
-      void writeTo(char * p);
-      JSON::Value toJSON();
-      void reset();
-      bool toFile(const std::string & fileName);
-      void toPrettyString(std::ostream & str, int indent = 0, int verbosity = 0);
-      //members:
-      std::map<unsigned int, Track> tracks;
-      Track & mainTrack();
-      uint32_t biggestFragment();
-      bool vod;
-      bool live;
-      bool merged;
-      uint16_t version;
-      int64_t moreheader;
-      int64_t bufferWindow;
-      int64_t bootMsOffset;///< Millis to add to packet timestamps to get millis since system boot.
-      std::string sourceURI;
-      JSON::Value inputLocalVars;
+    inline operator bool() const{// returns if the object contains valid meta data BY LOOKING AT vod/live FLAGS
+      return vod || live;
+    }
+    void reinit(const DTSC::Packet &source);
+    void update(const DTSC::Packet &pack, unsigned long segment_size = 1900);
+    void updatePosOverride(DTSC::Packet &pack, uint64_t bpos);
+    void update(JSON::Value &pack, unsigned long segment_size = 1900);
+    /*LTS
+    void update(long long packTime, long long packOffset, long long packTrack, long long
+    packDataSize, uint64_t packBytePos, bool isKeyframe, long long packSendSize = 0, unsigned long
+    segment_size = 1900); LTS*/
+    void update(long long packTime, long long packOffset, long long packTrack,
+                long long packDataSize, uint64_t packBytePos, bool isKeyframe,
+                long long packSendSize = 0, unsigned long segment_size = 1900, const char *iVec = 0);
+    unsigned int getSendLen(bool skipDynamic = false,
+                            std::set<unsigned long> selectedTracks = std::set<unsigned long>());
+    void send(Socket::Connection &conn, bool skipDynamic = false,
+              std::set<unsigned long> selectedTracks = std::set<unsigned long>());
+    void writeTo(char *p);
+    JSON::Value toJSON();
+    void reset();
+    bool toFile(const std::string &fileName);
+    void toPrettyString(std::ostream &str, int indent = 0, int verbosity = 0);
+    // members:
+    std::map<unsigned int, Track> tracks;
+    Track &mainTrack();
+    uint32_t biggestFragment();
+    bool vod;
+    bool live;
+    bool merged;
+    uint16_t version;
+    int64_t moreheader;
+    int64_t bufferWindow;
+    int64_t bootMsOffset; ///< Millis to add to packet timestamps to get millis since system boot.
+    std::string sourceURI;
+    JSON::Value inputLocalVars;
   };
 
   /// An iterator helper for easily iterating over the parts in a Fragment.
-  class PartIter {
-    public:
-      PartIter(Track & Trk, Fragment & frag);
-      Part & operator*() const;///< Dereferences into a Value reference.
-      Part* operator->() const;///< Dereferences into a Value reference.
-      operator bool() const;///< True if not done iterating.
-      PartIter & operator++();///<Go to next iteration.
-    private:
-      uint32_t lastKey;
-      uint32_t currInKey;
-      Track * tRef;
-      std::deque<Part>::iterator pIt;
-      std::deque<Key>::iterator kIt;
+  class PartIter{
+  public:
+    PartIter(Track &Trk, Fragment &frag);
+    Part &operator*() const;  ///< Dereferences into a Value reference.
+    Part *operator->() const; ///< Dereferences into a Value reference.
+    operator bool() const;    ///< True if not done iterating.
+    PartIter &operator++();   ///< Go to next iteration.
+  private:
+    uint32_t lastKey;
+    uint32_t currInKey;
+    Track *tRef;
+    std::deque<Part>::iterator pIt;
+    std::deque<Key>::iterator kIt;
   };
 
   /// A simple wrapper class that will open a file and allow easy reading/writing of DTSC data from/to it.
-  class File {
-    public:
-      File();
-      File(const File & rhs);
-      File(std::string filename, bool create = false);
-      File & operator = (const File & rhs);
-      operator bool() const;
-      ~File();
-      Meta & getMeta();
-      long long int getLastReadPos();
-      bool writeHeader(std::string & header, bool force = false);
-      long long int addHeader(std::string & header);
-      long int getBytePosEOF();
-      long int getBytePos();
-      bool reachedEOF();
-      void seekNext();
-      void parseNext();
-      DTSC::Packet & getPacket();
-      bool seek_time(unsigned int ms);
-      bool seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek = false);
-      bool seek_bpos(int bpos);
-      void rewritePacket(std::string & newPacket, int bytePos);
-      void writePacket(std::string & newPacket);
-      void writePacket(JSON::Value & newPacket);
-      bool atKeyframe();
-      void selectTracks(std::set<unsigned long> & tracks);
-    private:
-      long int endPos;
-      void readHeader(int pos);
-      DTSC::Packet myPack;
-      Meta metadata;
-      std::map<unsigned int, std::string> trackMapping;
-      long long int currtime;
-      long long int lastreadpos;
-      int currframe;
-      FILE * F;
-      unsigned long headerSize;
-      void * buffer;
-      bool created;
-      std::set<seekPos> currentPositions;
-      std::set<unsigned long> selectedTracks;
+  class File{
+  public:
+    File();
+    File(const File &rhs);
+    File(std::string filename, bool create = false);
+    File &operator=(const File &rhs);
+    operator bool() const;
+    ~File();
+    Meta &getMeta();
+    long long int getLastReadPos();
+    bool writeHeader(std::string &header, bool force = false);
+    long long int addHeader(std::string &header);
+    long int getBytePosEOF();
+    long int getBytePos();
+    bool reachedEOF();
+    void seekNext();
+    void parseNext();
+    DTSC::Packet &getPacket();
+    bool seek_time(unsigned int ms);
+    bool seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek = false);
+    bool seek_bpos(int bpos);
+    void rewritePacket(std::string &newPacket, int bytePos);
+    void writePacket(std::string &newPacket);
+    void writePacket(JSON::Value &newPacket);
+    bool atKeyframe();
+    void selectTracks(std::set<unsigned long> &tracks);
+
+  private:
+    long int endPos;
+    void readHeader(int pos);
+    DTSC::Packet myPack;
+    Meta metadata;
+    std::map<unsigned int, std::string> trackMapping;
+    long long int currtime;
+    long long int lastreadpos;
+    int currframe;
+    FILE *F;
+    unsigned long headerSize;
+    void *buffer;
+    bool created;
+    std::set<seekPos> currentPositions;
+    std::set<unsigned long> selectedTracks;
   };
-  //FileWriter
+  // FileWriter
 
-}
-
+}// namespace DTSC

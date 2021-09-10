@@ -34,7 +34,7 @@ static const char *addrFam(int f){
 }
 
 /// Calls gai_strerror with the given argument, calling regular strerror on the global errno as needed
-static const char * gai_strmagic(int errcode){
+static const char *gai_strmagic(int errcode){
   if (errcode == EAI_SYSTEM){
     return strerror(errno);
   }else{
@@ -272,12 +272,10 @@ std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, 
 
 /// Gets bound host and port for a socket and returns them by reference.
 /// Returns true on success and false on failure.
-bool Socket::getSocketName(int fd, std::string & host, uint32_t & port){
+bool Socket::getSocketName(int fd, std::string &host, uint32_t &port){
   struct sockaddr_in6 tmpaddr;
   socklen_t len = sizeof(tmpaddr);
-  if (getsockname(fd, (sockaddr *)&tmpaddr, &len)){
-    return false;
-  }
+  if (getsockname(fd, (sockaddr *)&tmpaddr, &len)){return false;}
   static char addrconv[INET6_ADDRSTRLEN];
   if (tmpaddr.sin6_family == AF_INET6){
     host = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
@@ -480,18 +478,18 @@ void Socket::Buffer::clear(){
 }
 
 void Socket::Connection::setBoundAddr(){
-  //If a bound address was set through environment (e.g. HTTPS output), restore it from there.
-  char * envbound = getenv("MIST_BOUND_ADDR");
+  // If a bound address was set through environment (e.g. HTTPS output), restore it from there.
+  char *envbound = getenv("MIST_BOUND_ADDR");
   if (envbound){
     boundaddr = envbound;
     return;
   }
-  //If we can't read the address, don't try
+  // If we can't read the address, don't try
   if (!isTrueSocket){
     boundaddr = "";
     return;
   }
-  //Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
+  // Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
   uint32_t boundport = 0;
   getSocketName(getSocket(), boundaddr, boundport);
 }
@@ -1184,9 +1182,7 @@ void Socket::Connection::setHost(std::string host){
   hints.ai_next = NULL;
   int s = getaddrinfo(host.c_str(), 0, &hints, &result);
   if (s != 0){return;}
-  if (result){
-    memcpy(&remoteaddr, result->ai_addr, result->ai_addrlen);
-  }
+  if (result){memcpy(&remoteaddr, result->ai_addr, result->ai_addrlen);}
   freeaddrinfo(result);
 }
 

@@ -1,5 +1,5 @@
-#include "analyser_ts.h"
 #include "analyser.h"
+#include "analyser_ts.h"
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -50,8 +50,7 @@ bool AnalyserTS::parsePacket(){
   bytes += 188;
   if (!packet.FromPointer(packetPtr)){return false;}
   if (detail){
-    if (packet.getUnitStart() && payloads.count(packet.getPID()) &&
-        payloads[packet.getPID()] != ""){
+    if (packet.getUnitStart() && payloads.count(packet.getPID()) && payloads[packet.getPID()] != ""){
       if ((detail & 1) && (!pidOnly || packet.getPID() == pidOnly)){
         std::cout << printPES(payloads[packet.getPID()], packet.getPID());
       }
@@ -75,8 +74,7 @@ bool AnalyserTS::parsePacket(){
 }
 
 AnalyserTS::~AnalyserTS(){
-  for (std::map<unsigned long long, std::string>::iterator it = payloads.begin();
-       it != payloads.end(); it++){
+  for (std::map<unsigned long long, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
     if ((detail & 1) && (!pidOnly || it->first == pidOnly)){
       std::cout << printPES(it->second, it->first);
     }
@@ -98,8 +96,7 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
   }
   if (!known){res << " [Unknown stream ID: " << (int)d[3] << "]";}
   if (d[0] != 0 || d[1] != 0 || d[2] != 1){
-    res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2]
-        << " ]";
+    res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] << " ]";
   }
   unsigned int padding = 0;
   if (known){
@@ -164,7 +161,8 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
     }
   }
   if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){
-    res << " [Size " << (((int)d[4]) << 8 | d[5]) + 6 << " => " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
+    res << " [Size " << (((int)d[4]) << 8 | d[5]) + 6 << " => " << (d.size()) << "] [Payload "
+        << (d.size() - 9 - headSize) << "]";
   }else{
     res << " [Size " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
   }
@@ -185,4 +183,3 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
   }
   return res.str();
 }
-

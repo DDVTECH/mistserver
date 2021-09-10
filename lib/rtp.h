@@ -33,8 +33,8 @@ namespace RTP{
   class Packet{
   private:
     bool managed;
-    char *data;           ///< The actual RTP packet that is being sent
-    uint32_t maxDataLen;  ///< Amount of reserved bytes for the packet(s)
+    char *data;          ///< The actual RTP packet that is being sent
+    uint32_t maxDataLen; ///< Amount of reserved bytes for the packet(s)
     int sentPackets;
     int sentBytes; // Because ugly is beautiful
   public:
@@ -65,25 +65,22 @@ namespace RTP{
     void sendMPEG2(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
                    const char *payload, unsigned int payloadlen, unsigned int channel);
     void sendData(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                  const char *payload, unsigned int payloadlen, unsigned int channel,
-                  std::string codec);
+                  const char *payload, unsigned int payloadlen, unsigned int channel, std::string codec);
     void sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
                      void callBack(void *, char *, unsigned int, unsigned int));
     void sendRTCP_RR(long long &connectedAt, SDP::Track &sTrk, unsigned int tid,
-                     DTSC::Meta &metadata,
-                     void callBack(void *, char *, unsigned int, unsigned int));
+                     DTSC::Meta &metadata, void callBack(void *, char *, unsigned int, unsigned int));
 
     Packet();
-    Packet(unsigned int pt, unsigned int seq, unsigned int ts, unsigned int ssr,
-           unsigned int csrcCount = 0);
+    Packet(unsigned int pt, unsigned int seq, unsigned int ts, unsigned int ssr, unsigned int csrcCount = 0);
     Packet(const Packet &o);
     void operator=(const Packet &o);
     ~Packet();
     Packet(const char *dat, unsigned int len);
     char *getData();
-    char *ptr() const { return data; }
+    char *ptr() const{return data;}
   };
-  
+
   /// Sorts RTP packets, outputting them through a callback in correct order.
   /// Also keeps track of statistics, which it expects to be read/reset externally (for now).
   /// Optionally can be inherited from with the outPacket function overridden to not use a callback.
@@ -173,13 +170,10 @@ namespace RTP{
     void handleH264Multi(uint64_t ts, char *buffer, const uint32_t len);
     std::string spsData; ///< SPS for H264
     std::string ppsData; ///< PPS for H264
-    void handleVP8(uint64_t msTime, const char *buffer, const uint32_t len, bool missed,
-                   bool hasPadding);
-    Util::ResizeablePointer
-        vp8FrameBuffer; ///< Stores successive VP8 payload data. We always start with the first
-                        ///< partition; but we might be missing other partitions when they were
-                        ///< lost. (a partition is basically what's called a slice in H264).
+    void handleVP8(uint64_t msTime, const char *buffer, const uint32_t len, bool missed, bool hasPadding);
+    Util::ResizeablePointer vp8FrameBuffer; ///< Stores successive VP8 payload data. We always start with the first
+                                            ///< partition; but we might be missing other partitions when they were
+                                            ///< lost. (a partition is basically what's called a slice in H264).
     bool vp8BufferHasKeyframe;
   };
 }// namespace RTP
-

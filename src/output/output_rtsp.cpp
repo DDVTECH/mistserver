@@ -16,7 +16,9 @@ namespace Mist{
 
   /// Helper functions for passing packets into the OutRTSP class
   void insertPacket(const DTSC::Packet &pkt){classPointer->incomingPacket(pkt);}
-  void insertRTP(const uint64_t track, const RTP::Packet &p){classPointer->incomingRTP(track, p);}
+  void insertRTP(const uint64_t track, const RTP::Packet &p){
+    classPointer->incomingRTP(track, p);
+  }
 
   /// Takes incoming packets and buffers them.
   void OutRTSP::incomingPacket(const DTSC::Packet &pkt){
@@ -31,14 +33,17 @@ namespace Mist{
     }
     /// \TODO Make this less inefficient. Seriously. Maybe use DTSC::RetimedPacket by extending with bmo functionality...?
     static DTSC::Packet newPkt;
-    char * pktData;
+    char *pktData;
     size_t pktDataLen;
     pkt.getString("data", pktData, pktDataLen);
-    newPkt.genericFill(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(), pktData, pktDataLen, 0, pkt.getFlag("keyframe"), bootMsOffset);
+    newPkt.genericFill(pkt.getTime() + packetOffset, pkt.getInt("offset"), pkt.getTrackId(),
+                       pktData, pktDataLen, 0, pkt.getFlag("keyframe"), bootMsOffset);
     bufferLivePacket(newPkt);
-    //bufferLivePacket(DTSC::RetimedPacket(pkt.getTime() + packetOffset, pkt));
+    // bufferLivePacket(DTSC::RetimedPacket(pkt.getTime() + packetOffset, pkt));
   }
-  void OutRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){sdpState.handleIncomingRTP(track, p);}
+  void OutRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){
+    sdpState.handleIncomingRTP(track, p);
+  }
 
   OutRTSP::OutRTSP(Socket::Connection &myConn) : Output(myConn){
     connectedAt = Util::epoch() + 2208988800ll;
@@ -149,8 +154,7 @@ namespace Mist{
       callBack = sendUDP;
       if (Util::epoch() / 5 != sdpState.tracks[tid].rtcpSent){
         sdpState.tracks[tid].rtcpSent = Util::epoch() / 5;
-        sdpState.tracks[tid].pack.sendRTCP_SR(connectedAt, &sdpState.tracks[tid].rtcp, tid, myMeta,
-                                           sendUDP);
+        sdpState.tracks[tid].pack.sendRTCP_SR(connectedAt, &sdpState.tracks[tid].rtcp, tid, myMeta, sendUDP);
       }
     }else{
       socket = &myConn;
@@ -158,7 +162,7 @@ namespace Mist{
     }
 
     uint64_t offset = thisPacket.getInt("offset");
-    sdpState.tracks[tid].pack.setTimestamp((timestamp+offset) * SDP::getMultiplier(myMeta.tracks[tid]));
+    sdpState.tracks[tid].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(myMeta.tracks[tid]));
     sdpState.tracks[tid].pack.sendData(socket, callBack, dataPointer, dataLen,
                                        sdpState.tracks[tid].channel, myMeta.tracks[tid].codec);
   }
@@ -175,8 +179,7 @@ namespace Mist{
     while ((!expectTCP || handleTCP()) && HTTP_R.Read(myConn)){
       // cancel broken URLs
       if (HTTP_R.url.size() < 8){
-        WARN_MSG("Invalid data found in RTSP input around ~%llub - disconnecting!",
-                 myConn.dataDown());
+        WARN_MSG("Invalid data found in RTSP input around ~%llub - disconnecting!", myConn.dataDown());
         myConn.close();
         break;
       }
@@ -195,18 +198,17 @@ namespace Mist{
         Util::sanitizeName(streamName);
       }
       if (streamName.size()){
-        HTTP_S.SetHeader("Session",
-                         Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) + "_" +
-                             streamName);
+        HTTP_S.SetHeader("Session", Secure::md5(HTTP_S.GetHeader("User-Agent") + getConnectedHost()) +
+                                        "_" + streamName);
       }
 
-      //allow setting of max lead time through buffer variable.
-      //max lead time is set in MS, but the variable is in integer seconds for simplicity.
+      // allow setting of max lead time through buffer variable.
+      // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (HTTP_R.GetVar("buffer") != ""){
         maxSkipAhead = JSON::Value(HTTP_R.GetVar("buffer")).asInt() * 1000;
       }
-      //allow setting of play back rate through buffer variable.
-      //play back rate is set in MS per second, but the variable is a simple multiplier.
+      // allow setting of play back rate through buffer variable.
+      // play back rate is set in MS per second, but the variable is a simple multiplier.
       if (HTTP_R.GetVar("rate") != ""){
         double multiplier = atof(HTTP_R.GetVar("rate").c_str());
         if (multiplier){
@@ -257,13 +259,16 @@ namespace Mist{
         std::stringstream transportString;
         transportString << "v=0\r\n"
                            "o=- "
-                        << Util::getMS() << " 1 IN IP4 127.0.0.1\r\n"
-                                            "s="
-                        << streamName << "\r\n"
-                                         "c=IN IP4 0.0.0.0\r\n"
-                                         "i="
-                        << streamName << "\r\n"
-                                         "u="
+                        << Util::getMS()
+                        << " 1 IN IP4 127.0.0.1\r\n"
+                           "s="
+                        << streamName
+                        << "\r\n"
+                           "c=IN IP4 0.0.0.0\r\n"
+                           "i="
+                        << streamName
+                        << "\r\n"
+                           "u="
                         << HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) << "/" << streamName
                         << "\r\n"
                            "t=0 0\r\n"
@@ -283,8 +288,7 @@ namespace Mist{
         }
         transportString << "\r\n";
         HIGH_MSG("Reply: %s", transportString.str().c_str());
-        HTTP_S.SetHeader("Content-Base",
-                         HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) + "/" + streamName);
+        HTTP_S.SetHeader("Content-Base", HTTP_R.url.substr(0, HTTP_R.url.rfind('/')) + "/" + streamName);
         HTTP_S.SetHeader("Content-Type", "application/sdp");
         HTTP_S.SetBody(transportString.str());
         HTTP_S.SendResponse("200", "OK", myConn);
@@ -435,9 +439,7 @@ namespace Mist{
         lastRecv = Util::epoch(); // prevent disconnect of idle TCP connection when using UDP
         myConn.addDown(s.data_len);
         RTP::Packet pack(s.data, s.data_len);
-        if (!it->second.theirSSRC){
-          it->second.theirSSRC = pack.getSSRC();
-        }
+        if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }
       if (selectedTracks.count(it->first) && Util::epoch() / 5 != it->second.rtcpSent){
@@ -446,5 +448,4 @@ namespace Mist{
       }
     }
   }
-}
-
+}// namespace Mist

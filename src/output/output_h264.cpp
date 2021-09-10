@@ -1,12 +1,10 @@
 #include "output_h264.h"
-#include <mist/mp4_generic.h>
 #include <mist/bitfields.h>
+#include <mist/mp4_generic.h>
 
 namespace Mist{
   OutH264::OutH264(Socket::Connection &conn) : HTTPOutput(conn){
-    if (targetParams.count("keysonly")){
-      keysOnly = 1;
-    }
+    if (targetParams.count("keysonly")){keysOnly = 1;}
     if (config->getString("target").size()){
       if (!streamName.size()){
         WARN_MSG("Recording unconnected H264 output to file! Cancelled.");
@@ -22,7 +20,8 @@ namespace Mist{
       if (connectToFile(config->getString("target"))){
         parseData = true;
         wantRequest = false;
-        INFO_MSG("Recording %s to %s in H264 format", streamName.c_str(), config->getString("target").c_str());
+        INFO_MSG("Recording %s to %s in H264 format", streamName.c_str(),
+                 config->getString("target").c_str());
       }else{
         conn.close();
       }
@@ -56,10 +55,10 @@ namespace Mist{
 
     unsigned int i = 0;
     while (i + 4 < len){
-      uint32_t ThisNaluSize = Bit::btohl(dataPointer+i);
+      uint32_t ThisNaluSize = Bit::btohl(dataPointer + i);
       myConn.SendNow("\000\000\000\001", 4);
       myConn.SendNow(dataPointer + i + 4, ThisNaluSize);
-      i += ThisNaluSize+4;
+      i += ThisNaluSize + 4;
     }
   }
 
@@ -75,7 +74,7 @@ namespace Mist{
 
   void OutH264::onHTTP(){
     std::string method = H.method;
-    //Set mode to key frames only
+    // Set mode to key frames only
     keysOnly = (H.GetVar("keysonly") != "");
     H.Clean();
     H.SetHeader("Content-Type", "video/H264");
@@ -89,5 +88,4 @@ namespace Mist{
     parseData = true;
     wantRequest = false;
   }
-}
-
+}// namespace Mist

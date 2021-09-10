@@ -37,22 +37,22 @@ namespace Mist{
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
 
-    //PCM must be converted to little-endian if > 8 bits per sample
+    // PCM must be converted to little-endian if > 8 bits per sample
     static Util::ResizeablePointer swappy;
-    DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
+    DTSC::Track &trk = myMeta.tracks[thisPacket.getTrackId()];
     if (trk.codec == "PCM"){
       if (trk.size > 8 && swappy.allocate(len)){
         if (trk.size == 16){
-          for (uint32_t i = 0; i < len; i+=2){
-            swappy[i] = dataPointer[i+1];
-            swappy[i+1] = dataPointer[i];
+          for (uint32_t i = 0; i < len; i += 2){
+            swappy[i] = dataPointer[i + 1];
+            swappy[i + 1] = dataPointer[i];
           }
         }
         if (trk.size == 24){
-          for (uint32_t i = 0; i < len; i+=3){
-            swappy[i] = dataPointer[i+2];
-            swappy[i+1] = dataPointer[i+1];
-            swappy[i+2] = dataPointer[i];
+          for (uint32_t i = 0; i < len; i += 3){
+            swappy[i] = dataPointer[i + 2];
+            swappy[i + 1] = dataPointer[i + 1];
+            swappy[i + 2] = dataPointer[i];
           }
         }
         dataPointer = swappy;
@@ -78,8 +78,7 @@ namespace Mist{
     uint32_t total_data = 0xFFFFFFFFul - 80;
     if (!myMeta.live){
       total_data = 0;
-      for (std::deque<unsigned long>::iterator it = Trk.keySizes.begin(); it != Trk.keySizes.end();
-           ++it){
+      for (std::deque<unsigned long>::iterator it = Trk.keySizes.begin(); it != Trk.keySizes.end(); ++it){
         total_data += *it;
       }
     }
@@ -95,7 +94,7 @@ namespace Mist{
     myConn.SendNow(RIFF::fmt::generate(fmt, Trk.channels, Trk.rate, Trk.bps,
                                        Trk.channels * (Trk.size << 3), Trk.size));
     // Send sample count per channel
-    if (fmt != 1){//Not required for PCM
+    if (fmt != 1){// Not required for PCM
       if (!myMeta.live){
         myConn.SendNow(RIFF::fact::generate(((Trk.lastms - Trk.firstms) * Trk.rate) / 1000));
       }else{
@@ -127,5 +126,4 @@ namespace Mist{
     parseData = true;
     wantRequest = false;
   }
-}
-
+}// namespace Mist

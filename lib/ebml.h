@@ -121,4 +121,3 @@ namespace EBML{
     virtual std::string toPrettyString(const uint8_t indent = 0, const uint8_t detail = 3) const;
   };
 }// namespace EBML
-

@@ -1,35 +1,37 @@
 /// \page triggers Triggers
 /// \brief Listing of all available triggers and their payloads.
-/// MistServer reports certain occurances as configurable triggers to a URL or executable. This page describes the triggers system in full.
+/// MistServer reports certain occurances as configurable triggers to a URL or executable. This page
+/// describes the triggers system in full.
 ///
-/// Triggers are the preferred way of responding to server events. Each trigger has a name and a payload, and may be stream-specific or global.
+/// Triggers are the preferred way of responding to server events. Each trigger has a name and a
+/// payload, and may be stream-specific or global.
 ///
-/// Triggers may be handled by a URL or an executable. If the handler contains ://, a HTTP URL is assumed. Otherwise, an executable is assumed.
-/// If handled by an URL, a POST request is sent to the URL with an extra X-Trigger header containing the trigger name and the payload as the
-/// POST body.
-/// If handled by an executable, it's started with the trigger name as its only argument, and the payload is piped into the executable over
-/// standard input.
+/// Triggers may be handled by a URL or an executable. If the handler contains ://, a HTTP URL is
+/// assumed. Otherwise, an executable is assumed. If handled by an URL, a POST request is sent to
+/// the URL with an extra X-Trigger header containing the trigger name and the payload as the POST
+/// body. If handled by an executable, it's started with the trigger name as its only argument, and
+/// the payload is piped into the executable over standard input.
 ///
-/// Currently, all triggers are handled asynchronously and responses (if any) are completely ignored. In the future this may change.
+/// Currently, all triggers are handled asynchronously and responses (if any) are completely
+/// ignored. In the future this may change.
 ///
 
-#include "triggers.h"
-#include "bitfields.h"   //for strToBool
-#include "defines.h"     //for FAIL_MSG and INFO_MSG
+#include "bitfields.h"  //for strToBool
+#include "defines.h"    //for FAIL_MSG and INFO_MSG
 #include "downloader.h" //for sending http request
-#include "procs.h"       //for StartPiped
+#include "procs.h"      //for StartPiped
 #include "shared_memory.h"
-#include "util.h"
 #include "timing.h"
+#include "triggers.h"
+#include "util.h"
 #include <string.h> //for strncmp
 
 namespace Triggers{
 
-
   static void submitTriggerStat(const std::string trigger, uint64_t millis, bool ok){
     JSON::Value j;
     j["trigger_stat"]["name"] = trigger;
-    j["trigger_stat"]["ms"] = Util::bootMS()-millis;
+    j["trigger_stat"]["ms"] = Util::bootMS() - millis;
     j["trigger_stat"]["ok"] = ok;
     Socket::UDPConnection uSock;
     uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
@@ -42,7 +44,8 @@ namespace Triggers{
   ///\param payload This data will be sent to the destionation URL/program
   ///\param sync If true, handler is executed blocking and uses the response data.
   ///\returns String, false if further processing should be aborted.
-  std::string handleTrigger(const std::string &trigger, const std::string &value, const std::string &payload, int sync, const std::string &defaultResponse){
+  std::string handleTrigger(const std::string &trigger, const std::string &value,
+                            const std::string &payload, int sync, const std::string &defaultResponse){
     uint64_t tStartMs = Util::bootMS();
     if (!value.size()){
       WARN_MSG("Trigger requested with empty destination");
@@ -58,7 +61,8 @@ namespace Triggers{
         submitTriggerStat(trigger, tStartMs, true);
         return DL.data();
       }
-      FAIL_MSG("Trigger failed to execute (%s), using default response: %s", DL.getStatusText().c_str(), defaultResponse.c_str());
+      FAIL_MSG("Trigger failed to execute (%s), using default response: %s",
+               DL.getStatusText().c_str(), defaultResponse.c_str());
       submitTriggerStat(trigger, tStartMs, false);
       return defaultResponse;
     }else{// send payload to stdin of newly forked process
@@ -90,9 +94,7 @@ namespace Triggers{
           Util::sleep(100);
           ++counter;
           if (counter >= 150){
-            if (counter == 150){
-              FAIL_MSG("Trigger taking too long - killing process");
-            }
+            if (counter == 150){FAIL_MSG("Trigger taking too long - killing process");}
             if (counter >= 250){
               Util::Procs::Stop(myProc);
             }else{
@@ -104,7 +106,9 @@ namespace Triggers{
         FILE *outFile = fdopen(fdOut, "r");
         char *fileBuf = 0;
         size_t fileBufLen = 0;
-        while (!(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){ret += fileBuf;}
+        while (!(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)){
+          ret += fileBuf;
+        }
         fclose(outFile);
         free(fileBuf);
         close(fdOut);
@@ -124,14 +128,14 @@ namespace Triggers{
 
   static std::string usually_empty;
 
-  ///\brief returns true if a trigger of the specified type should be handled for a specified stream (, or entire server)
-  ///\param type Trigger event type.
-  ///\param streamName the stream to be handled
+  ///\brief returns true if a trigger of the specified type should be handled for a specified stream
+  ///(, or entire server) \param type Trigger event type. \param streamName the stream to be handled
   ///\return returns true if so
   /// calls doTrigger with dryRun set to true
   /// returns true if a trigger of the specified type should be
   /// handled for a specified stream (, or entire server)
-  bool shouldTrigger(const std::string & type, const std::string & streamName, bool paramsCB(const char *, const void *), const void * extraParam){
+  bool shouldTrigger(const std::string &type, const std::string &streamName,
+                     bool paramsCB(const char *, const void *), const void *extraParam){
     usually_empty.clear();
     return doTrigger(type, empty, streamName, true, usually_empty, paramsCB, extraParam);
   }
@@ -142,7 +146,7 @@ namespace Triggers{
   ///\param streamName The name of a stream.
   ///\returns Boolean, false if further processing should be aborted.
   /// calls doTrigger with dryRun set to false
-  bool doTrigger(const std::string & type, const std::string &payload, const std::string &streamName){
+  bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName){
     usually_empty.clear();
     return doTrigger(type, payload, streamName, false, usually_empty);
   }
@@ -158,11 +162,13 @@ namespace Triggers{
   /// defined for that trigger event type.
   /// The function can be used for two separate purposes, determined by the value of dryRun
   ///-if this function is called with dryRun==true (for example, from a handleTrigger function), the return value will be true, if at least one
-  ///trigger should be handled for the requested type/stream.
+  /// trigger should be handled for the requested type/stream.
   /// this can be used to make sure a payload is only generated if at least one trigger should be handled.
   ///-if this function is called with dryRun==false (for example, from one of the overloaded doTrigger functions), handleTrigger is called for
-  ///all configured triggers. In that case, the return value does not matter, it will probably be false in all cases.
-  bool doTrigger(const std::string & type, const std::string &payload, const std::string &streamName, bool dryRun, std::string &response, bool paramsCB(const char *, const void *), const void * extraParam){
+  /// all configured triggers. In that case, the return value does not matter, it will probably be false in all cases.
+  bool doTrigger(const std::string &type, const std::string &payload, const std::string &streamName,
+                 bool dryRun, std::string &response, bool paramsCB(const char *, const void *),
+                 const void *extraParam){
     // open SHM page for this type:
     char thisPageName[NAME_BUFFER_SIZE];
     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRIGGER, type.c_str());
@@ -184,23 +190,22 @@ namespace Triggers{
       std::string uri = std::string(trigs.getPointer("url", i));
       uint8_t sync = trigs.getInt("sync", i);
 
-      char * strPtr = trigs.getPointer("streams", i);
+      char *strPtr = trigs.getPointer("streams", i);
       uint32_t pLen = trigs.getSize("streams");
       uint32_t bPos = 0;
 
       bool isHandled = !streamName.size();
       while (bPos + 4 < pLen){
-        uint32_t stringLen = ((unsigned int *)(strPtr+bPos))[0];
+        uint32_t stringLen = ((unsigned int *)(strPtr + bPos))[0];
         if (bPos + 4 + stringLen > pLen || !stringLen){break;}
-        if ((streamName.size() == stringLen || splitter == stringLen) && strncmp(strPtr+bPos+4, streamName.data(), stringLen) == 0){
+        if ((streamName.size() == stringLen || splitter == stringLen) &&
+            strncmp(strPtr + bPos + 4, streamName.data(), stringLen) == 0){
           isHandled = true;
         }
         bPos += stringLen + 4;
       }
       // no streams explicitly defined for this trigger, return true for all streams.
-      if (bPos <= 4){
-        isHandled = true;
-      }
+      if (bPos <= 4){isHandled = true;}
 
       if (isHandled && paramsCB){
         isHandled = paramsCB(trigs.getPointer("params", i), extraParam);
@@ -227,5 +232,4 @@ namespace Triggers{
       return retVal;
     }
   }
-}
-
+}// namespace Triggers

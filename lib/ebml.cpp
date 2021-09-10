@@ -1,6 +1,6 @@
-#include "ebml.h"
 #include "bitfields.h"
 #include "defines.h"
+#include "ebml.h"
 #include <iomanip>
 #include <sstream>
 
@@ -380,8 +380,7 @@ namespace EBML{
     switch (getType()){
     case ELEM_MASTER:{
       const uint64_t payLen = getPayloadLen();
-      ret << std::string(indent, ' ') << "Element [" << getIDString(getID()) << "] ("
-          << getOuterLen() << "b, ";
+      ret << std::string(indent, ' ') << "Element [" << getIDString(getID()) << "] (" << getOuterLen() << "b, ";
       if (payLen == 0xFFFFFFFFFFFFFFFFull){
         ret << "infinite";
       }else{
@@ -639,9 +638,8 @@ namespace EBML{
 
   std::string Block::toPrettyString(const uint8_t indent, const uint8_t detail) const{
     std::stringstream ret;
-    ret << std::string(indent, ' ') << getIDString(getID()) << " with "
-        << (unsigned int)getFrameCount() << " frame(s) for track " << getTrackNum() << " @ "
-        << getTimecode();
+    ret << std::string(indent, ' ') << getIDString(getID()) << " with " << (unsigned int)getFrameCount()
+        << " frame(s) for track " << getTrackNum() << " @ " << getTimecode();
     if (isKeyframe()){ret << " [KeyOnly]";}
     if (isInvisible()){ret << " [Invisible]";}
     if (isDiscardable()){ret << " [Discardable]";}
@@ -656,8 +654,7 @@ namespace EBML{
       for (uint32_t frameNo = 0; frameNo < getFrameCount(); ++frameNo){
         const char *payDat = getFrameData(frameNo);
         const uint64_t payLen = getFrameSize(frameNo);
-        ret << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo + 1) << " ("
-            << payLen << "b):";
+        ret << std::dec << std::string(indent + 4, ' ') << "Frame " << (frameNo + 1) << " (" << payLen << "b):";
         if (!payDat || !payLen || detail < 6){
           ret << std::endl;
           continue;
@@ -683,4 +680,3 @@ namespace EBML{
     return ret.str();
   }
 }// namespace EBML
-

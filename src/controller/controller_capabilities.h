@@ -6,4 +6,3 @@ namespace Controller{
   void checkAvailProtocols();
   void checkAvailTriggers(); /*LTS*/
 }// namespace Controller
-

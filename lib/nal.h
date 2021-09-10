@@ -18,4 +18,3 @@ namespace nalu{
   const char *scanAnnexB(const char *data, uint32_t dataSize);
   const char *nalEndPosition(const char *data, uint32_t dataSize);
 }// namespace nalu
-

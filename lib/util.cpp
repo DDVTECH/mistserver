@@ -1,15 +1,15 @@
 // This line will make ftello/fseeko work with 64 bits numbers
 #define _FILE_OFFSET_BITS 64
 
-#include "util.h"
 #include "bitfields.h"
 #include "defines.h"
-#include "timing.h"
-#include "procs.h"
 #include "dtsc.h"
+#include "procs.h"
+#include "timing.h"
+#include "util.h"
 #include <errno.h> // errno, ENOENT, EEXIST
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <stdio.h>
 #include <sys/stat.h> // stat
 #if defined(_WIN32)
@@ -25,11 +25,11 @@
 #define RAXHDR_DELETED *(uint64_t *)(p + 14)
 #define RAXHDR_PRESENT *(uint32_t *)(p + 22)
 #define RAXHDR_OFFSET *(uint16_t *)(p + 26)
-#define RAXHDR_ENDPOS *(uint64_t*)(p + 28)
+#define RAXHDR_ENDPOS *(uint64_t *)(p + 28)
 #define RAX_REQDFIELDS_LEN 36
 
 namespace Util{
-    Util::DataCallback defaultDataCallback;
+  Util::DataCallback defaultDataCallback;
 
   /// Helper function that cross-platform checks if a given directory exists.
   bool isDirectory(const std::string &path){
@@ -108,8 +108,7 @@ namespace Util{
     }
   }
 
-  bool stringScan(const std::string &src, const std::string &pattern,
-                  std::deque<std::string> &result){
+  bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result){
     result.clear();
     std::deque<size_t> positions;
     size_t pos = pattern.find("%", 0);
@@ -123,8 +122,7 @@ namespace Util{
     std::deque<size_t>::iterator posIter = positions.begin();
     while (sourcePos != std::string::npos){
       // Match first part of the string
-      if (pattern.substr(patternPos, *posIter - patternPos) !=
-          src.substr(sourcePos, *posIter - patternPos)){
+      if (pattern.substr(patternPos, *posIter - patternPos) != src.substr(sourcePos, *posIter - patternPos)){
         break;
       }
       sourcePos += *posIter - patternPos;
@@ -143,9 +141,9 @@ namespace Util{
     return result.size() == positions.size();
   }
 
-  void stringToLower(std::string & val){
+  void stringToLower(std::string &val){
     int i = 0;
-    while(val[i]){
+    while (val[i]){
       val.at(i) = tolower(val.at(i));
       i++;
     }
@@ -177,22 +175,21 @@ namespace Util{
     maxSize = 0;
   }
 
-  bool ResizeablePointer::assign(const void * p, uint32_t l){
+  bool ResizeablePointer::assign(const void *p, uint32_t l){
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);
     currSize = l;
     return true;
   }
 
-  bool ResizeablePointer::assign(const std::string & str){
+  bool ResizeablePointer::assign(const std::string &str){
     return assign(str.data(), str.length());
   }
 
-
-  bool ResizeablePointer::append(const void * p, uint32_t l){
-    //We're writing to ourselves or from null pointer - assume outside write (e.g. fread or socket operation) and update the size
-    if (!p || p == ((char*)ptr)+currSize){
-      if (currSize+l > maxSize){
+  bool ResizeablePointer::append(const void *p, uint32_t l){
+    // We're writing to ourselves or from null pointer - assume outside write (e.g. fread or socket operation) and update the size
+    if (!p || p == ((char *)ptr) + currSize){
+      if (currSize + l > maxSize){
         FAIL_MSG("Pointer write went beyond allocated size! Memory corruption likely.");
         BACKTRACE;
         return false;
@@ -200,13 +197,13 @@ namespace Util{
       currSize += l;
       return true;
     }
-    if (!allocate(l+currSize)){return false;}
-    memcpy(((char*)ptr)+currSize, p, l);
+    if (!allocate(l + currSize)){return false;}
+    memcpy(((char *)ptr) + currSize, p, l);
     currSize += l;
     return true;
   }
 
-  bool ResizeablePointer::append(const std::string & str){
+  bool ResizeablePointer::append(const std::string &str){
     return append(str.data(), str.length());
   }
 
@@ -224,10 +221,7 @@ namespace Util{
   }
 
   /// Returns amount of space currently reserved for this pointer
-  uint32_t ResizeablePointer::rsize(){
-    return maxSize;
-  }
-
+  uint32_t ResizeablePointer::rsize(){return maxSize;}
 
   void ResizeablePointer::truncate(const size_t newLen){
     if (currSize > newLen){currSize = newLen;}
@@ -236,22 +230,23 @@ namespace Util{
   /// Redirects stderr to log parser, writes log parser to the old stderr.
   /// Does nothing if the MIST_CONTROL environment variable is set.
   void redirectLogsIfNeeded(){
-    //The controller sets this environment variable.
-    //We don't do anything if set, since the controller wants the messages raw.
+    // The controller sets this environment variable.
+    // We don't do anything if set, since the controller wants the messages raw.
     if (getenv("MIST_CONTROL")){return;}
     setenv("MIST_CONTROL", "1", 1);
-    //Okay, we're stand-alone, lets do some parsing!
+    // Okay, we're stand-alone, lets do some parsing!
     int true_stderr = dup(STDERR_FILENO);
     int pipeErr[2];
     if (pipe(pipeErr) >= 0){
-      //Start reading log messages from the unnamed pipe
+      // Start reading log messages from the unnamed pipe
       Util::Procs::fork_prepare();
       pid_t pid = fork();
-      if (pid == 0) { //child
+      if (pid == 0){// child
         Util::Procs::fork_complete();
-        close(pipeErr[1]);               // close the unneeded pipe file descriptor
-        //Close all sockets in the socketList
-        for (std::set<int>::iterator it = Util::Procs::socketList.begin(); it != Util::Procs::socketList.end(); ++it){
+        close(pipeErr[1]); // close the unneeded pipe file descriptor
+        // Close all sockets in the socketList
+        for (std::set<int>::iterator it = Util::Procs::socketList.begin();
+             it != Util::Procs::socketList.end(); ++it){
           close(*it);
         }
         close(2);
@@ -272,84 +267,86 @@ namespace Util{
       }else{
         dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
       }
-      close(pipeErr[1]);               // close the unneeded pipe file descriptor
+      close(pipeErr[1]); // close the unneeded pipe file descriptor
       close(pipeErr[0]);
       close(true_stderr);
     }
   }
 
-  /// Parses log messages from the given file descriptor in, printing them to out, optionally calling the given callback for each valid message.
-  /// Closes the file descriptor on read error
-  void logParser(int in, int out, bool colored, void callback(const std::string &, const std::string &, const std::string &, bool)){
+  /// Parses log messages from the given file descriptor in, printing them to out, optionally
+  /// calling the given callback for each valid message. Closes the file descriptor on read error
+  void logParser(int in, int out, bool colored,
+                 void callback(const std::string &, const std::string &, const std::string &, bool)){
 
     char buf[1024];
     FILE *output = fdopen(in, "r");
-    char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg, *WARN_msg, *INFO_msg;
+    char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg,
+        *WARN_msg, *INFO_msg;
     if (colored){
-      color_end = (char*)"\033[0m";
+      color_end = (char *)"\033[0m";
       if (getenv("MIST_COLOR_END")){color_end = getenv("MIST_COLOR_END");}
-      color_strm = (char*)"\033[0m";
+      color_strm = (char *)"\033[0m";
       if (getenv("MIST_COLOR_STREAM")){color_strm = getenv("MIST_COLOR_STREAM");}
-      color_time = (char*)"\033[2m";
+      color_time = (char *)"\033[2m";
       if (getenv("MIST_COLOR_TIME")){color_time = getenv("MIST_COLOR_TIME");}
-      CONF_msg = (char*)"\033[0;1;37m";
+      CONF_msg = (char *)"\033[0;1;37m";
       if (getenv("MIST_COLOR_CONF")){CONF_msg = getenv("MIST_COLOR_CONF");}
-      FAIL_msg = (char*)"\033[0;1;31m";
+      FAIL_msg = (char *)"\033[0;1;31m";
       if (getenv("MIST_COLOR_FAIL")){FAIL_msg = getenv("MIST_COLOR_FAIL");}
-      ERROR_msg = (char*)"\033[0;31m";
+      ERROR_msg = (char *)"\033[0;31m";
       if (getenv("MIST_COLOR_ERROR")){ERROR_msg = getenv("MIST_COLOR_ERROR");}
-      WARN_msg = (char*)"\033[0;1;33m";
+      WARN_msg = (char *)"\033[0;1;33m";
       if (getenv("MIST_COLOR_WARN")){WARN_msg = getenv("MIST_COLOR_WARN");}
-      INFO_msg = (char*)"\033[0;36m";
+      INFO_msg = (char *)"\033[0;36m";
       if (getenv("MIST_COLOR_INFO")){INFO_msg = getenv("MIST_COLOR_INFO");}
     }else{
-      color_end = (char*)"";
-      color_strm = (char*)"";
-      color_time = (char*)"";
-      CONF_msg = (char*)"";
-      FAIL_msg = (char*)"";
-      ERROR_msg = (char*)"";
-      WARN_msg = (char*)"";
-      INFO_msg = (char*)"";
+      color_end = (char *)"";
+      color_strm = (char *)"";
+      color_time = (char *)"";
+      CONF_msg = (char *)"";
+      FAIL_msg = (char *)"";
+      ERROR_msg = (char *)"";
+      WARN_msg = (char *)"";
+      INFO_msg = (char *)"";
     }
     while (fgets(buf, 1024, output)){
       unsigned int i = 0;
-      char * kind = buf;//type of message, at begin of string
-      char * progname = 0;
-      char * progpid = 0;
-      char * lineno = 0;
-      char * strmNm = 0;
-      char * message = 0;
+      char *kind = buf; // type of message, at begin of string
+      char *progname = 0;
+      char *progpid = 0;
+      char *lineno = 0;
+      char *strmNm = 0;
+      char *message = 0;
       while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
-      if (buf[i] != '|'){continue;}//on parse error, skip to next message
-      buf[i] = 0;//insert null byte
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
       ++i;
-      progname = buf+i;//progname starts here
+      progname = buf + i; // progname starts here
       while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}//on parse error, skip to next message
-      buf[i] = 0;//insert null byte
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
       ++i;
-      progpid = buf+i;//progpid starts here
+      progpid = buf + i; // progpid starts here
       while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}//on parse error, skip to next message
-      buf[i] = 0;//insert null byte
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
       ++i;
-      lineno = buf+i;//lineno starts here
+      lineno = buf + i; // lineno starts here
       while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}//on parse error, skip to next message
-      buf[i] = 0;//insert null byte
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
       ++i;
-      strmNm = buf+i;//stream name starts here
+      strmNm = buf + i; // stream name starts here
       while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
-      if (buf[i] != '|'){continue;}//on parse error, skip to next message
-      buf[i] = 0;//insert null byte
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
       ++i;
-      message = buf+i;//message starts here
-      //find end of line, insert null byte
+      message = buf + i; // message starts here
+      // find end of line, insert null byte
       unsigned int j = i;
       while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
       buf[j] = 0;
-      //print message
+      // print message
       if (callback){callback(kind, message, strmNm, true);}
       color_msg = color_end;
       if (colored){
@@ -374,45 +371,35 @@ namespace Util{
           dprintf(out, "%s (%s) ", progname, progpid);
         }
       }else{
-        if (strmNm && strlen(strmNm)){
-          dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);
-        }
+        if (strmNm && strlen(strmNm)){dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);}
       }
       dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
-      if (lineno && strlen(lineno)){
-        dprintf(out, " (%s) ", lineno);
-      }
+      if (lineno && strlen(lineno)){dprintf(out, " (%s) ", lineno);}
       dprintf(out, "\n");
     }
     fclose(output);
     close(in);
   }
 
-  FieldAccX::FieldAccX(RelAccX * _src, RelAccXFieldData _field) : src(_src), field(_field) {}
+  FieldAccX::FieldAccX(RelAccX *_src, RelAccXFieldData _field) : src(_src), field(_field){}
 
-  uint64_t FieldAccX::uint(size_t recordNo) const {
-    return src->getInt(field, recordNo);
-  }
+  uint64_t FieldAccX::uint(size_t recordNo) const{return src->getInt(field, recordNo);}
 
-  std::string FieldAccX::string(size_t recordNo) const {
+  std::string FieldAccX::string(size_t recordNo) const{
     std::string res(src->getPointer(field, recordNo));
-    if (res.size() > field.size){
-      res.resize(field.size);
-    }
+    if (res.size() > field.size){res.resize(field.size);}
     return res;
   }
 
-  void FieldAccX::set(uint64_t val, size_t recordNo){
-    src->setInt(field, val, recordNo);
-  }
+  void FieldAccX::set(uint64_t val, size_t recordNo){src->setInt(field, val, recordNo);}
 
-  void FieldAccX::set(const std::string & val, size_t recordNo){
-    char * place = src->getPointer(field, recordNo);
+  void FieldAccX::set(const std::string &val, size_t recordNo){
+    char *place = src->getPointer(field, recordNo);
     memcpy(place, val.data(), std::min((size_t)field.size, val.size()));
   }
 
   /// If waitReady is true (default), waits for isReady() to return true in 50ms sleep increments.
-  RelAccX::RelAccX(char * data, bool waitReady){
+  RelAccX::RelAccX(char *data, bool waitReady){
     if (!data){
       p = 0;
       return;
@@ -458,7 +445,8 @@ namespace Util{
         default: WARN_MSG("Unhandled field data size!"); break;
         }
         fields[fieldName] = RelAccXFieldData(fieldType, size, dataOffset);
-        DONTEVEN_MSG("Field %s: type %u, size %" PRIu32 ", offset %" PRIu64, fieldName.c_str(), fieldType, size, dataOffset);
+        DONTEVEN_MSG("Field %s: type %u, size %" PRIu32 ", offset %" PRIu64, fieldName.c_str(),
+                     fieldType, size, dataOffset);
         dataOffset += size;
         offset += nameLen + typeLen + 1;
       }
@@ -477,13 +465,13 @@ namespace Util{
   /// Gets the number of deleted records
   uint64_t RelAccX::getDeleted() const{return RAXHDR_DELETED;}
 
-  ///Gets the number of records present
+  /// Gets the number of records present
   size_t RelAccX::getPresent() const{return RAXHDR_PRESENT;}
 
   /// Gets the number of the last valid index
   uint64_t RelAccX::getEndPos() const{return RAXHDR_ENDPOS;}
 
-  ///Gets the number of fields per recrd 
+  /// Gets the number of fields per recrd
   uint32_t RelAccX::getFieldCount() const{return fields.size();}
 
   /// Gets the offset from the structure start where records begin.
@@ -526,13 +514,11 @@ namespace Util{
   /// For other types, returns the maximum size possible.
   /// Returns 0 if the field does not exist.
   uint32_t RelAccX::getSize(const std::string &name, uint64_t recordNo) const{
-    if (!isRecordAvailable(recordNo)){ return 0;}
+    if (!isRecordAvailable(recordNo)){return 0;}
     std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
     if (it == fields.end()){return 0;}
     const RelAccXFieldData &fd = it->second;
-    if ((fd.type & 0xF0) == RAX_STRING){
-      return strnlen(RECORD_POINTER, fd.size);
-    }
+    if ((fd.type & 0xF0) == RAX_STRING){return strnlen(RECORD_POINTER, fd.size);}
     return fd.size;
   }
 
@@ -544,7 +530,7 @@ namespace Util{
     return getPointer(it->second, recordNo);
   }
 
-  char * RelAccX::getPointer(const RelAccXFieldData & fd, uint64_t recordNo) const{
+  char *RelAccX::getPointer(const RelAccXFieldData &fd, uint64_t recordNo) const{
     return RECORD_POINTER;
   }
 
@@ -556,9 +542,9 @@ namespace Util{
     return getInt(it->second, recordNo);
   }
 
-  uint64_t RelAccX::getInt(const RelAccXFieldData & fd, uint64_t recordNo) const{
-    char * ptr = RECORD_POINTER;
-    if ((fd.type & 0xF0) == RAX_UINT){//unsigned int
+  uint64_t RelAccX::getInt(const RelAccXFieldData &fd, uint64_t recordNo) const{
+    char *ptr = RECORD_POINTER;
+    if ((fd.type & 0xF0) == RAX_UINT){// unsigned int
       switch (fd.size){
       case 1: return *(uint8_t *)ptr;
       case 2: return *(uint16_t *)ptr;
@@ -581,53 +567,54 @@ namespace Util{
     return 0; // Not an integer type, or not implemented
   }
 
-
   std::string RelAccX::toPrettyString(size_t indent) const{
     std::stringstream r;
     uint64_t delled = getDeleted();
     uint64_t max = getEndPos();
-    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @" << getOffset() << " (#" << getDeleted() << " - #" << getEndPos()-1 << ")" << std::endl;
+    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
+      << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
     for (uint64_t i = delled; i < max; ++i){
       r << std::string(indent + 2, ' ') << "#" << i << ":" << std::endl;
-      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin(); it != fields.end(); ++it){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
+           it != fields.end(); ++it){
         r << std::string(indent + 4, ' ') << it->first << ": ";
         switch (it->second.type & 0xF0){
-          case RAX_INT: r << (int64_t)getInt(it->first, i) << std::endl; break;
-          case RAX_UINT: r << getInt(it->first, i) << std::endl; break;
-          case RAX_STRING: r << getPointer(it->first, i) << std::endl; break;
-          case 0: {  //RAX_NESTED
-            RelAccX n(getPointer(it->first, i), false);
-            if (n.isReady()){
-              r << "Nested RelAccX:" << std::endl;
-              r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 6) : n.toCompactString(indent + 6));
+        case RAX_INT: r << (int64_t)getInt(it->first, i) << std::endl; break;
+        case RAX_UINT: r << getInt(it->first, i) << std::endl; break;
+        case RAX_STRING: r << getPointer(it->first, i) << std::endl; break;
+        case 0:{// RAX_NESTED
+          RelAccX n(getPointer(it->first, i), false);
+          if (n.isReady()){
+            r << "Nested RelAccX:" << std::endl;
+            r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 6) : n.toCompactString(indent + 6));
+          }else{
+            r << "Nested RelAccX: not ready" << std::endl;
+          }
+          break;
+        }
+        case RAX_RAW:{
+          char *ptr = getPointer(it->first, i);
+          size_t sz = getSize(it->first, i);
+          size_t zeroCount = 0;
+          for (size_t j = 0; j < sz && j < 100 && zeroCount < 10; ++j){
+            r << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
+            if (ptr[j] == 0x00){
+              zeroCount++;
             }else{
-              r << "Nested RelAccX: not ready" << std::endl;
+              zeroCount = 0;
             }
-            break;
           }
-          case RAX_RAW: {
-            char * ptr = getPointer(it->first, i);
-            size_t sz = getSize(it->first, i);
-            size_t zeroCount = 0;
-            for (size_t j = 0; j < sz && j < 100 && zeroCount < 10; ++j){
-              r << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)ptr[j] << std::dec << " ";
-              if (ptr[j] == 0x00){
-                zeroCount++;
-              }else{
-                zeroCount = 0;
-              }
-            }
-            r << std::endl;
-            break;
-          }
-          case RAX_DTSC:{
-            char * ptr = getPointer(it->first, i);
-            size_t sz = getSize(it->first, i);
-            r << std::endl;
-            r << DTSC::Scan(ptr, sz).toPrettyString(indent+6) << std::endl;
-            break;
-          }
-          default: r << "[UNIMPLEMENTED]" << std::endl; break;
+          r << std::endl;
+          break;
+        }
+        case RAX_DTSC:{
+          char *ptr = getPointer(it->first, i);
+          size_t sz = getSize(it->first, i);
+          r << std::endl;
+          r << DTSC::Scan(ptr, sz).toPrettyString(indent + 6) << std::endl;
+          break;
+        }
+        default: r << "[UNIMPLEMENTED]" << std::endl; break;
         }
       }
     }
@@ -637,33 +624,35 @@ namespace Util{
   std::string RelAccX::toCompactString(size_t indent) const{
     std::stringstream r;
     uint64_t delled = getDeleted();
-    uint64_t max = getEndPos(); 
-    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @" << getOffset() << " (#" << getDeleted() << " - #" << getEndPos()-1 << ")" << std::endl;
+    uint64_t max = getEndPos();
+    r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
+      << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
     for (uint64_t i = delled; i < max; ++i){
       r << std::string(indent + 2, ' ') << "#" << i << ": ";
-      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin(); it != fields.end(); ++it){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
+           it != fields.end(); ++it){
         r << it->first << ": ";
         switch (it->second.type & 0xF0){
-          case RAX_INT: r << (int64_t)getInt(it->first, i) << ", "; break;
-          case RAX_UINT: r << getInt(it->first, i) << ", "; break;
-          case RAX_STRING: r << getPointer(it->first, i) << ", "; break;
-          case 0: {  //RAX_NESTED
-            RelAccX n(getPointer(it->first, i), false);
-            if (n.isReady()){
-              r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 2) : n.toCompactString(indent + 2));
-            }else{
-              r << "Nested RelAccX not ready" << std::endl;
-            }
-            break;
+        case RAX_INT: r << (int64_t)getInt(it->first, i) << ", "; break;
+        case RAX_UINT: r << getInt(it->first, i) << ", "; break;
+        case RAX_STRING: r << getPointer(it->first, i) << ", "; break;
+        case 0:{// RAX_NESTED
+          RelAccX n(getPointer(it->first, i), false);
+          if (n.isReady()){
+            r << (n.getFieldCount() > 6 ? n.toPrettyString(indent + 2) : n.toCompactString(indent + 2));
+          }else{
+            r << "Nested RelAccX not ready" << std::endl;
           }
-          default: r << "[UNIMPLEMENTED], "; break;
+          break;
+        }
+        default: r << "[UNIMPLEMENTED], "; break;
         }
       }
       r << std::endl;
     }
     return r.str();
   }
-  
+
   /// Returns the default size in bytes of the data component of a field type number.
   /// Returns zero if not implemented, unknown or the type has no default.
   uint32_t RelAccX::getDefaultSize(uint8_t fType){
@@ -779,7 +768,7 @@ namespace Util{
     setString(it->second, val, recordNo);
   }
 
-  void RelAccX::setString(const RelAccXFieldData & fd, const std::string &val, uint64_t recordNo){
+  void RelAccX::setString(const RelAccXFieldData &fd, const std::string &val, uint64_t recordNo){
     if ((fd.type & 0xF0) != RAX_STRING){
       WARN_MSG("Setting non-string");
       return;
@@ -799,10 +788,10 @@ namespace Util{
     }
     setInt(it->second, val, recordNo);
   }
-  
-  void RelAccX::setInt(const RelAccXFieldData & fd, uint64_t val, uint64_t recordNo){
-    char * ptr = RECORD_POINTER;
-    if ((fd.type & 0xF0) == RAX_UINT){//unsigned int
+
+  void RelAccX::setInt(const RelAccXFieldData &fd, uint64_t val, uint64_t recordNo){
+    char *ptr = RECORD_POINTER;
+    if ((fd.type & 0xF0) == RAX_UINT){// unsigned int
       switch (fd.size){
       case 1: *(uint8_t *)ptr = val; return;
       case 2: *(uint16_t *)ptr = val; return;
@@ -825,15 +814,15 @@ namespace Util{
     WARN_MSG("Setting non-integer field (%u) to integer value!", fd.type);
   }
 
-  ///Writes the given int to the given field in the given record.
-  ///Fails if ready is not set or the field is not an integer type.
-  void RelAccX::setInts(const std::string & name, uint64_t * values, size_t len){
+  /// Writes the given int to the given field in the given record.
+  /// Fails if ready is not set or the field is not an integer type.
+  void RelAccX::setInts(const std::string &name, uint64_t *values, size_t len){
     std::map<std::string, RelAccXFieldData>::const_iterator it = fields.find(name);
     if (it == fields.end()){
       WARN_MSG("Setting non-existent integer %s", name.c_str());
       return;
     }
-    const RelAccXFieldData & fd = it->second;
+    const RelAccXFieldData &fd = it->second;
     for (uint64_t recordNo = 0; recordNo < len; recordNo++){
       setInt(fd, values[recordNo], recordNo);
     }
@@ -858,10 +847,10 @@ namespace Util{
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
   void RelAccX::addRecords(uint32_t amount){
-    uint32_t & recsPresent = RAXHDR_PRESENT;
-    uint32_t & recordsCount = RAXHDR_RECORDCNT;
-    uint64_t & recordEndPos = RAXHDR_ENDPOS;
-    if (recsPresent+amount > recordsCount){
+    uint32_t &recsPresent = RAXHDR_PRESENT;
+    uint32_t &recordsCount = RAXHDR_RECORDCNT;
+    uint64_t &recordEndPos = RAXHDR_ENDPOS;
+    if (recsPresent + amount > recordsCount){
       WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", recsPresent + amount, recsPresent, amount, recordsCount);
       recsPresent = 0;
     }else{
@@ -870,7 +859,7 @@ namespace Util{
     recordEndPos += amount;
   }
 
-  void RelAccX::minimalFrom(const RelAccX & src){
+  void RelAccX::minimalFrom(const RelAccX &src){
     copyFieldsFrom(src, true);
 
     uint64_t rCount = src.getPresent();
@@ -881,85 +870,79 @@ namespace Util{
     flowFrom(src);
   }
 
-  void RelAccX::copyFieldsFrom(const RelAccX & src, bool minimal){
+  void RelAccX::copyFieldsFrom(const RelAccX &src, bool minimal){
     fields.clear();
     if (!minimal){
-      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin();
+           it != src.fields.end(); it++){
         addField(it->first, it->second.type, it->second.size);
       }
       return;
     }
-    for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
-      switch(it->second.type & 0xF0){
-        case 0x00: //nested RelAccX 
-          {
-            uint64_t maxSize = 0;
-            for (int i = 0; i < src.getPresent(); i++){
-              Util::RelAccX child(src.getPointer(it->first, i), false);
-              char * tmpBuf = (char*)malloc(src.getOffset() + (src.getRCount() * src.getRSize()));
-              Util::RelAccX minChild(tmpBuf, false);
-              minChild.minimalFrom(child);
-              uint64_t thisSize = minChild.getOffset() + (minChild.getRSize() * minChild.getPresent());
-              maxSize = std::max(thisSize, maxSize);
-              free(tmpBuf);
-            }
-            addField(it->first, it->second.type, maxSize);
-          }
-          break;
-        default:
-          addField(it->first, it->second.type, it->second.size);
-          break;
+    for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin();
+         it != src.fields.end(); it++){
+      switch (it->second.type & 0xF0){
+      case 0x00: // nested RelAccX
+      {
+        uint64_t maxSize = 0;
+        for (int i = 0; i < src.getPresent(); i++){
+          Util::RelAccX child(src.getPointer(it->first, i), false);
+          char *tmpBuf = (char *)malloc(src.getOffset() + (src.getRCount() * src.getRSize()));
+          Util::RelAccX minChild(tmpBuf, false);
+          minChild.minimalFrom(child);
+          uint64_t thisSize = minChild.getOffset() + (minChild.getRSize() * minChild.getPresent());
+          maxSize = std::max(thisSize, maxSize);
+          free(tmpBuf);
+        }
+        addField(it->first, it->second.type, maxSize);
+      }break;
+      default: addField(it->first, it->second.type, it->second.size); break;
       }
     }
   }
 
-  void RelAccX::flowFrom(const RelAccX & src){
+  void RelAccX::flowFrom(const RelAccX &src){
     uint64_t rCount = src.getPresent();
-    if (getRCount() == 0){
-      setRCount(rCount);
-    }
+    if (getRCount() == 0){setRCount(rCount);}
     if (rCount > getRCount()){
-      FAIL_MSG("Abandoning reflow, target does not have enough records available (%" PRIu64 " records, %d available)", rCount, getRCount());
+      FAIL_MSG("Abandoning reflow, target does not have enough records available (%" PRIu64
+               " records, %d available)",
+               rCount, getRCount());
       return;
     }
     addRecords(rCount - getPresent());
     for (int i = 0; i < rCount; i++){
-      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin(); it != src.fields.end(); it++){
+      for (std::map<std::string, RelAccXFieldData>::const_iterator it = src.fields.begin();
+           it != src.fields.end(); it++){
         if (!fields.count(it->first)){
           INFO_MSG("Field %s in source but not in target", it->first.c_str());
           continue;
         }
-        switch(it->second.type & 0xF0){
-          case RAX_RAW:
-            memcpy(getPointer(it->first, i), src.getPointer(it->first, i), std::min(it->second.size, fields.at(it->first).size));
-            break;
-          case RAX_INT:
-          case RAX_UINT:
-            setInt(it->first, src.getInt(it->first, i), i);
-            break;
-          case RAX_STRING: 
-            setString(it->first, src.getPointer(it->first, i), i);
-            break;
-          case 0x00: //nested RelAccX 
-            {
-              Util::RelAccX srcChild(src.getPointer(it->first, i), false);
-              Util::RelAccX child(getPointer(it->first, i), false);
-              child.flowFrom(srcChild);
-            }
-            break;
-          default:
-            break;
+        switch (it->second.type & 0xF0){
+        case RAX_RAW:
+          memcpy(getPointer(it->first, i), src.getPointer(it->first, i),
+                 std::min(it->second.size, fields.at(it->first).size));
+          break;
+        case RAX_INT:
+        case RAX_UINT: setInt(it->first, src.getInt(it->first, i), i); break;
+        case RAX_STRING: setString(it->first, src.getPointer(it->first, i), i); break;
+        case 0x00: // nested RelAccX
+        {
+          Util::RelAccX srcChild(src.getPointer(it->first, i), false);
+          Util::RelAccX child(getPointer(it->first, i), false);
+          child.flowFrom(srcChild);
+        }break;
+        default: break;
         }
       }
     }
   }
 
-  FieldAccX RelAccX::getFieldAccX(const std::string & fName){
+  FieldAccX RelAccX::getFieldAccX(const std::string &fName){
     return FieldAccX(this, fields.at(fName));
   }
 
-  RelAccXFieldData RelAccX::getFieldData(const std::string & fName) const {
+  RelAccXFieldData RelAccX::getFieldData(const std::string &fName) const{
     return fields.at(fName);
   }
-}
-
+}// namespace Util

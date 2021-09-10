@@ -1,6 +1,5 @@
-#include <stdint.h>
-#include <cstdlib>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <mist/config.h>
@@ -10,6 +9,7 @@
 #include <mist/tinythread.h>
 #include <mist/util.h>
 #include <set>
+#include <stdint.h>
 #include <string>
 
 Util::Config *cfg = 0;
@@ -25,7 +25,7 @@ unsigned int weight_bonus = 50;
 unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
 #define HOSTLOOP                                                                                   \
   unsigned long i = 0;                                                                             \
-  i < hostsCounter;                                              \
+  i < hostsCounter;                                                                                \
   ++i
 #define HOST(no) (hosts[no])
 #define HOSTCHECK                                                                                  \
@@ -37,7 +37,9 @@ unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesse
 #define STATE_ONLINE 3
 #define STATE_GODOWN 4
 #define STATE_REQCLEAN 5
-const char *stateLookup[] ={"Offline", "Starting monitoring", "Monitored (error)", "Monitored (online)", "Requesting stop", "Requesting clean"};
+const char *stateLookup[] ={"Offline",           "Starting monitoring",
+                             "Monitored (error)", "Monitored (online)",
+                             "Requesting stop",   "Requesting clean"};
 
 struct streamDetails{
   uint32_t total;
@@ -47,19 +49,17 @@ struct streamDetails{
 };
 
 class outUrl{
-  public:
+public:
   std::string pre, post;
   outUrl(){};
   outUrl(const std::string &u, const std::string &host){
     std::string tmp = u;
     if (u.find("HOST") != std::string::npos){
-      tmp = u.substr(0, u.find("HOST")) + host + u.substr(u.find("HOST")+4);
+      tmp = u.substr(0, u.find("HOST")) + host + u.substr(u.find("HOST") + 4);
     }
     size_t dolsign = tmp.find('$');
     pre = tmp.substr(0, dolsign);
-    if (dolsign != std::string::npos){
-      post = tmp.substr(dolsign+1);
-    }
+    if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
   }
 };
 
@@ -69,8 +69,7 @@ inline double toRad(double degree){
 
 double geoDist(double lat1, double long1, double lat2, double long2){
   double dist;
-  dist = sin(toRad(lat1)) * sin(toRad(lat2)) +
-         cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
+  dist = sin(toRad(lat1)) * sin(toRad(lat2)) + cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
   return .31830988618379067153 * acos(dist);
 }
 
@@ -185,11 +184,11 @@ public:
       return 0;
     }
     if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
-      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth,
-               availBandwidth);
+      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth, availBandwidth);
       return 0;
     }
-    if (conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
+    if (conf_streams.size() && !conf_streams.count(s) &&
+        !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
       MEDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
       return 0;
     }
@@ -219,8 +218,7 @@ public:
       return 1;
     }
     if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
-      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth,
-               availBandwidth);
+      INFO_MSG("Host %s over bandwidth: %llu+%llu >= %llu", host.c_str(), upSpeed, addBandwidth, availBandwidth);
       return 1;
     }
     // Calculate score
@@ -233,8 +231,8 @@ public:
     }
     unsigned int score = cpu_score + ram_score + bw_score + geo_score + 1;
     // Print info on host
-    MEDIUM_MSG("SOURCE %s: CPU %u, RAM %u, Stream %u, BW %u (max %llu MB/s), Geo %u -> %u", host.c_str(),
-               cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
+    MEDIUM_MSG("SOURCE %s: CPU %u, RAM %u, Stream %u, BW %u (max %llu MB/s), Geo %u -> %u",
+               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
                availBandwidth / 1024 / 1024, geo_score, score);
     return score;
   }
@@ -242,7 +240,7 @@ public:
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     if (!outputs.count(proto)){return "";}
-    const outUrl& o = outputs[proto];
+    const outUrl &o = outputs[proto];
     return o.pre + s + o.post;
   }
   void addViewer(std::string &s){
@@ -267,9 +265,7 @@ public:
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
-    if (d.isMember("bwlimit") && d["bwlimit"].asInt()){
-      availBandwidth = d["bwlimit"].asInt();
-    }
+    if (d.isMember("bwlimit") && d["bwlimit"].asInt()){availBandwidth = d["bwlimit"].asInt();}
     long long nRamMax = d["mem_total"].asInt();
     long long nRamCur = d["mem_used"].asInt();
     long long nShmMax = d["shm_total"].asInt();
@@ -335,15 +331,11 @@ public:
     }
     conf_streams.clear();
     if (d.isMember("conf_streams") && d["conf_streams"].size()){
-      jsonForEach(d["conf_streams"], it){
-        conf_streams.insert(it->asStringRef());
-      }
+      jsonForEach(d["conf_streams"], it){conf_streams.insert(it->asStringRef());}
     }
     outputs.clear();
     if (d.isMember("outputs") && d["outputs"].size()){
-      jsonForEach(d["outputs"], op){
-        outputs[op.key()] = outUrl(op->asStringRef(), host);
-      }
+      jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
     addBandwidth *= 0.75;
   }
@@ -387,7 +379,7 @@ int handleRequest(Socket::Connection &conn){
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         JSON::Value ret;
-        //Get/set weights
+        // Get/set weights
         if (weights.size()){
           JSON::Value newVals = JSON::fromString(weights);
           if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
@@ -506,7 +498,7 @@ int handleRequest(Socket::Connection &conn){
           unsigned int bestScore = 0;
           for (HOSTLOOP){
             HOSTCHECK;
-            if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost ,16), conn.getBinHost(), 0)){
+            if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
               INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
               continue;
             }
@@ -567,12 +559,8 @@ int handleRequest(Socket::Connection &conn){
         lon = atof(H.GetVar("lon").c_str());
         H.SetVar("lon", "");
       }
-      if (H.hasHeader("X-Latitude")){
-        lat = atof(H.GetHeader("X-Latitude").c_str());
-      }
-      if (H.hasHeader("X-Longitude")){
-        lon = atof(H.GetHeader("X-Longitude").c_str());
-      }
+      if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+      if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
       std::string vars = H.allVars();
       if (stream == "favicon.ico"){
         H.Clean();
@@ -639,8 +627,9 @@ void handleServer(void *hostEntryPointer){
   bool down = true;
 
   HTTP::Downloader DL;
-  
-  if (DL.get(HTTP::URL("http://api.ipstack.com/"+url.host+"?access_key=05eb21db3983dec4cd6d22131ec0a40d&format=1")) && DL.isOk()){
+
+  if (DL.get(HTTP::URL("http://api.ipstack.com/" + url.host + "?access_key=05eb21db3983dec4cd6d22131ec0a40d&format=1")) &&
+      DL.isOk()){
     JSON::Value &gDet = entry->details->geoDetails;
     INFO_MSG("Location: %s", DL.data().c_str());
     gDet = JSON::fromString(DL.data());
@@ -795,7 +784,7 @@ int main(int argc, char **argv){
   weight_bonus = conf.getInteger("extra");
   fallback = conf.getString("fallback");
   localMode = conf.getBool("localmode");
-  INFO_MSG("Local control only mode is %s", localMode?"on":"off");
+  INFO_MSG("Local control only mode is %s", localMode ? "on" : "off");
 
   JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();
@@ -848,4 +837,3 @@ void cleanupHost(hostEntry &H){
   memset(H.name, 0, sizeof(H.name));
   H.state = STATE_OFF;
 }
-

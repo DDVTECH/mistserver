@@ -1,7 +1,7 @@
 #include "analyser.h"
 #include <fstream>
-#include <mist/http_parser.h>
 #include <mist/downloader.h>
+#include <mist/http_parser.h>
 
 class HLSPart{
 public:
@@ -30,4 +30,3 @@ private:
   std::ofstream reconstruct;
   HTTP::Downloader DL;
 };
-

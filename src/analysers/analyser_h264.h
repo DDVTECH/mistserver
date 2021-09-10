@@ -12,4 +12,3 @@ private:
   uint64_t neededBytes();
   bool sizePrepended;
 };
-

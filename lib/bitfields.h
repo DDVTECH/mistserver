@@ -11,8 +11,7 @@ namespace Bit{
   unsigned long long getMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits);
   unsigned long long getByName(char *pointer);
   // bitfield setters
-  void setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits,
-              unsigned long long value);
+  void setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits, unsigned long long value);
   void setByName(char *pointer);
 
   // Host to binary/binary to host functions - similar to kernel ntoh/hton functions.
@@ -143,8 +142,7 @@ namespace Bit{
 
   /// Retrieves a long in network order from the pointer p.
   inline unsigned long btohl_le(const char *p){
-    return ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) |
-           p[0];
+    return ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) | p[0];
   }
 
   /// Stores a long value of val in little endian to the pointer p.
@@ -171,8 +169,7 @@ namespace Bit{
   inline unsigned long long btohll_le(const char *p){
     return ((unsigned long long)p[7] << 56) | ((unsigned long long)p[6] << 48) |
            ((unsigned long long)p[5] << 40) | ((unsigned long long)p[4] << 32) |
-           ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) |
-           p[0];
+           ((unsigned long)p[3] << 24) | ((unsigned long)p[2] << 16) | ((unsigned long)p[1] << 8) | p[0];
   }
 
   /// Stores a long value of val in little endian to the pointer p.
@@ -188,4 +185,3 @@ namespace Bit{
   }
 
 }// namespace Bit
-

@@ -1,6 +1,6 @@
 #pragma once
-#include <mist/json.h>
 #include <map>
+#include <mist/json.h>
 #include <string>
 
 /*LTS-START*/
@@ -18,4 +18,4 @@ namespace Controller{
   std::string hostLookup(std::string ip);
   bool onList(std::string ip, std::string list);
   std::string getCountry(std::string ip);
-}
+}// namespace Controller

@@ -3,10 +3,7 @@
 
 namespace Opus{
 
-
-  uint16_t getPreSkip(const char * initData){
-    return initData[10] + initData[11]* 256;
-  }
+  uint16_t getPreSkip(const char *initData){return initData[10] + initData[11] * 256;}
 
   unsigned int Opus_getDuration(const char *part){
     const char config = part[0] >> 3;
@@ -14,28 +11,28 @@ namespace Opus{
     double dur = 0;
     if (config < 14){
       switch (config % 4){
-        case 0: dur = 10; break;
-        case 1: dur = 20; break;
-        case 2: dur = 40; break;
-        case 3: dur = 60; break;
+      case 0: dur = 10; break;
+      case 1: dur = 20; break;
+      case 2: dur = 40; break;
+      case 3: dur = 60; break;
       }
-    } else if (config < 16){
+    }else if (config < 16){
       if (config % 2 == 0){
         dur = 10;
       }else{
         dur = 20;
       }
-    } else {
+    }else{
       switch (config % 4){
-        case 0: dur = 2.5; break;
-        case 1: dur = 5; break;
-        case 2: dur = 10; break;
-        case 3: dur = 20; break;
+      case 0: dur = 2.5; break;
+      case 1: dur = 5; break;
+      case 2: dur = 10; break;
+      case 3: dur = 20; break;
       }
     }
     if (code == 0){return (unsigned int)dur;}
-    if (code < 3){return (unsigned int)(dur*2);}
-    return (unsigned int)(dur*(part[1] & 63));
+    if (code < 3){return (unsigned int)(dur * 2);}
+    return (unsigned int)(dur * (part[1] & 63));
   }
 
   std::string Opus_prettyPacket(const char *part, int len){
@@ -107,5 +104,4 @@ namespace Opus{
     r << ": " << packets << " packets (VBR = " << VBR << ", padding = " << pad << ")";
     return r.str();
   }
-}
-
+}// namespace Opus

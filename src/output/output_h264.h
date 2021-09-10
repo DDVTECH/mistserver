@@ -13,6 +13,6 @@ namespace Mist{
     bool isRecording();
     bool keysOnly;
   };
-}
+}// namespace Mist
 
 typedef Mist::OutH264 mistOut;

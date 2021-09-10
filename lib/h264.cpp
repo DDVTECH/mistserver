@@ -1,10 +1,10 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include "h264.h"
 #include "bitfields.h"
 #include "bitstream.h"
 #include "defines.h"
+#include "h264.h"
 #include <cmath>
 #include <cstring>
 #include <iomanip>
@@ -93,8 +93,7 @@ namespace h264{
     // Fill the bitstream
     Utils::bitstream bs;
     for (size_t i = 1; i < dataLen; i++){
-      if (i + 2 < dataLen &&
-          (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
+      if (i + 2 < dataLen && (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
         // Yes, we increase i here
         bs.append(data + i, 2);
         i += 2;
@@ -111,8 +110,7 @@ namespace h264{
     result.level = bs.get(8);
     bs.getUExpGolomb();
     if (profileIdc == 100 || profileIdc == 110 || profileIdc == 122 || profileIdc == 244 ||
-        profileIdc == 44 || profileIdc == 83 || profileIdc == 86 || profileIdc == 118 ||
-        profileIdc == 128){
+        profileIdc == 44 || profileIdc == 83 || profileIdc == 86 || profileIdc == 118 || profileIdc == 128){
       // chroma format idc
       char chromaFormatIdc = bs.getUExpGolomb();
       if (chromaFormatIdc == 3){result.sep_col_plane = (bs.get(1) == 1);}
@@ -260,7 +258,6 @@ namespace h264{
         result.width = ((result.width * sar_width) / sar_height);
       }else{
         result.height = ((result.height * sar_height) / sar_width);
-
       }
     }
     return result;
@@ -351,8 +348,7 @@ namespace h264{
       bitDepthChromaMinus8 = bs.getUExpGolomb();
       derived_bitDepth_C = 8 + bitDepthChromaMinus8;
       derived_qpBdOffset_C = 6 * bitDepthChromaMinus8;
-      derived_rawMbBits =
-          256 * derived_bitDepth_Y + 2 * derived_mbWidthC * derived_mbHeightC * derived_bitDepth_C;
+      derived_rawMbBits = 256 * derived_bitDepth_Y + 2 * derived_mbWidthC * derived_mbHeightC * derived_bitDepth_C;
       qpprimeYZeroTransformBypassFlag = bs.get(1);
       seqScalingMatrixPresentFlag = bs.get(1);
       if (seqScalingMatrixPresentFlag){
@@ -361,8 +357,7 @@ namespace h264{
 
         derived_scalingList4x4Amount = 6;
         scalingList4x4 = (uint64_t **)malloc(derived_scalingList4x4Amount * sizeof(uint64_t *));
-        useDefaultScalingMatrix4x4Flag =
-            (bool *)malloc(derived_scalingList4x4Amount * sizeof(bool));
+        useDefaultScalingMatrix4x4Flag = (bool *)malloc(derived_scalingList4x4Amount * sizeof(bool));
         for (int i = 0; i < derived_scalingList4x4Amount; i++){
           scalingList4x4[i] = NULL;
           useDefaultScalingMatrix4x4Flag[i] = false;
@@ -370,8 +365,7 @@ namespace h264{
 
         derived_scalingList8x8Amount = derived_scalingListSize - 6;
         scalingList8x8 = (uint64_t **)malloc(derived_scalingList8x8Amount * sizeof(uint64_t *));
-        useDefaultScalingMatrix8x8Flag =
-            (bool *)malloc(derived_scalingList8x8Amount * sizeof(bool));
+        useDefaultScalingMatrix8x8Flag = (bool *)malloc(derived_scalingList8x8Amount * sizeof(bool));
         for (int i = 0; i < derived_scalingList8x8Amount; i++){
           scalingList8x8[i] = NULL;
           useDefaultScalingMatrix8x8Flag[i] = false;
@@ -472,8 +466,7 @@ namespace h264{
       out << "    -> RawMbBits: " << derived_rawMbBits << std::endl;
       out << "  qpprime_y_zero-transform_bypass_flag: " << (qpprimeYZeroTransformBypassFlag ? 1 : 0)
           << std::endl;
-      out << "  seq_scaling_matrix_present_flag: " << (seqScalingMatrixPresentFlag ? 1 : 0)
-          << std::endl;
+      out << "  seq_scaling_matrix_present_flag: " << (seqScalingMatrixPresentFlag ? 1 : 0) << std::endl;
       if (seqScalingMatrixPresentFlag){
         for (int i = 0; i < derived_scalingListSize; i++){
           out << "    seq_scaling_list_present_flag[" << i
@@ -503,16 +496,14 @@ namespace h264{
     out << "  log2_max_frame_num_minus4: " << log2MaxFrameNumMinus4
         << (log2MaxFrameNumMinus4 >= 13 ? " INVALID" : "") << std::endl;
     out << "    -> MaxFrameNum: " << derived_maxFrameNum << std::endl;
-    out << "  pic_order_cnt_type: " << picOrderCntType << (picOrderCntType >= 3 ? " INVALID" : "")
-        << std::endl;
+    out << "  pic_order_cnt_type: " << picOrderCntType << (picOrderCntType >= 3 ? " INVALID" : "") << std::endl;
     if (!picOrderCntType){
       out << "  log2_max_pic_order_cnt_lsb_minus4: " << log2MaxPicOrderCntLsbMinus4
           << (log2MaxPicOrderCntLsbMinus4 >= 13 ? " INVALID" : "") << std::endl;
       out << "    -> MaxPicOrderCntLsb: " << derived_maxPicOrderCntLsb << std::endl;
     }
     out << "  max_num_ref_frames: " << maxNumRefFrames << std::endl;
-    out << "  gaps_in_frame_num_value_allowed_flag: " << (gapsInFrameNumValueAllowedFlag ? 1 : 0)
-        << std::endl;
+    out << "  gaps_in_frame_num_value_allowed_flag: " << (gapsInFrameNumValueAllowedFlag ? 1 : 0) << std::endl;
     out << "  pic_width_in_mbs_minus_1: " << picWidthInMbsMinus1 << std::endl;
     out << "    -> PicWidthInMbs: " << derived_picWidthInMbs << std::endl;
     out << "    -> PicWidthInSamples_L: " << derived_picWidthInSamples_L << std::endl;
@@ -725,17 +716,14 @@ namespace h264{
         << (bottomFieldPicOrderInFramePresentFlag ? 1 : 0) << std::endl;
     out << "  num_slice_groups_minus1: " << numSliceGroupsMinus1 << std::endl;
     if (numSliceGroupsMinus1 > 0){return;}
-    out << "  num_ref_idx_10_default_active_minus1: " << numrefIdx10DefaultActiveMinus1
-        << std::endl;
-    out << "  num_ref_idx_11_default_active_minus1: " << numrefIdx11DefaultActiveMinus1
-        << std::endl;
+    out << "  num_ref_idx_10_default_active_minus1: " << numrefIdx10DefaultActiveMinus1 << std::endl;
+    out << "  num_ref_idx_11_default_active_minus1: " << numrefIdx11DefaultActiveMinus1 << std::endl;
     out << "  weighted_pred_flag: " << (weightedPredFlag ? 1 : 0) << std::endl;
     out << "  weighted_bipred_idc: " << (uint32_t)weightedBipredIdc << std::endl;
     out << "  pic_init_qp_minus26: " << picInitQpMinus26 << std::endl;
     out << "  pic_init_qs_minus26: " << picInitQsMinus26 << std::endl;
     out << "  chroma_qp_index_offset: " << chromaQpIndexOffset << std::endl;
-    out << "  deblocking_filter_control_present_flag: " << deblockingFilterControlPresentFlag
-        << std::endl;
+    out << "  deblocking_filter_control_present_flag: " << deblockingFilterControlPresentFlag << std::endl;
     out << "  constrained_intra_pred_flag: " << constrainedIntraPredFlag << std::endl;
     out << "  redundant_pic_cnt_present_flag: " << redundantPicCntPresentFlag << std::endl;
     if (status_moreRBSP){
@@ -848,8 +836,7 @@ namespace h264{
     payload[1 + byteOffset] |= (0x08 >> bitOffset);
     payload[2 + byteOffset] &= secondBitmask;
     payload[2 + byteOffset] |= (0x08 << (8 - bitOffset));
-    INFO_MSG("Translated %.2X to %.2X %.2X", toCopy, payload[1 + byteOffset],
-             payload[2 + byteOffset]);
+    INFO_MSG("Translated %.2X to %.2X %.2X", toCopy, payload[1 + byteOffset], payload[2 + byteOffset]);
   }
 
   void codedSliceUnit::toPrettyString(std::ostream &out){
@@ -922,12 +909,10 @@ namespace h264{
         uuid.str("x264 encoder configuration");
       }
       out << "   UUID: " << uuid.str() << std::endl;
-      out << "   Payload: " << std::string(payload.data() + payloadOffset + 16, payloadSize - 17)
-          << std::endl;
+      out << "   Payload: " << std::string(payload.data() + payloadOffset + 16, payloadSize - 17) << std::endl;
     }break;
     default:
-      out << "  Message of type " << payloadType << ", " << payloadSize << " bytes long"
-          << std::endl;
+      out << "  Message of type " << payloadType << ", " << payloadSize << " bytes long" << std::endl;
     }
   }
 
@@ -1149,8 +1134,7 @@ namespace h264{
     out << std::string(indent + 2, ' ')
         << "aspect_ratio_info_present_flag: " << aspectRatioInfoPresentFlag << std::endl;
     if (aspectRatioInfoPresentFlag){
-      out << std::string(indent + 2, ' ') << "aspect_ratio_idc: " << (int32_t)aspectRatioIdc
-          << std::endl;
+      out << std::string(indent + 2, ' ') << "aspect_ratio_idc: " << (int32_t)aspectRatioIdc << std::endl;
       if (aspectRatioIdc == 255){
         out << std::string(indent + 2, ' ') << "sar_width: " << sarWidth << std::endl;
         out << std::string(indent + 2, ' ') << "sar_height: " << sarHeight << std::endl;
@@ -1166,16 +1150,14 @@ namespace h264{
         << "video_signal_type_present_flag: " << videoSignalTypePresentFlag << std::endl;
     if (videoSignalTypePresentFlag){
       out << std::string(indent + 2, ' ') << "video_format" << videoFormat << std::endl;
-      out << std::string(indent + 2, ' ') << "video_full_range_flag" << videoFullRangeFlag
-          << std::endl;
+      out << std::string(indent + 2, ' ') << "video_full_range_flag" << videoFullRangeFlag << std::endl;
       out << std::string(indent + 2, ' ') << "colour_description_present_flag"
           << colourDescriptionPresentFlag << std::endl;
       if (colourDescriptionPresentFlag){
         out << std::string(indent + 2, ' ') << "colour_primaries" << colourPrimaries << std::endl;
         out << std::string(indent + 2, ' ') << "transfer_characteristics" << transferCharacteristics
             << std::endl;
-        out << std::string(indent + 2, ' ') << "matrix_coefficients" << matrixCoefficients
-            << std::endl;
+        out << std::string(indent + 2, ' ') << "matrix_coefficients" << matrixCoefficients << std::endl;
       }
     }
     out << std::string(indent + 2, ' ')
@@ -1186,13 +1168,11 @@ namespace h264{
       out << std::string(indent + 2, ' ') << "chroma_sample_loc_type_bottom_field"
           << chromaSampleLocTypeBottomField << std::endl;
     }
-    out << std::string(indent + 2, ' ') << "timing_info_present_flag: " << timingInfoPresentFlag
-        << std::endl;
+    out << std::string(indent + 2, ' ') << "timing_info_present_flag: " << timingInfoPresentFlag << std::endl;
     if (timingInfoPresentFlag){
       out << std::string(indent + 2, ' ') << "num_units_in_tick: " << numUnitsInTick << std::endl;
       out << std::string(indent + 2, ' ') << "time_scale: " << timeScale << std::endl;
-      out << std::string(indent + 2, ' ') << "fixed_frame_rate_flag: " << fixedFrameRateFlag
-          << std::endl;
+      out << std::string(indent + 2, ' ') << "fixed_frame_rate_flag: " << fixedFrameRateFlag << std::endl;
     }
     out << std::string(indent + 2, ' ')
         << "nal_hrd_parameters_present_flag: " << nalHrdParametersPresentFlag << std::endl;
@@ -1202,27 +1182,20 @@ namespace h264{
     if (nalHrdParametersPresentFlag || vclHrdParametersPresentFlag){
       out << std::string(indent + 2, ' ') << "low_delay_hrd_flag: " << lowDelayHrdFlag << std::endl;
     }
-    out << std::string(indent + 2, ' ') << "pic_struct_present_flag: " << picStructPresentFlag
-        << std::endl;
+    out << std::string(indent + 2, ' ') << "pic_struct_present_flag: " << picStructPresentFlag << std::endl;
     out << std::string(indent + 2, ' ') << "bitstream_restiction_flag: " << bitstreamRestrictionFlag
         << std::endl;
     if (bitstreamRestrictionFlag){
       out << std::string(indent + 2, ' ')
-          << "motion_vectors_over_pic_boundaries_flag: " << motionVectorsOverPicBoundariesFlag
-          << std::endl;
-      out << std::string(indent + 2, ' ') << "max_bytes_per_pic_denom: " << maxBytesPerPicDenom
-          << std::endl;
-      out << std::string(indent + 2, ' ') << "max_bits_per_mb_denom: " << maxBitsPerMbDenom
-          << std::endl;
+          << "motion_vectors_over_pic_boundaries_flag: " << motionVectorsOverPicBoundariesFlag << std::endl;
+      out << std::string(indent + 2, ' ') << "max_bytes_per_pic_denom: " << maxBytesPerPicDenom << std::endl;
+      out << std::string(indent + 2, ' ') << "max_bits_per_mb_denom: " << maxBitsPerMbDenom << std::endl;
       out << std::string(indent + 2, ' ')
           << "log2_max_mv_length_horizontal: " << log2MaxMvLengthHorizontal << std::endl;
       out << std::string(indent + 2, ' ')
           << "log2_max_mv_length_vertical: " << log2MaxMvLengthVertical << std::endl;
-      out << std::string(indent + 2, ' ') << "num_reorder_frames: " << numReorderFrames
-          << std::endl;
-      out << std::string(indent + 2, ' ') << "max_dec_frame_buffering: " << maxDecFrameBuffering
-          << std::endl;
+      out << std::string(indent + 2, ' ') << "num_reorder_frames: " << numReorderFrames << std::endl;
+      out << std::string(indent + 2, ' ') << "max_dec_frame_buffering: " << maxDecFrameBuffering << std::endl;
     }
   }
 }// namespace h264
-

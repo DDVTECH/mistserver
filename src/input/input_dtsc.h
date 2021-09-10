@@ -1,29 +1,28 @@
 #include "input.h"
 #include <mist/dtsc.h>
 
-namespace Mist {
-  class inputDTSC : public Input {
-    public:
-      inputDTSC(Util::Config * cfg);
-      bool needsLock();
-    protected:
-      //Private Functions
-      bool openStreamSource();
-      void closeStreamSource();
-      void parseStreamHeader();
-      bool checkArguments();
-      bool readHeader();
-      bool needHeader();
-      void getNext(bool smart = true);
-      void seek(int seekTime);
-      void trackSelect(std::string trackSpec);
+namespace Mist{
+  class inputDTSC : public Input{
+  public:
+    inputDTSC(Util::Config *cfg);
+    bool needsLock();
 
-      DTSC::File inFile;
+  protected:
+    // Private Functions
+    bool openStreamSource();
+    void closeStreamSource();
+    void parseStreamHeader();
+    bool checkArguments();
+    bool readHeader();
+    bool needHeader();
+    void getNext(bool smart = true);
+    void seek(int seekTime);
+    void trackSelect(std::string trackSpec);
 
-      Socket::Connection srcConn;
+    DTSC::File inFile;
+
+    Socket::Connection srcConn;
   };
-}
+}// namespace Mist
 
 typedef Mist::inputDTSC mistIn;
-
-

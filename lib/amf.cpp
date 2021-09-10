@@ -328,8 +328,7 @@ std::string AMF::Object::Pack(){
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object, parsed from the raw data.
-AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigned int &i,
-                          std::string name){
+AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name){
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned char tmpdbl[8];
@@ -375,16 +374,14 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
     return AMF::Object(name, (double)tmpi, AMF::AMF0_REFERENCE);
     break;
   case AMF::AMF0_XMLDOC:
-    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 +
-           data[i + 4];                                      // set tmpi to UTF-8-long length
+    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; // set tmpi to UTF-8-long length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
     tmpstr.append((const char *)data + i + 5, (size_t)tmpi); // add the string data
     i += tmpi + 5;                                           // skip length+size+1 forwards
     return AMF::Object(name, tmpstr, AMF::AMF0_XMLDOC);
     break;
   case AMF::AMF0_LONGSTRING:
-    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 +
-           data[i + 4];                                      // set tmpi to UTF-8-long length
+    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; // set tmpi to UTF-8-long length
     tmpstr.clear();                                          // clean tmpstr, just to be sure
     tmpstr.append((const char *)data + i + 5, (size_t)tmpi); // add the string data
     i += tmpi + 5;                                           // skip length+size+1 forwards
@@ -411,9 +408,8 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
       i += tmpi + 2;                                           // skip length+size forwards
-      ret.addContent(AMF::parseOne(
-          data, len, i,
-          tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
+      ret.addContent(AMF::parseOne(data, len, i,
+                                   tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
     }
     i += 3; // skip 0x000009
     return ret;
@@ -429,9 +425,8 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
       i += tmpi + 2;                                           // skip length+size forwards
-      ret.addContent(AMF::parseOne(
-          data, len, i,
-          tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
+      ret.addContent(AMF::parseOne(data, len, i,
+                                   tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
     }
     i += 3; // skip 0x000009
     return ret;
@@ -445,21 +440,18 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
       tmpstr.clear();                     // clean tmpstr, just to be sure
       tmpstr.append((const char *)data + i + 2, (size_t)tmpi); // add the string data
       i += tmpi + 2;                                           // skip length+size forwards
-      ret.addContent(AMF::parseOne(
-          data, len, i,
-          tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
+      ret.addContent(AMF::parseOne(data, len, i,
+                                   tmpstr)); // add content, recursively parsed, updating i, setting indice to tmpstr
     }
     i += 3; // skip 0x000009
     return ret;
   }break;
   case AMF::AMF0_STRICT_ARRAY:{
     AMF::Object ret(name, AMF::AMF0_STRICT_ARRAY);
-    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 +
-           data[i + 4]; // set tmpi to array length
-    i += 5;             // skip size+1 forwards
+    tmpi = data[i + 1] * 256 * 256 * 256 + data[i + 2] * 256 * 256 + data[i + 3] * 256 + data[i + 4]; // set tmpi to array length
+    i += 5;                                                  // skip size+1 forwards
     while (tmpi > 0){// while not done parsing array
-      ret.addContent(
-          AMF::parseOne(data, len, i, "arrVal")); // add content, recursively parsed, updating i
+      ret.addContent(AMF::parseOne(data, len, i, "arrVal")); // add content, recursively parsed, updating i
       --tmpi;
     }
     return ret;
@@ -712,8 +704,7 @@ std::string AMF::Object3::Pack(){
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object3, parsed from the raw data.
-AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i,
-                            std::string name){
+AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name){
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned int arrsize = 0;
@@ -974,13 +965,11 @@ AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsig
       if (tmpi > 0){
         tmpstr.clear();                                      // clean tmpstr, just to be sure
         tmpstr.append((const char *)data + i, (size_t)tmpi); // add the string data
-        ret.addContent(
-            AMF::parseOne3(data, len, i, tmpstr)); // add content, recursively parsed, updating i
+        ret.addContent(AMF::parseOne3(data, len, i, tmpstr)); // add content, recursively parsed, updating i
       }
     }while (tmpi > 0);
     while (arrsize > 0){// while not done parsing array
-      ret.addContent(
-          AMF::parseOne3(data, len, i, "arrVal")); // add content, recursively parsed, updating i
+      ret.addContent(AMF::parseOne3(data, len, i, "arrVal")); // add content, recursively parsed, updating i
       --arrsize;
     }
     return ret;
@@ -1046,8 +1035,7 @@ AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsig
         if (tmpi > 0){
           tmpstr.clear();                                      // clean tmpstr, just to be sure
           tmpstr.append((const char *)data + i, (size_t)tmpi); // add the string data
-          ret.addContent(
-              AMF::parseOne3(data, len, i, tmpstr)); // add content, recursively parsed, updating i
+          ret.addContent(AMF::parseOne3(data, len, i, tmpstr)); // add content, recursively parsed, updating i
         }
       }while (tmpi > 0); // keep reading dynamic values until empty string
     }// dynamic types
@@ -1081,4 +1069,3 @@ AMF::Object3 AMF::parse3(const unsigned char *data, unsigned int len){
 AMF::Object3 AMF::parse3(std::string data){
   return AMF::parse3((const unsigned char *)data.c_str(), data.size());
 }// parse
-

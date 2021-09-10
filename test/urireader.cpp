@@ -5,7 +5,7 @@ class URITest : public Util::DataCallback{
 public:
   void dump(const char *ptr, size_t size);
   void dataCallback(const char *ptr, size_t size);
-  int main(int argc, char ** argv);
+  int main(int argc, char **argv);
 };
 
 void URITest::dataCallback(const char *ptr, size_t size){

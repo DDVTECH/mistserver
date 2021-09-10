@@ -40,4 +40,3 @@ namespace Encodings{
   };
 
 }// namespace Encodings
-

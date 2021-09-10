@@ -1,12 +1,12 @@
-#include "sdp.h"
 #include "adts.h"
 #include "defines.h"
 #include "encode.h"
 #include "h264.h"
 #include "h265.h"
 #include "http_parser.h"
-#include "util.h"
+#include "sdp.h"
 #include "url.h"
+#include "util.h"
 
 namespace SDP{
 
@@ -14,7 +14,6 @@ namespace SDP{
   static void snglStateInitCallback(const uint64_t track, const std::string &initData){
     snglState->updateInit(track, initData);
   }
-
 
   Track::Track(){
     rtcpSent = 0;
@@ -67,15 +66,13 @@ namespace SDP{
       size_t count = avccbox.getSPSCount();
       for (size_t i = 0; i < count; ++i){
         mediaDesc << (i ? "," : "")
-                  << Encodings::Base64::encode(
-                         std::string(avccbox.getSPS(i), avccbox.getSPSLen(i)));
+                  << Encodings::Base64::encode(std::string(avccbox.getSPS(i), avccbox.getSPSLen(i)));
       }
       mediaDesc << ",";
       count = avccbox.getPPSCount();
       for (size_t i = 0; i < count; ++i){
         mediaDesc << (i ? "," : "")
-                  << Encodings::Base64::encode(
-                         std::string(avccbox.getPPS(i), avccbox.getPPSLen(i)));
+                  << Encodings::Base64::encode(std::string(avccbox.getPPS(i), avccbox.getPPSLen(i)));
       }
       mediaDesc << "\r\n"
                 << "a=framerate:" << ((double)trk.fpks) / 1000.0
@@ -188,8 +185,7 @@ namespace SDP{
       }else{
         mediaDesc << "m=audio 0 RTP/AVP 103"
                   << "\r\n";
-        mediaDesc << "a=rtpmap:103 L" << trk.size << "/" << trk.rate << "/" << trk.channels
-                  << "\r\n";
+        mediaDesc << "a=rtpmap:103 L" << trk.size << "/" << trk.rate << "/" << trk.channels << "\r\n";
       }
       mediaDesc << "a=control:track" << trk.trackID << "\r\n";
     }else if (trk.codec == "opus"){
@@ -212,8 +208,7 @@ namespace SDP{
       // We simply request interleaved delivery over a trackNo-based identifier.
       // No need to set any internal state, parseTransport will handle it all.
       std::stringstream tStr;
-      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-"
-           << ((trackNo - 1) * 2 + 1);
+      tStr << "RTP/AVP/TCP;unicast;interleaved=" << ((trackNo - 1) * 2) << "-" << ((trackNo - 1) * 2 + 1);
       return tStr.str();
     }else{
       // A little more tricky: we need to find free ports and remember them.
@@ -277,9 +272,8 @@ namespace SDP{
       return false;
     }
     if (transport.find("TCP") != std::string::npos){
-      std::string chanE =
-          transport.substr(transport.find("interleaved=") + 12,
-                           (transport.size() - transport.rfind('-') - 1)); // extract channel ID
+      std::string chanE = transport.substr(transport.find("interleaved=") + 12,
+                                           (transport.size() - transport.rfind('-') - 1)); // extract channel ID
       channel = atol(chanE.c_str());
       rtcpSent = 0;
       transportString = transport;
@@ -289,8 +283,7 @@ namespace SDP{
       cPortA = cPortB = 0;
       size_t sPort_loc = transport.rfind("server_port=") + 12;
       if (sPort_loc != std::string::npos){
-        sPortA =
-            atol(transport.substr(sPort_loc, transport.find('-', sPort_loc) - sPort_loc).c_str());
+        sPortA = atol(transport.substr(sPort_loc, transport.find('-', sPort_loc) - sPort_loc).c_str());
         sPortB = atol(transport.substr(transport.find('-', sPort_loc) + 1).c_str());
       }
       size_t port_loc = transport.rfind("client_port=") + 12;
@@ -311,8 +304,7 @@ namespace SDP{
         std::stringstream tStr;
         tStr << "RTP/AVP/UDP;unicast;client_port=" << cPortA << '-' << cPortB << ";";
         if (source.size()){tStr << "source=" << source << ";";}
-        tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC
-             << std::dec;
+        tStr << "server_port=" << portA << "-" << portB << ";ssrc=" << std::hex << mySSRC << std::dec;
         transportString = tStr.str();
       }else{
         // Client mode - check ports and/or obey given ports if possible
@@ -342,11 +334,9 @@ namespace SDP{
   }
 
   /// Gets the rtpInfo for a given DTSC::Track, source identifier and timestamp (in millis).
-  std::string Track::rtpInfo(const DTSC::Track &trk, const std::string &source,
-                             uint64_t currentTime){
+  std::string Track::rtpInfo(const DTSC::Track &trk, const std::string &source, uint64_t currentTime){
     std::stringstream rInfo;
-    rInfo << "url=" << source << "/track" << trk.trackID
-          << ";"; // get the current url, not localhost
+    rInfo << "url=" << source << "/track" << trk.trackID << ";"; // get the current url, not localhost
     rInfo << "sequence=" << pack.getSequence() << ";rtptime=" << currentTime * getMultiplier(trk);
     return rInfo.str();
   }
@@ -503,7 +493,7 @@ namespace SDP{
           thisTrack->codec = "PCM";
           thisTrack->size = 20;
         }
-        if (trCodec == "L24"|| trCodec == "PCM"){
+        if (trCodec == "L24" || trCodec == "PCM"){
           thisTrack->codec = "PCM";
           thisTrack->size = 24;
         }
@@ -541,8 +531,7 @@ namespace SDP{
             // a=fmtp:97
             // profile-level-id=1;mode=AAC-hbr;sizelength=13;indexlength=3;indexdeltalength=3;
             // config=120856E500
-            FAIL_MSG("AAC transport mode not supported: %s",
-                     tracks[trackNo].getParamString("mode").c_str());
+            FAIL_MSG("AAC transport mode not supported: %s", tracks[trackNo].getParamString("mode").c_str());
             nope = true;
             myMeta->tracks.erase(trackNo);
             tracks.erase(trackNo);
@@ -562,12 +551,9 @@ namespace SDP{
           updateH264Init(trackNo);
         }
         if (thisTrack->codec == "HEVC"){
-          tracks[trackNo].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-vps")));
-          tracks[trackNo].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-sps")));
-          tracks[trackNo].hevcInfo.addUnit(
-              Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-pps")));
+          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-vps")));
+          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-sps")));
+          tracks[trackNo].hevcInfo.addUnit(Encodings::Base64::decode(tracks[trackNo].getParamString("sprop-pps")));
           updateH265Init(trackNo);
         }
         continue;
@@ -639,8 +625,7 @@ namespace SDP{
     if (H.url == "200"){
       ++trackCounter;
       if (!tracks.count(trackCounter)){return 0;}
-      if (!tracks[trackCounter].parseTransport(H.GetHeader("Transport"), cH, src,
-                                               myMeta->tracks[trackCounter])){
+      if (!tracks[trackCounter].parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[trackCounter])){
         return 0;
       }
       return trackCounter;
@@ -660,13 +645,11 @@ namespace SDP{
           }
 
           if ((urlString.size() >= it->second.control.size() &&
-               urlString.substr(urlString.size() - it->second.control.size()) ==
-                   it->second.control) ||
+               urlString.substr(urlString.size() - it->second.control.size()) == it->second.control) ||
               (pw.size() >= it->second.control.size() &&
                pw.substr(pw.size() - it->second.control.size()) == it->second.control)){
             INFO_MSG("Parsing SETUP against track %lu", it->first);
-            if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src,
-                                           myMeta->tracks[it->first])){
+            if (!it->second.parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[it->first])){
               return 0;
             }
             return it->first;
@@ -677,8 +660,7 @@ namespace SDP{
         uint32_t trackNo = atoi(H.url.c_str() + H.url.find("/track") + 6);
         if (trackNo){
           INFO_MSG("Parsing SETUP against track %lu", trackNo);
-          if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src,
-                                              myMeta->tracks[trackNo])){
+          if (!tracks[trackNo].parseTransport(H.GetHeader("Transport"), cH, src, myMeta->tracks[trackNo])){
             return 0;
           }
           return trackNo;
@@ -699,11 +681,9 @@ namespace SDP{
     if (Trk.type == "video" || Trk.codec == "MP2" || Trk.codec == "MP3"){return 90.0;}
     return ((double)Trk.rate / 1000.0);
   }
-  
+
   void State::updateInit(const uint64_t trackNo, const std::string &initData){
-    if (myMeta->tracks.count(trackNo)){
-      myMeta->tracks[trackNo].init = initData;
-    }
+    if (myMeta->tracks.count(trackNo)){myMeta->tracks[trackNo].init = initData;}
   }
 
   /// Handles RTP packets generically, for both TCP and UDP-based connections.
@@ -714,4 +694,3 @@ namespace SDP{
   }
 
 }// namespace SDP
-

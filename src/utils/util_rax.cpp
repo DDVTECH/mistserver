@@ -1,8 +1,8 @@
 #include <iostream>
-#include <mist/util.h>
 #include <mist/shared_memory.h>
+#include <mist/util.h>
 
-int main(int argc, char ** argv){
+int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();
   if (argc < 1){
     FAIL_MSG("Usage: %s MEMORY_PAGE_NAME");
@@ -16,4 +16,3 @@ int main(int argc, char ** argv){
     std::cout << "Memory structure " << argv[1] << " is not ready" << std::endl;
   }
 }
-

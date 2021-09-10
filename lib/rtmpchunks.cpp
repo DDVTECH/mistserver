@@ -1,10 +1,10 @@
 /// \file rtmpchunks.cpp
 /// Holds all code for the RTMPStream namespace.
 
-#include "rtmpchunks.h"
 #include "auth.h"
 #include "defines.h"
 #include "flv_tag.h"
+#include "rtmpchunks.h"
 #include "timing.h"
 
 std::string RTMPStream::handshake_in;  ///< Input for the handshake.
@@ -41,13 +41,12 @@ char genuineFMSKey[] ={
     0x00, 0xd0, 0xd1, 0x02, 0x9e, 0x7e, 0x57, 0x6e, 0xec, 0x5d, 0x2d, 0x29, 0x80, 0x6f, 0xab,
     0x93, 0xb8, 0xe6, 0x36, 0xcf, 0xeb, 0x31, 0xae}; // 68
 
-char genuineFPKey[] ={
-    0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65,
-    0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20, 0x50, 0x6c, 0x61,
-    0x79, // Genuine Adobe Flash Player 001
-    0x65, 0x72, 0x20, 0x30, 0x30, 0x31, 0xf0, 0xee, 0xc2, 0x4a, 0x80, 0x68, 0xbe,
-    0xe8, 0x2e, 0x00, 0xd0, 0xd1, 0x02, 0x9e, 0x7e, 0x57, 0x6e, 0xec, 0x5d, 0x2d,
-    0x29, 0x80, 0x6f, 0xab, 0x93, 0xb8, 0xe6, 0x36, 0xcf, 0xeb, 0x31, 0xae}; // 62
+char genuineFPKey[] ={0x47, 0x65, 0x6e, 0x75, 0x69, 0x6e, 0x65, 0x20, 0x41, 0x64, 0x6f, 0x62, 0x65,
+                       0x20, 0x46, 0x6c, 0x61, 0x73, 0x68, 0x20, 0x50, 0x6c, 0x61,
+                       0x79, // Genuine Adobe Flash Player 001
+                       0x65, 0x72, 0x20, 0x30, 0x30, 0x31, 0xf0, 0xee, 0xc2, 0x4a, 0x80, 0x68, 0xbe,
+                       0xe8, 0x2e, 0x00, 0xd0, 0xd1, 0x02, 0x9e, 0x7e, 0x57, 0x6e, 0xec, 0x5d, 0x2d,
+                       0x29, 0x80, 0x6f, 0xab, 0x93, 0xb8, 0xe6, 0x36, 0xcf, 0xeb, 0x31, 0xae}; // 62
 
 inline uint32_t GetDigestOffset(uint8_t *pBuffer, uint8_t scheme){
   if (scheme == 0){
@@ -61,8 +60,7 @@ bool ValidateClientScheme(uint8_t *pBuffer, uint8_t scheme){
   uint32_t clientDigestOffset = GetDigestOffset(pBuffer, scheme);
   uint8_t pTempBuffer[1536 - 32];
   memcpy(pTempBuffer, pBuffer, clientDigestOffset);
-  memcpy(pTempBuffer + clientDigestOffset, pBuffer + clientDigestOffset + 32,
-         1536 - clientDigestOffset - 32);
+  memcpy(pTempBuffer + clientDigestOffset, pBuffer + clientDigestOffset + 32, 1536 - clientDigestOffset - 32);
   char pTempHash[32];
   Secure::hmac_sha256bin((char *)pTempBuffer, 1536 - 32, genuineFPKey, 30, pTempHash);
   bool result = (memcmp(pBuffer + clientDigestOffset, pTempHash, 32) == 0);
@@ -217,8 +215,7 @@ std::string &RTMPStream::SendChunk(unsigned int cs_id, unsigned char msg_type_id
 /// \param data Contents of the media data.
 /// \param len Length of the media data, in bytes.
 /// \param ts Timestamp of the media data, relative to current system time.
-std::string &RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char *data, int len,
-                                   unsigned int ts){
+std::string &RTMPStream::SendMedia(unsigned char msg_type_id, unsigned char *data, int len, unsigned int ts){
   static RTMPStream::Chunk ch;
   ch.cs_id = msg_type_id + 42;
   ch.timestamp = ts;
@@ -353,8 +350,7 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
   // process the rest of the header, for each chunk type
   headertype = chunktype & 0xC0;
 
-  DONTEVEN_MSG("Parsing RTMP chunk header (%#.2hhX) at offset %#zx", chunktype,
-               RTMPStream::rec_cnt);
+  DONTEVEN_MSG("Parsing RTMP chunk header (%#.2hhX) at offset %#zx", chunktype, RTMPStream::rec_cnt);
 
   switch (headertype){
   case 0x00:
@@ -512,8 +508,7 @@ bool RTMPStream::doHandshake(){
   // FIRST 1536 bytes for server response
   char pTempBuffer[1504];
   memcpy(pTempBuffer, Server, serverDigestOffset);
-  memcpy(pTempBuffer + serverDigestOffset, Server + serverDigestOffset + 32,
-         1504 - serverDigestOffset);
+  memcpy(pTempBuffer + serverDigestOffset, Server + serverDigestOffset + 32, 1504 - serverDigestOffset);
   Secure::hmac_sha256bin(pTempBuffer, 1504, genuineFMSKey, 36, (char *)Server + serverDigestOffset);
 
   // SECOND 1536 bytes for server response
@@ -523,12 +518,10 @@ bool RTMPStream::doHandshake(){
   }else{
     char pTempHash[32];
     Secure::hmac_sha256bin((char *)Client + keyChallengeIndex, 32, genuineFMSKey, 68, pTempHash);
-    Secure::hmac_sha256bin((char *)Server + 1536, 1536 - 32, pTempHash, 32,
-                           (char *)Server + 1536 * 2 - 32);
+    Secure::hmac_sha256bin((char *)Server + 1536, 1536 - 32, pTempHash, 32, (char *)Server + 1536 * 2 - 32);
   }
 
   Server[-1] = Version;
   RTMPStream::snd_cnt += 3073;
   return true;
 }
-

@@ -8,8 +8,8 @@
 #include "timing.h"
 #include "url.h"
 #include "util.h"
-#include <strings.h>
 #include <iomanip>
+#include <strings.h>
 
 /// This constructor creates an empty HTTP::Parser, ready for use for either reading or writing.
 /// All this constructor does is call HTTP::Parser::Clean().
@@ -167,7 +167,8 @@ void HTTP::Parser::SendRequest(Socket::Connection &conn, const std::string &reqb
   sendRequest(conn, reqbody.data(), reqbody.size(), allAtOnce);
 }
 
-void HTTP::Parser::sendRequest(Socket::Connection &conn, const void * reqbody, const size_t reqbodyLen, bool allAtOnce){
+void HTTP::Parser::sendRequest(Socket::Connection &conn, const void *reqbody,
+                               const size_t reqbodyLen, bool allAtOnce){
   /// \todo Include GET/POST variable parsing?
   if (allAtOnce){
     /// \TODO Make this less duplicated / more pretty.
@@ -183,7 +184,7 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void * reqbody, c
     }
     builder += "\r\n";
     if (reqbodyLen){
-      builder += std::string((char*)reqbody, reqbodyLen);
+      builder += std::string((char *)reqbody, reqbodyLen);
     }else{
       builder += body;
     }
@@ -203,7 +204,7 @@ void HTTP::Parser::sendRequest(Socket::Connection &conn, const void * reqbody, c
   }
   conn.SendNow("\r\n", 2);
   if (reqbodyLen){
-    conn.SendNow((char*)reqbody, reqbodyLen);
+    conn.SendNow((char *)reqbody, reqbodyLen);
   }else{
     conn.SendNow(body);
   }
@@ -421,11 +422,9 @@ const std::string &HTTP::Parser::GetHeader(const std::string &i) const{
   if (headers.count(i)){return headers.at(i);}
   for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
     if (it->first.length() != i.length()){continue;}
-    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
-      return it->second;
-    }
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){return it->second;}
   }
-  //Return empty string if not found
+  // Return empty string if not found
   static const std::string empty;
   return empty;
 }
@@ -435,9 +434,7 @@ bool HTTP::Parser::hasHeader(const std::string &i) const{
   if (headers.count(i)){return true;}
   for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it){
     if (it->first.length() != i.length()){continue;}
-    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){
-      return true;
-    }
+    if (strncasecmp(it->first.c_str(), i.c_str(), i.length()) == 0){return true;}
   }
   return false;
 }
@@ -499,7 +496,7 @@ void HTTP::Parser::SetVar(std::string i, std::string v){
 /// returned. If not, as much as can be interpreted is removed and false returned. \param conn The
 /// socket to read from. \return True if a whole request or response was read, false otherwise.
 bool HTTP::Parser::Read(Socket::Connection &conn, Util::DataCallback &cb){
-  //In this case, we might have a broken connection and need to check if we're done
+  // In this case, we might have a broken connection and need to check if we're done
   if (!conn.Received().size()){
     return (parse(conn.Received().get(), cb) && (!possiblyComplete || !conn || !JSON::Value(url).asInt()));
   }
@@ -708,9 +705,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           }
           return false;
         }else{
-          if (protocol.substr(0, 4) == "RTSP" || method.substr(0,4) == "RTSP"){
-            return true;
-          }
+          if (protocol.substr(0, 4) == "RTSP" || method.substr(0, 4) == "RTSP"){return true;}
           unsigned int toappend = HTTPbuffer.size();
           bool shouldAppend = true;
           if (bodyCallback){
@@ -727,7 +722,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           HTTPbuffer.erase(0, toappend);
 
           // return true if there is no body, otherwise we only stop when the connection is dropped
-          possiblyComplete = true;  
+          possiblyComplete = true;
           return true;
         }
       }

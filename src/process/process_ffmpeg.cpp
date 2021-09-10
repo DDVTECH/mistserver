@@ -1,14 +1,14 @@
 #include "process_ffmpeg.h"
-#include <fstream>
-#include <ostream>
-#include <mist/defines.h>
-#include <mist/util.h>
-#include <mist/procs.h>
 #include <algorithm> //for std::find
+#include <fstream>
+#include <mist/defines.h>
+#include <mist/procs.h>
+#include <mist/tinythread.h>
+#include <mist/util.h>
+#include <ostream>
 #include <sys/stat.h>  //for stat
 #include <sys/types.h> //for stat
 #include <unistd.h>    //for stat
-#include <mist/tinythread.h>
 
 int ofin = -1, ofout = 1, oferr = 2;
 int ifin = -1, ifout = -1, iferr = 2;
@@ -17,7 +17,7 @@ int pipein[2], pipeout[2], pipeerr[2];
 Util::Config co;
 Util::Config conf;
 
-//Complete config file loaded in JSON
+// Complete config file loaded in JSON
 JSON::Value opt;
 
 uint64_t packetTimeDiff;
@@ -26,7 +26,7 @@ bool getFirst = false;
 bool sendFirst = false;
 
 uint32_t res_x = 0;
-uint32_t res_y = 0; 
+uint32_t res_y = 0;
 Mist::OutENC Enc;
 
 void sinkThread(void *){
@@ -44,13 +44,13 @@ void sinkThread(void *){
 }
 
 void sourceThread(void *){
-  Mist::EncodeOutputEBML::init(&conf); 
+  Mist::EncodeOutputEBML::init(&conf);
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
-  if(Enc.isAudio){
-    conf.getOption("target",true).append("-?audio=" + opt["source_track"].asString() + "&video=0");
-  }else if(Enc.isVideo){
-    conf.getOption("target",true).append("-?video=" + opt["source_track"].asString() + "&audio=0");
+  if (Enc.isAudio){
+    conf.getOption("target", true).append("-?audio=" + opt["source_track"].asString() + "&video=0");
+  }else if (Enc.isVideo){
+    conf.getOption("target", true).append("-?video=" + opt["source_track"].asString() + "&audio=0");
   }else{
     FAIL_MSG("Cannot set target option parameters");
     return;
@@ -58,16 +58,16 @@ void sourceThread(void *){
 
   conf.is_active = true;
 
-  Socket::Connection c(pipein[1],0);
+  Socket::Connection c(pipein[1], 0);
   Mist::EncodeOutputEBML out(c);
-  
-  MEDIUM_MSG("Running source thread..." );
+
+  MEDIUM_MSG("Running source thread...");
   out.run();
 
   co.is_active = false;
 }
 
-int main(int argc, char * argv[]){
+int main(int argc, char *argv[]){
   Util::Config config(argv[0]);
   JSON::Value capa;
 
@@ -77,7 +77,7 @@ int main(int argc, char * argv[]){
     opt["default"] = "-";
     opt["arg_num"] = 1;
     opt["help"] = "JSON configuration, or - (default) to read from stdin";
-    config.addOption("configuration", opt); 
+    config.addOption("configuration", opt);
 
     JSON::Value option;
     option["long"] = "json";
@@ -85,39 +85,39 @@ int main(int argc, char * argv[]){
     option["help"] = "Output connector info in JSON format, then exit.";
     option["value"].append(0);
     config.addOption("json", option);
-
   }
 
   if (!(config.parseArgs(argc, argv))){return 1;}
-  if (config.getBool("json")) {
-    
-    capa["name"] = "FFMPEG";                                              //internal name of process
-    capa["hrn"] = "Encoder: FFMPEG";                                      //human readable name
-    capa["desc"] = "Use a local FFMPEG installed binary to do encoding";  //description
-    capa["sort"] = "n";                                                   //sort the parameters by this key
-    
-    capa["required"]["x-LSP-kind"]["name"] = "Input type";                 //human readable name of option
-    capa["required"]["x-LSP-kind"]["help"] = "The type of input to use";   //extra information
-    capa["required"]["x-LSP-kind"]["type"] = "select";                     //type of input field to use
-    capa["required"]["x-LSP-kind"]["select"][0u][0u] = "video";            //value of first select field
-    capa["required"]["x-LSP-kind"]["select"][0u][1u] = "Video";            //label of first select field
+  if (config.getBool("json")){
+
+    capa["name"] = "FFMPEG";                                             // internal name of process
+    capa["hrn"] = "Encoder: FFMPEG";                                     // human readable name
+    capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
+    capa["sort"] = "n"; // sort the parameters by this key
+
+    capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
+    capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
+    capa["required"]["x-LSP-kind"]["type"] = "select";          // type of input field to use
+    capa["required"]["x-LSP-kind"]["select"][0u][0u] = "video"; // value of first select field
+    capa["required"]["x-LSP-kind"]["select"][0u][1u] = "Video"; // label of first select field
     capa["required"]["x-LSP-kind"]["select"][1u][0u] = "audio";
     capa["required"]["x-LSP-kind"]["select"][1u][1u] = "Audio";
-    capa["required"]["x-LSP-kind"]["n"] = 0;                               //sorting index
-    capa["required"]["x-LSP-kind"]["influences"][0u] = "codec";             //changing this parameter influences the parameters listed here
+    capa["required"]["x-LSP-kind"]["n"] = 0; // sorting index
+    capa["required"]["x-LSP-kind"]["influences"][0u] =
+        "codec"; // changing this parameter influences the parameters listed here
     capa["required"]["x-LSP-kind"]["influences"][1u] = "resolution";
     capa["required"]["x-LSP-kind"]["influences"][2u] = "sources";
     capa["required"]["x-LSP-kind"]["influences"][3u] = "x-LSP-rate_or_crf";
-    capa["required"]["x-LSP-kind"]["value"] = "video";                     //preselect this value
+    capa["required"]["x-LSP-kind"]["value"] = "video"; // preselect this value
 
     capa["optional"]["source_track"]["name"] = "Input selection";
-    capa["optional"]["source_track"]["help"] = "Track ID, codec or language of the source stream to encode.";
+    capa["optional"]["source_track"]["help"] =
+        "Track ID, codec or language of the source stream to encode.";
     capa["optional"]["source_track"]["type"] = "track_selector_parameter";
     capa["optional"]["source_track"]["n"] = 1;
     capa["optional"]["source_track"]["default"] = "automatic";
-    
-    
-    //use an array for this parameter, because there are two input field variations 
+
+    // use an array for this parameter, because there are two input field variations
     capa["required"]["codec"][0u]["name"] = "Target codec";
     capa["required"]["codec"][0u]["help"] = "Which codec to encode to";
     capa["required"]["codec"][0u]["type"] = "select";
@@ -125,8 +125,9 @@ int main(int argc, char * argv[]){
     capa["required"]["codec"][0u]["select"][1u] = "VP9";
     capa["required"]["codec"][0u]["influences"][0u] = "crf";
     capa["required"]["codec"][0u]["n"] = 2;
-    capa["required"]["codec"][0u]["dependent"]["x-LSP-kind"] = "video";    //this field is only shown if x-LSP-kind is set to "video"
-    
+    capa["required"]["codec"][0u]["dependent"]["x-LSP-kind"] =
+        "video"; // this field is only shown if x-LSP-kind is set to "video"
+
     capa["required"]["codec"][1u]["name"] = "Target codec";
     capa["required"]["codec"][1u]["help"] = "Which codec to encode to";
     capa["required"]["codec"][1u]["type"] = "select";
@@ -136,21 +137,22 @@ int main(int argc, char * argv[]){
     capa["required"]["codec"][1u]["select"][2u][1u] = "Opus";
     capa["required"]["codec"][1u]["influences"][0u] = "x-LSP-rate_or_crf";
     capa["required"]["codec"][1u]["n"] = 2;
-    capa["required"]["codec"][1u]["dependent"]["x-LSP-kind"] = "audio"; 
+    capa["required"]["codec"][1u]["dependent"]["x-LSP-kind"] = "audio";
 
     capa["optional"]["sink"]["name"] = "Target stream";
-    capa["optional"]["sink"]["help"] = "What stream the encoded track should be added to. Defaults to source stream.";
+    capa["optional"]["sink"]["help"] =
+        "What stream the encoded track should be added to. Defaults to source stream.";
     capa["optional"]["sink"]["placeholder"] = "source stream";
     capa["optional"]["sink"]["type"] = "str";
     capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
     capa["optional"]["sink"]["n"] = 3;
-    
+
     capa["optional"]["resolution"]["name"] = "resolution";
     capa["optional"]["resolution"]["help"] = "Resolution of the output stream";
     capa["optional"]["resolution"]["type"] = "str";
     capa["optional"]["resolution"]["n"] = 4;
     capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
-    
+
     capa["optional"]["x-LSP-rate_or_crf"][0u]["name"] = "Quality";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["type"] = "select";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["select"][0u][0u] = "";
@@ -163,7 +165,7 @@ int main(int argc, char * argv[]){
     capa["optional"]["x-LSP-rate_or_crf"][0u]["influences"][0u] = "crf";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["influences"][1u] = "rate";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["dependent"]["x-LSP-kind"] = "video";
-    
+
     capa["optional"]["x-LSP-rate_or_crf"][1u]["name"] = "Quality";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["type"] = "select";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["select"][0u][0u] = "";
@@ -173,7 +175,7 @@ int main(int argc, char * argv[]){
     capa["optional"]["x-LSP-rate_or_crf"][1u]["n"] = 5;
     capa["optional"]["x-LSP-rate_or_crf"][1u]["influences"][0u] = "rate";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["dependent"]["x-LSP-kind"] = "audio";
-    
+
     capa["optional"]["crf"][0u]["help"] = "Video quality";
     capa["optional"]["crf"][0u]["min"] = "0";
     capa["optional"]["crf"][0u]["max"] = "51";
@@ -181,7 +183,7 @@ int main(int argc, char * argv[]){
     capa["optional"]["crf"][0u]["dependent"]["codec"] = "H264";
     capa["optional"]["crf"][0u]["dependent"]["x-LSP-rate_or_crf"] = "crf";
     capa["optional"]["crf"][0u]["n"] = 6;
-    
+
     capa["optional"]["crf"][1u]["help"] = "Video quality";
     capa["optional"]["crf"][1u]["min"] = "0";
     capa["optional"]["crf"][1u]["max"] = "63";
@@ -195,23 +197,27 @@ int main(int argc, char * argv[]){
     capa["optional"]["rate"]["type"] = "str";
     capa["optional"]["rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
     capa["optional"]["rate"]["n"] = 8;
-   
+
     capa["optional"]["sources"]["name"] = "Layers";
     capa["optional"]["sources"]["type"] = "sublist";
     capa["optional"]["sources"]["itemLabel"] = "layer";
-    capa["optional"]["sources"]["help"] = "List of sources to overlay on top of each other, in order. If left empty, simply uses the input track without modifications and nothing else.";
+    capa["optional"]["sources"]["help"] =
+        "List of sources to overlay on top of each other, in order. If left empty, simply uses the "
+        "input track without modifications and nothing else.";
     capa["optional"]["sources"]["n"] = 9;
     capa["optional"]["sources"]["sort"] = "n";
     capa["optional"]["sources"]["dependent"]["x-LSP-kind"] = "video";
-    
-    JSON::Value & grp = capa["optional"]["sources"]["optional"];
+
+    JSON::Value &grp = capa["optional"]["sources"]["optional"];
     grp["src"]["name"] = "Source";
-    grp["src"]["help"] = "Source image/video file or URL to overlay. Leave empty to apply original source.";
+    grp["src"]["help"] =
+        "Source image/video file or URL to overlay. Leave empty to apply original source.";
     grp["src"]["type"] = "str";
     grp["src"]["default"] = "-";
     grp["src"]["n"] = 0;
     grp["anchor"]["name"] = "Origin corner";
-    grp["anchor"]["help"] = "What corner to use as origin for the X/Y coordinate system for placement.";
+    grp["anchor"]["help"] =
+        "What corner to use as origin for the X/Y coordinate system for placement.";
     grp["anchor"]["type"] = "select";
     grp["anchor"]["default"] = "topleft";
     grp["anchor"]["select"].append("topleft");
@@ -233,13 +239,15 @@ int main(int argc, char * argv[]){
     grp["y"]["default"] = 0;
     grp["y"]["n"] = 5;
     grp["width"]["name"] = "Width";
-    grp["width"]["help"] = "Width to scale the layer to, use -1 to keep aspect ratio if only height is known.";
+    grp["width"]["help"] =
+        "Width to scale the layer to, use -1 to keep aspect ratio if only height is known.";
     grp["width"]["unit"] = "pixels";
     grp["width"]["type"] = "int";
     grp["width"]["default"] = "original width";
     grp["width"]["n"] = 1;
     grp["height"]["name"] = "Height";
-    grp["height"]["help"] = "Height to scale the layer to, use -1 to keep aspect ratio if only width is known.";
+    grp["height"]["help"] =
+        "Height to scale the layer to, use -1 to keep aspect ratio if only width is known.";
     grp["height"]["unit"] = "pixels";
     grp["height"]["type"] = "int";
     grp["height"]["default"] = "original height";
@@ -251,8 +259,8 @@ int main(int argc, char * argv[]){
 
   Util::redirectLogsIfNeeded();
 
-  //read configuration
-  if(config.getString("configuration") != "-"){
+  // read configuration
+  if (config.getString("configuration") != "-"){
     opt = JSON::fromString(config.getString("configuration"));
   }else{
     std::string json, line;
@@ -263,33 +271,33 @@ int main(int argc, char * argv[]){
 
   Enc.SetConfig(opt);
 
-  //check config for generic options
-  if(!Enc.CheckConfig()){
+  // check config for generic options
+  if (!Enc.CheckConfig()){
     FAIL_MSG("Error config syntax error!");
     return 1;
   }
 
-  //create pipe pair before thread
+  // create pipe pair before thread
   pipe(pipein);
   pipe(pipeout);
- 
-  //stream which connects to input
+
+  // stream which connects to input
   tthread::thread source(sourceThread, 0);
 
-  //needs to pass through encoder to outputEBML
-  tthread::thread sink(sinkThread, 0); 
+  // needs to pass through encoder to outputEBML
+  tthread::thread sink(sinkThread, 0);
 
   co.is_active = true;
 
-  //run ffmpeg 
+  // run ffmpeg
   Enc.Run();
-   
+
   MEDIUM_MSG("closing encoding");
 
   co.is_active = false;
   conf.is_active = false;
-  
-  //close pipes
+
+  // close pipes
   close(pipein[0]);
   close(pipeout[0]);
   close(pipein[1]);
@@ -309,15 +317,13 @@ namespace Mist{
   void EncodeInputEBML::getNext(bool smart){
     static bool recurse = false;
 
-    //getNext is called recursively, only process the first call
-    if(recurse){
-      return InputEBML::getNext(smart);
-    }
+    // getNext is called recursively, only process the first call
+    if (recurse){return InputEBML::getNext(smart);}
 
     recurse = true;
     InputEBML::getNext(smart);
 
-    if(!getFirst){
+    if (!getFirst){
       packetTimeDiff = sendPacketTime - thisPacket.getTime();
       getFirst = true;
     }
@@ -325,12 +331,12 @@ namespace Mist{
     uint64_t tmpLong;
     uint64_t packTime = thisPacket.getTime() + packetTimeDiff;
 
-    //change packettime
-    char * data = thisPacket.getData();
+    // change packettime
+    char *data = thisPacket.getData();
     tmpLong = htonl((int)(packTime >> 32));
-    memcpy(data+12, (char *)&tmpLong, 4);
+    memcpy(data + 12, (char *)&tmpLong, 4);
     tmpLong = htonl((int)(packTime & 0xFFFFFFFF));
-    memcpy(data+16, (char *)&tmpLong, 4);
+    memcpy(data + 16, (char *)&tmpLong, 4);
 
     recurse = false;
   }
@@ -347,38 +353,32 @@ namespace Mist{
     return Trk.type;
   }
 
-  void EncodeOutputEBML::setVideoTrack(std::string tid){
-    selectTrack("video",tid);
-  }
+  void EncodeOutputEBML::setVideoTrack(std::string tid){selectTrack("video", tid);}
 
-  void EncodeOutputEBML::setAudioTrack(std::string tid){
-    selectTrack("audio",tid);
-  }
+  void EncodeOutputEBML::setAudioTrack(std::string tid){selectTrack("audio", tid);}
 
   void EncodeOutputEBML::sendHeader(){
     realTime = 0;
     res_x = myMeta.tracks[getMainSelectedTrack()].width;
     res_y = myMeta.tracks[getMainSelectedTrack()].height;
-    Enc.setResolution(res_x, res_y); 
+    Enc.setResolution(res_x, res_y);
     OutEBML::sendHeader();
   }
 
   void EncodeOutputEBML::sendNext(){
-    if(!sendFirst){
+    if (!sendFirst){
       sendPacketTime = thisPacket.getTime();
       sendFirst = true;
     }
-    
+
     OutEBML::sendNext();
   }
 
-  void OutENC::SetConfig(JSON::Value & config){
-    opt = config;
-  }
+  void OutENC::SetConfig(JSON::Value &config){opt = config;}
 
   bool OutENC::checkAudioConfig(){
     MEDIUM_MSG("no audio configs to check yet!");
-    
+
     if (opt.isMember("sample_rate") && opt["sample_rate"].isInt()){
       sample_rate = opt["sample_rate"].asInt();
     }
@@ -398,15 +398,13 @@ namespace Mist{
     supportedAudioCodecs.insert("AAC");
     supportedAudioCodecs.insert("opus");
     supportedAudioCodecs.insert("MP3");
-
   }
 
   bool OutENC::buildAudioCommand(){
     std::string samplerate;
-    if (sample_rate){
-      samplerate = "-ar " + JSON::Value(sample_rate).asString();
-    }
-    snprintf(ffcmd,10240, "ffmpeg -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s -f matroska -live 1 -cluster_time_limit 100 - ", codec.c_str(), samplerate.c_str(), getBitrateSetting().c_str(), flags.c_str());
+    if (sample_rate){samplerate = "-ar " + JSON::Value(sample_rate).asString();}
+    snprintf(ffcmd, 10240, "ffmpeg -hide_banner -loglevel warning -i - -acodec %s %s -strict -2 -ac 2 %s -f matroska -live 1 -cluster_time_limit 100 - ",
+             codec.c_str(), samplerate.c_str(), getBitrateSetting().c_str(), flags.c_str());
 
     return true;
   }
@@ -414,7 +412,7 @@ namespace Mist{
   bool OutENC::buildVideoCommand(){
     uint64_t t_limiter = Util::bootSecs();
     while (res_x == 0){
-      if(Util::bootSecs() < t_limiter + 5){
+      if (Util::bootSecs() < t_limiter + 5){
         Util::sleep(100);
         MEDIUM_MSG("waiting res_x to be set!");
       }else{
@@ -430,17 +428,17 @@ namespace Mist{
     std::string s_scale = "";
     std::string options = "";
 
-    //load all sources and construct overlay code
+    // load all sources and construct overlay code
     if (opt["sources"].isArray()){
       char in[255] = "";
       char ov[255] = "";
 
-      for(JSON::Iter it(opt["sources"]); it; ++it){
+      for (JSON::Iter it(opt["sources"]); it; ++it){
 
-        if((*it).isMember("src") && (*it)["src"].isString()&& (*it)["src"].asString().size() > 3){
+        if ((*it).isMember("src") && (*it)["src"].isString() && (*it)["src"].asString().size() > 3){
           std::string src = (*it)["src"].asString();
-          std::string ext = src.substr( src.length() - 3);
-          if(ext == "gif"){ //for animated gif files, prepend extra parameter
+          std::string ext = src.substr(src.length() - 3);
+          if (ext == "gif"){// for animated gif files, prepend extra parameter
             sprintf(in, " -ignore_loop 0 -i %s", src.c_str());
           }else{
             sprintf(in, " -i %s", src.c_str());
@@ -454,7 +452,7 @@ namespace Mist{
         }
 
         s_input += in;
-   
+
         uint32_t i_width = -1;
         uint32_t i_height = -1;
         int32_t i_x = 0;
@@ -469,42 +467,42 @@ namespace Mist{
         if ((*it).isMember("x")){i_x = (*it)["x"].asInt();}
         if ((*it).isMember("y")){i_y = (*it)["y"].asInt();}
 
-        if((*it).isMember("anchor") && (*it)["anchor"].isString()){
+        if ((*it).isMember("anchor") && (*it)["anchor"].isString()){
           i_anchor = (*it)["anchor"].asString();
         }
 
         char scale[200];
-        sprintf(scale,";[%d:v]scale=%d:%d[s%d]", it.num()+1,i_width,i_height,it.num());
+        sprintf(scale, ";[%d:v]scale=%d:%d[s%d]", it.num() + 1, i_width, i_height, it.num());
 
         s_scale.append(scale);
 
         char in_chain[16];
 
-        if(it.num() == 0){
+        if (it.num() == 0){
           sprintf(in_chain, ";[0:v][s%d]", it.num());
         }else{
           sprintf(in_chain, ";[out][s%d]", it.num());
         }
 
-        if((*it)["anchor"] == "topright"){
-          sprintf(ov,"overlay=W-w-%d:%d[out]", i_x, i_y);
-        }else if((*it)["anchor"] == "bottomleft"){
-          sprintf(ov,"overlay=%d:H-h-%d[out]", i_x, i_y);
-        }else if((*it)["anchor"] == "bottomright"){
-          sprintf(ov,"overlay=W-w-%d:H-h-%d[out]", i_x, i_y);
-        }else if((*it)["anchor"] == "center"){
-          sprintf(ov,"overlay=(W-w)/2:(H-h)/2[out]");
-        }else{//topleft default
-          sprintf(ov,"overlay=%d:%d[out]", i_x, i_y);
+        if ((*it)["anchor"] == "topright"){
+          sprintf(ov, "overlay=W-w-%d:%d[out]", i_x, i_y);
+        }else if ((*it)["anchor"] == "bottomleft"){
+          sprintf(ov, "overlay=%d:H-h-%d[out]", i_x, i_y);
+        }else if ((*it)["anchor"] == "bottomright"){
+          sprintf(ov, "overlay=W-w-%d:H-h-%d[out]", i_x, i_y);
+        }else if ((*it)["anchor"] == "center"){
+          sprintf(ov, "overlay=(W-w)/2:(H-h)/2[out]");
+        }else{// topleft default
+          sprintf(ov, "overlay=%d:%d[out]", i_x, i_y);
         }
         s_overlay.append(in_chain);
-        s_overlay.append(ov); 
+        s_overlay.append(ov);
       }
 
       s_scale = s_scale.substr(1);
-      s_overlay = s_scale + s_overlay; 
-      
-      if(res_x > 0 || res_y >0){//video scaling
+      s_overlay = s_scale + s_overlay;
+
+      if (res_x > 0 || res_y > 0){// video scaling
         sprintf(ov, ";[out]scale=%d:%d,setsar=1:1[out]", res_x, res_y);
       }
 
@@ -514,8 +512,8 @@ namespace Mist{
     }
 
     // video scaling
-    if(res_x > 0 || res_y >0){
-      if(s_overlay.size() == 0){
+    if (res_x > 0 || res_y > 0){
+      if (s_overlay.size() == 0){
         char ov[100];
         sprintf(ov, " -filter_complex '[0:v]scale=%d:%d,setsar=1:1[out]' -map [out]", res_x, res_y);
         s_overlay.append(ov);
@@ -523,27 +521,23 @@ namespace Mist{
         s_overlay = "-filter_complex " + s_overlay + " -map [out]";
       }
     }else{
-      if(s_overlay.size() > 0){
-        s_overlay = "-filter_complex '" + s_overlay + "' -map [out]";
-      }
+      if (s_overlay.size() > 0){s_overlay = "-filter_complex '" + s_overlay + "' -map [out]";}
     }
 
-    if(!profile.empty()){
-      options.append(" -profile:v " + profile);
-    }
+    if (!profile.empty()){options.append(" -profile:v " + profile);}
 
-    if(!preset.empty()){
-      options.append(" -preset " + preset);
-    }
+    if (!preset.empty()){options.append(" -preset " + preset);}
 
-    snprintf(ffcmd,10240, "ffmpeg -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ", res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(), getBitrateSetting().c_str(), flags.c_str());
+    snprintf(ffcmd, 10240, "ffmpeg -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -f matroska - ",
+             res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(),
+             getBitrateSetting().c_str(), flags.c_str());
 
     return true;
   }
 
   void OutENC::setCodec(std::string data){
     codec = data;
-    transform(codec.begin(), codec.end(), codec.begin(),(int (*)(int))tolower);
+    transform(codec.begin(), codec.end(), codec.begin(), (int (*)(int))tolower);
   }
 
   void OutENC::setBitrate(std::string rate, std::string min, std::string max){
@@ -555,35 +549,27 @@ namespace Mist{
   std::string OutENC::getBitrateSetting(){
     std::string setting;
 
-    if(!bitrate.empty()){
-      //setting = "-b:v " + bitrate;
+    if (!bitrate.empty()){
+      // setting = "-b:v " + bitrate;
       setting = bitrate;
     }
 
-    if(!min_bitrate.empty()){
-      setting.append(" -minrate " + min_bitrate);
+    if (!min_bitrate.empty()){setting.append(" -minrate " + min_bitrate);}
+
+    if (!max_bitrate.empty()){setting.append(" -maxrate " + max_bitrate);}
+
+    if (!setting.empty()){
+      if (isVideo){setting = "-b:v " + setting;}
+
+      if (isAudio){setting = "-b:a " + setting;}
     }
 
-    if(!max_bitrate.empty()){
-      setting.append(" -maxrate " + max_bitrate);
-    }
-
-    if(!setting.empty()){
-      if(isVideo){
-        setting = "-b:v " + setting;
-      }
-
-      if(isAudio){
-        setting = "-b:a " + setting;
-      }
-    }
-
-    if(isVideo){
-      if(crf > -1){
-        //use crf value instead of bitrate
-        setting = "-crf " + JSON::Value(crf).asString(); 
+    if (isVideo){
+      if (crf > -1){
+        // use crf value instead of bitrate
+        setting = "-crf " + JSON::Value(crf).asString();
       }else{
-        //use bitrate value set above
+        // use bitrate value set above
       }
     }
 
@@ -591,16 +577,20 @@ namespace Mist{
   }
 
   void OutENC::setCRF(int c){
-    if(codec == "h264"){
-      if(c < 0 || c > 51){
-        WARN_MSG("Incorrect CRF value: %d. Need to be in range [0-51] for codec: %s. Ignoring wrong value.",c, codec.c_str());
+    if (codec == "h264"){
+      if (c < 0 || c > 51){
+        WARN_MSG("Incorrect CRF value: %d. Need to be in range [0-51] for codec: %s. Ignoring "
+                 "wrong value.",
+                 c, codec.c_str());
       }else{
         crf = c;
       }
-    }else if(codec == "vp9"){
+    }else if (codec == "vp9"){
 
-      if(c < 0 || c > 63){
-        WARN_MSG("Incorrect CRF value: %d. Need to be in range [0-63] for codec: %s. Ignoring wrong value.",c, codec.c_str());
+      if (c < 0 || c > 63){
+        WARN_MSG("Incorrect CRF value: %d. Need to be in range [0-63] for codec: %s. Ignoring "
+                 "wrong value.",
+                 c, codec.c_str());
       }else{
         crf = c;
       }
@@ -611,34 +601,32 @@ namespace Mist{
 
   bool OutENC::checkVideoConfig(){
     bool stdinSource = false;
-    if(opt.isMember("resolution") && opt["resolution"] ){
+    if (opt.isMember("resolution") && opt["resolution"]){
       if (opt["resolution"].asString().find("x") == std::string::npos){
-        FAIL_MSG("Resolution: '%s' not supported!",opt["resolution"].c_str());
+        FAIL_MSG("Resolution: '%s' not supported!", opt["resolution"].c_str());
         return false;
       }
-     
-      res_x = strtol (opt["resolution"].asString().substr(0,opt["resolution"].asString().find("x")).c_str(),NULL,0);
-      res_y = strtol (opt["resolution"].asString().substr(opt["resolution"].asString().find("x") +1).c_str(), NULL,0); 
+
+      res_x = strtol(opt["resolution"].asString().substr(0, opt["resolution"].asString().find("x")).c_str(),
+                     NULL, 0);
+      res_y = strtol(opt["resolution"].asString().substr(opt["resolution"].asString().find("x") + 1).c_str(),
+                     NULL, 0);
     }else{
       INFO_MSG("No resolution set. Grabbing resolution from source stream...");
     }
-   
+
     if (opt.isMember("profile") && opt["profile"].isString()){
       profile = opt["profile"].asString();
     }
 
-    if (opt.isMember("preset") && opt["preset"].isString()){
-      preset = opt["preset"].asString();
-    }
+    if (opt.isMember("preset") && opt["preset"].isString()){preset = opt["preset"].asString();}
 
-    if (opt.isMember("crf") && opt["crf"].isInt()){
-      setCRF(opt["crf"].asInt());
-    }
- 
+    if (opt.isMember("crf") && opt["crf"].isInt()){setCRF(opt["crf"].asInt());}
+
     if (opt["sources"].isArray()){
-      for(JSON::Iter it(opt["sources"]); it; ++it){
-        if((*it).isMember("src") && (*it)["src"].isString()){
-          if((*it)["src"].asString() == "-"){
+      for (JSON::Iter it(opt["sources"]); it; ++it){
+        if ((*it).isMember("src") && (*it)["src"].isString()){
+          if ((*it)["src"].asString() == "-"){
             stdinSource = true;
             break;
           }
@@ -648,24 +636,24 @@ namespace Mist{
         }
       }
     }else{
-      //sources array missing, create empty object in array
+      // sources array missing, create empty object in array
       opt["sources"][0u]["src"] = "-";
 
       WARN_MSG("No stdin input set in config, adding input stream with default settings");
       stdinSource = true;
     }
 
-    if(!stdinSource){
+    if (!stdinSource){
       // no stdin source item found in sources configuration, add source object at the beginning
       opt["sources"].prepend(JSON::fromString("{\"src\':\"-\"}"));
-      WARN_MSG("No stdin input stream found in 'inputs' config, adding stdin input stream at the beginning of the array");
+      WARN_MSG("No stdin input stream found in 'inputs' config, adding stdin input stream at the "
+               "beginning of the array");
     }
 
     return true;
   }
 
-
-  ///check source, sink, source_track, codec, bitrate, flags  and process options.
+  /// check source, sink, source_track, codec, bitrate, flags  and process options.
   bool OutENC::CheckConfig(){
     // Check generic configuration variables
     if (!opt.isMember("source") || !opt["source"] || !opt["source"].isString()){
@@ -680,7 +668,7 @@ namespace Mist{
     if (supportedVideoCodecs.count(opt["codec"].asString())){isVideo = true;}
     if (supportedAudioCodecs.count(opt["codec"].asString())){isAudio = true;}
     if (!isVideo && !isAudio){
-      FAIL_MSG("Codec: '%s' not supported!",opt["codec"].c_str());
+      FAIL_MSG("Codec: '%s' not supported!", opt["codec"].c_str());
       return false;
     }
 
@@ -704,24 +692,22 @@ namespace Mist{
 
     setBitrate(b_rate, min_rate, max_rate);
 
-    //extra ffmpeg flags
-    if (opt.isMember("flags") && opt["flags"].isString()){
-      flags = opt["bitrate"].asString();
-    }
+    // extra ffmpeg flags
+    if (opt.isMember("flags") && opt["flags"].isString()){flags = opt["bitrate"].asString();}
 
-    //Check configuration and construct ffmpeg command based on audio or video encoding
-    if(isVideo){
+    // Check configuration and construct ffmpeg command based on audio or video encoding
+    if (isVideo){
       return checkVideoConfig();
-    }else if(isAudio){
+    }else if (isAudio){
       return checkAudioConfig();
     }
 
     return false;
   }
 
-  ///prepare ffmpeg command by splitting the arguments before running
+  /// prepare ffmpeg command by splitting the arguments before running
   void OutENC::prepareCommand(){
-    //ffmpeg command
+    // ffmpeg command
     MEDIUM_MSG("ffmpeg command: %s", ffcmd);
     uint8_t argCnt = 0;
     char *startCh = 0;
@@ -753,18 +739,18 @@ namespace Mist{
     int ffer = 2;
     pid_t ffout = -1;
 
-    if(isVideo){
-      if(!buildVideoCommand()){
+    if (isVideo){
+      if (!buildVideoCommand()){
         FAIL_MSG("Video encode command failed");
-        Util::sleep(1000);    //this delay prevents coredump...
+        Util::sleep(1000); // this delay prevents coredump...
         return;
       }
     }
 
-    if(isAudio){
-      if(!buildAudioCommand()){
+    if (isAudio){
+      if (!buildAudioCommand()){
         FAIL_MSG("Audio encode command failed");
-        Util::sleep(1000);    //this delay prevents coredump...
+        Util::sleep(1000); // this delay prevents coredump...
         return;
       }
     }
@@ -773,11 +759,9 @@ namespace Mist{
     MEDIUM_MSG("Starting ffmpeg process...");
     ffout = p.StartPiped(args, &pipein[0], &pipeout[1], &ffer);
 
-    while(conf.is_active && p.isRunning(ffout)){
-      Util::sleep(200);
-    }
+    while (conf.is_active && p.isRunning(ffout)){Util::sleep(200);}
 
-    while(p.isRunning(ffout)){
+    while (p.isRunning(ffout)){
       MEDIUM_MSG("stopping ffmpeg...");
       p.StopAll();
       Util::sleep(200);
@@ -785,5 +769,4 @@ namespace Mist{
 
     MEDIUM_MSG("ffmpeg process stopped.");
   }
-}
-
+}// namespace Mist

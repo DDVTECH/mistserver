@@ -1,6 +1,6 @@
 #include "defines.h"
-#include "rtp_fec.h"
 #include "rtp.h"
+#include "rtp_fec.h"
 
 namespace RTP{
   /// Based on the `block PT` value, we can either find the
@@ -49,80 +49,83 @@ namespace RTP{
   ///      |              mask cont. (present only when L = 1)             |
   ///      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
   ///
-  PacketFEC::PacketFEC() {
-  }
+  PacketFEC::PacketFEC(){}
 
-  PacketFEC::~PacketFEC() {
+  PacketFEC::~PacketFEC(){
     receivedSeqNums.clear();
     coveredSeqNums.clear();
   }
-  
-  bool PacketFEC::initWithREDPacket(const char* data, size_t nbytes) {
 
-    if (!data) {
+  bool PacketFEC::initWithREDPacket(const char *data, size_t nbytes){
+
+    if (!data){
       FAIL_MSG("Given fecData pointer is NULL.");
       return false;
     }
 
-    if (nbytes < 23) {
-      FAIL_MSG("Given fecData is too small. Should be at least: 12 (RTP) + 1 (RED) + 10 (FEC) 23 bytes.");
+    if (nbytes < 23){
+      FAIL_MSG("Given fecData is too small. Should be at least: 12 (RTP) + 1 (RED) + 10 (FEC) 23 "
+               "bytes.");
       return false;
     }
 
-    if (coveredSeqNums.size() != 0) {
+    if (coveredSeqNums.size() != 0){
       FAIL_MSG("It seems we're already initialized; coveredSeqNums already set.");
       return false;
     }
 
-    if (receivedSeqNums.size() != 0) {
+    if (receivedSeqNums.size() != 0){
       FAIL_MSG("It seems we're already initialized; receivedSeqNums is not empty.");
       return false;
     }
 
     // Decode RED header.
     RTP::Packet rtpPkt(data, nbytes);
-    uint8_t* redHeader = (uint8_t*)(data + rtpPkt.getHsize());
+    uint8_t *redHeader = (uint8_t *)(data + rtpPkt.getHsize());
     uint8_t moreBlocks = redHeader[0] & 0x80;
-    if (moreBlocks == 1) {
-      FAIL_MSG("RED header indicates there are multiple blocks. Haven't seen this before (@todo implement, exiting now).");
-      // \todo do not EXIT! 
+    if (moreBlocks == 1){
+      FAIL_MSG("RED header indicates there are multiple blocks. Haven't seen this before (@todo "
+               "implement, exiting now).");
+      // \todo do not EXIT!
       return false;
     }
 
     // Copy the data, starting at the FEC header (skip RTP + RED header)
     size_t numHeaderBytes = rtpPkt.getHsize() + 1;
-    if (numHeaderBytes > nbytes) {
+    if (numHeaderBytes > nbytes){
       FAIL_MSG("Invalid FEC packet; too small to contain FEC data.");
       return false;
     }
-    
+
     fecPacketData.assign(NULL, 0);
     fecPacketData.append(data + numHeaderBytes, nbytes - numHeaderBytes);
 
     // Extract the sequence numbers this packet protects.
-    if (!extractCoveringSequenceNumbers()) {
+    if (!extractCoveringSequenceNumbers()){
       FAIL_MSG("Failed to extract the protected sequence numbers for this FEC.");
       // @todo we probably want to reset our set.
       return false;
     }
-    
+
     return true;
   }
 
-  uint8_t PacketFEC::getExtensionFlag() {
-    
-    if (fecPacketData.size() == 0) {
-      FAIL_MSG("Cannot get extension-flag from the FEC header; fecPacketData member is not set. Not initialized?");
+  uint8_t PacketFEC::getExtensionFlag(){
+
+    if (fecPacketData.size() == 0){
+      FAIL_MSG("Cannot get extension-flag from the FEC header; fecPacketData member is not set. "
+               "Not initialized?");
       return 0;
     }
 
     return ((fecPacketData[0] & 0x80) >> 7);
   }
 
-  uint8_t PacketFEC::getLongMaskFlag() {
+  uint8_t PacketFEC::getLongMaskFlag(){
 
-    if (fecPacketData.size() == 0) {
-      FAIL_MSG("Cannot get the long-mask-flag from the FEC header. fecPacketData member is not set. Not initialized?");
+    if (fecPacketData.size() == 0){
+      FAIL_MSG("Cannot get the long-mask-flag from the FEC header. fecPacketData member is not "
+               "set. Not initialized?");
       return 0;
     }
 
@@ -130,84 +133,86 @@ namespace RTP{
   }
 
   // Returns 0 (error), 2 or 6, wich are the valid sizes of the mask.
-  uint8_t PacketFEC::getNumBytesUsedForMask() {
+  uint8_t PacketFEC::getNumBytesUsedForMask(){
 
-    if (fecPacketData.size() == 0) {
-      FAIL_MSG("Cannot get the number of bytes used by the mask. fecPacketData member is not set. Not initialized?");
+    if (fecPacketData.size() == 0){
+      FAIL_MSG("Cannot get the number of bytes used by the mask. fecPacketData member is not set. "
+               "Not initialized?");
       return 0;
     }
 
-    if (getLongMaskFlag() == 0) {
-      return 2;
-    }
+    if (getLongMaskFlag() == 0){return 2;}
 
     return 6;
   }
-  
-  uint16_t PacketFEC::getSequenceBaseNumber() {
 
-    if (fecPacketData.size() == 0) {
-      FAIL_MSG("Cannot get the sequence base number. fecPacketData member is not set. Not initialized?");
+  uint16_t PacketFEC::getSequenceBaseNumber(){
+
+    if (fecPacketData.size() == 0){
+      FAIL_MSG(
+          "Cannot get the sequence base number. fecPacketData member is not set. Not initialized?");
       return 0;
     }
 
-    return (uint16_t) (fecPacketData[2] << 8) | fecPacketData[3];
+    return (uint16_t)(fecPacketData[2] << 8) | fecPacketData[3];
   }
 
-  char* PacketFEC::getFECHeader() {
-    
-    if (fecPacketData.size() == 0) {
+  char *PacketFEC::getFECHeader(){
+
+    if (fecPacketData.size() == 0){
       FAIL_MSG("Cannot get fec header. fecPacketData member is not set. Not initialized?");
     }
-    
+
     return fecPacketData;
   }
-  
-  char* PacketFEC::getLevel0Header() {
 
-    if (fecPacketData.size() == 0) {
+  char *PacketFEC::getLevel0Header(){
+
+    if (fecPacketData.size() == 0){
       FAIL_MSG("Cannot get the level 0 header. fecPacketData member is not set. Not initialized?");
       return NULL;
     }
 
-    return (char*)(fecPacketData + 10);
+    return (char *)(fecPacketData + 10);
   }
 
-  char* PacketFEC::getLevel0Payload() {
+  char *PacketFEC::getLevel0Payload(){
 
-    if (fecPacketData.size() == 0) {
+    if (fecPacketData.size() == 0){
       FAIL_MSG("Cannot get the level 0 payload. fecPacketData member is not set. Not initialized?");
       return NULL;
     }
 
     // 10 bytes for FEC header
     // 2 bytes for `Protection Length`
-    // 2 or 6 bytes for `mask`. 
-    return (char*)(fecPacketData + 10 + 2 + getNumBytesUsedForMask());
+    // 2 or 6 bytes for `mask`.
+    return (char *)(fecPacketData + 10 + 2 + getNumBytesUsedForMask());
   }
 
-  uint16_t PacketFEC::getLevel0ProtectionLength() {
+  uint16_t PacketFEC::getLevel0ProtectionLength(){
 
-    if (fecPacketData.size() == 0) {
-      FAIL_MSG("Cannot get the level 0 protection length. fecPacketData member is not set. Not initialized?");
+    if (fecPacketData.size() == 0){
+      FAIL_MSG("Cannot get the level 0 protection length. fecPacketData member is not set. Not "
+               "initialized?");
       return 0;
     }
 
-    char* level0Header = getLevel0Header();
-    if (!level0Header) {
+    char *level0Header = getLevel0Header();
+    if (!level0Header){
       FAIL_MSG("Failed to get the level 0 header, cannot get protection length.");
       return 0;
     }
-    
+
     uint16_t protectionLength = (level0Header[0] << 8) | level0Header[1];
     return protectionLength;
   }
 
-  uint16_t PacketFEC::getLengthRecovery() {
+  uint16_t PacketFEC::getLengthRecovery(){
 
-    char* fecHeader = getFECHeader();
-    if (!fecHeader) {
-      FAIL_MSG("Cannot get the FEC header which we need to get the `length recovery` field. Not initialized?");
+    char *fecHeader = getFECHeader();
+    if (!fecHeader){
+      FAIL_MSG("Cannot get the FEC header which we need to get the `length recovery` field. Not "
+               "initialized?");
       return 0;
     }
 
@@ -226,37 +231,35 @@ namespace RTP{
   // packet protects the media packet with sequence number
   // 230. We have to start counting the bit numbers from the
   // most-significant-bit (e.g. 1 << 7).
-  bool PacketFEC::extractCoveringSequenceNumbers() {
+  bool PacketFEC::extractCoveringSequenceNumbers(){
 
-    if (coveredSeqNums.size() != 0) {
+    if (coveredSeqNums.size() != 0){
       FAIL_MSG("Cannot extract protected sequence numbers; looks like we already did that.");
       return false;
     }
-    
+
     size_t maskNumBytes = getNumBytesUsedForMask();
-    if (maskNumBytes != 2 && maskNumBytes != 6) {
+    if (maskNumBytes != 2 && maskNumBytes != 6){
       FAIL_MSG("Invalid mask size (%u) cannot extract sequence numbers.", maskNumBytes);
       return false;
     }
 
-    char* maskPtr = getLevel0Header();
-    if (!maskPtr) {
+    char *maskPtr = getLevel0Header();
+    if (!maskPtr){
       FAIL_MSG("Failed to get the level-0 header ptr. Cannot extract protected sequence numbers.");
       return false;
     }
 
     uint16_t seqNumBase = getSequenceBaseNumber();
-    if (seqNumBase == 0) {
-      WARN_MSG("Base sequence number is 0; it's possible but unlikely.");
-    }
-    
+    if (seqNumBase == 0){WARN_MSG("Base sequence number is 0; it's possible but unlikely.");}
+
     // Skip the `Protection Length`
     maskPtr = maskPtr + 2;
-    
-    for (uint16_t byteDX = 0; byteDX < maskNumBytes; ++byteDX) {
+
+    for (uint16_t byteDX = 0; byteDX < maskNumBytes; ++byteDX){
       uint8_t maskByte = maskPtr[byteDX];
-      for (uint16_t bitDX = 0; bitDX < 8; ++bitDX) {
-        if (maskByte & (1 << 7 - bitDX)) {
+      for (uint16_t bitDX = 0; bitDX < 8; ++bitDX){
+        if (maskByte & (1 << 7 - bitDX)){
           uint16_t seqNum = seqNumBase + (byteDX << 3) + bitDX;
           coveredSeqNums.insert(seqNum);
         }
@@ -267,16 +270,16 @@ namespace RTP{
   }
 
   // \todo rename coversSequenceNumber
-  bool PacketFEC::coversSequenceNumber(uint16_t sn) {
+  bool PacketFEC::coversSequenceNumber(uint16_t sn){
     return (coveredSeqNums.count(sn) == 0) ? false : true;
   }
 
-  void PacketFEC::addReceivedSequenceNumber(uint16_t sn) {
-    if (false == coversSequenceNumber(sn)) {
+  void PacketFEC::addReceivedSequenceNumber(uint16_t sn){
+    if (false == coversSequenceNumber(sn)){
       FAIL_MSG("Trying to add a received sequence number this instance is not handling (%u).", sn);
       return;
     }
-    
+
     receivedSeqNums.insert(sn);
   }
 
@@ -284,7 +287,7 @@ namespace RTP{
   /// FEC packet is received with a list of media packets it
   /// might be able to recover; this PacketFEC is received after
   /// we should have received the media packets it's protecting.
-  /// 
+  ///
   /// Here we first fill al list with the received sequence
   /// numbers that we're protecting; when we're missing one
   /// packet this function will try to recover it.
@@ -292,26 +295,23 @@ namespace RTP{
   /// The `receivedMediaPackets` is the history of media packets
   /// that you received and keep in a memory. These are used
   /// when XORing when we reconstruct a packet.
-  void PacketFEC::tryToRecoverMissingPacket(std::map<uint16_t, Packet>& receivedMediaPackets, Packet& reconstructedPacket) {
+  void PacketFEC::tryToRecoverMissingPacket(std::map<uint16_t, Packet> &receivedMediaPackets,
+                                            Packet &reconstructedPacket){
 
     // Mark all the media packets that we protect and which have
-    // been received as "received" in our internal list. 
+    // been received as "received" in our internal list.
     std::set<uint16_t>::iterator protIt = coveredSeqNums.begin();
-    while (protIt != coveredSeqNums.end()) {
-      if (receivedMediaPackets.count(*protIt) == 1) {
-        addReceivedSequenceNumber(*protIt);
-      }
+    while (protIt != coveredSeqNums.end()){
+      if (receivedMediaPackets.count(*protIt) == 1){addReceivedSequenceNumber(*protIt);}
       protIt++;
     }
-    
+
     // We have received all media packets that we could recover;
     // so there is no need for this FEC packet.
     // @todo Jaron shall we reuse allocs/PacketFECs?
-    if (receivedSeqNums.size() == coveredSeqNums.size()) {
-      return;
-    }
+    if (receivedSeqNums.size() == coveredSeqNums.size()){return;}
 
-    if (coveredSeqNums.size() != (receivedSeqNums.size() + 1)) {
+    if (coveredSeqNums.size() != (receivedSeqNums.size() + 1)){
       // missing more then 1 packet. we can only recover when
       // one packet is lost.
       return;
@@ -320,21 +320,21 @@ namespace RTP{
     // Find missing sequence number.
     uint16_t missingSeqNum = 0;
     protIt = coveredSeqNums.begin();
-    while (protIt != coveredSeqNums.end()) {
-      if (receivedSeqNums.count(*protIt) == 0) {
+    while (protIt != coveredSeqNums.end()){
+      if (receivedSeqNums.count(*protIt) == 0){
         missingSeqNum = *protIt;
         break;
       }
       ++protIt;
     }
-    if (!coversSequenceNumber(missingSeqNum)) {
+    if (!coversSequenceNumber(missingSeqNum)){
       WARN_MSG("We cannot recover %u.", missingSeqNum);
       return;
     }
-    
+
     // Copy FEC into new RTP-header
-    char* fecHeader = getFECHeader();
-    if (!fecHeader) {
+    char *fecHeader = getFECHeader();
+    if (!fecHeader){
       FAIL_MSG("Failed to get the fec header. Cannot recover.");
       return;
     }
@@ -342,47 +342,47 @@ namespace RTP{
     recoverData.append(fecHeader, 12);
 
     // Copy FEC into new RTP-payload
-    char* level0Payload = getLevel0Payload();
-    if (!level0Payload) {
+    char *level0Payload = getLevel0Payload();
+    if (!level0Payload){
       FAIL_MSG("Failed to get the level-0 payload data (XOR'd media data from FEC packet).");
       return;
     }
     uint16_t level0ProtLen = getLevel0ProtectionLength();
-    if (level0ProtLen == 0) {
+    if (level0ProtLen == 0){
       FAIL_MSG("Failed to get the level-0 protection length.");
       return;
     }
     recoverData.append(level0Payload, level0ProtLen);
 
-    uint8_t recoverLength[2] = { fecHeader[8], fecHeader[9] };
+    uint8_t recoverLength[2] ={fecHeader[8], fecHeader[9]};
 
     // XOR headers
     protIt = coveredSeqNums.begin();
-    while (protIt != coveredSeqNums.end()) {
+    while (protIt != coveredSeqNums.end()){
 
       uint16_t seqNum = *protIt;
-      if (seqNum == missingSeqNum) {
+      if (seqNum == missingSeqNum){
         ++protIt;
         continue;
       }
-      
-      Packet& mediaPacket = receivedMediaPackets[seqNum];
-      char* mediaData = mediaPacket.ptr();
+
+      Packet &mediaPacket = receivedMediaPackets[seqNum];
+      char *mediaData = mediaPacket.ptr();
       uint16_t mediaSize = mediaPacket.getPayloadSize();
-      uint8_t* mediaSizePtr = (uint8_t*)&mediaSize;
+      uint8_t *mediaSizePtr = (uint8_t *)&mediaSize;
 
       WARN_MSG(" => XOR header with %u, size: %u.", seqNum, mediaSize);
 
       // V, P, X, CC, M, PT
       recoverData[0] ^= mediaData[0];
       recoverData[1] ^= mediaData[1];
-      
+
       // Timestamp
       recoverData[4] ^= mediaData[4];
       recoverData[5] ^= mediaData[5];
       recoverData[6] ^= mediaData[6];
       recoverData[7] ^= mediaData[7];
-      
+
       // Length of recovered media packet
       recoverLength[0] ^= mediaSizePtr[1];
       recoverLength[1] ^= mediaSizePtr[0];
@@ -390,33 +390,30 @@ namespace RTP{
       ++protIt;
     }
 
-    uint16_t recoverPayloadSize = ntohs(*(uint16_t*)recoverLength);
-    
+    uint16_t recoverPayloadSize = ntohs(*(uint16_t *)recoverLength);
+
     // XOR payloads
     protIt = coveredSeqNums.begin();
-    while (protIt != coveredSeqNums.end()) {
+    while (protIt != coveredSeqNums.end()){
       uint16_t seqNum = *protIt;
-      if (seqNum == missingSeqNum) {
+      if (seqNum == missingSeqNum){
         ++protIt;
         continue;
       }
-      Packet& mediaPacket = receivedMediaPackets[seqNum];
-      char* mediaData = mediaPacket.ptr() + mediaPacket.getHsize();
-      for (size_t i = 0; i < recoverPayloadSize; ++i) {
-        recoverData[12 + i] ^= mediaData[i];
-      }
+      Packet &mediaPacket = receivedMediaPackets[seqNum];
+      char *mediaData = mediaPacket.ptr() + mediaPacket.getHsize();
+      for (size_t i = 0; i < recoverPayloadSize; ++i){recoverData[12 + i] ^= mediaData[i];}
       ++protIt;
     }
 
-    // And setup the reconstructed packet. 
+    // And setup the reconstructed packet.
     reconstructedPacket = Packet(recoverData, recoverPayloadSize);
     reconstructedPacket.setSequence(missingSeqNum);
     // @todo check what other header fields we need to fix.
   }
 
-
   void FECSorter::addPacket(const Packet &pack){
-    if (tmpVideoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) {
+    if (tmpVideoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC){
       packetHistory[pack.getSequence()] = pack;
       while (packetHistory.begin()->first < pack.getSequence() - 500){
         packetHistory.erase(packetHistory.begin());
@@ -438,7 +435,7 @@ namespace RTP{
   /// follows. This would be `<ulp-fmt>` for FEC data. Though
   /// these RED packets may contain FEC or just the media:
   /// H264/VP8.
-  /// 
+  ///
   /// RED HEADER:
   ///
   ///    0                   1                    2                   3
@@ -447,24 +444,20 @@ namespace RTP{
   ///   |F|   block PT  |  timestamp offset         |   block length    |
   ///   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
   ///
-  void FECSorter::addREDPacket(char* dat,
-                            unsigned int len,
-                            uint8_t codecPayloadType,
-                            uint8_t REDPayloadType,
-                            uint8_t ULPFECPayloadType)
-  {
+  void FECSorter::addREDPacket(char *dat, unsigned int len, uint8_t codecPayloadType,
+                               uint8_t REDPayloadType, uint8_t ULPFECPayloadType){
 
     RTP::Packet pkt(dat, len);
-    if (pkt.getPayloadType() != REDPayloadType) {
+    if (pkt.getPayloadType() != REDPayloadType){
       FAIL_MSG("Requested to add a RED packet, but it has an invalid payload type.");
       return;
     }
 
     // Check if the `F` flag is set. Chromium will always set
     // this to 0 (at time of writing, check: https://goo.gl/y1eJ6k
-    uint8_t* REDHeader = (uint8_t*)(dat + pkt.getHsize());
+    uint8_t *REDHeader = (uint8_t *)(dat + pkt.getHsize());
     uint8_t moreBlocksAvailable = REDHeader[0] & 0x80;
-    if (moreBlocksAvailable == 1) {
+    if (moreBlocksAvailable == 1){
       FAIL_MSG("Not yet received a RED packet that had it's F bit set; @todo implement.");
       exit(EXIT_FAILURE);
       return;
@@ -474,11 +467,11 @@ namespace RTP{
     // fec-pt. When it's just media that follows, we move all
     // data one byte up and reconstruct a normal media packet.
     uint8_t blockPayloadType = REDHeader[0] & 0x7F;
-    if (blockPayloadType == codecPayloadType) {
+    if (blockPayloadType == codecPayloadType){
       memmove(dat + pkt.getHsize(), dat + pkt.getHsize() + 1, len - pkt.getHsize() - 1);
       dat[1] &= 0x80;
       dat[1] |= codecPayloadType;
-      RTP::Packet mediaPacket((const char*)dat, len -1);
+      RTP::Packet mediaPacket((const char *)dat, len - 1);
       addPacket(mediaPacket);
       return;
     }
@@ -489,17 +482,17 @@ namespace RTP{
     // reconstruct.
     //
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    // 
+    //
     // \todo Jaron, I'm now just generating a `PacketFEC` on the heap
     //       and we're not managing destruction anywhere atm; I guess
     //       re-use or destruction needs to be part of the algo that
     //       is going to deal with FEC.
     //
     // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if (blockPayloadType == ULPFECPayloadType) {
+    if (blockPayloadType == ULPFECPayloadType){
       WARN_MSG(" => got fec packet: %u", pkt.getSequence());
-      PacketFEC* fec = new PacketFEC();
-      if (!fec->initWithREDPacket(dat, len)) {
+      PacketFEC *fec = new PacketFEC();
+      if (!fec->initWithREDPacket(dat, len)){
         delete fec;
         fec = NULL;
         FAIL_MSG("Failed to initialize a `PacketFEC`");
@@ -508,9 +501,10 @@ namespace RTP{
 
       Packet recreatedPacket;
       fec->tryToRecoverMissingPacket(packetHistory, recreatedPacket);
-      if (recreatedPacket.ptr() != NULL) {
-        char* pl = recreatedPacket.getPayload();
-        WARN_MSG(" => reconstructed %u, %02X %02X %02X %02X | %02X %02X %02X %02X", recreatedPacket.getSequence(), pl[0], pl[1], pl[2], pl[3], pl[4], pl[5], pl[6], pl[7]);
+      if (recreatedPacket.ptr() != NULL){
+        char *pl = recreatedPacket.getPayload();
+        WARN_MSG(" => reconstructed %u, %02X %02X %02X %02X | %02X %02X %02X %02X",
+                 recreatedPacket.getSequence(), pl[0], pl[1], pl[2], pl[3], pl[4], pl[5], pl[6], pl[7]);
         addPacket(recreatedPacket);
       }
       return;
@@ -527,35 +521,31 @@ namespace RTP{
   /// have been received except the one that we want to
   /// recover. This function returns the FEC packet might be able
   /// to recover the given sequence number.
-  PacketFEC* FECSorter::getFECPacketWhichCoversSequenceNumber(uint16_t sn) {
+  PacketFEC *FECSorter::getFECPacketWhichCoversSequenceNumber(uint16_t sn){
     size_t nfecs = fecPackets.size();
-    for (size_t i = 0; i < nfecs; ++i) {
-      PacketFEC* fec = fecPackets[i];
-      if (fec->coversSequenceNumber(sn)) {
-        return fec;
-      }
+    for (size_t i = 0; i < nfecs; ++i){
+      PacketFEC *fec = fecPackets[i];
+      if (fec->coversSequenceNumber(sn)){return fec;}
     }
     return NULL;
   }
 
-  void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void* userData, void callBack(void* userData, const char* payload, uint32_t nbytes)) {
+  void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
+                              void callBack(void *userData, const char *payload, uint32_t nbytes)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
       return;
     }
     if (!(sorter.lostCurrent + sorter.packCurrent)){sorter.packCurrent++;}
-    rtcpData[0] = 0x81;                       // version 2, no padding, one receiver report
-    rtcpData[1] = 201;                        // receiver report
-    Bit::htobs(rtcpData + 2, 7);              // 7 4-byte words follow the header
+    rtcpData[0] = 0x81;                  // version 2, no padding, one receiver report
+    rtcpData[1] = 201;                   // receiver report
+    Bit::htobs(rtcpData + 2, 7);         // 7 4-byte words follow the header
     Bit::htobl(rtcpData + 4, mySSRC);    // set receiver identifier
     Bit::htobl(rtcpData + 8, theirSSRC); // set source identifier
-    rtcpData[12] =
-        (sorter.lostCurrent * 255) /
-        (sorter.lostCurrent + sorter.packCurrent); // fraction lost since prev RR
-    Bit::htob24(rtcpData + 13, sorter.lostTotal);       // cumulative packets lost since start
-    Bit::htobl(rtcpData + 16, sorter.rtpSeq | (sorter.packTotal &
-                                                    0xFFFF0000ul)); // highest sequence received
+    rtcpData[12] = (sorter.lostCurrent * 255) / (sorter.lostCurrent + sorter.packCurrent); // fraction lost since prev RR
+    Bit::htob24(rtcpData + 13, sorter.lostTotal); // cumulative packets lost since start
+    Bit::htobl(rtcpData + 16, sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
     Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
@@ -565,5 +555,4 @@ namespace RTP{
     free(rtcpData);
   }
 
-}
-
+}// namespace RTP

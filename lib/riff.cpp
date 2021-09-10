@@ -5,16 +5,16 @@ namespace RIFF{
   Chunk::Chunk(const void *_p, uint32_t len){
     p = (const char *)_p;
     if (len && len < getPayloadSize() + 8){
-      FAIL_MSG("Chunk %s (%" PRIu32 "b) does not fit in %" PRIu32 " bytes length!", getType().c_str(),
-               getPayloadSize() + 8, len);
+      FAIL_MSG("Chunk %s (%" PRIu32 "b) does not fit in %" PRIu32 " bytes length!",
+               getType().c_str(), getPayloadSize() + 8, len);
       p = 0;
     }
   }
 
-  Chunk::Chunk(void *_p, const char * t, uint32_t len){
+  Chunk::Chunk(void *_p, const char *t, uint32_t len){
     p = (const char *)_p;
-    memcpy((void*)p, t, 4);
-    Bit::htobl_le((char*)p+4, len);
+    memcpy((void *)p, t, 4);
+    Bit::htobl_le((char *)p + 4, len);
   }
 
   void Chunk::toPrettyString(std::ostream &o, size_t indent) const{
@@ -109,11 +109,9 @@ namespace RIFF{
     return std::string(p + 32, 16);
   }
   void fmt::toPrettyString(std::ostream &o, size_t indent) const{
-    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8)
-      << "b):" << std::endl;
+    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8) << "b):" << std::endl;
     indent += 1;
-    o << std::string(indent, ' ') << "Codec: " << getCodec() << " (" << getFormat() << ")"
-      << std::endl;
+    o << std::string(indent, ' ') << "Codec: " << getCodec() << " (" << getFormat() << ")" << std::endl;
     o << std::string(indent, ' ') << "Channels: " << getChannels() << std::endl;
     o << std::string(indent, ' ') << "Sample rate: " << getHz() << "Hz" << std::endl;
     o << std::string(indent, ' ') << "Bytes/s: " << getBPS() << std::endl;
@@ -132,16 +130,17 @@ namespace RIFF{
       }
     }
   }
-  std::string fmt::generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps, uint16_t blocksize, uint16_t size){
+  std::string fmt::generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps,
+                            uint16_t blocksize, uint16_t size){
     std::string ret("fmt \022\000\000\000", 8);
     ret.append(std::string((size_t)18, '\000'));
-    Bit::htobs_le((char*)ret.data()+8, format);
-    Bit::htobs_le((char*)ret.data()+10, channels);
-    Bit::htobl_le((char*)ret.data()+12, hz);
-    Bit::htobl_le((char*)ret.data()+16, bps);
-    Bit::htobs_le((char*)ret.data()+20, blocksize);
-    Bit::htobs_le((char*)ret.data()+22, size);
-    Bit::htobs_le((char*)ret.data()+24, 0);
+    Bit::htobs_le((char *)ret.data() + 8, format);
+    Bit::htobs_le((char *)ret.data() + 10, channels);
+    Bit::htobl_le((char *)ret.data() + 12, hz);
+    Bit::htobl_le((char *)ret.data() + 16, bps);
+    Bit::htobs_le((char *)ret.data() + 20, blocksize);
+    Bit::htobs_le((char *)ret.data() + 22, size);
+    Bit::htobs_le((char *)ret.data() + 24, 0);
     return ret;
   }
 
@@ -150,26 +149,23 @@ namespace RIFF{
     return Bit::btohl_le(p + 8);
   }
   void fact::toPrettyString(std::ostream &o, size_t indent) const{
-    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8)
-      << "b):" << std::endl;
+    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8) << "b):" << std::endl;
     indent += 1;
     o << std::string(indent, ' ') << "Samples per channel: " << getSamplesPerChannel() << std::endl;
   }
   std::string fact::generate(uint32_t samples){
     std::string ret("fact\004\000\000\000\000\000\000\000", 12);
-    Bit::htobl_le((char*)ret.data()+8, samples);
+    Bit::htobl_le((char *)ret.data() + 8, samples);
     return ret;
   }
 
   std::string ISFT::getSoftware() const{
     if (!p){return 0;}
-    return std::string(p+8, getPayloadSize());
+    return std::string(p + 8, getPayloadSize());
   }
   void ISFT::toPrettyString(std::ostream &o, size_t indent) const{
-    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8)
-      << "b):" << std::endl;
+    o << std::string(indent, ' ') << "[" << getType() << "] (" << (getPayloadSize() + 8) << "b):" << std::endl;
     indent += 1;
     o << std::string(indent, ' ') << "Software: " << getSoftware() << std::endl;
   }
-}
-
+}// namespace RIFF

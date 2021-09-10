@@ -159,4 +159,3 @@ namespace JSON{
 #define jsonForEach(val, i) for (JSON::Iter i(val); i; ++i)
 #define jsonForEachConst(val, i) for (JSON::ConstIter i(val); i; ++i)
 }// namespace JSON
-

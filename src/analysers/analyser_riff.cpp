@@ -30,7 +30,7 @@ bool AnalyserRIFF::parsePacket(){
   if (detail >= 2){C.toPrettyString(std::cout);}
   ///\TODO update mediaTime with the current timestamp
   if (C){
-    dataBuffer.erase(0, C.getPayloadSize()+8);
+    dataBuffer.erase(0, C.getPayloadSize() + 8);
     return true;
   }
   return false;
@@ -39,6 +39,5 @@ bool AnalyserRIFF::parsePacket(){
 /// Calculates how many bytes we need to read a whole box.
 uint64_t AnalyserRIFF::neededBytes(){
   if (dataBuffer.size() < 8){return 8;}
-  return RIFF::Chunk(dataBuffer.data()).getPayloadSize()+8;
+  return RIFF::Chunk(dataBuffer.data()).getPayloadSize() + 8;
 }
-

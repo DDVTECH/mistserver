@@ -1,10 +1,10 @@
-#include "rtp.h"
 #include "adts.h"
 #include "bitfields.h"
 #include "defines.h"
 #include "encode.h"
 #include "h264.h"
 #include "mpeg.h"
+#include "rtp.h"
 #include "sdp.h"
 #include "timing.h"
 #include <arpa/inet.h>
@@ -15,14 +15,12 @@ namespace RTP{
 
   unsigned int Packet::getHsize() const{
     unsigned int r = 12 + 4 * getContribCount();
-    if (getExtension()){
-      r += (1+Bit::btohs(data+r+2)) * 4;
-    }
+    if (getExtension()){r += (1 + Bit::btohs(data + r + 2)) * 4;}
     return r;
   }
 
   unsigned int Packet::getPayloadSize() const{
-    return maxDataLen - getHsize() - (getPadding() ? data[maxDataLen-1] : 0);
+    return maxDataLen - getHsize() - (getPadding() ? data[maxDataLen - 1] : 0);
   }
 
   char *Packet::getPayload() const{return data + getHsize();}
@@ -47,7 +45,7 @@ namespace RTP{
 
   char *Packet::getData(){return data + 8 + 4 * getContribCount() + getExtension();}
 
-  void Packet::setTimestamp(uint32_t t){Bit::htobl(data+4, t);}
+  void Packet::setTimestamp(uint32_t t){Bit::htobl(data + 4, t);}
 
   void Packet::setSequence(unsigned int seq){*((short *)(data + 2)) = htons(seq);}
 
@@ -75,8 +73,7 @@ namespace RTP{
     }else{
       data[1] &= 0x7F; // setting the RTP marker bit to 0
       unsigned int sent = 0;
-      unsigned int sending =
-          maxDataLen - getHsize() - 2; // packages are of size MAX_SEND, except for the final one
+      unsigned int sending = maxDataLen - getHsize() - 2; // packages are of size MAX_SEND, except for the final one
       char initByte = (payload[0] & 0xE0) | 0x1C;
       char serByte = payload[0] & 0x1F; // ser is now 000
       data[getHsize()] = initByte;
@@ -118,15 +115,10 @@ namespace RTP{
       chunkSize = std::min<size_t>(1200, payloadlen);
       payloadlen -= chunkSize;
 
-      data[1] =
-          (0 != payloadlen) ? (data[1] & 0x7F) : (data[1] | 0x80); // marker bit, 1 for last chunk.
-      data[headerSize] = 0x00;                                     // reset
-      data[headerSize] |=
-          (isStartOfPartition) ? 0x10 : 0x00; // first chunk is always start of a partition.
-      data[headerSize] |=
-          (isKeyframe)
-              ? 0x00
-              : 0x20; // non-reference frame. 0 = frame is needed, 1 = frame can be disgarded.
+      data[1] = (0 != payloadlen) ? (data[1] & 0x7F) : (data[1] | 0x80); // marker bit, 1 for last chunk.
+      data[headerSize] = 0x00;                                           // reset
+      data[headerSize] |= (isStartOfPartition) ? 0x10 : 0x00; // first chunk is always start of a partition.
+      data[headerSize] |= (isKeyframe) ? 0x00 : 0x20; // non-reference frame. 0 = frame is needed, 1 = frame can be disgarded.
 
       memcpy(data + headerSize + 1, payload + bytesWritten, chunkSize);
       callBack(socket, data, headerSize + 1 + chunkSize, channel);
@@ -154,8 +146,7 @@ namespace RTP{
     }else{
       data[1] &= 0x7F; // setting the RTP marker bit to 0
       unsigned int sent = 0;
-      unsigned int sending =
-          maxDataLen - getHsize() - 3; // packages are of size MAX_SEND, except for the final one
+      unsigned int sending = maxDataLen - getHsize() - 3; // packages are of size MAX_SEND, except for the final one
       char initByteA = (payload[0] & 0x81) | 0x62;
       char initByteB = payload[1];
       char serByte = (payload[0] & 0x7E) >> 1; // SE is now 00
@@ -205,8 +196,7 @@ namespace RTP{
     }else{
       data[1] &= 0x7F; // setting the RTP marker bit to 0
       unsigned int sent = 0;
-      unsigned int sending =
-          maxDataLen - getHsize() - 4; // packages are of size MAX_SEND, except for the final one
+      unsigned int sending = maxDataLen - getHsize() - 4; // packages are of size MAX_SEND, except for the final one
       Mpeg::MPEG2Info mInfo;
       MPEGVideoHeader mHead(data + getHsize());
       while (sent < payloadlen){
@@ -234,13 +224,13 @@ namespace RTP{
   }
 
   void Packet::sendData(void *socket, void callBack(void *, char *, unsigned int, unsigned int),
-                        const char *payload, unsigned int payloadlen, unsigned int channel,
-                        std::string codec){
+                        const char *payload, unsigned int payloadlen, unsigned int channel, std::string codec){
     if (codec == "H264"){
       unsigned long sent = 0;
       while (sent < payloadlen){
         unsigned long nalSize = ntohl(*((unsigned long *)(payload + sent)));
-        sendH264(socket, callBack, payload + sent + 4, nalSize, channel, (sent + nalSize + 4) >= payloadlen ? true : false);
+        sendH264(socket, callBack, payload + sent + 4, nalSize, channel,
+                 (sent + nalSize + 4) >= payloadlen ? true : false);
         sent += nalSize + 4;
       }
       return;
@@ -299,8 +289,7 @@ namespace RTP{
     increaseSequence();
   }
 
-  void Packet::sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid,
-                           DTSC::Meta &metadata,
+  void Packet::sendRTCP_SR(long long &connectedAt, void *socket, unsigned int tid, DTSC::Meta &metadata,
                            void callBack(void *, char *, unsigned int, unsigned int)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
@@ -322,8 +311,7 @@ namespace RTP{
     free(rtcpData);
   }
 
-  void Packet::sendRTCP_RR(long long &connectedAt, SDP::Track &sTrk, unsigned int tid,
-                           DTSC::Meta &metadata,
+  void Packet::sendRTCP_RR(long long &connectedAt, SDP::Track &sTrk, unsigned int tid, DTSC::Meta &metadata,
                            void callBack(void *, char *, unsigned int, unsigned int)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
@@ -336,12 +324,9 @@ namespace RTP{
     Bit::htobs(rtcpData + 2, 7);              // 7 4-byte words follow the header
     Bit::htobl(rtcpData + 4, sTrk.mySSRC);    // set receiver identifier
     Bit::htobl(rtcpData + 8, sTrk.theirSSRC); // set source identifier
-    rtcpData[12] =
-        (sTrk.sorter.lostCurrent * 255) /
-        (sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent); // fraction lost since prev RR
-    Bit::htob24(rtcpData + 13, sTrk.sorter.lostTotal);       // cumulative packets lost since start
-    Bit::htobl(rtcpData + 16, sTrk.sorter.rtpSeq | (sTrk.sorter.packTotal &
-                                                    0xFFFF0000ul)); // highest sequence received
+    rtcpData[12] = (sTrk.sorter.lostCurrent * 255) / (sTrk.sorter.lostCurrent + sTrk.sorter.packCurrent); // fraction lost since prev RR
+    Bit::htob24(rtcpData + 13, sTrk.sorter.lostTotal); // cumulative packets lost since start
+    Bit::htobl(rtcpData + 16, sTrk.sorter.rtpSeq | (sTrk.sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
     Bit::htobl(rtcpData + 20, 0); /// \TODO jitter (diff in timestamp vs packet arrival)
     Bit::htobl(rtcpData + 24, 0); /// \TODO last SR (middle 32 bits of last SR or zero)
     Bit::htobl(rtcpData + 28, 0); /// \TODO delay since last SR in 2b seconds + 2b fraction
@@ -362,8 +347,7 @@ namespace RTP{
   Packet::Packet(unsigned int payloadType, unsigned int sequence, unsigned int timestamp,
                  unsigned int ssrc, unsigned int csrcCount){
     managed = true;
-    data = new char[12 + 4 * csrcCount + 2 +
-                    MAX_SEND]; // headerSize, 2 for FU-A, MAX_SEND for maximum sent size
+    data = new char[12 + 4 * csrcCount + 2 + MAX_SEND]; // headerSize, 2 for FU-A, MAX_SEND for maximum sent size
     if (data){
       maxDataLen = 12 + 4 * csrcCount + 2 + MAX_SEND;
       data[0] = ((2) << 6) | ((0 & 1) << 5) | ((0 & 1) << 4) |
@@ -397,7 +381,6 @@ namespace RTP{
     }
     sentBytes = o.sentBytes;
     sentPackets = o.sentPackets;
-
   }
 
   void Packet::operator=(const Packet &o){
@@ -473,7 +456,7 @@ namespace RTP{
   void MPEGVideoHeader::setSequence(){data[2] |= 0x20;}
   void MPEGVideoHeader::setBegin(){data[2] |= 0x10;}
   void MPEGVideoHeader::setEnd(){data[2] |= 0x8;}
-  
+
   Sorter::Sorter(uint64_t trackId, void (*cb)(const uint64_t track, const Packet &p)){
     packTrack = trackId;
     rtpSeq = 0;
@@ -483,7 +466,7 @@ namespace RTP{
     packCurrent = 0;
     callback = cb;
   }
-  
+
   bool Sorter::wantSeq(uint16_t seq) const{
     return !rtpSeq || !(seq < rtpSeq || seq > (rtpSeq + 500) || packBuffer.count(seq));
   }
@@ -613,7 +596,8 @@ namespace RTP{
     int64_t pTime = pkt.getTimeStamp();
     if (!firstTime){
       firstTime = pTime + 1;
-      INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));
+      INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME,
+               PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));
     }else{
       if (prevTime > pTime && pTime < 0x40000000lu && prevTime > 0x80000000lu){
         ++wrapArounds;
@@ -625,7 +609,7 @@ namespace RTP{
       }
     }
     prevTime = pkt.getTimeStamp();
-    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0xFFFFFFFFull*wrapArounds) / multiplier;
+    uint64_t msTime = ((uint64_t)pTime - firstTime + 1 + 0xFFFFFFFFull * wrapArounds) / multiplier;
     char *pl = pkt.getPayload();
     uint32_t plSize = pkt.getPayloadSize();
     bool missed = lastSeq != (pkt.getSequence() - 1);
@@ -657,8 +641,7 @@ namespace RTP{
   void toDTSC::handleAAC(uint64_t msTime, char *pl, uint32_t plSize){
     // assume AAC packets are single AU units
     /// \todo Support other input than single AU units
-    unsigned int headLen =
-        (Bit::btohs(pl) >> 3) + 2; // in bits, so /8, plus two for the prepended size
+    unsigned int headLen = (Bit::btohs(pl) >> 3) + 2; // in bits, so /8, plus two for the prepended size
     DTSC::Packet nextPack;
     uint16_t samples = aac::AudSpecConf::samples(init);
     uint32_t sampleOffset = 0;
@@ -706,7 +689,7 @@ namespace RTP{
       unsigned int pos = 2;
       while (pos + 2 < plSize){
         unsigned int pLen = Bit::btohs(pl + pos);
-        VERYHIGH_MSG("AP Packet of %ub and type %s", pLen, h265::typeToStr((pl[pos+2]&0x7E) >> 1));
+        VERYHIGH_MSG("AP Packet of %ub and type %s", pLen, h265::typeToStr((pl[pos + 2] & 0x7E) >> 1));
         if (packBuffer.allocate(4 + pLen)){
           Bit::htobl(packBuffer, pLen); // size-prepend
           memcpy(packBuffer + 4, pl + pos + 2, pLen);
@@ -808,8 +791,7 @@ namespace RTP{
                    isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
     }else{
       // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i",
-                   packCount);
+      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
     }
     // Fill the new DTSC packet, buffer it.
     DTSC::Packet nextPack;
@@ -823,8 +805,7 @@ namespace RTP{
   /// for that data.
   /// Prints a WARN-level message if packet type is unsupported.
   /// \todo Support other H264 packets types?
-  void toDTSC::handleH264(uint64_t msTime, char *pl, uint32_t plSize, bool missed,
-                          bool hasPadding){
+  void toDTSC::handleH264(uint64_t msTime, char *pl, uint32_t plSize, bool missed, bool hasPadding){
     if (!plSize){
       WARN_MSG("Empty packet ignored!");
       return;
@@ -1000,8 +981,7 @@ namespace RTP{
       }else{
         // For non-steady frame rate, assume no offsets are used and the timestamp is already
         // correct
-        VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i",
-                     packCount);
+        VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
       }
       // Fill the new DTSC packet, buffer it.
       DTSC::Packet nextPack;
@@ -1031,8 +1011,7 @@ namespace RTP{
                    isKey ? "key" : "i", frameNo, fps, packCount, (frameNo - packCount), offset);
     }else{
       // For non-steady frame rate, assume no offsets are used and the timestamp is already correct
-      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i",
-                   packCount);
+      VERYHIGH_MSG("Packing time %llu = %sframe %llu (variable rate)", ts, isKey ? "key" : "i", packCount);
     }
     // Fill the new DTSC packet, buffer it.
     DTSC::Packet nextPack;
@@ -1062,8 +1041,7 @@ namespace RTP{
                      h264::isKeyframe(buffer + lastStart + 4, len - lastStart - 4));
   }
 
-  void toDTSC::handleVP8(uint64_t msTime, const char *buffer, const uint32_t len, bool missed,
-                         bool hasPadding){
+  void toDTSC::handleVP8(uint64_t msTime, const char *buffer, const uint32_t len, bool missed, bool hasPadding){
 
     // 1 byte is required but we assume that there some payload
     // data too :P
@@ -1136,15 +1114,14 @@ namespace RTP{
     // (e.g. only received the first partition of a frame) we will
     // flush a new DTSC packet.
     if (vp8FrameBuffer.size()){
-      //new frame and nothing missed? Send.
+      // new frame and nothing missed? Send.
       if (start_of_frame && !missed){
         DTSC::Packet nextPack;
-        nextPack.genericFill(msTime, 0, trackId, vp8FrameBuffer, vp8FrameBuffer.size(), 0,
-                             vp8BufferHasKeyframe);
+        nextPack.genericFill(msTime, 0, trackId, vp8FrameBuffer, vp8FrameBuffer.size(), 0, vp8BufferHasKeyframe);
         packCount++;
         outPacket(nextPack);
       }
-      //Wipe the buffer clean if missed packets or we just sent data out.
+      // Wipe the buffer clean if missed packets or we just sent data out.
       if (start_of_frame || missed){
         vp8FrameBuffer.assign(0, 0);
         vp8BufferHasKeyframe = false;
@@ -1170,4 +1147,3 @@ namespace RTP{
     if (start_of_frame && is_keyframe){vp8BufferHasKeyframe = true;}
   }
 }// namespace RTP
-

@@ -1,9 +1,9 @@
 /// \file http_parser.cpp
 /// Holds all code for the HTTP namespace.
 
-#include "url.h"
 #include "defines.h"
 #include "encode.h"
+#include "url.h"
 
 /// Helper function to check if the given c-string is numeric or not
 static bool is_numeric(const char *str){
@@ -156,10 +156,8 @@ uint32_t HTTP::URL::getDefaultPort() const{
 
 /// Returns the file extension of the URL, or an empty string if none.
 std::string HTTP::URL::getExt() const{
-  if (path.rfind('.') == std::string::npos){
-    return "";
-  }
-  return path.substr(path.rfind('.')+1);
+  if (path.rfind('.') == std::string::npos){return "";}
+  return path.substr(path.rfind('.') + 1);
 }
 
 /// Returns the full URL in string format
@@ -192,7 +190,7 @@ std::string HTTP::URL::getUrl() const{
 
 /// Returns the full file path, in case this is a local file URI
 std::string HTTP::URL::getFilePath() const{
-  return "/"+path;
+  return "/" + path;
 }
 
 /// Returns the URL in string format without auth and frag
@@ -278,4 +276,3 @@ HTTP::URL HTTP::URL::link(const std::string &l) const{
   DONTEVEN_MSG("Relative link: %s+%s", tmpUrl.c_str(), l.c_str());
   return URL(tmpUrl + l);
 }
-

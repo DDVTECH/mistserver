@@ -38,4 +38,3 @@ protected:
   uint64_t finTime;   ///< Unix time of last packet received
   bool *isActive;     ///< Pointer to is_active bool from config
 };
-

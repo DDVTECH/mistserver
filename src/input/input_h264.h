@@ -27,7 +27,6 @@ namespace Mist{
     pid_t inputProcess;
     uint32_t waitsSinceData;
   };
-}
+}// namespace Mist
 
 typedef Mist::InputH264 mistIn;
-

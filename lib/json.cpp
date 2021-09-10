@@ -1,8 +1,8 @@
 /// \file json.cpp Holds all JSON-related code.
 
-#include "json.h"
 #include "bitfields.h"
 #include "defines.h"
+#include "json.h"
 #include <arpa/inet.h> //for htonl
 #include <fstream>
 #include <sstream>
@@ -274,8 +274,7 @@ std::string JSON::string_escape(const std::string &val){
         if ((c & 0xC0) == 0xC0){
           // possible UTF-8 sequence
           // check for 2-byte sequence
-          if (((c & 0xE0) == 0XC0) && (i + 1 < val.size()) &&
-              ((val.data()[i + 1] & 0xC0) == 0x80)){
+          if (((c & 0xE0) == 0XC0) && (i + 1 < val.size()) && ((val.data()[i + 1] & 0xC0) == 0x80)){
             // valid 2-byte sequence
             out += UTF16(((c & 0x1F) << 6) | (val.data()[i + 1] & 0x3F));
             i += 1;
@@ -285,15 +284,13 @@ std::string JSON::string_escape(const std::string &val){
           if (((c & 0xF0) == 0XE0) && (i + 2 < val.size()) &&
               ((val.data()[i + 1] & 0xC0) == 0x80) && ((val.data()[i + 2] & 0xC0) == 0x80)){
             // valid 3-byte sequence
-            out += UTF16(((c & 0x1F) << 12) | ((val.data()[i + 1] & 0x3F) << 6) |
-                         (val.data()[i + 2] & 0x3F));
+            out += UTF16(((c & 0x1F) << 12) | ((val.data()[i + 1] & 0x3F) << 6) | (val.data()[i + 2] & 0x3F));
             i += 2;
             break;
           }
           // check for 4-byte sequence
-          if (((c & 0xF8) == 0XF0) && (i + 3 < val.size()) &&
-              ((val.data()[i + 1] & 0xC0) == 0x80) && ((val.data()[i + 2] & 0xC0) == 0x80) &&
-              ((val.data()[i + 3] & 0xC0) == 0x80)){
+          if (((c & 0xF8) == 0XF0) && (i + 3 < val.size()) && ((val.data()[i + 1] & 0xC0) == 0x80) &&
+              ((val.data()[i + 2] & 0xC0) == 0x80) && ((val.data()[i + 3] & 0xC0) == 0x80)){
             // valid 4-byte sequence
             out += UTF16(((c & 0x1F) << 18) | ((val.data()[i + 1] & 0x3F) << 12) |
                          ((val.data()[i + 2] & 0x3F) << 6) | (val.data()[i + 3] & 0x3F));
@@ -614,9 +611,9 @@ JSON::Value &JSON::Value::assignFrom(const Value &rhs, const std::set<std::strin
 
 /// Extends this JSON::Value object with the given JSON::Value object, skipping given member(s) recursively.
 JSON::Value &JSON::Value::extend(const Value &rhs, const std::set<std::string> &skip){
-  //Null values turn into objects automatically for sanity reasons
+  // Null values turn into objects automatically for sanity reasons
   if (myType == EMPTY){myType = OBJECT;}
-  //Abort if either value is not an object
+  // Abort if either value is not an object
   if (myType != rhs.myType || myType != OBJECT){return *this;}
   jsonForEachConst(rhs, i){
     if (!skip.count(i.key())){
@@ -919,8 +916,7 @@ void JSON::Value::sendTo(Socket::Connection &socket) const{
       unsigned int size = 16;
       if (objVal.size() > 0){
         jsonForEachConst(*this, i){
-          if (i.key().size() > 0 && i.key() != "trackid" && i.key() != "time" &&
-              i.key() != "datatype"){
+          if (i.key().size() > 0 && i.key() != "trackid" && i.key() != "time" && i.key() != "datatype"){
             size += 2 + i.key().size() + i->packedSize();
           }
         }
@@ -937,8 +933,7 @@ void JSON::Value::sendTo(Socket::Connection &socket) const{
       socket.SendNow("\340", 1);
       if (objVal.size() > 0){
         jsonForEachConst(*this, i){
-          if (i.key().size() > 0 && i.key() != "trackid" && i.key() != "time" &&
-              i.key() != "datatype"){
+          if (i.key().size() > 0 && i.key() != "trackid" && i.key() != "time" && i.key() != "datatype"){
             char sizebuffer[2] ={0, 0};
             sizebuffer[0] = (i.key().size() >> 8) & 0xFF;
             sizebuffer[1] = i.key().size() & 0xFF;
@@ -1395,16 +1390,14 @@ void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &re
   case 0xFF:   // also object
   case 0xE0:{// object
     ++i;
-    while (data[i] + data[i + 1] != 0 &&
-           i < len){// while not encountering 0x0000 (we assume 0x0000EE)
+    while (data[i] + data[i + 1] != 0 && i < len){// while not encountering 0x0000 (we assume 0x0000EE)
       if (i + 2 >= len){return;}
       uint16_t tmpi = Bit::btohs(data + i);                 // set tmpi to the UTF-8 length
       std::string tmpstr = std::string(data + i + 2, tmpi); // set the string data
       i += tmpi + 2;                                        // skip length+size forwards
       ret[tmpstr].null();
-      fromDTMI(
-          data, len, i,
-          ret[tmpstr]); // add content, recursively parsed, updating i, setting indice to tmpstr
+      fromDTMI(data, len, i,
+               ret[tmpstr]); // add content, recursively parsed, updating i, setting indice to tmpstr
     }
     i += 3; // skip 0x0000EE
     return;
@@ -1412,8 +1405,7 @@ void JSON::fromDTMI(const char *data, uint64_t len, uint32_t &i, JSON::Value &re
   }
   case 0x0A:{// array
     ++i;
-    while (data[i] + data[i + 1] != 0 &&
-           i < len){// while not encountering 0x0000 (we assume 0x0000EE)
+    while (data[i] + data[i + 1] != 0 && i < len){// while not encountering 0x0000 (we assume 0x0000EE)
       JSON::Value tval;
       fromDTMI(data, len, i, tval); // add content, recursively parsed, updating i
       ret.append(tval);
@@ -1471,4 +1463,3 @@ JSON::Value JSON::fromDTMI2(const char *data, uint64_t len, uint32_t &i){
   fromDTMI2(data, len, i, ret);
   return ret;
 }
-

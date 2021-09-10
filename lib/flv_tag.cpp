@@ -1,12 +1,12 @@
 /// \file flv_tag.cpp
 /// Holds all code for the FLV namespace.
 
-#include "flv_tag.h"
+#include "adts.h"
 #include "defines.h"
+#include "flv_tag.h"
 #include "rtmpchunks.h"
 #include "timing.h"
 #include "util.h"
-#include "adts.h"
 #include <fcntl.h> //for Tag::FileLoader
 #include <sstream>
 #include <stdio.h>  //for Tag::FileLoader
@@ -20,8 +20,7 @@
 /// Defaults to a audio+video header on FLV version 0x01 if no header received yet.
 char FLV::Header[13] ={'F', 'L', 'V', 0x01, 0x05, 0, 0, 0, 0x09, 0, 0, 0, 0};
 
-bool FLV::Parse_Error =
-    false; ///< This variable is set to true if a problem is encountered while parsing the FLV.
+bool FLV::Parse_Error = false; ///< This variable is set to true if a problem is encountered while parsing the FLV.
 std::string FLV::Error_Str = "";
 
 /// Checks a FLV Header for validness. Returns true if the header is valid, false
@@ -307,8 +306,8 @@ FLV::Tag::~Tag(){
 
 /// Assignment operator - works exactly like the copy constructor.
 /// This operator checks for self-assignment.
-FLV::Tag &FLV::Tag::operator=(const FLV::Tag & O){
-  if (this != &O){ //no self-assignment
+FLV::Tag &FLV::Tag::operator=(const FLV::Tag &O){
+  if (this != &O){// no self-assignment
     done = true;
     sofar = 0;
     len = O.len;
@@ -504,51 +503,41 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta &M, std::set<long unsigned int> &selTrack
     if (M.tracks[*it].type == "video"){
       trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
       trinfo.getContentP(i)->addContent(AMF::Object(
-          "length", ((double)M.tracks[*it].lastms / 1000) * ((double)M.tracks[*it].fpks / 1000.0),
-          AMF::AMF0_NUMBER));
+          "length", ((double)M.tracks[*it].lastms / 1000) * ((double)M.tracks[*it].fpks / 1000.0), AMF::AMF0_NUMBER));
       trinfo.getContentP(i)->addContent(
           AMF::Object("timescale", ((double)M.tracks[*it].fpks / 1000.0), AMF::AMF0_NUMBER));
       trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
       amfdata.getContentP(1)->addContent(AMF::Object("hasVideo", 1, AMF::AMF0_BOOL));
       if (M.tracks[*it].codec == "H264"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 7, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "avc1"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "avc1"));
       }
       if (M.tracks[*it].codec == "ScreenVideo2"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 6, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "sv2"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "sv2"));
       }
       if (M.tracks[*it].codec == "VP6Alpha"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 5, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "vp6a"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "vp6a"));
       }
       if (M.tracks[*it].codec == "VP6"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 4, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "vp6"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "vp6"));
       }
       if (M.tracks[*it].codec == "ScreenVideo1"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 3, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "sv1"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "sv1"));
       }
       if (M.tracks[*it].codec == "H263"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 2, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "h263"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "h263"));
       }
       if (M.tracks[*it].codec == "JPEG"){
         amfdata.getContentP(1)->addContent(AMF::Object("videocodecid", 1, AMF::AMF0_NUMBER));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "jpeg"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "jpeg"));
       }
-      amfdata.getContentP(1)->addContent(
-          AMF::Object("width", M.tracks[*it].width, AMF::AMF0_NUMBER));
-      amfdata.getContentP(1)->addContent(
-          AMF::Object("height", M.tracks[*it].height, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("width", M.tracks[*it].width, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("height", M.tracks[*it].height, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(
           AMF::Object("videoframerate", (double)M.tracks[*it].fpks / 1000.0, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(
@@ -557,30 +546,23 @@ bool FLV::Tag::DTSCMetaInit(DTSC::Meta &M, std::set<long unsigned int> &selTrack
     }
     if (M.tracks[*it].type == "audio"){
       trinfo.addContent(AMF::Object("", AMF::AMF0_OBJECT));
-      trinfo.getContentP(i)->addContent(
-          AMF::Object("length", ((double)M.tracks[*it].lastms) * ((double)M.tracks[*it].rate),
-                      AMF::AMF0_NUMBER));
-      trinfo.getContentP(i)->addContent(
-          AMF::Object("timescale", M.tracks[*it].rate, AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object(
+          "length", ((double)M.tracks[*it].lastms) * ((double)M.tracks[*it].rate), AMF::AMF0_NUMBER));
+      trinfo.getContentP(i)->addContent(AMF::Object("timescale", M.tracks[*it].rate, AMF::AMF0_NUMBER));
       trinfo.getContentP(i)->addContent(AMF::Object("sampledescription", AMF::AMF0_STRICT_ARRAY));
       amfdata.getContentP(1)->addContent(AMF::Object("hasAudio", 1, AMF::AMF0_BOOL));
       amfdata.getContentP(1)->addContent(AMF::Object("audiodelay", 0.0, AMF::AMF0_NUMBER));
       if (M.tracks[*it].codec == "AAC"){
         amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string) "mp4a"));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "mp4a"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "mp4a"));
       }
       if (M.tracks[*it].codec == "MP3"){
         amfdata.getContentP(1)->addContent(AMF::Object("audiocodecid", (std::string) "mp3"));
-        trinfo.getContentP(i)->getContentP(2)->addContent(
-            AMF::Object("sampletype", (std::string) "mp3"));
+        trinfo.getContentP(i)->getContentP(2)->addContent(AMF::Object("sampletype", (std::string) "mp3"));
       }
-      amfdata.getContentP(1)->addContent(
-          AMF::Object("audiochannels", M.tracks[*it].channels, AMF::AMF0_NUMBER));
-      amfdata.getContentP(1)->addContent(
-          AMF::Object("audiosamplerate", M.tracks[*it].rate, AMF::AMF0_NUMBER));
-      amfdata.getContentP(1)->addContent(
-          AMF::Object("audiosamplesize", M.tracks[*it].size, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiochannels", M.tracks[*it].channels, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplerate", M.tracks[*it].rate, AMF::AMF0_NUMBER));
+      amfdata.getContentP(1)->addContent(AMF::Object("audiosamplesize", M.tracks[*it].size, AMF::AMF0_NUMBER));
       amfdata.getContentP(1)->addContent(
           AMF::Object("audiodatarate", (double)M.tracks[*it].bps / 128.0, AMF::AMF0_NUMBER));
       ++i;
@@ -836,21 +818,18 @@ void FLV::Tag::toMeta(DTSC::Meta &metadata, AMF::Object &amf_storage, unsigned i
   if (data[0] == 0x12){
     AMF::Object meta_in = AMF::parse((unsigned char *)data + 11, len - 15);
     AMF::Object *tmp = 0;
-    if (meta_in.getContentP(1) && meta_in.getContentP(0) &&
-        (meta_in.getContentP(0)->StrValue() == "onMetaData")){
+    if (meta_in.getContentP(1) && meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData")){
       tmp = meta_in.getContentP(1);
     }else{
-      if (meta_in.getContentP(2) && meta_in.getContentP(1) &&
-          (meta_in.getContentP(1)->StrValue() == "onMetaData")){
+      if (meta_in.getContentP(2) && meta_in.getContentP(1) && (meta_in.getContentP(1)->StrValue() == "onMetaData")){
         tmp = meta_in.getContentP(2);
       }
     }
     if (tmp){amf_storage = *tmp;}
     return;
   }
-  if (data[0] == 0x08 &&
-      (metadata.tracks[reTrack].codec == "" || metadata.tracks[reTrack].codec != getAudioCodec() ||
-       (needsInitData() && isInitData()))){
+  if (data[0] == 0x08 && (metadata.tracks[reTrack].codec == "" || metadata.tracks[reTrack].codec != getAudioCodec() ||
+                          (needsInitData() && isInitData()))){
     char audiodata = data[11];
     metadata.tracks[reTrack].trackID = reTrack;
     metadata.tracks[reTrack].type = "audio";
@@ -863,16 +842,14 @@ void FLV::Tag::toMeta(DTSC::Meta &metadata, AMF::Object &amf_storage, unsigned i
     case 0xC: metadata.tracks[reTrack].rate = 44100; break;
     }
     if (amf_storage.getContentP("audiosamplerate")){
-      metadata.tracks[reTrack].rate =
-          (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
+      metadata.tracks[reTrack].rate = (long long int)amf_storage.getContentP("audiosamplerate")->NumValue();
     }
     switch (audiodata & 0x02){
     case 0x0: metadata.tracks[reTrack].size = 8; break;
     case 0x2: metadata.tracks[reTrack].size = 16; break;
     }
     if (amf_storage.getContentP("audiosamplesize")){
-      metadata.tracks[reTrack].size =
-          (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
+      metadata.tracks[reTrack].size = (long long int)amf_storage.getContentP("audiosamplesize")->NumValue();
     }
     switch (audiodata & 0x01){
     case 0x0: metadata.tracks[reTrack].channels = 1; break;
@@ -898,8 +875,7 @@ void FLV::Tag::toMeta(DTSC::Meta &metadata, AMF::Object &amf_storage, unsigned i
     }
   }
 
-  if (data[0] == 0x09 &&
-      ((needsInitData() && isInitData()) || !metadata.tracks[reTrack].codec.size())){
+  if (data[0] == 0x09 && ((needsInitData() && isInitData()) || !metadata.tracks[reTrack].codec.size())){
     char videodata = data[11];
     metadata.tracks[reTrack].codec = getVideoCodec();
     metadata.tracks[reTrack].type = "video";
@@ -908,8 +884,7 @@ void FLV::Tag::toMeta(DTSC::Meta &metadata, AMF::Object &amf_storage, unsigned i
       metadata.tracks[reTrack].width = (long long int)amf_storage.getContentP("width")->NumValue();
     }
     if (amf_storage.getContentP("height")){
-      metadata.tracks[reTrack].height =
-          (long long int)amf_storage.getContentP("height")->NumValue();
+      metadata.tracks[reTrack].height = (long long int)amf_storage.getContentP("height")->NumValue();
     }
     if (!metadata.tracks[reTrack].fpks && amf_storage.getContentP("videoframerate")){
       if (amf_storage.getContentP("videoframerate")->NumValue()){
@@ -960,4 +935,3 @@ bool FLV::Tag::checkBufferSize(){
   }
   return true;
 }
-

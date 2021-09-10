@@ -2,31 +2,33 @@
 // Defines to print debug messages.
 #ifndef MIST_DEBUG
 #define MIST_DEBUG 1
-#define DLVL_NONE      0 // All debugging disabled.
-#define DLVL_FAIL      1 // Only messages about failed operations.
-#define DLVL_ERROR     2 // Only messages about errors and failed operations.
-#define DLVL_WARN      3 // Warnings, errors, and fail messages.
-#define DLVL_DEVEL     4 // All of the above, plus status messages handy during development.
-#define DLVL_INFO      4 // All of the above, plus status messages handy during development.
-#define DLVL_MEDIUM    5 // Slightly more than just development-level messages.
-#define DLVL_HIGH      6 // Verbose debugging messages.
-#define DLVL_VERYHIGH  7 // Very verbose debugging messages.
-#define DLVL_EXTREME   8 // Everything is reported in extreme detail.
-#define DLVL_INSANE    9 // Everything is reported in insane detail.
+#define DLVL_NONE 0      // All debugging disabled.
+#define DLVL_FAIL 1      // Only messages about failed operations.
+#define DLVL_ERROR 2     // Only messages about errors and failed operations.
+#define DLVL_WARN 3      // Warnings, errors, and fail messages.
+#define DLVL_DEVEL 4     // All of the above, plus status messages handy during development.
+#define DLVL_INFO 4      // All of the above, plus status messages handy during development.
+#define DLVL_MEDIUM 5    // Slightly more than just development-level messages.
+#define DLVL_HIGH 6      // Verbose debugging messages.
+#define DLVL_VERYHIGH 7  // Very verbose debugging messages.
+#define DLVL_EXTREME 8   // Everything is reported in extreme detail.
+#define DLVL_INSANE 9    // Everything is reported in insane detail.
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
 #define PRETTY_PRINT_TIME "%ud%uh%um%us"
-#define PRETTY_ARG_TIME(t) (int)(t)/86400, ((int)(t)%86400)/3600, ((int)(t)%3600)/60, (int)(t)%60
+#define PRETTY_ARG_TIME(t)                                                                         \
+  (int)(t) / 86400, ((int)(t) % 86400) / 3600, ((int)(t) % 3600) / 60, (int)(t) % 60
 #define PRETTY_PRINT_MSTIME "%ud%.2uh%.2um%.2us.%.3u"
-#define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME(t/1000), (int)(t%1000)
+#define PRETTY_ARG_MSTIME(t) PRETTY_ARG_TIME(t / 1000), (int)(t % 1000)
 #if DEBUG > -1
 
 #define __STDC_FORMAT_MACROS 1
-#include <stdio.h>
-#include <unistd.h>
+#include "config.h"
 #include <inttypes.h>
 #include <stdint.h>
-#include "config.h"
-static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "MEDIUM", "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
+#include <stdio.h>
+#include <unistd.h>
+static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "INFO",    "MEDIUM",
+                                     "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
 
 #if !defined(PRIu64)
 #define PRIu64 "llu"
@@ -40,15 +42,31 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 #include <errno.h>
 
 #if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...)                                                                     \
+  if (Util::Config::printDebugLevel >= lvl){\
+    fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, \
+            getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);          \
+  }
 #else
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...)                                                                   \
+  if (Util::Config::printDebugLevel >= lvl){\
+    fprintf(stderr, "%s|%s|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name,    \
+            getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);                            \
+  }
 #endif
 #else
 #if DEBUG >= DLVL_DEVEL
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|MistProcess|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...)                                                                   \
+  if (Util::Config::printDebugLevel >= lvl){\
+    fprintf(stderr, "%s|MistProcess|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), __FILE__, \
+            __LINE__, Util::Config::streamName.c_str(), ##__VA_ARGS__);                            \
+  }
 #else
-#define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|MistProcess|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(), Util::Config::streamName.c_str(), ##__VA_ARGS__);}
+#define DEBUG_MSG(lvl, msg, ...)                                                                   \
+  if (Util::Config::printDebugLevel >= lvl){\
+    fprintf(stderr, "%s|MistProcess|%d||%s|" msg "\n", DBG_LVL_LIST[lvl], getpid(),                \
+            Util::Config::streamName.c_str(), ##__VA_ARGS__);                                      \
+  }
 #endif
 #endif
 
@@ -56,18 +74,16 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 static inline void show_stackframe(){}
 #else
 #include <execinfo.h>
-static inline void show_stackframe() {
+static inline void show_stackframe(){
   void *trace[16];
   char **messages = 0;
   int i, trace_size = 0;
   trace_size = backtrace(trace, 16);
   messages = backtrace_symbols(trace, trace_size);
-  for (i=1; i<trace_size; ++i){
+  for (i = 1; i < trace_size; ++i){
     size_t p = 0;
-    while(messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0){
-      ++p;
-    }
-    DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i]+p);
+    while (messages[i][p] != '(' && messages[i][p] != ' ' && messages[i][p] != 0){++p;}
+    DEBUG_MSG(0, "Backtrace[%d]: %s", i, messages[i] + p);
   }
 }
 #endif
@@ -94,12 +110,12 @@ static inline void show_stackframe(){}
 
 #endif
 
-
 #ifndef SHM_DATASIZE
 #define SHM_DATASIZE 20
 #endif
 
-#define AUDIO_KEY_INTERVAL 2000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
+#define AUDIO_KEY_INTERVAL                                                                         \
+  2000 ///< This define controls the keyframe interval for non-video tracks, such as audio and metadata tracks.
 
 #ifndef STATS_DELAY
 #define STATS_DELAY 15
@@ -107,7 +123,7 @@ static inline void show_stackframe(){}
 #define STATS_INPUT_DELAY 2
 
 #ifndef INPUT_TIMEOUT
-#define INPUT_TIMEOUT STATS_DELAY*2
+#define INPUT_TIMEOUT STATS_DELAY * 2
 #endif
 
 /// The size used for stream headers for live streams
@@ -130,9 +146,9 @@ static inline void show_stackframe(){}
 /// Interval where the input refreshes the user data for stats etc.
 #define INPUT_USER_INTERVAL 1000
 
-#define SHM_STREAM_INDEX "MstSTRM%s" //%s stream name
+#define SHM_STREAM_INDEX "MstSTRM%s"  //%s stream name
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
-#define SHM_STREAM_CONF "MstSCnf%s" //%s stream name
+#define SHM_STREAM_CONF "MstSCnf%s"   //%s stream name
 #define SHM_GLOBAL_CONF "MstGlobalConfig"
 #define STRMSTAT_OFF 0
 #define STRMSTAT_INIT 1
@@ -141,15 +157,15 @@ static inline void show_stackframe(){}
 #define STRMSTAT_READY 4
 #define STRMSTAT_SHUTDOWN 5
 #define STRMSTAT_INVALID 255
-#define SHM_TRACK_META "MstTRAK%s@%lu" //%s stream name, %lu track ID
+#define SHM_TRACK_META "MstTRAK%s@%lu"  //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX "MstTRID%s@%lu" //%s stream name, %lu track ID
 #define SHM_TRACK_INDEX_SIZE 8192
 #define SHM_TRACK_DATA "MstDATA%s@%lu_%lu" //%s stream name, %lu track ID, %lu page #
 #define SHM_STATISTICS "MstSTAT"
-#define SHM_USERS "MstUSER%s" //%s stream name
+#define SHM_USERS "MstUSER%s"   //%s stream name
 #define SHM_TRIGGER "MstTRGR%s" //%s trigger name
-#define SEM_LIVE "/MstLIVE%s" //%s stream name
-#define SEM_INPUT "/MstInpt%s" //%s stream name
+#define SEM_LIVE "/MstLIVE%s"   //%s stream name
+#define SEM_INPUT "/MstInpt%s"  //%s stream name
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
@@ -157,15 +173,14 @@ static inline void show_stackframe(){}
 #define SHM_STATE_LOGS "MstStateLogs"
 #define SHM_STATE_ACCS "MstStateAccs"
 #define SHM_STATE_STREAMS "MstStateStreams"
-#define NAME_BUFFER_SIZE 200    //char buffer size for snprintf'ing shm filenames
+#define NAME_BUFFER_SIZE 200 // char buffer size for snprintf'ing shm filenames
 #define SHM_SESSIONS "/MstSess"
-#define SHM_SESSIONS_ITEM 165 //4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
-#define SHM_SESSIONS_SIZE 5248000 //5MiB = almost 32k sessions
+#define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
+#define SHM_SESSIONS_SIZE 5248000 // 5MiB = almost 32k sessions
 
 #define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
 
 #define SIMUL_TRACKS 20
-
 
 #ifndef UDP_API_HOST
 #define UDP_API_HOST "localhost"
@@ -177,7 +192,6 @@ static inline void show_stackframe(){}
 
 #define INVALID_TRACK_ID 0
 
-//The amount of milliseconds a simulated live stream is allowed to be "behind".
-//Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
+// The amount of milliseconds a simulated live stream is allowed to be "behind".
+// Setting this value to lower than 2 seconds **WILL** cause stuttering in playback due to buffer negotiation.
 #define SIMULATED_LIVE_BUFFER 7000
-

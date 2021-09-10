@@ -14,7 +14,8 @@ void AnalyserRTSP::incoming(const DTSC::Packet &pkt){
   char *dataPtr;
   size_t dataSize;
   pkt.getString("data", dataPtr, dataSize);
-  DETAIL_MED("Received %ub %sfor track %lu (%s) @ %llums", dataSize, pkt.getFlag("keyframe")?"keyframe ":"", pkt.getTrackId(),
+  DETAIL_MED("Received %ub %sfor track %lu (%s) @ %llums", dataSize,
+             pkt.getFlag("keyframe") ? "keyframe " : "", pkt.getTrackId(),
              myMeta.tracks[pkt.getTrackId()].getIdentifier().c_str(), pkt.getTime());
   if (detail >= 8){
     for (uint32_t i = 0; i < dataSize; ++i){
@@ -99,9 +100,7 @@ bool AnalyserRTSP::parsePacket(){
     if (!trackNo && (chan % 2) != 1){
       DETAIL_MED("Received packet for unknown track number on channel %u", chan);
     }
-    if (trackNo){
-      sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();
-    }
+    if (trackNo){sdpState.tracks[trackNo].sorter.rtpSeq = pkt.getSequence();}
 
     if (detail >= 10){
       char *pl = pkt.getPayload();
@@ -120,4 +119,3 @@ bool AnalyserRTSP::parsePacket(){
   }while (isOpen());
   return false;
 }
-

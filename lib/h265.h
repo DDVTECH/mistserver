@@ -13,10 +13,8 @@ namespace h265{
   const char *typeToStr(uint8_t type);
   bool isKeyframe(const char *data, uint32_t len);
 
-  void updateProfileTierLevel(Utils::bitstream &bs, MP4::HVCC &hvccBox,
-                              unsigned long maxSubLayersMinus1);
-  std::string printProfileTierLevel(Utils::bitstream &bs, unsigned long maxSubLayersMinus1,
-                                    size_t indent);
+  void updateProfileTierLevel(Utils::bitstream &bs, MP4::HVCC &hvccBox, unsigned long maxSubLayersMinus1);
+  std::string printProfileTierLevel(Utils::bitstream &bs, unsigned long maxSubLayersMinus1, size_t indent);
 
   struct metaInfo{
     uint64_t width;
@@ -71,4 +69,3 @@ namespace h265{
   // NOTE: no ppsUnit, as the only information it contains is parallelism mode, which can be set to
   // 0 for 'unknown'
 }// namespace h265
-

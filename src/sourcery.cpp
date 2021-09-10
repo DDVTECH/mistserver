@@ -1,21 +1,21 @@
 ///\file sourcery.cpp
-///Utility program used for c-string dumping files.
+/// Utility program used for c-string dumping files.
 #undef DEBUG
 #define DEBUG -1
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
+#include "../lib/encode.cpp"
+#include "../lib/encode.h"
+#include "../lib/url.cpp"
+#include "../lib/url.h"
+#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <fstream>
 #include <sstream>
+#include <stdint.h>
+#include <string.h>
 #include <string>
-#include "../lib/url.h"
-#include "../lib/url.cpp"
-#include "../lib/encode.h"
-#include "../lib/encode.cpp"
+#include <unistd.h>
 
-std::string getContents(const char * fileName){
+std::string getContents(const char *fileName){
   std::ifstream inFile(fileName);
   std::string fullText;
   if (inFile){
@@ -27,14 +27,13 @@ std::string getContents(const char * fileName){
   return "";
 }
 
+int main(int argc, char *argv[]){
 
-int main(int argc, char* argv[]){
-
-  if (argc < 4) {
+  if (argc < 4){
     std::cerr << "Usage: " << argv[0] << " <inputFile> <variableName> <outputFile> [<splittext>]" << std::endl;
     return 42;
   }
-  const char * splitText = 0;
+  const char *splitText = 0;
   if (argc >= 5){splitText = argv[4];}
 
   char workDir[512];
@@ -42,53 +41,52 @@ int main(int argc, char* argv[]){
   HTTP::URL inUri(std::string("file://") + workDir + "/");
   inUri = inUri.link(argv[1]);
 
-  //Read the entire first argument into a string buffer
+  // Read the entire first argument into a string buffer
   std::string fullText = getContents(inUri.getFilePath().c_str());
- 
-  //replace every <script src="*"></script> with the contents of the file '*'
+
+  // replace every <script src="*"></script> with the contents of the file '*'
   while (fullText.find("<script src=\"") != std::string::npos){
     size_t locStart = fullText.find("<script src=\"");
     size_t locEnd = fullText.find("\"></script>", locStart);
-    //Assume we should abort if the strlen of the filename is > 230 chars
+    // Assume we should abort if the strlen of the filename is > 230 chars
     if (locEnd - locStart >= 230){break;}
-    HTTP::URL fileName = inUri.link(fullText.substr(locStart+13, locEnd-locStart-13));
+    HTTP::URL fileName = inUri.link(fullText.substr(locStart + 13, locEnd - locStart - 13));
     std::string subText = getContents(fileName.getFilePath().c_str());
-    fullText = fullText.substr(0, locStart) + "<script>" + subText + fullText.substr(locEnd+2);
+    fullText = fullText.substr(0, locStart) + "<script>" + subText + fullText.substr(locEnd + 2);
   }
 
-  //replace every <link rel="stylesheet" href="*"> with the contents of the file '*'
+  // replace every <link rel="stylesheet" href="*"> with the contents of the file '*'
   while (fullText.find("<link rel=\"stylesheet\" href=\"") != std::string::npos){
     size_t locStart = fullText.find("<link rel=\"stylesheet\" href=\"");
     size_t locEnd = fullText.find("\">", locStart);
-    //Assume we should abort if the strlen of the filename is > 230 chars
+    // Assume we should abort if the strlen of the filename is > 230 chars
     if (locEnd - locStart >= 230){break;}
-    HTTP::URL fileName = inUri.link(fullText.substr(locStart+29, locEnd-locStart-29));
+    HTTP::URL fileName = inUri.link(fullText.substr(locStart + 29, locEnd - locStart - 29));
     std::string subText = getContents(fileName.getFilePath().c_str());
-    fullText = fullText.substr(0, locStart) + "<style>" + subText + "</style>" + fullText.substr(locEnd+2);
+    fullText = fullText.substr(0, locStart) + "<style>" + subText + "</style>" + fullText.substr(locEnd + 2);
   }
 
   size_t splitPoint = std::string::npos;
   size_t splitLen = 0;
   if (splitText){
     splitPoint = fullText.find(splitText);
-    if (splitPoint != std::string::npos){
-      splitLen = strlen(splitText);
-    }
+    if (splitPoint != std::string::npos){splitLen = strlen(splitText);}
   }
 
   std::ofstream tmp(argv[3]);
-  //begin the first line
+  // begin the first line
   if (!splitLen){
     tmp << "const char *" << argv[2] << " = " << std::endl << "  \"";
   }else{
     tmp << "const char *" << argv[2] << "_prefix = " << std::endl << "  \"";
   }
-  uint32_t i = 0; //Current line byte counter
-  uint32_t total = 0; //Finished lines so far byte counter
+  uint32_t i = 0;     // Current line byte counter
+  uint32_t total = 0; // Finished lines so far byte counter
   bool sawQ = false;
   for (size_t pos = 0; pos < fullText.size(); ++pos){
     if (pos == splitPoint){
-      tmp << "\";" << std::endl << "uint32_t " << argv[2] << "_prefix_len = " << i + total << ";" << std::endl;
+      tmp << "\";" << std::endl
+          << "uint32_t " << argv[2] << "_prefix_len = " << i + total << ";" << std::endl;
       tmp << "const char *" << argv[2] << "_suffix = " << std::endl << "  \"";
       i = 0;
       total = 0;
@@ -97,25 +95,25 @@ int main(int argc, char* argv[]){
     }
     unsigned char thisChar = fullText.at(pos);
     switch (thisChar){
-      //Filter special characters.
-      case '\n': tmp << "\\n";  break;
-      case '\r': tmp << "\\r";  break;
-      case '\t': tmp << "\\t";  break;
-      case '\\': tmp << "\\\\"; break;
-      case '\"': tmp << "\\\""; break;
-      case '?':
-        if (sawQ){tmp << "\"\"";}
-        tmp << "?";
-        sawQ = true;
+    // Filter special characters.
+    case '\n': tmp << "\\n"; break;
+    case '\r': tmp << "\\r"; break;
+    case '\t': tmp << "\\t"; break;
+    case '\\': tmp << "\\\\"; break;
+    case '\"': tmp << "\\\""; break;
+    case '?':
+      if (sawQ){tmp << "\"\"";}
+      tmp << "?";
+      sawQ = true;
       break;
-      default:
-        if (thisChar < 32 || thisChar > 126){
-          //Convert to octal.
-          tmp << '\\' << std::oct << std::setw(3) << std::setfill('0') << (unsigned int)thisChar << std::dec;
-        }else{
-          tmp << thisChar;
-        }
-        sawQ = false;
+    default:
+      if (thisChar < 32 || thisChar > 126){
+        // Convert to octal.
+        tmp << '\\' << std::oct << std::setw(3) << std::setfill('0') << (unsigned int)thisChar << std::dec;
+      }else{
+        tmp << thisChar;
+      }
+      sawQ = false;
     }
     ++i;
     // We print 80 bytes per line, regardless of special characters
@@ -126,9 +124,10 @@ int main(int argc, char* argv[]){
       i = 0;
     }
   }
-  //end the last line, plus length variable
-  tmp << "\";" << std::endl << "uint32_t " << argv[2] << (splitLen?"_suffix":"") << "_len = " << i + total << ";" << std::endl;
+  // end the last line, plus length variable
+  tmp << "\";" << std::endl
+      << "uint32_t " << argv[2] << (splitLen ? "_suffix" : "") << "_len = " << i + total << ";"
+      << std::endl;
   tmp.close();
   return 0;
 }
-

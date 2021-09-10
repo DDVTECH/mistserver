@@ -1,7 +1,7 @@
 #include "output_ebml.h"
 #include <mist/ebml_socketglue.h>
-#include <mist/riff.h>
 #include <mist/opus.h>
+#include <mist/riff.h>
 
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection &conn) : HTTPOutput(conn){
@@ -16,9 +16,7 @@ namespace Mist{
     if (config->getString("target").size()){
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
-      if (myMeta.vod){
-        calcVodSizes();
-      }
+      if (myMeta.vod){calcVodSizes();}
       if (!streamName.size()){
         WARN_MSG("Recording unconnected EBML output to file! Cancelled.");
         conn.close();
@@ -76,8 +74,10 @@ namespace Mist{
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/video/webm";
     capa["methods"][0u]["priority"] = 9;
-    //Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
-    JSON::Value blacklistNonChrome = JSON::fromString("[[\"blacklist\", [\"Mozilla/\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]], [\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
+    // Browsers only support VP8/VP9/Opus codecs, except Chrome which is more lenient.
+    JSON::Value blacklistNonChrome = JSON::fromString(
+        "[[\"blacklist\", [\"Mozilla/\"]], [\"whitelist\",[\"Chrome\",\"Chromium\"]], "
+        "[\"blacklist\",[\"Edge\",\"OPR/\"]], [\"blacklist\",[\"Android\"]]]");
     capa["exceptions"]["codec:H264"] = blacklistNonChrome;
     capa["exceptions"]["codec:HEVC"] = blacklistNonChrome;
     capa["exceptions"]["codec:theora"] = blacklistNonChrome;
@@ -109,14 +109,12 @@ namespace Mist{
   /// Bases the calculation on the currently selected tracks and the given start/end time for the cluster.
   uint32_t OutEBML::clusterSize(uint64_t start, uint64_t end){
     uint32_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-         it != selectedTracks.end(); it++){
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       DTSC::Track &thisTrack = myMeta.tracks[*it];
       uint32_t firstPart = 0;
       unsigned long long int prevParts = 0;
       uint64_t curMS = 0;
-      for (std::deque<DTSC::Key>::iterator it2 = thisTrack.keys.begin();
-           it2 != thisTrack.keys.end(); it2++){
+      for (std::deque<DTSC::Key>::iterator it2 = thisTrack.keys.begin(); it2 != thisTrack.keys.end(); it2++){
         if (it2->getTime() > start && it2 != thisTrack.keys.begin()){break;}
         firstPart += prevParts;
         prevParts = it2->getParts();
@@ -140,21 +138,23 @@ namespace Mist{
       if (liveSeek()){return;}
       currentClusterTime = thisPacket.getTime();
       if (myMeta.vod){
-        //In case of VoD, clusters are aligned with the main track fragments
-        //EXCEPT when they are more than 30 seconds long, because clusters are limited to -32 to 32 seconds.
+        // In case of VoD, clusters are aligned with the main track fragments
+        // EXCEPT when they are more than 30 seconds long, because clusters are limited to -32 to 32 seconds.
         DTSC::Track &Trk = myMeta.tracks[getMainSelectedTrack()];
         uint32_t fragIndice = Trk.timeToFragnum(currentClusterTime);
-        newClusterTime = Trk.getKey(Trk.fragments[fragIndice].getNumber()).getTime() + Trk.fragments[fragIndice].getDuration();
-        //Limit clusters to 30s, and the last fragment should always be 30s, just in case.
+        newClusterTime = Trk.getKey(Trk.fragments[fragIndice].getNumber()).getTime() +
+                         Trk.fragments[fragIndice].getDuration();
+        // Limit clusters to 30s, and the last fragment should always be 30s, just in case.
         if ((newClusterTime - currentClusterTime > 30000) || (fragIndice == Trk.fragments.size() - 1)){
           newClusterTime = currentClusterTime + 30000;
         }
-        EXTREME_MSG("Cluster: %llu - %llu (%lu/%lu) = %llu", currentClusterTime, newClusterTime, fragIndice, Trk.fragments.size(), clusterSize(currentClusterTime, newClusterTime));
+        EXTREME_MSG("Cluster: %llu - %llu (%lu/%lu) = %llu", currentClusterTime, newClusterTime,
+                    fragIndice, Trk.fragments.size(), clusterSize(currentClusterTime, newClusterTime));
       }else{
-        //In live, clusters are aligned with the lookAhead time
-        newClusterTime = currentClusterTime+(needsLookAhead?needsLookAhead:1);
-        //EXCEPT if there's a keyframe within the lookAhead window, then align to that keyframe instead
-        //This makes sure that inlineRestartCapable works as intended
+        // In live, clusters are aligned with the lookAhead time
+        newClusterTime = currentClusterTime + (needsLookAhead ? needsLookAhead : 1);
+        // EXCEPT if there's a keyframe within the lookAhead window, then align to that keyframe
+        // instead This makes sure that inlineRestartCapable works as intended
         uint64_t nxtKTime = nextKeyTime();
         if (nxtKTime && nxtKTime < newClusterTime){newClusterTime = nxtKTime;}
       }
@@ -204,7 +204,7 @@ namespace Mist{
       if (Trk.init.size()){sendLen += EBML::sizeElemStr(EBML::EID_CODECPRIVATE, Trk.init);}
     }
     if (Trk.codec == "opus" && Trk.init.size() > 11){
-      sendLen += EBML::sizeElemUInt(EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data())*1000000/48);
+      sendLen += EBML::sizeElemUInt(EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data()) * 1000000 / 48);
       sendLen += EBML::sizeElemUInt(EBML::EID_SEEKPREROLL, 80000000);
     }
     if (Trk.type == "video"){
@@ -222,9 +222,7 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_BITDEPTH, Trk.size);
       sendLen += EBML::sizeElemHead(EBML::EID_AUDIO, subLen);
     }
-    if (Trk.type == "meta"){
-      sendLen += EBML::sizeElemUInt(EBML::EID_TRACKTYPE, 3);
-    }
+    if (Trk.type == "meta"){sendLen += EBML::sizeElemUInt(EBML::EID_TRACKTYPE, 3);}
     sendLen += subLen;
 
     // Now actually send.
@@ -235,15 +233,14 @@ namespace Mist{
     EBML::sendElemStr(myConn, EBML::EID_LANGUAGE, Trk.lang.size() ? Trk.lang : "und");
     EBML::sendElemUInt(myConn, EBML::EID_FLAGLACING, 0);
     if (Trk.codec == "ALAW" || Trk.codec == "ULAW"){
-      std::string init =
-          RIFF::fmt::generate(((Trk.codec == "ALAW") ? 6 : 7), Trk.channels, Trk.rate, Trk.bps,
-                              Trk.channels * (Trk.size << 3), Trk.size);
+      std::string init = RIFF::fmt::generate(((Trk.codec == "ALAW") ? 6 : 7), Trk.channels, Trk.rate,
+                                             Trk.bps, Trk.channels * (Trk.size << 3), Trk.size);
       EBML::sendElemStr(myConn, EBML::EID_CODECPRIVATE, init.substr(8));
     }else{
       if (Trk.init.size()){EBML::sendElemStr(myConn, EBML::EID_CODECPRIVATE, Trk.init);}
     }
     if (Trk.codec == "opus"){
-      EBML::sendElemUInt(myConn, EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data())*1000000/48);
+      EBML::sendElemUInt(myConn, EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data()) * 1000000 / 48);
       EBML::sendElemUInt(myConn, EBML::EID_SEEKPREROLL, 80000000);
     }
     if (Trk.type == "video"){
@@ -261,9 +258,7 @@ namespace Mist{
       EBML::sendElemDbl(myConn, EBML::EID_SAMPLINGFREQUENCY, Trk.rate);
       EBML::sendElemUInt(myConn, EBML::EID_BITDEPTH, Trk.size);
     }
-    if (Trk.type == "meta"){
-      EBML::sendElemUInt(myConn, EBML::EID_TRACKTYPE, 3);
-    }
+    if (Trk.type == "meta"){EBML::sendElemUInt(myConn, EBML::EID_TRACKTYPE, 3);}
   }
 
   uint32_t OutEBML::sizeElemTrackEntry(const DTSC::Track &Trk){
@@ -281,7 +276,7 @@ namespace Mist{
       if (Trk.init.size()){sendLen += EBML::sizeElemStr(EBML::EID_CODECPRIVATE, Trk.init);}
     }
     if (Trk.codec == "opus"){
-      sendLen += EBML::sizeElemUInt(EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data())*1000000/48);
+      sendLen += EBML::sizeElemUInt(EBML::EID_CODECDELAY, Opus::getPreSkip(Trk.init.data()) * 1000000 / 48);
       sendLen += EBML::sizeElemUInt(EBML::EID_SEEKPREROLL, 80000000);
     }
     if (Trk.type == "video"){
@@ -299,9 +294,7 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_BITDEPTH, Trk.size);
       sendLen += EBML::sizeElemHead(EBML::EID_AUDIO, subLen);
     }
-    if (Trk.type == "meta"){
-      sendLen += EBML::sizeElemUInt(EBML::EID_TRACKTYPE, 3);
-    }
+    if (Trk.type == "meta"){sendLen += EBML::sizeElemUInt(EBML::EID_TRACKTYPE, 3);}
     sendLen += subLen;
     return EBML::sizeElemHead(EBML::EID_TRACKENTRY, sendLen) + sendLen;
   }
@@ -309,38 +302,33 @@ namespace Mist{
   void OutEBML::sendHeader(){
     double duration = 0;
     DTSC::Track &Trk = myMeta.tracks[getMainSelectedTrack()];
-    if (myMeta.vod){
-      duration = Trk.lastms - Trk.firstms;
-    }
-    if (myMeta.live){
-      needsLookAhead = 420;
-    }
-    //EBML header and Segment
+    if (myMeta.vod){duration = Trk.lastms - Trk.firstms;}
+    if (myMeta.live){needsLookAhead = 420;}
+    // EBML header and Segment
     EBML::sendElemEBML(myConn, doctype);
     EBML::sendElemHead(myConn, EBML::EID_SEGMENT, segmentSize); // Default = Unknown size
     if (myMeta.vod){
-      //SeekHead
+      // SeekHead
       EBML::sendElemHead(myConn, EBML::EID_SEEKHEAD, seekSize);
       EBML::sendElemSeek(myConn, EBML::EID_INFO, seekheadSize);
       EBML::sendElemSeek(myConn, EBML::EID_TRACKS, seekheadSize + infoSize);
       EBML::sendElemSeek(myConn, EBML::EID_CUES, seekheadSize + infoSize + tracksSize);
     }
-    //Info
+    // Info
     EBML::sendElemInfo(myConn, "MistServer " PACKAGE_VERSION, duration);
-    //Tracks
+    // Tracks
     uint32_t trackSizes = 0;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-         it != selectedTracks.end(); it++){
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       trackSizes += sizeElemTrackEntry(myMeta.tracks[*it]);
     }
     EBML::sendElemHead(myConn, EBML::EID_TRACKS, trackSizes);
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-         it != selectedTracks.end(); it++){
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       sendElemTrackEntry(myMeta.tracks[*it]);
     }
     if (myMeta.vod){
       EBML::sendElemHead(myConn, EBML::EID_CUES, cuesSize);
-      uint64_t tmpsegSize = infoSize + tracksSize + seekheadSize + cuesSize + EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
+      uint64_t tmpsegSize = infoSize + tracksSize + seekheadSize + cuesSize +
+                            EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
       for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
         EBML::sendElemCuePoint(myConn, it->first, Trk.trackID, tmpsegSize, 0);
         tmpsegSize += it->second;
@@ -358,7 +346,9 @@ namespace Mist{
       seek(0);
       return;
     }
-    uint64_t headerSize = EBML::sizeElemEBML(doctype) + EBML::sizeElemHead(EBML::EID_SEGMENT, segmentSize) + seekheadSize + infoSize + tracksSize + EBML::sizeElemHead(EBML::EID_CUES, cuesSize) + cuesSize;
+    uint64_t headerSize = EBML::sizeElemEBML(doctype) +
+                          EBML::sizeElemHead(EBML::EID_SEGMENT, segmentSize) + seekheadSize + infoSize +
+                          tracksSize + EBML::sizeElemHead(EBML::EID_CUES, cuesSize) + cuesSize;
     if (startPos < headerSize){
       HIGH_MSG("Seek went into or before header");
       seek(0);
@@ -366,7 +356,7 @@ namespace Mist{
       return;
     }
     startPos -= headerSize;
-    sentHeader = true;//skip the header
+    sentHeader = true; // skip the header
     DTSC::Track &Trk = myMeta.tracks[getMainSelectedTrack()];
     for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
       VERYHIGH_MSG("Cluster %llu (%llu bytes) -> %llu to go", it->first, it->second, startPos);
@@ -379,12 +369,12 @@ namespace Mist{
       }
       startPos -= it->second;
     }
-    //End of file. This probably won't work right, but who cares, it's the end of the file.
+    // End of file. This probably won't work right, but who cares, it's the end of the file.
   }
 
   void OutEBML::onHTTP(){
     std::string method = H.method;
-    if(method == "OPTIONS" || method == "HEAD"){
+    if (method == "OPTIONS" || method == "HEAD"){
       H.Clean();
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "video/MP4");
@@ -398,23 +388,23 @@ namespace Mist{
       doctype = "matroska";
     }
 
-    //Calculate the sizes of various parts, if we're VoD.
+    // Calculate the sizes of various parts, if we're VoD.
     uint64_t totalSize = 0;
     if (myMeta.vod){
       calcVodSizes();
-      //We now know the full size of the segment, thus can calculate the total size
+      // We now know the full size of the segment, thus can calculate the total size
       totalSize = EBML::sizeElemEBML(doctype) + EBML::sizeElemHead(EBML::EID_SEGMENT, segmentSize) + segmentSize;
     }
 
-    uint64_t byteEnd = totalSize-1;
+    uint64_t byteEnd = totalSize - 1;
     uint64_t byteStart = 0;
-    
+
     /*LTS-START*/
     // allow setting of max lead time through buffer variable.
     // max lead time is set in MS, but the variable is in integer seconds for simplicity.
     if (H.GetVar("buffer") != ""){maxSkipAhead = JSON::Value(H.GetVar("buffer")).asInt() * 1000;}
-    //allow setting of play back rate through buffer variable.
-    //play back rate is set in MS per second, but the variable is a simple multiplier.
+    // allow setting of play back rate through buffer variable.
+    // play back rate is set in MS per second, but the variable is a simple multiplier.
     if (H.GetVar("rate") != ""){
       long long int multiplier = JSON::Value(H.GetVar("rate")).asInt();
       if (multiplier){
@@ -445,12 +435,10 @@ namespace Mist{
         rangeType = H.GetHeader("Range")[0];
       }
     }
-    H.Clean(); //make sure no parts of old requests are left in any buffers
+    H.Clean(); // make sure no parts of old requests are left in any buffers
     H.setCORSHeaders();
     H.SetHeader("Content-Type", "video/webm");
-    if (myMeta.vod){
-      H.SetHeader("Accept-Ranges", "bytes, parsec");
-    }
+    if (myMeta.vod){H.SetHeader("Accept-Ranges", "bytes, parsec");}
     if (rangeType != ' '){
       if (!byteEnd){
         if (rangeType == 'p'){
@@ -469,16 +457,14 @@ namespace Mist{
         H.SetHeader("Content-Range", rangeReply.str());
         /// \todo Switch to chunked?
         H.SendResponse("206", "Partial content", myConn);
-        //H.StartResponse("206", "Partial content", HTTP_R, conn);
+        // H.StartResponse("206", "Partial content", HTTP_R, conn);
         byteSeek(byteStart);
       }
     }else{
-      if (myMeta.vod){
-        H.SetHeader("Content-Length", byteEnd - byteStart + 1);
-      }
+      if (myMeta.vod){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
       /// \todo Switch to chunked?
       H.SendResponse("200", "OK", myConn);
-      //HTTP_S.StartResponse(HTTP_R, conn);
+      // HTTP_S.StartResponse(HTTP_R, conn);
     }
     parseData = true;
     wantRequest = false;
@@ -486,74 +472,73 @@ namespace Mist{
 
   void OutEBML::calcVodSizes(){
     if (segmentSize != 0xFFFFFFFFFFFFFFFFull){
-      //Already calculated
+      // Already calculated
       return;
     }
     DTSC::Track &Trk = myMeta.tracks[getMainSelectedTrack()];
     double duration = Trk.lastms - Trk.firstms;
-    //Calculate the segment size
-    //Segment contains SeekHead, Info, Tracks, Cues (in that order)
-    //Howeveer, SeekHead is dependent on Info/Tracks sizes, so we calculate those first.
-    //Calculating Info size
+    // Calculate the segment size
+    // Segment contains SeekHead, Info, Tracks, Cues (in that order)
+    // Howeveer, SeekHead is dependent on Info/Tracks sizes, so we calculate those first.
+    // Calculating Info size
     infoSize = EBML::sizeElemInfo("MistServer " PACKAGE_VERSION, duration);
-    //Calculating Tracks size
+    // Calculating Tracks size
     tracksSize = 0;
-    for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
-         it != selectedTracks.end(); it++){
+    for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       tracksSize += sizeElemTrackEntry(myMeta.tracks[*it]);
     }
     tracksSize += EBML::sizeElemHead(EBML::EID_TRACKS, tracksSize);
-    //Calculating SeekHead size
-    //Positions are relative to the first Segment, byte 0 = first byte of contents of Segment.
-    //Tricky starts here: the size of the SeekHead element is dependent on the seek offsets contained inside,
-    //which are in turn dependent on the size of the SeekHead element. Fun times! We loop until it stabilizes.
+    // Calculating SeekHead size
+    // Positions are relative to the first Segment, byte 0 = first byte of contents of Segment.
+    // Tricky starts here: the size of the SeekHead element is dependent on the seek offsets contained inside,
+    // which are in turn dependent on the size of the SeekHead element. Fun times! We loop until it stabilizes.
     uint32_t oldseekSize = 0;
-    do {
+    do{
       oldseekSize = seekSize;
       seekSize = EBML::sizeElemSeek(EBML::EID_INFO, seekheadSize) +
-                 EBML::sizeElemSeek(EBML::EID_TRACKS, seekheadSize + infoSize) + 
+                 EBML::sizeElemSeek(EBML::EID_TRACKS, seekheadSize + infoSize) +
                  EBML::sizeElemSeek(EBML::EID_CUES, seekheadSize + infoSize + tracksSize);
       seekheadSize = EBML::sizeElemHead(EBML::EID_SEEKHEAD, seekSize) + seekSize;
-    }while(seekSize != oldseekSize);
-    //The Cues are tricky: the Cluster offsets are dependent on the size of Cues itself.
-    //Which, in turn, is dependent on the Cluster offsets.
-    //We make this a bit easier by pre-calculating the sizes of all clusters first
+    }while (seekSize != oldseekSize);
+    // The Cues are tricky: the Cluster offsets are dependent on the size of Cues itself.
+    // Which, in turn, is dependent on the Cluster offsets.
+    // We make this a bit easier by pre-calculating the sizes of all clusters first
     uint64_t fragNo = 0;
     for (std::deque<DTSC::Fragment>::iterator it = Trk.fragments.begin(); it != Trk.fragments.end(); ++it){
       uint64_t clusterStart = Trk.getKey(it->getNumber()).getTime();
       uint64_t clusterEnd = clusterStart + it->getDuration();
-      //The first fragment always starts at time 0, even if the main track does not.
+      // The first fragment always starts at time 0, even if the main track does not.
       if (!fragNo){clusterStart = 0;}
       uint64_t clusterTmpEnd = clusterEnd;
-      do {
+      do{
         clusterTmpEnd = clusterEnd;
-        //The last fragment always ends at the end, even if the main track does not.
+        // The last fragment always ends at the end, even if the main track does not.
         if (fragNo == Trk.fragments.size() - 1){clusterTmpEnd = clusterStart + 30000;}
-        //Limit clusters to 30 seconds.
+        // Limit clusters to 30 seconds.
         if (clusterTmpEnd - clusterStart > 30000){clusterTmpEnd = clusterStart + 30000;}
         uint64_t cSize = clusterSize(clusterStart, clusterTmpEnd);
         clusterSizes[clusterStart] = cSize + EBML::sizeElemHead(EBML::EID_CLUSTER, cSize);
-        clusterStart = clusterTmpEnd;//Continue at the end of this cluster, if continuing.
-      }while(clusterTmpEnd < clusterEnd);
+        clusterStart = clusterTmpEnd; // Continue at the end of this cluster, if continuing.
+      }while (clusterTmpEnd < clusterEnd);
       ++fragNo;
     }
-    //Calculating Cues size
-    //We also calculate Clusters here: Clusters are grouped by fragments of the main track.
-    //CueClusterPosition uses the same offsets as SeekPosition.
-    //CueRelativePosition is the offset from that Cluster's first content byte.
-    //All this uses the same technique as above. More fun times!
+    // Calculating Cues size
+    // We also calculate Clusters here: Clusters are grouped by fragments of the main track.
+    // CueClusterPosition uses the same offsets as SeekPosition.
+    // CueRelativePosition is the offset from that Cluster's first content byte.
+    // All this uses the same technique as above. More fun times!
     uint32_t oldcuesSize = 0;
-    do {
+    do{
       oldcuesSize = cuesSize;
-      segmentSize = infoSize + tracksSize + seekheadSize + cuesSize + EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
+      segmentSize = infoSize + tracksSize + seekheadSize + cuesSize +
+                    EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
       uint32_t cuesInside = 0;
       for (std::map<uint64_t, uint64_t>::iterator it = clusterSizes.begin(); it != clusterSizes.end(); ++it){
         cuesInside += EBML::sizeElemCuePoint(it->first, Trk.trackID, segmentSize, 0);
         segmentSize += it->second;
       }
       cuesSize = cuesInside;
-    }while(cuesSize != oldcuesSize);
+    }while (cuesSize != oldcuesSize);
   }
 
 }// namespace Mist
-

@@ -38,7 +38,7 @@ namespace SDP{
     }else if (codec == "RED"){
       return "";
     }
-    ERROR_MSG( "%s support not implemented", codec.c_str());
+    ERROR_MSG("%s support not implemented", codec.c_str());
     return "";
   }
 
@@ -70,31 +70,27 @@ namespace SDP{
     }else if (codec == "RED"){
       return "";
     }
-    ERROR_MSG( "%s support not implemented", codec.c_str());
+    ERROR_MSG("%s support not implemented", codec.c_str());
     BACKTRACE;
     return "";
   }
 
-  static std::vector<std::string> sdp_split(
-      const std::string &str, const std::string &delim,
-      bool keepEmpty); // Split a string on the given delimeter and return a vector with the parts.
-  static bool
-  sdp_extract_payload_type(const std::string &str,
-                           uint64_t &result); // Extract the payload number from a SDP line that
-                                              // starts like: `a=something:[payloadtype]`.
-  static bool sdp_get_name_value_from_varval(
-      const std::string &str, std::string &var,
-      std::string &value); // Extracts the `name` and `value` from a string like `<name>=<value>`.
-                           // The `name` will always be converted to lowercase!.
-  static void sdp_get_all_name_values_from_string(
-      const std::string &str, std::map<std::string, std::string>
-                                  &result); // Extracts all the name/value pairs from a string like:
-                                            // `<name>=<value>;<name>=<value>`. The `name` part will
-                                            // always be converted to lowercase.
-  static bool
-  sdp_get_attribute_value(const std::string &str,
-                          std::string &result); // Extract an "attribute" value, which is formatted
-                                                // like: `a=something:<attribute-value>`
+  static std::vector<std::string>
+  sdp_split(const std::string &str, const std::string &delim,
+            bool keepEmpty); // Split a string on the given delimeter and return a vector with the parts.
+  static bool sdp_extract_payload_type(const std::string &str,
+                                       uint64_t &result); // Extract the payload number from a SDP line that
+                                                          // starts like: `a=something:[payloadtype]`.
+  static bool sdp_get_name_value_from_varval(const std::string &str, std::string &var,
+                                             std::string &value); // Extracts the `name` and `value` from a string like `<name>=<value>`.
+                                                                  // The `name` will always be converted to lowercase!.
+  static void
+  sdp_get_all_name_values_from_string(const std::string &str, std::map<std::string, std::string> &result); // Extracts all the name/value pairs from a string like:
+                                                                                                           // `<name>=<value>;<name>=<value>`. The `name` part will
+                                                                                                           // always be converted to lowercase.
+  static bool sdp_get_attribute_value(const std::string &str,
+                                      std::string &result); // Extract an "attribute" value, which is formatted
+                                                            // like: `a=something:<attribute-value>`
   static std::string string_to_upper(const std::string &str);
 
   MediaFormat::MediaFormat(){
@@ -234,9 +230,9 @@ namespace SDP{
     return pm;
   }
 
-  std::string MediaFormat::getProfileLevelIdForH264() {
+  std::string MediaFormat::getProfileLevelIdForH264(){
 
-    if (encodingName != "H264") {
+    if (encodingName != "H264"){
       ERROR_MSG("Encoding is not H264, cannot get profile-level-id.");
       return "";
     }
@@ -352,8 +348,7 @@ namespace SDP{
   bool Media::parseFrameRateLine(const std::string &line){
 
     if (line.substr(0, 12) != "a=framerate:"){
-      ERROR_MSG("Cannot parse the `a=framerate:` line because it's incorrectly formatted: `%s`.",
-                line.c_str());
+      ERROR_MSG("Cannot parse the `a=framerate:` line because it's incorrectly formatted: `%s`.", line.c_str());
       return false;
     }
 
@@ -389,7 +384,7 @@ namespace SDP{
     // When this format is associated with another format
     // which is the case for RTX, we store the associated
     // payload type too. `apt` means "Associated Payload Type".
-    if (format->formatParameters.count("apt") != 0) {
+    if (format->formatParameters.count("apt") != 0){
       std::stringstream ss(format->formatParameters["apt"]);
       ss >> format->associatedPayloadType;
     }
@@ -530,22 +525,18 @@ namespace SDP{
     return result;
   }
 
-  MediaFormat* Media::getRetransMissionFormatForPayloadType(uint64_t pt) {
+  MediaFormat *Media::getRetransMissionFormatForPayloadType(uint64_t pt){
 
-    std::vector<SDP::MediaFormat*> rtxFormats = getFormatsForEncodingName("RTX");
-    if (rtxFormats.size() == 0) {
-      return NULL;
+    std::vector<SDP::MediaFormat *> rtxFormats = getFormatsForEncodingName("RTX");
+    if (rtxFormats.size() == 0){return NULL;}
+
+    for (size_t i = 0; i < rtxFormats.size(); ++i){
+      if (rtxFormats[i]->associatedPayloadType == pt){return rtxFormats[i];}
     }
 
-    for (size_t i = 0; i < rtxFormats.size(); ++i) {
-      if (rtxFormats[i]->associatedPayloadType == pt) {
-        return rtxFormats[i];
-      }
-    }
-    
     return NULL;
   }
-  
+
   std::string Media::getIcePwdForFormat(const MediaFormat &fmt){
     if (!fmt.icePwd.empty()){return fmt.icePwd;}
     return icePwd;
@@ -567,8 +558,7 @@ namespace SDP{
   ///
   /// @param mediaType      `video` or `audio`
   /// @param encodingName   Encoding name in fullcaps, e.g. `H264`, `OPUS`, etc.
-  MediaFormat *Session::getMediaFormatByEncodingName(const std::string &mediaType,
-                                                     const std::string &encodingName){
+  MediaFormat *Session::getMediaFormatByEncodingName(const std::string &mediaType, const std::string &encodingName){
     SDP::Media *media = getMediaForType(mediaType);
     if (!media){
       WARN_MSG("No SDP::Media found for media type %s.", mediaType.c_str());
@@ -666,8 +656,7 @@ namespace SDP{
     return true;
   }
 
-  static std::vector<std::string> sdp_split(const std::string &str, const std::string &delim,
-                                            bool keepEmpty){
+  static std::vector<std::string> sdp_split(const std::string &str, const std::string &delim, bool keepEmpty){
     std::vector<std::string> strings;
     std::ostringstream word;
     for (size_t n = 0; n < str.size(); ++n){
@@ -686,8 +675,7 @@ namespace SDP{
     // extract payload type.
     size_t start_pos = str.find_first_of(':');
     size_t end_pos = str.find_first_of(' ', start_pos);
-    if (start_pos == std::string::npos || end_pos == std::string::npos ||
-        (start_pos + 1) >= end_pos){
+    if (start_pos == std::string::npos || end_pos == std::string::npos || (start_pos + 1) >= end_pos){
       FAIL_MSG("Invalid `a=rtpmap` line. Has not payload type.");
       return false;
     }
@@ -704,8 +692,7 @@ namespace SDP{
   // when parsing the `a=fmtp:<fmt>` line.
   //
   // Note that we will always convert the `var` to lowercase.
-  static bool sdp_get_name_value_from_varval(const std::string &str, std::string &var,
-                                             std::string &value){
+  static bool sdp_get_name_value_from_varval(const std::string &str, std::string &var, std::string &value){
 
     if (str.empty()){
       ERROR_MSG("Cannot get `name` and `value` from string because the given string is empty. "
@@ -764,8 +751,7 @@ namespace SDP{
 
     size_t start = str.find(":");
     if (start == std::string::npos){
-      ERROR_MSG("Cannot get attribute value because we did not find the : character in %s.",
-                str.c_str());
+      ERROR_MSG("Cannot get attribute value because we did not find the : character in %s.", str.c_str());
       return false;
     }
 
@@ -773,12 +759,9 @@ namespace SDP{
     return true;
   }
 
-  Answer::Answer() :
-    isVideoEnabled(false),
-    isAudioEnabled(false),
-    candidatePort(0),
-    videoLossPrevention(SDP_LOSS_PREVENTION_NONE)
-  {}
+  Answer::Answer()
+      : isVideoEnabled(false), isAudioEnabled(false), candidatePort(0),
+        videoLossPrevention(SDP_LOSS_PREVENTION_NONE){}
 
   bool Answer::parseOffer(const std::string &sdp){
 
@@ -931,9 +914,9 @@ namespace SDP{
       std::string type = mediaOffer.type;
       SDP::Media *media = NULL;
       SDP::MediaFormat *fmtMedia = NULL;
-      SDP::MediaFormat* fmtRED = NULL;
-      SDP::MediaFormat* fmtULPFEC = NULL;
-      
+      SDP::MediaFormat *fmtRED = NULL;
+      SDP::MediaFormat *fmtULPFEC = NULL;
+
       bool isEnabled = false;
       std::vector<uint8_t> supportedPayloadTypes;
       if (type != "audio" && type != "video"){continue;}
@@ -951,11 +934,11 @@ namespace SDP{
         fmtULPFEC = media->getFormatForEncodingName("ULPFEC");
       }
 
-      if (!media) {
+      if (!media){
         WARN_MSG("No media found.");
         continue;
       }
-      if (!fmtMedia) {
+      if (!fmtMedia){
         WARN_MSG("No format found.");
         continue;
       }
@@ -964,21 +947,16 @@ namespace SDP{
       // them payload types into a string that is used with the
       // `m=` line to indicate we have support for these.
       supportedPayloadTypes.push_back((uint8_t)fmtMedia->payloadType);
-      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC)
-          && fmtRED
-          && fmtULPFEC)
-        {
-          supportedPayloadTypes.push_back(fmtRED->payloadType);
-          supportedPayloadTypes.push_back(fmtULPFEC->payloadType);
-        }
+      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && fmtRED && fmtULPFEC){
+        supportedPayloadTypes.push_back(fmtRED->payloadType);
+        supportedPayloadTypes.push_back(fmtULPFEC->payloadType);
+      }
 
       std::stringstream ss;
       size_t nels = supportedPayloadTypes.size();
-      for (size_t k = 0; k < nels; ++k) {
+      for (size_t k = 0; k < nels; ++k){
         ss << (int)supportedPayloadTypes[k];
-        if ((k + 1) < nels) {
-          ss << " ";
-        }
+        if ((k + 1) < nels){ss << " ";}
       }
       std::string payloadTypes = ss.str();
 
@@ -991,7 +969,7 @@ namespace SDP{
       addLine("c=IN IP4 0.0.0.0");
       if (!isEnabled){
         // We have to add the direction otherwise we'll receive an error
-        // like "Answer tried to set recv when offer did not set send" 
+        // like "Answer tried to set recv when offer did not set send"
         // from Firefox.
         addLine("a=%s", direction.c_str());
         continue;
@@ -1008,14 +986,11 @@ namespace SDP{
       addLine("a=%s", fmtMedia->rtpmap.c_str());
 
       // BEGIN FEC/RTX: testing with just FEC or RTX
-      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC)
-          && fmtRED
-          && fmtULPFEC)
-        {
-          addLine("a=rtpmap:%u ulpfec/90000", fmtULPFEC->payloadType);
-          addLine("a=rtpmap:%u red/90000", fmtRED->payloadType);
-        }
-      if (videoLossPrevention & SDP_LOSS_PREVENTION_NACK) {
+      if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && fmtRED && fmtULPFEC){
+        addLine("a=rtpmap:%u ulpfec/90000", fmtULPFEC->payloadType);
+        addLine("a=rtpmap:%u red/90000", fmtRED->payloadType);
+      }
+      if (videoLossPrevention & SDP_LOSS_PREVENTION_NACK){
         addLine("a=rtcp-fb:%u nack", fmtMedia->payloadType);
       }
       // END FEC/RTX
@@ -1026,10 +1001,11 @@ namespace SDP{
       if (fmtMedia->encodingName == "H264"){
         std::string usedProfile = fmtMedia->getFormatParameterForName("profile-level-id");
         if (usedProfile != "42e01f"){
-          WARN_MSG("The selected profile-level-id was not 42e01f. We rewrite it into this because that's what we support atm.");
+          WARN_MSG("The selected profile-level-id was not 42e01f. We rewrite it into this because "
+                   "that's what we support atm.");
           usedProfile = "42e01f";
         }
-        
+
         addLine("a=fmtp:%u profile-level-id=%s;level-asymmetry-allowed=1;packetization-mode=1",
                 fmtMedia->payloadType, usedProfile.c_str());
       }else if (fmtMedia->encodingName == "OPUS"){
@@ -1074,8 +1050,7 @@ namespace SDP{
                            SDP::Media &outMedia, SDP::MediaFormat &outFormat){
     Media *media = sdpOffer.getMediaForType(type);
     if (!media){
-      INFO_MSG("Cannot enable %s codec; offer doesn't have %s media.", codecList.c_str(),
-               type.c_str());
+      INFO_MSG("Cannot enable %s codec; offer doesn't have %s media.", codecList.c_str(), type.c_str());
       return false;
     }
 
@@ -1102,8 +1077,9 @@ namespace SDP{
             format = NULL;
             continue;
           }
-          if (formats[j]->getProfileLevelIdForH264() != "42e01f") {
-            MEDIUM_MSG("Skipping this H264 format because it uses an unsupported profile-level-id.");
+          if (formats[j]->getProfileLevelIdForH264() != "42e01f"){
+            MEDIUM_MSG(
+                "Skipping this H264 format because it uses an unsupported profile-level-id.");
             format = NULL;
             continue;
           }
@@ -1179,6 +1155,4 @@ namespace SDP{
     return result;
   }
 
-
-}
-
+}// namespace SDP

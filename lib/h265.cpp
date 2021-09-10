@@ -1,6 +1,6 @@
-#include "h265.h"
 #include "bitfields.h"
 #include "defines.h"
+#include "h265.h"
 
 namespace h265{
   const char *typeToStr(uint8_t type){
@@ -64,8 +64,7 @@ namespace h265{
     hvccBox.setPayload(hvccData);
     std::deque<MP4::HVCCArrayEntry> arrays = hvccBox.getArrays();
     for (std::deque<MP4::HVCCArrayEntry>::iterator it = arrays.begin(); it != arrays.end(); it++){
-      for (std::deque<std::string>::iterator nalIt = it->nalUnits.begin();
-           nalIt != it->nalUnits.end(); nalIt++){
+      for (std::deque<std::string>::iterator nalIt = it->nalUnits.begin(); nalIt != it->nalUnits.end(); nalIt++){
         nalUnits[it->nalUnitType].insert(*nalIt);
       }
     }
@@ -156,8 +155,7 @@ namespace h265{
 
   metaInfo initData::getMeta(){
     metaInfo res;
-    if (!nalUnits.count(33)){
-      return res;}
+    if (!nalUnits.count(33)){return res;}
     spsUnit sps(*nalUnits[33].begin());
     sps.getMeta(res);
     return res;
@@ -195,8 +193,7 @@ namespace h265{
     }
   }
 
-  std::string printProfileTierLevel(Utils::bitstream &bs, unsigned int maxSubLayersMinus1,
-                                    size_t indent){
+  std::string printProfileTierLevel(Utils::bitstream &bs, unsigned int maxSubLayersMinus1, size_t indent){
     std::stringstream r;
     r << std::string(indent, ' ') << "general_profile_space: " << bs.get(2) << std::endl;
     r << std::string(indent, ' ') << "general_tier_flag: " << bs.get(1) << std::endl;
@@ -205,10 +202,8 @@ namespace h265{
       << bs.get(32) << std::dec << std::endl;
     r << std::string(indent, ' ') << "general_progressive_source_flag: " << bs.get(1) << std::endl;
     r << std::string(indent, ' ') << "general_interlaced_source_flag: " << bs.get(1) << std::endl;
-    r << std::string(indent, ' ') << "general_non_packed_constraint_flag: " << bs.get(1)
-      << std::endl;
-    r << std::string(indent, ' ') << "general_frame_only_constraint_flag: " << bs.get(1)
-      << std::endl;
+    r << std::string(indent, ' ') << "general_non_packed_constraint_flag: " << bs.get(1) << std::endl;
+    r << std::string(indent, ' ') << "general_frame_only_constraint_flag: " << bs.get(1) << std::endl;
     r << std::string(indent, ' ') << "general_reserved_zero_44bits: " << bs.get(44) << std::endl;
     r << std::string(indent, ' ') << "general_level_idc: " << bs.get(8) << std::endl;
     std::deque<bool> profilePresent;
@@ -226,8 +221,7 @@ namespace h265{
 
     if (maxSubLayersMinus1){
       for (int i = maxSubLayersMinus1; i < 8; i++){
-        r << std::string(indent + 1, ' ') << "reserved_zero_2_bits[" << i << "]: " << bs.get(2)
-          << std::endl;
+        r << std::string(indent + 1, ' ') << "reserved_zero_2_bits[" << i << "]: " << bs.get(2) << std::endl;
       }
     }
     for (int i = 0; i < maxSubLayersMinus1; i++){
@@ -238,16 +232,11 @@ namespace h265{
         r << std::string(indent + 2, ' ') << "sub_layer_profile_idc: " << bs.get(5) << std::endl;
         r << std::string(indent + 2, ' ') << "sub_layer_profile_compatibility_flags: " << std::hex
           << bs.get(32) << std::dec << std::endl;
-        r << std::string(indent + 2, ' ') << "sub_layer_progressive_source_flag: " << bs.get(1)
-          << std::endl;
-        r << std::string(indent + 2, ' ') << "sub_layer_interlaced_source_flag: " << bs.get(1)
-          << std::endl;
-        r << std::string(indent + 2, ' ') << "sub_layer_non_packed_constraint_flag: " << bs.get(1)
-          << std::endl;
-        r << std::string(indent + 2, ' ') << "sub_layer_frame_only_constraint_flag: " << bs.get(1)
-          << std::endl;
-        r << std::string(indent + 2, ' ') << "sub_layer_reserved_zero_44bits: " << bs.get(44)
-          << std::endl;
+        r << std::string(indent + 2, ' ') << "sub_layer_progressive_source_flag: " << bs.get(1) << std::endl;
+        r << std::string(indent + 2, ' ') << "sub_layer_interlaced_source_flag: " << bs.get(1) << std::endl;
+        r << std::string(indent + 2, ' ') << "sub_layer_non_packed_constraint_flag: " << bs.get(1) << std::endl;
+        r << std::string(indent + 2, ' ') << "sub_layer_frame_only_constraint_flag: " << bs.get(1) << std::endl;
+        r << std::string(indent + 2, ' ') << "sub_layer_reserved_zero_44bits: " << bs.get(44) << std::endl;
       }
       if (levelPresent[i]){
         r << std::string(indent + 2, ' ') << "sub_layer_level_idc: " << bs.get(8) << std::endl;
@@ -256,17 +245,13 @@ namespace h265{
     return r.str();
   }
 
-  void updateProfileTierLevel(Utils::bitstream &bs, MP4::HVCC &hvccBox,
-                              unsigned int maxSubLayersMinus1){
+  void updateProfileTierLevel(Utils::bitstream &bs, MP4::HVCC &hvccBox, unsigned int maxSubLayersMinus1){
     hvccBox.setGeneralProfileSpace(bs.get(2));
 
     unsigned int tierFlag = bs.get(1);
-    hvccBox.setGeneralProfileIdc(
-        std::max((unsigned long long)hvccBox.getGeneralProfileIdc(), bs.get(5)));
-    hvccBox.setGeneralProfileCompatibilityFlags(hvccBox.getGeneralProfileCompatibilityFlags() &
-                                                bs.get(32));
-    hvccBox.setGeneralConstraintIndicatorFlags(hvccBox.getGeneralConstraintIndicatorFlags() &
-                                               bs.get(48));
+    hvccBox.setGeneralProfileIdc(std::max((unsigned long long)hvccBox.getGeneralProfileIdc(), bs.get(5)));
+    hvccBox.setGeneralProfileCompatibilityFlags(hvccBox.getGeneralProfileCompatibilityFlags() & bs.get(32));
+    hvccBox.setGeneralConstraintIndicatorFlags(hvccBox.getGeneralConstraintIndicatorFlags() & bs.get(48));
     unsigned int levelIdc = bs.get(8);
 
     if (tierFlag && !hvccBox.getGeneralTierFlag()){
@@ -309,8 +294,7 @@ namespace h265{
 
     unsigned int maxSubLayers = bs.get(3) + 1;
 
-    hvccBox.setNumberOfTemporalLayers(
-        std::max((unsigned int)hvccBox.getNumberOfTemporalLayers(), maxSubLayers));
+    hvccBox.setNumberOfTemporalLayers(std::max((unsigned int)hvccBox.getNumberOfTemporalLayers(), maxSubLayers));
 
     bs.skip(17);
 
@@ -326,8 +310,7 @@ namespace h265{
     r << std::string(indent, ' ') << "vps_reserved_three_2bits: " << bs.get(2) << std::endl;
     r << std::string(indent, ' ') << "vps_max_layers_minus1: " << bs.get(6) << std::endl;
     unsigned int maxSubLayersMinus1 = bs.get(3);
-    r << std::string(indent, ' ') << "vps_max_sub_layers_minus1: " << maxSubLayersMinus1
-      << std::endl;
+    r << std::string(indent, ' ') << "vps_max_sub_layers_minus1: " << maxSubLayersMinus1 << std::endl;
     r << std::string(indent, ' ') << "vps_temporal_id_nesting_flag: " << bs.get(1) << std::endl;
     r << std::string(indent, ' ') << "vps_reserved_0xffff_16bits: " << std::hex << bs.get(16)
       << std::dec << std::endl;
@@ -347,8 +330,7 @@ namespace h265{
     unsigned int vps_max_layer_id = bs.get(6);
     uint64_t vps_num_layer_sets_minus1 = bs.getUExpGolomb();
     r << std::string(indent, ' ') << "vps_max_layer_id: " << vps_max_layer_id << std::endl;
-    r << std::string(indent, ' ') << "vps_num_layer_sets_minus1: " << vps_num_layer_sets_minus1
-      << std::endl;
+    r << std::string(indent, ' ') << "vps_num_layer_sets_minus1: " << vps_num_layer_sets_minus1 << std::endl;
     for (int i = 1; i <= vps_num_layer_sets_minus1; i++){
       for (int j = 0; j < vps_max_layer_id; j++){
         r << std::string(indent, ' ') << "layer_id_included_flag[" << i << "][" << j
@@ -356,8 +338,7 @@ namespace h265{
       }
     }
     bool vps_timing_info = bs.get(1);
-    r << std::string(indent, ' ') << "vps_timing_info_present_flag: " << (vps_timing_info ? 1 : 0)
-      << std::endl;
+    r << std::string(indent, ' ') << "vps_timing_info_present_flag: " << (vps_timing_info ? 1 : 0) << std::endl;
 
     return r.str();
   }
@@ -420,15 +401,14 @@ namespace h265{
         deltaIdxMinus1 = bs.getUExpGolomb();
         r << std::string(indent, ' ') << "delta_idx_minus_1: " << deltaIdxMinus1 << std::endl;
       }
-      r << std::string(indent, ' ')
-        << "delta_rps_sign: " << (int)bs.get(1) << std::endl;
-      r << std::string(indent, ' ')
-        << "abs_delta_rps_minus1: " << bs.getUExpGolomb() << std::endl;
+      r << std::string(indent, ' ') << "delta_rps_sign: " << (int)bs.get(1) << std::endl;
+      r << std::string(indent, ' ') << "abs_delta_rps_minus1: " << bs.getUExpGolomb() << std::endl;
       uint64_t refRpsIdx = idx - deltaIdxMinus1 - 1;
       uint64_t deltaPocs = negativePics[refRpsIdx] + positivePics[refRpsIdx];
       for (int j = 0; j < deltaPocs; j++){
         bool usedByCurrPicFlag = bs.get(1);
-        r << std::string(indent + 1, ' ') << "used_by_curr_pic_flag[" << j << "]: " << usedByCurrPicFlag << std::endl;
+        r << std::string(indent + 1, ' ') << "used_by_curr_pic_flag[" << j
+          << "]: " << usedByCurrPicFlag << std::endl;
         if (!usedByCurrPicFlag){
           r << std::string(indent + 1, ' ') << "used_delta_flag[" << j << "]: " << bs.get(1) << std::endl;
         }
@@ -492,8 +472,7 @@ namespace h265{
   std::string printVuiParameters(Utils::bitstream &bs, size_t indent){
     std::stringstream r;
     bool aspectRatio = bs.get(1);
-    r << std::string(indent, ' ') << "aspect_ratio_info_present_flag: " << (aspectRatio ? 1 : 0)
-      << std::endl;
+    r << std::string(indent, ' ') << "aspect_ratio_info_present_flag: " << (aspectRatio ? 1 : 0) << std::endl;
     if (aspectRatio){
       uint16_t aspectRatioIdc = bs.get(8);
       r << std::string(indent, ' ') << "aspect_ratio_idc: " << aspectRatioIdc << std::endl;
@@ -595,39 +574,29 @@ namespace h265{
     std::stringstream r;
     r << std::string(indent, ' ') << "sps_video_parameter_set_id: " << bs.get(4) << std::endl;
     unsigned int maxSubLayersMinus1 = bs.get(3);
-    r << std::string(indent, ' ') << "sps_max_sub_layers_minus1: " << maxSubLayersMinus1
-      << std::endl;
+    r << std::string(indent, ' ') << "sps_max_sub_layers_minus1: " << maxSubLayersMinus1 << std::endl;
     r << std::string(indent, ' ') << "sps_temporal_id_nesting_flag: " << bs.get(1) << std::endl;
     r << std::string(indent, ' ') << "profile_tier_level(): " << std::endl
       << printProfileTierLevel(bs, maxSubLayersMinus1, indent + 1);
-    r << std::string(indent, ' ') << "sps_seq_parameter_set_id: " << bs.getUExpGolomb()
-      << std::endl;
+    r << std::string(indent, ' ') << "sps_seq_parameter_set_id: " << bs.getUExpGolomb() << std::endl;
     uint64_t chromaFormatIdc = bs.getUExpGolomb();
     r << std::string(indent, ' ') << "chroma_format_idc: " << chromaFormatIdc << std::endl;
     if (chromaFormatIdc == 3){
       r << std::string(indent, ' ') << "separate_colour_plane_flag: " << bs.get(1) << std::endl;
     }
-    r << std::string(indent, ' ') << "pic_width_in_luma_samples: " << bs.getUExpGolomb()
-      << std::endl;
-    r << std::string(indent, ' ') << "pic_height_in_luma_samples: " << bs.getUExpGolomb()
-      << std::endl;
+    r << std::string(indent, ' ') << "pic_width_in_luma_samples: " << bs.getUExpGolomb() << std::endl;
+    r << std::string(indent, ' ') << "pic_height_in_luma_samples: " << bs.getUExpGolomb() << std::endl;
     bool conformance_window_flag = bs.get(1);
-    r << std::string(indent, ' ') << "conformance_window_flag: " << conformance_window_flag
-      << std::endl;
+    r << std::string(indent, ' ') << "conformance_window_flag: " << conformance_window_flag << std::endl;
     if (conformance_window_flag){
-      r << std::string(indent, ' ') << "conf_window_left_offset: " << bs.getUExpGolomb()
-        << std::endl;
-      r << std::string(indent, ' ') << "conf_window_right_offset: " << bs.getUExpGolomb()
-        << std::endl;
-      r << std::string(indent, ' ') << "conf_window_top_offset: " << bs.getUExpGolomb()
-        << std::endl;
-      r << std::string(indent, ' ') << "conf_window_bottom_offset: " << bs.getUExpGolomb()
-        << std::endl;
+      r << std::string(indent, ' ') << "conf_window_left_offset: " << bs.getUExpGolomb() << std::endl;
+      r << std::string(indent, ' ') << "conf_window_right_offset: " << bs.getUExpGolomb() << std::endl;
+      r << std::string(indent, ' ') << "conf_window_top_offset: " << bs.getUExpGolomb() << std::endl;
+      r << std::string(indent, ' ') << "conf_window_bottom_offset: " << bs.getUExpGolomb() << std::endl;
     }
     r << std::string(indent, ' ') << "bit_depth_luma_minus8: " << bs.getUExpGolomb() << std::endl;
     r << std::string(indent, ' ') << "bit_depth_chroma_minus8: " << bs.getUExpGolomb() << std::endl;
-    r << std::string(indent, ' ') << "log2_max_pic_order_cnt_lsb_minus4: " << bs.getUExpGolomb()
-      << std::endl;
+    r << std::string(indent, ' ') << "log2_max_pic_order_cnt_lsb_minus4: " << bs.getUExpGolomb() << std::endl;
     bool subLayerOrdering = bs.get(1);
     r << std::string(indent, ' ')
       << "sps_sub_layer_ordering_info_present_flag: " << subLayerOrdering << std::endl;
@@ -647,23 +616,18 @@ namespace h265{
       << std::endl;
     r << std::string(indent, ' ')
       << "log2_diff_max_min_transform_block_size: " << bs.getUExpGolomb() << std::endl;
-    r << std::string(indent, ' ') << "max_transform_hierarchy_depth_inter: " << bs.getUExpGolomb()
-      << std::endl;
-    r << std::string(indent, ' ') << "max_transform_hierarchy_depth_intra: " << bs.getUExpGolomb()
-      << std::endl;
+    r << std::string(indent, ' ') << "max_transform_hierarchy_depth_inter: " << bs.getUExpGolomb() << std::endl;
+    r << std::string(indent, ' ') << "max_transform_hierarchy_depth_intra: " << bs.getUExpGolomb() << std::endl;
     bool scalingListEnabled = bs.get(1);
-    r << std::string(indent, ' ') << "scaling_list_enabled_flag: " << scalingListEnabled
-      << std::endl;
+    r << std::string(indent, ' ') << "scaling_list_enabled_flag: " << scalingListEnabled << std::endl;
     if (scalingListEnabled){WARN_MSG("Not implemented scaling list in HEVC sps");}
     r << std::string(indent, ' ') << "amp_enabled_flag: " << bs.get(1) << std::endl;
-    r << std::string(indent, ' ') << "sample_adaptive_offset_enabled_flag: " << bs.get(1)
-      << std::endl;
+    r << std::string(indent, ' ') << "sample_adaptive_offset_enabled_flag: " << bs.get(1) << std::endl;
     bool pcmEnabled = bs.get(1);
     r << std::string(indent, ' ') << "pcm_enabled_flag: " << pcmEnabled << std::endl;
     if (pcmEnabled){WARN_MSG("Not implemented pcm_enabled in HEVC sps");}
     uint64_t shortTermPicSets = bs.getUExpGolomb();
-    r << std::string(indent, ' ') << "num_short_term_ref_pic_sets: " << shortTermPicSets
-      << std::endl;
+    r << std::string(indent, ' ') << "num_short_term_ref_pic_sets: " << shortTermPicSets << std::endl;
     for (int i = 0; i < shortTermPicSets; i++){
       r << std::string(indent, ' ') << "short_term_ref_pic_set(" << i << "):" << std::endl
         << printShortTermRefPicSet(bs, i, shortTermPicSets, indent + 1);
@@ -673,12 +637,10 @@ namespace h265{
       << "long_term_ref_pics_present_flag: " << (longTermRefPics ? 1 : 0) << std::endl;
     if (longTermRefPics){WARN_MSG("Implement longTermRefPics");}
     r << std::string(indent, ' ') << "sps_temporal_mvp_enabled_flag: " << bs.get(1) << std::endl;
-    r << std::string(indent, ' ') << "strong_intra_smoothing_enabled_flag: " << bs.get(1)
-      << std::endl;
+    r << std::string(indent, ' ') << "strong_intra_smoothing_enabled_flag: " << bs.get(1) << std::endl;
 
     bool vuiParams = bs.get(1);
-    r << std::string(indent, ' ') << "vui_parameters_present_flag: " << (vuiParams ? 1 : 0)
-      << std::endl;
+    r << std::string(indent, ' ') << "vui_parameters_present_flag: " << (vuiParams ? 1 : 0) << std::endl;
     if (vuiParams){
       r << std::string(indent, ' ') << "vui_parameters:" << std::endl
         << printVuiParameters(bs, indent + 1);
@@ -694,8 +656,7 @@ namespace h265{
 
     unsigned int maxSubLayers = bs.get(3) + 1;
 
-    hvccBox.setNumberOfTemporalLayers(
-        std::max((unsigned int)hvccBox.getNumberOfTemporalLayers(), maxSubLayers));
+    hvccBox.setNumberOfTemporalLayers(std::max((unsigned int)hvccBox.getNumberOfTemporalLayers(), maxSubLayers));
     hvccBox.setTemporalIdNested(bs.get(1));
     updateProfileTierLevel(bs, hvccBox, maxSubLayers - 1);
 
@@ -858,8 +819,7 @@ namespace h265{
       if (bs.get(1)){
         bs.skip(3);
         int spatialSegmentIdc = bs.getUExpGolomb();
-        hvccBox.setMinSpatialSegmentationIdc(
-            std::min((int)hvccBox.getMinSpatialSegmentationIdc(), spatialSegmentIdc));
+        hvccBox.setMinSpatialSegmentationIdc(std::min((int)hvccBox.getMinSpatialSegmentationIdc(), spatialSegmentIdc));
         bs.getUExpGolomb();
         bs.getUExpGolomb();
         bs.getUExpGolomb();
@@ -868,4 +828,3 @@ namespace h265{
     }
   }
 }// namespace h265
-

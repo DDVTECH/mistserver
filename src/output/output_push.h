@@ -2,18 +2,19 @@
 
 #include "output.h"
 
-namespace Mist {
-  class OutPush : public Output {
-    public:
-      OutPush(Socket::Connection & conn);
-      ~OutPush();
-      static bool listenMode(){return false;}
-      virtual void requestHandler();
-      static void init(Util::Config * cfg);
-    protected:
-      Socket::Connection listConn;
-      std::string pushURL;
+namespace Mist{
+  class OutPush : public Output{
+  public:
+    OutPush(Socket::Connection &conn);
+    ~OutPush();
+    static bool listenMode(){return false;}
+    virtual void requestHandler();
+    static void init(Util::Config *cfg);
+
+  protected:
+    Socket::Connection listConn;
+    std::string pushURL;
   };
-}
+}// namespace Mist
 
 typedef Mist::OutPush mistOut;

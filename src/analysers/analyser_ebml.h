@@ -16,6 +16,5 @@ private:
   uint32_t lastSeekId;
   uint64_t lastSeekPos;
   std::map<uint32_t, uint64_t> seekChecks;
-  std::deque<uint64_t> depthStash;///<Contains bytes to read to go up a level in the element depth.
+  std::deque<uint64_t> depthStash; ///< Contains bytes to read to go up a level in the element depth.
 };
-

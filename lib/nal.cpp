@@ -34,8 +34,7 @@ namespace nalu{
     size_t dataLen = data.size();
     size_t resPtr = 2;
     while (dataPtr + 2 < dataLen){
-      if (!data[dataPtr] && !data[dataPtr + 1] &&
-          data[dataPtr + 2] == 3){// We have found an emulation prevention
+      if (!data[dataPtr] && !data[dataPtr + 1] && data[dataPtr + 2] == 3){// We have found an emulation prevention
         result[resPtr++] = data[dataPtr++];
         result[resPtr++] = data[dataPtr++];
         dataPtr++; // Skip the emulation prevention byte
@@ -129,4 +128,3 @@ namespace nalu{
     return newOffset;
   }
 }// namespace nalu
-

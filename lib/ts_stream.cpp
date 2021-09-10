@@ -1,13 +1,12 @@
-#include "ts_stream.h"
 #include "defines.h"
 #include "h264.h"
 #include "h265.h"
 #include "mp4_generic.h"
-#include "nal.h"
-#include <sys/stat.h>
-#include <stdint.h>
 #include "mpeg.h"
-
+#include "nal.h"
+#include "ts_stream.h"
+#include <stdint.h>
+#include <sys/stat.h>
 
 namespace TS{
 
@@ -74,10 +73,9 @@ namespace TS{
     psCacheTid = 0;
   }
 
-  Stream::~Stream(){
-  }
+  Stream::~Stream(){}
 
-  void Stream::parse(char * newPack, uint64_t bytePos) {
+  void Stream::parse(char *newPack, uint64_t bytePos){
     Packet newPacket;
     newPacket.FromPointer(newPack);
     parse(newPacket, bytePos);
@@ -124,13 +122,13 @@ namespace TS{
     }
   }
 
-  void Stream::add(char * newPack, uint64_t bytePos) {
+  void Stream::add(char *newPack, uint64_t bytePos){
     Packet newPacket;
     newPacket.FromPointer(newPack);
     add(newPacket, bytePos);
   }
 
-  void Stream::add(Packet & newPack, uint64_t bytePos) {
+  void Stream::add(Packet &newPack, uint64_t bytePos){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     uint32_t tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
@@ -151,7 +149,7 @@ namespace TS{
     }
   }
 
-  bool Stream::isDataTrack(size_t tid) const {
+  bool Stream::isDataTrack(size_t tid) const{
     if (tid == 0){return false;}
     {
       tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
@@ -161,9 +159,7 @@ namespace TS{
 
   void Stream::parse(size_t tid){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){
-      return;
-    }
+    if (!pesStreams.count(tid) || pesStreams[tid].size() == 0){return;}
     if (psCacheTid != tid || !psCache){
       psCache = &(pesStreams[tid]);
       psCacheTid = tid;
@@ -212,7 +208,7 @@ namespace TS{
             metaInit[pid] = std::string(entry.getESInfo(), entry.getESInfoLength());
           }
           break;
-          default: break;
+        default: break;
         }
         entry.advance();
       }
@@ -227,16 +223,12 @@ namespace TS{
       return; // skip unknown codecs
     }
 
-    while(seenUnitStart[tid] > 1) {
-      parsePES(tid);
-    }
+    while (seenUnitStart[tid] > 1){parsePES(tid);}
   }
 
-  void Stream::parse(Packet & newPack, uint64_t bytePos) {
+  void Stream::parse(Packet &newPack, uint64_t bytePos){
     add(newPack, bytePos);
-    if (newPack.getUnitStart()){
-      parse(newPack.getPID());
-    }
+    if (newPack.getUnitStart()){parse(newPack.getPID());}
   }
 
   bool Stream::hasPacketOnEachTrack() const{
@@ -248,8 +240,7 @@ namespace TS{
     }
     size_t missing = 0;
     uint64_t firstTime = 0xffffffffffffffffull, lastTime = 0;
-    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
-         it != pidToCodec.end(); it++){
+    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
       if (!hasPacket(it->first) || !outPackets.count(it->first) || !outPackets.at(it->first).size()){
         missing++;
       }else{
@@ -265,14 +256,10 @@ namespace TS{
     return (!missing || (missing != pidToCodec.size() && lastTime - firstTime > 2000));
   }
 
-  bool Stream::hasPacket(size_t tid) const {
+  bool Stream::hasPacket(size_t tid) const{
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    if (psCacheTid != tid && pesStreams.find(tid) == pesStreams.end()){
-      return false;
-    }
-    if (outPackets.count(tid) && outPackets.at(tid).size()){
-      return true;
-    }
+    if (psCacheTid != tid && pesStreams.find(tid) == pesStreams.end()){return false;}
+    if (outPackets.count(tid) && outPackets.at(tid).size()){return true;}
     if (pidToCodec.count(tid) && seenUnitStart.count(tid) && seenUnitStart.at(tid) > 1){
       return true;
     }
@@ -281,31 +268,23 @@ namespace TS{
 
   bool Stream::hasPacket() const{
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-    if (!pesStreams.size()){
-      return false;
-    }
+    if (!pesStreams.size()){return false;}
 
     if (outPackets.size()){
-      for (std::map<size_t, std::deque<DTSC::Packet> >::const_iterator i =
-               outPackets.begin();
+      for (std::map<size_t, std::deque<DTSC::Packet> >::const_iterator i = outPackets.begin();
            i != outPackets.end(); i++){
-        if (i->second.size()){
-          return true;
-        }
+        if (i->second.size()){return true;}
       }
     }
 
-    for (std::map<size_t, uint32_t>::const_iterator i = seenUnitStart.begin();
-         i != seenUnitStart.end(); i++){
-      if (pidToCodec.count(i->first) && i->second > 1){
-        return true;
-      }
+    for (std::map<size_t, uint32_t>::const_iterator i = seenUnitStart.begin(); i != seenUnitStart.end(); i++){
+      if (pidToCodec.count(i->first) && i->second > 1){return true;}
     }
 
     return false;
   }
 
-  uint64_t decodePTS(const char * data){
+  uint64_t decodePTS(const char *data){
     uint64_t time;
     time = ((data[0] >> 1) & 0x07);
     time <<= 15;
@@ -347,7 +326,7 @@ namespace TS{
       FAIL_MSG("No PES packets to parse (%" PRIu32 ")", seenUnitStart[tid]);
       return;
     }
-    
+
     // We now know we're deleting 1 UnitStart, so we can pop the pesPositions and lower the seenUnitStart counter.
     --(seenUnitStart[tid]);
     std::deque<uint64_t> &inPositions = pesPositions[tid];
@@ -373,7 +352,7 @@ namespace TS{
     // allocate a buffer, do it all again, but this time also copy the data bytes over to char*
     // payload
     char *payload = (char *)malloc(paySize);
-    if(!payload){
+    if (!payload){
       FAIL_MSG("cannot allocate PES packet!");
       return;
     }
@@ -432,17 +411,15 @@ namespace TS{
       // We substract PES_header_data_length, plus the 9 bytes of mandatory header bytes
       realPayloadSize -= (9 + pesHeader[8]);
 
-
       // Read the metadata for this PES Packet
       ///\todo Determine keyframe-ness
       uint64_t timeStamp = 0;
       int64_t timeOffset = 0;
-      uint64_t pesOffset = 9;       // mandatory headers
+      uint64_t pesOffset = 9;           // mandatory headers
       if ((pesHeader[7] >> 6) & 0x02){// Check for PTS presence
         timeStamp = decodePTS(pesHeader + pesOffset);
         pesOffset += 5;
-        if (((pesHeader[7] & 0xC0) >> 6) &
-            0x01){// Check for DTS presence (yes, only if PTS present)
+        if (((pesHeader[7] & 0xC0) >> 6) & 0x01){// Check for DTS presence (yes, only if PTS present)
           timeOffset = timeStamp;
           timeStamp = decodePTS(pesHeader + pesOffset);
           pesOffset += 5;
@@ -457,11 +434,11 @@ namespace TS{
 
       timeStamp += (rolloverCount[tid] * TS_PTS_ROLLOVER);
 
-      if ((timeStamp < lastms[tid]) && ((timeStamp % TS_PTS_ROLLOVER) < 0.1 * TS_PTS_ROLLOVER) && ((lastms[tid] % TS_PTS_ROLLOVER) > 0.9 * TS_PTS_ROLLOVER)){
+      if ((timeStamp < lastms[tid]) && ((timeStamp % TS_PTS_ROLLOVER) < 0.1 * TS_PTS_ROLLOVER) &&
+          ((lastms[tid] % TS_PTS_ROLLOVER) > 0.9 * TS_PTS_ROLLOVER)){
         ++rolloverCount[tid];
         timeStamp += TS_PTS_ROLLOVER;
       }
-
 
       if (pesHeader[7] & 0x20){// ESCR - ignored
         pesOffset += 6;
@@ -480,12 +457,13 @@ namespace TS{
       }
 
       if (paySize - offset - pesOffset < realPayloadSize){
-        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), glitches will occur", paySize-offset-pesOffset, realPayloadSize);
+        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), glitches will occur",
+                 paySize - offset - pesOffset, realPayloadSize);
         realPayloadSize = paySize - offset - pesOffset;
       }
 
       const char *pesPayload = pesHeader + pesOffset;
-      parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04 );
+      parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
       lastms[tid] = timeStamp;
 
       // Shift the offset by the payload size, the mandatory headers and the optional
@@ -505,7 +483,7 @@ namespace TS{
 
     // Create a new (empty) DTSC Packet at the end of the buffer
     unsigned long thisCodec = pidToCodec[tid];
-    std::deque<DTSC::Packet> & out = outPackets[tid];
+    std::deque<DTSC::Packet> &out = outPackets[tid];
     if (thisCodec == AAC){
       // Parse all the ADTS packets
       uint64_t offsetInPes = 0;
@@ -524,9 +502,8 @@ namespace TS{
             }
             out.push_back(DTSC::Packet());
             out.back().genericFill(
-                timeStamp - ((adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency()),
-                timeOffset, tid, adtsPack.getPayload(), adtsPack.getPayloadSize(),
-                remainders[tid].getBpos(), 0);
+                timeStamp - ((adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency()), timeOffset,
+                tid, adtsPack.getPayload(), adtsPack.getPayloadSize(), remainders[tid].getBpos(), 0);
           }
           remainders[tid].clear();
         }
@@ -540,9 +517,8 @@ namespace TS{
           }
           out.push_back(DTSC::Packet());
           if (adtsPack.getPayloadSize()){
-            out.back().genericFill(timeStamp + msRead, timeOffset, tid,
-                                               adtsPack.getPayload(), adtsPack.getPayloadSize(), bPos,
-                                               0);
+            out.back().genericFill(timeStamp + msRead, timeOffset, tid, adtsPack.getPayload(),
+                                   adtsPack.getPayloadSize(), bPos, 0);
             offsetInPes += adtsPack.getCompleteSize();
             msRead += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
           }else{
@@ -554,8 +530,7 @@ namespace TS{
             offsetInPes++;
           }else{
             // remainder, keep it, use it next time
-            remainders[tid].setRemainder(adtsPack, pesPayload + offsetInPes,
-                                         realPayloadSize - offsetInPes, bPos);
+            remainders[tid].setRemainder(adtsPack, pesPayload + offsetInPes, realPayloadSize - offsetInPes, bPos);
             offsetInPes = realPayloadSize; // skip to end of PES
           }
         }
@@ -563,31 +538,29 @@ namespace TS{
     }
     if (thisCodec == ID3 || thisCodec == AC3 || thisCodec == MP2){
       out.push_back(DTSC::Packet());
-      out.back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize,
-                                         bPos, 0);
+      out.back().genericFill(timeStamp, timeOffset, tid, pesPayload, realPayloadSize, bPos, 0);
       if (thisCodec == MP2 && !mp2Hdr.count(tid)){
         mp2Hdr[tid] = std::string(pesPayload, realPayloadSize);
       }
-
     }
 
     if (thisCodec == H264 || thisCodec == H265){
       const char *nextPtr;
-      const char *pesEnd = pesPayload+realPayloadSize;
+      const char *pesEnd = pesPayload + realPayloadSize;
       bool isKeyFrame = false;
       uint32_t nalSize = 0;
-
-
 
       nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
       if (!nextPtr){
         nextPtr = pesEnd;
         nalSize = realPayloadSize;
-        if(!alignment && timeStamp && buildPacket.count(tid) && timeStamp != buildPacket[tid].getTime()){
-          FAIL_MSG("No startcode in packet @ %" PRIu64 " ms, and time is not equal to %" PRIu64 " ms so can't merge", timeStamp, buildPacket[tid].getTime());
+        if (!alignment && timeStamp && buildPacket.count(tid) && timeStamp != buildPacket[tid].getTime()){
+          FAIL_MSG("No startcode in packet @ %" PRIu64 " ms, and time is not equal to %" PRIu64
+                   " ms so can't merge",
+                   timeStamp, buildPacket[tid].getTime());
           return;
         }
-        DTSC::Packet & bp = buildPacket[tid];
+        DTSC::Packet &bp = buildPacket[tid];
         if (alignment){
           // If the timestamp differs from current PES timestamp, send the previous packet out and
           // fill a new one.
@@ -596,7 +569,7 @@ namespace TS{
             out.push_back(bp);
 
             size_t size;
-            char * tmp ;
+            char *tmp;
             bp.getString("data", tmp, size);
 
             INFO_MSG("buildpacket: size: %zu, timestamp: %" PRIu64, size, bp.getTime())
@@ -606,13 +579,11 @@ namespace TS{
             bp.genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
             bp.setKeyFrame(false);
           }
-        
+
           // Check if this is a keyframe
           parseNal(tid, pesPayload, nextPtr, isKeyFrame);
           // If yes, set the keyframe flag
-          if (isKeyFrame){
-            bp.setKeyFrame(true);
-          }
+          if (isKeyFrame){bp.setKeyFrame(true);}
 
           // No matter what, now append the current NAL unit to the current packet
           bp.appendNal(pesPayload, nalSize);
@@ -624,7 +595,7 @@ namespace TS{
 
       while (nextPtr < pesEnd){
         if (!nextPtr){nextPtr = pesEnd;}
-        //Calculate size of NAL unit, removing null bytes from the end
+        // Calculate size of NAL unit, removing null bytes from the end
         nalSize = nalu::nalEndPosition(pesPayload, nextPtr - pesPayload) - pesPayload;
 
         if (nalSize){
@@ -633,14 +604,12 @@ namespace TS{
             buildPacket[tid].genericFill(timeStamp, timeOffset, tid, 0, 0, bPos, true);
             buildPacket[tid].setKeyFrame(false);
           }
-          DTSC::Packet & bp = buildPacket[tid];
+          DTSC::Packet &bp = buildPacket[tid];
 
           // Check if this is a keyframe
           parseNal(tid, pesPayload, nextPtr, isKeyFrame);
           // If yes, set the keyframe flag
-          if (isKeyFrame){
-            bp.setKeyFrame(true);
-          }
+          if (isKeyFrame){bp.setKeyFrame(true);}
 
           // If the timestamp differs from current PES timestamp, send the previous packet out and
           // fill a new one.
@@ -655,8 +624,8 @@ namespace TS{
           bp.appendNal(pesPayload, nalSize);
         }
 
-        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){return;}//end of the line
-        
+        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){return;}// end of the line
+
         realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
         pesPayload = nextPtr + 3;
 
@@ -667,7 +636,7 @@ namespace TS{
       const char *origBegin = pesPayload;
       size_t origSize = realPayloadSize;
       const char *nextPtr;
-      const char *pesEnd = pesPayload+realPayloadSize;
+      const char *pesEnd = pesPayload + realPayloadSize;
 
       bool isKeyFrame = false;
 
@@ -678,18 +647,18 @@ namespace TS{
       }
 
       uint32_t nalno = 0;
-      //We only check the first 8 packets, because keys should always be near the front of a PES.
+      // We only check the first 8 packets, because keys should always be near the front of a PES.
       while (nextPtr < pesEnd && nalno < 8){
         if (!nextPtr){nextPtr = pesEnd;}
-        //Calculate size of NAL unit, removing null bytes from the end
+        // Calculate size of NAL unit, removing null bytes from the end
         nalu::nalEndPosition(pesPayload, nextPtr - pesPayload);
 
         // Check if this is a keyframe
         parseNal(tid, pesPayload, nextPtr, isKeyFrame);
         ++nalno;
 
-        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){break;}//end of the loop
-        realPayloadSize -= ((nextPtr - pesPayload) + 3); // decrease the total size
+        if (((nextPtr - pesPayload) + 3) >= realPayloadSize){break;}// end of the loop
+        realPayloadSize -= ((nextPtr - pesPayload) + 3);                // decrease the total size
         pesPayload = nextPtr + 3;
         nextPtr = nalu::scanAnnexB(pesPayload, realPayloadSize);
       }
@@ -698,7 +667,7 @@ namespace TS{
     }
   }
 
-  void Stream::getPacket(size_t tid, DTSC::Packet & pack) {
+  void Stream::getPacket(size_t tid, DTSC::Packet &pack){
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
     pack.null();
     if (!hasPacket(tid)){
@@ -722,7 +691,6 @@ namespace TS{
     outPackets[tid].pop_front();
 
     if (!outPackets[tid].size()){outPackets.erase(tid);}
-
   }
 
   void Stream::parseNal(size_t tid, const char *pesPayload, const char *nextPtr, bool &isKeyFrame){
@@ -732,19 +700,17 @@ namespace TS{
     if (pidToCodec[tid] == MPEG2){
       typeNal = pesPayload[0];
       switch (typeNal){
-        case 0xB3:
-          if (!mpeg2SeqHdr.count(tid)){
-            mpeg2SeqHdr[tid] = std::string(pesPayload, (nextPtr - pesPayload));
-          }
-          break;
-        case 0xB5:
-          if (!mpeg2SeqExt.count(tid)){
-            mpeg2SeqExt[tid] = std::string(pesPayload, (nextPtr - pesPayload));
-          }
-          break;
-        case 0xB8:
-          isKeyFrame = true;
-          break;
+      case 0xB3:
+        if (!mpeg2SeqHdr.count(tid)){
+          mpeg2SeqHdr[tid] = std::string(pesPayload, (nextPtr - pesPayload));
+        }
+        break;
+      case 0xB5:
+        if (!mpeg2SeqExt.count(tid)){
+          mpeg2SeqExt[tid] = std::string(pesPayload, (nextPtr - pesPayload));
+        }
+        break;
+      case 0xB8: isKeyFrame = true; break;
       }
       return;
     }
@@ -759,8 +725,7 @@ namespace TS{
           if (!isKeyFrame){
             Utils::bitstream bs;
             for (size_t i = 1; i < 10 && i < (nextPtr - pesPayload); i++){
-              if (i + 2 < (nextPtr - pesPayload) &&
-                  (memcmp(pesPayload + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
+              if (i + 2 < (nextPtr - pesPayload) && (memcmp(pesPayload + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
                 bs.append(pesPayload + i, 2);
                 i += 2;
               }else{
@@ -861,9 +826,8 @@ namespace TS{
     tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
 
     size_t mId = mappingId;
-    
-    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin();
-         it != pidToCodec.end(); it++){
+
+    for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
       if (tid && it->first != tid){continue;}
 
       if (mId == 0){mId = it->first;}
@@ -926,7 +890,8 @@ namespace TS{
         meta.tracks[mId].type = "video";
         meta.tracks[mId].codec = "MPEG2";
         meta.tracks[mId].trackID = mId;
-        meta.tracks[mId].init = std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] + std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
+        meta.tracks[mId].init = std::string("\000\000\001", 3) + mpeg2SeqHdr[it->first] +
+                                std::string("\000\000\001", 3) + mpeg2SeqExt[it->first];
 
         Mpeg::MPEG2Info info = Mpeg::parseMPEG2Header(meta.tracks[mId].init);
         meta.tracks[mId].width = info.width;
@@ -1018,8 +983,7 @@ namespace TS{
             case AC3:
             case ID3:
             case MP2:
-            case MPEG2:
-              result.insert(entry.getElementaryPid()); break;
+            case MPEG2: result.insert(entry.getElementaryPid()); break;
             default: break;
             }
             entry.advance();
@@ -1038,5 +1002,4 @@ namespace TS{
     pesPositions.erase(tid);
     outPackets.erase(tid);
   }
-}
-
+}// namespace TS

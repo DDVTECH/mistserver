@@ -44,7 +44,7 @@ namespace Socket{
   bool checkTrueSocket(int sock);
   std::string resolveHostToBestExternalAddrGuess(const std::string &host, int family = AF_UNSPEC,
                                                  const std::string &hint = "");
-  bool getSocketName(int fd, std::string & host, uint32_t & port);
+  bool getSocketName(int fd, std::string &host, uint32_t &port);
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{
@@ -91,6 +91,7 @@ namespace Socket{
     bool iread(Buffer &buffer, int flags = 0); ///< Incremental write call that is compatible with Socket::Buffer.
     bool iwrite(std::string &buffer); ///< Write call that is compatible with std::string.
     void setBoundAddr();
+
   protected:
     std::string lastErr; ///< Stores last error, if any.
 #ifdef SSL
@@ -139,10 +140,10 @@ namespace Socket{
     bool isAddress(const std::string &addr);
     bool isLocal(); ///< Returns true if remote address is a local address.
     // buffered i/o methods
-    bool spool();                          ///< Updates the downbufferinternal variables.
-    bool peek();                           ///< Clears the downbuffer and fills it with peek
-    Buffer &Received();                    ///< Returns a reference to the download buffer.
-    const Buffer &Received() const;                    ///< Returns a reference to the download buffer.
+    bool spool();                   ///< Updates the downbufferinternal variables.
+    bool peek();                    ///< Clears the downbuffer and fills it with peek
+    Buffer &Received();             ///< Returns a reference to the download buffer.
+    const Buffer &Received() const; ///< Returns a reference to the download buffer.
     void SendNow(const std::string &data); ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data); ///< Will not buffer anything but always send right away. Blocks.
     void SendNow(const char *data,

@@ -41,15 +41,23 @@ namespace Mist{
     capa["optional"]["wrappers"]["option"] = "--wrappers";
     capa["optional"]["wrappers"]["short"] = "w";
     cfg->addConnectorOptions(4433, capa);
-    cfg->addOption("nostreamtext", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"t\",\"long\":\"nostreamtext\",\"help\":\"Text or HTML to display when streams are unavailable.\"}"));
+    cfg->addOption("nostreamtext",
+                   JSON::fromString("{\"arg\":\"string\", \"default\":\"\", "
+                                    "\"short\":\"t\",\"long\":\"nostreamtext\",\"help\":\"Text or "
+                                    "HTML to display when streams are unavailable.\"}"));
     capa["optional"]["nostreamtext"]["name"] = "Stream unavailable text";
-    capa["optional"]["nostreamtext"]["help"] = "Text or HTML to display when streams are unavailable.";
+    capa["optional"]["nostreamtext"]["help"] =
+        "Text or HTML to display when streams are unavailable.";
     capa["optional"]["nostreamtext"]["default"] = "";
     capa["optional"]["nostreamtext"]["type"] = "str";
     capa["optional"]["nostreamtext"]["option"] = "--nostreamtext";
-    cfg->addOption("pubaddr", JSON::fromString("{\"arg\":\"string\", \"default\":\"\", \"short\":\"A\",\"long\":\"public-address\",\"help\":\"Full public address this output is available as.\"}"));
+    cfg->addOption("pubaddr",
+                   JSON::fromString("{\"arg\":\"string\", \"default\":\"\", "
+                                    "\"short\":\"A\",\"long\":\"public-address\",\"help\":\"Full "
+                                    "public address this output is available as.\"}"));
     capa["optional"]["pubaddr"]["name"] = "Public address";
-    capa["optional"]["pubaddr"]["help"] = "Full public address this output is available as, if being proxied";
+    capa["optional"]["pubaddr"]["help"] =
+        "Full public address this output is available as, if being proxied";
     capa["optional"]["pubaddr"]["default"] = "";
     capa["optional"]["pubaddr"]["type"] = "inputlist";
     capa["optional"]["pubaddr"]["option"] = "--public-address";
@@ -157,7 +165,7 @@ namespace Mist{
           int todo = http_buf.get().size();
           int done = 0;
           while (done < todo){
-            ret = mbedtls_ssl_write(&ssl, (const unsigned char*)http_buf.get().data() + done, todo - done);
+            ret = mbedtls_ssl_write(&ssl, (const unsigned char *)http_buf.get().data() + done, todo - done);
             if (ret == MBEDTLS_ERR_NET_CONN_RESET || ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT){
               HIGH_MSG("SSL disconnect!");
               http.close();
@@ -172,9 +180,7 @@ namespace Mist{
           http_buf.get().clear();
         }
       }
-      if (!activity){
-        Util::sleep(50);
-      }
+      if (!activity){Util::sleep(50);}
     }
     // close the HTTP process (close stdio, kill its PID)
     http.close();
@@ -186,7 +192,6 @@ namespace Mist{
     }
     return 0;
   }
-
 
   OutHTTPS::~OutHTTPS(){
     HIGH_MSG("Ending SSL connection handler");
@@ -204,7 +209,7 @@ namespace Mist{
       return;
     }
 
-    //Declare and set up all required mbedtls structures
+    // Declare and set up all required mbedtls structures
     int ret;
     mbedtls_ssl_config_init(&sslConf);
     mbedtls_entropy_init(&entropy);
@@ -213,14 +218,15 @@ namespace Mist{
     mbedtls_ctr_drbg_init(&ctr_drbg);
 
     // seed the rng
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)"MistServer", 10)) != 0){
+    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
+                                     (const unsigned char *)"MistServer", 10)) != 0){
       FAIL_MSG("Could not seed the random number generator!");
     }
 
-    //Read certificate chain(s) from cmdline option(s)
+    // Read certificate chain(s) from cmdline option(s)
     JSON::Value certs = config->getOption("cert", true);
     jsonForEach(certs, it){
-      if (it->asStringRef().size()){//Ignore empty entries (default is empty)
+      if (it->asStringRef().size()){// Ignore empty entries (default is empty)
         ret = mbedtls_x509_crt_parse_file(&srvcert, it->asStringRef().c_str());
         if (ret != 0){
           WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
@@ -228,14 +234,15 @@ namespace Mist{
       }
     }
 
-    //Read key from cmdline option
+    // Read key from cmdline option
     ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
     if (ret != 0){
       FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
       return;
     }
 
-    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
+    if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
+                                           MBEDTLS_SSL_PRESET_DEFAULT)) != 0){
       FAIL_MSG("SSL config defaults failed");
       return;
     }
@@ -248,12 +255,11 @@ namespace Mist{
 
     Output::listener(conf, callback);
 
-    //Free all the mbedtls structures
+    // Free all the mbedtls structures
     mbedtls_x509_crt_free(&srvcert);
     mbedtls_pk_free(&pkey);
     mbedtls_ssl_config_free(&sslConf);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
   }
-}
-
+}// namespace Mist

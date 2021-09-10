@@ -1,14 +1,13 @@
-#include <sys/stat.h>
-#include <iostream>
-#include <fstream>
+#include "controller_capabilities.h"
+#include "controller_storage.h"
 #include <algorithm>
-#include <mist/timing.h>
-#include <mist/shared_memory.h>
+#include <fstream>
+#include <iostream>
 #include <mist/defines.h>
+#include <mist/shared_memory.h>
 #include <mist/timing.h>
 #include <mist/triggers.h> //LTS
-#include "controller_storage.h"
-#include "controller_capabilities.h"
+#include <sys/stat.h>
 
 ///\brief Holds everything unique to the controller.
 namespace Controller{
@@ -26,29 +25,23 @@ namespace Controller{
   uint32_t maxLogsRecs = 0;
   uint32_t maxAccsRecs = 0;
   uint64_t firstLog = 0;
-  IPC::sharedPage * shmLogs = 0;
-  Util::RelAccX * rlxLogs = 0;
-  IPC::sharedPage * shmAccs = 0;
-  Util::RelAccX * rlxAccs = 0;
-  IPC::sharedPage * shmStrm = 0;
-  Util::RelAccX * rlxStrm = 0;
+  IPC::sharedPage *shmLogs = 0;
+  Util::RelAccX *rlxLogs = 0;
+  IPC::sharedPage *shmAccs = 0;
+  Util::RelAccX *rlxAccs = 0;
+  IPC::sharedPage *shmStrm = 0;
+  Util::RelAccX *rlxStrm = 0;
 
-  Util::RelAccX * logAccessor(){
-    return rlxLogs;
-  }
+  Util::RelAccX *logAccessor(){return rlxLogs;}
 
-  Util::RelAccX * accesslogAccessor(){
-    return rlxAccs;
-  }
+  Util::RelAccX *accesslogAccessor(){return rlxAccs;}
 
-  Util::RelAccX * streamsAccessor(){
-    return rlxStrm;
-  }
+  Util::RelAccX *streamsAccessor(){return rlxStrm;}
 
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
-  void Log(const std::string & kind, const std::string & message, const std::string & stream, bool noWriteToLog){
+  void Log(const std::string &kind, const std::string &message, const std::string &stream, bool noWriteToLog){
     if (noWriteToLog){
       tthread::lock_guard<tthread::mutex> guard(logMutex);
       JSON::Value m;
@@ -61,15 +54,13 @@ namespace Controller{
       Storage["log"].shrink(100); // limit to 100 log messages
       logCounter++;
       if (rlxLogs && rlxLogs->isReady()){
-        if (!firstLog){
-          firstLog = logCounter;
-        }
+        if (!firstLog){firstLog = logCounter;}
         rlxLogs->setRCount(logCounter > maxLogsRecs ? maxLogsRecs : logCounter);
         rlxLogs->setDeleted(logCounter > rlxLogs->getRCount() ? logCounter - rlxLogs->getRCount() : firstLog);
-        rlxLogs->setInt("time", logTime, logCounter-1);
-        rlxLogs->setString("kind", kind, logCounter-1);
-        rlxLogs->setString("msg", message, logCounter-1);
-        rlxLogs->setString("strm", stream, logCounter-1);
+        rlxLogs->setInt("time", logTime, logCounter - 1);
+        rlxLogs->setString("kind", kind, logCounter - 1);
+        rlxLogs->setString("msg", message, logCounter - 1);
+        rlxLogs->setString("strm", stream, logCounter - 1);
         rlxLogs->setEndPos(logCounter);
       }
     }else{
@@ -77,10 +68,12 @@ namespace Controller{
     }
   }
 
-  void logAccess(const std::string & sessId, const std::string & strm, const std::string & conn, const std::string & host, uint64_t duration, uint64_t up, uint64_t down, const std::string & tags){
+  void logAccess(const std::string &sessId, const std::string &strm, const std::string &conn,
+                 const std::string &host, uint64_t duration, uint64_t up, uint64_t down,
+                 const std::string &tags){
     if (rlxAccs && rlxAccs->isReady()){
       uint64_t newEndPos = rlxAccs->getEndPos();
-      rlxAccs->setRCount(newEndPos+1 > maxLogsRecs ? maxAccsRecs : newEndPos+1);
+      rlxAccs->setRCount(newEndPos + 1 > maxLogsRecs ? maxAccsRecs : newEndPos + 1);
       rlxAccs->setDeleted(newEndPos + 1 > maxAccsRecs ? newEndPos + 1 - maxAccsRecs : 0);
       rlxAccs->setInt("time", Util::epoch(), newEndPos);
       rlxAccs->setString("session", sessId, newEndPos);
@@ -95,16 +88,23 @@ namespace Controller{
     }
     if (Triggers::shouldTrigger("USER_END", strm)){
       std::stringstream plgen;
-      plgen << sessId << "\n" << strm << "\n" << conn << "\n" << host << "\n" << duration << "\n" << up << "\n" << down << "\n" << tags;
+      plgen << sessId << "\n"
+            << strm << "\n"
+            << conn << "\n"
+            << host << "\n"
+            << duration << "\n"
+            << up << "\n"
+            << down << "\n"
+            << tags;
       std::string payload = plgen.str();
       Triggers::doTrigger("USER_END", payload, strm);
     }
   }
 
-  void normalizeTrustedProxies(JSON::Value & tp){
-    //First normalize to arrays
+  void normalizeTrustedProxies(JSON::Value &tp){
+    // First normalize to arrays
     if (!tp.isArray()){tp.append(tp.asString());}
-    //Now, wipe any empty entries, and convert spaces to array entries
+    // Now, wipe any empty entries, and convert spaces to array entries
     std::set<std::string> n;
     jsonForEach(tp, jit){
       if (!jit->isString()){*jit = jit->asString();}
@@ -116,16 +116,14 @@ namespace Controller{
       while (tmp.find(' ') != std::string::npos){
         size_t p = tmp.find(' ');
         n.insert(tmp.substr(0, p));
-        tmp.erase(0, p+1);
+        tmp.erase(0, p + 1);
       }
       if (tmp.size()){n.insert(tmp);}
     }
     n.erase("");
-    //Re-write the entire array, which is now normalized
+    // Re-write the entire array, which is now normalized
     tp.shrink(0);
-    for (std::set<std::string>::iterator it = n.begin(); it != n.end(); ++it){
-      tp.append(*it);
-    }
+    for (std::set<std::string>::iterator it = n.begin(); it != n.end(); ++it){tp.append(*it);}
   }
 
   ///\brief Write contents to Filename
@@ -141,7 +139,7 @@ namespace Controller{
 
   void initState(){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
-    shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024*1024, true);//max 1M of logs cached
+    shmLogs = new IPC::sharedPage(SHM_STATE_LOGS, 1024 * 1024, true); // max 1M of logs cached
     if (!shmLogs->mapped){
       FAIL_MSG("Could not open memory page for logs buffer");
       return;
@@ -156,9 +154,9 @@ namespace Controller{
       rlxLogs->addField("strm", RAX_128STRING);
       rlxLogs->setReady();
     }
-    maxLogsRecs = (1024*1024 - rlxLogs->getOffset()) / rlxLogs->getRSize();
+    maxLogsRecs = (1024 * 1024 - rlxLogs->getOffset()) / rlxLogs->getRSize();
 
-    shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024*1024, true);//max 1M of accesslogs cached
+    shmAccs = new IPC::sharedPage(SHM_STATE_ACCS, 1024 * 1024, true); // max 1M of accesslogs cached
     if (!shmAccs->mapped){
       FAIL_MSG("Could not open memory page for access logs buffer");
       return;
@@ -176,9 +174,9 @@ namespace Controller{
       rlxAccs->addField("tags", RAX_256STRING);
       rlxAccs->setReady();
     }
-    maxAccsRecs = (1024*1024 - rlxAccs->getOffset()) / rlxAccs->getRSize();
+    maxAccsRecs = (1024 * 1024 - rlxAccs->getOffset()) / rlxAccs->getRSize();
 
-    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024*1024, true);//max 1M of stream data
+    shmStrm = new IPC::sharedPage(SHM_STATE_STREAMS, 1024 * 1024, true); // max 1M of stream data
     if (!shmStrm->mapped){
       FAIL_MSG("Could not open memory page for stream data");
       return;
@@ -192,7 +190,7 @@ namespace Controller{
       rlxStrm->addField("outputs", RAX_64UINT);
       rlxStrm->setReady();
     }
-    rlxStrm->setRCount((1024*1024 - rlxStrm->getOffset()) / rlxStrm->getRSize());
+    rlxStrm->setRCount((1024 * 1024 - rlxStrm->getOffset()) / rlxStrm->getRSize());
   }
 
   void deinitState(bool leaveBehind){
@@ -209,7 +207,7 @@ namespace Controller{
       shmAccs->master = false;
       shmStrm->master = false;
     }
-    Util::RelAccX * tmp = rlxLogs;
+    Util::RelAccX *tmp = rlxLogs;
     rlxLogs = 0;
     delete tmp;
     delete shmLogs;
@@ -239,7 +237,7 @@ namespace Controller{
     skip.insert("online");
     skip.insert("error");
     tmp.assignFrom(Controller::Storage, skip);
-    if ( !Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
+    if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
       ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
       std::cout << "**Config**" << std::endl;
       std::cout << tmp.toString() << std::endl;
@@ -247,12 +245,12 @@ namespace Controller{
     }
   }
 
-
   void writeCapabilities(){
     std::string temp = capabilities.toPacked();
-    static IPC::sharedPage mistCapaOut(SHM_CAPA, temp.size()+100, true, false);
+    static IPC::sharedPage mistCapaOut(SHM_CAPA, temp.size() + 100, true, false);
     if (!mistCapaOut.mapped){
-      FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your system?");
+      FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your "
+               "system?");
       return;
     }
     Util::RelAccX A(mistCapaOut.mapped, false);
@@ -270,7 +268,7 @@ namespace Controller{
     if (Storage["config"]["trustedproxy"].isArray()){
       jsonForEachConst(Storage["config"]["trustedproxy"], jit){
         if (tmpProxy.size()){
-          tmpProxy += " "+jit->asString();
+          tmpProxy += " " + jit->asString();
         }else{
           tmpProxy = jit->asString();
         }
@@ -280,11 +278,12 @@ namespace Controller{
     }
     if (proxy_written != tmpProxy){
       proxy_written = tmpProxy;
-      static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size()+100, true, false);
+      static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size() + 100, true, false);
       mistProxOut.close();
-      mistProxOut.init(SHM_PROXY, proxy_written.size()+100, true, false);
+      mistProxOut.init(SHM_PROXY, proxy_written.size() + 100, true, false);
       if (!mistProxOut.mapped){
-        FAIL_MSG("Could not open trusted proxy config for writing! Is shared memory enabled on your system?");
+        FAIL_MSG("Could not open trusted proxy config for writing! Is shared memory enabled on "
+                 "your system?");
         return;
       }else{
         Util::RelAccX A(mistProxOut.mapped, false);
@@ -303,11 +302,12 @@ namespace Controller{
     if (Storage["config"]["protocols"].compareExcept(proto_written, skip)){return;}
     proto_written.assignFrom(Storage["config"]["protocols"], skip);
     std::string temp = proto_written.toPacked();
-    static IPC::sharedPage mistProtoOut(SHM_PROTO, temp.size()+100, true, false);
+    static IPC::sharedPage mistProtoOut(SHM_PROTO, temp.size() + 100, true, false);
     mistProtoOut.close();
-    mistProtoOut.init(SHM_PROTO, temp.size()+100, true, false);
+    mistProtoOut.init(SHM_PROTO, temp.size() + 100, true, false);
     if (!mistProtoOut.mapped){
-      FAIL_MSG("Could not open protocol config for writing! Is shared memory enabled on your system?");
+      FAIL_MSG(
+          "Could not open protocol config for writing! Is shared memory enabled on your system?");
       return;
     }
     // write config
@@ -322,7 +322,7 @@ namespace Controller{
     }
   }
 
-  void writeStream(const std::string & sName, const JSON::Value & sConf){
+  void writeStream(const std::string &sName, const JSON::Value &sConf){
     static std::map<std::string, JSON::Value> writtenStrms;
     static std::map<std::string, IPC::sharedPage> pages;
     static std::set<std::string> skip;
@@ -338,12 +338,12 @@ namespace Controller{
     }
     if (!writtenStrms.count(sName) || !writtenStrms[sName].compareExcept(sConf, skip)){
       writtenStrms[sName].assignFrom(sConf, skip);
-      IPC::sharedPage & P = pages[sName];
+      IPC::sharedPage &P = pages[sName];
       std::string temp = writtenStrms[sName].toPacked();
       P.close();
       char tmpBuf[NAME_BUFFER_SIZE];
       snprintf(tmpBuf, NAME_BUFFER_SIZE, SHM_STREAM_CONF, sName.c_str());
-      P.init(tmpBuf, temp.size()+100, true, false);
+      P.init(tmpBuf, temp.size() + 100, true, false);
       if (!P){
         writtenStrms.erase(sName);
         pages.erase(sName);
@@ -374,12 +374,10 @@ namespace Controller{
     }
 
     {
-      //Global configuration options, if any
+      // Global configuration options, if any
       IPC::sharedPage globCfg;
       globCfg.init(SHM_GLOBAL_CONF, 4096, false, false);
-      if (!globCfg.mapped){
-        globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);
-      }
+      if (!globCfg.mapped){globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);}
       if (globCfg.mapped){
         Util::RelAccX globAccX(globCfg.mapped, false);
         if (!globAccX.isReady()){
@@ -389,10 +387,9 @@ namespace Controller{
           globAccX.setReady();
         }
         globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
-        globCfg.master = false;//leave the page after closing
+        globCfg.master = false; // leave the page after closing
       }
     }
-
 
     /*LTS-START*/
     static std::map<std::string, IPC::sharedPage> pageForType; // should contain one page for every trigger type
@@ -438,7 +435,9 @@ namespace Controller{
                     namesArray.append(tmpBuf, 4);
                     namesArray.append(shIt->asString());
                   }
-                  if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
+                  if (namesArray.size()){
+                    memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));
+                  }
                 }
               }
             }
@@ -457,7 +456,9 @@ namespace Controller{
                     namesArray.append(tmpBuf, 4);
                     namesArray.append(shIt->asString());
                   }
-                  if (namesArray.size()){memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));}
+                  if (namesArray.size()){
+                    memcpy(strmP, namesArray.data(), std::min(namesArray.size(), (size_t)256));
+                  }
                 }
               }
               if (triggIt->isMember("params") && !(*triggIt)["params"].isNull()){
@@ -492,5 +493,4 @@ namespace Controller{
     }
     /*LTS-END*/
   }
-}
-
+}// namespace Controller

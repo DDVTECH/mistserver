@@ -1,14 +1,16 @@
 #include "output_srt.h"
-#include <mist/http_parser.h>
-#include <mist/defines.h>
-#include <mist/checksum.h>
 #include <iomanip>
+#include <mist/checksum.h>
+#include <mist/defines.h>
+#include <mist/http_parser.h>
 
-namespace Mist {
-  OutProgressiveSRT::OutProgressiveSRT(Socket::Connection & conn) : HTTPOutput(conn){realTime = 0;}
-  OutProgressiveSRT::~OutProgressiveSRT() {}
-  
-  void OutProgressiveSRT::init(Util::Config * cfg){
+namespace Mist{
+  OutProgressiveSRT::OutProgressiveSRT(Socket::Connection &conn) : HTTPOutput(conn){
+    realTime = 0;
+  }
+  OutProgressiveSRT::~OutProgressiveSRT(){}
+
+  void OutProgressiveSRT::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "SRT";
     capa["friendly"] = "SubRip/WebVTT over HTTP";
@@ -25,49 +27,44 @@ namespace Mist {
     capa["methods"][1u]["priority"] = 9;
     capa["methods"][1u]["url_rel"] = "/$.vtt";
   }
-  
+
   void OutProgressiveSRT::sendNext(){
-    char * dataPointer = 0;
+    char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
-//    INFO_MSG("getting sub: %s", dataPointer);
-    //ignore empty subs
-    if (len == 0 || (len == 1 && dataPointer[0] == ' ')){
-      return;
-    }
+    //    INFO_MSG("getting sub: %s", dataPointer);
+    // ignore empty subs
+    if (len == 0 || (len == 1 && dataPointer[0] == ' ')){return;}
     std::stringstream tmp;
-    if(!webVTT) {
-      tmp << lastNum++ << std::endl;
-    }
+    if (!webVTT){tmp << lastNum++ << std::endl;}
     long long unsigned int time = thisPacket.getTime();
- 
-    
-    //filter subtitle in specific timespan
-    if(filter_from > 0 && time < filter_from){
-    index++;    //when using seek, the index is lost.
+
+    // filter subtitle in specific timespan
+    if (filter_from > 0 && time < filter_from){
+      index++; // when using seek, the index is lost.
       seek(filter_from);
       return;
     }
 
-    if(filter_to > 0 && time > filter_to && filter_to > filter_from){
+    if (filter_to > 0 && time > filter_to && filter_to > filter_from){
       config->is_active = false;
       return;
     }
 
     char tmpBuf[50];
-    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    int tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000),
+                         ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
     time += thisPacket.getInt("duration");
-    if (time == thisPacket.getTime()){
-      time += len * 75 + 800;
-    }
-    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000), ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+    if (time == thisPacket.getTime()){time += len * 75 + 800;}
+    tmpLen = sprintf(tmpBuf, "%.2llu:%.2llu:%.2llu.%.3llu", (time / 3600000),
+                     ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;
     myConn.SendNow(tmp.str());
-    //prevent double newlines
-    if (dataPointer[len-1] == '\n'){--dataPointer;}
+    // prevent double newlines
+    if (dataPointer[len - 1] == '\n'){--dataPointer;}
     myConn.SendNow(dataPointer, len);
     myConn.SendNow("\n\n");
   }
@@ -81,9 +78,7 @@ namespace Mist {
     }
     H.protocol = "HTTP/1.0";
     H.SendResponse("200", "OK", myConn);
-    if (webVTT){
-      myConn.SendNow("WEBVTT\n\n");
-    }
+    if (webVTT){myConn.SendNow("WEBVTT\n\n");}
     sentHeader = true;
   }
 
@@ -94,21 +89,17 @@ namespace Mist {
       selectedTracks.clear();
       selectedTracks.insert(JSON::Value(H.GetVar("track")).asInt());
     }
-    
+
     filter_from = 0;
     filter_to = 0;
     index = 0;
 
-    if (H.GetVar("from") != ""){
-      filter_from = JSON::Value(H.GetVar("from")).asInt();
-    }
-    if (H.GetVar("to") != ""){
-      filter_to = JSON::Value(H.GetVar("to")).asInt();
-    }
+    if (H.GetVar("from") != ""){filter_from = JSON::Value(H.GetVar("from")).asInt();}
+    if (H.GetVar("to") != ""){filter_to = JSON::Value(H.GetVar("to")).asInt();}
 
     H.Clean();
     H.setCORSHeaders();
-    if(method == "OPTIONS" || method == "HEAD"){
+    if (method == "OPTIONS" || method == "HEAD"){
       if (webVTT){
         H.SetHeader("Content-Type", "text/vtt; charset=utf-8");
       }else{
@@ -123,5 +114,4 @@ namespace Mist {
     parseData = true;
     wantRequest = false;
   }
-}
-
+}// namespace Mist

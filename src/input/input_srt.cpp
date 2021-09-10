@@ -5,7 +5,8 @@ namespace Mist{
   InputSrt::InputSrt(Util::Config *cfg) : Input(cfg){
     vtt = false;
     capa["name"] = "SRT";
-    capa["decs"] = "This input allows streaming of SRT and WebVTT subtitle files as Video on Demand.";
+    capa["decs"] =
+        "This input allows streaming of SRT and WebVTT subtitle files as Video on Demand.";
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
     capa["priority"] = 9;
@@ -120,10 +121,8 @@ namespace Mist{
           int to_ms = 0;
           sscanf(line.c_str(), "%d:%d:%d,%d --> %d:%d:%d,%d", &from_hour, &from_min, &from_sec,
                  &from_ms, &to_hour, &to_min, &to_sec, &to_ms);
-          timestamp =
-              (from_hour * 60 * 60 * 1000) + (from_min * 60 * 1000) + (from_sec * 1000) + from_ms;
-          duration = ((to_hour * 60 * 60 * 1000) + (to_min * 60 * 1000) + (to_sec * 1000) + to_ms) -
-                     timestamp;
+          timestamp = (from_hour * 60 * 60 * 1000) + (from_min * 60 * 1000) + (from_sec * 1000) + from_ms;
+          duration = ((to_hour * 60 * 60 * 1000) + (to_min * 60 * 1000) + (to_sec * 1000) + to_ms) - timestamp;
         }else{
           // subtitle
           if (data.size() > 1){data.append("\n");}
@@ -143,4 +142,3 @@ namespace Mist{
   }
 
 }// namespace Mist
-

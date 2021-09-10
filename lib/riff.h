@@ -10,7 +10,7 @@ namespace RIFF{
   class Chunk{
   public:
     Chunk(const void *_p = 0, uint32_t len = 0);
-    Chunk(void *_p, const char * t, uint32_t len);
+    Chunk(void *_p, const char *t, uint32_t len);
     inline operator bool() const{return p;}
     inline std::string getType() const{
       if (!p){return "";}
@@ -41,7 +41,8 @@ namespace RIFF{
   /// WAVE "fmt " class.
   class fmt : public Chunk{
   public:
-    static std::string generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps, uint16_t blocksize, uint16_t size);
+    static std::string generate(uint16_t format, uint16_t channels, uint32_t hz, uint32_t bps,
+                                uint16_t blocksize, uint16_t size);
     fmt(const void *_p = 0, uint32_t len = 0) : Chunk(_p, len){}
     uint16_t getFormat() const;
     std::string getCodec() const;
@@ -56,9 +57,9 @@ namespace RIFF{
     std::string getGUID() const;
     virtual void toPrettyString(std::ostream &o, size_t indent = 0) const;
   };
-  
+
   /// WAVE fact class.
-  class fact : public Chunk {
+  class fact : public Chunk{
   public:
     static std::string generate(uint32_t samples);
     fact(const void *_p = 0, uint32_t len = 0) : Chunk(_p, len){}
@@ -67,13 +68,11 @@ namespace RIFF{
   };
 
   /// ISFT class. Contains software name.
-  class ISFT : public Chunk {
+  class ISFT : public Chunk{
   public:
     ISFT(const void *_p = 0, uint32_t len = 0) : Chunk(_p, len){}
     std::string getSoftware() const;
     virtual void toPrettyString(std::ostream &o, size_t indent = 0) const;
   };
 
-
-}
-
+}// namespace RIFF

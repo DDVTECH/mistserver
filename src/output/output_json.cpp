@@ -1,9 +1,9 @@
 #include "output_json.h"
-#include <mist/stream.h>
 #include <iomanip>
+#include <mist/stream.h>
 
-namespace Mist {
-  OutJSON::OutJSON(Socket::Connection & conn) : HTTPOutput(conn){
+namespace Mist{
+  OutJSON::OutJSON(Socket::Connection &conn) : HTTPOutput(conn){
     realTime = 0;
     bootMsOffset = 0;
     keepReselecting = false;
@@ -11,7 +11,7 @@ namespace Mist {
     noReceive = false;
   }
 
-  void OutJSON::init(Util::Config * cfg){
+  void OutJSON::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "JSON";
     capa["friendly"] = "JSON over HTTP";
@@ -30,14 +30,14 @@ namespace Mist {
 
   void OutJSON::sendNext(){
     if (keepReselecting){
-      //If we can select more tracks, do it and continue.
+      // If we can select more tracks, do it and continue.
       if (selectDefaultTracks()){
-        return;//After a seek, the current packet is invalid. Do nothing and return here.
+        return; // After a seek, the current packet is invalid. Do nothing and return here.
       }
     }
     JSON::Value jPack;
     if (myMeta.tracks[thisPacket.getTrackId()].codec == "JSON"){
-      char * dPtr;
+      char *dPtr;
       size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
       jPack["data"] = JSON::fromString(dPtr, dLen);
@@ -48,7 +48,7 @@ namespace Mist {
     }
     if (dupcheck){
       if (jPack.compareExcept(lastVal, nodup)){
-        return;//skip duplicates
+        return; // skip duplicates
       }
       lastVal = jPack;
     }
@@ -57,7 +57,7 @@ namespace Mist {
       return;
     }
     if (!jsonp.size()){
-      if(!first) {
+      if (!first){
         myConn.SendNow(", ", 2);
       }else{
         myConn.SendNow("[", 1);
@@ -67,9 +67,7 @@ namespace Mist {
       myConn.SendNow(jsonp + "(");
     }
     myConn.SendNow(jPack.toString());
-    if (jsonp.size()){
-      myConn.SendNow(");\n", 3);
-    }
+    if (jsonp.size()){myConn.SendNow(");\n", 3);}
   }
 
   void OutJSON::sendHeader(){
@@ -81,9 +79,9 @@ namespace Mist {
     H.SendResponse("200", "OK", myConn);
     sentHeader = true;
   }
-  
-  void OutJSON::onFail(const std::string & msg, bool critical){
-    //Only run failure handle if we're not being persistent
+
+  void OutJSON::onFail(const std::string &msg, bool critical){
+    // Only run failure handle if we're not being persistent
     if (!keepReselecting){
       HTTPOutput::onFail(msg, critical);
     }else{
@@ -118,9 +116,7 @@ namespace Mist {
       }
       recursive = false;
     }
-    if (!webSock && !jsonp.size() && !first){
-      myConn.SendNow("]\n", 2);
-    }
+    if (!webSock && !jsonp.size() && !first){myConn.SendNow("]\n", 2);}
     myConn.close();
     return false;
   }
@@ -133,18 +129,18 @@ namespace Mist {
   void OutJSON::preWebsocketConnect(){
     if (H.GetVar("password") != ""){pushPass = H.GetVar("password");}
     if (H.GetVar("password").size() || H.GetVar("push").size()){noReceive = true;}
-  
+
     if (H.GetVar("persist") != ""){keepReselecting = true;}
     if (H.GetVar("dedupe") != ""){
       dupcheck = true;
       size_t index;
       std::string dupes = H.GetVar("dedupe");
-      while (dupes != "") {
+      while (dupes != ""){
         index = dupes.find(',');
         nodup.insert(dupes.substr(0, index));
-        if (index != std::string::npos) {
+        if (index != std::string::npos){
           dupes.erase(0, index + 1);
-        } else {
+        }else{
           dupes = "";
         }
       }
@@ -165,29 +161,27 @@ namespace Mist {
         bootMsOffset = Util::bootMS();
       }
     }
-    //We now know we're allowed to push. Read a JSON object.
+    // We now know we're allowed to push. Read a JSON object.
     JSON::Value inJSON = JSON::fromString(webSock->data, webSock->data.size());
     if (!inJSON || !inJSON.isObject()){
-      //Ignore empty and/or non-parsable JSON packets
+      // Ignore empty and/or non-parsable JSON packets
       MEDIUM_MSG("Ignoring non-JSON object: %s", webSock->data);
       return;
     }
-    //Let's create a new track for pushing purposes, if needed
+    // Let's create a new track for pushing purposes, if needed
     if (!pushTrack){
       pushTrack = 1;
-      while (myMeta.tracks.count(pushTrack)){
-        ++pushTrack;
-      }
+      while (myMeta.tracks.count(pushTrack)){++pushTrack;}
     }
     myMeta.tracks[pushTrack].type = "meta";
     myMeta.tracks[pushTrack].codec = "JSON";
-    //We have a track set correctly. Let's attempt to buffer a frame.
+    // We have a track set correctly. Let's attempt to buffer a frame.
     lastSendTime = Util::bootMS();
     if (!inJSON.isMember("unix")){
-      //Base timestamp on arrival time
+      // Base timestamp on arrival time
       lastOutTime = (lastSendTime - bootMsOffset);
     }else{
-      //Base timestamp on unix time
+      // Base timestamp on unix time
       lastOutTime = (lastSendTime - bootMsOffset) + (inJSON["unix"].asInt() - Util::epoch()) * 1000;
     }
     lastOutData = inJSON.toString();
@@ -202,9 +196,7 @@ namespace Mist {
   void OutJSON::onIdle(){
     if (nProxy.trackState[pushTrack] != FILL_ACC){
       continueNegotiate(pushTrack);
-      if (nProxy.trackState[pushTrack] == FILL_ACC){
-        idleInterval = 5000;
-      }
+      if (nProxy.trackState[pushTrack] == FILL_ACC){idleInterval = 5000;}
       return;
     }
     lastOutTime += (Util::bootMS() - lastSendTime);
@@ -216,14 +208,14 @@ namespace Mist {
 
   void OutJSON::onHTTP(){
     std::string method = H.method;
-    preWebsocketConnect();//Not actually a websocket, but we need to do the same checks
+    preWebsocketConnect(); // Not actually a websocket, but we need to do the same checks
     jsonp = "";
     if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}
     if (H.GetVar("jsonp") != ""){jsonp = H.GetVar("jsonp");}
-    
+
     H.Clean();
     H.setCORSHeaders();
-    if(method == "OPTIONS" || method == "HEAD"){
+    if (method == "OPTIONS" || method == "HEAD"){
       H.SetHeader("Content-Type", "text/javascript");
       H.protocol = "HTTP/1.0";
       H.SendResponse("200", "OK", myConn);
@@ -235,5 +227,4 @@ namespace Mist {
     wantRequest = false;
   }
 
-}
-
+}// namespace Mist

@@ -23,7 +23,7 @@ namespace Controller{
   /// Immediately starts a push for the given stream to the given target.
   /// Simply calls Util::startPush and stores the resulting PID in the local activePushes map.
   void startPush(const std::string &stream, std::string &target){
-    //Cancel if already active
+    // Cancel if already active
     if (isPushActive(stream, target)){return;}
     std::string originalTarget = target;
     pid_t ret = Util::startPush(stream, target);
@@ -40,13 +40,13 @@ namespace Controller{
 
   /// Returns true if the push is currently active, false otherwise.
   bool isPushActive(const std::string &streamname, const std::string &target){
-    while (Controller::conf.is_active && !pushListRead){
-      Util::sleep(100);
-    }
+    while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
     std::set<pid_t> toWipe;
     for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
       if (Util::Procs::isActive(it->first)){
-        if (it->second[1u].asStringRef() == streamname && it->second[2u].asStringRef() == target){return true;}
+        if (it->second[1u].asStringRef() == streamname && it->second[2u].asStringRef() == target){
+          return true;
+        }
       }else{
         toWipe.insert(it->first);
       }
@@ -61,13 +61,13 @@ namespace Controller{
 
   /// Stops any pushes matching the stream name (pattern) and target
   void stopActivePushes(const std::string &streamname, const std::string &target){
-    while (Controller::conf.is_active && !pushListRead){
-      Util::sleep(100);
-    }
+    while (Controller::conf.is_active && !pushListRead){Util::sleep(100);}
     std::set<pid_t> toWipe;
     for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
       if (Util::Procs::isActive(it->first)){
-        if (it->second[2u].asStringRef() == target && (it->second[1u].asStringRef() == streamname || (*streamname.rbegin() == '+' && it->second[1u].asStringRef().substr(0, streamname.size()) == streamname))){
+        if (it->second[2u].asStringRef() == target &&
+            (it->second[1u].asStringRef() == streamname ||
+             (*streamname.rbegin() == '+' && it->second[1u].asStringRef().substr(0, streamname.size()) == streamname))){
           Util::Procs::Stop(it->first);
         }
       }else{
@@ -87,31 +87,30 @@ namespace Controller{
   }
 
   /// Compactly writes the list of pushes to a pointer, assumed to be 8MiB in size
-  static void writePushList(char * pwo){
-    char * max = pwo + 8*1024*1024 - 4;
+  static void writePushList(char *pwo){
+    char *max = pwo + 8 * 1024 * 1024 - 4;
     for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
-      //check if the whole entry will fit
-      unsigned int entrylen = 4+2+it->second[1u].asStringRef().size()+2+it->second[2u].asStringRef().size()+2+it->second[3u].asStringRef().size();
-      if (pwo+entrylen >= max){return;}
-      //write the pid as a 32 bits unsigned integer
+      // check if the whole entry will fit
+      unsigned int entrylen = 4 + 2 + it->second[1u].asStringRef().size() + 2 +
+                              it->second[2u].asStringRef().size() + 2 + it->second[3u].asStringRef().size();
+      if (pwo + entrylen >= max){return;}
+      // write the pid as a 32 bits unsigned integer
       Bit::htobl(pwo, it->first);
       pwo += 4;
-      //write the streamname, original target and target, 2-byte-size-prepended
+      // write the streamname, original target and target, 2-byte-size-prepended
       for (unsigned int i = 1; i < 4; ++i){
         const std::string &itm = it->second[i].asStringRef();
         Bit::htobs(pwo, itm.size());
-        memcpy(pwo+2, itm.data(), itm.size());
-        pwo += 2+itm.size();
+        memcpy(pwo + 2, itm.data(), itm.size());
+        pwo += 2 + itm.size();
       }
     }
-    //if it fits, write an ending zero to indicate end of page
-    if (pwo <= max){
-      Bit::htobl(pwo, 0);
-    }
+    // if it fits, write an ending zero to indicate end of page
+    if (pwo <= max){Bit::htobl(pwo, 0);}
   }
 
-  ///Reads the list of pushes from a pointer, assumed to end in four zeroes
-  static void readPushList(char * pwo){
+  /// Reads the list of pushes from a pointer, assumed to end in four zeroes
+  static void readPushList(char *pwo){
     activePushes.clear();
     pid_t p = Bit::btohl(pwo);
     HIGH_MSG("Recovering pushes: %" PRIu32, (uint32_t)p);
@@ -121,8 +120,8 @@ namespace Controller{
       pwo += 4;
       for (uint8_t i = 0; i < 3; ++i){
         uint16_t l = Bit::btohs(pwo);
-        push.append(std::string(pwo+2, l));
-        pwo += 2+l;
+        push.append(std::string(pwo + 2, l));
+        pwo += 2 + l;
       }
       INFO_MSG("Recovered push: %s", push.toString().c_str());
       Util::Procs::remember(p);
@@ -135,11 +134,11 @@ namespace Controller{
   /// Loops, checking every second if any pushes need restarting.
   void pushCheckLoop(void *np){
     {
-      IPC::sharedPage pushReadPage("MstPush", 8*1024*1024, false, false);
+      IPC::sharedPage pushReadPage("MstPush", 8 * 1024 * 1024, false, false);
       if (pushReadPage.mapped){readPushList(pushReadPage.mapped);}
     }
     pushListRead = true;
-    IPC::sharedPage pushPage("MstPush", 8*1024*1024, true, false);
+    IPC::sharedPage pushPage("MstPush", 8 * 1024 * 1024, true, false);
     while (Controller::conf.is_active){
       // this scope prevents the configMutex from being locked constantly
       {
@@ -149,7 +148,8 @@ namespace Controller{
         long long curCount = 0;
         jsonForEach(Controller::Storage["autopushes"], it){
           if (it->size() > 3 && (*it)[3u].asInt() < Util::epoch()){
-            INFO_MSG("Deleting autopush from %s to %s because end time passed", (*it)[0u].asStringRef().c_str(), (*it)[1u].asStringRef().c_str());
+            INFO_MSG("Deleting autopush from %s to %s because end time passed",
+                     (*it)[0u].asStringRef().c_str(), (*it)[1u].asStringRef().c_str());
             stopActivePushes((*it)[0u], (*it)[1u]);
             removePush(*it);
             break;
@@ -173,7 +173,8 @@ namespace Controller{
             const std::string &pStr = (*it)[0u].asStringRef();
             std::set<std::string> activeStreams = Controller::getActiveStreams(pStr);
             if (activeStreams.size()){
-              for (std::set<std::string>::iterator jt = activeStreams.begin(); jt != activeStreams.end(); ++jt){
+              for (std::set<std::string>::iterator jt = activeStreams.begin();
+                   jt != activeStreams.end(); ++jt){
                 std::string streamname = *jt;
                 std::string target = (*it)[1u];
                 if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
@@ -201,10 +202,10 @@ namespace Controller{
       }
       Util::wait(1000); // wait at least a second
     }
-    //keep the pushPage if we are restarting, so we can restore state from it
+    // keep the pushPage if we are restarting, so we can restore state from it
     if (Util::Config::is_restarting){
       pushPage.master = false;
-      //forget about all pushes, so they keep running
+      // forget about all pushes, so they keep running
       for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
         Util::Procs::forget(it->first);
       }
@@ -250,7 +251,8 @@ namespace Controller{
     }
     long long epo = Util::epoch();
     if (newPush.size() > 3 && newPush[3u].asInt() <= epo){
-      WARN_MSG("Automatic push not added: removal time is in the past! (%" PRId64 " <= %" PRIu64 ")", newPush[3u].asInt(), Util::epoch());
+      WARN_MSG("Automatic push not added: removal time is in the past! (%" PRId64 " <= %" PRIu64 ")",
+               newPush[3u].asInt(), Util::epoch());
       return;
     }
     bool edited = false;
@@ -333,10 +335,13 @@ namespace Controller{
 
   void pushSettings(const JSON::Value &request, JSON::Value &response){
     if (request.isObject()){
-      if (request.isMember("wait")){Controller::Storage["push_settings"]["wait"] = request["wait"].asInt();}
-      if (request.isMember("maxspeed")){Controller::Storage["push_settings"]["maxspeed"] = request["maxspeed"].asInt();}
+      if (request.isMember("wait")){
+        Controller::Storage["push_settings"]["wait"] = request["wait"].asInt();
+      }
+      if (request.isMember("maxspeed")){
+        Controller::Storage["push_settings"]["maxspeed"] = request["maxspeed"].asInt();
+      }
     }
     response = Controller::Storage["push_settings"];
   }
-}
-
+}// namespace Controller

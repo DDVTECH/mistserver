@@ -42,4 +42,3 @@ uint64_t AnalyserMP4::neededBytes(){
   size += ntohl(((int *)mp4Buffer.data())[3]);
   return size;
 }
-

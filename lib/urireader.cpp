@@ -8,7 +8,6 @@
 
 namespace HTTP{
 
-
   void URIReader::init(){
     handle = -1;
     mapped = 0;
@@ -28,9 +27,7 @@ namespace HTTP{
     bufPos = 0;
   }
 
-  URIReader::URIReader(){
-    init();
-  }
+  URIReader::URIReader(){init();}
 
   URIReader::URIReader(const HTTP::URL &uri){
     init();
@@ -45,9 +42,7 @@ namespace HTTP{
   bool URIReader::open(const std::string &reluri){return open(myURI.link(reluri));}
 
   /// Internal callback function, used to buffer data.
-  void URIReader::dataCallback(const char *ptr, size_t size){
-    allData.append(ptr, size);
-  }
+  void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
 
   bool URIReader::open(const HTTP::URL &uri){
     close();
@@ -109,10 +104,9 @@ namespace HTTP{
       // Send HEAD request to determine range request is supported, and get total length
       downer.clearHeaders();
       if (!downer.head(myURI) || !downer.isOk()){
-        FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(), downer.getStatusCode(), downer.getStatusText().c_str());
-        if (!downer.isOk()){
-          return false;
-        }
+        FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
+                 downer.getStatusCode(), downer.getStatusText().c_str());
+        if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
       }else{
@@ -228,38 +222,38 @@ namespace HTTP{
 
   /// Readsome blocking function.
   void URIReader::readSome(char *&dataPtr, size_t &dataLen, size_t wantedLen){
-    //Clear the buffer if we're finished with it
+    // Clear the buffer if we're finished with it
     if (allData.size() && bufPos == allData.size()){
       allData.truncate(0);
       bufPos = 0;
     }
-    //Read more data if needed
+    // Read more data if needed
     while (allData.size() < wantedLen + bufPos && *this){
       readSome(wantedLen - (allData.size() - bufPos), *this);
     }
-    //Return wantedLen bytes if we have them
+    // Return wantedLen bytes if we have them
     if (allData.size() >= wantedLen + bufPos){
       dataPtr = allData + bufPos;
       dataLen = wantedLen;
       bufPos += wantedLen;
       return;
     }
-    //Ok, we have a short count. Return the amount we actually got.
+    // Ok, we have a short count. Return the amount we actually got.
     dataPtr = allData + bufPos;
     dataLen = allData.size() - bufPos;
     bufPos = allData.size();
   }
 
   void URIReader::close(){
-    //Close downloader socket if open
+    // Close downloader socket if open
     downer.getSocket().close();
-    //Unmap file if mapped
+    // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);
       mapped = 0;
       totalSize = 0;
     }
-    //Close file handle if open
+    // Close file handle if open
     if (handle != -1){
       ::close(handle);
       handle = -1;

@@ -28,7 +28,7 @@ namespace Mist{
     void parseStreamHeader();
     void seek(int seekTime){}
     void sendCommand(const std::string &cmd, const std::string &cUrl, const std::string &body,
-                     const std::map<std::string, std::string> *extraHeaders = 0, bool reAuth=true);
+                     const std::map<std::string, std::string> *extraHeaders = 0, bool reAuth = true);
     bool parsePacket(bool mustHave = false);
     bool handleUDP();
     std::string streamMainLoop();
@@ -49,4 +49,3 @@ namespace Mist{
 }// namespace Mist
 
 typedef Mist::InputRTSP mistIn;
-

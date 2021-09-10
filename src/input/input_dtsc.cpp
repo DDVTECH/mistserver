@@ -1,25 +1,27 @@
-#include <iostream>
-#include <cstring>
 #include <cerrno>
-#include <cstdlib>
 #include <cstdio>
-#include <string>
-#include <mist/stream.h>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 #include <mist/defines.h>
+#include <mist/stream.h>
+#include <string>
 
-#include <mist/util.h>
 #include <mist/bitfields.h>
+#include <mist/util.h>
 
 #include "input_dtsc.h"
 
-namespace Mist {
-  inputDTSC::inputDTSC(Util::Config * cfg) : Input(cfg) {
+namespace Mist{
+  inputDTSC::inputDTSC(Util::Config *cfg) : Input(cfg){
     capa["name"] = "DTSC";
-    capa["desc"] = "Load DTSC files as Video on Demand sources, or dtsc:// URLs from other MistServer instances for live sources. This is the optimal method to pull live sources from other MistServer (or compatible) instances.";
+    capa["desc"] = "Load DTSC files as Video on Demand sources, or dtsc:// URLs from other "
+                   "MistServer instances for live sources. This is the optimal method to pull live "
+                   "sources from other MistServer (or compatible) instances.";
     capa["priority"] = 9;
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
-    capa["always_match"].append("dtsc://*");//can be said to always-on mode
+    capa["always_match"].append("dtsc://*"); // can be said to always-on mode
     capa["source_file"] = "$source";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("H263");
@@ -29,7 +31,6 @@ namespace Mist {
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("vorbis");
 
-
     JSON::Value option;
     option["arg"] = "integer";
     option["long"] = "buffer";
@@ -38,7 +39,10 @@ namespace Mist {
     option["value"].append(50000);
     config->addOption("bufferTime", option);
     capa["optional"]["DVR"]["name"] = "Buffer time (ms)";
-    capa["optional"]["DVR"]["help"] = "The target available buffer time for this live stream, in milliseconds. This is the time available to seek around in, and will automatically be extended to fit whole keyframes as well as the minimum duration needed for stable playback.";
+    capa["optional"]["DVR"]["help"] =
+        "The target available buffer time for this live stream, in milliseconds. This is the time "
+        "available to seek around in, and will automatically be extended to fit whole keyframes as "
+        "well as the minimum duration needed for stable playback.";
     capa["optional"]["DVR"]["option"] = "--buffer";
     capa["optional"]["DVR"]["type"] = "uint";
     capa["optional"]["DVR"]["default"] = 50000;
@@ -56,93 +60,94 @@ namespace Mist {
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 1900;
     /*LTS-END*/
-
   }
 
   bool inputDTSC::needsLock(){
     return config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
   }
 
-  void parseDTSCURI(const std::string & src, std::string & host, uint16_t & port, std::string & password, std::string & streamName) {
+  void parseDTSCURI(const std::string &src, std::string &host, uint16_t &port,
+                    std::string &password, std::string &streamName){
     host = "";
     port = 4200;
     password = "";
     streamName = "";
     std::deque<std::string> matches;
-    if (Util::stringScan(src, "%s:%s@%s/%s", matches)) {
+    if (Util::stringScan(src, "%s:%s@%s/%s", matches)){
       host = matches[0];
       port = atoi(matches[1].c_str());
       password = matches[2];
       streamName = matches[3];
       return;
     }
-    //Using default streamname
-    if (Util::stringScan(src, "%s:%s@%s", matches)) {
+    // Using default streamname
+    if (Util::stringScan(src, "%s:%s@%s", matches)){
       host = matches[0];
       port = atoi(matches[1].c_str());
       password = matches[2];
       return;
     }
-    //Without password
-    if (Util::stringScan(src, "%s:%s/%s", matches)) {
+    // Without password
+    if (Util::stringScan(src, "%s:%s/%s", matches)){
       host = matches[0];
       port = atoi(matches[1].c_str());
       streamName = matches[2];
       return;
     }
-    //Using default port
-    if (Util::stringScan(src, "%s@%s/%s", matches)) {
+    // Using default port
+    if (Util::stringScan(src, "%s@%s/%s", matches)){
       host = matches[0];
       password = matches[1];
       streamName = matches[2];
       return;
     }
-    //Default port, no password
-    if (Util::stringScan(src, "%s/%s", matches)) {
+    // Default port, no password
+    if (Util::stringScan(src, "%s/%s", matches)){
       host = matches[0];
       streamName = matches[1];
       return;
     }
-    //No password, default streamname
-    if (Util::stringScan(src, "%s:%s", matches)) {
+    // No password, default streamname
+    if (Util::stringScan(src, "%s:%s", matches)){
       host = matches[0];
       port = atoi(matches[1].c_str());
       return;
     }
-    //Default port and streamname
-    if (Util::stringScan(src, "%s@%s", matches)) {
+    // Default port and streamname
+    if (Util::stringScan(src, "%s@%s", matches)){
       host = matches[0];
       password = matches[1];
       return;
     }
-    //Default port and streamname, no password
-    if (Util::stringScan(src, "%s", matches)) {
+    // Default port and streamname, no password
+    if (Util::stringScan(src, "%s", matches)){
       host = matches[0];
       return;
     }
   }
 
-  void inputDTSC::parseStreamHeader() {
+  void inputDTSC::parseStreamHeader(){
     while (srcConn.connected() && config->is_active){
       srcConn.spool();
       if (srcConn.Received().available(8)){
-        if (srcConn.Received().copy(4) == "DTCM" || srcConn.Received().copy(4) == "DTSC") {
+        if (srcConn.Received().copy(4) == "DTCM" || srcConn.Received().copy(4) == "DTSC"){
           // Command message
           std::string toRec = srcConn.Received().copy(8);
           unsigned long rSize = Bit::btohl(toRec.c_str() + 4);
-          if (!srcConn.Received().available(8 + rSize)) {
+          if (!srcConn.Received().available(8 + rSize)){
             nProxy.userClient.keepAlive();
             Util::sleep(100);
-            continue; //abort - not enough data yet
+            continue; // abort - not enough data yet
           }
-          //Ignore initial DTCM message, as this is a "hi" message from the server
+          // Ignore initial DTCM message, as this is a "hi" message from the server
           if (srcConn.Received().copy(4) == "DTCM"){
             srcConn.Received().remove(8 + rSize);
           }else{
-            std::string dataPacket = srcConn.Received().remove(8+rSize);
+            std::string dataPacket = srcConn.Received().remove(8 + rSize);
             DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
             myMeta.reinit(metaPack);
-            for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
+            for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+                 it != myMeta.tracks.end(); it++){
               continueNegotiate(it->first, true);
             }
             break;
@@ -158,65 +163,55 @@ namespace Mist {
     }
   }
 
-  bool inputDTSC::openStreamSource() {
+  bool inputDTSC::openStreamSource(){
     std::string source = config->getString("input");
     if (source == "-"){
-      srcConn.open(fileno(stdout),fileno(stdin));
+      srcConn.open(fileno(stdout), fileno(stdin));
       return true;
     }
-    if (source.find("dtsc://") == 0) {
-      source.erase(0, 7);
-    }
+    if (source.find("dtsc://") == 0){source.erase(0, 7);}
     std::string host;
     uint16_t port;
     std::string password;
     std::string streamName;
     parseDTSCURI(source, host, port, password, streamName);
     std::string givenStream = config->getString("streamname");
-    if (streamName == "") {
-      streamName = givenStream;
-    }
+    if (streamName == ""){streamName = givenStream;}
     srcConn.open(host, port, true);
-    if (!srcConn.connected()){
-      return false;
-    }
+    if (!srcConn.connected()){return false;}
     JSON::Value prep;
     prep["cmd"] = "play";
     prep["version"] = "MistServer " PACKAGE_VERSION;
     prep["stream"] = streamName;
     srcConn.SendNow("DTCM");
-    char sSize[4] = {0, 0, 0, 0};
+    char sSize[4] ={0, 0, 0, 0};
     Bit::htobl(sSize, prep.packedSize());
     srcConn.SendNow(sSize, 4);
     prep.sendTo(srcConn);
     return true;
   }
 
-  void inputDTSC::closeStreamSource(){
-    srcConn.close();
-  }
+  void inputDTSC::closeStreamSource(){srcConn.close();}
 
-  bool inputDTSC::checkArguments() {
-    if (!needsLock()) {
+  bool inputDTSC::checkArguments(){
+    if (!needsLock()){
       return true;
-    } else {
-      if (!config->getString("streamname").size()) {
-        if (config->getString("output") == "-") {
+    }else{
+      if (!config->getString("streamname").size()){
+        if (config->getString("output") == "-"){
           std::cerr << "Output to stdout not yet supported" << std::endl;
           return false;
         }
-      } else {
-        if (config->getString("output") != "-") {
+      }else{
+        if (config->getString("output") != "-"){
           std::cerr << "File output in player mode not supported" << std::endl;
           return false;
         }
       }
 
-      //open File
+      // open File
       inFile = DTSC::File(config->getString("input"));
-      if (!inFile) {
-        return false;
-      }
+      if (!inFile){return false;}
     }
     return true;
   }
@@ -226,11 +221,9 @@ namespace Mist {
     return Input::needHeader();
   }
 
-  bool inputDTSC::readHeader() {
-    if (!inFile) {
-      return false;
-    }
-    if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0) {
+  bool inputDTSC::readHeader(){
+    if (!inFile){return false;}
+    if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0){
       DEBUG_MSG(DLVL_FAIL, "Missing external header file");
       return false;
     }
@@ -239,7 +232,7 @@ namespace Mist {
     return true;
   }
 
-  void inputDTSC::getNext(bool smart) {
+  void inputDTSC::getNext(bool smart){
     if (!needsLock()){
       thisPacket.reInit(srcConn);
       while (config->is_active){
@@ -248,17 +241,16 @@ namespace Mist {
           std::string cmd;
           thisPacket.getString("cmd", cmd);
           if (cmd == "reset"){
-            //Read next packet
+            // Read next packet
             thisPacket.reInit(srcConn);
             if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
               DTSC::Meta newMeta;
               newMeta.reinit(thisPacket);
-              //Detect new tracks
+              // Detect new tracks
               std::set<unsigned int> newTracks;
-              for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
-                if (!myMeta.tracks.count(it->first)){
-                  newTracks.insert(it->first);
-                }
+              for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin();
+                   it != newMeta.tracks.end(); it++){
+                if (!myMeta.tracks.count(it->first)){newTracks.insert(it->first);}
               }
 
               for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
@@ -267,34 +259,33 @@ namespace Mist {
                 continueNegotiate(*it, true);
               }
 
-              //Detect removed tracks
+              // Detect removed tracks
               std::set<unsigned int> deletedTracks;
-              for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-                if (!newMeta.tracks.count(it->first)){
-                  deletedTracks.insert(it->first);
-                }
+              for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+                   it != myMeta.tracks.end(); it++){
+                if (!newMeta.tracks.count(it->first)){deletedTracks.insert(it->first);}
               }
 
-              for(std::set<unsigned int>::iterator it = deletedTracks.begin(); it != deletedTracks.end(); it++){
+              for (std::set<unsigned int>::iterator it = deletedTracks.begin();
+                   it != deletedTracks.end(); it++){
                 INFO_MSG("Reset: deleting track %d", *it);
                 myMeta.tracks.erase(*it);
               }
-              thisPacket.reInit(srcConn);//read the next packet before continuing
+              thisPacket.reInit(srcConn); // read the next packet before continuing
             }else{
               myMeta = DTSC::Meta();
             }
           }else{
-            thisPacket.reInit(srcConn);//read the next packet before continuing
+            thisPacket.reInit(srcConn); // read the next packet before continuing
           }
-          continue;//parse the next packet before returning
+          continue; // parse the next packet before returning
         }else if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
           DTSC::Meta newMeta;
           newMeta.reinit(thisPacket);
           std::set<unsigned int> newTracks;
-          for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin(); it != newMeta.tracks.end(); it++){
-            if (!myMeta.tracks.count(it->first)){
-              newTracks.insert(it->first);
-            }
+          for (std::map<unsigned int, DTSC::Track>::iterator it = newMeta.tracks.begin();
+               it != newMeta.tracks.end(); it++){
+            if (!myMeta.tracks.count(it->first)){newTracks.insert(it->first);}
           }
 
           for (std::set<unsigned int>::iterator it = newTracks.begin(); it != newTracks.end(); it++){
@@ -302,49 +293,49 @@ namespace Mist {
             myMeta.tracks[*it] = newMeta.tracks[*it];
             continueNegotiate(*it, true);
           }
-          thisPacket.reInit(srcConn);//read the next packet before continuing
-          continue;//parse the next packet before returning
+          thisPacket.reInit(srcConn); // read the next packet before continuing
+          continue;                   // parse the next packet before returning
         }
-        //We now know we have either a data packet, or an error.
+        // We now know we have either a data packet, or an error.
         if (!thisPacket.getTrackId()){
           if (thisPacket.getVersion() == DTSC::DTSC_V2){
-            WARN_MSG("Received bad packet for stream %s: %llu@%llu", streamName.c_str(), thisPacket.getTrackId(), thisPacket.getTime());
+            WARN_MSG("Received bad packet for stream %s: %llu@%llu", streamName.c_str(),
+                     thisPacket.getTrackId(), thisPacket.getTime());
           }else{
-            //All types except data packets are handled above, so if it's not a V2 data packet, we assume corruption
+            // All types except data packets are handled above, so if it's not a V2 data packet, we assume corruption
             WARN_MSG("Invalid packet header for stream %s", streamName.c_str());
           }
         }
-        return;//we have a packet
+        return; // we have a packet
       }
     }else{
-      if (smart) {
+      if (smart){
         inFile.seekNext();
-      } else {
+      }else{
         inFile.parseNext();
       }
       thisPacket = inFile.getPacket();
     }
   }
 
-  void inputDTSC::seek(int seekTime) {
+  void inputDTSC::seek(int seekTime){
     inFile.seek_time(seekTime);
     initialTime = 0;
     playUntil = 0;
   }
 
-  void inputDTSC::trackSelect(std::string trackSpec) {
+  void inputDTSC::trackSelect(std::string trackSpec){
     selectedTracks.clear();
     long long unsigned int index;
-    while (trackSpec != "") {
+    while (trackSpec != ""){
       index = trackSpec.find(' ');
       selectedTracks.insert(atoi(trackSpec.substr(0, index).c_str()));
-      if (index != std::string::npos) {
+      if (index != std::string::npos){
         trackSpec.erase(0, index + 1);
-      } else {
+      }else{
         trackSpec = "";
       }
     }
     inFile.selectTracks(selectedTracks);
   }
-}
-
+}// namespace Mist

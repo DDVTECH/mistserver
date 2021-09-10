@@ -42,4 +42,3 @@ namespace Mpeg{
   void parseMPEG2Headers(const char *hdr, uint32_t len, MPEG2Info &mpInfo);
   MPEG2Info parseMPEG2Headers(const char *hdr, uint32_t len);
 }// namespace Mpeg
-

@@ -35,8 +35,7 @@ unsigned long long Bit::getMSB(char *pointer, unsigned int offsetBits, unsigned 
 /// This function assumes Most Significant Bits first.
 /// WARNING: UNFINISHED. DO NOT USE.
 /// \todo Finish writing this - untested atm.
-void Bit::setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits,
-                 unsigned long long value){
+void Bit::setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits, unsigned long long value){
   // Set the pointer to the last byte we need to be setting
   pointer += (offsetBits + dataBits) >> 3;
   // The offset is now guaranteed less than a whole byte.
@@ -73,4 +72,3 @@ bool Util::stringToBool(std::string &str){
   return (strncmp(tmp.c_str(), "1", 1) == 0 || strncmp(tmp.c_str(), "yes", 3) == 0 ||
           strncmp(tmp.c_str(), "true", 4) == 0 || strncmp(tmp.c_str(), "cont", 4) == 0);
 }
-

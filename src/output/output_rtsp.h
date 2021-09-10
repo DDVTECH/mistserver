@@ -22,7 +22,7 @@ namespace Mist{
 
   private:
     long long connectedAt;   ///< The timestamp the connection was made, as reference point for RTCP
-                             ///packets.
+                             /// packets.
     unsigned int pausepoint; ///< Position to pause at, when reached
     SDP::State sdpState;
     HTTP::Parser HTTP_R, HTTP_S;
@@ -35,7 +35,6 @@ namespace Mist{
     bool handleTCP();
     void handleUDP();
   };
-}
+}// namespace Mist
 
 typedef Mist::OutRTSP mistOut;
-

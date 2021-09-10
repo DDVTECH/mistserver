@@ -35,7 +35,7 @@ bool AnalyserH264::parsePacket(){
 
   size_t size = 0;
   h264::nalUnit *nalPtr;
-  do {
+  do{
     size = 0;
     nalPtr = h264::nalFactory(dataBuffer.data(), dataBuffer.size(), size, !sizePrepended);
     if (nalPtr){
@@ -44,8 +44,8 @@ bool AnalyserH264::parsePacket(){
       dataBuffer.erase(0, size); // erase the NAL unit we just read
       prePos += size;
     }
-  ///\TODO update mediaTime with current timestamp
-  } while(nalPtr);
+    ///\TODO update mediaTime with current timestamp
+  }while (nalPtr);
   if (!nalPtr){
     FAIL_MSG("Could not read a NAL unit at position %llu", prePos);
     return false;
@@ -58,6 +58,5 @@ uint64_t AnalyserH264::neededBytes(){
   if (!sizePrepended){return 1024 * 1024;}
   // otherwise, buffer the exact size needed
   if (dataBuffer.size() < 4){return 4;}
-  return Bit::btohl(dataBuffer.data())+4;
+  return Bit::btohl(dataBuffer.data()) + 4;
 }
-

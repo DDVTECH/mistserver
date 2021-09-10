@@ -1,14 +1,15 @@
 #include "input_ebml.h"
+#include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/ebml.h>
-#include <mist/bitfields.h>
 
 namespace Mist{
 
   InputEBML::InputEBML(Util::Config *cfg) : Input(cfg){
     timeScale = 1.0;
     capa["name"] = "EBML";
-    capa["desc"] = "Allows loading MKV, MKA, MK3D, MKS and WebM files for Video on Demand, or accepts live streams in those formats over standard input.";
+    capa["desc"] = "Allows loading MKV, MKA, MK3D, MKS and WebM files for Video on Demand, or "
+                   "accepts live streams in those formats over standard input.";
     capa["source_match"].append("/*.mkv");
     capa["source_match"].append("/*.mka");
     capa["source_match"].append("/*.mk3d");
@@ -42,21 +43,27 @@ namespace Mist{
     wantBlocks = true;
   }
 
-  std::string ASStoSRT(const char * ptr, uint32_t len){
+  std::string ASStoSRT(const char *ptr, uint32_t len){
     uint16_t commas = 0;
     uint16_t brackets = 0;
     std::string tmpStr;
     tmpStr.reserve(len);
     for (uint32_t i = 0; i < len; ++i){
-      //Skip everything until the 8th comma
+      // Skip everything until the 8th comma
       if (commas < 8){
         if (ptr[i] == ','){commas++;}
         continue;
       }
-      if (ptr[i] == '{'){brackets++; continue;}
-      if (ptr[i] == '}'){brackets--; continue;}
+      if (ptr[i] == '{'){
+        brackets++;
+        continue;
+      }
+      if (ptr[i] == '}'){
+        brackets--;
+        continue;
+      }
       if (!brackets){
-        if (ptr[i] == '\\' && i < len-1 && (ptr[i+1] == 'N' || ptr[i+1] == 'n')){
+        if (ptr[i] == '\\' && i < len - 1 && (ptr[i + 1] == 'N' || ptr[i + 1] == 'n')){
           tmpStr += '\n';
           ++i;
           continue;
@@ -66,7 +73,6 @@ namespace Mist{
     }
     return tmpStr;
   }
-
 
   bool InputEBML::checkArguments(){
     if (!config->getString("streamname").size()){
@@ -83,8 +89,8 @@ namespace Mist{
     return true;
   }
 
-  bool InputEBML::needsLock() {
-    //Standard input requires no lock, otherwise default behaviour.
+  bool InputEBML::needsLock(){
+    // Standard input requires no lock, otherwise default behaviour.
     if (config->getString("input") == "-"){return false;}
     return Input::needsLock();
   }
@@ -107,7 +113,7 @@ namespace Mist{
     while (ptr.size() < needed){
       if (!ptr.allocate(needed)){return false;}
       if (!fread(ptr + ptr.size(), needed - ptr.size(), 1, inFile)){
-        //We assume if there is no current data buffered, that we are at EOF and don't print a warning
+        // We assume if there is no current data buffered, that we are at EOF and don't print a warning
         if (ptr.size()){
           FAIL_MSG("Could not read more data! (have %lu, need %lu)", ptr.size(), needed);
         }
@@ -129,7 +135,7 @@ namespace Mist{
         lastClusterBPos = 0;
       }else{
         int64_t bp = Util::ftell(inFile);
-        if(bp == -1 && errno == ESPIPE){
+        if (bp == -1 && errno == ESPIPE){
           lastClusterBPos = 0;
         }else{
           lastClusterBPos = bp;
@@ -154,7 +160,7 @@ namespace Mist{
       }
     }
     if (myMeta.inputLocalVars.isMember("timescale")){
-        timeScale = ((double)myMeta.inputLocalVars["timescale"].asInt()) / 1000000.0;
+      timeScale = ((double)myMeta.inputLocalVars["timescale"].asInt()) / 1000000.0;
     }
     return true;
   }
@@ -279,25 +285,23 @@ namespace Mist{
             std::string WAVEFORMATEX = tmpElem.getValStringUntrimmed();
             unsigned int formatTag = Bit::btohs_le(WAVEFORMATEX.data());
             switch (formatTag){
-              case 3:
-                trueCodec = "FLOAT";
-                trueType = "audio";
-                break;
-              case 6:
-                trueCodec = "ALAW";
-                trueType = "audio";
-                break;
-              case 7:
-                trueCodec = "ULAW";
-                trueType = "audio";
-                break;
-              case 85:
-                trueCodec = "MP3";
-                trueType = "audio";
-                break;
-              default:
-                ERROR_MSG("Unimplemented A_MS/ACM formatTag: %u", formatTag);
-                break;
+            case 3:
+              trueCodec = "FLOAT";
+              trueType = "audio";
+              break;
+            case 6:
+              trueCodec = "ALAW";
+              trueType = "audio";
+              break;
+            case 7:
+              trueCodec = "ULAW";
+              trueType = "audio";
+              break;
+            case 85:
+              trueCodec = "MP3";
+              trueType = "audio";
+              break;
+            default: ERROR_MSG("Unimplemented A_MS/ACM formatTag: %u", formatTag); break;
             }
           }
         }
@@ -335,7 +339,7 @@ namespace Mist{
         myMeta.inputLocalVars["timescale"] = timeScaleVal;
         timeScale = ((double)timeScaleVal) / 1000000.0;
       }
-      //Live streams stop parsing the header as soon as the first Cluster is encountered
+      // Live streams stop parsing the header as soon as the first Cluster is encountered
       if (E.getID() == EBML::EID_CLUSTER && !needsLock()){return true;}
       if (E.getType() == EBML::ELEM_BLOCK){
         EBML::Block B(ptr);
@@ -346,7 +350,7 @@ namespace Mist{
         bool isVideo = (Trk.type == "video");
         bool isAudio = (Trk.type == "audio");
         bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
-        //If this is a new video keyframe, flush the corresponding trackPredictor
+        // If this is a new video keyframe, flush the corresponding trackPredictor
         if (isVideo && B.isKeyframe()){
           while (TP.hasPackets(true)){
             packetData &C = TP.getPacketData(true);
@@ -358,29 +362,28 @@ namespace Mist{
         for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
           if (frameNo){
             if (Trk.codec == "AAC"){
-              newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
-            } else if (Trk.codec == "MP3"){
-              newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
-            } else if (Trk.codec == "DTS"){
-              //Assume 512 samples per frame (DVD default)
-              //actual amount can be calculated from data, but data
-              //is not available during header generation...
-              //See: http://www.stnsoft.com/DVD/dtshdr.html
-              newTime += (512000 / Trk.rate)/timeScale;
+              newTime += (1000000 / Trk.rate) / timeScale; // assume ~1000 samples per frame
+            }else if (Trk.codec == "MP3"){
+              newTime += (1152000 / Trk.rate) / timeScale; // 1152 samples per frame
+            }else if (Trk.codec == "DTS"){
+              // Assume 512 samples per frame (DVD default)
+              // actual amount can be calculated from data, but data
+              // is not available during header generation...
+              // See: http://www.stnsoft.com/DVD/dtshdr.html
+              newTime += (512000 / Trk.rate) / timeScale;
             }else{
-              newTime += 1/timeScale;
+              newTime += 1 / timeScale;
               ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
             }
           }
           uint32_t frameSize = B.getFrameSize(frameNo);
           if (isASS){
-            char * ptr = (char *)B.getFrameData(frameNo);
+            char *ptr = (char *)B.getFrameData(frameNo);
             std::string assStr = ASStoSRT(ptr, frameSize);
             frameSize = assStr.size();
           }
           if (frameSize){
-            TP.add(newTime*timeScale, 0, tNum, frameSize, lastClusterBPos,
-                 B.isKeyframe() && !isAudio, isVideo);
+            TP.add(newTime * timeScale, 0, tNum, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
           }
         }
         while (TP.hasPackets()){
@@ -392,8 +395,7 @@ namespace Mist{
     }
 
     if (packBuf.size()){
-      for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end();
-           ++it){
+      for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
         trackPredictor &TP = it->second;
         while (TP.hasPackets(true)){
           packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
@@ -459,8 +461,7 @@ namespace Mist{
   void InputEBML::getNext(bool smart){
     // Make sure we empty our buffer first
     if (bufferedPacks && packBuf.size()){
-      for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin();
-           it != packBuf.end(); ++it){
+      for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
         trackPredictor &TP = it->second;
         if (TP.hasPackets()){
           packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
@@ -477,8 +478,7 @@ namespace Mist{
         if (!readElement()){
           // Make sure we empty our buffer first
           if (bufferedPacks && packBuf.size()){
-            for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin();
-                 it != packBuf.end(); ++it){
+            for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
               trackPredictor &TP = it->second;
               if (TP.hasPackets(true)){
                 packetData &C = TP.getPacketData(myMeta.tracks[it->first].type == "video");
@@ -502,12 +502,12 @@ namespace Mist{
     uint64_t tNum = B.getTrackNum();
     uint64_t newTime = lastClusterTime + B.getTimecode();
     trackPredictor &TP = packBuf[tNum];
-    DTSC::Track & Trk = myMeta.tracks[tNum];
+    DTSC::Track &Trk = myMeta.tracks[tNum];
     bool isVideo = (Trk.type == "video");
     bool isAudio = (Trk.type == "audio");
     bool isASS = (Trk.codec == "subtitle" && Trk.init.size());
 
-    //If this is a new video keyframe, flush the corresponding trackPredictor
+    // If this is a new video keyframe, flush the corresponding trackPredictor
     if (isVideo && B.isKeyframe() && bufferedPacks){
       if (TP.hasPackets(true)){
         wantBlocks = false;
@@ -518,39 +518,36 @@ namespace Mist{
         return;
       }
     }
-    if (isVideo && B.isKeyframe()){
-      TP.flush();
-    }
+    if (isVideo && B.isKeyframe()){TP.flush();}
     wantBlocks = true;
-
 
     for (uint64_t frameNo = 0; frameNo < B.getFrameCount(); ++frameNo){
       if (frameNo){
         if (Trk.codec == "AAC"){
-          newTime += (1000000 / Trk.rate)/timeScale;//assume ~1000 samples per frame
-        } else if (Trk.codec == "MP3"){
-          newTime += (1152000 / Trk.rate)/timeScale;//1152 samples per frame
-        } else if (Trk.codec == "DTS"){
-          //Assume 512 samples per frame (DVD default)
-          //actual amount can be calculated from data, but data
-          //is not available during header generation...
-          //See: http://www.stnsoft.com/DVD/dtshdr.html
-          newTime += (512000 / Trk.rate)/timeScale;
+          newTime += (1000000 / Trk.rate) / timeScale; // assume ~1000 samples per frame
+        }else if (Trk.codec == "MP3"){
+          newTime += (1152000 / Trk.rate) / timeScale; // 1152 samples per frame
+        }else if (Trk.codec == "DTS"){
+          // Assume 512 samples per frame (DVD default)
+          // actual amount can be calculated from data, but data
+          // is not available during header generation...
+          // See: http://www.stnsoft.com/DVD/dtshdr.html
+          newTime += (512000 / Trk.rate) / timeScale;
         }else{
           ERROR_MSG("Unknown frame duration for codec %s - timestamps WILL be wrong!", Trk.codec.c_str());
         }
       }
       uint32_t frameSize = B.getFrameSize(frameNo);
       if (frameSize){
-        char * ptr = (char *)B.getFrameData(frameNo);
+        char *ptr = (char *)B.getFrameData(frameNo);
         if (isASS){
           std::string assStr = ASStoSRT(ptr, frameSize);
           frameSize = assStr.size();
           memcpy(ptr, assStr.data(), frameSize);
         }
         if (frameSize){
-          TP.add(newTime*timeScale, 0, tNum, frameSize, lastClusterBPos,
-          B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
+          TP.add(newTime * timeScale, 0, tNum, frameSize, lastClusterBPos,
+                 B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
           ++bufferedPacks;
         }
       }
@@ -583,7 +580,7 @@ namespace Mist{
     Util::fseek(inFile, seekPos, SEEK_SET);
   }
 
-  ///Flushes all trackPredictors without deleting permanent data from them.
+  /// Flushes all trackPredictors without deleting permanent data from them.
   void InputEBML::clearPredictors(){
     if (!packBuf.size()){return;}
     for (std::map<uint64_t, trackPredictor>::iterator it = packBuf.begin(); it != packBuf.end(); ++it){
@@ -592,4 +589,3 @@ namespace Mist{
   }
 
 }// namespace Mist
-

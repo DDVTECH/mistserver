@@ -130,8 +130,6 @@ namespace AMF{
   /// Parses a std::string to a valid AMF::Object3.
   Object3 parse3(std::string data);
   /// Parses a single AMF3 type - used recursively by the AMF::parse3() functions.
-  Object3 parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i,
-                    std::string name);
+  Object3 parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name);
 
 }// namespace AMF
-

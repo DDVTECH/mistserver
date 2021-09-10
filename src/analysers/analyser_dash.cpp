@@ -21,9 +21,9 @@
 
 StreamData tempSD; // temp global
 
-bool getDelimBlock(std::string &data, std::string name, size_t &blockStart, size_t &blockEnd, std::string delim) {
+bool getDelimBlock(std::string &data, std::string name, size_t &blockStart, size_t &blockEnd, std::string delim){
   size_t offset = data.find(name);
-  if (offset == std::string::npos) {
+  if (offset == std::string::npos){
     return false; // name string not found.
   }
   // expected: delim character BEFORE blockstart.
@@ -35,18 +35,18 @@ bool getDelimBlock(std::string &data, std::string name, size_t &blockStart, size
   blockEnd = data.find(delim, offset);
 
   // DEBUG_MSG(DLVL_INFO, "offset: %i blockEnd: %i ", offset, blockEnd);
-  if (blockStart == std::string::npos || blockEnd == std::string::npos) {
+  if (blockStart == std::string::npos || blockEnd == std::string::npos){
     return false; // no start/end quotes found
   }
 
   blockEnd++; // include delim
-  // DEBUG_MSG(DLVL_INFO, "getDelimPos: data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart)  );
+  // DEBUG_MSG(DLVL_INFO, "getDelimPos: data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart) );
   return true;
 }
 
-bool getValueBlock(std::string &data, std::string name, size_t &blockStart, size_t &blockEnd, std::string delim) {
+bool getValueBlock(std::string &data, std::string name, size_t &blockStart, size_t &blockEnd, std::string delim){
   size_t offset = data.find(name);
-  if (offset == std::string::npos) {
+  if (offset == std::string::npos){
     return false; // name string not found.
   }
   blockStart = data.find(delim, offset);
@@ -55,31 +55,31 @@ bool getValueBlock(std::string &data, std::string name, size_t &blockStart, size
   offset = blockStart; // skip single character!
   blockEnd = data.find(delim, offset);
   // DEBUG_MSG(DLVL_INFO, "offset: %i blockEnd: %i ", offset, blockEnd);
-  if (blockStart == std::string::npos || blockEnd == std::string::npos) {
+  if (blockStart == std::string::npos || blockEnd == std::string::npos){
     return false; // no start/end quotes found
   }
-  // DEBUG_MSG(DLVL_INFO, "getValueBlock: data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart)  );
+  // DEBUG_MSG(DLVL_INFO, "getValueBlock: data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart) );
   return true;
 }
 
-bool getString(std::string &data, std::string name, std::string &output) {
+bool getString(std::string &data, std::string name, std::string &output){
   size_t blockStart = 0;
   size_t blockEnd = 0;
 
-  if (!getValueBlock(data, name, blockStart, blockEnd, "\"")) {
+  if (!getValueBlock(data, name, blockStart, blockEnd, "\"")){
     // DEBUG_MSG(DLVL_FAIL, "could not find \"%s\" in data block", name.c_str());
     return false; // could not find value in this data block.
   }
-  // DEBUG_MSG(DLVL_INFO, "data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart)  )
+  // DEBUG_MSG(DLVL_INFO, "data.size() %i start %i end %i num %i", data.size(), blockStart,blockEnd,(blockEnd-blockStart) )
   output = data.substr(blockStart, (blockEnd - blockStart));
   // looks like this function is working as expected
   // DEBUG_MSG(DLVL_INFO, "data in getstring %s", (data.substr(blockStart,(blockEnd-blockStart))).c_str());
   return true;
 }
 
-bool getLong(std::string &data, std::string name, long &output) {
+bool getLong(std::string &data, std::string name, long &output){
   size_t blockStart, blockEnd;
-  if (!getValueBlock(data, name, blockStart, blockEnd, "\"")) {
+  if (!getValueBlock(data, name, blockStart, blockEnd, "\"")){
     // DEBUG_MSG(DLVL_FAIL, "could not find \"%s\" in data block", name.c_str());
     return false; // could not find value in this data block.
   }
@@ -89,32 +89,32 @@ bool getLong(std::string &data, std::string name, long &output) {
 }
 
 // block expecting separate name and /name occurence, or name and /> before another occurence of <.
-bool getBlock(std::string &data, std::string name, int offset, size_t &blockStart, size_t &blockEnd) {
+bool getBlock(std::string &data, std::string name, int offset, size_t &blockStart, size_t &blockEnd){
   blockStart = data.find("<" + name + ">", offset);
-  if (blockStart == std::string::npos) {
+  if (blockStart == std::string::npos){
     blockStart = data.find("<" + name + " ", offset); // this considers both valid situations <name> and <name bla="bla"/>
   }
 
-  if (blockStart == std::string::npos) {
+  if (blockStart == std::string::npos){
     DEBUG_MSG(DLVL_INFO, "no block start found for name: %s at offset: %i", name.c_str(), offset);
     return false;
   }
 
   blockEnd = data.find("/" + name + ">", blockStart);
-  if (blockEnd == std::string::npos) {
+  if (blockEnd == std::string::npos){
     blockEnd = data.find("/>", blockStart);
-    if (blockEnd == std::string::npos) {
+    if (blockEnd == std::string::npos){
       DEBUG_MSG(DLVL_INFO, "no block end found.");
       return false;
     }
     size_t temp = data.find("<", blockStart + 1, (blockEnd - blockStart - 1)); // the +1 is to avoid re-interpreting the starting < //TODO!!
-    if (temp != std::string::npos) {                                           // all info is epxected between <name ... />
+    if (temp != std::string::npos){// all info is epxected between <name ... />
       DEBUG_MSG(DLVL_FAIL, "block start found before block end. offset: %lu block: %s", temp, data.c_str());
       return false;
     }
     // DEBUG_MSG(DLVL_FAIL, "special block end found");
     blockEnd += 2; // position after />
-  } else {
+  }else{
     blockEnd += name.size() + 2; // position after /name>
   }
 
@@ -122,31 +122,33 @@ bool getBlock(std::string &data, std::string name, int offset, size_t &blockStar
   return true;
 }
 
-bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
+bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos){
   // DEBUG_MSG(DLVL_INFO, "Parsing adaptationSet: %s", data.c_str());
   size_t offset = 0;
   size_t blockStart, blockEnd;
   tempSD.trackType = OTHER;
   // get value: mimetype //todo: handle this!
   std::string mimeType;
-  if (!getString(data, "mimeType", mimeType)) { // get first occurence of mimeType. --> this will break if multiple mimetypes should be read from
-                                                // this block because no offset is provided. solution: use this on a substring containing the
-                                                // desired information.
+  if (!getString(
+          data, "mimeType",
+          mimeType)){// get first occurence of mimeType. --> this will break if multiple mimetypes
+                       // should be read from this block because no offset is provided. solution:
+                       // use this on a substring containing the desired information.
     DEBUG_MSG(DLVL_FAIL, "mimeType not found");
     return false;
   }
 
   DEBUG_MSG(DLVL_INFO, "mimeType: %s", mimeType.c_str()); // checked, OK
 
-  if (mimeType.find("video") != std::string::npos) { tempSD.trackType = VIDEO; }
-  if (mimeType.find("audio") != std::string::npos) { tempSD.trackType = AUDIO; }
-  if (tempSD.trackType == OTHER) {
+  if (mimeType.find("video") != std::string::npos){tempSD.trackType = VIDEO;}
+  if (mimeType.find("audio") != std::string::npos){tempSD.trackType = AUDIO;}
+  if (tempSD.trackType == OTHER){
     DEBUG_MSG(DLVL_FAIL, "no audio or video type found. giving up.");
     return false;
   }
 
   // find an ID within this adaptationSet block.
-  if (!getBlock(data, (std::string) "Representation", offset, blockStart, blockEnd)) {
+  if (!getBlock(data, (std::string) "Representation", offset, blockStart, blockEnd)){
     DEBUG_MSG(DLVL_FAIL, "Representation not found");
     return false;
   }
@@ -157,7 +159,7 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
   DEBUG_MSG(DLVL_INFO, "Representation block: %s", block.c_str());
   // check if block is not junk?
 
-  if (!getLong(block, "id", tempSD.trackID)) {
+  if (!getLong(block, "id", tempSD.trackID)){
     DEBUG_MSG(DLVL_FAIL, "Representation id not found in block %s", block.c_str());
     return false;
   }
@@ -165,7 +167,7 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
 
   offset = 0;
   // get values from SegmentTemplate
-  if (!getBlock(data, (std::string) "SegmentTemplate", offset, blockStart, blockEnd)) {
+  if (!getBlock(data, (std::string) "SegmentTemplate", offset, blockStart, blockEnd)){
     DEBUG_MSG(DLVL_FAIL, "SegmentTemplate not found");
     return false;
   }
@@ -178,27 +180,28 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
 
   size_t tmpBlockStart = 0;
   size_t tmpBlockEnd = 0;
-  if (!getDelimBlock(tempSD.media, "RepresentationID", tmpBlockStart, tmpBlockEnd, "$")) {
+  if (!getDelimBlock(tempSD.media, "RepresentationID", tmpBlockStart, tmpBlockEnd, "$")){
     DEBUG_MSG(DLVL_FAIL, "Failed to find and replace $RepresentationID$ in %s", tempSD.media.c_str());
     return false;
   }
   tempSD.media.replace(tmpBlockStart, (tmpBlockEnd - tmpBlockStart), "%d");
 
-  if (!getDelimBlock(tempSD.media, "Time", tmpBlockStart, tmpBlockEnd, "$")) {
+  if (!getDelimBlock(tempSD.media, "Time", tmpBlockStart, tmpBlockEnd, "$")){
     DEBUG_MSG(DLVL_FAIL, "Failed to find and replace $Time$ in %s", tempSD.media.c_str());
     return false;
   }
   tempSD.media.replace(tmpBlockStart, (tmpBlockEnd - tmpBlockStart), "%d");
 
-  if (!getDelimBlock(tempSD.initialization, "RepresentationID", tmpBlockStart, tmpBlockEnd, "$")) {
-    DEBUG_MSG(DLVL_FAIL, "Failed to find and replace $RepresentationID$ in %s", tempSD.initialization.c_str());
+  if (!getDelimBlock(tempSD.initialization, "RepresentationID", tmpBlockStart, tmpBlockEnd, "$")){
+    DEBUG_MSG(DLVL_FAIL, "Failed to find and replace $RepresentationID$ in %s",
+              tempSD.initialization.c_str());
     return false;
   }
   tempSD.initialization.replace(tmpBlockStart, (tmpBlockEnd - tmpBlockStart), "%d");
 
   // get segment timeline block from within segment template:
   size_t blockOffset = 0; // offset should be 0 because this is a new block
-  if (!getBlock(block, "SegmentTimeline", blockOffset, blockStart, blockEnd)) {
+  if (!getBlock(block, "SegmentTimeline", blockOffset, blockStart, blockEnd)){
     DEBUG_MSG(DLVL_FAIL, "SegmentTimeline block not found");
     return false;
   }
@@ -210,12 +213,12 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
   offset = 0;
   long long unsigned int totalDuration = 0;
   long timeValue;
-  while (1) {
-    if (!getBlock(block2, "S", offset, blockStart, blockEnd)) {
-      if (numS == 0) {
+  while (1){
+    if (!getBlock(block2, "S", offset, blockStart, blockEnd)){
+      if (numS == 0){
         DEBUG_MSG(DLVL_FAIL, "no S found within SegmentTimeline");
         return false;
-      } else {
+      }else{
         DEBUG_MSG(DLVL_INFO, "all S found within SegmentTimeline %i", numS);
         return true; // break;  //escape from while loop (to return true)
       }
@@ -225,10 +228,10 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
     // searching for t(start position)
     std::string sBlock = block2.substr(blockStart, (blockEnd - blockStart));
     // DEBUG_MSG(DLVL_INFO, "S found. offset: %i blockStart: %i blockend: %i block: %s",offset,blockStart, blockEnd, sBlock.c_str());    //OK!
-    if (getLong(sBlock, "t", timeValue)) {
+    if (getLong(sBlock, "t", timeValue)){
       totalDuration = timeValue; // reset totalDuration to value of t
     }
-    if (!getLong(sBlock, "d", timeValue)) { // expected duration in every S.
+    if (!getLong(sBlock, "d", timeValue)){// expected duration in every S.
       DEBUG_MSG(DLVL_FAIL, "no d found within S");
       return false;
     }
@@ -250,12 +253,12 @@ bool parseAdaptationSet(std::string &data, std::set<seekPos> &currentPos) {
 
     currentPos.insert(thisPos); // assumes insert copies all data in seekPos struct.
     totalDuration += timeValue; // update totalDuration
-    offset = blockEnd;          // blockEnd and blockStart are absolute values within string, offset is not relevant.
+    offset = blockEnd; // blockEnd and blockStart are absolute values within string, offset is not relevant.
   }
   return true;
 }
 
-bool parseXML(std::string &body, std::set<seekPos> &currentPos, std::vector<StreamData> &streamData) {
+bool parseXML(std::string &body, std::set<seekPos> &currentPos, std::vector<StreamData> &streamData){
   // for all adaptation sets
   // representation ID
   int numAdaptationSet = 0;
@@ -264,24 +267,24 @@ bool parseXML(std::string &body, std::set<seekPos> &currentPos, std::vector<Stre
   size_t adaptationSetEnd;
   // DEBUG_MSG(DLVL_INFO, "body received: %s", body.c_str());
 
-  while (getBlock(body, "AdaptationSet", currentOffset, adaptationSetStart, adaptationSetEnd)) {
+  while (getBlock(body, "AdaptationSet", currentOffset, adaptationSetStart, adaptationSetEnd)){
     tempSD.adaptationSet = numAdaptationSet;
     numAdaptationSet++;
-    DEBUG_MSG(DLVL_INFO, "adaptationSet found. start: %lu end: %lu num: %lu ", adaptationSetStart, adaptationSetEnd,
-              (adaptationSetEnd - adaptationSetStart));
+    DEBUG_MSG(DLVL_INFO, "adaptationSet found. start: %lu end: %lu num: %lu ", adaptationSetStart,
+              adaptationSetEnd, (adaptationSetEnd - adaptationSetStart));
     // get substring: from <adaptationSet... to /adaptationSet>
     std::string adaptationSet = body.substr(adaptationSetStart, (adaptationSetEnd - adaptationSetStart));
     // function was verified: output as expected.
 
-    if (!parseAdaptationSet(adaptationSet, currentPos)) {
+    if (!parseAdaptationSet(adaptationSet, currentPos)){
       DEBUG_MSG(DLVL_FAIL, "parseAdaptationSet returned false."); // this also happens in the case of OTHER mimetype. in that case it might be
                                                                   // desirable to continue searching for valid data instead of quitting.
       return false;
     }
-    streamData.push_back(tempSD);     // put temp values into adaptation set vector
+    streamData.push_back(tempSD); // put temp values into adaptation set vector
     currentOffset = adaptationSetEnd; // the getblock function should make sure End is at the correct offset.
   }
-  if (numAdaptationSet == 0) {
+  if (numAdaptationSet == 0){
     DEBUG_MSG(DLVL_FAIL, "no adaptationSet found.");
     return false;
   }
@@ -289,44 +292,38 @@ bool parseXML(std::string &body, std::set<seekPos> &currentPos, std::vector<Stre
   return true;
 }
 
-dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
+dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf){
   port = 80;
   url = conf.getString("url");
 
-  if (url.substr(0, 7) != "http://") {
+  if (url.substr(0, 7) != "http://"){
     DEBUG_MSG(DLVL_FAIL, "The URL must start with http://");
     // return -1;
     exit(1);
   }
-  
+
   url = url.substr(7); // found problem if url is to short!! it gives out of range when entering http://meh.meh
 
-  if((url.find('/') == std::string::npos) || (url.find(".mpd") == std::string::npos))
-  {
-    std::cout << "incorrect url"<<std::endl;
+  if ((url.find('/') == std::string::npos) || (url.find(".mpd") == std::string::npos)){
+    std::cout << "incorrect url" << std::endl;
     mayExecute = false;
     return;
   }
-  
-  
- 
+
   server = url.substr(0, url.find('/'));
   url = url.substr(url.find('/'));
 
-  if (server.find(':') != std::string::npos) {
+  if (server.find(':') != std::string::npos){
     port = atoi(server.substr(server.find(':') + 1).c_str());
     server = server.substr(0, server.find(':'));
   }
-
-
 
   startTime = Util::bootSecs();
   abortTime = conf.getInteger("abort");
 
   conn.open(server, port, false);
 
-  if(!conn.connected())
-  {
+  if (!conn.connected()){
     mayExecute = false;
     return;
   }
@@ -335,9 +332,7 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   DEBUG_MSG(DLVL_INFO, "url %s server: %s port: %d", url.c_str(), server.c_str(), port);
   urlPrependStuff = url.substr(0, url.rfind("/") + 1);
   DEBUG_MSG(DLVL_INFO, "prepend stuff: %s", urlPrependStuff.c_str());
-  if (!conn) {
-    conn.open(server, port, false);
-  }
+  if (!conn){conn.open(server, port, false);}
 
   pos = 0;
   HTTP::Parser H;
@@ -345,7 +340,7 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString());
   H.SendRequest(conn);
   H.Clean();
-  while (conn && (!conn.spool() || !H.Read(conn))) {}
+  while (conn && (!conn.spool() || !H.Read(conn))){}
   H.BuildResponse();
 
   currentPos;
@@ -356,9 +351,9 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   // DEBUG_MSG(DLVL_INFO, "url %s ", url.c_str());
   // std::ifstream in(url.c_str());
   // std::string s((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  if (!parseXML(H.body, currentPos, streamData)) {
+  if (!parseXML(H.body, currentPos, streamData)){
     DEBUG_MSG(DLVL_FAIL, "Manifest parsing failed. body: \n %s", H.body.c_str());
-    if (conf.getString("mode") == "validate") {
+    if (conf.getString("mode") == "validate"){
       long long int endTime = Util::bootSecs();
       std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
     }
@@ -372,7 +367,7 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
   DEBUG_MSG(DLVL_INFO, "*********");
 
   DEBUG_MSG(DLVL_INFO, "num streams: %lu", streamData.size());
-  for (unsigned int i = 0; i < streamData.size(); i++) {
+  for (unsigned int i = 0; i < streamData.size(); i++){
     DEBUG_MSG(DLVL_INFO, "");
     DEBUG_MSG(DLVL_INFO, "ID in vector %d", i);
     DEBUG_MSG(DLVL_INFO, "trackID %ld", streamData[i].trackID);
@@ -385,75 +380,74 @@ dashAnalyser::dashAnalyser(Util::Config conf) : analysers(conf) {
 
   DEBUG_MSG(DLVL_INFO, "");
 
-  for (unsigned int i = 0; i < streamData.size(); i++) { // get init url
+  for (unsigned int i = 0; i < streamData.size(); i++){// get init url
     static char charBuf[512];
     snprintf(charBuf, 512, streamData[i].initialization.c_str(), streamData[i].trackID);
     streamData[i].initURL.assign(charBuf);
-    DEBUG_MSG(DLVL_INFO, "init url for adaptationSet %d trackID %ld: %s ", streamData[i].adaptationSet, streamData[i].trackID,
-              streamData[i].initURL.c_str());
+    DEBUG_MSG(DLVL_INFO, "init url for adaptationSet %d trackID %ld: %s ",
+              streamData[i].adaptationSet, streamData[i].trackID, streamData[i].initURL.c_str());
   }
 }
 
-bool dashAnalyser::hasInput() {
+bool dashAnalyser::hasInput(){
   return currentPos.size();
 }
 
-bool dashAnalyser::packetReady() {
+bool dashAnalyser::packetReady(){
   return (abortTime <= 0 || Util::bootSecs() < startTime + abortTime) && (currentPos.size() > 0);
 }
 
-dashAnalyser::~dashAnalyser() {
+dashAnalyser::~dashAnalyser(){
   INFO_MSG("stopped");
 }
 
-int dashAnalyser::doAnalyse() {
+int dashAnalyser::doAnalyse(){
 
   // DEBUG_MSG(DLVL_INFO, "next url: %s", currentPos.begin()->url.c_str());
   // match adaptation set and track id?
   int tempID = 0;
-  for (unsigned int i = 0; i < streamData.size(); i++) {
-    if (streamData[i].trackID == currentPos.begin()->trackID && streamData[i].adaptationSet == currentPos.begin()->adaptationSet) tempID = i;
+  for (unsigned int i = 0; i < streamData.size(); i++){
+    if (streamData[i].trackID == currentPos.begin()->trackID &&
+        streamData[i].adaptationSet == currentPos.begin()->adaptationSet)
+      tempID = i;
   }
-  if (!conn) { conn.open(server, port, false); }
+  if (!conn){conn.open(server, port, false);}
   HTTP::Parser H;
   H.url = urlPrependStuff;
   H.url.append(currentPos.begin()->url);
-  DEBUG_MSG(DLVL_INFO, "Retrieving segment: %s (%llu-%llu)", H.url.c_str(), currentPos.begin()->seekTime,
-            currentPos.begin()->seekTime + currentPos.begin()->duration);
+  DEBUG_MSG(DLVL_INFO, "Retrieving segment: %s (%llu-%llu)", H.url.c_str(),
+            currentPos.begin()->seekTime, currentPos.begin()->seekTime + currentPos.begin()->duration);
   H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString()); // wut?
   H.SendRequest(conn);
   // TODO: get response?
   H.Clean();
 
-
-  while (conn && (!conn.spool() || !H.Read(conn))) {} // ehm...
+  while (conn && (!conn.spool() || !H.Read(conn))){}// ehm...
   // std::cout << "leh vomi: "<<H.body <<std::endl;
   // DEBUG_MSG(DLVL_INFO, "zut: %s", H.body.c_str());
   // strBuf[tempID].append(H.body);
-  if (!H.body.size()) {
+  if (!H.body.size()){
     DEBUG_MSG(DLVL_FAIL, "No data downloaded from %s", H.url.c_str());
     // break;
     return 0;
   }
 
-
   size_t beforeParse = H.body.size();
   MP4::Box mp4Data;
   bool mdatSeen = false;
-  while (mp4Data.read(H.body)) {
-    if (mp4Data.isType("mdat")) { mdatSeen = true; }
+  while (mp4Data.read(H.body)){
+    if (mp4Data.isType("mdat")){mdatSeen = true;}
   }
 
-
-  if (!mdatSeen) {
+  if (!mdatSeen){
     DEBUG_MSG(DLVL_FAIL, "No mdat present. Sadface. :-(");
     // break;
     return 0;
   }
-  if (H.body.size()) {
+  if (H.body.size()){
     DEBUG_MSG(DLVL_FAIL, "%lu bytes left in body. Assuming horrible things...", H.body.size()); //,H.body.c_str());
     std::cerr << H.body << std::endl;
-    if (beforeParse == H.body.size()) {
+    if (beforeParse == H.body.size()){
       // break;
       return 0;
     }
@@ -462,7 +456,7 @@ int dashAnalyser::doAnalyse() {
 
   pos = 1000 * (currentPos.begin()->seekTime + currentPos.begin()->duration) / streamData[tempID].timeScale;
 
-  if (conf.getString("mode") == "validate" && (Util::bootSecs() - startTime + 5) * 1000 < pos) {
+  if (conf.getString("mode") == "validate" && (Util::bootSecs() - startTime + 5) * 1000 < pos){
     Util::wait(pos - (Util::bootSecs() - startTime + 5) * 1000);
   }
 
@@ -472,18 +466,25 @@ int dashAnalyser::doAnalyse() {
   return pos;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv){
   Util::Config conf = Util::Config(argv[0]);
 
-  conf.addOption("mode", JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", \"default\":\"analyse\", \"help\":\"What to "
-                                          "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
-  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to HLS stream index file to retrieve.\"}"));
-  conf.addOption("abort", JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", \"default\":-1, \"help\":\"Abort after "
-                                           "this many seconds of downloading. Negative values mean unlimited, which is the default.\"}"));
-
   conf.addOption(
-      "detail",
-      JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", \"default\":2, \"help\":\"Detail level of analysis. \"}"));
+      "mode",
+      JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", "
+                       "\"default\":\"analyse\", \"help\":\"What to "
+                       "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
+  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to "
+                                         "HLS stream index file to retrieve.\"}"));
+  conf.addOption("abort",
+                 JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", "
+                                  "\"default\":-1, \"help\":\"Abort after "
+                                  "this many seconds of downloading. Negative values mean "
+                                  "unlimited, which is the default.\"}"));
+
+  conf.addOption("detail",
+                 JSON::fromString("{\"long\":\"detail\", \"short\":\"D\", \"arg\":\"num\", "
+                                  "\"default\":2, \"help\":\"Detail level of analysis. \"}"));
 
   conf.parseArgs(argc, argv);
   conf.activate();
@@ -494,20 +495,27 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-int main2(int argc, char **argv) {
+int main2(int argc, char **argv){
   Util::Config conf = Util::Config(argv[0]);
-  conf.addOption("mode", JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", \"default\":\"analyse\", \"help\":\"What to "
-                                          "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
-  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to HLS stream index file to retrieve.\"}"));
-  conf.addOption("abort", JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", \"default\":-1, \"help\":\"Abort after "
-                                           "this many seconds of downloading. Negative values mean unlimited, which is the default.\"}"));
+  conf.addOption(
+      "mode",
+      JSON::fromString("{\"long\":\"mode\", \"arg\":\"string\", \"short\":\"m\", "
+                       "\"default\":\"analyse\", \"help\":\"What to "
+                       "do with the stream. Valid modes are 'analyse', 'validate', 'output'.\"}"));
+  conf.addOption("url", JSON::fromString("{\"arg_num\":1, \"arg\":\"string\", \"help\":\"URL to "
+                                         "HLS stream index file to retrieve.\"}"));
+  conf.addOption("abort",
+                 JSON::fromString("{\"long\":\"abort\", \"short\":\"a\", \"arg\":\"integer\", "
+                                  "\"default\":-1, \"help\":\"Abort after "
+                                  "this many seconds of downloading. Negative values mean "
+                                  "unlimited, which is the default.\"}"));
   conf.parseArgs(argc, argv);
   conf.activate();
 
   unsigned int port = 80;
   std::string url = conf.getString("url");
 
-  if (url.substr(0, 7) != "http://") {
+  if (url.substr(0, 7) != "http://"){
     DEBUG_MSG(DLVL_FAIL, "The URL must start with http://");
     return -1;
   }
@@ -516,7 +524,7 @@ int main2(int argc, char **argv) {
   std::string server = url.substr(0, url.find('/'));
   url = url.substr(url.find('/'));
 
-  if (server.find(':') != std::string::npos) {
+  if (server.find(':') != std::string::npos){
     port = atoi(server.substr(server.find(':') + 1).c_str());
     server = server.substr(0, server.find(':'));
   }
@@ -530,14 +538,14 @@ int main2(int argc, char **argv) {
   DEBUG_MSG(DLVL_INFO, "url %s server: %s port: %d", url.c_str(), server.c_str(), port);
   std::string urlPrependStuff = url.substr(0, url.rfind("/") + 1);
   DEBUG_MSG(DLVL_INFO, "prepend stuff: %s", urlPrependStuff.c_str());
-  if (!conn) { conn.open(server, port, false); }
+  if (!conn){conn.open(server, port, false);}
   unsigned int pos = 0;
   HTTP::Parser H;
   H.url = url;
   H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString());
   H.SendRequest(conn);
   H.Clean();
-  while (conn && (!conn.spool() || !H.Read(conn))) {}
+  while (conn && (!conn.spool() || !H.Read(conn))){}
   H.BuildResponse();
 
   std::set<seekPos> currentPos;
@@ -548,9 +556,9 @@ int main2(int argc, char **argv) {
   // DEBUG_MSG(DLVL_INFO, "url %s ", url.c_str());
   // std::ifstream in(url.c_str());
   // std::string s((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  if (!parseXML(H.body, currentPos, streamData)) {
+  if (!parseXML(H.body, currentPos, streamData)){
     DEBUG_MSG(DLVL_FAIL, "Manifest parsing failed. body: \n %s", H.body.c_str());
-    if (conf.getString("mode") == "validate") {
+    if (conf.getString("mode") == "validate"){
       long long int endTime = Util::bootSecs();
       std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
     }
@@ -563,7 +571,7 @@ int main2(int argc, char **argv) {
   DEBUG_MSG(DLVL_INFO, "*********");
 
   DEBUG_MSG(DLVL_INFO, "num streams: %lu", streamData.size());
-  for (unsigned int i = 0; i < streamData.size(); i++) {
+  for (unsigned int i = 0; i < streamData.size(); i++){
     DEBUG_MSG(DLVL_INFO, "");
     DEBUG_MSG(DLVL_INFO, "ID in vector %d", i);
     DEBUG_MSG(DLVL_INFO, "trackID %ld", streamData[i].trackID);
@@ -576,67 +584,69 @@ int main2(int argc, char **argv) {
 
   DEBUG_MSG(DLVL_INFO, "");
 
-  for (unsigned int i = 0; i < streamData.size(); i++) { // get init url
+  for (unsigned int i = 0; i < streamData.size(); i++){// get init url
     static char charBuf[512];
     snprintf(charBuf, 512, streamData[i].initialization.c_str(), streamData[i].trackID);
     streamData[i].initURL.assign(charBuf);
-    DEBUG_MSG(DLVL_INFO, "init url for adaptationSet %d trackID %ld: %s ", streamData[i].adaptationSet, streamData[i].trackID,
-              streamData[i].initURL.c_str());
+    DEBUG_MSG(DLVL_INFO, "init url for adaptationSet %d trackID %ld: %s ",
+              streamData[i].adaptationSet, streamData[i].trackID, streamData[i].initURL.c_str());
   }
 
-  while (currentPos.size() && (abortTime <= 0 || Util::bootSecs() < startTime + abortTime)) {
+  while (currentPos.size() && (abortTime <= 0 || Util::bootSecs() < startTime + abortTime)){
     // DEBUG_MSG(DLVL_INFO, "next url: %s", currentPos.begin()->url.c_str());
     std::cout << "blaa" << std::endl;
 
     // match adaptation set and track id?
     int tempID = 0;
-    for (unsigned int i = 0; i < streamData.size(); i++) {
-      if (streamData[i].trackID == currentPos.begin()->trackID && streamData[i].adaptationSet == currentPos.begin()->adaptationSet) tempID = i;
+    for (unsigned int i = 0; i < streamData.size(); i++){
+      if (streamData[i].trackID == currentPos.begin()->trackID &&
+          streamData[i].adaptationSet == currentPos.begin()->adaptationSet)
+        tempID = i;
     }
-    if (!conn) { conn.open(server, port, false); }
+    if (!conn){conn.open(server, port, false);}
     HTTP::Parser H;
     H.url = urlPrependStuff;
     H.url.append(currentPos.begin()->url);
-    DEBUG_MSG(DLVL_INFO, "Retrieving segment: %s (%llu-%llu)", H.url.c_str(), currentPos.begin()->seekTime,
-              currentPos.begin()->seekTime + currentPos.begin()->duration);
+    DEBUG_MSG(DLVL_INFO, "Retrieving segment: %s (%llu-%llu)", H.url.c_str(),
+              currentPos.begin()->seekTime, currentPos.begin()->seekTime + currentPos.begin()->duration);
     H.SetHeader("Host", server + ":" + JSON::Value((long long)port).toString()); // wut?
     H.SendRequest(conn);
     // TODO: get response?
     H.Clean();
-    while (conn && (!conn.spool() || !H.Read(conn))) {} // ehm...
+    while (conn && (!conn.spool() || !H.Read(conn))){}// ehm...
     // std::cout << "leh vomi: "<<H.body <<std::endl;
     // DEBUG_MSG(DLVL_INFO, "zut: %s", H.body.c_str());
     // strBuf[tempID].append(H.body);
-    if (!H.body.size()) {
+    if (!H.body.size()){
       DEBUG_MSG(DLVL_FAIL, "No data downloaded from %s", H.url.c_str());
       break;
     }
     size_t beforeParse = H.body.size();
     MP4::Box mp4Data;
     bool mdatSeen = false;
-    while (mp4Data.read(H.body)) {
-      if (mp4Data.isType("mdat")) { mdatSeen = true; }
+    while (mp4Data.read(H.body)){
+      if (mp4Data.isType("mdat")){mdatSeen = true;}
     }
-    if (!mdatSeen) {
+    if (!mdatSeen){
       DEBUG_MSG(DLVL_FAIL, "No mdat present. Sadface. :-(");
       break;
     }
-    if (H.body.size()) {
+    if (H.body.size()){
       DEBUG_MSG(DLVL_FAIL, "%lu bytes left in body. Assuming horrible things...", H.body.size()); //,H.body.c_str());
       std::cerr << H.body << std::endl;
-      if (beforeParse == H.body.size()) { break; }
+      if (beforeParse == H.body.size()){break;}
     }
     H.Clean();
     pos = 1000 * (currentPos.begin()->seekTime + currentPos.begin()->duration) / streamData[tempID].timeScale;
 
-    if (conf.getString("mode") == "validate" && (Util::bootSecs() - startTime + 5) * 1000 < pos) {
+    if (conf.getString("mode") == "validate" && (Util::bootSecs() - startTime + 5) * 1000 < pos){
       Util::wait(pos - (Util::bootSecs() - startTime + 5) * 1000);
     }
 
     currentPos.erase(currentPos.begin());
   }
 
-  if (conf.getString("mode") == "validate") {
+  if (conf.getString("mode") == "validate"){
     long long int endTime = Util::bootSecs();
     std::cout << startTime << ", " << endTime << ", " << (endTime - startTime) << ", " << pos << std::endl;
   }

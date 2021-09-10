@@ -25,7 +25,7 @@ AnalyserRTMP::AnalyserRTMP(Util::Config &conf) : Analyser(conf){
   }
 }
 
-bool AnalyserRTMP::open(const std::string & filename){
+bool AnalyserRTMP::open(const std::string &filename){
   if (!Analyser::open(filename)){return false;}
   // Skip the 3073 byte handshake - there is no (truly) useful data in this.
   MEDIUM_MSG("Skipping handshake...");
@@ -63,8 +63,7 @@ bool AnalyserRTMP::parsePacket(){
 
   // We now know for sure that we've parsed a packet
   DETAIL_HI("Chunk info: [%#2X] CS ID %u, timestamp %u, len %u, type ID %u, Stream ID %u",
-            next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id,
-            next.msg_stream_id);
+            next.headertype, next.cs_id, next.timestamp, next.len, next.msg_type_id, next.msg_stream_id);
   switch (next.msg_type_id){
   case 0: // does not exist
     DETAIL_LOW("Error chunk @ %lu - CS%i, T%i, L%i, LL%i, MID%i", read_in - strbuf.size(),
@@ -91,12 +90,10 @@ bool AnalyserRTMP::parsePacket(){
                  ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 1:
-      DETAIL_MED("CTRL: User control message: stream EOF %u",
-                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
+      DETAIL_MED("CTRL: User control message: stream EOF %u", ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 2:
-      DETAIL_MED("CTRL: User control message: stream dry %u",
-                 ntohl(*(unsigned int *)(next.data.c_str() + 2)));
+      DETAIL_MED("CTRL: User control message: stream dry %u", ntohl(*(unsigned int *)(next.data.c_str() + 2)));
       break;
     case 3:
       DETAIL_MED("CTRL: User control message: setbufferlen %u",
@@ -183,4 +180,3 @@ bool AnalyserRTMP::parsePacket(){
   }// switch for type of chunk
   return true;
 }
-

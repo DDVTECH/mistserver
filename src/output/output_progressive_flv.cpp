@@ -1,9 +1,9 @@
 #include "output_progressive_flv.h"
 
-namespace Mist {
-  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection & conn) : HTTPOutput(conn){}
-  
-  void OutProgressiveFLV::init(Util::Config * cfg){
+namespace Mist{
+  OutProgressiveFLV::OutProgressiveFLV(Socket::Connection &conn) : HTTPOutput(conn){}
+
+  void OutProgressiveFLV::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "FLV";
     capa["friendly"] = "Flash progressive over HTTP (FLV)";
@@ -30,14 +30,13 @@ namespace Mist {
     capa["methods"][0u]["priority"] = 5;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
     capa["push_urls"].append("/*.flv");
-    
+
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
     opt["arg_num"] = 1;
     opt["help"] = "Target filename to store FLV file as, or - for stdout.";
     cfg->addOption("target", opt);
-
 
     opt.null();
     opt["short"] = "k";
@@ -46,12 +45,10 @@ namespace Mist {
     cfg->addOption("keyframeonly", opt);
   }
 
-  bool OutProgressiveFLV::isRecording(){
-    return config->getString("target").size();
-  }
-  
+  bool OutProgressiveFLV::isRecording(){return config->getString("target").size();}
+
   void OutProgressiveFLV::sendNext(){
-    //If there are now more selectable tracks, select the new track and do a seek to the current timestamp
+    // If there are now more selectable tracks, select the new track and do a seek to the current timestamp
     if (myMeta.live && selectedTracks.size() < 2){
       static unsigned long long lastMeta = 0;
       if (Util::epoch() > lastMeta + 5){
@@ -60,7 +57,8 @@ namespace Mist {
         if (myMeta.tracks.size() > 1){
           if (selectDefaultTracks()){
             INFO_MSG("Track selection changed - resending headers and continuing");
-            for (std::set<long unsigned int>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
+            for (std::set<long unsigned int>::iterator it = selectedTracks.begin();
+                 it != selectedTracks.end(); it++){
               if (myMeta.tracks[*it].type == "video" && tag.DTSCVideoInit(myMeta.tracks[*it])){
                 myConn.SendNow(tag.data, tag.len);
               }
@@ -74,21 +72,19 @@ namespace Mist {
       }
     }
 
-    DTSC::Track & trk = myMeta.tracks[thisPacket.getTrackId()];
+    DTSC::Track &trk = myMeta.tracks[thisPacket.getTrackId()];
     tag.DTSCLoader(thisPacket, trk);
     if (trk.codec == "PCM" && trk.size == 16){
-      char * ptr = tag.getData();
+      char *ptr = tag.getData();
       uint32_t ptrSize = tag.getDataLen();
-      for (uint32_t i = 0; i < ptrSize; i+=2){
+      for (uint32_t i = 0; i < ptrSize; i += 2){
         char tmpchar = ptr[i];
-        ptr[i] = ptr[i+1];
-        ptr[i+1] = tmpchar;
+        ptr[i] = ptr[i + 1];
+        ptr[i + 1] = tmpchar;
       }
     }
-    myConn.SendNow(tag.data, tag.len); 
-    if (config->getBool("keyframeonly")){
-      config->is_active = false;
-    }
+    myConn.SendNow(tag.data, tag.len);
+    if (config->getBool("keyframeonly")){config->is_active = false;}
   }
 
   void OutProgressiveFLV::sendHeader(){
@@ -101,8 +97,9 @@ namespace Mist {
     }
     if (config->getBool("keyframeonly")){
       selectedTracks.clear();
-      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-        if (it->second.type =="video"){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = myMeta.tracks.begin();
+           it != myMeta.tracks.end(); it++){
+        if (it->second.type == "video"){
           selectedTracks.insert(it->first);
           break;
         }
@@ -132,18 +129,18 @@ namespace Mist {
 
   void OutProgressiveFLV::onHTTP(){
     std::string method = H.method;
-    
+
     H.Clean();
     H.setCORSHeaders();
-    if(method == "OPTIONS" || method == "HEAD"){
+    if (method == "OPTIONS" || method == "HEAD"){
       H.SetHeader("Content-Type", "video/x-flv");
       H.protocol = "HTTP/1.0";
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
     }
-    
+
     parseData = true;
     wantRequest = false;
   }
-}
+}// namespace Mist

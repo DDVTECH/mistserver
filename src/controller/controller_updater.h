@@ -10,5 +10,4 @@ namespace Controller{
   JSON::Value checkUpdateInfo();
   void checkUpdates();
   void insertUpdateInfo(JSON::Value &ret);
-}
-
+}// namespace Controller

@@ -17,8 +17,7 @@ namespace EBML{
 
   void sendElemSeek(Socket::Connection &C, uint32_t ID, uint64_t bytePos);
   uint32_t sizeElemSeek(uint32_t ID, uint64_t bytePos);
-  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos,
-                        uint64_t relaPos);
+  void sendElemCuePoint(Socket::Connection &C, uint64_t time, uint64_t track, uint64_t clusterPos, uint64_t relaPos);
   uint32_t sizeElemCuePoint(uint64_t time, uint64_t track, uint64_t clusterPos, uint64_t relaPos);
 
   uint8_t sizeUInt(const uint64_t val);
@@ -28,8 +27,6 @@ namespace EBML{
   uint32_t sizeElemDbl(uint32_t ID, const double val);
   uint32_t sizeElemStr(uint32_t ID, const std::string &val);
 
-  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime,
-                       bool forceKeyframe = false);
+  void sendSimpleBlock(Socket::Connection &C, DTSC::Packet &pkt, uint64_t clusterTime, bool forceKeyframe = false);
   uint32_t sizeSimpleBlock(uint64_t trackId, uint32_t dataSize);
 }// namespace EBML
-

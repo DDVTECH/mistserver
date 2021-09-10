@@ -21,16 +21,14 @@ namespace RTP{
   public:
     PacketFEC();
     ~PacketFEC();
-    bool initWithREDPacket(
-        const char *data,
-        size_t nbytes); /// Initialize using the given data.  `data` must point to the first byte of
-                        /// the RTP packet which contains the RED and FEC headers and data.
+    bool initWithREDPacket(const char *data,
+                           size_t nbytes); /// Initialize using the given data.  `data` must point to the first byte of
+                                           /// the RTP packet which contains the RED and FEC headers and data.
     uint8_t getExtensionFlag(); ///< From fec header: should be 0, see
                                 ///< https://tools.ietf.org/html/rfc5109#section-7.3.
-    uint8_t
-    getLongMaskFlag(); ///< From fec header: returns 0 when the short mask version is used (16
-                       ///< bits), otherwise 1 (48 bits). The mask is used to calculate what
-                       ///< sequence numbers are protected, starting at the base sequence number.
+    uint8_t getLongMaskFlag(); ///< From fec header: returns 0 when the short mask version is used (16
+                               ///< bits), otherwise 1 (48 bits). The mask is used to calculate what
+                               ///< sequence numbers are protected, starting at the base sequence number.
     uint16_t getSequenceBaseNumber(); ///< From fec header: get the base sequence number. The base
                                       ///< sequence number is used together with the mask to
                                       ///< determine what the sequence numbers of the media packets
@@ -44,15 +42,13 @@ namespace RTP{
                               /// and paylaod.
     char *getFECHeader();     ///< Get a pointer to the first byte of the FEC header.
     uint16_t getLevel0ProtectionLength(); ///< Get the length of the `getLevel0Payload()`.
-    uint16_t
-    getLengthRecovery(); ///< Get the `length recovery` value (Little Endian). This value is used
-                         ///< while XORing to recover the length of the missing media packet.
+    uint16_t getLengthRecovery(); ///< Get the `length recovery` value (Little Endian). This value is used
+                                  ///< while XORing to recover the length of the missing media packet.
     bool coversSequenceNumber(uint16_t sn); ///< Returns true when this `PacketFEC` instance is used
                                             ///< to protect the given sequence number.
-    void
-    addReceivedSequenceNumber(uint16_t sn); ///< Whenever you receive a media packet (complete) call
-                                            ///< this as we need to know if enough media packets
-                                            ///< exist that are needed to recover another one.
+    void addReceivedSequenceNumber(uint16_t sn); ///< Whenever you receive a media packet (complete) call
+                                                 ///< this as we need to know if enough media packets
+                                                 ///< exist that are needed to recover another one.
     void tryToRecoverMissingPacket(
         std::map<uint16_t, RTP::Packet> &receivedMediaPackets,
         Packet &reconstructedPacket); ///< Pass in a `std::map` indexed by sequence number of -all-
@@ -61,19 +57,16 @@ namespace RTP{
                                       ///< will fill the packet passed by reference.
 
   private:
-    bool
-    extractCoveringSequenceNumbers(); ///< Used internally to fill the `coveredSeqNums` member which
-                                      ///< tell us what media packets this FEC packet rotects.
+    bool extractCoveringSequenceNumbers(); ///< Used internally to fill the `coveredSeqNums` member which
+                                           ///< tell us what media packets this FEC packet rotects.
 
   public:
     Util::ResizeablePointer fecPacketData;
     Util::ResizeablePointer recoverData;
-    std::set<uint16_t>
-        coveredSeqNums; ///< The sequence numbers of the packets that this FEC protects.
-    std::set<uint16_t>
-        receivedSeqNums; ///< We keep track of sequence numbers that were received (at some higher
-                         ///< level). We can only recover 1 media packet and this is used to check
-                         ///< if this `PacketFEC` instance is capable of recovering anything.
+    std::set<uint16_t> coveredSeqNums; ///< The sequence numbers of the packets that this FEC protects.
+    std::set<uint16_t> receivedSeqNums; ///< We keep track of sequence numbers that were received (at some higher
+                                        ///< level). We can only recover 1 media packet and this is used to check
+                                        ///< if this `PacketFEC` instance is capable of recovering anything.
   };
 
   class FECSorter : public Sorter{
@@ -97,4 +90,3 @@ namespace RTP{
   };
 
 }// namespace RTP
-

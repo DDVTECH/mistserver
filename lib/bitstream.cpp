@@ -50,8 +50,7 @@ namespace Utils{
       // return 0;
     }
     if (count > size()){
-      DEBUG_MSG(DLVL_ERROR, "Not enough bits left in stream. Left: %d requested: %d", (int)size(),
-                (int)count);
+      DEBUG_MSG(DLVL_ERROR, "Not enough bits left in stream. Left: %d requested: %d", (int)size(), (int)count);
       return 0;
     }
     long long unsigned int retval = 0;
@@ -131,16 +130,14 @@ namespace Utils{
 
   long long int bitstream::getExpGolomb(){
     long long unsigned int temp = golombGetter();
-    return (temp >> 1) *
-           (1 - ((temp & 1) << 1)); // Is actually return (temp / 2) * (1 - (temp & 1) * 2);
+    return (temp >> 1) * (1 - ((temp & 1) << 1)); // Is actually return (temp / 2) * (1 - (temp & 1) * 2);
   }
 
   long long unsigned int bitstream::getUExpGolomb(){return golombGetter() - 1;}
 
   long long int bitstream::peekExpGolomb(){
     long long unsigned int temp = golombPeeker();
-    return (temp >> 1) *
-           (1 - ((temp & 1) << 1)); // Is actually return (temp / 2) * (1 - (temp & 1) * 2);
+    return (temp >> 1) * (1 - ((temp & 1) << 1)); // Is actually return (temp / 2) * (1 - (temp & 1) * 2);
   }
 
   long long unsigned int bitstream::peekUExpGolomb(){return golombPeeker() - 1;}
@@ -285,4 +282,3 @@ namespace Utils{
     data.erase(0, pos);
   }
 }// namespace Utils
-

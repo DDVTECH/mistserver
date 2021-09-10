@@ -4,31 +4,26 @@
 #include <mist/dtsc.h>
 #include <string>
 
-
 namespace Mist{
-  
+
   class InputSrt : public Input{
-    public:
-      InputSrt(Util::Config *cfg);
+  public:
+    InputSrt(Util::Config *cfg);
 
-    protected:
-      std::ifstream fileSource;
+  protected:
+    std::ifstream fileSource;
 
-      bool checkArguments();
-      bool readHeader();
-      bool preRun();
-      void getNext(bool smart = true);
-      void seek(int seekTime);
-      void trackSelect(std::string trackSpec);
-      bool vtt;
+    bool checkArguments();
+    bool readHeader();
+    bool preRun();
+    void getNext(bool smart = true);
+    void seek(int seekTime);
+    void trackSelect(std::string trackSpec);
+    bool vtt;
 
-      FILE * inFile;
-
+    FILE *inFile;
   };
 
-
-
-}
+}// namespace Mist
 
 typedef Mist::InputSrt mistIn;
-

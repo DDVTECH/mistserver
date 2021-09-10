@@ -3,8 +3,12 @@
 Mist::InputRTSP *classPointer = 0;
 Socket::Connection *mainConn = 0;
 
-void incomingPacket(const DTSC::Packet &pkt){classPointer->incoming(pkt);}
-void insertRTP(const uint64_t track, const RTP::Packet &p){classPointer->incomingRTP(track, p);}
+void incomingPacket(const DTSC::Packet &pkt){
+  classPointer->incoming(pkt);
+}
+void insertRTP(const uint64_t track, const RTP::Packet &p){
+  classPointer->incomingRTP(track, p);
+}
 
 /// Function used to send RTP packets over UDP
 ///\param socket A UDP Connection pointer, sent as a void*, to keep portability.
@@ -17,7 +21,9 @@ void sendUDP(void *socket, char *data, unsigned int len, unsigned int channel){
 }
 
 namespace Mist{
-  void InputRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){sdpState.handleIncomingRTP(track, p);}
+  void InputRTSP::incomingRTP(const uint64_t track, const RTP::Packet &p){
+    sdpState.handleIncomingRTP(track, p);
+  }
 
   InputRTSP::InputRTSP(Util::Config *cfg) : Input(cfg){
     needAuth = false;
@@ -79,10 +85,8 @@ namespace Mist{
     capa["optional"]["transport"]["default"] = "TCP";
   }
 
-  void InputRTSP::sendCommand(const std::string &cmd, const std::string &cUrl,
-                              const std::string &body,
-                              const std::map<std::string, std::string> *extraHeaders,
-                              bool reAuth){
+  void InputRTSP::sendCommand(const std::string &cmd, const std::string &cUrl, const std::string &body,
+                              const std::map<std::string, std::string> *extraHeaders, bool reAuth){
     ++cSeq;
     sndH.Clean();
     sndH.protocol = "RTSP/1.0";
@@ -107,9 +111,7 @@ namespace Mist{
     if (reAuth && needAuth && authRequest.size() && (username.size() || password.size()) && tcpCon){
       INFO_MSG("Authenticating %s...", cmd.c_str());
       sendCommand(cmd, cUrl, body, extraHeaders, false);
-      if (needAuth){
-        FAIL_MSG("Authentication failed! Are the provided credentials correct?");
-      }
+      if (needAuth){FAIL_MSG("Authentication failed! Are the provided credentials correct?");}
     }
   }
 
@@ -156,16 +158,17 @@ namespace Mist{
         transportSet = false;
         extraHeaders.clear();
         extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-        sendCommand("SETUP", HTTP::URL(url.getUrl()+"/").link(it->second.control).getUrl(), "", &extraHeaders);
+        sendCommand("SETUP", HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl(), "", &extraHeaders);
         if (tcpCon && transportSet){
           atLeastOne = true;
           continue;
         }
         if (!atLeastOne && tcpCon){
-          INFO_MSG("Failed to set up transport for track %s, switching transports...", myMeta.tracks[it->first].getIdentifier().c_str());
+          INFO_MSG("Failed to set up transport for track %s, switching transports...",
+                   myMeta.tracks[it->first].getIdentifier().c_str());
           TCPmode = !TCPmode;
           extraHeaders["Transport"] = it->second.generateTransport(it->first, url.host, TCPmode);
-          sendCommand("SETUP", HTTP::URL(url.getUrl()+"/").link(it->second.control).getUrl(), "", &extraHeaders);
+          sendCommand("SETUP", HTTP::URL(url.getUrl() + "/").link(it->second.control).getUrl(), "", &extraHeaders);
         }
         if (tcpCon && transportSet){
           atLeastOne = true;
@@ -265,8 +268,10 @@ namespace Mist{
           if (recH.hasHeader("Content-Location")){
             url = HTTP::URL(recH.GetHeader("Content-Location"));
           }
-          if (recH.hasHeader("Content-Base") && recH.GetHeader("Content-Base") != "" && recH.GetHeader("Content-Base") != url.getUrl()){
-            INFO_MSG("Changing base URL from %s to %s", url.getUrl().c_str(), recH.GetHeader("Content-Base").c_str());
+          if (recH.hasHeader("Content-Base") && recH.GetHeader("Content-Base") != "" &&
+              recH.GetHeader("Content-Base") != url.getUrl()){
+            INFO_MSG("Changing base URL from %s to %s", url.getUrl().c_str(),
+                     recH.GetHeader("Content-Base").c_str());
             url = HTTP::URL(recH.GetHeader("Content-Base"));
           }
           if (recH.hasHeader("Session")){
@@ -276,8 +281,9 @@ namespace Mist{
             }
           }
           if ((recH.hasHeader("Content-Type") &&
-              recH.GetHeader("Content-Type") == "application/sdp") || (recH.hasHeader("Content-type") &&
-              recH.GetHeader("Content-type") == "application/sdp")){
+               recH.GetHeader("Content-Type") == "application/sdp") ||
+              (recH.hasHeader("Content-type") &&
+               recH.GetHeader("Content-type") == "application/sdp")){
             INFO_MSG("Received SDP");
             seenSDP = true;
             sdpState.parseSDP(recH.body);
@@ -308,8 +314,8 @@ namespace Mist{
             return true;
           }
 
-          //DO NOT Print anything possibly interesting to cerr
-          //std::cerr << recH.BuildRequest() << std::endl;
+          // DO NOT Print anything possibly interesting to cerr
+          // std::cerr << recH.BuildRequest() << std::endl;
           recH.Clean();
           return true;
         }
@@ -371,9 +377,7 @@ namespace Mist{
         //}
         tcpCon.addDown(s.data_len);
         RTP::Packet pack(s.data, s.data_len);
-        if (!it->second.theirSSRC){
-          it->second.theirSSRC = pack.getSSRC();
-        }
+        if (!it->second.theirSSRC){it->second.theirSSRC = pack.getSSRC();}
         it->second.sorter.addPacket(pack);
       }
       if (Util::epoch() / 5 != it->second.rtcpSent){
@@ -387,4 +391,3 @@ namespace Mist{
   void InputRTSP::incoming(const DTSC::Packet &pkt){nProxy.bufferLivePacket(pkt, myMeta);}
 
 }// namespace Mist
-

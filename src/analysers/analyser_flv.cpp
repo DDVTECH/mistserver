@@ -37,4 +37,3 @@ bool AnalyserFLV::parsePacket(){
   mediaTime = flvData.tagTime();
   return true;
 }
-

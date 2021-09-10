@@ -12,8 +12,8 @@ Analyser::Analyser(Util::Config &conf){
   isActive = &conf.is_active;
 }
 
-///Opens the filename. Supports stdin and plain files.
-bool Analyser::open(const std::string & filename){
+/// Opens the filename. Supports stdin and plain files.
+bool Analyser::open(const std::string &filename){
   if (filename.size() && filename != "-"){
     int fp = ::open(filename.c_str(), O_RDONLY);
     if (fp <= 0){
@@ -37,10 +37,12 @@ void Analyser::stop(){
 
 /// Prints validation message if needed
 Analyser::~Analyser(){
-  if (validate){std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << std::endl;}
+  if (validate){
+    std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << std::endl;
+  }
 }
 
-///Checks if standard input is still valid.
+/// Checks if standard input is still valid.
 bool Analyser::isOpen(){
   return (*isActive) && std::cin.good();
 }
@@ -48,9 +50,7 @@ bool Analyser::isOpen(){
 /// Main loop for all analysers. Reads packets while not interrupted, parsing and/or printing them.
 int Analyser::run(Util::Config &conf){
   isActive = &conf.is_active;
-  if (!open(conf.getString("filename"))){
-    return 1;
-  }
+  if (!open(conf.getString("filename"))){return 1;}
   while (conf.is_active && isOpen()){
     if (!parsePacket()){
       if (isOpen()){
@@ -63,7 +63,7 @@ int Analyser::run(Util::Config &conf){
     if (validate){
       finTime = Util::bootSecs();
 
-      //slow down to realtime + 10s
+      // slow down to realtime + 10s
       if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
         uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
         if ((finTime - upTime + sleepMs / 1000) >= timeOut){
@@ -122,4 +122,3 @@ void Analyser::init(Util::Config &conf){
   conf.addOption("detail", opt);
   opt.null();
 }
-

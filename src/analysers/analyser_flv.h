@@ -11,4 +11,3 @@ private:
   FLV::Tag flvData;
   long long filter;
 };
-

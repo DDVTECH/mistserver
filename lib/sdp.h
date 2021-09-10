@@ -13,8 +13,7 @@ namespace SDP{
   class Track{
   public:
     Track();
-    std::string generateTransport(uint32_t trackNo, const std::string &dest = "",
-                                  bool TCPmode = true);
+    std::string generateTransport(uint32_t trackNo, const std::string &dest = "", bool TCPmode = true);
     std::string getParamString(const std::string &param) const;
     uint64_t getParamInt(const std::string &param) const;
     bool parseTransport(const std::string &transport, const std::string &host,
@@ -54,12 +53,12 @@ namespace SDP{
     uint32_t getTrackNoForChannel(uint8_t chan);
     uint32_t parseSetup(HTTP::Parser &H, const std::string &host, const std::string &source);
     void handleIncomingRTP(const uint64_t track, const RTP::Packet &pkt);
+
   public:
     DTSC::Meta *myMeta;
-    std::map<uint32_t, RTP::toDTSC> tConv; ///<Converters to DTSC
+    std::map<uint32_t, RTP::toDTSC> tConv; ///< Converters to DTSC
     std::map<uint32_t, Track> tracks; ///< List of selected tracks with SDP-specific session data.
   };
 
   std::string mediaDescription(const DTSC::Track &trk);
 }// namespace SDP
-

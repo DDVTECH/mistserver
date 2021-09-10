@@ -1,38 +1,36 @@
 /// \file dtsc.cpp
 /// Holds all code for DDVTECH Stream Container parsing/generation.
 
-#include "dtsc.h"
 #include "defines.h"
+#include "dtsc.h"
+#include <arpa/inet.h> //for htonl/ntohl
 #include <stdlib.h>
 #include <string.h> //for memcmp
-#include <arpa/inet.h> //for htonl/ntohl
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
 char DTSC::Magic_Packet2[] = "DTP2";
 char DTSC::Magic_Command[] = "DTCM";
 
-DTSC::File::File() {
+DTSC::File::File(){
   F = 0;
   buffer = malloc(4);
   endPos = 0;
 }
 
-DTSC::File::File(const File & rhs) {
+DTSC::File::File(const File &rhs){
   buffer = malloc(4);
   *this = rhs;
 }
 
-DTSC::File & DTSC::File::operator =(const File & rhs) {
+DTSC::File &DTSC::File::operator=(const File &rhs){
   created = rhs.created;
-  if (rhs.F) {
+  if (rhs.F){
     F = fdopen(dup(fileno(rhs.F)), (created ? "w+b" : "r+b"));
-  } else {
+  }else{
     F = 0;
   }
   endPos = rhs.endPos;
-  if (rhs.myPack) {
-    myPack = rhs.myPack;
-  }
+  if (rhs.myPack){myPack = rhs.myPack;}
   metadata = rhs.metadata;
   currtime = rhs.currtime;
   lastreadpos = rhs.lastreadpos;
@@ -42,31 +40,31 @@ DTSC::File & DTSC::File::operator =(const File & rhs) {
   return *this;
 }
 
-DTSC::File::operator bool() const {
+DTSC::File::operator bool() const{
   return F;
 }
 
 /// Open a filename for DTSC reading/writing.
 /// If create is true and file does not exist, attempt to create.
-DTSC::File::File(std::string filename, bool create) {
+DTSC::File::File(std::string filename, bool create){
   buffer = malloc(8);
-  if (create) {
+  if (create){
     F = fopen(filename.c_str(), "w+b");
-    if (!F) {
+    if (!F){
       DEBUG_MSG(DLVL_ERROR, "Could not create file %s: %s", filename.c_str(), strerror(errno));
       return;
     }
-    //write an empty header
+    // write an empty header
     fseek(F, 0, SEEK_SET);
     fwrite(DTSC::Magic_Header, 4, 1, F);
     memset(buffer, 0, 4);
-    fwrite(buffer, 4, 1, F); //write 4 zero-bytes
+    fwrite(buffer, 4, 1, F); // write 4 zero-bytes
     headerSize = 0;
-  } else {
+  }else{
     F = fopen(filename.c_str(), "r+b");
   }
   created = create;
-  if (!F) {
+  if (!F){
     HIGH_MSG("Could not open file %s", filename.c_str());
     return;
   }
@@ -74,62 +72,59 @@ DTSC::File::File(std::string filename, bool create) {
   endPos = ftell(F);
 
   bool sepHeader = false;
-  if (!create) {
+  if (!create){
     fseek(F, 0, SEEK_SET);
-    if (fread(buffer, 4, 1, F) != 1) {
+    if (fread(buffer, 4, 1, F) != 1){
       DEBUG_MSG(DLVL_ERROR, "Can't read file contents of %s", filename.c_str());
       fclose(F);
       F = 0;
       return;
     }
-    if (memcmp(buffer, DTSC::Magic_Header, 4) != 0) {
-      if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0 && memcmp(buffer, DTSC::Magic_Packet, 4) != 0 && memcmp(buffer, DTSC::Magic_Command, 4) != 0) {
+    if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
+      if (memcmp(buffer, DTSC::Magic_Packet2, 4) != 0 &&
+          memcmp(buffer, DTSC::Magic_Packet, 4) != 0 && memcmp(buffer, DTSC::Magic_Command, 4) != 0){
         DEBUG_MSG(DLVL_ERROR, "%s is not a valid DTSC file", filename.c_str());
         fclose(F);
         F = 0;
         return;
-      } else {
+      }else{
         metadata.moreheader = -1;
       }
     }
   }
-  //we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
+  // we now know the first 4 bytes are DTSC::Magic_Header and we have a valid file
   fseek(F, 4, SEEK_SET);
-  if (fread(buffer, 4, 1, F) != 1) {
+  if (fread(buffer, 4, 1, F) != 1){
     fseek(F, 4, SEEK_SET);
     memset(buffer, 0, 4);
-    fwrite(buffer, 4, 1, F); //write 4 zero-bytes
-  } else {
+    fwrite(buffer, 4, 1, F); // write 4 zero-bytes
+  }else{
     headerSize = ntohl(((uint32_t *)buffer)[0]);
   }
-  if (metadata.moreheader != -1) {
-    if (!sepHeader) {
+  if (metadata.moreheader != -1){
+    if (!sepHeader){
       readHeader(0);
       fseek(F, 8 + headerSize, SEEK_SET);
-    } else {
+    }else{
       fseek(F, 0, SEEK_SET);
     }
-  } else {
+  }else{
     fseek(F, 0, SEEK_SET);
     File Fhead(filename + ".dtsh");
-    if (Fhead) {
-      metadata = Fhead.metadata;
-    }
+    if (Fhead){metadata = Fhead.metadata;}
   }
   currframe = 0;
 }
 
-
 /// Returns the header metadata for this file as JSON::Value.
-DTSC::Meta & DTSC::File::getMeta() {
+DTSC::Meta &DTSC::File::getMeta(){
   return metadata;
 }
 
-
 /// (Re)writes the given string to the header area if the size is the same as the existing header.
 /// Forces a write if force is set to true.
-bool DTSC::File::writeHeader(std::string & header, bool force) {
-  if (headerSize != header.size() && !force) {
+bool DTSC::File::writeHeader(std::string &header, bool force){
+  if (headerSize != header.size() && !force){
     DEBUG_MSG(DLVL_ERROR, "Could not overwrite header - not equal size");
     return false;
   }
@@ -137,9 +132,7 @@ bool DTSC::File::writeHeader(std::string & header, bool force) {
   int pSize = htonl(header.size());
   fseek(F, 4, SEEK_SET);
   int tmpret = fwrite((void *)(&pSize), 4, 1, F);
-  if (tmpret != 1) {
-    return false;
-  }
+  if (tmpret != 1){return false;}
   fseek(F, 8, SEEK_SET);
   int ret = fwrite(header.c_str(), headerSize, 1, F);
   fseek(F, 8 + headerSize, SEEK_SET);
@@ -148,47 +141,41 @@ bool DTSC::File::writeHeader(std::string & header, bool force) {
 
 /// Adds the given string as a new header to the end of the file.
 /// \returns The positon the header was written at, or 0 on failure.
-long long int DTSC::File::addHeader(std::string & header) {
+long long int DTSC::File::addHeader(std::string &header){
   fseek(F, 0, SEEK_END);
   long long int writePos = ftell(F);
   int hSize = htonl(header.size());
-  int ret = fwrite(DTSC::Magic_Header, 4, 1, F); //write header
-  if (ret != 1) {
-    return 0;
-  }
-  ret = fwrite((void *)(&hSize), 4, 1, F); //write size
-  if (ret != 1) {
-    return 0;
-  }
-  ret = fwrite(header.c_str(), header.size(), 1, F); //write contents
-  if (ret != 1) {
-    return 0;
-  }
+  int ret = fwrite(DTSC::Magic_Header, 4, 1, F); // write header
+  if (ret != 1){return 0;}
+  ret = fwrite((void *)(&hSize), 4, 1, F); // write size
+  if (ret != 1){return 0;}
+  ret = fwrite(header.c_str(), header.size(), 1, F); // write contents
+  if (ret != 1){return 0;}
   fseek(F, 0, SEEK_END);
   endPos = ftell(F);
-  return writePos; //return position written at
+  return writePos; // return position written at
 }
 
 /// Reads the header at the given file position.
 /// If the packet could not be read for any reason, the reason is printed.
 /// Reading the header means the file position is moved to after the header.
-void DTSC::File::readHeader(int pos) {
+void DTSC::File::readHeader(int pos){
   fseek(F, pos, SEEK_SET);
-  if (fread(buffer, 4, 1, F) != 1) {
-    if (feof(F)) {
+  if (fread(buffer, 4, 1, F) != 1){
+    if (feof(F)){
       DEBUG_MSG(DLVL_DEVEL, "End of file reached while reading header @ %d", pos);
-    } else {
+    }else{
       DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", pos);
     }
     metadata = Meta();
     return;
   }
-  if (memcmp(buffer, DTSC::Magic_Header, 4) != 0) {
+  if (memcmp(buffer, DTSC::Magic_Header, 4) != 0){
     DEBUG_MSG(DLVL_ERROR, "Invalid header - %.4s != %.4s  @ %i", (char *)buffer, DTSC::Magic_Header, pos);
     metadata = Meta();
     return;
   }
-  if (fread(buffer, 4, 1, F) != 1) {
+  if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read header size @ %i", pos);
     metadata = Meta();
     return;
@@ -196,96 +183,91 @@ void DTSC::File::readHeader(int pos) {
   long packSize = ntohl(((unsigned long *)buffer)[0]) + 8;
   std::string strBuffer;
   strBuffer.resize(packSize);
-  if (packSize) {
+  if (packSize){
     fseek(F, pos, SEEK_SET);
-    if (fread((void *)strBuffer.c_str(), packSize, 1, F) != 1) {
+    if (fread((void *)strBuffer.c_str(), packSize, 1, F) != 1){
       DEBUG_MSG(DLVL_ERROR, "Could not read header packet @ %i", pos);
       metadata = Meta();
       return;
     }
-    metadata = Meta(DTSC::Packet(strBuffer.data(), strBuffer.size(),true));
+    metadata = Meta(DTSC::Packet(strBuffer.data(), strBuffer.size(), true));
   }
-  //if there is another header, read it and replace metadata with that one.
-  if (metadata.moreheader) {
-    if (metadata.moreheader < getBytePosEOF()) {
+  // if there is another header, read it and replace metadata with that one.
+  if (metadata.moreheader){
+    if (metadata.moreheader < getBytePosEOF()){
       readHeader(metadata.moreheader);
       return;
     }
   }
-  if (!metadata.live){
-    metadata.vod = true;
-  }
+  if (!metadata.live){metadata.vod = true;}
 }
 
-long int DTSC::File::getBytePosEOF() {
+long int DTSC::File::getBytePosEOF(){
   return endPos;
 }
 
-long int DTSC::File::getBytePos() {
+long int DTSC::File::getBytePos(){
   return ftell(F);
 }
 
-bool DTSC::File::reachedEOF() {
+bool DTSC::File::reachedEOF(){
   return feof(F);
 }
 
 /// Reads the packet available at the current file position.
 /// If the packet could not be read for any reason, the reason is printed.
 /// Reading the packet means the file position is increased to the next packet.
-void DTSC::File::seekNext() {
-  if (!currentPositions.size()) {
+void DTSC::File::seekNext(){
+  if (!currentPositions.size()){
     DEBUG_MSG(DLVL_WARN, "No seek positions set - returning empty packet.");
     myPack.null();
     return;
   }
   seekPos thisPos = *currentPositions.begin();
   fseek(F, thisPos.bytePos, SEEK_SET);
-  if (reachedEOF()) {
+  if (reachedEOF()){
     myPack.null();
     return;
   }
   clearerr(F);
   currentPositions.erase(currentPositions.begin());
   lastreadpos = ftell(F);
-  if (fread(buffer, 4, 1, F) != 1) {
-    if (feof(F)) {
+  if (fread(buffer, 4, 1, F) != 1){
+    if (feof(F)){
       DEBUG_MSG(DLVL_DEVEL, "End of file reached while seeking @ %i", (int)lastreadpos);
-    } else {
+    }else{
       DEBUG_MSG(DLVL_ERROR, "Could not seek to next @ %i", (int)lastreadpos);
     }
     myPack.null();
     return;
   }
-  if (memcmp(buffer, DTSC::Magic_Header, 4) == 0) {
+  if (memcmp(buffer, DTSC::Magic_Header, 4) == 0){
     seek_time(myPack.getTime(), myPack.getTrackId(), true);
     return seekNext();
   }
   long long unsigned int version = 0;
-  if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0) {
-    version = 1;
-  }
-  if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0) {
-    version = 2;
-  }
-  if (version == 0) {
-    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d", (unsigned int)lastreadpos, (char *)buffer, DTSC::Magic_Packet2, (int)lastreadpos);
+  if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){version = 1;}
+  if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
+  if (version == 0){
+    DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x - %.4s != %.4s @ %d",
+              (unsigned int)lastreadpos, (char *)buffer, DTSC::Magic_Packet2, (int)lastreadpos);
     myPack.null();
     return;
   }
-  if (fread(buffer, 4, 1, F) != 1) {
+  if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %d", (int)lastreadpos);
     myPack.null();
     return;
   }
   long packSize = ntohl(((unsigned long *)buffer)[0]);
-  char * packBuffer = (char *)malloc(packSize + 8);
-  if (version == 1) {
+  char *packBuffer = (char *)malloc(packSize + 8);
+  if (version == 1){
     memcpy(packBuffer, "DTPD", 4);
-  } else {
+  }else{
     memcpy(packBuffer, "DTP2", 4);
   }
   memcpy(packBuffer + 4, buffer, 4);
-  if (fread((void *)(packBuffer + 8), packSize, 1, F) != 1) {
+  if (fread((void *)(packBuffer + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     myPack.null();
     free(packBuffer);
@@ -293,24 +275,24 @@ void DTSC::File::seekNext() {
   }
   myPack.reInit(packBuffer, packSize + 8);
   free(packBuffer);
-  if (metadata.merged) {
+  if (metadata.merged){
     int tempLoc = getBytePos();
     char newHeader[20];
     bool insert = false;
     seekPos tmpPos;
-    if (fread((void *)newHeader, 20, 1, F) == 1) {
-      if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0) {
+    if (fread((void *)newHeader, 20, 1, F) == 1){
+      if (memcmp(newHeader, DTSC::Magic_Packet2, 4) == 0){
         tmpPos.bytePos = tempLoc;
         tmpPos.trackID = ntohl(((int *)newHeader)[2]);
         tmpPos.seekTime = 0;
-        if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()) {
+        if (selectedTracks.find(tmpPos.trackID) != selectedTracks.end()){
           tmpPos.seekTime = ((long long unsigned int)ntohl(((int *)newHeader)[3])) << 32;
           tmpPos.seekTime += ntohl(((int *)newHeader)[4]);
           insert = true;
-        } else {
+        }else{
           long tid = myPack.getTrackId();
-          for (unsigned int i = 0; i != metadata.tracks[tid].keys.size(); i++) {
-            if ((unsigned long long)metadata.tracks[tid].keys[i].getTime() > myPack.getTime()) {
+          for (unsigned int i = 0; i != metadata.tracks[tid].keys.size(); i++){
+            if ((unsigned long long)metadata.tracks[tid].keys[i].getTime() > myPack.getTime()){
               tmpPos.seekTime = metadata.tracks[tid].keys[i].getTime();
               tmpPos.bytePos = metadata.tracks[tid].keys[i].getBpos();
               tmpPos.trackID = tid;
@@ -319,9 +301,10 @@ void DTSC::File::seekNext() {
             }
           }
         }
-        if (currentPositions.size()) {
-          for (std::set<seekPos>::iterator curPosIter = currentPositions.begin(); curPosIter != currentPositions.end(); curPosIter++) {
-            if ((*curPosIter).trackID == tmpPos.trackID && (*curPosIter).seekTime >= tmpPos.seekTime) {
+        if (currentPositions.size()){
+          for (std::set<seekPos>::iterator curPosIter = currentPositions.begin();
+               curPosIter != currentPositions.end(); curPosIter++){
+            if ((*curPosIter).trackID == tmpPos.trackID && (*curPosIter).seekTime >= tmpPos.seekTime){
               insert = false;
               break;
             }
@@ -330,11 +313,9 @@ void DTSC::File::seekNext() {
       }
     }
     if (insert){
-      if (tmpPos.seekTime > 0xffffffffffffff00ll){
-        tmpPos.seekTime = 0;
-      }
+      if (tmpPos.seekTime > 0xffffffffffffff00ll){tmpPos.seekTime = 0;}
       currentPositions.insert(tmpPos);
-    } else {
+    }else{
       seek_time(myPack.getTime(), myPack.getTrackId(), true);
     }
     seek_bpos(tempLoc);
@@ -345,39 +326,38 @@ void DTSC::File::seekNext() {
 }
 
 void DTSC::File::parseNext(){
-  char header_buffer[4] = {0, 0, 0, 0};
+  char header_buffer[4] ={0, 0, 0, 0};
   lastreadpos = ftell(F);
-  if (fread(header_buffer, 4, 1, F) != 1) {
-    if (feof(F)) {
+  if (fread(header_buffer, 4, 1, F) != 1){
+    if (feof(F)){
       DEBUG_MSG(DLVL_DEVEL, "End of file reached @ %d", (int)lastreadpos);
-    } else {
+    }else{
       DEBUG_MSG(DLVL_ERROR, "Could not read header @ %d", (int)lastreadpos);
     }
     myPack.null();
     return;
   }
   long long unsigned int version = 0;
-  if (memcmp(header_buffer, DTSC::Magic_Packet, 4) == 0 || memcmp(header_buffer, DTSC::Magic_Command, 4) == 0 || memcmp(header_buffer, DTSC::Magic_Header, 4) == 0) {
+  if (memcmp(header_buffer, DTSC::Magic_Packet, 4) == 0 || memcmp(header_buffer, DTSC::Magic_Command, 4) == 0 ||
+      memcmp(header_buffer, DTSC::Magic_Header, 4) == 0){
     version = 1;
   }
-  if (memcmp(header_buffer, DTSC::Magic_Packet2, 4) == 0) {
-    version = 2;
-  }
-  if (version == 0) {
+  if (memcmp(header_buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
+  if (version == 0){
     DEBUG_MSG(DLVL_ERROR, "Invalid packet header @ %#x: %.4s", (unsigned int)lastreadpos, (char *)buffer);
     myPack.null();
     return;
   }
-  if (fread(buffer, 4, 1, F) != 1) {
+  if (fread(buffer, 4, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet size @ %#x", (unsigned int)lastreadpos);
     myPack.null();
     return;
   }
   long packSize = ntohl(((unsigned long *)buffer)[0]);
-  char * packBuffer = (char *)malloc(packSize + 8);
+  char *packBuffer = (char *)malloc(packSize + 8);
   memcpy(packBuffer, header_buffer, 4);
   memcpy(packBuffer + 4, buffer, 4);
-  if (fread((void *)(packBuffer + 8), packSize, 1, F) != 1) {
+  if (fread((void *)(packBuffer + 8), packSize, 1, F) != 1){
     DEBUG_MSG(DLVL_ERROR, "Could not read packet @ %d", (int)lastreadpos);
     myPack.null();
     free(packBuffer);
@@ -388,19 +368,19 @@ void DTSC::File::parseNext(){
 }
 
 /// Returns the byte positon of the start of the last packet that was read.
-long long int DTSC::File::getLastReadPos() {
+long long int DTSC::File::getLastReadPos(){
   return lastreadpos;
 }
 
 /// Returns the internal buffer of the last read packet in raw binary format.
-DTSC::Packet & DTSC::File::getPacket() {
+DTSC::Packet &DTSC::File::getPacket(){
   return myPack;
 }
 
-bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek) {
+bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek){
   seekPos tmpPos;
   tmpPos.trackID = trackNo;
-  if (!forceSeek && myPack && ms >= myPack.getTime() && trackNo >= myPack.getTrackId()) {
+  if (!forceSeek && myPack && ms >= myPack.getTime() && trackNo >= myPack.getTrackId()){
     tmpPos.seekTime = myPack.getTime();
     tmpPos.bytePos = getBytePos();
     /*
@@ -408,135 +388,124 @@ bool DTSC::File::seek_time(unsigned int ms, unsigned int trackNo, bool forceSeek
       tmpPos.bytePos += myPack.getDataLen();
     }
     */
-  } else {
+  }else{
     tmpPos.seekTime = 0;
     tmpPos.bytePos = 0;
   }
-  if (reachedEOF()) {
+  if (reachedEOF()){
     clearerr(F);
     seek_bpos(0);
     tmpPos.bytePos = 0;
     tmpPos.seekTime = 0;
   }
-  DTSC::Track & trackRef = metadata.tracks[trackNo];
-  for (unsigned int i = 0; i < trackRef.keys.size(); i++) {
+  DTSC::Track &trackRef = metadata.tracks[trackNo];
+  for (unsigned int i = 0; i < trackRef.keys.size(); i++){
     long keyTime = trackRef.keys[i].getTime();
-    if (keyTime > ms) {
-      break;
-    }
-    if ((long long unsigned int)keyTime > tmpPos.seekTime) {
+    if (keyTime > ms){break;}
+    if ((long long unsigned int)keyTime > tmpPos.seekTime){
       tmpPos.seekTime = keyTime;
       tmpPos.bytePos = trackRef.keys[i].getBpos();
     }
   }
   bool foundPacket = false;
-  while (!foundPacket) {
+  while (!foundPacket){
     lastreadpos = ftell(F);
-    if (reachedEOF()) {
+    if (reachedEOF()){
       DEBUG_MSG(DLVL_WARN, "Reached EOF during seek to %u in track %d - aborting @ %lld", ms, trackNo, lastreadpos);
       return false;
     }
-    //Seek to first packet after ms.
+    // Seek to first packet after ms.
     seek_bpos(tmpPos.bytePos);
-    //read the header
+    // read the header
     char header[20];
     if (fread((void *)header, 20, 1, F) != 1){
       DEBUG_MSG(DLVL_WARN, "Could not read header from file. Much sadface.");
       return false;
     }
-    //check if packetID matches, if not, skip size + 8 bytes.
+    // check if packetID matches, if not, skip size + 8 bytes.
     int packSize = ntohl(((int *)header)[1]);
     unsigned int packID = ntohl(((int *)header)[2]);
-    if (memcmp(header, Magic_Packet2, 4) != 0 || packID != trackNo) {
-      if (memcmp(header, "DT", 2) != 0) {
-        DEBUG_MSG(DLVL_WARN, "Invalid header during seek to %u in track %d @ %lld - resetting bytePos from %lld to zero", ms, trackNo, lastreadpos, tmpPos.bytePos);
+    if (memcmp(header, Magic_Packet2, 4) != 0 || packID != trackNo){
+      if (memcmp(header, "DT", 2) != 0){
+        DEBUG_MSG(DLVL_WARN, "Invalid header during seek to %u in track %d @ %lld - resetting bytePos from %lld to zero",
+                  ms, trackNo, lastreadpos, tmpPos.bytePos);
         tmpPos.bytePos = 0;
         continue;
       }
       tmpPos.bytePos += 8 + packSize;
       continue;
     }
-    //get timestamp of packet, if too large, break, if not, skip size bytes.
+    // get timestamp of packet, if too large, break, if not, skip size bytes.
     long long unsigned int myTime = ((long long unsigned int)ntohl(((int *)header)[3]) << 32);
     myTime += ntohl(((int *)header)[4]);
     tmpPos.seekTime = myTime;
-    if (myTime >= ms) {
+    if (myTime >= ms){
       foundPacket = true;
-    } else {
+    }else{
       tmpPos.bytePos += 8 + packSize;
       continue;
     }
   }
-  //DEBUG_MSG(DLVL_HIGH, "Seek to %u:%d resulted in %lli", trackNo, ms, tmpPos.seekTime);
-  if (tmpPos.seekTime > 0xffffffffffffff00ll){
-    tmpPos.seekTime = 0;
-  }
+  // DEBUG_MSG(DLVL_HIGH, "Seek to %u:%d resulted in %lli", trackNo, ms, tmpPos.seekTime);
+  if (tmpPos.seekTime > 0xffffffffffffff00ll){tmpPos.seekTime = 0;}
   currentPositions.insert(tmpPos);
   return true;
 }
 
 /// Attempts to seek to the given time in ms within the file.
 /// Returns true if successful, false otherwise.
-bool DTSC::File::seek_time(unsigned int ms) {
+bool DTSC::File::seek_time(unsigned int ms){
   currentPositions.clear();
-  if (selectedTracks.size()) {
-    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++) {
+  if (selectedTracks.size()){
+    for (std::set<unsigned long>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       seek_time(ms, (*it), true);
     }
   }
   return true;
 }
 
-bool DTSC::File::seek_bpos(int bpos) {
-  if (fseek(F, bpos, SEEK_SET) == 0) {
-    return true;
-  }
+bool DTSC::File::seek_bpos(int bpos){
+  if (fseek(F, bpos, SEEK_SET) == 0){return true;}
   return false;
 }
 
-void DTSC::File::rewritePacket(std::string & newPacket, int bytePos) {
+void DTSC::File::rewritePacket(std::string &newPacket, int bytePos){
   fseek(F, bytePos, SEEK_SET);
   fwrite(newPacket.c_str(), newPacket.size(), 1, F);
   fseek(F, 0, SEEK_END);
-  if (ftell(F) > endPos) {
-    endPos = ftell(F);
-  }
+  if (ftell(F) > endPos){endPos = ftell(F);}
 }
 
-void DTSC::File::writePacket(std::string & newPacket) {
+void DTSC::File::writePacket(std::string &newPacket){
   fseek(F, 0, SEEK_END);
-  fwrite(newPacket.c_str(), newPacket.size(), 1, F); //write contents
+  fwrite(newPacket.c_str(), newPacket.size(), 1, F); // write contents
   fseek(F, 0, SEEK_END);
   endPos = ftell(F);
 }
 
-void DTSC::File::writePacket(JSON::Value & newPacket) {
+void DTSC::File::writePacket(JSON::Value &newPacket){
   writePacket(newPacket.toNetPacked());
 }
 
-bool DTSC::File::atKeyframe() {
-  if (myPack.getFlag("keyframe")) {
-    return true;
-  }
+bool DTSC::File::atKeyframe(){
+  if (myPack.getFlag("keyframe")){return true;}
   long long int bTime = myPack.getTime();
-  DTSC::Track & trackRef = metadata.tracks[myPack.getTrackId()];
-  for (unsigned int i = 0; i < trackRef.keys.size(); i++) {
-    if (trackRef.keys[i].getTime() >= bTime) {
-      return (trackRef.keys[i].getTime() == bTime);
-    }
+  DTSC::Track &trackRef = metadata.tracks[myPack.getTrackId()];
+  for (unsigned int i = 0; i < trackRef.keys.size(); i++){
+    if (trackRef.keys[i].getTime() >= bTime){return (trackRef.keys[i].getTime() == bTime);}
   }
   return false;
 }
 
-void DTSC::File::selectTracks(std::set<unsigned long> & tracks) {
+void DTSC::File::selectTracks(std::set<unsigned long> &tracks){
   selectedTracks = tracks;
   currentPositions.clear();
   seek_time(0);
 }
 
 /// Close the file if open
-DTSC::File::~File() {
-  if (F) {
+DTSC::File::~File(){
+  if (F){
     fclose(F);
     F = 0;
   }

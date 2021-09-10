@@ -303,4 +303,3 @@ namespace h264{
   nalUnit *nalFactory(FILE *in, bool annexb = true);
   nalUnit *nalFactory(const char *data, size_t len, size_t &offset, bool annexb = true);
 }// namespace h264
-

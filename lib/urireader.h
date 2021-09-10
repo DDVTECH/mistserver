@@ -52,10 +52,10 @@ namespace HTTP{
     void setBounds(size_t minLen = 0, size_t maxLen = 0);
 
     // Static getters
-    bool isSeekable() const;   ///< Returns true if seeking is possible in this URI.
-    bool isEOF() const;        ///< Returns true if the end of the URI has been reached.
-    operator bool() const {return !isEOF();} ///< Returns !isEOF()
-    uint64_t getPos();   ///< Returns the current byte position in the URI.
+    bool isSeekable() const; ///< Returns true if seeking is possible in this URI.
+    bool isEOF() const;      ///< Returns true if the end of the URI has been reached.
+    operator bool() const{return !isEOF();}///< Returns !isEOF()
+    uint64_t getPos();                         ///< Returns the current byte position in the URI.
     const HTTP::URL &getURI() const; ///< Returns the most recently open URI, or the current working directory if not set.
     size_t getSize() const; ///< Returns the size of the currently open URI, if known. Returns std::string::npos if unknown size.
 
@@ -73,13 +73,13 @@ namespace HTTP{
     size_t totalSize; ///< Total size in bytes of the current URI. May be incomplete before read finished.
     size_t curPos; ///< Current read position in source
     size_t bufPos; ///< Current read position in buffer
-    int handle; ///< Open file handle, if file-based.
-    char *mapped; ///< Memory-map of open file handle, if file-based.
+    int handle;    ///< Open file handle, if file-based.
+    char *mapped;  ///< Memory-map of open file handle, if file-based.
     bool supportRangeRequest;
     Util::ResizeablePointer rPtr;
     Util::ResizeablePointer allData;
     bool clearPointer;
-    URIType stateType;     ///< Holds the type of URI this is, for internal processing purposes.
+    URIType stateType;       ///< Holds the type of URI this is, for internal processing purposes.
     HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
   };

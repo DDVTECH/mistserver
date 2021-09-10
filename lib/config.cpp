@@ -132,8 +132,7 @@ void Util::Config::printHelp(std::ostream &output){
       }
       while (f.size() < longest){f.append(" ");}
       if (it->isMember("arg")){
-        output << f << "(" << (*it)["arg"].asString() << ") " << (*it)["help"].asString()
-               << std::endl;
+        output << f << "(" << (*it)["arg"].asString() << ") " << (*it)["help"].asString() << std::endl;
       }else{
         output << f << (*it)["help"].asString() << std::endl;
       }
@@ -141,8 +140,7 @@ void Util::Config::printHelp(std::ostream &output){
     if (it->isMember("arg_num")){
       f = it.key();
       while (f.size() < longest){f.append(" ");}
-      output << f << "(" << (*it)["arg"].asString() << ") " << (*it)["help"].asString()
-             << std::endl;
+      output << f << "(" << (*it)["arg"].asString() << ") " << (*it)["help"].asString() << std::endl;
     }
   }
 }
@@ -188,9 +186,9 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
                 << std::endl;
 #endif
 #ifdef WITH_THREADNAMES
-      std::cout
-          << "- Flag: With threadnames. Debuggers will show sensible human-readable thread names."
-          << std::endl;
+      std::cout << "- Flag: With threadnames. Debuggers will show sensible human-readable thread "
+                   "names."
+                << std::endl;
 #endif
 /*LTS-START*/
 #ifndef UPDATER
@@ -210,9 +208,8 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
 #endif
 #ifdef STATS_DELAY
       if (STATS_DELAY != 15){
-        std::cout << "- Setting: Stats delay " << STATS_DELAY
-                  << ". Statistics of viewer counts are delayed by " << STATS_DELAY
-                  << " seconds as opposed to the default of 15 seconds. ";
+        std::cout << "- Setting: Stats delay " << STATS_DELAY << ". Statistics of viewer counts are delayed by "
+                  << STATS_DELAY << " seconds as opposed to the default of 15 seconds. ";
         if (STATS_DELAY > 15){
           std::cout << "This makes them more accurate." << std::endl;
         }else{
@@ -263,8 +260,7 @@ bool Util::Config::hasOption(const std::string &optname){
 /// If the option does not exist, this exits the application with a return code of 37.
 JSON::Value &Util::Config::getOption(std::string optname, bool asArray){
   if (!vals.isMember(optname)){
-    std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed."
-              << std::endl;
+    std::cout << "Fatal error: a non-existent option '" << optname << "' was accessed." << std::endl;
     exit(37);
   }
   if (!vals[optname].isMember("value") || !vals[optname]["value"].isArray()){
@@ -313,8 +309,7 @@ static void callThreadCallback(void *cDataArg){
   INSANE_MSG("Thread for %p ended", cDataArg);
 }
 
-int Util::Config::threadServer(Socket::Server &server_socket,
-                               int (*callback)(Socket::Connection &)){
+int Util::Config::threadServer(Socket::Server &server_socket, int (*callback)(Socket::Connection &)){
   Util::Procs::socketList.insert(server_socket.getSocket());
   while (is_active && server_socket.connected()){
     Socket::Connection S = server_socket.accept();
@@ -354,9 +349,7 @@ int Util::Config::forkServer(Socket::Server &server_socket, int (*callback)(Sock
     }
   }
   Util::Procs::socketList.erase(server_socket.getSocket());
-  if (!is_restarting){
-    server_socket.close();
-  }
+  if (!is_restarting){server_socket.close();}
   return 0;
 }
 
@@ -366,7 +359,7 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
     server_socket = Socket::Server(0);
   }else if (vals.isMember("socket")){
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  } else if (vals.isMember("port") && vals.isMember("interface")){
+  }else if (vals.isMember("port") && vals.isMember("interface")){
     server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()){
@@ -394,7 +387,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
     server_socket = Socket::Server(0);
   }else if (vals.isMember("socket")){
     server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  } else if (vals.isMember("port") && vals.isMember("interface")){
+  }else if (vals.isMember("port") && vals.isMember("interface")){
     server_socket = Socket::Server(getInteger("port"), getString("interface"), false);
   }
   if (!server_socket.connected()){
@@ -463,8 +456,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
     case SI_TIMER:
     case SI_ASYNCIO:
     case SI_MESGQ:
-      INFO_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum,
-               sigInfo->si_pid);
+      INFO_MSG("Received signal %s (%d) from process %d", strsignal(signum), signum, sigInfo->si_pid);
       break;
     default: INFO_MSG("Received signal %s (%d)", strsignal(signum), signum); break;
     }
@@ -653,4 +645,3 @@ void Util::setUser(std::string username){
     }
   }
 }
-

@@ -5,9 +5,10 @@
 namespace Mist{
   InputH264::InputH264(Util::Config *cfg) : Input(cfg){
     capa["name"] = "H264";
-    capa["desc"] = "This input allows you to take raw H264 Annex B data over a standard input pipe, and turn it into a live stream.";
+    capa["desc"] = "This input allows you to take raw H264 Annex B data over a standard input "
+                   "pipe, and turn it into a live stream.";
     capa["source_match"] = "h264-exec:*";
-    //May be set to always-on mode
+    // May be set to always-on mode
     capa["always_match"].append("h264-exec:*");
     capa["priority"] = 0;
     capa["codecs"][0u][0u].append("H264");
@@ -25,7 +26,7 @@ namespace Mist{
       char *args[128];
       uint8_t argCnt = 0;
       char *startCh = 0;
-      for (char *i = (char*)input.c_str(); i <= input.data() + input.size(); ++i){
+      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
         if (!*i){
           if (startCh){args[argCnt++] = startCh;}
           break;
@@ -123,5 +124,4 @@ namespace Mist{
     }while (myConn && (inputProcess == 0 || Util::Procs::childRunning(inputProcess)));
     if (inputProcess){myConn.close();}
   }
-}
-
+}// namespace Mist

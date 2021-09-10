@@ -1,9 +1,9 @@
 #include "output_progressive_mp3.h"
 
-namespace Mist {
-  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection & conn) : HTTPOutput(conn){}
+namespace Mist{
+  OutProgressiveMP3::OutProgressiveMP3(Socket::Connection &conn) : HTTPOutput(conn){}
 
-  void OutProgressiveMP3::init(Util::Config * cfg){
+  void OutProgressiveMP3::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "MP3";
     capa["friendly"] = "MP3 over HTTP";
@@ -22,13 +22,11 @@ namespace Mist {
     opt["help"] = "Target filename to store MP3 file as, or - for stdout.";
     cfg->addOption("target", opt);
   }
-  
-  bool OutProgressiveMP3::isRecording(){
-    return config->getString("target").size();
-  }
-  
+
+  bool OutProgressiveMP3::isRecording(){return config->getString("target").size();}
+
   void OutProgressiveMP3::sendNext(){
-    char * dataPointer = 0;
+    char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
     myConn.SendNow(dataPointer, len);
@@ -41,7 +39,7 @@ namespace Mist {
       H.SetHeader("Content-Type", "audio/mpeg");
       H.protocol = "HTTP/1.0";
       H.setCORSHeaders();
-      if(method == "OPTIONS" || method == "HEAD"){
+      if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         return;
       }
@@ -52,19 +50,19 @@ namespace Mist {
 
   void OutProgressiveMP3::onHTTP(){
     std::string method = H.method;
-    
+
     H.Clean();
     H.setCORSHeaders();
-    if(method == "OPTIONS" || method == "HEAD"){
+    if (method == "OPTIONS" || method == "HEAD"){
       H.SetHeader("Content-Type", "audio/mpeg");
       H.protocol = "HTTP/1.0";
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
     }
-    
+
     parseData = true;
     wantRequest = false;
   }
 
-}
+}// namespace Mist

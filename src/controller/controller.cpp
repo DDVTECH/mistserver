@@ -1,7 +1,6 @@
 /// \file controller.cpp
 /// Contains all code for the controller executable.
 
-#include <mist/util.h>
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
@@ -10,6 +9,7 @@
 #include "controller_storage.h"
 #include "controller_streams.h"
 #include <ctime>
+#include <fstream> //for ram space check
 #include <iostream>
 #include <mist/auth.h>
 #include <mist/config.h>
@@ -21,12 +21,12 @@
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/tinythread.h>
+#include <mist/util.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h> //for shm space check
 #include <sys/wait.h>
 #include <vector>
-#include <sys/statvfs.h> //for shm space check
-#include <fstream> //for ram space check
 /*LTS-START*/
 #include "controller_license.h"
 #include "controller_limits.h"
@@ -79,8 +79,7 @@ void statusMonitor(void *np){
     {
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
       // checks online protocols, reports changes to status
-      if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"],
-                                            Controller::capabilities)){
+      if (Controller::CheckProtocols(Controller::Storage["config"]["protocols"], Controller::capabilities)){
         Controller::writeProtocols();
       }
       // checks stream statuses, reports changes to status
@@ -181,16 +180,12 @@ int main_loop(int argc, char **argv){
       "uplink",
       JSON::fromString("{\"default\":\"\", \"arg\":\"string\", \"help\":\"MistSteward uplink host "
                        "and port.\", \"short\":\"U\", \"long\":\"uplink\"}")); /*LTS*/
-  Controller::conf.addOption("uplink-name",
-                             JSON::fromString("{\"default\":\"" COMPILED_USERNAME
-                                              "\", \"arg\":\"string\", \"help\":\"MistSteward "
-                                              "uplink username.\", \"short\":\"N\", "
-                                              "\"long\":\"uplink-name\"}")); /*LTS*/
-  Controller::conf.addOption("uplink-pass",
-                             JSON::fromString("{\"default\":\"" COMPILED_PASSWORD
-                                              "\", \"arg\":\"string\", \"help\":\"MistSteward "
-                                              "uplink password.\", \"short\":\"P\", "
-                                              "\"long\":\"uplink-pass\"}")); /*LTS*/
+  Controller::conf.addOption("uplink-name", JSON::fromString("{\"default\":\"" COMPILED_USERNAME "\", \"arg\":\"string\", \"help\":\"MistSteward "
+                                                             "uplink username.\", \"short\":\"N\", "
+                                                             "\"long\":\"uplink-name\"}")); /*LTS*/
+  Controller::conf.addOption("uplink-pass", JSON::fromString("{\"default\":\"" COMPILED_PASSWORD "\", \"arg\":\"string\", \"help\":\"MistSteward "
+                                                             "uplink password.\", \"short\":\"P\", "
+                                                             "\"long\":\"uplink-pass\"}")); /*LTS*/
   Controller::conf.addOption(
       "prometheus",
       JSON::fromString("{\"long\":\"prometheus\", \"short\":\"S\", \"arg\":\"string\" "
@@ -199,8 +194,7 @@ int main_loop(int argc, char **argv){
   Controller::conf.parseArgs(argc, argv);
   if (Controller::conf.getString("logfile") != ""){
     // open logfile, dup stdout to logfile
-    int output =
-        open(Controller::conf.getString("logfile").c_str(), O_APPEND | O_CREAT | O_WRONLY, S_IRWXU);
+    int output = open(Controller::conf.getString("logfile").c_str(), O_APPEND | O_CREAT | O_WRONLY, S_IRWXU);
     if (output < 0){
       DEBUG_MSG(DLVL_ERROR, "Could not redirect output to %s: %s",
                 Controller::conf.getString("logfile").c_str(), strerror(errno));
@@ -225,7 +219,7 @@ int main_loop(int argc, char **argv){
   Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
 
   {// spawn thread that reads stderr of process
-    std::string logPipe = Util::getTmpFolder()+"MstLog";
+    std::string logPipe = Util::getTmpFolder() + "MstLog";
     if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
       if (errno != EEXIST){
         ERROR_MSG("Could not create log message pipe %s: %s", logPipe.c_str(), strerror(errno));
@@ -233,34 +227,37 @@ int main_loop(int argc, char **argv){
     }
     int inFD = -1;
     if ((inFD = open(logPipe.c_str(), O_RDONLY | O_NONBLOCK)) == -1){
-      ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe", logPipe.c_str(), strerror(errno));
+      ERROR_MSG("Could not open log message pipe %s: %s; falling back to unnamed pipe",
+                logPipe.c_str(), strerror(errno));
       int pipeErr[2];
       if (pipe(pipeErr) >= 0){
         dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
         close(pipeErr[1]);               // close the unneeded pipe file descriptor
-        //Start reading log messages from the unnamed pipe
-        Util::Procs::socketList.insert(pipeErr[0]); //Mark this FD as needing to be closed before forking
+        // Start reading log messages from the unnamed pipe
+        Util::Procs::socketList.insert(pipeErr[0]); // Mark this FD as needing to be closed before forking
         tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + pipeErr[0]));
         msghandler.detach();
       }
     }else{
-      //Set the read end to blocking mode
+      // Set the read end to blocking mode
       int inFDflags = fcntl(inFD, F_GETFL, 0);
       fcntl(inFD, F_SETFL, inFDflags & (~O_NONBLOCK));
-      //Start reading log messages from the named pipe
-      Util::Procs::socketList.insert(inFD); //Mark this FD as needing to be closed before forking
+      // Start reading log messages from the named pipe
+      Util::Procs::socketList.insert(inFD); // Mark this FD as needing to be closed before forking
       tthread::thread msghandler(Controller::handleMsg, (void *)(((char *)0) + inFD));
       msghandler.detach();
-      //Attempt to open and redirect log messages to named pipe
+      // Attempt to open and redirect log messages to named pipe
       int outFD = -1;
       if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
-        ERROR_MSG("Could not open log message pipe %s for writing! %s; falling back to standard error", logPipe.c_str(), strerror(errno));
+        ERROR_MSG(
+            "Could not open log message pipe %s for writing! %s; falling back to standard error",
+            logPipe.c_str(), strerror(errno));
       }else{
         dup2(outFD, STDERR_FILENO); // cause stderr to write to the pipe
         close(outFD);               // close the unneeded pipe file descriptor
       }
     }
-    setenv("MIST_CONTROL", "1", 0);//Signal in the environment that the controller handles all children
+    setenv("MIST_CONTROL", "1", 0); // Signal in the environment that the controller handles all children
   }
 
   if (Controller::conf.getOption("debug", true).size() > 1){
@@ -277,12 +274,10 @@ int main_loop(int argc, char **argv){
         Controller::Storage["config"]["controller"]["port"];
   }
   if (Controller::Storage["config"]["controller"]["interface"]){
-    Controller::conf.getOption("interface", true)[0u] =
-        Controller::Storage["config"]["controller"]["interface"];
+    Controller::conf.getOption("interface", true)[0u] = Controller::Storage["config"]["controller"]["interface"];
   }
   if (Controller::Storage["config"]["controller"]["username"]){
-    Controller::conf.getOption("username", true)[0u] =
-        Controller::Storage["config"]["controller"]["username"];
+    Controller::conf.getOption("username", true)[0u] = Controller::Storage["config"]["controller"]["username"];
   }
   if (Controller::Storage["config"]["controller"].isMember("prometheus")){
     if (Controller::Storage["config"]["controller"]["prometheus"]){
@@ -313,7 +308,6 @@ int main_loop(int argc, char **argv){
   createAccount(Controller::conf.getString("account"));
   Controller::conf.activate(); // activate early, so threads aren't killed.
 
-
 #if !defined(__CYGWIN__) && !defined(_WIN32)
   {
     uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0, shm_total = 0, shm_free = 0;
@@ -323,8 +317,8 @@ int main_loop(int argc, char **argv){
       while (meminfo.good()){
         meminfo.getline(line, 300);
         if (meminfo.fail()){
-          //empty lines? ignore them, clear flags, continue
-          if ( !meminfo.eof()){
+          // empty lines? ignore them, clear flags, continue
+          if (!meminfo.eof()){
             meminfo.ignore();
             meminfo.clear();
           }
@@ -341,26 +335,47 @@ int main_loop(int argc, char **argv){
     IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
     if (tmpCapa.mapped && tmpCapa.handle){
       fstatvfs(tmpCapa.handle, &shmd);
-      shm_free = (shmd.f_bfree*shmd.f_frsize)/1024;
-      shm_total = (shmd.f_blocks*shmd.f_frsize)/1024;
+      shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
+      shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
     }
 
-    if (mem_free+mem_bufcache < 1024*1024){
-      WARN_MSG("You have very little free RAM available (%" PRIu64 " MiB). While Mist will run just fine with this amount, do note that random crashes may occur should you ever run out of free RAM. Please be pro-active and keep an eye on the RAM usage!");
+    if (mem_free + mem_bufcache < 1024 * 1024){
+      WARN_MSG("You have very little free RAM available (%" PRIu64
+               " MiB). While Mist will run just fine with this amount, do note that random crashes "
+               "may occur should you ever run out of free RAM. Please be pro-active and keep an "
+               "eye on the RAM usage!");
     }
-    if (shm_free < 1024*1024 && mem_total > 1024*1024*1.12){
-      WARN_MSG("You have very little shared memory available (%" PRIu64 " MiB). Mist heavily relies on shared memory: please ensure your shared memory is set to a high value, preferably ~95%% of your total available RAM.", shm_free/1024);
+    if (shm_free < 1024 * 1024 && mem_total > 1024 * 1024 * 1.12){
+      WARN_MSG("You have very little shared memory available (%" PRIu64
+               " MiB). Mist heavily relies on shared memory: please ensure your shared memory is "
+               "set to a high value, preferably ~95%% of your total available RAM.",
+               shm_free / 1024);
       if (shm_total == 65536){
-        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64 "m` parameter to your `docker run` command to fix this.", (uint64_t)(mem_total*0.95/1024));
+        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64
+                 "m` parameter to your `docker run` command to fix this.",
+                 (uint64_t)(mem_total * 0.95 / 1024));
       }else{
-        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o remount,size=%" PRIu64 "m /dev/shm` as root. Doing this automatically every boot depends on your distribution: please check your distro's documentation for instructions.", (uint64_t)(mem_total*0.95/1024));
+        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o "
+                 "remount,size=%" PRIu64
+                 "m /dev/shm` as root. Doing this automatically every boot depends on your "
+                 "distribution: please check your distro's documentation for instructions.",
+                 (uint64_t)(mem_total * 0.95 / 1024));
       }
-    }else if (shm_total <= mem_total/2){
-      WARN_MSG("Your shared memory is half or less of your RAM (%" PRIu64 " / %" PRIu64 " MiB). Mist heavily relies on shared memory: please ensure your shared memory is set to a high value, preferably ~95%% of your total available RAM.", shm_total/1024, mem_total/1024);
+    }else if (shm_total <= mem_total / 2){
+      WARN_MSG("Your shared memory is half or less of your RAM (%" PRIu64 " / %" PRIu64
+               " MiB). Mist heavily relies on shared memory: please ensure your shared memory is "
+               "set to a high value, preferably ~95%% of your total available RAM.",
+               shm_total / 1024, mem_total / 1024);
       if (shm_total == 65536){
-        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64 "m` parameter to your `docker run` command to fix this.", (uint64_t)(mem_total*0.95/1024));
+        WARN_MSG("Tip: If you are using docker, e.g. add the `--shm-size=%" PRIu64
+                 "m` parameter to your `docker run` command to fix this.",
+                 (uint64_t)(mem_total * 0.95 / 1024));
       }else{
-        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o remount,size=%" PRIu64 "m /dev/shm` as root. Doing this automatically every boot depends on your distribution: please check your distro's documentation for instructions.", (uint64_t)(mem_total*0.95/1024));
+        WARN_MSG("Tip: In most cases, you can change the shared memory size by running `mount -o "
+                 "remount,size=%" PRIu64
+                 "m /dev/shm` as root. Doing this automatically every boot depends on your "
+                 "distribution: please check your distro's documentation for instructions.",
+                 (uint64_t)(mem_total * 0.95 / 1024));
       }
     }
   }
@@ -379,8 +394,7 @@ int main_loop(int argc, char **argv){
         case 'y':{
           // create account
           std::string usr_string = "";
-          while (!(Controller::Storage.isMember("account") &&
-                   Controller::Storage["account"].size() > 0) &&
+          while (!(Controller::Storage.isMember("account") && Controller::Storage["account"].size() > 0) &&
                  Controller::conf.is_active){
             std::cout << "Please type in the username, a colon and a password in the following "
                          "format; username:password"
@@ -391,13 +405,11 @@ int main_loop(int argc, char **argv){
             createAccount(usr_string);
           }
         }break;
-        case 'a':
-          return 0; // abort bootup
+        case 'a': return 0; // abort bootup
         case 't':{
           createAccount("test:test");
           if ((Controller::capabilities["connectors"].size()) &&
-              (!Controller::Storage.isMember("config") ||
-               !Controller::Storage["config"].isMember("protocols") ||
+              (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
                Controller::Storage["config"]["protocols"].size() < 1)){
             // create protocols
             jsonForEach(Controller::capabilities["connectors"], it){
@@ -414,13 +426,12 @@ int main_loop(int argc, char **argv){
     }
     // check for protocols
     if ((Controller::capabilities["connectors"].size()) &&
-        (!Controller::Storage.isMember("config") ||
-         !Controller::Storage["config"].isMember("protocols") ||
+        (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
          Controller::Storage["config"]["protocols"].size() < 1)){
       std::string in_string = "";
       while (yna(in_string) == 'x' && Controller::conf.is_active){
-        std::cout
-            << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, (a)bort: ";
+        std::cout << "Protocols not set, do you want to enable default protocols? (y)es, (n)o, "
+                     "(a)bort: ";
         std::cout.flush();
         std::getline(std::cin, in_string);
         if (yna(in_string) == 'y'){
@@ -451,20 +462,17 @@ int main_loop(int argc, char **argv){
                           web_port + " and follow the instructions.");
     }
     // check for protocols
-    if (!Controller::Storage.isMember("config") ||
-        !Controller::Storage["config"].isMember("protocols") ||
+    if (!Controller::Storage.isMember("config") || !Controller::Storage["config"].isMember("protocols") ||
         Controller::Storage["config"]["protocols"].size() < 1){
-      Controller::Log(
-          "CONF",
-          "No protocols enabled, remember to set them up through the web interface on port " +
-              web_port + " or API.");
+      Controller::Log("CONF", "No protocols enabled, remember to set them up through the web "
+                              "interface on port " +
+                                  web_port + " or API.");
     }
     // check for streams - regardless of logfile setting
     if (!Controller::Storage.isMember("streams") || Controller::Storage["streams"].size() < 1){
-      Controller::Log(
-          "CONF",
-          "No streams configured, remember to set up streams through the web interface on port " +
-              web_port + " or API.");
+      Controller::Log("CONF", "No streams configured, remember to set up streams through the web "
+                              "interface on port " +
+                                  web_port + " or API.");
     }
   }
 
@@ -646,4 +654,3 @@ int main(int argc, char **argv){
   }
   return 0;
 }
-

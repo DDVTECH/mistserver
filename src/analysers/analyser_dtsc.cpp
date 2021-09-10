@@ -1,6 +1,6 @@
 #include "analyser_dtsc.h"
-#include <mist/h264.h>
 #include <iomanip>
+#include <mist/h264.h>
 
 void AnalyserDTSC::init(Util::Config &conf){
   Analyser::init(conf);
@@ -29,7 +29,7 @@ bool AnalyserDTSC::parsePacket(){
       if (!conn.spool()){Util::sleep(50);}
     }
     std::string dataBuf = conn.Received().remove(conn.Received().bytes(0xFFFFFFFFul));
-    DTSC::Scan S((char*)dataBuf.data(), dataBuf.size());
+    DTSC::Scan S((char *)dataBuf.data(), dataBuf.size());
     std::cout << S.toPrettyString() << std::endl;
     return false;
   }
@@ -57,7 +57,7 @@ bool AnalyserDTSC::parsePacket(){
                 << "): " << P.getScan().toPrettyString() << std::endl;
     }
     if (detail >= 8){
-      char * payDat;
+      char *payDat;
       size_t payLen;
       P.getString("data", payDat, payLen);
       for (uint64_t i = 0; i < payLen; ++i){
@@ -70,7 +70,8 @@ bool AnalyserDTSC::parsePacket(){
   case DTSC::DTSC_HEAD:{
     if (detail >= 3){
       std::cout << "DTSC header: ";
-      DTSC::Meta(P).toPrettyString(std::cout, 0, (detail == 3 ? 0 : (detail == 4 ? 0x01 : (detail == 5 ? 0x03 : 0x07))));
+      DTSC::Meta(P).toPrettyString(
+          std::cout, 0, (detail == 3 ? 0 : (detail == 4 ? 0x01 : (detail == 5 ? 0x03 : 0x07))));
     }
     if (detail == 2){std::cout << "DTSC header: " << P.getScan().toPrettyString() << std::endl;}
     if (detail == 1){
@@ -79,8 +80,7 @@ bool AnalyserDTSC::parsePacket(){
       JSON::Value result;
       std::stringstream issues;
       DTSC::Meta M(P);
-      for (std::map<unsigned int, DTSC::Track>::iterator it = M.tracks.begin();
-           it != M.tracks.end(); it++){
+      for (std::map<unsigned int, DTSC::Track>::iterator it = M.tracks.begin(); it != M.tracks.end(); it++){
         JSON::Value track;
         track["kbits"] = (uint64_t)((double)it->second.bps * 8 / 1024);
         track["codec"] = it->second.codec;
@@ -90,8 +90,7 @@ bool AnalyserDTSC::parsePacket(){
         uint32_t longest_prt = 0;
         uint32_t shrtest_cnt = 0xFFFFFFFFul;
         uint32_t longest_cnt = 0;
-        for (std::deque<DTSC::Key>::iterator k = it->second.keys.begin();
-             k != it->second.keys.end(); k++){
+        for (std::deque<DTSC::Key>::iterator k = it->second.keys.begin(); k != it->second.keys.end(); k++){
           if (!k->getLength()){continue;}
           if (k->getLength() > longest_key){longest_key = k->getLength();}
           if (k->getLength() < shrtest_key){shrtest_key = k->getLength();}
@@ -113,12 +112,10 @@ bool AnalyserDTSC::parsePacket(){
         track["keys"]["frames_min"] = shrtest_cnt;
         track["keys"]["frames_max"] = longest_cnt;
         if (longest_prt > 500){
-          issues << "unstable connection (" << longest_prt << "ms " << it->second.codec
-                 << " frame)! ";
+          issues << "unstable connection (" << longest_prt << "ms " << it->second.codec << " frame)! ";
         }
         if (shrtest_cnt < 6){
-          issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec
-                 << " frames in key)! ";
+          issues << "unstable connection (" << shrtest_cnt << " " << it->second.codec << " frames in key)! ";
         }
         if (it->second.codec == "AAC"){hasAAC = true;}
         if (it->second.codec == "H264"){hasH264 = true;}
@@ -156,4 +153,3 @@ bool AnalyserDTSC::parsePacket(){
   totalBytes += P.getDataLen();
   return true;
 }
-

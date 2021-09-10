@@ -86,4 +86,3 @@ namespace RTMPStream{
   /// Does the handshake. Expects handshake_in to be filled, and fills handshake_out.
   bool doHandshake();
 }// namespace RTMPStream
-

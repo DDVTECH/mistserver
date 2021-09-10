@@ -1,9 +1,8 @@
+#include <stdint.h>
 #include <string>
-#include <stdint.h> 
 
 namespace Opus{
-  uint16_t getPreSkip(const char * initData);
+  uint16_t getPreSkip(const char *initData);
   unsigned int Opus_getDuration(const char *part);
   std::string Opus_prettyPacket(const char *part, int len);
-}
-
+}// namespace Opus

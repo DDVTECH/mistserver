@@ -1,61 +1,60 @@
 #pragma once
-#include <stdint.h>
-#include <string>
+#include "defines.h"
 #include <deque>
-#include <vector>
 #include <map>
 #include <stdint.h>
 #include <stdlib.h>
-#include "defines.h"
+#include <string>
+#include <vector>
 
 namespace Util{
   bool isDirectory(const std::string &path);
   bool createPathFor(const std::string &file);
   bool createPath(const std::string &path);
-  bool stringScan(const std::string &src, const std::string &pattern,
-                  std::deque<std::string> &result);
+  bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
 
   uint64_t ftell(FILE *stream);
   uint64_t fseek(FILE *stream, uint64_t offset, int whence);
 
   class DataCallback{
-    public:
-    virtual void dataCallback(const char * ptr, size_t size){
+  public:
+    virtual void dataCallback(const char *ptr, size_t size){
       INFO_MSG("default callback, size: %llu", size);
     }
   };
 
   extern Util::DataCallback defaultDataCallback;
 
- //Forward declaration
-  class FieldAccX; 
+  // Forward declaration
+  class FieldAccX;
 
   /// Helper class that maintains a resizeable pointer and will free it upon deletion of the class.
   class ResizeablePointer{
-    public:
-      ResizeablePointer();
-      ~ResizeablePointer();
-      inline size_t& size(){return currSize;}
-      inline const size_t size() const{return currSize;}
-      bool assign(const void * p, uint32_t l);
-      bool assign(const std::string & str);
-      bool append(const void * p, uint32_t l);
-      bool append(const std::string & str);
-      bool allocate(uint32_t l);
-      uint32_t rsize();
-      void truncate(const size_t newLen);
-      inline operator char*(){return (char*)ptr;}
-      inline operator const char *() const{return (const char *)ptr;}
-      inline operator void*(){return ptr;}
-    private:
-      void * ptr;
-      size_t currSize;
-      size_t maxSize;
+  public:
+    ResizeablePointer();
+    ~ResizeablePointer();
+    inline size_t &size(){return currSize;}
+    inline const size_t size() const{return currSize;}
+    bool assign(const void *p, uint32_t l);
+    bool assign(const std::string &str);
+    bool append(const void *p, uint32_t l);
+    bool append(const std::string &str);
+    bool allocate(uint32_t l);
+    uint32_t rsize();
+    void truncate(const size_t newLen);
+    inline operator char *(){return (char *)ptr;}
+    inline operator const char *() const{return (const char *)ptr;}
+    inline operator void *(){return ptr;}
 
+  private:
+    void *ptr;
+    size_t currSize;
+    size_t maxSize;
   };
 
-  void logParser(int in, int out, bool colored, void callback(const std::string &, const std::string &, const std::string &, bool) = 0);
+  void logParser(int in, int out, bool colored,
+                 void callback(const std::string &, const std::string &, const std::string &, bool) = 0);
   void redirectLogsIfNeeded();
 
   /// Holds type, size and offset for RelAccX class internal data fields.
@@ -72,25 +71,25 @@ namespace Util{
     }
   };
 
-  #define RAX_NESTED 0x01
-  #define RAX_UINT 0x10
-  #define RAX_INT 0x20
-  #define RAX_16UINT 0x11
-  #define RAX_16INT 0x21
-  #define RAX_32UINT 0x13
-  #define RAX_32INT 0x23
-  #define RAX_64UINT 0x17
-  #define RAX_64INT 0x27
-  #define RAX_STRING 0x30
-  #define RAX_32STRING 0x31
-  #define RAX_64STRING 0x32
-  #define RAX_128STRING 0x33
-  #define RAX_256STRING 0x34
-  #define RAX_512STRING 0x35
-  #define RAX_RAW 0x40
-  #define RAX_256RAW 0x44
-  #define RAX_512RAW 0x45
-  #define RAX_DTSC 0x50
+#define RAX_NESTED 0x01
+#define RAX_UINT 0x10
+#define RAX_INT 0x20
+#define RAX_16UINT 0x11
+#define RAX_16INT 0x21
+#define RAX_32UINT 0x13
+#define RAX_32INT 0x23
+#define RAX_64UINT 0x17
+#define RAX_64INT 0x27
+#define RAX_STRING 0x30
+#define RAX_32STRING 0x31
+#define RAX_64STRING 0x32
+#define RAX_128STRING 0x33
+#define RAX_256STRING 0x34
+#define RAX_512STRING 0x35
+#define RAX_RAW 0x40
+#define RAX_256RAW 0x44
+#define RAX_512RAW 0x45
+#define RAX_DTSC 0x50
 
   /// Reliable Access class.
   /// Provides reliable access to memory data structures, using dynamic static offsets and a status
@@ -127,72 +126,75 @@ namespace Util{
   /// Setting reload means the writer needed to change fields, and the pointer should be closed and
   /// re-opened through outside means (e.g. closing and re-opening the containing shm page).
   class RelAccX{
-    public:
-      RelAccX(char * data = NULL, bool waitReady = true);
-      //Read-only functions:
-      uint32_t getRCount() const;
-      uint32_t getRSize() const;
-      uint16_t getOffset() const;
-      uint32_t getStartPos() const;
-      uint64_t getDeleted() const;
-      uint64_t getEndPos() const;
-      size_t getPresent() const;
-      uint32_t getFieldCount() const;
-      bool isReady() const;
-      bool isExit() const;
-      bool isReload() const;
-      bool isRecordAvailable(uint64_t recordNo) const;
-      uint32_t getRecordPosition(uint64_t recordNo) const;
-      uint32_t getSize(const std::string & name, uint64_t recordNo=0) const;
+  public:
+    RelAccX(char *data = NULL, bool waitReady = true);
+    // Read-only functions:
+    uint32_t getRCount() const;
+    uint32_t getRSize() const;
+    uint16_t getOffset() const;
+    uint32_t getStartPos() const;
+    uint64_t getDeleted() const;
+    uint64_t getEndPos() const;
+    size_t getPresent() const;
+    uint32_t getFieldCount() const;
+    bool isReady() const;
+    bool isExit() const;
+    bool isReload() const;
+    bool isRecordAvailable(uint64_t recordNo) const;
+    uint32_t getRecordPosition(uint64_t recordNo) const;
+    uint32_t getSize(const std::string &name, uint64_t recordNo = 0) const;
 
-      char * getPointer(const std::string & name, uint64_t recordNo=0) const;
-      char * getPointer(const RelAccXFieldData & fd, uint64_t recordNo=0) const;
-      
-      uint64_t getInt(const std::string & name, uint64_t recordNo=0) const;
-      uint64_t getInt(const RelAccXFieldData & fd, uint64_t recordNo=0) const;
+    char *getPointer(const std::string &name, uint64_t recordNo = 0) const;
+    char *getPointer(const RelAccXFieldData &fd, uint64_t recordNo = 0) const;
 
-      std::string toPrettyString(size_t indent = 0) const;
-      std::string toCompactString(size_t indent = 0) const;
-      //Read-write functions:
-      void addField(const std::string & name, uint8_t fType, uint32_t fLen=0);
-      void setRCount(uint32_t count);
-      void setStartPos(uint32_t n);
-      void setDeleted(uint64_t n);
-      void setEndPos(uint64_t n);
-      void setPresent(uint32_t n);
-      void setReady();
-      void setExit();
-      void setReload();
-      void setString(const std::string & name, const std::string & val, uint64_t recordNo=0);
-      void setString(const RelAccXFieldData & fd, const std::string & val, uint64_t recordNo=0);
-      void setInt(const std::string & name, uint64_t val, uint64_t recordNo=0);
-      void setInt(const RelAccXFieldData & fd, uint64_t val, uint64_t recordNo=0);
-      void setInts(const std::string & name, uint64_t * values, size_t len);
-      void deleteRecords(uint32_t amount);
-      void addRecords(uint32_t amount);
+    uint64_t getInt(const std::string &name, uint64_t recordNo = 0) const;
+    uint64_t getInt(const RelAccXFieldData &fd, uint64_t recordNo = 0) const;
 
-      void minimalFrom(const RelAccX & src);
-      void copyFieldsFrom(const RelAccX & src, bool minimal = false);
-      void flowFrom(const RelAccX & src);
+    std::string toPrettyString(size_t indent = 0) const;
+    std::string toCompactString(size_t indent = 0) const;
+    // Read-write functions:
+    void addField(const std::string &name, uint8_t fType, uint32_t fLen = 0);
+    void setRCount(uint32_t count);
+    void setStartPos(uint32_t n);
+    void setDeleted(uint64_t n);
+    void setEndPos(uint64_t n);
+    void setPresent(uint32_t n);
+    void setReady();
+    void setExit();
+    void setReload();
+    void setString(const std::string &name, const std::string &val, uint64_t recordNo = 0);
+    void setString(const RelAccXFieldData &fd, const std::string &val, uint64_t recordNo = 0);
+    void setInt(const std::string &name, uint64_t val, uint64_t recordNo = 0);
+    void setInt(const RelAccXFieldData &fd, uint64_t val, uint64_t recordNo = 0);
+    void setInts(const std::string &name, uint64_t *values, size_t len);
+    void deleteRecords(uint32_t amount);
+    void addRecords(uint32_t amount);
 
-      FieldAccX getFieldAccX(const std::string & fName);
-      RelAccXFieldData getFieldData(const std::string & fName) const;
-    protected:
-      static uint32_t getDefaultSize(uint8_t fType);
-      std::map<std::string, RelAccXFieldData> fields;
-    private:
-      char * p;
+    void minimalFrom(const RelAccX &src);
+    void copyFieldsFrom(const RelAccX &src, bool minimal = false);
+    void flowFrom(const RelAccX &src);
+
+    FieldAccX getFieldAccX(const std::string &fName);
+    RelAccXFieldData getFieldData(const std::string &fName) const;
+
+  protected:
+    static uint32_t getDefaultSize(uint8_t fType);
+    std::map<std::string, RelAccXFieldData> fields;
+
+  private:
+    char *p;
   };
 
-  class FieldAccX {
-    public:
-      FieldAccX(RelAccX * _src = NULL, RelAccXFieldData _field = RelAccXFieldData());
-      uint64_t uint(size_t recordNo) const;
-      std::string string(size_t recordNo) const;
-      void set(uint64_t val, size_t recordNo = 0);
-      void set(const std::string & val, size_t recordNo = 0);
-    private:
-      RelAccX * src;
-      RelAccXFieldData field;
+  class FieldAccX{
+  public:
+    FieldAccX(RelAccX *_src = NULL, RelAccXFieldData _field = RelAccXFieldData());
+    uint64_t uint(size_t recordNo) const;
+    std::string string(size_t recordNo) const;
+    void set(uint64_t val, size_t recordNo = 0);
+    void set(const std::string &val, size_t recordNo = 0);
+
+  private:
+    RelAccX *src;
+    RelAccXFieldData field;
   };
-}
+}// namespace Util

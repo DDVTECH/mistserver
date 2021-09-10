@@ -21,4 +21,3 @@ private:
   DTSC::Meta myMeta;
   SDP::State sdpState;
 };
-

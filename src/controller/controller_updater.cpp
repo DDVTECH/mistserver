@@ -1,19 +1,19 @@
 /// \file controller_updater.cpp
 /// Contains all code for the controller updater.
 
-#include "controller_updater.h"
 #include "controller_connectors.h"
 #include "controller_storage.h"
+#include "controller_updater.h"
 #include <fstream>  //for files
 #include <iostream> //for stdio
 #include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/downloader.h>
-#include <mist/http_parser.h>
-#include <mist/timing.h>
 #include <mist/encode.h>
+#include <mist/http_parser.h>
 #include <mist/procs.h>
+#include <mist/timing.h>
 #include <signal.h>   //for raise
 #include <sys/stat.h> //for chmod
 #include <time.h>     //for time
@@ -66,8 +66,7 @@ namespace Controller{
       if (Util::epoch() - updateChecker > UPDATE_INTERVAL || updatePerc){
         JSON::Value result = Controller::checkUpdateInfo();
         if (result.isMember("error")){
-          FAIL_MSG("Error retrieving update information: %s",
-                   result["error"].asStringRef().c_str());
+          FAIL_MSG("Error retrieving update information: %s", result["error"].asStringRef().c_str());
         }
         {// Lock the mutex, update the updates object
           tthread::lock_guard<tthread::mutex> guard(updaterMutex);
@@ -75,7 +74,8 @@ namespace Controller{
         }
         if (!result["uptodate"] && updatePerc){
           if (result["url"].asStringRef().find(".zip") != std::string::npos){
-            FAIL_MSG("Cannot auto-install update for this platform. Please download and install by hand.");
+            FAIL_MSG("Cannot auto-install update for this platform. Please download and install by "
+                     "hand.");
             updatePerc = 0;
             continue;
           }
@@ -86,7 +86,7 @@ namespace Controller{
 #else
           HTTP::URL url("http://releases.mistserver.org/update.php");
 #endif
-          DL.dataTimeout = 50;//only timeout if no data received for 50 seconds
+          DL.dataTimeout = 50; // only timeout if no data received for 50 seconds
           DL.progressCallback = updaterProgressCallback;
           if (!DL.get(url.link(result["url"].asStringRef())) || !DL.isOk() || !DL.data().size()){
             FAIL_MSG("Download failed - aborting update");
@@ -94,13 +94,13 @@ namespace Controller{
             continue;
           }
           updatePerc = 50;
-          INFO_MSG("Downloaded update archive of %zuKiB", DL.data().size()/1024);
+          INFO_MSG("Downloaded update archive of %zuKiB", DL.data().size() / 1024);
           Log("UPDR", "Installing update...");
           std::string tmpDir = Util::getMyPath();
-          char * tarArgs[4];
-          tarArgs[0] = (char*)"tar";
-          tarArgs[1] = (char*)"-xzC";
-          tarArgs[2] = (char*)tmpDir.c_str();
+          char *tarArgs[4];
+          tarArgs[0] = (char *)"tar";
+          tarArgs[1] = (char *)"-xzC";
+          tarArgs[2] = (char *)tmpDir.c_str();
           tarArgs[3] = 0;
           int tarIn = -1;
           pid_t tarPid = Util::Procs::StartPiped(tarArgs, &tarIn, 0, 0);
@@ -111,13 +111,14 @@ namespace Controller{
           }
           size_t tarProgress = 0;
           while (tarProgress < DL.data().size()){
-            int written = write(tarIn, DL.data().data()+tarProgress, std::min((size_t)4096, DL.data().size() - tarProgress));
+            int written = write(tarIn, DL.data().data() + tarProgress,
+                                std::min((size_t)4096, DL.data().size() - tarProgress));
             if (written < 0){
               FAIL_MSG("Could not (fully) extract update! Aborting.");
               break;
             }
             tarProgress += written;
-            updatePerc = 95 + (5*tarProgress)/DL.data().size();
+            updatePerc = 95 + (5 * tarProgress) / DL.data().size();
           }
           close(tarIn);
           uint64_t waitCount = 0;
@@ -176,12 +177,13 @@ namespace Controller{
 #else
     HTTP::URL url("http://releases.mistserver.org/update.php");
 #endif
-    url.args = "rel=" + Encodings::URL::encode(RELEASE) + "&pass=" + Encodings::URL::encode(SHARED_SECRET) + "&iid=" + Encodings::URL::encode(instanceId);
+    url.args = "rel=" + Encodings::URL::encode(RELEASE) + "&pass=" + Encodings::URL::encode(SHARED_SECRET) +
+               "&iid=" + Encodings::URL::encode(instanceId);
     if (DL.get(url) && DL.isOk()){
       updrInfo = JSON::fromString(DL.data());
     }else{
-      Log("UPDR", "Error getting update info: "+DL.getStatusText());
-      ret["error"] = "Error getting update info: "+DL.getStatusText();
+      Log("UPDR", "Error getting update info: " + DL.getStatusText());
+      ret["error"] = "Error getting update info: " + DL.getStatusText();
       return ret;
     }
     if (!updrInfo){
@@ -213,5 +215,4 @@ namespace Controller{
   /// Causes the updater thread to download an update, if available
   void checkUpdates(){updatePerc = 1;}// CheckUpdates
 
-}
-
+}// namespace Controller

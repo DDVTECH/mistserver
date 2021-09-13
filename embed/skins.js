@@ -2180,7 +2180,11 @@ MistSkins["default"] = {
 MistSkins.dev = {
   structure: MistUtil.object.extend({},MistSkins["default"].structure,true),
   blueprints: {
-    timeout: function(){ //don't use countdowns on buttons
+    timeout: function(){
+      //don't use countdowns on buttons unless MistVideo.options.reloadDelay is set
+      if (this.options.reloadDelay !== false) {
+        return MistSkins.default.blueprints.timeout.apply(this,arguments);
+      }
       return false;
     },
     log: function(){

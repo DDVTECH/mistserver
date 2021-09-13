@@ -72,6 +72,7 @@ function MistVideo(streamName,options) {
     start: function(callback,delay){
       var i = setTimeout(function(){
         delete MistVideo.timers.list[i];
+        if (MistVideo.destroyed) return;
         callback();
       },delay);
       this.list[i] = new Date(new Date().getTime() + delay);
@@ -1019,7 +1020,9 @@ function MistVideo(streamName,options) {
               }
             },
             report: function(d){
-              MistVideo.socket.send(JSON.stringify(d));
+              if (MistVideo.socket.readyState == 1) {
+                MistVideo.socket.send(JSON.stringify(d));
+              }
             },
             reportStats: function(){
               var d = {};
@@ -1095,22 +1098,22 @@ function MistVideo(streamName,options) {
                 });
                 Object.defineProperty(d,"videoHeight",{
                   get: function(){
-                    return MistVideo.video.videoHeight;
+                    return MistVideo.video ? MistVideo.video.videoHeight : null;
                   }
                 });
                 Object.defineProperty(d,"videoWidth",{
                   get: function(){
-                    return MistVideo.video.videoWidth;
+                    return MistVideo.video ? MistVideo.video.videoWidth : null;
                   }
                 });
                 Object.defineProperty(d,"playerHeight",{
                   get: function(){
-                    return MistVideo.video.clientHeight;
+                    return MistVideo.video ? MistVideo.video.clientHeight : null;
                   }
                 });
                 Object.defineProperty(d,"playerWidth",{
                   get: function(){
-                    return MistVideo.video.clientWidth;
+                    return MistVideo.video ? MistVideo.video.clientWidth : null;
                   }
                 });
                 Object.defineProperty(d,"keyonly",{
@@ -1362,6 +1365,7 @@ function MistVideo(streamName,options) {
     }
     if (this.socket) {
       if (this.reporting) {
+        this.reporting.reportStats();
         this.reporting.report({unload:reason ? reason : null});
       }
       this.socket.destroy();

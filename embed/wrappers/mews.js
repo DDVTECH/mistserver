@@ -123,11 +123,11 @@ p.prototype.build = function (MistVideo,callback) {
         resolve();
       };
       player.ms.onsourceclose = function(e){
-        console.error("ms close",e);
+        if (player.debugging) console.error("ms close",e);
         send({type:"stop"}); //stop sending data please something went wrong
       };
       player.ms.onsourceended = function(e){
-        console.error("ms ended",e);
+        if (player.debugging) console.error("ms ended",e);
         
         //for debugging
         
@@ -282,21 +282,34 @@ p.prototype.build = function (MistVideo,callback) {
         player.sb.appendBuffer(data);
       }
       catch(e){
-        if (e.name == "QuotaExceededError") {
-          if (video.buffered.length) {
-            if (video.currentTime - video.buffered.start(0) > 1) {
-              //clear as much from the buffer as we can
-              MistVideo.log("Triggered QuotaExceededError: cleaning up "+(Math.round((video.currentTime - video.buffered.start(0) - 1)*10)/10)+"s");
-              player.sb._clean(1);
+        switch (e.name) {
+          case "QuotaExceededError": {
+            if (video.buffered.length) {
+              if (video.currentTime - video.buffered.start(0) > 1) {
+                //clear as much from the buffer as we can
+                MistVideo.log("Triggered QuotaExceededError: cleaning up "+(Math.round((video.currentTime - video.buffered.start(0) - 1)*10)/10)+"s");
+                player.sb._clean(1);
+              }
+              else {
+                var bufferEnd = video.buffered.end(video.buffered.length-1);
+                MistVideo.log("Triggered QuotaExceededError but there is nothing to clean: skipping ahead "+(Math.round((bufferEnd - video.currentTime)*10)/10)+"s");
+                video.currentTime = bufferEnd;
+              }
+              player.sb._busy = false;
+              player.sb._append(data); //now try again
+              return;
             }
-            else {
-              var bufferEnd = video.buffered.end(video.buffered.length-1);
-              MistVideo.log("Triggered QuotaExceededError but there is nothing to clean: skipping ahead "+(Math.round((bufferEnd - video.currentTime)*10)/10)+"s");
-              video.currentTime = bufferEnd;
+            break;
+          }
+          case "InvalidStateError": {
+            player.api.pause(); //playback is borked, so stop downloading more data
+            if (MistVideo.video.error) {
+              //Failed to execute 'appendBuffer' on 'SourceBuffer': The HTMLMediaElement.error attribute is not null
+
+              //the video element error is already triggering the showError()
+              return;
             }
-            player.sb._busy = false;
-            player.sb._append(data); //now try again
-            return;
+            break;
           }
         }
         MistVideo.showError(e.message);
@@ -371,7 +384,7 @@ p.prototype.build = function (MistVideo,callback) {
       };
       this.ws.onclose = function(e){
         MistVideo.log("MP4 over WS: websocket closed");
-        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online")) {
+        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online") && (!MistVideo.video.error)) {
           MistVideo.log("MP4 over WS: reopening websocket");
           player.wsconnect().then(function(){
             if (!player.sb) {
@@ -680,8 +693,12 @@ p.prototype.build = function (MistVideo,callback) {
         }
         var data = new Uint8Array(e.data);
         if (data) {
-          for (var i in player.monitor.bitCounter) {
-            player.monitor.bitCounter[i] += e.data.byteLength*8;
+          //if (new Date().getTime() - MistVideo.bootMs > 15e3) { data.fill(0,0,Math.floor(data.length*0.1)); } //corrupt the data pl0x :D 
+          
+          if (player.monitor && player.monitor.bitCounter) {
+            for (var i in player.monitor.bitCounter) {
+              player.monitor.bitCounter[i] += e.data.byteLength*8;
+            }
           }
           if ((player.sb) && (!player.msgqueue)) {
             if (player.sb.updating || player.sb.queue.length || player.sb._busy) {

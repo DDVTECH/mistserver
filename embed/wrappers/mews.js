@@ -102,6 +102,7 @@ p.prototype.build = function (MistVideo,callback) {
   
   var player = this;
   //player.debugging = true;
+  //player.debugging = "dl"; //download appended data on ms close
   
   //this function is called both when the websocket is ready and the media source is ready - both should be open to proceed
   function checkReady() {
@@ -129,32 +130,30 @@ p.prototype.build = function (MistVideo,callback) {
       player.ms.onsourceended = function(e){
         if (player.debugging) console.error("ms ended",e);
         
-        //for debugging
+        if (player.debugging == "dl") {
+          function downloadBlob (data, fileName, mimeType) {
+            var blob, url;
+            blob = new Blob([data], {
+              type: mimeType
+            });
+            url = window.URL.createObjectURL(blob);
+            downloadURL(url, fileName);
+            setTimeout(function() {
+              return window.URL.revokeObjectURL(url);
+            }, 1000);
+          };
+
+          function downloadURL (data, fileName) {
+            var a;
+            a = document.createElement('a');
+            a.href = data;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.style = 'display: none';
+            a.click();
+            a.remove();
+          };
         
-        function downloadBlob (data, fileName, mimeType) {
-          var blob, url;
-          blob = new Blob([data], {
-            type: mimeType
-          });
-          url = window.URL.createObjectURL(blob);
-          downloadURL(url, fileName);
-          setTimeout(function() {
-            return window.URL.revokeObjectURL(url);
-          }, 1000);
-        };
-        
-        function downloadURL (data, fileName) {
-          var a;
-          a = document.createElement('a');
-          a.href = data;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.style = 'display: none';
-          a.click();
-          a.remove();
-        };
-        
-        if (player.debugging) {
           var l = 0;
           for (var i = 0; i < player.sb.appended.length; i++) {
             l += player.sb.appended[i].length;
@@ -939,8 +938,8 @@ p.prototype.build = function (MistVideo,callback) {
           value = (e.data.current*1e-3).toFixed(3);
           var f = function() {
             video.currentTime = value;
-            if (video.currentTime != value) {
-              if (player.debugging) console.log("Failed to set video.currentTime, wanted:",value,"got:",video.currentTime);
+            if (video.currentTime.toFixed(3) != value) {
+              MistVideo.log("Failed to seek, wanted:",value,"got:",video.currentTime.toFixed(3));
               player.sb._doNext(f);
             }
           }

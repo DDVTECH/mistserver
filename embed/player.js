@@ -1064,7 +1064,7 @@ function MistVideo(streamName,options) {
               MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
                 MistVideo.reporting.stats.add("nError");
                 MistVideo.reporting.stats.set("lastError",e.message);
-              });
+              },video); //remove event listener when the player is removed
 
               if (Object && Object.defineProperty) {
                 var timeWaiting = 0;

@@ -56,6 +56,7 @@ bool AnalyserFLV::parsePacket() {
 }
 
 void AnalyserFLV::dataCallback(const char *ptr, size_t size) {
+  mediaDown += size;
 //  WARN_MSG("flv add buffer callback, size: %lu", size);
   buffer.append(ptr, size);
 }

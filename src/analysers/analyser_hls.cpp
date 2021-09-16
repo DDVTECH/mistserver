@@ -60,6 +60,7 @@ bool AnalyserHLS::readPlaylist(std::string source){
   DONTEVEN_MSG("playlist open url: %s", pl.c_str());
   uri.open(pl);
   uri.readAll(data,s);
+  mediaDown += s;
   if (!s){return false;}
 
   std::string line;
@@ -123,6 +124,7 @@ bool AnalyserHLS::parsePacket(){
       uint64_t micros = Util::getMicros();
       uri.open(part.uri);
       uri.readAll(pl,s);
+      mediaDown += s;
       micros = Util::getMicros(micros);
       if (part.dur < micros / 1000){
         WARN_MSG("Downloading segment %s took %" PRIu64 "ms but has a duration of %zums", part.uri.getUrl().c_str(), micros/1000,(size_t)part.dur);
@@ -159,9 +161,5 @@ bool AnalyserHLS::parsePacket(){
     // The non-live case is already handled in isOpen()
   }
   return false;
-}
-
-void AnalyserHLS::dataCallback(const char *ptr, size_t size) {
-  buffer.append(ptr, size);
 }
 

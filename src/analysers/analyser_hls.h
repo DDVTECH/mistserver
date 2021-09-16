@@ -19,7 +19,6 @@ public:
   bool isOpen();
 //  bool open(const std::string &filename);
   void stop();
-  void dataCallback(const char * ptr, size_t size);
   bool readPlaylist(std::string source);
   bool open(const std::string & filename);
 
@@ -31,6 +30,5 @@ private:
   uint64_t parsedPart;
   uint64_t refreshAt;
   std::ofstream reconstruct;
-  Socket::Buffer buffer;
   bool refreshPlaylist;
 };

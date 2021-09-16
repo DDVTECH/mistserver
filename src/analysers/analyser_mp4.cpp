@@ -8,7 +8,6 @@ void AnalyserMP4::init(Util::Config &conf){
 
 AnalyserMP4::AnalyserMP4(Util::Config &conf) : Analyser(conf){
   curPos = prePos = 0;
-  buffer.splitter.clear();
 }
 
 bool AnalyserMP4::parsePacket(){
@@ -17,9 +16,8 @@ bool AnalyserMP4::parsePacket(){
   //Attempt to read a whole box
   uint64_t bytesNeeded = neededBytes();
   while (mp4Buffer.size() < bytesNeeded){
-    uri.readSome(bytesNeeded - buffer.bytes(bytesNeeded), *this);
     mp4Buffer.allocate(bytesNeeded);
-    mp4Buffer.append(buffer.remove(bytesNeeded - mp4Buffer.size()));
+    uri.readSome(bytesNeeded - mp4Buffer.size(), *this);
     bytesNeeded = neededBytes();
     if (mp4Buffer.size() < bytesNeeded){
       if (uri.isEOF()){break;}
@@ -77,23 +75,10 @@ bool AnalyserMP4::parsePacket(){
   }
   //Pretty-print box if needed
   if (!validate && detail >= 2){std::cout << mp4Data.toPrettyString(0) << std::endl;}
-  mp4Buffer.truncate(0);
+  mp4Buffer.pop(bytesNeeded);
   return true;
 }
 
-
-/*
-uint64_t AnalyserMP4::neededBytes(){
-  if (mp4Buffer.size() < 4){return 4;}
-  uint64_t size = ntohl(((int *)mp4Buffer.data())[0]);
-  if (size != 1){return size;}
-  if (mp4Buffer.size() < 16){return 16;}
-  size = 0 + ntohl(((int *)mp4Buffer.data())[2]);
-  size <<= 32;
-  size += ntohl(((int *)mp4Buffer.data())[3]);
-  return size;
- }
-*/
 
 /// Calculates how many bytes we need to read a whole box.
 uint64_t AnalyserMP4::neededBytes(){
@@ -108,6 +93,6 @@ uint64_t AnalyserMP4::neededBytes(){
 }
 
 void AnalyserMP4::dataCallback(const char *ptr, size_t size) {
-  buffer.append(ptr, size);
+  mp4Buffer.append(ptr, size);
 }
 

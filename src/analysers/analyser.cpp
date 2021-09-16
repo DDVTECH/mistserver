@@ -15,6 +15,8 @@ Analyser::Analyser(Util::Config &conf){
   isActive = &conf.is_active;
   firstMediaTime=0;
   firstMediaBootTime=0;
+  measureInterval = timeOut / 300;
+  if (measureInterval < 1000){measureInterval = 1000;}
 }
 
 ///Opens the filename. Supports stdin and plain files.
@@ -79,7 +81,7 @@ int Analyser::run(Util::Config &conf){
     if (validate){
       finTime = Util::bootMS();
       if (mediaTime){
-        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + 1000){mediaTimes[finTime] = mediaTime;}
+        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + measureInterval){mediaTimes[finTime] = mediaTime;}
       }
       if(mediaTime && !firstMediaBootTime){
         firstMediaBootTime = finTime;

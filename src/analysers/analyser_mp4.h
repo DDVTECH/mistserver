@@ -11,7 +11,6 @@ public:
 private:
   uint64_t neededBytes();
   Util::ResizeablePointer mp4Buffer;
-  Socket::Buffer buffer;
   MP4::Box mp4Data;
   uint64_t curPos;
   uint64_t prePos;

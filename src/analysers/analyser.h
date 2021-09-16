@@ -36,6 +36,7 @@ protected:
   uint64_t timeOut;   ///< After how many seconds a timeout should trigger
   int detail;         ///< Detail level of analyser
   uint64_t mediaTime; ///< Timestamp in ms of last media packet received
+  uint64_t mediaDown; ///< Bytes received running total
   uint64_t upTime;    ///< Unix time of analyser start
   uint64_t finTime;   ///< Unix time of last packet received
   uint64_t firstMediaTime;
@@ -46,5 +47,6 @@ protected:
   std::string reasonForStop;
 private:
    std::map<uint64_t, uint64_t> mediaTimes;
+   std::map<uint64_t, uint64_t> mediaBytes;
 };
 

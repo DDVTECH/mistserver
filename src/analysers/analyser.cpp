@@ -51,6 +51,7 @@ Analyser::~Analyser(){
       JSON::Value val;
       val.append(it->first);
       val.append(it->second);
+      val.append(mediaBytes[it->first]);
       out["media"].append(val);
 
     }
@@ -81,7 +82,10 @@ int Analyser::run(Util::Config &conf){
     if (validate){
       finTime = Util::bootMS();
       if (mediaTime){
-        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + measureInterval){mediaTimes[finTime] = mediaTime;}
+        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + measureInterval){
+          mediaTimes[finTime] = mediaTime;
+          mediaBytes[finTime] = mediaDown;
+        }
       }
       if(mediaTime && !firstMediaBootTime){
         firstMediaBootTime = finTime;

@@ -93,6 +93,7 @@ uint64_t AnalyserMP4::neededBytes(){
 }
 
 void AnalyserMP4::dataCallback(const char *ptr, size_t size) {
+  mediaDown += size;
   mp4Buffer.append(ptr, size);
 }
 

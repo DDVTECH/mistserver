@@ -40,6 +40,7 @@ protected:
   uint64_t finTime;   ///< Unix time of last packet received
   uint64_t firstMediaTime;
   uint64_t firstMediaBootTime;
+  uint32_t measureInterval; ///< Milliseconds between taking measurements
   bool *isActive;     ///< Pointer to is_active bool from config
   HTTP::URIReader uri;
   std::string reasonForStop;

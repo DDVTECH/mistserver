@@ -43,6 +43,7 @@ namespace Util{
     bool allocate(uint32_t l);
     uint32_t rsize();
     void truncate(const size_t newLen);
+    void pop(const size_t popLen);
     inline operator char *(){return (char *)ptr;}
     inline operator const char *() const{return (const char *)ptr;}
     inline operator void *(){return ptr;}

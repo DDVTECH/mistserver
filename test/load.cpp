@@ -72,6 +72,8 @@ Process newViewer(int time, HTTP::URL url, const std::string &protocol){
 void prom_fetch(void * n){
   HTTP::Downloader d;
   int total_time = *((int*)n);
+  uint32_t sleepTime = total_time*3.333;
+  if (sleepTime < 1000){sleepTime = 1000;}
   uint64_t started = Util::bootSecs();
   d.dataTimeout = 15;
   while (thread_handler){
@@ -90,7 +92,7 @@ void prom_fetch(void * n){
         WARN_MSG("Invalid system statistics JSON read from %s", jsonUrl.c_str());
       }
     }
-    Util::sleep(1000);
+    Util::sleep(sleepTime);
   }
 }
 

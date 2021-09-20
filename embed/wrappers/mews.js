@@ -570,21 +570,15 @@ p.prototype.build = function (MistVideo,callback) {
               
 
               if (checkEqual(player.last_codecs ? player.last_codecs : player.sb._codecs,msg.data.codecs)) {
-                if (player.debugging) console.log("reached switching point");
-                if (msg.data.current > 0) {
-                  if (player.sb) { //if sb is being cleared at the moment, don't bother
-                    player.sb._do(function(){ //once the source buffer is done updating the current segment, clear the specified interval from the buffer
-                      player.sb.remove(0,msg.data.current*1e-3);
-                    });
-                  }
-                }
-
                 MistVideo.log("Player switched tracks, keeping source buffer as codecs are the same as before.");
+                if ((video.currentTime == 0) && (msg.data.current != 0)) {
+                  video.currentTime = msg.data.current;
+                }
               }
               else {
                 if (player.debugging) {
                   console.warn("Different codecs!");
-                  console.warn("video time",video.currentTime,"waiting until",msg.data.current*1e-3);
+                  console.warn("video time",video.currentTime,"switch startpoint",msg.data.current*1e-3);
                 }
                 player.last_codecs = msg.data.codecs;
                 //start gathering messages in a new msg queue. They won't be appended to the current source buffer
@@ -597,6 +591,7 @@ p.prototype.build = function (MistVideo,callback) {
                 //play out buffer, then when we reach the starting timestamp of the new data, reset the source buffers
                 var clear = function(){
                   //once the source buffer is done updating the current segment, clear the specified interval from the buffer
+                  currPos = video.currentTime;
                   if (player && player.sb) {
                     player.sb._do(function(remaining_do_on_updateend){
                       if (!player.sb.updating) {
@@ -610,7 +605,7 @@ p.prototype.build = function (MistVideo,callback) {
                         player.ms.onsourceended = null;
                         //console.log("sb murdered");
                         if (player.debugging && remaining_do_on_updateend && remaining_do_on_updateend.length) {
-                          console.warn("There are do_on_updateend functions queued, which I *should* re-apply after clearing the sb.");
+                          console.warn("There are do_on_updateend functions queued, which I will re-apply after clearing the sb.");
                         }
 
                         player.msinit().then(function(){
@@ -618,10 +613,19 @@ p.prototype.build = function (MistVideo,callback) {
                           player.sb.do_on_updateend = remaining_do_on_updateend;
 
                           var e = MistUtil.event.addListener(video,"loadedmetadata",function(){
-                            MistVideo.log("Buffer cleared, setting playback position to "+MistUtil.format.time(t,{ms:true}));
+                            MistVideo.log("Buffer cleared");
 
                             var f = function() {
+                              if (currPos > t) {
+                                t = currPos;
+                              }
+                              if (!video.buffered.length || (video.buffered.end(video.buffered.length-1) < t)) {
+                                if (player.debugging) { console.log("Desired seeking position ("+MistUtil.format.time(t,{ms:true})+") not yet in buffer ("+(video.buffered.length ? MistUtil.format.time(video.buffered.end(video.buffered.length-1),{ms:true}) : "null")+")"); }
+                                player.sb._doNext(f);
+                                return;
+                              }
                               video.currentTime = t;
+                              MistVideo.log("Setting playback position to "+MistUtil.format.time(t,{ms:true}));
                               if (video.currentTime < t) {
                                 player.sb._doNext(f);
                                 if (player.debugging) { console.log("Could not set playback position"); }
@@ -631,9 +635,7 @@ p.prototype.build = function (MistVideo,callback) {
                                 var p = function(){
                                   player.sb._doNext(function(){
                                     if (video.buffered.length) {
-                                      if (player.debugging) {
-                                        console.log(video.buffered.start(0),video.buffered.end(0),video.currentTime);
-                                      }
+                                      //if (player.debugging) { console.log(video.buffered.start(0),video.buffered.end(0),video.currentTime); }
                                       if (video.buffered.start(0) > video.currentTime) { 
                                         var b = video.buffered.start(0);
                                         video.currentTime = b;
@@ -674,12 +676,45 @@ p.prototype.build = function (MistVideo,callback) {
                   clear();
                   break;
                 }
-
-                if (player.debugging) {
-                  console.warn("reached switching point",msg.data.current*1e-3,MistUtil.format.time(msg.data.current*1e-3));
+                function reachedSwitchingPoint(msg) {
+                  if (player.debugging) {
+                    console.warn("reached switching point",msg.data.current*1e-3,MistUtil.format.time(msg.data.current*1e-3));
+                  }
+                  clear();
                 }
-                clear();
-                
+                if (video.currentTime == 0) {
+                  reachedSwitchingPoint(msg);
+                }
+                else {
+                  if (msg.data.current >= video.currentTime*1e3) {
+                    //wait untill the video has reached the time of the newly received track or the end of our buffer
+                    var ontime = MistUtil.event.addListener(video,"timeupdate",function(){
+                      if (msg.data.current < video.currentTime * 1e3) {
+                        if (player.debugging) { console.log("Track switch: video.currentTime has reached switching point."); }
+                        reachedSwitchingPoint(msg);
+                        MistUtil.event.removeListener(ontime);
+                        MistUtil.event.removeListener(onwait);
+                      }
+                    });
+                    var onwait = MistUtil.event.addListener(video,"waiting",function(){
+                      if (player.debugging) { console.log("Track switch: video has reached end of buffer.","Gap:",Math.round(msg.data.current - video.currentTime * 1e3),"ms"); }
+                      reachedSwitchingPoint(msg);
+                      MistUtil.event.removeListener(ontime);
+                      MistUtil.event.removeListener(onwait);
+                    });
+                  } 
+                  else {
+                    //subscribe to on_time, wait until we've received current playback point
+                    //if we don't wait, the screen will go black until the buffer is full enough
+                    var ontime = function(newmsg){
+                      if (newmsg.data.current >= video.currentTime*1e3) {
+                        reachedSwitchingPoint(newmsg);
+                        player.ws.removeListener("on_time",ontime);
+                      }
+                    }
+                    player.ws.addListener("on_time",ontime);
+                  }
+                }
               }
             }
           }
@@ -870,7 +905,7 @@ p.prototype.build = function (MistVideo,callback) {
       obj.type = "tracks";
       obj = MistUtil.object.extend({
         type: "tracks",
-        seek_time:  Math.max(0,video.currentTime*1e3-(500+player.ws.serverDelay.get()))
+        //seek_time:  Math.round(Math.max(0,video.currentTime*1e3-(500+player.ws.serverDelay.get())))
       },obj);
       send(obj);
     },
@@ -1022,7 +1057,7 @@ p.prototype.build = function (MistVideo,callback) {
       }
       console.log("waiting","currentTime",video.currentTime,"buffers",buffers,contained ? "contained" : "outside of buffer","readystate",video.readyState,"networkstate",video.networkState);
       if ((video.readyState >= 2) && (video.networkState >= 2)) {
-        console.error("Why am I waiting?!");
+        console.error("Why am I waiting?!",video.currentTime);
       }
       
     });

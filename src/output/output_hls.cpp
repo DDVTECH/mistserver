@@ -230,13 +230,11 @@ namespace Mist{
     std::string sessId = H.GetVar("sessId");
 
     if (H.url == "/crossdomain.xml"){
-      H.Clean();
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
-        H.Clean();
         return;
       }
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM "
@@ -244,13 +242,11 @@ namespace Mist{
                 "cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" "
                 "/><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
-      H.Clean(); // clean for any possible next requests
       return;
     }// crossdomain.xml
 
     if (H.method == "OPTIONS"){
       bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
-      H.Clean();
       H.setCORSHeaders();
       if (isTS){
         H.SetHeader("Content-Type", "video/mp2t");
@@ -266,7 +262,6 @@ namespace Mist{
       }
       H.SetBody("");
       H.SendResponse("200", "OK", myConn);
-      H.Clean();
       return;
     }
 
@@ -294,11 +289,9 @@ namespace Mist{
       if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
         if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
           MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
-          H.Clean();
           H.setCORSHeaders();
           H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
           myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
-          H.Clean(); // clean for any possible next requests
           return;
         }
         userSelect.clear();
@@ -314,12 +307,10 @@ namespace Mist{
       }
 
       if (M.getLive() && from < M.getFirstms(vidTrack)){
-        H.Clean();
         H.setCORSHeaders();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
                   "served.\n");
         myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
-        H.Clean(); // clean for any possible next requests
         WARN_MSG("Fragment @ %" PRIu64 " too old", from);
         return;
       }
@@ -335,7 +326,6 @@ namespace Mist{
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
-        H.Clean();
         return;
       }
 
@@ -353,17 +343,14 @@ namespace Mist{
     }else{
       initialize();
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
-      H.Clean();
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       if (!M.getValidTracks().size()){
         H.SendResponse("404", "Not online or found", myConn);
-        H.Clean();
         return;
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
-        H.Clean();
         return;
       }
       std::string manifest;
@@ -373,7 +360,6 @@ namespace Mist{
         size_t idx = atoi(request.substr(0, request.find("/")).c_str());
         if (!M.getValidTracks().count(idx)){
           H.SendResponse("404", "No corresponding track found", myConn);
-          H.Clean();
           return;
         }
 
@@ -389,7 +375,6 @@ namespace Mist{
     if (thisPacket.getTime() >= until){
       stop();
       wantRequest = true;
-      parseData = false;
 
       // Ensure alignment of contCounters, to prevent discontinuities.
       for (std::map<size_t, uint16_t>::iterator it = contCounters.begin(); it != contCounters.end(); it++){
@@ -407,6 +392,7 @@ namespace Mist{
 
       // Signal end of data
       H.Chunkify("", 0, myConn);
+      H.Clean();
       return;
     }
     // Invoke the generic TS output sendNext handler

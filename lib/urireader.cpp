@@ -45,13 +45,13 @@ namespace HTTP{
   void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
 
   bool URIReader::open(const HTTP::URL &uri){
-    close();
     myURI = uri;
     curPos = 0;
     allData.truncate(0);
     bufPos = 0;
 
     if (!myURI.protocol.size() || myURI.protocol == "file"){
+      close();
       if (!myURI.path.size() || myURI.path == "-"){
         downer.getSocket().open(-1, fileno(stdin));
         stateType = HTTP::Stream;

@@ -14,7 +14,6 @@ namespace Mist{
     idleInterval = 0;
     idleLast = 0;
     if (config->getString("ip").size()){myConn.setHost(config->getString("ip"));}
-    firstRun = true;
     if (config->getString("prequest").size()){
       myConn.Received().prepend(config->getString("prequest"));
     }
@@ -197,14 +196,11 @@ namespace Mist{
       if (!isBlocking && !parseData){Util::sleep(100);}
       return;
     }
-    // If we can't read anything more and we're non-blocking, sleep some.
-    if (!firstRun && !myConn.spool()){
-      if (!isBlocking && !parseData){Util::sleep(100);}
-      return;
-    }
-    firstRun = false;
 
+    //Attempt to read a HTTP request, regardless of data being available
+    bool sawRequest = false;
     while (H.Read(myConn)){
+      sawRequest = true;
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
         INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
@@ -307,8 +303,12 @@ namespace Mist{
       if (!myConn){return;}
       onHTTP();
       idleLast = Util::bootMS();
-      if (!H.bufferChunks){H.Clean();}
+      // Prevent the clean as well as the loop when we're in the middle of handling a request now
+      if (!wantRequest){return;}
+      H.Clean();
     }
+    // If we can't read anything more and we're non-blocking, sleep some.
+    if (!sawRequest && !myConn.spool() && !isBlocking && !parseData){Util::sleep(100);}
   }
 
   /// Default HTTP handler.

@@ -148,7 +148,7 @@ std::string &HTTP::Parser::BuildRequest(){
   /// \todo Include POST variable handling for vars?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  if (method == "GET" && vars.size() && url.find('?') == std::string::npos){
+  if (method != "POST" && vars.size() && url.find('?') == std::string::npos){
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
   }else{
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";
@@ -277,9 +277,10 @@ void HTTP::Parser::SendResponse(std::string code, std::string message, Socket::C
 void HTTP::Parser::StartResponse(std::string code, std::string message, const HTTP::Parser &request,
                                  Socket::Connection &conn, bool bufferAllChunks){
   std::string prot = request.protocol;
-  sendingChunks =
+  bool willSendChunks =
       (!bufferAllChunks && request.protocol == "HTTP/1.1" && request.GetHeader("Connection") != "close");
   CleanPreserveHeaders();
+  sendingChunks = willSendChunks;
   protocol = prot;
   if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");

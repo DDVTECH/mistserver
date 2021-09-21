@@ -1489,20 +1489,20 @@ namespace Mist{
               std::string hash_one = Encodings::Base64::encode(std::string(md5buffer, 16));
               if (authOpaque.size()){
                 to_hash = hash_one + authOpaque + "00000000";
-              }else if (authOpaque.size()){
+              }else if (authChallenge.size()){
                 to_hash = hash_one + authChallenge + "00000000";
               }
               Secure::md5bin(to_hash.data(), to_hash.size(), md5buffer);
               std::string hash_two = Encodings::Base64::encode(std::string(md5buffer, 16));
-              std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user) +
+              std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user, "/:=@[]") +
                                     "&challenge=00000000&response=" + hash_two;
-              if (authOpaque.size()){authStr += "&opaque=" + authOpaque;}
+              if (authOpaque.size()){authStr += "&opaque=" + Encodings::URL::encode(authOpaque, "/:=@[]");}
               startPushOut(authStr.c_str());
               return;
             }
             INFO_MSG("Adobe auth: sending credentials phase 1");
             authAttempts++;
-            std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user);
+            std::string authStr = "?authmod=adobe&user=" + Encodings::URL::encode(pushUrl.user, "/:=@[]");
             startPushOut(authStr.c_str());
             return;
           }

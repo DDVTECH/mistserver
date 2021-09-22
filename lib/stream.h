@@ -30,6 +30,7 @@ namespace Util{
 
   std::set<size_t> getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                       const std::string &type = "", const std::string &UA = "");
+  std::set<size_t> pickTracks(const DTSC::Meta &M, const std::set<size_t> trackList, const std::string &trackType, const std::string &trackVal);
   std::set<size_t> findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA = "");
   std::set<size_t> wouldSelect(const DTSC::Meta &M, const std::string &trackSelector = "",
                                const JSON::Value &capa = empty, const std::string &UA = "");

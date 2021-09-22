@@ -469,6 +469,8 @@ namespace Mist{
     initialize();
     if (!myConn){return json_resp;}
 
+    json_resp["selver"] = 2;
+
     bool hasVideo = false;
     std::set<size_t> validTracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){

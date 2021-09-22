@@ -688,26 +688,39 @@ DTSC::Scan Util::DTSCShmReader::getScan(){
   return DTSC::Scan(rAcc.getPointer("dtsc_data"), rAcc.getSize("dtsc_data"));
 }
 
-/*LTS-START*/
-/// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
-/// trackVal may be a comma-separated list of numbers, codecs or the word "all" or an asterisk.
-/// Does not do any checks if the protocol supports these tracks, just selects blindly.
-/// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported
-/// codecs/combinations.
-std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA){
+/// Takes an existing track list, and selects tracks from it according to the given track type and selector
+std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> trackList, const std::string &trackType, const std::string &trackVal){
   std::set<size_t> result;
-  if (!trackVal.size()){return result;}
+  if (!trackVal.size()){return result;}//empty selector
   if (trackVal == "-1" || trackVal == "none"){return result;}// don't select anything in particular
+
+  // Comma-separated list, loop over each in order.
   if (trackVal.find(',') != std::string::npos){
-    // Comma-separated list, recurse.
     std::stringstream ss(trackVal);
     std::string item;
     while (std::getline(ss, item, ',')){
-      std::set<size_t> items = findTracks(M, capa, trackType, item);
-      result.insert(items.begin(), items.end());
+      switch (item[0]){
+        case '|':{//Narrow existing selection
+          result = pickTracks(M, result, trackType, item.substr(1));
+        } break;
+        case '!':{//Remove from existing selection
+          std::set<size_t> items = pickTracks(M, result, trackType, item.substr(1));
+          if (items.size()){
+            for (std::set<size_t>::const_iterator it = items.begin(); it != items.end(); ++it){
+              result.erase(*it);
+            }
+          }
+        } break;
+        default:{ //Union with existing selection
+          std::set<size_t> items = pickTracks(M, trackList, trackType, item);
+          result.insert(items.begin(), items.end());
+        }
+      }
     }
     return result;
   }
+
+  //Literal track ID, does not check against trackList
   size_t idx = JSON::Value(trackVal).asInt();
   if (trackVal == JSON::Value(idx).asString()){
     if (!M.trackValid(idx)){
@@ -722,22 +735,25 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     result.insert(idx);
     return result;
   }
+
+  //Convert selector to lower case
   std::string trackLow = trackVal;
   Util::stringToLower(trackLow);
+
+  //Select all tracks in trackList of the given type
   if (trackLow == "all" || trackLow == "*"){
     // select all tracks of this type
-    std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
       if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){result.insert(*it);}
     }
     return result;
   }
+
+  //Select highest bit rate in trackList of given type
   if (trackLow == "highbps" || trackLow == "bestbps" || trackLow == "maxbps"){
-    // select highest bit rate track of this type
-    std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
     size_t currVal = INVALID_TRACK_ID;
     uint32_t currRate = 0;
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
       if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
         if (currRate < M.getBps(*it)){
           currVal = *it;
@@ -748,12 +764,12 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (currVal != INVALID_TRACK_ID){result.insert(currVal);}
     return result;
   }
+
+  //Select lowest bit rate in trackList of this type
   if (trackLow == "lowbps" || trackLow == "worstbps" || trackLow == "minbps"){
-    // select lowest bit rate track of this type
-    std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
     size_t currVal = INVALID_TRACK_ID;
-    uint32_t currRate = 0xFFFFFFFFul;
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+    uint32_t currRate = INVALID_TRACK_ID;
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
       if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
         if (currRate > M.getBps(*it)){
           currVal = *it;
@@ -764,6 +780,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (currVal != INVALID_TRACK_ID){result.insert(currVal);}
     return result;
   }
+
   //less-than or greater-than track matching on bit rate or resolution
   if (trackLow[0] == '<' || trackLow[0] == '>'){
     unsigned int bpsVal;
@@ -777,8 +794,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (targetBps){
       targetBps /= 8;
       // select all tracks of this type that match the requirements
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           if (trackLow[0] == '>' && M.getBps(*it) > targetBps){result.insert(*it);}
           if (trackLow[0] == '<' && M.getBps(*it) < targetBps){result.insert(*it);}
@@ -791,8 +807,8 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (sscanf(trackLow.c_str(), "<%ux%u", &resX, &resY) == 2){targetArea = resX*resY;}
     if (sscanf(trackLow.c_str(), ">%ux%u", &resX, &resY) == 2){targetArea = resX*resY;}
     if (targetArea){
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      // select all tracks of this type that match the requirements
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           uint64_t trackArea = M.getWidth(*it)*M.getHeight(*it);
           if (trackLow[0] == '>' && trackArea > targetArea){result.insert(*it);}
@@ -802,7 +818,9 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
   }
-  //approx bitrate matching
+
+
+  //Select the single highest bit rate at or under the given bit rate
   if (trackLow.size() > 7 && trackLow.substr(0, 4) == "max<"){
     unsigned int bpsVal;
     uint64_t targetBps = 0;
@@ -812,11 +830,10 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (targetBps){
       targetBps /= 8;
       // select nearest bit rate track of this type
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       size_t currVal = INVALID_TRACK_ID;
       uint32_t currDist = 0;
       bool foundUnder = false;
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           if (M.getBps(*it) <= targetBps){
             if (!foundUnder || currDist > (targetBps-M.getBps(*it))){
@@ -836,7 +853,8 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
   }
-  //approx bitrate matching
+
+  //Select single track with bit rate closest to the given bit rate
   {
     unsigned int bpsVal;
     uint64_t targetBps = 0;
@@ -846,10 +864,9 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (targetBps){
       targetBps /= 8;
       // select nearest bit rate track of this type
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
       size_t currVal = INVALID_TRACK_ID;
       uint32_t currDist = 0;
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           if (currVal == INVALID_TRACK_ID || (M.getBps(*it) >= targetBps && currDist > (M.getBps(*it)-targetBps)) || (M.getBps(*it) < targetBps && currDist > (targetBps-M.getBps(*it)))){
             currVal = *it;
@@ -861,11 +878,11 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
   }
-  //audio channel matching
+
+  //Match on audio channel count (the only audio-specific match)
   if (!trackType.size() || trackType == "audio"){
     if (trackLow == "surround"){
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           if (M.getChannels(*it) > 2){result.insert(*it);}
         }
@@ -879,8 +896,7 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     if (trackLow == "stereo"){targetChannel = 2;}
     if (trackLow.find("ch") != std::string::npos && sscanf(trackLow.c_str(), "%uch", &channelVal) == 1){targetChannel = channelVal;}
     if (targetChannel){
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           if (M.getChannels(*it) == targetChannel){result.insert(*it);}
         }
@@ -888,14 +904,15 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
   }
-  // approx resolution matching
+
+  // Video-specific matches
   if (!trackType.size() || trackType == "video"){
+    //Highest resolution
     if (trackLow == "highres" || trackLow == "bestres" || trackLow == "maxres"){
-      // select highest resolution track of this type
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
+      //Select highest resolution track of this type
       size_t currVal = INVALID_TRACK_ID;
       uint64_t currRes = 0;
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           uint64_t trackRes = M.getWidth(*it)*M.getHeight(*it);
           if (currRes < trackRes){
@@ -908,11 +925,10 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       return result;
     }
     if (trackLow == "lowres" || trackLow == "worstres" || trackLow == "minres"){
-      // select lowest resolution track of this type
-      std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
+      //Select lowest resolution track of this type
       size_t currVal = INVALID_TRACK_ID;
-      uint64_t currRes = 0xFFFFFFFFFFFFFFFFull;
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      uint64_t currRes = INVALID_TRACK_ID;
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
         if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
           uint64_t trackRes = M.getWidth(*it)*M.getHeight(*it);
           if (currRes > trackRes){
@@ -927,12 +943,11 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     {
       unsigned int resX, resY;
       if (sscanf(trackLow.c_str(), "~%ux%u", &resX, &resY) == 2){
-        // select nearest resolution track of this type
-        std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
+        //Select nearest resolution track of this type
         size_t currVal = INVALID_TRACK_ID;
         uint64_t currDist = 0;
         uint64_t targetArea = resX*resY;
-        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+        for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
           if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
             uint64_t trackArea = M.getWidth(*it)*M.getHeight(*it);
             if (currVal == INVALID_TRACK_ID || (trackArea >= targetArea && currDist > (trackArea-targetArea)) || (trackArea < targetArea && currDist > (targetArea-trackArea))){
@@ -946,11 +961,11 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
       }
     }
   }// video track specific
+
   // attempt to do language/codec matching
   // convert 2-character language codes into 3-character language codes
   if (trackLow.size() == 2){trackLow = Encodings::ISO639::twoToThree(trackLow);}
-  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa):M.getValidTracks();
-  for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+  for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
     if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
       std::string codecLow = M.getCodec(*it);
       Util::stringToLower(codecLow);
@@ -972,6 +987,16 @@ std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, 
     }
   }
   return result;
+}
+
+/// Selects a specific track or set of tracks of the given trackType, using trackVal to decide.
+/// trackVal may be a comma-separated list of numbers, codecs or the word "all" or an asterisk.
+/// Does not do any checks if the protocol supports these tracks, just selects blindly.
+/// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported
+/// codecs/combinations.
+std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA){
+  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks();
+  return pickTracks(M, validTracks, trackType, trackVal);
 }
 
 std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::string &trackSelector,
@@ -1070,20 +1095,20 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   // Then, select the tracks we've been asked to select.
   if (targetParams.count("audio") && targetParams.at("audio").size()){
     if (targetParams.at("audio") != "-1" && targetParams.at("audio") != "none"){
-      std::set<size_t> tracks = Util::findTracks(M, capa, "audio", targetParams.at("audio"));
+      std::set<size_t> tracks = Util::findTracks(M, capa, "audio", targetParams.at("audio"), UA);
       result.insert(tracks.begin(), tracks.end());
     }
     noSelAudio = true;
   }
   if (targetParams.count("video") && targetParams.at("video").size()){
     if (targetParams.at("video") != "-1" && targetParams.at("video") != "none"){
-      std::set<size_t> tracks = Util::findTracks(M, capa, "video", targetParams.at("video"));
+      std::set<size_t> tracks = Util::findTracks(M, capa, "video", targetParams.at("video"), UA);
       result.insert(tracks.begin(), tracks.end());
     }
     noSelVideo = true;
   }
   if (targetParams.count("subtitle") && targetParams.at("subtitle").size()){
-    std::set<size_t> tracks = Util::findTracks(M, capa, "subtitle", targetParams.at("subtitle"));
+    std::set<size_t> tracks = Util::findTracks(M, capa, "subtitle", targetParams.at("subtitle"), UA);
     result.insert(tracks.begin(), tracks.end());
     noSelSub = true;
   }

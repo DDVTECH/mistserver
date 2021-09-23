@@ -60,3 +60,10 @@ echo "  Minimizing CSS..";
 #fi
 echo "  Done.";
 echo "Done.";
+git add min
+echo "Staged."
+CONFLICTS=`git diff --name-only --diff-filter=U`
+if [ -z "$CONFLICTS" ] ; then
+  git status | grep "rebase in progress" > /dev/null && echo "No more conflicts; continuing rebase!" && git rebase --continue
+fi
+

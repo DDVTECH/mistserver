@@ -724,6 +724,11 @@ p.prototype.build = function (MistVideo,callback) {
     };
     f();
   }
+
+  me.api.ABR_resize = function(size){
+    MistVideo.log("Requesting the video track with the resolution that best matches the player size");
+    me.api.setTracks({video:"~"+[size.width,size.height].join("x")});
+  };
   
   me.api.unload = function(){
     try {

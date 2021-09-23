@@ -1383,7 +1383,11 @@ MistSkins["default"] = {
         var checkboxes = {};
         
         function changeToTracks(type,value){
-          MistVideo.log("User selected "+type+" track with id "+value);
+          if (value) { MistVideo.log("User selected "+type+" track with id "+value); }
+          else {
+            MistVideo.log("User selected automatic track selection for "+type);
+            MistUtil.event.send("trackSetToAuto",type,MistVideo.video);
+          }
           
           if (!MistVideo.options.setTracks) { MistVideo.options.setTracks = {}; }
           MistVideo.options.setTracks[type] = value;
@@ -2135,7 +2139,11 @@ MistSkins["default"] = {
 MistSkins.dev = {
   structure: MistUtil.object.extend({},MistSkins["default"].structure,true),
   blueprints: {
-    timeout: function(){ //don't use countdowns on buttons
+    timeout: function(){
+      //don't use countdowns on buttons unless MistVideo.options.reloadDelay is set
+      if (this.options.reloadDelay !== false) {
+        return MistSkins.default.blueprints.timeout.apply(this,arguments);
+      }
       return false;
     },
     log: function(){
@@ -2425,6 +2433,12 @@ MistSkins.dev = {
                 });
               }
               return new Promise(function(resolve,reject){resolve();},function(){});
+            }
+          },
+          "Current bitrate": function(){
+            if (MistVideo.player.monitor && ("currentBps" in MistVideo.player.monitor)) {
+              var out = MistUtil.format.bits(MistVideo.player.monitor.currentBps);
+              return out ? out+"ps" : out;
             }
           }
         };

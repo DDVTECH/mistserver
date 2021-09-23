@@ -52,11 +52,13 @@ mist
 *.cmake
 Doxyfile
 CMakeCache.txt
+CMakeDoxyfile.in
 DartConfiguration.tcl
 build.ninja
 rules.ninja
 .ninja_log
 .ninja_deps
+.cache
 aes_ctr128
 /embed/testing
 *test

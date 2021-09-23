@@ -72,6 +72,12 @@ namespace Mist{
     }
     bool needsLock(){return false;}
     bool isSingular(){return false;}
+    void connStats(Comms::Statistics &statComm){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
+      }
+      InputEBML::connStats(statComm);
+    }
   };
 
   class ProcessSource : public OutEBML{
@@ -111,6 +117,12 @@ namespace Mist{
       realTime = 0;
       OutEBML::sendHeader();
     };
+    void connStats(uint64_t now, Comms::Statistics &statComm){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
+      }
+      OutEBML::connStats(now, statComm);
+    }
     void sendNext(){
       {
         tthread::lock_guard<tthread::mutex> guard(statsMutex);

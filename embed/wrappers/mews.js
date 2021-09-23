@@ -422,6 +422,7 @@ p.prototype.build = function (MistVideo,callback) {
       player.msgqueue = false;
       var requested_rate = 1;
       var serverdelay = [];
+      var currenttracks = [];
       this.ws.onmessage = function(e){
         if (!e.data) { throw "Received invalid data"; }
         if (typeof e.data == "string") {
@@ -551,6 +552,35 @@ p.prototype.build = function (MistVideo,callback) {
 
               if (MistVideo.reporting && msg.data.tracks) {
                 MistVideo.reporting.stats.d.tracks = msg.data.tracks.join(",");
+              }
+              
+              //check if the tracks are different than before, and if so, signal the skin to display the playing tracks
+              if ((msg.data.tracks) && (currenttracks != msg.data.tracks)) {
+                var tracks = MistVideo.info ? MistUtil.tracks.parse(MistVideo.info.meta.tracks) : [];
+                for (var i in msg.data.tracks) {
+                  if (currenttracks.indexOf(msg.data.tracks[i]) < 0) {
+                    //find track type
+                    var type;
+                    for (var j in tracks) {
+                      if (msg.data.tracks[i] in tracks[j]) {
+                        type = j;
+                        break;
+                      }
+                    }
+                    if (!type) {
+                      //track type not found, this should not happen
+                      continue;
+                    }
+
+                    //create an event to pass this to the skin
+                    MistUtil.event.send("playerUpdate_trackChanged",{
+                      type: type,
+                      trackid: msg.data.tracks[i]
+                    },MistVideo.video);
+                  }
+                }
+
+                currenttracks = msg.data.tracks;
               }
 
               break;

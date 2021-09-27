@@ -1874,8 +1874,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
           const std::string &cProv = capa["provides"].asStringRef();
           jsonForEachConst(Storage["config"]["protocols"], chld){
             const std::string &child = (*chld)["connector"].asStringRef();
-            if (!caps.isMember(child) || !caps[child].isMember("deps")){continue;}
-            if (caps[child].isMember("deps") && caps[child]["deps"].asStringRef() == cProv &&
+            if (!caps.isMember(child) || (!caps[child].isMember("deps") && !caps[child].isMember("optdeps"))){continue;}
+            if (((caps[child].isMember("deps") && caps[child]["deps"].asStringRef() == cProv) || (caps[child].isMember("optdeps") && caps[child]["optdeps"].asStringRef() == cProv)) &&
                 caps[child].isMember("url_rel")){
               resp["outputs"][child] = outURL.link("./" + caps[child]["url_rel"].asStringRef()).getUrl();
             }

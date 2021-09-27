@@ -19,6 +19,8 @@ namespace Mist{
     DTSC::Fragments fragments(M.fragments(mainTrack));
     return fragments.getValidCount() > 6;
   }
+  
+  bool OutHLS::listenMode(){return !(config->getString("ip").size());}
 
   OutHLS::OutHLS(Socket::Connection &conn) : TSOutput(conn){
     // load from global config
@@ -28,12 +30,22 @@ namespace Mist{
     uaDelay = 0;
     realTime = 0;
     targetTime = 0xFFFFFFFFFFFFFFFFull;
+    // If this connection is a socket and not already connected to stdio, connect it to stdio.
+    if (myConn.getPureSocket() != -1 && myConn.getSocket() != STDIN_FILENO && myConn.getSocket() != STDOUT_FILENO){
+      std::string host = getConnectedHost();
+      dup2(myConn.getSocket(), STDIN_FILENO);
+      dup2(myConn.getSocket(), STDOUT_FILENO);
+      myConn.open(STDOUT_FILENO, STDIN_FILENO);
+      myConn.setHost(host);
+    }
   }
 
   OutHLS::~OutHLS(){}
 
   void OutHLS::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
+    capa.removeMember("deps");
+    capa["optdeps"] = "HTTP";
     capa["name"] = "HLS";
     capa["friendly"] = "Apple segmented over HTTP (HLS)";
     capa["desc"] =
@@ -69,6 +81,7 @@ namespace Mist{
     capa["optional"]["listlimit"]["default"] = 0;
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
+    capa["optional"]["listlimit"]["short"] = "y";
 
     cfg->addOption("nonchunked",
                    JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not "
@@ -78,6 +91,8 @@ namespace Mist{
         "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
         "significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
+    capa["optional"]["nonchunked"]["short"] = "C";
+    capa["optional"]["nonchunked"]["default"] = false;
 
     cfg->addOption("mergesessions",
                    JSON::fromString("{\"short\":\"M\",\"long\":\"mergesessions\",\"help\":\"Merge "
@@ -87,6 +102,8 @@ namespace Mist{
         "If enabled, merges together all views from a single user into a single combined session. "
         "If disabled, each view (main playlist request) is a separate session.";
     capa["optional"]["mergesessions"]["option"] = "--mergesessions";
+    capa["optional"]["mergesessions"]["short"] = "M";
+    capa["optional"]["mergesessions"]["default"] = false;
 
     cfg->addOption("chunkpath",
                    JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"e\",\"long\":"
@@ -100,125 +117,8 @@ namespace Mist{
     capa["optional"]["chunkpath"]["option"] = "--chunkpath";
     capa["optional"]["chunkpath"]["short"] = "e";
     capa["optional"]["chunkpath"]["default"] = "";
-  }
-
-  /******************************/
-  /* HLS Manifest Generation */
-  /******************************/
-
-  /// \brief Builds master playlist for (LL)HLS.
-  ///\return The master playlist file for (LL)HLS.
-  void OutHLS::sendHlsMasterManifest(){
-    selectDefaultTracks();
-
-    std::string sessId = "";
-    if (hasSessionIDs()){
-      std::string ua = UA + JSON::Value(getpid()).asString();
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      sessId = JSON::Value(crc).asString();
-    }
-
-    // check for forced "no low latency" parameter
-    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
-
-    // Populate the struct that will help generate the master playlist
-    const HLS::MasterData masterData ={
-        hasSessionIDs(),
-        noLLHLS,
-        hlsMediaFormat == ".ts",
-        getMainSelectedTrack(),
-        H.GetHeader("User-Agent"),
-        sessId,
-        systemBoot,
-        bootMsOffset,
-    };
-
-    std::stringstream result;
-    HLS::addMasterManifest(result, M, userSelect, masterData);
-
-    H.SetBody(result.str());
-    H.SendResponse("200", "OK", myConn);
-  }
-
-  /// \brief Builds media playlist to (LL)HLS
-  ///\return The media playlist file to (LL)HLS
-  void OutHLS::sendHlsMediaManifest(const size_t requestTid){
-    const HLS::HlsSpecData hlsSpec ={H.GetVar("_HLS_skip"), H.GetVar("_HLS_msn"),
-                                      H.GetVar("_HLS_part")};
-
-    size_t timingTid = HLS::getTimingTrackId(M, H.GetVar("mTrack"), getMainSelectedTrack());
-
-    // Chunkpath & Session ID logic
-    std::string urlPrefix = "";
-    std::string sessId = "";
-    if (config->getString("chunkpath").size()){
-      urlPrefix = HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl();
-    }else{
-      sessId = H.GetVar("sessId");
-    }
-
-    // check for forced "no low latency" parameter
-    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
-    // override if valid header forces "no low latency"
-    noLLHLS = H.GetHeader("X-Mist-LLHLS").size() ? H.GetHeader("X-Mist-LLHLS") == "0" : noLLHLS;
-
-    const HLS::TrackData trackData ={
-        M.getLive(),
-        M.getType(requestTid) == "video",
-        noLLHLS,
-        hlsMediaFormat,
-        M.getEncryption(requestTid),
-        sessId,
-        timingTid,
-        requestTid,
-        M.biggestFragment(timingTid) / 1000,
-        atol(H.GetVar("iMsn").c_str()),
-        config->getInteger("listlimit"),
-        urlPrefix,
-        systemBoot,
-        bootMsOffset,
-    };
-
-    // Fragment & Key handlers
-    DTSC::Fragments fragments(M.fragments(trackData.timingTrackId));
-    DTSC::Keys keys(M.keys(trackData.timingTrackId));
-
-    uint32_t bprErrCode = HLS::blockPlaylistReload(M, userSelect, trackData, hlsSpec, fragments, keys);
-    if (bprErrCode == 400){
-      H.SendResponse("400", "Bad Request: Invalid LLHLS parameter", myConn);
-      return;
-    }else if (bprErrCode == 503){
-      H.SendResponse("503", "Service Unavailable", myConn);
-      return;
-    }
-
-    HLS::FragmentData fragData;
-    HLS::populateFragmentData(M, userSelect, fragData, trackData, fragments, keys);
-
-    std::stringstream result;
-    HLS::addStartingMetaTags(result, fragData, trackData, hlsSpec);
-    HLS::addMediaFragments(result, M, fragData, trackData, fragments, keys);
-    HLS::addEndingTags(result, M, userSelect, fragData, trackData);
-
-    H.SetBody(result.str());
-    H.SendResponse("200", "OK", myConn);
-  }
-
-  void OutHLS::sendHlsManifest(const std::string url){
-    H.setCORSHeaders();
-    H.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); // for .m3u8
-    H.SetHeader("Cache-Control", "no-store");
-    if (H.method == "OPTIONS" || H.method == "HEAD"){
-      H.SetBody("");
-      H.SendResponse("200", "OK", myConn);
-      return;
-    }
-
-    if (url.find("/") == std::string::npos){
-      sendHlsMasterManifest();
-    }else{
-      sendHlsMediaManifest(atoll(url.c_str()));
-    }
+    /*LTS-END*/
+    cfg->addConnectorOptions(8081, capa);
   }
 
   void OutHLS::preHTTP(){

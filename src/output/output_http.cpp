@@ -143,7 +143,7 @@ namespace Mist{
     for (unsigned int i = 0; i < capa_ctr; ++i){
       DTSC::Scan c = capa.getIndice(i);
       // if it depends on HTTP and has a match or prefix...
-      if ((c.getMember("name").asString() == "HTTP" || c.getMember("deps").asString() == "HTTP") &&
+      if ((c.getMember("name").asString() == "HTTP" || c.getMember("deps").asString() == "HTTP" || c.getMember("optdeps").asString() == "HTTP") &&
           (c.getMember("url_match") || c.getMember("url_prefix"))){
         bool match = false;
         std::string streamname;

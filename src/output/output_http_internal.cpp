@@ -604,7 +604,7 @@ namespace Mist{
           for (unsigned int j = 0; j < capa_lst_ctr; ++j){
             // if it depends on this connector and has a URL, list it
             if (conns.count(connectors.getIndiceName(j)) &&
-                connectors.getIndice(j).getMember("deps").asString() == cProv &&
+                (connectors.getIndice(j).getMember("deps").asString() == cProv || connectors.getIndice(j).getMember("optdeps").asString() == cProv) &&
                 connectors.getIndice(j).getMember("methods")){
               JSON::Value subcapa_json = connectors.getIndice(j).asJSON();
               subcapa_json["cnf"] = prots.getIndice(i).asJSON();

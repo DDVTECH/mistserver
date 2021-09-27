@@ -15,6 +15,8 @@ namespace Mist{
     return fragments.getValidCount() > 4;
   }
 
+  bool OutHLS::listenMode(){return !(config->getString("ip").size());}
+
   ///\brief Builds an index file for HTTP Live streaming.
   ///\return The index file for HTTP Live Streaming.
   std::string OutHLS::liveIndex(){
@@ -180,12 +182,22 @@ namespace Mist{
     uaDelay = 0;
     realTime = 0;
     until = 0xFFFFFFFFFFFFFFFFull;
+    // If this connection is a socket and not already connected to stdio, connect it to stdio.
+    if (myConn.getPureSocket() != -1 && myConn.getSocket() != STDIN_FILENO && myConn.getSocket() != STDOUT_FILENO){
+      std::string host = getConnectedHost();
+      dup2(myConn.getSocket(), STDIN_FILENO);
+      dup2(myConn.getSocket(), STDOUT_FILENO);
+      myConn.open(STDOUT_FILENO, STDIN_FILENO);
+      myConn.setHost(host);
+    }
   }
 
   OutHLS::~OutHLS(){}
 
   void OutHLS::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
+    capa.removeMember("deps");
+    capa["optdeps"] = "HTTP";
     capa["name"] = "HLS";
     capa["friendly"] = "Apple segmented over HTTP (HLS)";
     capa["desc"] =
@@ -220,6 +232,7 @@ namespace Mist{
     capa["optional"]["listlimit"]["default"] = 0;
     capa["optional"]["listlimit"]["type"] = "uint";
     capa["optional"]["listlimit"]["option"] = "--list-limit";
+    capa["optional"]["listlimit"]["short"] = "y";
 
     cfg->addOption("nonchunked",
                    JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not "
@@ -229,6 +242,8 @@ namespace Mist{
         "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
         "significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
+    capa["optional"]["nonchunked"]["short"] = "C";
+    capa["optional"]["nonchunked"]["default"] = false;
 
     cfg->addOption("mergesessions",
                    JSON::fromString("{\"short\":\"M\",\"long\":\"mergesessions\",\"help\":\"Merge "
@@ -238,6 +253,8 @@ namespace Mist{
         "If enabled, merges together all views from a single user into a single combined session. "
         "If disabled, each view (main playlist request) is a separate session.";
     capa["optional"]["mergesessions"]["option"] = "--mergesessions";
+    capa["optional"]["mergesessions"]["short"] = "M";
+    capa["optional"]["mergesessions"]["default"] = false;
 
     cfg->addOption("chunkpath",
                    JSON::fromString(
@@ -251,6 +268,7 @@ namespace Mist{
     capa["optional"]["chunkpath"]["short"] = "e";
     capa["optional"]["chunkpath"]["default"] = "";
     /*LTS-END*/
+    cfg->addConnectorOptions(8081, capa);
   }
 
   void OutHLS::preHTTP(){

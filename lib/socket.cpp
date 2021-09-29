@@ -294,6 +294,35 @@ bool Socket::getSocketName(int fd, std::string &host, uint32_t &port){
   return false;
 }
 
+/// Gets peer host and port for a socket and returns them by reference.
+/// Returns true on success and false on failure.
+bool Socket::getPeerName(int fd, std::string &host, uint32_t &port, sockaddr * tmpaddr, socklen_t * addrlen){
+  if (getpeername(fd, tmpaddr, addrlen)){return false;}
+  static char addrconv[INET6_ADDRSTRLEN];
+  if (tmpaddr->sa_family == AF_INET6){
+    host = inet_ntop(AF_INET6, &(((sockaddr_in6*)tmpaddr)->sin6_addr), addrconv, INET6_ADDRSTRLEN);
+    if (host.substr(0, 7) == "::ffff:"){host = host.substr(7);}
+    port = ntohs(((sockaddr_in6 *)&tmpaddr)->sin6_port);
+    HIGH_MSG("Peer IPv6 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    return true;
+  }
+  if (tmpaddr->sa_family == AF_INET){
+    host = inet_ntop(AF_INET, &(((sockaddr_in *)tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+    port = ntohs(((sockaddr_in *)&tmpaddr)->sin_port);
+    HIGH_MSG("Peer IPv4 addr [%s:%" PRIu32 "]", host.c_str(), port);
+    return true;
+  }
+  return false;
+}
+
+/// Gets peer host and port for a socket and returns them by reference.
+/// Returns true on success and false on failure.
+bool Socket::getPeerName(int fd, std::string &host, uint32_t &port){
+  struct sockaddr_in6 tmpaddr;
+  socklen_t addrLen = sizeof(tmpaddr);
+  return getPeerName(fd, host, port, (sockaddr*)&tmpaddr, &addrLen);
+}
+
 std::string uint2string(unsigned int i){
   std::stringstream st;
   st << i;
@@ -479,20 +508,18 @@ void Socket::Buffer::clear(){
 }
 
 void Socket::Connection::setBoundAddr(){
+  boundaddr.clear();
   // If a bound address was set through environment (e.g. HTTPS output), restore it from there.
   char *envbound = getenv("MIST_BOUND_ADDR");
-  if (envbound){
-    boundaddr = envbound;
-    return;
-  }
+  if (envbound){boundaddr = envbound;}
+
   // If we can't read the address, don't try
-  if (!isTrueSocket){
-    boundaddr = "";
-    return;
-  }
+  if (!isTrueSocket){return;}
+
   // Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
   uint32_t boundport = 0;
   getSocketName(getSocket(), boundaddr, boundport);
+  getPeerName(getSocket(), remotehost, boundport);
 }
 
 // Cleans up the socket by dropping the connection.
@@ -1479,7 +1506,6 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   if (sock < 0){return Socket::Connection(-1);}
   struct sockaddr_in6 tmpaddr;
   socklen_t len = sizeof(tmpaddr);
-  static char addrconv[INET6_ADDRSTRLEN];
   int r = ::accept(sock, (sockaddr *)&tmpaddr, &len);
   // set the socket to be nonblocking, if requested.
   // we could do this through accept4 with a flag, but that call is non-standard...
@@ -1501,21 +1527,7 @@ Socket::Connection Socket::Server::accept(bool nonblock){
   int optval = 1;
   int optlen = sizeof(optval);
   setsockopt(r, SOL_SOCKET, SO_KEEPALIVE, &optval, optlen);
-  Socket::Connection tmp(r);
-  tmp.remoteaddr = tmpaddr;
-  if (tmpaddr.sin6_family == AF_INET6){
-    tmp.remotehost = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
-    HIGH_MSG("IPv6 addr [%s]", tmp.remotehost.c_str());
-  }
-  if (tmpaddr.sin6_family == AF_INET){
-    tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&tmpaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
-    HIGH_MSG("IPv4 addr [%s]", tmp.remotehost.c_str());
-  }
-  if (tmpaddr.sin6_family == AF_UNIX){
-    HIGH_MSG("Unix connection");
-    tmp.remotehost = "UNIX_SOCKET";
-  }
-  return tmp;
+  return Socket::Connection(r);
 }
 
 /// Set this socket to be blocking (true) or nonblocking (false).

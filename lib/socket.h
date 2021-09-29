@@ -46,6 +46,8 @@ namespace Socket{
   std::string resolveHostToBestExternalAddrGuess(const std::string &host, int family = AF_UNSPEC,
                                                  const std::string &hint = "");
   bool getSocketName(int fd, std::string &host, uint32_t &port);
+  bool getPeerName(int fd, std::string &host, uint32_t &port);
+  bool getPeerName(int fd, std::string &host, uint32_t &port, sockaddr * tmpaddr, socklen_t * addrlen);
 
   /// A buffer made out of std::string objects that can be efficiently read from and written to.
   class Buffer{

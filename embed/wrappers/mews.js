@@ -106,21 +106,27 @@ p.prototype.build = function (MistVideo,callback) {
   
   //this function is called both when the websocket is ready and the media source is ready - both should be open to proceed
   function checkReady() {
+    //console.log("checkready",player.ws.readyState,player.ms.readyState);
     if ((player.ws.readyState == player.ws.OPEN) && (player.ms.readyState == "open") && (player.sb)) {
       callback(video);
       if (MistVideo.options.autoplay) {
         player.api.play();
       }
+
       return true;
     }
   }
-  
+  this.msoninit = []; //array of functions that will be executed once ms is open
   this.msinit = function() {
     return new Promise(function(resolve,reject){ 
       //prepare mediasource
       player.ms = new MediaSource();
       video.src = URL.createObjectURL(player.ms);
       player.ms.onsourceopen = function(){
+        for (var i in player.msoninit) {
+          player.msoninit[i]();
+        }
+        player.msoninit = [];
         resolve();
       };
       player.ms.onsourceclose = function(e){
@@ -174,9 +180,9 @@ p.prototype.build = function (MistVideo,callback) {
   this.msinit().then(function(){
     if (player.sb) {
       MistVideo.log("Not creating source buffer as one already exists.");
+      checkReady();
       return;
     }
-    checkReady();
   });
   this.onsbinit = [];
   this.sbinit = function(codecs){
@@ -357,7 +363,7 @@ p.prototype.build = function (MistVideo,callback) {
     if (player.onsbinit.length) {
       player.onsbinit.shift()();
     }
-    //console.log("sb inited");
+    checkReady();
   };
   
   this.wsconnect = function(){
@@ -382,14 +388,13 @@ p.prototype.build = function (MistVideo,callback) {
       };
       this.ws.onclose = function(e){
         MistVideo.log("MP4 over WS: websocket closed");
-        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online") && (!MistVideo.video.error)) {
+        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online") && (!(MistVideo.video && MistVideo.video.error))) {
           MistVideo.log("MP4 over WS: reopening websocket");
           player.wsconnect().then(function(){
             if (!player.sb) {
               //retrieve codec info
               var f = function(msg){
                 //got codec data, set up source buffer
-
                 if (!player.sb) { player.sbinit(msg.data.codecs); }
                 else { player.api.play(); }
 
@@ -856,10 +861,15 @@ p.prototype.build = function (MistVideo,callback) {
     //retrieve codec info
     var f = function(msg){
       //got codec data, set up source buffer
+      if (player.ms && player.ms.readyState == "open") {
+        player.sbinit(msg.data.codecs);
+      }
+      else {
+        player.msoninit.push(function(){
+          player.sbinit(msg.data.codecs);
+        });
+      }
       
-      player.sbinit(msg.data.codecs);
-      
-      checkReady();
       player.ws.removeListener("codec_data",f);
     };
     this.ws.addListener("codec_data",f);

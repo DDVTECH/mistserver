@@ -388,7 +388,7 @@ p.prototype.build = function (MistVideo,callback) {
       };
       this.ws.onclose = function(e){
         MistVideo.log("MP4 over WS: websocket closed");
-        if (this.wasConnected && (!MistVideo.destroyed) && (MistVideo.state == "Stream is online") && (!(MistVideo.video && MistVideo.video.error))) {
+        if (this.wasConnected && (!MistVideo.destroyed) && (!player.sb || !player.sb.paused) && (MistVideo.state == "Stream is online") && (!(MistVideo.video && MistVideo.video.error))) {
           MistVideo.log("MP4 over WS: reopening websocket");
           player.wsconnect().then(function(){
             if (!player.sb) {
@@ -885,8 +885,26 @@ p.prototype.build = function (MistVideo,callback) {
     if (!player.ws) { throw "No websocket to send to"; }
     if (player.ws.readyState >= player.ws.CLOSING) {
       //throw "WebSocket has been closed already.";
+      MistVideo.log("MP4 over WS: reopening websocket");
       player.wsconnect().then(function(){
+        if (!player.sb) {
+          //retrieve codec info
+          var f = function(msg){
+            //got codec data, set up source buffer
+            if (!player.sb) { player.sbinit(msg.data.codecs); }
+            else { player.api.play().catch(function(){}); }
+
+            player.ws.removeListener("codec_data",f);
+          };
+          player.ws.addListener("codec_data",f);
+          send({type:"request_codec_data",supported_codecs:MistVideo.source.supportedCodecs});
+        }
+        else {
+          player.api.play();
+        }
         send(cmd);
+      },function(){
+        Mistvideo.error("Lost connection to the Media Server");
       });
       return;
     }

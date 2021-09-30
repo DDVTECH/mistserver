@@ -52,6 +52,7 @@ namespace Mist{
     size_t encOffset;
     unsigned char tmpIvec[16];
     mbedtls_aes_context aes;
+    bool isOpen;
   };
 
   class Playlist{

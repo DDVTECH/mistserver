@@ -211,12 +211,14 @@ namespace Mist{
   }
 
   SegmentDownloader::SegmentDownloader(){
+    isOpen = false;
     segDL.onProgress(callbackFunc);
     encrypted = false;
   }
 
   /// Returns true if packetPtr is at the end of the current segment.
   bool SegmentDownloader::atEnd() const{
+    if (!isOpen){return true;}
     return segDL.isEOF();
     // return (packetPtr - segDL.const_data().data() + 188) > segDL.const_data().size();
   }
@@ -295,6 +297,7 @@ namespace Mist{
   /// Attempts to read a single TS packet from the current segment, setting packetPtr on success
   void SegmentDownloader::close(){
     packetPtr = 0;
+    isOpen = false;
     segDL.close();
   }
 
@@ -329,6 +332,7 @@ namespace Mist{
     }
 
     packetPtr = 0;
+    isOpen = true;
     HIGH_MSG("Segment download complete and passed sanity checks");
     return true;
   }
@@ -892,7 +896,7 @@ namespace Mist{
       }else{
         currentPlaylist = firstSegment();
       }
-      if (currentPlaylist < 0){
+      if (currentPlaylist == 0){
         VERYHIGH_MSG("Waiting for segments...");
         keepAlive();
         Util::wait(500);
@@ -1032,6 +1036,7 @@ namespace Mist{
 
     bool isUrl = (uri.find("://") != std::string::npos);
     if (isUrl){
+      INFO_MSG("Downloading main playlist file from '%s'", uri.c_str());
       HTTP::Downloader plsDL;
       plsDL.dataTimeout = 15;
       plsDL.retryCount = 8;
@@ -1228,7 +1233,7 @@ namespace Mist{
   /// this will keep the playlists in sync while reading segments.
   size_t inputHLS::firstSegment(){
     // Only one selected? Immediately return the right playlist.
-    if (userSelect.size() == 1){return getMappedTrackPlaylist(M.getID(userSelect.begin()->first));}
+    if (!streamIsLive){return getMappedTrackPlaylist(M.getID(userSelect.begin()->first));}
     uint64_t firstTimeStamp = 0;
     int tmpId = -1;
     int segCount = 0;
@@ -1238,6 +1243,7 @@ namespace Mist{
          pListIt != listEntries.end(); pListIt++){
       segCount += pListIt->second.size();
       if (pListIt->second.size()){
+        INSANE_MSG("Playlist %u contains %lu segments, with the earliest segment starting @%zu ms", pListIt->first, pListIt->second.size(), firstTimeStamp);
         if (pListIt->second.front().timestamp < firstTimeStamp || tmpId < 0){
           firstTimeStamp = pListIt->second.front().timestamp;
           tmpId = pListIt->first;

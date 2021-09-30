@@ -355,7 +355,7 @@ MistSkins["default"] = {
       //improve autoplay behaviour
       if (MistVideo.options.autoplay) {
         //because Mist doesn't send data instantly (but real time), it can take a little while before canplaythrough is fired. Rather than wait, we can just start playing at the canplay event
-        MistUtil.event.addListener(MistVideo.video,"canplay",function(){
+        var canplay = MistUtil.event.addListener(MistVideo.video,"canplay",function(){
           if (MistVideo.player.api && MistVideo.player.api.paused) {
             var promise = MistVideo.player.api.play();
             if (promise) {
@@ -374,33 +374,6 @@ MistSkins["default"] = {
                   if (promise) {
                     promise.then(function(){
                       if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "success"; }
-                    }).catch(function(){
-                      if (MistVideo.destroyed) { return; }
-                      MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
-                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
-                      MistVideo.player.api.muted = false;
-                      
-                      //play has failed
-                      
-                      //show large centered play button
-                      var largePlayButton = MistVideo.skin.icons.build("largeplay",150);
-                      MistUtil.class.add(largePlayButton,"mistvideo-pointer");
-                      MistVideo.container.appendChild(largePlayButton);
-                      
-                      //start playing on click
-                      MistUtil.event.addListener(largePlayButton,"click",function(){
-                        if (MistVideo.player.api.paused) {
-                          MistVideo.player.api.play();
-                        }
-                      });
-                      
-                      //remove large button on play
-                      var f = function (){
-                        MistVideo.container.removeChild(largePlayButton);
-                        MistVideo.video.removeEventListener("play",f);
-                      };
-                      MistUtil.event.addListener(MistVideo.video,"play",f);
-                      
                     }).then(function(){
                       if (MistVideo.destroyed) { return; }
                       
@@ -449,7 +422,45 @@ MistSkins["default"] = {
                       }
                       MistUtil.event.addListener(MistVideo.video,"volumechange",fu);
                       
-                    },function(){});
+                    }).catch(function(){
+                      if (MistVideo.destroyed) { return; }
+                      MistVideo.log("Autoplay failed even with muted video. Unmuting and showing play button.");
+                      //wait 5 seconds and then pause the download
+                      MistVideo.timers.start(function(){
+                        if (MistVideo.player.api.paused) {
+                          //don't question it
+                          //if the video is paused, also request the player api to pause
+                          //for example, for mews, this would pause the download
+                          MistVideo.player.api.pause(); 
+                          if (MistVideo.monitor) { MistVideo.monitor.destroy(); }
+                        }
+                      },5e3);
+
+                      if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
+                      MistVideo.player.api.muted = false;
+                      
+                      //play has failed
+                      
+                      //show large centered play button
+                      var largePlayButton = MistVideo.skin.icons.build("largeplay",150);
+                      MistUtil.class.add(largePlayButton,"mistvideo-pointer");
+                      MistVideo.container.appendChild(largePlayButton);
+                      
+                      //start playing on click
+                      MistUtil.event.addListener(largePlayButton,"click",function(){
+                        if (MistVideo.player.api.paused) {
+                          MistVideo.player.api.play();
+                        }
+                      });
+                      
+                      //remove large button on play
+                      var f = function (){
+                        MistVideo.container.removeChild(largePlayButton);
+                        MistVideo.video.removeEventListener("play",f);
+                      };
+                      MistUtil.event.addListener(MistVideo.video,"play",f);
+                      
+                    });
                   }
                 }
                 else if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "failed"; }
@@ -457,6 +468,8 @@ MistSkins["default"] = {
             }
           }
           else if (MistVideo.reporting) { MistVideo.reporting.stats.d.autoplay = "success"; }
+
+          MistUtil.event.removeListener(canplay); //only fire once
         });
       }
       

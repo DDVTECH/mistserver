@@ -110,7 +110,7 @@ p.prototype.build = function (MistVideo,callback) {
     if ((player.ws.readyState == player.ws.OPEN) && (player.ms.readyState == "open") && (player.sb)) {
       callback(video);
       if (MistVideo.options.autoplay) {
-        player.api.play();
+        player.api.play().catch(function(){});
       }
 
       return true;
@@ -396,7 +396,7 @@ p.prototype.build = function (MistVideo,callback) {
               var f = function(msg){
                 //got codec data, set up source buffer
                 if (!player.sb) { player.sbinit(msg.data.codecs); }
-                else { player.api.play(); }
+                else { player.api.play().catch(function(){}); }
 
                 player.ws.removeListener("codec_data",f);
               };
@@ -766,6 +766,11 @@ p.prototype.build = function (MistVideo,callback) {
                   }
                 }
               }
+              break;
+            }
+            case "pause": {
+              if (player.sb) { player.sb.paused = true; }
+              break;
             }
           }
           if (msg.type in this.listeners) {
@@ -905,6 +910,18 @@ p.prototype.build = function (MistVideo,callback) {
   this.api = {
     play: function(skipToLive){
       return new Promise(function(resolve,reject){
+        if (!video.paused) { 
+          //we're already playing, what are you doing?
+          resolve();
+          return;
+        }
+
+        if (("paused" in player.sb) && !player.sb.paused) {
+          video.play().then(resolve).catch(reject);
+          return;
+        }
+
+
         var f = function(e){
           if (!player.sb) {
             MistVideo.log("Attempting to play, but the source buffer is being cleared. Waiting for next on_time.");
@@ -921,7 +938,10 @@ p.prototype.build = function (MistVideo,callback) {
                       video.currentTime = e.data.current*1e-3;
                       MistVideo.log("Setting live playback position to "+MistUtil.format.time(video.currentTime));
                     }
-                    video.play().then(resolve).catch(reject);
+                    video.play().then(resolve).catch(function(){
+                      //could not play video, pause the download
+                      return reject.apply(this,arguments);
+                    });
                     player.sb.paused = false;                   
                     player.sb.removeEventListener("updateend",g);
                   }
@@ -931,19 +951,29 @@ p.prototype.build = function (MistVideo,callback) {
             }
             else {
               player.sb.paused = false;
-              video.play().then(resolve).catch(reject);
+              video.play().then(resolve).catch(function(){
+                //could not play video, pause the download
+                player.api.pause();
+                return reject.apply(this,arguments);
+              });
             }
             player.ws.removeListener("on_time",f);
           }
           else if (e.data.current > video.currentTime) {
             player.sb.paused = false;
-            video.currentTime = e.data.current*1e-3;
-            video.play().then(resolve).catch(reject);
+            video.play().then(resolve).catch(function(){
+              if (video.buffered.length && video.buffered.start(0) > video.currentTime) {
+                video.currentTime = video.buffered.start(0);
+                video.play().then(resolve).catch(reject);
+              }
+              else {
+                reject.apply(this,arguments);
+              }
+            });
             player.ws.removeListener("on_time",f);
           }
         };
         player.ws.addListener("on_time",f);
-        
         var cmd = {type:"play"};
         if (skipToLive) { cmd.seek_time = "live"; }
         send(cmd);

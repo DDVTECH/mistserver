@@ -103,12 +103,16 @@ p.prototype.build = function (MistVideo,callback) {
   var player = this;
   //player.debugging = true;
   //player.debugging = "dl"; //download appended data on ms close
+  player.built = false;
   
   //this function is called both when the websocket is ready and the media source is ready - both should be open to proceed
   function checkReady() {
     //console.log("checkready",player.ws.readyState,player.ms.readyState);
     if ((player.ws.readyState == player.ws.OPEN) && (player.ms.readyState == "open") && (player.sb)) {
-      callback(video);
+      if (!player.built) {
+        callback(video);
+        player.built = true;
+      }
       if (MistVideo.options.autoplay) {
         player.api.play().catch(function(){});
       }
@@ -979,15 +983,10 @@ p.prototype.build = function (MistVideo,callback) {
           }
           else if (e.data.current > video.currentTime) {
             player.sb.paused = false;
-            video.play().then(resolve).catch(function(){
-              if (video.buffered.length && video.buffered.start(0) > video.currentTime) {
-                video.currentTime = video.buffered.start(0);
-                video.play().then(resolve).catch(reject);
-              }
-              else {
-                reject.apply(this,arguments);
-              }
-            });
+            if (video.buffered.length && video.buffered.start(0) > video.currentTime) {
+              video.currentTime = video.buffered.start(0);
+            }
+            video.play().then(resolve).catch(reject);
             player.ws.removeListener("on_time",f);
           }
         };

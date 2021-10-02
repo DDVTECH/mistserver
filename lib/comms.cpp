@@ -295,6 +295,7 @@ namespace Comms{
   /// \param _master: If True, we are reading from this page. If False, we are writing (to our entry) on this page
   /// \param reIssue: If True, claim a new entry on this page
   void Connections::reload(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & protocol, const std::string & reqUrl, bool _master, bool reIssue){
+    initialSid = sid;
     uint8_t sessMode = sessionViewerMode;
     // Generate a unique session ID for each viewer, input or output
     if (protocol.size() >= 6 && protocol.substr(0, 6) == "INPUT:"){

@@ -1735,6 +1735,8 @@ namespace Mist{
     return capa["name"].asStringRef();
   }
 
+  /// Writes data to statConn once per second, or more often if force==true.
+  /// Also handles push status updates
   void Output::stats(bool force){
     // cancel stats update if not initialized
     if (!isInitialized){return;}

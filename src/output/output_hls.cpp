@@ -30,6 +30,12 @@ namespace Mist{
       if (audioId == INVALID_TRACK_ID && M.getType(it->first) == "audio"){audioId = it->first;}
       if (!hasSubs && M.getCodec(it->first) == "subtitle"){hasSubs = true;}
     }
+    std::string sessId;
+    if (hasSessionIDs()){sessId = "?sessId=" + sid;}
+    if (origin.size()){
+      if (sessId.size()){sessId += "&";}else{sessId += "?";}
+      sessId += "origin=" + origin;
+    }
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
       if (M.getType(it->first) == "video"){
         ++vidTracks;
@@ -49,21 +55,14 @@ namespace Mist{
         }
         result << "\"\r\n" << it->first;
         if (audioId != INVALID_TRACK_ID){result << "_" << audioId;}
-        if (hasSessionIDs()){
-          result << "/index.m3u8?sessId=" << sid;
-          if (origin.size()){result << "&origin=" << origin;}
-        }else{
-          result << "/index.m3u8";
-          if (origin.size()){result << "?origin=" << origin;}
-        }
-        result << "\r\n";
+        result << "/index.m3u8" << sessId << "\r\n";
       }else if (M.getCodec(it->first) == "subtitle"){
 
         if (M.getLang(it->first).empty()){meta.setLang(it->first, "und");}
 
         result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << M.getLang(it->first)
                << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(it->first))
-               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8\""
+               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << it->first << "/index.m3u8" << sessId << "\""
                << "\r\n";
       }
     }
@@ -71,9 +70,7 @@ namespace Mist{
       result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
       result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
       result << "\r\n";
-      result << audioId << "/index.m3u8";
-      if (origin.size()){result << "?origin=" << origin;}
-      result << "\r\n";
+      result << audioId << "/index.m3u8" << sessId << "\r\n";
     }
     return result.str();
   }

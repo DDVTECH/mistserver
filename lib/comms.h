@@ -76,6 +76,7 @@ namespace Comms{
     operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
     std::string generateSession(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & connector, uint64_t sessionMode);
     std::string sessionId;
+    std::string initialSid;
 
     void setExit();
     bool getExit();
@@ -83,6 +84,8 @@ namespace Comms{
     virtual void addFields();
     virtual void nullFields();
     virtual void fieldAccess();
+
+    const std::string & getSid() const{return initialSid;}
 
     uint64_t getNow() const;
     uint64_t getNow(size_t idx) const;

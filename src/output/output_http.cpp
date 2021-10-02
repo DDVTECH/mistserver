@@ -13,7 +13,10 @@ namespace Mist{
     webSock = 0;
     idleInterval = 0;
     idleLast = 0;
-    if (config->getString("ip").size()){myConn.setHost(config->getString("ip"));}
+    if (config->getString("ip").size()){
+      trueHost = myConn.getHost();
+      myConn.setHost(config->getString("ip"));
+    }
     if (config->getString("prequest").size()){
       myConn.Received().prepend(config->getString("prequest"));
     }
@@ -200,12 +203,15 @@ namespace Mist{
     bool sawRequest = false;
     while (H.Read(myConn)){
       sawRequest = true;
+
+      //First, figure out which handler we need to use
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
         INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
       }else{
         MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
       }
+      //None found? Abort the request with a 415 response status code.
       if (!handler.size()){
         H.Clean();
         H.SetHeader("Server", APPIDENT);
@@ -250,12 +256,15 @@ namespace Mist{
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
+        //Prepare switch
+        disconnect();
         streamName = H.GetVar("stream");
-        userSelect.clear();
-        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
-        reConnector(handler);
-        onFail("Server error - could not start connector", true);
-        return;
+
+        if (handler != capa["name"].asStringRef()){
+          reConnector(handler);
+          onFail("Server error - could not start connector", true);
+          return;
+        }
       }
 
       /*LTS-START*/
@@ -322,6 +331,7 @@ namespace Mist{
       preHTTP();
       if (!myConn){return;}
       onHTTP();
+      stats(true);
       idleLast = Util::bootMS();
       // Prevent the clean as well as the loop when we're in the middle of handling a request now
       if (!wantRequest){return;}
@@ -504,6 +514,11 @@ namespace Mist{
   /*LTS-START*/
   std::string HTTPOutput::getConnectedHost(){
     std::string host = Output::getConnectedHost();
+    if (!trueHost.size()){
+      trueHost = host;
+    }else{
+      host = trueHost;
+    }
     std::string xRealIp = H.GetHeader("X-Real-IP");
 
     if (!xRealIp.size() || !isTrustedProxy(host)){
@@ -520,6 +535,11 @@ namespace Mist{
     // Do first check with connected host because of simplicity
     std::string host = Output::getConnectedHost();
     std::string xRealIp = H.GetHeader("X-Real-IP");
+    if (!trueHost.size()){
+      trueHost = host;
+    }else{
+      host = trueHost;
+    }
 
     if (!xRealIp.size() || !isTrustedProxy(host)){
       static bool msg = false;

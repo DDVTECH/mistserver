@@ -336,10 +336,11 @@ namespace Mist{
     return false;
   }
 
-  /// Disconnects from all stat/user-related shared structures.
+  /// Disconnects from all stat/user/metadata-related shared structures.
   void Output::disconnect(){
     MEDIUM_MSG("disconnect");
     if (statComm){
+      stats(true);
       statComm.unload();
       myConn.resetCounter();
     }
@@ -351,8 +352,6 @@ namespace Mist{
   /// Connects or reconnects to the stream.
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
-  /// After assuring stream is online, clears metaPages, then sets metaPages[0], statistics and
-  /// userClient to (hopefully) valid handles.
   void Output::reconnect(){
     thisPacket.null();
     if (config->hasOption("noinput") && config->getBool("noinput")){
@@ -409,18 +408,30 @@ namespace Mist{
       }
     }
 
-    disconnect();
+    //Wipe currently selected tracks; metadata unload coming up
+    userSelect.clear();
 
+    //Connect to stream metadata
     meta.reInit(streamName, false);
     unsigned int attempts = 0;
     while (!meta && ++attempts < 20 && Util::streamAlive(streamName)){
       meta.reInit(streamName, false);
     }
+    //Abort if this step failed
     if (!meta){return;}
+
     isInitialized = true;
-    statComm.reload();
-    stats(true);
+
+    //Connect to stats reporting, if not connected already
+    if (!statComm){
+      statComm.reload();
+      stats(true);
+    }
+
+    //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
+
+    //live streams that are no push outputs (recordings), wait for stream to be ready
     if (!isRecording() && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
       while (M.getLive() && !isReadyForPlay()){
@@ -433,6 +444,7 @@ namespace Mist{
         stats();
       }
     }
+    //Finally, select the default tracks
     selectDefaultTracks();
   }
 
@@ -1451,11 +1463,7 @@ namespace Mist{
     }
     /*LTS-END*/
 
-    stats(true);
-    if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
-
-    userSelect.clear();
-
+    disconnect();
     myConn.close();
     return 0;
   }
@@ -2010,7 +2018,6 @@ namespace Mist{
     while (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){
       INFO_MSG("Waiting for %s buffer to be ready... (%u)", streamName.c_str(), streamStatus);
       disconnect();
-      userSelect.clear();
       Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){

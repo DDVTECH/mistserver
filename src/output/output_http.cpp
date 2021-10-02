@@ -13,7 +13,9 @@ namespace Mist{
     webSock = 0;
     idleInterval = 0;
     idleLast = 0;
-    if (config->getString("ip").size()){myConn.setHost(config->getString("ip"));}
+    if (config->getString("ip").size()){
+      myConn.setHost(config->getString("ip"));
+    }
     if (config->getString("prequest").size()){
       myConn.Received().prepend(config->getString("prequest"));
     }
@@ -38,11 +40,11 @@ namespace Mist{
     capa["forward"]["ip"]["help"] = "IP of forwarded connection.";
     capa["forward"]["ip"]["type"] = "str";
     capa["forward"]["ip"]["option"] = "--ip";
-    capa["forward"]["ip"]["name"] = "Previous request";
-    capa["forward"]["ip"]["help"] =
+    capa["forward"]["prequest"]["name"] = "Previous request";
+    capa["forward"]["prequest"]["help"] =
         "Data to pretend arrived on the socket before parsing the socket.";
-    capa["forward"]["ip"]["type"] = "str";
-    capa["forward"]["ip"]["option"] = "--prequest";
+    capa["forward"]["prequest"]["type"] = "str";
+    capa["forward"]["prequest"]["option"] = "--prequest";
     cfg->addOption("streamname", JSON::fromString("{\"arg\":\"string\",\"short\":\"s\",\"long\":"
                                                   "\"stream\",\"help\":\"The name of the stream "
                                                   "that this connector will transmit.\"}"));
@@ -200,12 +202,15 @@ namespace Mist{
     bool sawRequest = false;
     while (H.Read(myConn)){
       sawRequest = true;
+
+      //First, figure out which handler we need to use
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
         INFO_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
       }else{
         MEDIUM_MSG("Received request: %s => %s (%s)", H.getUrl().c_str(), handler.c_str(), H.GetVar("stream").c_str());
       }
+      //None found? Abort the request with a 415 response status code.
       if (!handler.size()){
         H.Clean();
         H.SetHeader("Server", APPIDENT);
@@ -217,6 +222,32 @@ namespace Mist{
         myConn.close();
         return;
       }
+
+      // Check the real and/or forwarded IP address if the proxy is trusted
+      // Warns if proxy is not trusted and these headers are set
+      fwdHostStr.clear();
+      fwdHostBin.clear();
+      if (H.hasHeader("X-Real-IP") || H.hasHeader("X-Forwarded-For")){
+        if (H.hasHeader("X-Real-IP")){
+          fwdHostStr = H.GetHeader("X-Real-IP");
+        }
+        if (H.hasHeader("X-Forwarded-For")){
+          fwdHostStr = H.GetHeader("X-Forwarded-For");
+          if (fwdHostStr.find(',') != std::string::npos){fwdHostStr.erase(fwdHostStr.find(','));}
+        }
+        std::string trueHostStr = Output::getConnectedHost();
+        if (!fwdHostStr.size() || !isTrustedProxy(trueHostStr)){
+          if (fwdHostStr.size() && fwdHostStr != trueHostStr){
+            WARN_MSG("Host %s is attempting to act as a proxy for %s, but not trusted", trueHostStr.c_str(), fwdHostStr.c_str());
+          }
+          fwdHostStr.clear();
+        }else{
+          Socket::Connection tmp;
+          tmp.setHost(fwdHostStr);
+          fwdHostBin = tmp.getBinHost();
+        }
+      }
+
 
       tkn.clear();
       // Read the session token
@@ -250,12 +281,15 @@ namespace Mist{
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
+        //Prepare switch
+        disconnect();
         streamName = H.GetVar("stream");
-        userSelect.clear();
-        if (statComm){statComm.setStatus(COMM_STATUS_DISCONNECT | statComm.getStatus());}
-        reConnector(handler);
-        onFail("Server error - could not start connector", true);
-        return;
+
+        if (handler != capa["name"].asStringRef()){
+          reConnector(handler);
+          onFail("Server error - could not start connector", true);
+          return;
+        }
       }
 
       /*LTS-START*/
@@ -322,6 +356,7 @@ namespace Mist{
       preHTTP();
       if (!myConn){return;}
       onHTTP();
+      stats(true);
       idleLast = Util::bootMS();
       // Prevent the clean as well as the loop when we're in the middle of handling a request now
       if (!wantRequest){return;}
@@ -481,10 +516,10 @@ namespace Mist{
     if (H.url.size()){tmpPrequest = H.BuildRequest();}
     int argnum = 0;
     argarr[argnum++] = (char *)tmparg.c_str();
-    std::string temphost = getConnectedHost();
     std::string debuglevel = JSON::Value(Util::printDebugLevel).asString();
+    std::string trueHostStr = Output::getConnectedHost();
     argarr[argnum++] = (char *)"--ip";
-    argarr[argnum++] = (char *)(temphost.c_str());
+    argarr[argnum++] = (char *)(trueHostStr.c_str());
     argarr[argnum++] = (char *)"--stream";
     argarr[argnum++] = (char *)(streamName.c_str());
     argarr[argnum++] = (char *)"--prequest";
@@ -501,38 +536,14 @@ namespace Mist{
     execv(argarr[0], argarr);
   }
 
-  /*LTS-START*/
   std::string HTTPOutput::getConnectedHost(){
-    std::string host = Output::getConnectedHost();
-    std::string xRealIp = H.GetHeader("X-Real-IP");
-
-    if (!xRealIp.size() || !isTrustedProxy(host)){
-      static bool msg = false;
-      if (xRealIp.size() && !msg && xRealIp != host){
-        WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
-        msg = true;
-      }
-      return host;
-    }
-    return xRealIp;
+    if (fwdHostStr.size()){return fwdHostStr;}
+    return Output::getConnectedHost();
   }
+
   std::string HTTPOutput::getConnectedBinHost(){
-    // Do first check with connected host because of simplicity
-    std::string host = Output::getConnectedHost();
-    std::string xRealIp = H.GetHeader("X-Real-IP");
-
-    if (!xRealIp.size() || !isTrustedProxy(host)){
-      static bool msg = false;
-      if (xRealIp.size() && !msg && xRealIp != host){
-        WARN_MSG("Host %s is attempting to act as a proxy, but not trusted", host.c_str());
-        msg = true;
-      }
-      return Output::getConnectedBinHost();
-    }
-
-    Socket::Connection binConn;
-    binConn.setHost(xRealIp);
-    return binConn.getBinHost();
+    if (fwdHostBin.size()){return fwdHostBin;}
+    return Output::getConnectedBinHost();
   }
 
   bool HTTPOutput::isTrustedProxy(const std::string &ip){
@@ -560,7 +571,6 @@ namespace Mist{
     }
     return false;
   }
-  /*LTS-END*/
 
   /// Parses a "Range: " header, setting byteStart and byteEnd.
   /// Assumes byteStart and byteEnd are initialized to their minimum respectively maximum values

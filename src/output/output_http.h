@@ -27,6 +27,8 @@ namespace Mist{
     bool parseRange(std::string header, uint64_t &byteStart, uint64_t &byteEnd);
 
   protected:
+    std::string fwdHostStr; ///< Forwarded string IP, if non-empty
+    std::string fwdHostBin; ///< Forwarded binary IP, if non-empty
     bool responded;
     HTTP::Parser H;
     HTTP::Websocket *webSock;

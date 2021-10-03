@@ -806,8 +806,11 @@ namespace Mist{
     }
     loadPageForKey(tid, keyNum + (getNextKey ? 1 : 0));
     if (!curPage.count(tid) || !curPage[tid].mapped){
-      WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: not available.", pos, tid);
-      userSelect.erase(tid);
+      //Sometimes the page load fails because of a connection loss to the user. This is fine.
+      if (keepGoing()){
+        WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: not available.", pos, tid);
+        userSelect.erase(tid);
+      }
       return false;
     }
     Util::sortedPageInfo tmp;

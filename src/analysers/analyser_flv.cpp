@@ -1,6 +1,6 @@
 #include "analyser_flv.h"
 
-void AnalyserFLV::init(Util::Config &conf) {
+void AnalyserFLV::init(Util::Config &conf){
   Analyser::init(conf);
   JSON::Value opt;
   opt["long"] = "filter";
@@ -13,51 +13,42 @@ void AnalyserFLV::init(Util::Config &conf) {
   opt.null();
 }
 
-AnalyserFLV::AnalyserFLV(Util::Config &conf) : Analyser(conf) {
+AnalyserFLV::AnalyserFLV(Util::Config &conf) : Analyser(conf){
   filter = conf.getInteger("filter");
 }
 
-bool AnalyserFLV::parsePacket() {
+bool AnalyserFLV::parsePacket(){
   unsigned int pos = 0;
   std::string tmp;
   size_t bytesNeeded = 0;
 
-  while (tmp.size() < (bytesNeeded = FLV::bytesNeeded(tmp.data(), tmp.size()))) {
-    while (!buffer.available(bytesNeeded)) {
-      if (uri.isEOF()) {
-        FAIL_MSG("End of file");
-        return false;
-      }
-      uri.readSome(bytesNeeded - buffer.bytes(bytesNeeded), *this);
-      if (!buffer.available(bytesNeeded)) {
-        Util::sleep(50);
-      }
+  while (buffer.size() < (bytesNeeded = FLV::bytesNeeded(buffer, buffer.size()))){
+    if (uri.isEOF()){
+      FAIL_MSG("End of file");
+      return false;
     }
-    tmp = buffer.copy(bytesNeeded);
-//    WARN_MSG("copying %llu bytes", bytesNeeded);
+    uri.readSome(bytesNeeded - buffer.size(), *this);
+    if (buffer.size() < bytesNeeded){Util::sleep(50);}
   }
 
-//  INFO_MSG("removing %llu, bytes from buffer, buffersize: %llu", bytesNeeded, buffer.bytes(0xffffffff));
-  buffer.remove(bytesNeeded);
-
   // skip header
-  if (bytesNeeded == 13) {
+  if (bytesNeeded == 13){
+    buffer.pop(13);
     return parsePacket();
   }
 
   //ugly, but memloader needs to be called twice
-  if (flvData.MemLoader(tmp.data(), tmp.size(), pos) || flvData.MemLoader(tmp.data(), tmp.size(), pos)) {
-    if ((!filter || filter == flvData.data[0]) && !validate) {
+  if (flvData.MemLoader(buffer, buffer.size(), pos) || flvData.MemLoader(buffer, buffer.size(), pos)){
+    if ((!filter || filter == flvData.data[0]) && !validate){
       DETAIL_MED("[%" PRIu64 "+%" PRIu64 "] %s", flvData.tagTime(), flvData.offset(),flvData.tagType().c_str());
     }
     mediaTime = flvData.tagTime();
   }
+  buffer.pop(bytesNeeded);
   return true;
 }
 
-void AnalyserFLV::dataCallback(const char *ptr, size_t size) {
+void AnalyserFLV::dataCallback(const char *ptr, size_t size){
   mediaDown += size;
-//  WARN_MSG("flv add buffer callback, size: %lu", size);
   buffer.append(ptr, size);
 }
-

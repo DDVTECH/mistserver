@@ -12,7 +12,6 @@ public:
 
 private:
   FLV::Tag flvData;
-  Util::ResizeablePointer p;
-  Socket::Buffer buffer;
+  Util::ResizeablePointer buffer;
   long long filter;
 };

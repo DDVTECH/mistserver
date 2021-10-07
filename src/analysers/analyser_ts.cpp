@@ -109,14 +109,7 @@ bool AnalyserTS::parsePacket(){
   if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
     mediaTime = packet.getPCR() / 27000;
   }
-  //If the data buffer is exactly one packet, simply wipe it
-  if (buffer.size() == 188){
-    buffer.truncate(0);
-  }else{
-    //Otherwise, remove the first 188 bytes and move everything else forward
-    memmove(buffer, buffer+188, buffer.size()-188);
-    buffer.truncate(buffer.size()-188);
-  }
+  buffer.pop(188);
   return true;
 }
 

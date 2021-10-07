@@ -242,6 +242,7 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
 }
 
 void AnalyserTS::dataCallback(const char *ptr, size_t size) {
+  mediaDown += size;
   if(useAssembler){
     assembler.assemble(ptr,size);
   }else{

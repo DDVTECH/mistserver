@@ -17,33 +17,18 @@ AnalyserEBML::AnalyserEBML(Util::Config &conf) : Analyser(conf){
 bool AnalyserEBML::parsePacket(){
   prePos = curPos;
  
-  while (dataBuffer.size() < neededBytes()) {
-    uint64_t needed = neededBytes();
-    if (needed > 1024 * 1024) {
-      dataBuffer.erase(0, 1);
+  uint64_t needed = neededBytes();
+  while (buffer.size() < needed){
+    if (uri.isEOF()){
+      FAIL_MSG("End of file");
+      return false;
     }
-
-    dataBuffer.reserve(needed);
-
-    while (!buffer.available(needed - dataBuffer.size())) {
-      if (uri.isEOF()) {
-        FAIL_MSG("End of file");
-        return false;
-      }
-      uri.readSome(needed - buffer.bytes(needed), *this);
-      if (!buffer.available(needed)) {
-        Util::sleep(50);
-      }
-    }
-
-    uint64_t appending = needed - dataBuffer.size();
-    dataBuffer.append(buffer.remove(appending));
-    curPos += appending; 
+    buffer.allocate(needed);
+    uri.readSome(needed - buffer.size(), *this);
+    if (buffer.size() < (needed = neededBytes())){Util::sleep(50);}
   }
 
-  if (dataBuffer.size() < neededBytes()){return false;}
-
-  EBML::Element E(dataBuffer.data(), true);
+  EBML::Element E(buffer, true);
   HIGH_MSG("Read an element at position %zu", prePos);
   if(!validate){
     if (detail >= 2){std::cout << E.toPrettyString(depthStash.size() * 2, detail);}
@@ -80,7 +65,7 @@ bool AnalyserEBML::parsePacket(){
     break;
   }
   if (E.getType() == EBML::ELEM_BLOCK){
-    EBML::Block B(dataBuffer.data());
+    EBML::Block B(buffer);
     /// \TODO Apply timescale
     mediaTime = lastClusterTime + B.getTimecode();
   }
@@ -111,15 +96,17 @@ bool AnalyserEBML::parsePacket(){
       lastSeekPos = 0;
     }
   }
-  dataBuffer.erase(0, E.getOuterLen());
+  curPos += needed;
+  buffer.pop(needed);
   return true;
 }
 
 /// Calculates how many bytes we need to read a whole box.
 uint64_t AnalyserEBML::neededBytes(){
-  return EBML::Element::needBytes(dataBuffer.data(), dataBuffer.size(), true);
+  return EBML::Element::needBytes(buffer, buffer.size(), true);
 }
 
-void AnalyserEBML::dataCallback(const char *ptr, size_t size) {
+void AnalyserEBML::dataCallback(const char *ptr, size_t size){
+  mediaDown += size;
   buffer.append(ptr, size);
 }

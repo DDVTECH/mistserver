@@ -10,8 +10,7 @@ public:
 
 private:
   uint64_t neededBytes();
-  std::string dataBuffer;
-  Socket::Buffer buffer;
+  Util::ResizeablePointer buffer;
   uint64_t curPos;
   size_t prePos;
   uint64_t segmentOffset;

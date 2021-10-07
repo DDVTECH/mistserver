@@ -68,25 +68,26 @@ AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
     outFile.open(conf.getString("raw").c_str());
   }
   bytes = 0;
+  dataOffset = 0;
+  buffer.allocate(18800);
   useAssembler = conf.getBool("assembler");
 }
 
 bool AnalyserTS::parsePacket(){
-  while (buffer.size() < 188) {
+  while (buffer.size()-dataOffset < 188) {
     if (!isOpen()) {
       FAIL_MSG("End of file");
       return false;
     }
-    //uri.readSome(188-buffer.size(), *this);
     uri.readSome(188,*this);
-    if (buffer.size() < 188){
+    if (buffer.size()-dataOffset < 188){
       Util::sleep(50);
     }
   }
   DONTEVEN_MSG("Reading from position %" PRIu64, bytes);
   bytes += 188;
 
-  if (!packet.FromPointer(buffer)){return false;}
+  if (!packet.FromPointer(buffer+dataOffset)){return false;}
   if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
   if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
   if (detail && !validate){
@@ -109,7 +110,12 @@ bool AnalyserTS::parsePacket(){
   if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
     mediaTime = packet.getPCR() / 27000;
   }
-  buffer.pop(188);
+  mediaDown += 188;
+  dataOffset += 188;
+  if (dataOffset > 18800){
+    buffer.pop(dataOffset);
+    dataOffset = 0;
+  }
   return true;
 }
 
@@ -235,7 +241,6 @@ std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
 }
 
 void AnalyserTS::dataCallback(const char *ptr, size_t size) {
-  mediaDown += size;
   if(useAssembler){
     assembler.assemble(ptr,size);
   }else{

@@ -26,5 +26,6 @@ private:
   uint64_t bytes;
   AnalyserCallback assembler;
   bool useAssembler;
+  size_t dataOffset;
 };
 

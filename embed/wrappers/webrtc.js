@@ -602,15 +602,16 @@ p.prototype.build = function (MistVideo,callback) {
   me.api.getStats = function(){
     if (me.webrtc && me.webrtc.isConnected) {
       return new Promise(function(resolve,reject) {
-        me.webrtc.peerConn.getStats().then((a) => {
+        me.webrtc.peerConn.getStats().then(function(a){
           var r = {
             audio: null,
             video: null
           };
-          for (let dictionary of a.values()) {
-            if (dictionary.type == "track") {
+          var obj = Object.fromEntries(a);
+          for (var i in obj) {
+            if (obj[i].type == "track") {
               //average jitter buffer in seconds
-              r[dictionary.kind] = dictionary;
+              r[obj[i].kind] = obj[i];
             }
           }
           resolve(r);

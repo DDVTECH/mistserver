@@ -347,7 +347,7 @@ var MistUtil = {
         if (isNaN(a) || isNaN(b)) {
           return a.localeCompare(b);
         }
-        return Math.sign(a-b);
+        return a > b ? 1 : (a < b ? -1 : 0);
       };
       
       if (!sortby.length) { return array.sort(sortfunc); }

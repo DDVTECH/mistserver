@@ -3,7 +3,7 @@ mistplayers.videojs = {
   mimes: ["html5/application/vnd.apple.mpegurl","html5/application/vnd.apple.mpegurl;version=7"],
   priority: MistUtil.object.keys(mistplayers).length + 1,
   isMimeSupported: function (mimetype) {
-    return (this.mimes.indexOf(mimetype) == -1 ? false : true);
+    return (MistUtil.array.indexOf(this.mimes,mimetype) == -1 ? false : true);
   },
   isBrowserSupported: function (mimetype,source,MistVideo) {
     
@@ -82,6 +82,29 @@ p.prototype.build = function (MistVideo,callback) {
     else {
       vjsopts.controls = false;
     }
+
+    //capture any errors generated before videojs is initialized and ignore them
+    var captureErrors = MistUtil.event.addListener(ele,"error",function(e){
+      e.stopImmediatePropagation();
+      
+      var msg = e.message;
+      if (!msg && ele.error) {
+        if (("code" in ele.error) && (ele.error.code)) {
+          msg = "Code "+ele.error.code;
+          for (var i in ele.error) {
+            if (i == "code") { continue; }
+            if (ele.error[i] == ele.error.code) {
+              msg = i;
+              break;
+            }
+          }
+        }
+        else {
+          msg = JSON.stringify(ele.error);
+        }
+      }
+      MistVideo.log("Error captured and stopped because videojs has not yet loaded: "+msg);  
+    });
     
     //for android < 7, enable override native
     function androidVersion(){
@@ -99,6 +122,9 @@ p.prototype.build = function (MistVideo,callback) {
     me.onready(function(){
       MistVideo.log("Building videojs");
       me.videojs = videojs(ele,vjsopts,function(){
+        //remove error grabbing
+        MistUtil.event.removeListener(captureErrors);
+
         MistVideo.log("Videojs initialized");
         
         if (MistVideo.info.type == "live") {
@@ -111,7 +137,7 @@ p.prototype.build = function (MistVideo,callback) {
       });
       
       MistUtil.event.addListener(ele,"error",function(e){
-        if (e.target.error.message.indexOf("NS_ERROR_DOM_MEDIA_OVERFLOW_ERR") >= 0) {
+        if (e && e.target && e.target.error && e.target.error.message && (MistUtil.array.indexOf(e.target.error.message,"NS_ERROR_DOM_MEDIA_OVERFLOW_ERR") >= 0)) {
           //there is a problem with a certain segment, try reloading
           MistVideo.timers.start(function(){
             MistVideo.log("Reloading player because of NS_ERROR_DOM_MEDIA_OVERFLOW_ERR");

@@ -61,7 +61,9 @@ function MistVideo(streamName,options) {
     if (this.options.skin == "dev") {
       try {
         var msg = "["+(type ? type :"log")+"] "+(MistVideo.destroyed ? "[DESTROYED] " : "")+"[#"+(MistVideo.n)+"] "+(this.player && this.player.api ? MistUtil.format.time(this.player.api.currentTime,{ms:true})+" " : "")+message;
-        if (type && (type != "log")) { console.warn(msg); }
+        if (type && (type != "log")) {
+          console.warn(msg);
+        }
         else { console.log(msg); }
       } catch(e){}
     }
@@ -1016,9 +1018,18 @@ function MistVideo(streamName,options) {
   
   if ("WebSocket" in window) {
     function openSocket() {
-      MistVideo.log("Opening stream status stream..");
+      MistVideo.log("Opening stream status stream through websocket..");
       var url = MistVideo.options.host.replace(/^http/i,"ws");
-      var socket = new WebSocket(MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js"));
+      url = MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js");
+      var socket;
+      try {
+        socket = new WebSocket(url);
+      }
+      catch (e) {
+        MistVideo.log("Error while attempting to open WebSocket to "+url);
+        openWithGet();
+        return;
+      }
       MistVideo.socket = socket;
       socket.die = false;
       socket.destroy = function(){

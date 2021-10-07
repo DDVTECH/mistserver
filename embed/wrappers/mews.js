@@ -7,7 +7,7 @@ mistplayers.mews = {
   },
   isBrowserSupported: function (mimetype,source,MistVideo) {
     
-    if ((!("WebSocket" in window)) || (!("MediaSource" in window))) { return false; }
+    if ((!("WebSocket" in window)) || (!("MediaSource" in window)) || (!("Promise" in window))) { return false; }
     
     //check for http/https mismatch
     if (location.protocol.replace(/^http/,"ws") != MistUtil.http.url.split(source.url.replace(/^http/,"ws")).protocol) {
@@ -379,7 +379,8 @@ p.prototype.build = function (MistVideo,callback) {
       this.ws.s = this.ws.send;
       this.ws.send = function(){
         if (this.readyState == 1) {
-          return this.s.apply(this,arguments);
+          this.s.apply(this,arguments);
+          return true;
         }
         return false;
       };
@@ -885,8 +886,15 @@ p.prototype.build = function (MistVideo,callback) {
     send({type:"request_codec_data",supported_codecs:MistVideo.source.supportedCodecs});
   }.bind(this));
   
-  function send(cmd){
+  function send(cmd,retry){
     if (!player.ws) { throw "No websocket to send to"; }
+    if (retry > 5) { throw "Too many retries, giving up"; }
+    if (player.ws.readyState < player.ws.OPEN) {
+      MistVideo.timers.start(function(){
+        send(cmd,++retry);
+      },500);
+      return;
+    }
     if (player.ws.readyState >= player.ws.CLOSING) {
       //throw "WebSocket has been closed already.";
       MistVideo.log("MP4 over WS: reopening websocket");
@@ -913,9 +921,11 @@ p.prototype.build = function (MistVideo,callback) {
       return;
     }
     if (player.debugging) { console.log("ws send",cmd); }
-    
     player.ws.serverDelay.log(cmd.type);
-    player.ws.send(JSON.stringify(cmd));
+    if (!player.ws.send(JSON.stringify(cmd))) {
+      //not able to send, not sure why.. go back to retry
+      return send(cmd,++retry);
+    }
   }
 
   player.findBuffer = function (position) {
@@ -1133,7 +1143,9 @@ p.prototype.build = function (MistVideo,callback) {
     if (player.api.loop) {
       player.api.currentTime = 0;
       player.sb._do(function(){
-        player.sb.remove(0,Infinity);
+        try {
+          player.sb.remove(0,Infinity);
+        } catch (e) {}
       });
     }
   });

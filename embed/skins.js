@@ -2422,13 +2422,15 @@ MistSkins.dev = {
         label.set = function(val){
           if (val !== 0) { this.style.display = ""; }
           if (typeof val == "object") {
-            if (val instanceof Promise) {
-              val.then(function(val){
-                label.set(val)
-              },function(){});
-              return;
+            try {
+              if (val instanceof Promise) {
+                val.then(function(val){
+                  label.set(val)
+                },function(){});
+                return;
+              }
             }
-            
+            catch (e) {}
             if ("val" in val) {
               value.nodeValue = val.val;
               valuec.className = "value";
@@ -2441,7 +2443,7 @@ MistSkins.dev = {
             else {
               //create a graph
               var graph = MistUtil.createGraph({x:[val.x],y:[val.y]},val.options);
-              
+
               //it's (probably) a DOM element, insert it
               ele.style.display = "";
               MistUtil.empty(ele);

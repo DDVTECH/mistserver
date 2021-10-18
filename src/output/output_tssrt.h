@@ -15,7 +15,7 @@ namespace Mist{
     bool isReadyForPlay(){return true;}
     virtual void requestHandler();
   protected:
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     virtual std::string getConnectedHost(){return srtConn.remotehost;}
     virtual std::string getConnectedBinHost(){return srtConn.getBinHost();}
 

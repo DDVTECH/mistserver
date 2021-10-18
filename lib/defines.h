@@ -196,10 +196,13 @@ static inline void show_stackframe(){}
 #define TRACK_PAGE_RECORDSIZE 36
 
 #define COMMS_STATISTICS "MstStat"
-#define COMMS_STATISTICS_INITSIZE 8 * 1024 * 1024
+#define COMMS_STATISTICS_INITSIZE 16 * 1024 * 1024
 
 #define COMMS_USERS "MstUser%s" //%s stream name
 #define COMMS_USERS_INITSIZE 512 * 1024
+
+#define COMMS_SESSIONS "MstSession%s"
+#define COMMS_SESSIONS_INITSIZE 8 * 1024 * 1024
 
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name
@@ -226,7 +229,9 @@ static inline void show_stackframe(){}
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
 #define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
+#define SEM_SESSION "MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
+#define SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID 14
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
 #define SHM_PROXY "MstProx"

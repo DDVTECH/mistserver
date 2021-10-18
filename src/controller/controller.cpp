@@ -306,7 +306,6 @@ int main_loop(int argc, char **argv){
   if (Controller::Storage["config"].isMember("accesslog")){
     Controller::conf.getOption("accesslog", true)[0u] = Controller::Storage["config"]["accesslog"];
   }
-  Controller::maxConnsPerIP = Controller::conf.getInteger("maxconnsperip");
   Controller::Storage["config"]["prometheus"] = Controller::conf.getString("prometheus");
   Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
   Controller::normalizeTrustedProxies(Controller::Storage["config"]["trustedproxy"]);

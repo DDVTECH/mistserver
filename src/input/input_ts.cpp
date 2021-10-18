@@ -502,7 +502,7 @@ namespace Mist{
   void inputTS::streamMainLoop(){
     meta.removeTrack(tmpIdx);
     INFO_MSG("Removed temptrack %zu", tmpIdx);
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     uint64_t downCounter = 0;
     uint64_t startTime = Util::bootSecs();
     uint64_t noDataSince = Util::bootSecs();
@@ -558,7 +558,7 @@ namespace Mist{
       // Check for and spawn threads here.
       if (Util::bootSecs() - threadCheckTimer > 1){
         // Connect to stats for INPUT detection
-        statComm.reload();
+        statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -567,7 +567,6 @@ namespace Mist{
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setUp(0);

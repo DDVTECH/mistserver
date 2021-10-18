@@ -245,7 +245,7 @@ namespace Mist{
 
   void inputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
-  void inputTSSRT::connStats(Comms::Statistics &statComm){
+  void inputTSSRT::connStats(Comms::Connections &statComm){
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());
     statComm.setHost(getConnectedBinHost());

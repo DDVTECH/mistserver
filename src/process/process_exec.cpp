@@ -72,7 +72,7 @@ namespace Mist{
     }
     bool needsLock(){return false;}
     bool isSingular(){return false;}
-    void connStats(Comms::Statistics &statComm){
+    void connStats(Comms::Connections &statComm){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
         if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
       }
@@ -117,7 +117,7 @@ namespace Mist{
       realTime = 0;
       OutEBML::sendHeader();
     };
-    void connStats(uint64_t now, Comms::Statistics &statComm){
+    void connStats(uint64_t now, Comms::Connections &statComm){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
         if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
       }

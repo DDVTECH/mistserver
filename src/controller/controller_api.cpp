@@ -594,6 +594,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
       out["prometheus"] = in["prometheus"];
       Controller::prometheus = out["prometheus"].asStringRef();
     }
+    if (in.isMember("sessionMode")){out["sessionMode"] = in["sessionMode"];}
     if (in.isMember("defaultStream")){out["defaultStream"] = in["defaultStream"];}
     if (in.isMember("location") && in["location"].isObject()){
       out["location"]["lat"] = in["location"]["lat"].asDouble();

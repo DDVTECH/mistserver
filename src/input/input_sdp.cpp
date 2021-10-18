@@ -193,7 +193,7 @@ namespace Mist{
 
   // Updates stats and quits if parsePacket returns false
   void InputSDP::streamMainLoop(){
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     uint64_t startTime = Util::epoch();
     uint64_t lastSecs = 0;
     // Get RTP packets from UDP socket and stop if this fails
@@ -202,7 +202,7 @@ namespace Mist{
       if (lastSecs != currSecs){
         lastSecs = currSecs;
         // Connect to stats for INPUT detection
-        statComm.reload();
+        statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);
         if (statComm){
           if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -211,7 +211,6 @@ namespace Mist{
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setDown(bytesRead);

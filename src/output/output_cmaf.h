@@ -39,7 +39,7 @@ namespace Mist{
     bool isReadyForPlay();
 
   protected:
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     void onTrackEnd(size_t idx);
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
 
@@ -72,6 +72,7 @@ namespace Mist{
     void startPushOut();
     void pushNext();
 
+    uint32_t crc;
     HTTP::URL pushUrl;
     std::map<size_t, CMAFPushTrack> pushTracks;
     void setupTrackObject(size_t idx);

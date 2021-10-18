@@ -344,7 +344,7 @@ namespace Mist{
     }
   }
 
-  void OutTSSRT::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutTSSRT::connStats(uint64_t now, Comms::Connections &statComm){
     if (!srtConn){return;}
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());

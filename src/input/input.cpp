@@ -794,7 +794,7 @@ namespace Mist{
   void Input::streamMainLoop(){
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     getNext();
     if (thisPacket && !userSelect.count(thisIdx)){
       userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
@@ -820,7 +820,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload();}
+        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);}
         if (statComm){
           if (!statComm){
             config->is_active = false;
@@ -829,7 +829,6 @@ namespace Mist{
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setTime(now - startTime);
@@ -842,7 +841,7 @@ namespace Mist{
     }
   }
   
-  void Input::connStats(Comms::Statistics &statComm){
+  void Input::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(streamByteCount());
     statComm.setHost(getConnectedBinHost());
@@ -853,7 +852,7 @@ namespace Mist{
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
     size_t idx;
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
 
 
     DTSC::Meta liveMeta(config->getString("streamname"), false);
@@ -985,7 +984,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload();}
+        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -994,7 +993,6 @@ namespace Mist{
           }
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
-          statComm.setCRC(getpid());
           statComm.setStream(streamName);
           statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setTime(now - startTime);

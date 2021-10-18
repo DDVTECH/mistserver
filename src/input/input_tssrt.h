@@ -40,7 +40,7 @@ namespace Mist{
 
     Socket::SRTConnection srtConn;
     bool singularFlag;
-    virtual void connStats(Comms::Statistics &statComm);
+    virtual void connStats(Comms::Connections &statComm);
 
     Util::ResizeablePointer rawBuffer;
     size_t rawIdx;

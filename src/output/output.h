@@ -86,7 +86,6 @@ namespace Mist{
     std::string hostLookup(std::string ip);
     bool onList(std::string ip, std::string list);
     std::string getCountry(std::string ip);
-    void doSync(bool force = false);
     /*LTS-END*/
     std::map<size_t, uint32_t> currentPage;
     void loadPageForKey(size_t trackId, size_t keyNum);
@@ -105,6 +104,7 @@ namespace Mist{
     bool firstData;
     uint64_t lastPushUpdate;
     bool newUA;
+    
   protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{
       return false;
@@ -122,15 +122,16 @@ namespace Mist{
     virtual std::string getStatsName();
     virtual bool hasSessionIDs(){return false;}
 
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
 
     std::set<size_t> getSupportedTracks(const std::string &type = "") const;
 
     inline virtual bool keepGoing(){return config->is_active && myConn;}
 
-    Comms::Statistics statComm;
+    Comms::Connections statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.
-    uint32_t crc;    ///< Checksum, if any, for usage in the stats.
+    std::string sid;    ///< Random identifier used to split connections into sessions
+    uint64_t sessionMode;
     uint64_t nextKeyTime();
 
     // stream delaying variables

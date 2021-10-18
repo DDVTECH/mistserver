@@ -101,7 +101,7 @@ namespace Mist{
     }
   }
 
-  void OutCMAF::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutCMAF::connStats(uint64_t now, Comms::Connections &statComm){
     // For non-push usage, call usual function.
     if (!isRecording()){
       Output::connStats(now, statComm);

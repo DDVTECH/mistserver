@@ -1015,7 +1015,7 @@ namespace Mist{
     }
   }
 
-  void OutWebRTC::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutWebRTC::connStats(uint64_t now, Comms::Connections &statComm){
     statComm.setUp(myConn.dataUp());
     statComm.setDown(myConn.dataDown());
     statComm.setPacketCount(totalPkts);

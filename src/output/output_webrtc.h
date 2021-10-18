@@ -144,7 +144,7 @@ namespace Mist{
     void onDTSCConverterHasInitData(const size_t trackID, const std::string &initData);
     void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
 
   private:
     uint64_t lastRecv;

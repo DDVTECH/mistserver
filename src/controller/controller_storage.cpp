@@ -91,19 +91,6 @@ namespace Controller{
       rlxAccs->setString("tags", tags, newEndPos);
       rlxAccs->setEndPos(newEndPos + 1);
     }
-    if (Triggers::shouldTrigger("USER_END", strm)){
-      std::stringstream plgen;
-      plgen << sessId << "\n"
-            << strm << "\n"
-            << conn << "\n"
-            << host << "\n"
-            << duration << "\n"
-            << up << "\n"
-            << down << "\n"
-            << tags;
-      std::string payload = plgen.str();
-      Triggers::doTrigger("USER_END", payload, strm);
-    }
   }
 
   void normalizeTrustedProxies(JSON::Value &tp){
@@ -430,7 +417,8 @@ namespace Controller{
             systemBoot = globAccX.getInt("systemBoot");
           }
           if(!globAccX.getFieldAccX("defaultStream")
-             || !globAccX.getFieldAccX("systemBoot")){
+             || !globAccX.getFieldAccX("systemBoot")
+             || !globAccX.getFieldAccX("sessionMode")){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -441,12 +429,16 @@ namespace Controller{
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
           globAccX.addField("systemBoot", RAX_64UINT);
+          globAccX.addField("sessionMode", RAX_64UINT);
+          if (!Storage["config"]["sessionMode"]){
+            Storage["config"]["sessionMode"] = SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID;
+          }
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
         }
         globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
-        globAccX.setInt("systemBoot", systemBoot);
+        globAccX.setInt("sessionMode", Storage["config"]["sessionMode"].asInt());
         globCfg.master = false; // leave the page after closing
       }
     }

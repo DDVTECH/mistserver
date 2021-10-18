@@ -565,6 +565,17 @@ makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
 
+add_executable(MistSession
+  ${BINARY_DIR}/mist/.headers
+  src/session.cpp
+)
+install(
+  TARGETS MistSession
+  DESTINATION bin
+)
+target_link_libraries(MistSession mist)
+
+
 add_executable(MistProcFFMPEG
   ${BINARY_DIR}/mist/.headers
   src/process/process_ffmpeg.cpp

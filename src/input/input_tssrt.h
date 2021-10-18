@@ -41,7 +41,7 @@ namespace Mist{
     Socket::SRTConnection srtConn;
     bool singularFlag;
     size_t tmpIdx;
-    virtual void connStats(Comms::Statistics &statComm);
+    virtual void connStats(Comms::Connections &statComm);
   };
 }// namespace Mist
 

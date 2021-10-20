@@ -100,6 +100,14 @@ p.prototype.build = function (MistVideo,callback) {
       MistVideo.log("Building videojs");
       me.videojs = videojs(ele,vjsopts,function(){
         MistVideo.log("Videojs initialized");
+        
+        if (MistVideo.info.type == "live") {
+          //overwrite the stream info's buffer window to the seekable range as indicated by the m3u8
+          MistUtil.event.addListener(ele,"progress",function(e){
+            var i = MistVideo.player.videojs.seekable().length-1;
+            MistVideo.info.meta.buffer_window = (Math.max(MistVideo.player.videojs.seekable().end(i),ele.duration) - MistVideo.player.videojs.seekable().start(i))*1e3;
+          });
+        }
       });
       
       MistUtil.event.addListener(ele,"error",function(e){
@@ -160,6 +168,7 @@ p.prototype.build = function (MistVideo,callback) {
       };
       
       if (MistVideo.info.type == "live") {
+
         function getLastBuffer(video) {
           var buffer_end = 0;
           if (video.buffered.length) {
@@ -171,8 +180,7 @@ p.prototype.build = function (MistVideo,callback) {
         
         overrides.get.duration = function(){
           if (MistVideo.info) {
-            var duration = (MistVideo.info.lastms + (new Date()).getTime() - MistVideo.info.updated.getTime())*1e-3;
-            //if (isNaN(duration)) { return 1e9; }
+            var duration = ele.duration;
             return duration;
           }
           return 0;
@@ -186,19 +194,25 @@ p.prototype.build = function (MistVideo,callback) {
         overrides.set.currentTime = function(value){
           var diff = MistVideo.player.api.currentTime - value;
           var offset = value - MistVideo.player.api.duration;
-          //MistVideo.player.api.liveOffset = offset;
           
           MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
-          //MistVideo.video.currentTime -= diff;
-          MistVideo.player.videojs.currentTime(MistVideo.video.currentTime - diff); //seeking backwards does not work if we set it on the video directly
+          MistVideo.player.videojs.currentTime(MistVideo.video.currentTime - diff);
         }
         var lastms = 0;
         overrides.get.currentTime = function(){
           if (MistVideo.info) { lastms = MistVideo.info.lastms*1e-3; }
-          var time = this.currentTime + lastms - MistVideo.player.api.liveOffset - HLSlatency;
+          var time = MistVideo.player.videojs ? MistVideo.player.videojs.currentTime() : ele.currentTime;
           if (isNaN(time)) { return 0; }
           return time;
         }
+        overrides.get.buffered = function(){
+          var buffered = MistVideo.player.videojs ? MistVideo.player.videojs.buffered() : ele.buffered;
+          return {
+            length: buffered.length,
+            start: function(i) { return buffered.start(i); },
+            end: function(i) { return buffered.end(i); i}
+          }
+        };
       }
     }
     else {

@@ -770,6 +770,38 @@ MistSkins["default"] = {
       
       var video = this.video;
       var MistVideo = this;
+
+      var first = Infinity;
+      if (MistVideo.info && MistVideo.info.meta && MistVideo.info.meta.tracks) {
+        for (var i in MistVideo.info.meta.tracks) {
+          if (MistVideo.info.meta.tracks[i].firstms*1e-3 < first) {
+            first = MistVideo.info.meta.tracks[i].firstms*1e-3;
+          }
+        }
+      }
+      if (first == Infinity) {
+        first = 0;
+      }
+      function firsts() {
+        if (MistVideo.player.api.duration < first) { return 0; }
+        return first;
+      }
+
+      function getBufferWindow() {
+        var buffer_window = MistVideo.info.meta.buffer_window;
+        if (typeof buffer_window == "undefined") { 
+          //for some reason, buffer_window is not defined (liveDVR?)
+          //just assume we can seek in our own buffer
+          if (MistVideo.player && MistVideo.player.api && MistVideo.player.api.buffered && MistVideo.player.api.buffered.length) {
+            buffer_window = (MistVideo.player.api.duration - MistVideo.player.api.buffered.start(0))*1e3;
+          }
+          else {
+            //no buffer of our own either? we'll just assume we have a minute
+            buffer_window = 60e3;
+          }
+        }
+        return buffer_window *= 1e-3;
+      }
       
       //these functions update the states
       container.updateBar = function(currentTime){
@@ -785,11 +817,11 @@ MistSkins["default"] = {
         if (!isFinite(MistVideo.player.api.duration)) { return 0; }
         var result = 0;
         if (MistVideo.info.type == "live") {
-          var buffer_window = MistVideo.info.meta.buffer_window * 1e-3;
+          var buffer_window = getBufferWindow();
           result =  (time - MistVideo.player.api.duration + buffer_window) / buffer_window;
         }
         else {
-          result =  time / MistVideo.player.api.duration;
+          result =  (time - firsts()) / (MistVideo.player.api.duration - firsts());
         }
         return Math.min(1,Math.max(0,result));
       }
@@ -865,14 +897,14 @@ MistSkins["default"] = {
         var perc = MistUtil.getPos(this,e);
         if (MistVideo.info.type == "live") {
           //live mode: seek in DVR window
-          var bufferWindow = MistVideo.info.meta.buffer_window * 1e-3; //buffer window in seconds
+          var bufferWindow = getBufferWindow();
           //assuming the "right" part or the progressbar is at true live
           return (perc-1) * bufferWindow + MistVideo.player.api.duration;
         }
         else {
           //VOD mode
           if (!isFinite(MistVideo.player.api.duration)) { return false; }
-          return perc * MistVideo.player.api.duration;
+          return perc * (MistVideo.player.api.duration - firsts()) + firsts();
         }
       };
       //seeking
@@ -887,6 +919,7 @@ MistSkins["default"] = {
       
       //hovering
       var tooltip = MistVideo.UI.buildStructure({type:"tooltip"});
+
       tooltip.style.opacity = 0;
       container.appendChild(tooltip);
       MistUtil.event.addListener(margincontainer,"mouseout",function(){
@@ -899,8 +932,15 @@ MistSkins["default"] = {
           tooltip.style.opacity = 0;
           return;
         }
-        tooltip.setText(MistUtil.format.time(secs));
+        
+        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          tooltip.setText(MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3)));
+        }
+        else {
+          tooltip.setText(MistUtil.format.time(secs));
+        }
         tooltip.style.opacity = 1;
+
         
         var perc = MistUtil.getPos(this,e);// e.clientX - this.getBoundingClientRect().left;
         var pos = {bottom:20};
@@ -1193,8 +1233,18 @@ MistSkins["default"] = {
       var formatTime = MistUtil.format.time;
       container.set = function(){
         var v = MistVideo.player.api.currentTime;
-        text.nodeValue = formatTime(v);
-        container.setAttribute("title",text.nodeValue);
+        var t;
+        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          var d = new Date(MistVideo.info.unixoffset + v*1e3);
+          t = MistUtil.format.ago(d);
+          container.setAttribute("title",MistUtil.format.ago(d,34560e6));
+        }
+        else {
+          t = formatTime(v);
+          container.setAttribute("title",t);
+        }
+
+        text.nodeValue = t;
       };
       container.set();
       
@@ -1226,7 +1276,16 @@ MistSkins["default"] = {
             return;
           }
           this.style.display = "";
-          text.nodeValue = MistUtil.format.time(duration);
+
+          if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+            var t = new Date(duration*1e3 + MistVideo.info.unixoffset)
+            text.nodeValue = MistUtil.format.ago(t);
+            container.setAttribute("title",MistUtil.format.ago(t,34560e6)); //format as if more than a year ago
+          }
+          else {
+            text.nodeValue = MistUtil.format.time(duration);
+            container.setAttribute("title",text.nodeValue);
+          }
         };
         
         MistUtil.event.addListener(MistVideo.video,"durationchange",function(){

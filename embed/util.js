@@ -33,6 +33,73 @@ var MistUtil = {
       
       return (days ? days : "")+str.join(":")+ago;
     },
+    ago: function(date,range){
+      //format a date nicely depending on how long ago it was
+      //if the range param [ms] is specified, use that to choose how to format the date string
+
+      var ago = range ? range : new Date().getTime() - date.getTime();
+      var out = "";
+      var negative = (ago < 0);
+
+      if (negative) { ago *= -1; }
+
+      if (ago < 1000) {
+        //less than a second ago
+        out = "live";
+      }
+      else if (ago < 60e3) {
+        //less than a minute ago
+        out = Math.round(ago/1e3)+" sec";
+        if (negative) {
+          out = "in "+out;
+        }
+        else {
+          out += " ago";
+        }
+        
+      }
+      else if ((!range && (new Date().toLocaleDateString() == date.toLocaleDateString())) || (range < 86400e3)) {
+        //today
+        out = date.toLocaleTimeString(undefined,{
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      }
+      else if (ago < 518400e3) {
+        //less than 6 days ago
+        out = date.toLocaleString(undefined,{
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      }
+      else if ((!range && (new Date().getFullYear() == date.getFullYear())) || (range < 31622400e3)) {
+        //this year
+        out = date.toLocaleString(undefined,{
+          month: "short",
+          day: "numeric",
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      }
+      else {
+        //before this year
+        out = date.toLocaleString(undefined,{
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+      }
+
+      return out;
+    },
     ucFirst: function(string){
       return string.charAt(0).toUpperCase()+string.slice(1);
     },

@@ -35,6 +35,7 @@ function MistVideo(streamName,options) {
     maxheight: false,     //no max height (apart from targets dimensions)
     ABR_resize: true,     //for supporting wrappers: when the player resizes, request a video track that matches the resolution best
     ABR_bitrate: true,    //for supporting wrappers: when there are playback issues, request a lower bitrate video track
+    useDateTime: true,    //when the unix timestamp of the stream is known, display the date/time
     MistVideoObject: false//no reference object is passed
   },options);
   if (options.host) { options.host = MistUtil.http.url.sanitizeHost(options.host); }
@@ -144,7 +145,7 @@ function MistVideo(streamName,options) {
     for (var i in mistplayers) {
       mistplayers[i].shortname = i;
     }
-    if (options.forcePlayer) {
+    if (options.forcePlayer && mistplayers[options.forcePlayer]) {
       players = [mistplayers[options.forcePlayer]];
       MistVideo.log("Forcing player "+options.forcePlayer);
     }

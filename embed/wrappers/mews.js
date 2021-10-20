@@ -1067,7 +1067,7 @@ p.prototype.build = function (MistVideo,callback) {
     }
   });
   //override duration
-  var lastduration = 1;
+  var lastduration = Infinity;
   Object.defineProperty(this.api,"duration",{
     get: function(){
       return lastduration;
@@ -1079,7 +1079,7 @@ p.prototype.build = function (MistVideo,callback) {
     },
     set: function(value){
       var f = function(msg){
-        video.playbackRate = msg.data.play_rate;
+        video.playbackRate = msg.data.play_rate_curr;
       };
       player.ws.addListener("set_speed",f);
       send({type: "set_speed", play_rate: (value == 1 ? "auto" : value)});

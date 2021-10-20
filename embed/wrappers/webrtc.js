@@ -129,6 +129,8 @@ p.prototype.build = function (MistVideo,callback) {
         duration = d;
         MistUtil.event.send("durationchange",d,video);
       }
+
+      MistVideo.info.meta.buffer_window = ev.end - ev.begin;
       
       if ((ev.tracks) && (currenttracks != ev.tracks)) {
         var tracks = MistVideo.info ? MistUtil.tracks.parse(MistVideo.info.meta.tracks) : [];

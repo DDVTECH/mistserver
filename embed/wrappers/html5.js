@@ -195,6 +195,7 @@ p.prototype.build = function (MistVideo,callback) {
         
         MistVideo.player.api.setSource(MistUtil.http.url.addParam(MistVideo.source.url,params));
       }
+
       MistUtil.event.addListener(video,"progress",function(){
         MistVideo.player.api.lastProgress = new Date();
       });
@@ -217,9 +218,21 @@ p.prototype.build = function (MistVideo,callback) {
       };
       
       if (MistVideo.source.type == "html5/video/mp4") {
+        var otherdurationoverride = overrides.get.duration;
+        overrides.get.duration = function(){
+          return otherdurationoverride.apply(this,arguments) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
+        }
         overrides.get.currentTime = function(){
           return this.currentTime - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3;
         }
+        overrides.get.buffered = function(){
+          var video = this;
+          return {
+            length: video.buffered.length,
+            start: function(i) { return video.buffered.start(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; },
+            end: function(i) { return video.buffered.end(i) - MistVideo.player.api.liveOffset + MistVideo.info.lastms * 1e-3; }
+          }
+        };
       }
     }
     else {

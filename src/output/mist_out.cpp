@@ -6,6 +6,13 @@
 #include <mist/stream.h>
 
 int spawnForked(Socket::Connection &S){
+  {
+    struct sigaction new_action;
+    new_action.sa_handler = SIG_IGN;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGUSR1, &new_action, NULL);
+  }
   mistOut tmp(S);
   return tmp.run();
 }

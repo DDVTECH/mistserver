@@ -647,6 +647,15 @@ add_executable(MistProcLivepeerText
 )
 target_link_libraries(MistProcLivepeerText mist)
 
+add_executable(MistProcLivepeerVideo
+  ${BINARY_DIR}/mist/.headers
+  src/process/process_livepeervideo.cpp
+  src/input/input.cpp
+  src/output/output.cpp
+  src/io.cpp
+)
+target_link_libraries(MistProcLivepeerVideo mist)
+
 if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS
   makeOutput(WebRTC webrtc http)#LTS

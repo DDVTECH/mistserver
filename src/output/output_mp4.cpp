@@ -154,6 +154,7 @@ namespace Mist{
   uint64_t OutMP4::estimateFileSize() const{
     uint64_t retVal = 0;
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (M.getCodec(it->first) == "objects"){continue;}
       DTSC::Keys keys(M.keys(it->first));
       size_t endKey = keys.getEndValid();
       for (size_t i = 0; i < endKey; i++){
@@ -178,6 +179,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
+      if (M.getCodec(subIt->first) == "objects"){continue;}
       tmpRes += 8 + 20; // TRAF + TFHD Box
 
       DTSC::Keys keys(M.keys(subIt->first));
@@ -230,9 +232,11 @@ namespace Mist{
     uint64_t res = 36 + 8 + 108; // FTYP + MOOV + MVHD Boxes
     uint64_t firstms = 0xFFFFFFFFFFFFFFFFull;
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (M.getCodec(it->first) == "objects"){continue;}
       firstms = std::min(firstms, M.getFirstms(it->first));
     }
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (M.getCodec(it->first) == "objects"){continue;}
       const std::string tType = M.getType(it->first);
       uint64_t tmpRes = 0;
       DTSC::Parts parts(M.parts(it->first));
@@ -397,6 +401,7 @@ namespace Mist{
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
         if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
+        if (M.getCodec(it->first) == "objects"){continue;}
         lastms = std::max(lastms, M.getLastms(it->first));
         firstms = std::min(firstms, M.getFirstms(it->first));
       }
@@ -408,6 +413,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
+      if (M.getCodec(it->first) == "objects"){continue;}
       DTSC::Parts parts(M.parts(it->first));
       size_t partCount = parts.getValidCount();
       uint64_t tDuration = M.getLastms(it->first) - M.getFirstms(it->first);
@@ -681,6 +687,7 @@ namespace Mist{
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
         if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
+        if (M.getCodec(it->first) == "objects"){continue;}
         MP4::TREX trexBox(it->first + 1);
         trexBox.setDefaultSampleDuration(1000);
         mvexBox.setContent(trexBox, curBox++);
@@ -689,6 +696,7 @@ namespace Mist{
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
            it != userSelect.end(); it++){
         if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
+        if (M.getCodec(it->first) == "objects"){continue;}
         if (M.getEncryption(it->first) != ""){
           MP4::PSSH psshBox;
           psshBox.setSystemIDHex(Encodings::Hex::decode("9a04f07998404286ab92e65be0885f95"));
@@ -728,6 +736,7 @@ namespace Mist{
       for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
            subIt != userSelect.end(); subIt++){
         if (prevVidTrack != INVALID_TRACK_ID && subIt->first == prevVidTrack){continue;}
+        if (M.getCodec(subIt->first) == "objects"){continue;}
         keyPart temp;
         temp.trackID = subIt->first;
         temp.time = M.getFirstms(subIt->first);
@@ -940,6 +949,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
+      if (M.getCodec(subIt->first) == "objects"){continue;}
       DTSC::Keys keys(M.keys(subIt->first));
       DTSC::Parts parts(M.parts(subIt->first));
       DTSC::Fragments fragments(M.fragments(subIt->first));
@@ -1143,6 +1153,7 @@ namespace Mist{
     sortSet.clear();
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
+      if (M.getCodec(subIt->first) == "objects"){continue;}
       keyPart temp;
       temp.trackID = subIt->first;
       temp.time = M.getFirstms(subIt->first);
@@ -1248,6 +1259,14 @@ namespace Mist{
         webSock->sendFrame(r.toString());
       }
 
+
+      if (M.getCodec(thisIdx) == "objects"){
+        JSON::Value data = JSON::fromString(dataPointer, len);
+        data["timestamp"] = thisTime;
+        webSock->sendFrame(data.toString());
+        return;
+      }
+
       // Handle nice move-over to new track ID
       if (prevVidTrack != INVALID_TRACK_ID && thisIdx != prevVidTrack && M.getType(thisIdx) == "video"){
         if (!thisPacket.getFlag("keyframe")){
@@ -1298,6 +1317,7 @@ namespace Mist{
       // We must return here, the rest of this function won't work for websockets. 
       return;
     }
+    if (M.getCodec(thisIdx) == "objects"){return;}
 
     std::string subtitle;
 
@@ -1498,6 +1518,7 @@ namespace Mist{
             r["type"] = "error";
             r["data"] = "Unsupported codec: "+i->asStringRef();
           }
+          capa["codecs"][0u][2u].append("objects");
         }
       }
       selectDefaultTracks();

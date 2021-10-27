@@ -326,9 +326,12 @@ namespace Mist{
         // If stream is configured, use fallback stream setting, if set.
         JSON::Value strCnf = Util::getStreamConfig(streamName);
         if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
-          streamName = strCnf["fallback_stream"].asStringRef();
+          std::string defStrm = strCnf["fallback_stream"].asStringRef();
+          std::string newStrm = defStrm;
+          Util::streamVariables(newStrm, streamName, "");
+          INFO_MSG("Switching to configured fallback stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
+          streamName = newStrm;
           Util::setStreamName(streamName);
-          INFO_MSG("Switching to configured fallback stream '%s'", streamName.c_str());
           reconnect();
           return;
         }

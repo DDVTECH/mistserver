@@ -433,6 +433,23 @@ namespace Mist{
     if (streamStatus != STRMSTAT_READY){
       // If we haven't rewritten the stream name yet to a fallback, attempt to do so
       if (origStreamName == streamName){
+        // If stream is configured, use fallback stream setting, if set.
+        JSON::Value strCnf = Util::getStreamConfig(streamName);
+        if (strCnf && strCnf["fallback_stream"].asStringRef().size()){
+          std::string defStrm = strCnf["fallback_stream"].asStringRef();
+          std::string newStrm = defStrm;
+          Util::streamVariables(newStrm, streamName, "");
+          if (streamName != newStrm){
+            INFO_MSG("Switching to configured fallback stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
+            origStreamName = streamName;
+            streamName = newStrm;
+            Util::setStreamName(streamName);
+            reconnect();
+            return getStatusJSON(reqHost, useragent);
+          }
+        }
+
+        //global fallback stream
         JSON::Value defStrmJson = Util::getGlobalConfig("defaultStream");
         std::string defStrm = defStrmJson.asString();
         if (Triggers::shouldTrigger("DEFAULT_STREAM", streamName)){

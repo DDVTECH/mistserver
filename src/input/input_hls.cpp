@@ -746,6 +746,7 @@ namespace Mist{
     }
     tsStream.clear();
     // set bootMsOffset in order to display the program time correctly in the player
+    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
     meta.setBootMsOffset(streamOffset);
     return true;
   }
@@ -837,8 +838,8 @@ namespace Mist{
     }
 
     // set bootMsOffset in order to display the program time correctly in the player
+    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
     meta.setBootMsOffset(streamOffset);
-
     if (streamIsLive || isLiveDVR){return true;}
 
     // Set local vars used for parsing existing headers

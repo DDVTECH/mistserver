@@ -419,6 +419,9 @@ namespace DTSC{
     void setBootMsOffset(int64_t bootMsOffset);
     int64_t getBootMsOffset() const;
 
+    void setUTCOffset(int64_t UTCOffset);
+    int64_t getUTCOffset() const;
+
     std::set<size_t> getValidTracks(bool skipEmpty = false) const;
     std::set<size_t> getMySourceTracks(size_t pid) const;
 
@@ -497,6 +500,7 @@ namespace DTSC{
     Util::RelAccXFieldData streamMaxKeepAwayField;
     Util::RelAccXFieldData streamBufferWindowField;
     Util::RelAccXFieldData streamBootMsOffsetField;
+    Util::RelAccXFieldData streamUTCOffsetField;
     Util::RelAccXFieldData streamMinimumFragmentDurationField;
 
     Util::RelAccXFieldData trackValidField;

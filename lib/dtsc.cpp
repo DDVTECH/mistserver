@@ -1151,6 +1151,7 @@ namespace DTSC{
       stream.addField("maxkeepaway", RAX_16UINT);
       stream.addField("bufferwindow", RAX_64UINT);
       stream.addField("bootmsoffset", RAX_64INT);
+      stream.addField("utcoffset", RAX_64INT);
       stream.addField("minfragduration", RAX_64UINT);
       stream.setRCount(1);
       stream.setReady();
@@ -1183,6 +1184,7 @@ namespace DTSC{
     streamMaxKeepAwayField = stream.getFieldData("maxkeepaway");
     streamBufferWindowField = stream.getFieldData("bufferwindow");
     streamBootMsOffsetField = stream.getFieldData("bootmsoffset");
+    streamUTCOffsetField = stream.getFieldData("utcoffset");
     streamMinimumFragmentDurationField = stream.getFieldData("minfragduration");
 
     trackValidField = trackList.getFieldData("valid");
@@ -2088,6 +2090,12 @@ namespace DTSC{
     stream.setInt(streamBootMsOffsetField, bootMsOffset);
   }
   int64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
+
+  void Meta::setUTCOffset(int64_t UTCOffset){
+    stream.setInt(streamUTCOffsetField, UTCOffset);
+  }
+  int64_t Meta::getUTCOffset() const{return stream.getInt(streamUTCOffsetField);}
+
   /*LTS-START*/
   void Meta::setMinimumFragmentDuration(uint64_t fragmentDuration){
     stream.setInt(streamMinimumFragmentDurationField, fragmentDuration);

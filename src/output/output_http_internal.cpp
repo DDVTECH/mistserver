@@ -505,7 +505,15 @@ namespace Mist{
     }
     json_resp["type"] = (M.getLive() ? "live" : "vod");
     if (M.getLive()){
-      json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
+      if (M.getUTCOffset()){
+        json_resp["unixoffset"] = M.getUTCOffset();
+      }else{
+        json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
+      }
+    }else{
+      if (M.getUTCOffset()){
+        json_resp["unixoffset"] = M.getUTCOffset();
+      }
     }
 
     // show ALL the meta datas!

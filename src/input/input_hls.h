@@ -28,6 +28,7 @@ namespace Mist{
     uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
     float duration;
     uint64_t timestamp;
+    int64_t timeOffset;
     uint64_t wait;
     char ivec[16];
     char keyAES[16];
@@ -98,6 +99,7 @@ namespace Mist{
   protected:
     uint64_t zUTC; ///< Zero point in local millis, as UTC unix time millis
     uint64_t nUTC; ///< Next packet timestamp in UTC unix time millis
+    int64_t streamOffset; ///< bootMsOffset we need to set once we have parsed the header
     unsigned int startTime;
     PlaylistType playlistType;
     SegmentDownloader segDowner;
@@ -107,10 +109,10 @@ namespace Mist{
     uint64_t currentPlaylist;
 
     bool allowRemap;     ///< True if the next packet may remap the timestamps
-    bool allowSoftRemap; ///< True if the next packet may soft-remap the timestamps
     std::map<uint64_t, uint64_t> pidMapping;
     std::map<uint64_t, uint64_t> pidMappingR;
     std::map<int, int64_t> plsTimeOffset;
+    std::map<int, int64_t> DVRTimeOffsets;
     std::map<int, uint64_t> plsLastTime;
     std::map<int, uint64_t> plsInterval;
 
@@ -122,13 +124,27 @@ namespace Mist{
     Socket::Connection conn;
     TS::Packet tsBuf;
 
+    // Used to map packetId of packets in pidMapping
+    int pidCounter;
+
+    /// HLS live VoD stream, set if: #EXT-X-PLAYLIST-TYPE:EVENT
+    bool isLiveDVR;
+    // Override userLeadOut to buffer new data as live packets
+    void userLeadOut();
+    /// Tries to add as much live packets from a TS file at the given location
+    bool parseSegmentAsLive(uint64_t segmentIndex);
+    // Updates parsedSegmentIndex for all playlists
+    void setParsedSegments();
+    // index of last playlist entry finished parsing
+    long previousSegmentIndex;
+
     size_t firstSegment();
     void waitForNextSegment();
     void readPMT();
     bool checkArguments();
     bool preSetup();
     bool readHeader();
-    bool needHeader(){return true;}
+    bool readExistingHeader();
     void getNext(size_t idx = INVALID_TRACK_ID);
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     FILE *inFile;
@@ -144,6 +160,8 @@ namespace Mist{
     uint32_t getMappedTrackId(uint64_t id);
     uint32_t getMappedTrackPlaylist(uint64_t id);
     uint64_t getOriginalTrackId(uint32_t playlistId, uint32_t id);
+    uint64_t getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC = 0);
+    uint64_t getPacketID(uint64_t currentPlaylist, uint64_t trackId);
     size_t getEntryId(uint32_t playlistId, uint64_t bytePos);
   };
 }// namespace Mist

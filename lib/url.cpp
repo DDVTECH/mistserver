@@ -196,6 +196,15 @@ std::string HTTP::URL::getFilePath() const{
   return "/" + path;
 }
 
+/// Returns whether the URL is probably pointing to a local file
+bool HTTP::URL::isLocalPath() const{
+  // If we have no host, protocol or port we can assume it is a local path
+  if (host.size() || protocol.size() || port.size()){
+    return false;
+  }
+  return true;
+}
+
 /// Returns the URL in string format without auth and frag
 std::string HTTP::URL::getProxyUrl() const{
   std::string ret;

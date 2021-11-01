@@ -283,7 +283,7 @@ namespace Mist{
     initialize();
     if (!keepGoing()){return;}
 
-    if (H.url.find(".m3u") == std::string::npos){
+    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
       std::string tmpStr = H.getUrl().substr(5 + streamName.size());
       uint64_t from;
       if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
@@ -402,7 +402,7 @@ namespace Mist{
   void OutHLS::sendTS(const char *tsData, size_t len){H.Chunkify(tsData, len, myConn);}
 
   void OutHLS::onFail(const std::string &msg, bool critical){
-    if (H.url.find(".m3u") == std::string::npos){
+    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
       HTTPOutput::onFail(msg, critical);
       return;
     }

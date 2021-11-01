@@ -141,6 +141,7 @@ bool AnalyserWebRTC::open(const std::string &url){
 
   while(*ws){ //wait for answer
     if(ws->readFrame()){
+      mediaDown += ws->data.size();
       JSON::Value aJson = JSON::fromString(ws->data, ws->data.size());
       if (!aJson.isMember("answer_sdp")){
         INFO_MSG("Received: %s", (char*)ws->data);
@@ -187,6 +188,7 @@ void AnalyserWebRTC::doFeedback(){
     }
   }
   if (*ws && ws->readFrame()){
+    mediaDown += ws->data.size();
     JSON::Value frame = JSON::fromString(ws->data, ws->data.size());
     HIGH_MSG("WS: %s", frame.toString().c_str());
   }
@@ -225,6 +227,7 @@ void AnalyserWebRTC::sendDTLS(){
 }
 
 bool AnalyserWebRTC::handleReceivedRTPOrRTCPPacket(){
+  mediaDown += udp.data.size();
   RTP::Packet rtp_pkt((const char *)udp.data, (unsigned int)udp.data.size());
   uint32_t payloadType = rtp_pkt.getPayloadType();
 

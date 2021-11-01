@@ -10,8 +10,6 @@ private:
   RTMPStream::Chunk next;
   // Holds the most recently created FLV packet
   FLV::Tag F;
-  // Amounts of bytes read to fill 'strbuf' so far
-  unsigned int read_in;
   // Internal buffer from where 'next' is filled
   Socket::Buffer strbuf;
   // Last read AMF object

@@ -270,7 +270,7 @@ bool AnalyserRTMP::parsePacket(){
         return false;
       }
     }
-    read_in += bytesNeeded;
+    mediaDown += bytesNeeded;
     strbuf.append(tmpBuf);
     tmpBuf.clear();
   }

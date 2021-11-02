@@ -222,6 +222,12 @@ namespace Controller{
     trgs["PUSH_END"]["payload"] = "push ID (integer)\nstream name (string)\ntarget URI, before variables/triggers affected it (string)\ntarget URI, afterwards, as actually used (string)\nlast 10 log messages (JSON array string)\nmost recent push status (JSON object string)";
     trgs["PUSH_END"]["response"] = "ignored";
     trgs["PUSH_END"]["response_action"] = "None.";
+
+    trgs["LIVEPEER_SEGMENT_REJECTED"]["when"] = "Whenever a segment is rejected by MistProcLivepeer with a 422 status code either twice in a row for different broadcasters, or once with no secondary broadcasters available.";
+    trgs["LIVEPEER_SEGMENT_REJECTED"]["stream_specific"] = true;
+    trgs["LIVEPEER_SEGMENT_REJECTED"]["payload"] = "transcode options (json string)\nraw segment that was rejected (base64 encoded)\ninformation about the source track (json string)\nfirst attempted broadcaster URL\nsecond attempted broadcaster URL or the text \"N/A\" if no secondary was available";
+    trgs["LIVEPEER_SEGMENT_REJECTED"]["response"] = "ignored";
+    trgs["LIVEPEER_SEGMENT_REJECTED"]["response_action"] = "None.";
   }
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.

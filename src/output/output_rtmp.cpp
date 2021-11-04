@@ -774,7 +774,7 @@ namespace Mist{
     // Used to read a custom AAC file 
     HTTP::URIReader inAAC;
     char *tempBuffer;
-    uint64_t bytesRead;
+    size_t bytesRead;
     
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
@@ -921,7 +921,7 @@ namespace Mist{
       const std::string initData = std::string(tempInitData, 2);
       
       if (tag.DTSCAudioInit("AAC", currentFrameInfo.getFrequency(), currentFrameInfo.getSampleCount(), currentFrameInfo.getChannelCount(), initData)){
-        INFO_MSG("Loaded a %li byte custom audio file as audio loop", customAudioSize);
+        INFO_MSG("Loaded a %" PRIu64 " byte custom audio file as audio loop", customAudioSize);
         myConn.SendNow(RTMPStream::SendMedia(tag));
       }
     }

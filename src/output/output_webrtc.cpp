@@ -1355,9 +1355,21 @@ namespace Mist{
           }
         }
       }else if (pt == 73){
-        //73 = receiver report
-        uint32_t packets = Bit::btoh24(udp.data + 13);
-        totalLoss = packets;
+        //73 = receiver report: https://datatracker.ietf.org/doc/html/rfc3550#section-6.4.2
+        //Packet may contain more than one report
+        char * ptr = udp.data + 8;
+        while (ptr + 24 <= udp.data + udp.data.size()){
+          //Update the counter for this ssrc
+          uint32_t ssrc = Bit::btoh24(ptr);
+          lostPackets[ssrc] = Bit::btoh24(ptr + 5);
+          //Update pointer to next report
+          ptr += 24;
+        }
+        //Count total lost packets
+        totalLoss = 0;
+        for (std::map<uint32_t, uint32_t>::iterator it = lostPackets.begin(); it != lostPackets.end(); ++it){
+          totalLoss += it->second;
+        }
       }else{
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "Unknown payload type: " << pt << std::endl;}
         WARN_MSG("Unknown RTP feedback payload type: %u", pt);
@@ -1632,8 +1644,16 @@ namespace Mist{
     rtcTrack.rtpPacketizer.sendData(&udp, onRTPPacketizerHasDataCallback, dataPointer, dataLen,
                                     rtcTrack.payloadType, M.getCodec(thisIdx));
 
-    if (!lastSR.count(thisIdx) || lastSR[thisIdx]+500 < Util::bootMS()){
-      lastSR[thisIdx] = Util::bootMS();
+    //Trigger a re-send of the Sender Report for every track every ~250ms
+    if (lastSR+250 < Util::bootMS()){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        mustSendSR.insert(it->first);
+      }
+      lastSR = Util::bootMS();
+    }
+    //If this track hasn't sent yet, actually sent
+    if (mustSendSR.count(thisIdx)){
+      mustSendSR.erase(thisIdx);
       rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, onRTPPacketizerHasRTCPDataCallback);
     }
   }

@@ -228,6 +228,7 @@ namespace Mist{
     uint64_t stats_lossnum;
     double stats_lossperc;
     std::deque<double> stats_loss_avg;
+    std::map<uint32_t, uint32_t> lostPackets;
 
 #if defined(WEBRTC_PCAP)
     PCAPWriter pcapOut; ///< Used during development to write unprotected packets that can be
@@ -240,7 +241,9 @@ namespace Mist{
                                                           ///< supports RED/ULPFEC; can also be used to map RTX in the
                                                           ///< future.
     std::map<uint32_t, nackBuffer> outBuffers;
-    std::map<size_t, uint64_t> lastSR;
+
+    uint64_t lastSR;
+    std::set<size_t> mustSendSR;
 
     int64_t ntpClockDifference;
     bool syncedNTPClock;

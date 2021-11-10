@@ -244,6 +244,20 @@ namespace Mist{
           }
         }
         meta.reloadReplacedPagesIfNeeded();
+        // Unix Time at zero point of a stream
+        if (metaScan.hasMember("unixzero")){
+          meta.setBootMsOffset(metaScan.getMember("unixzero").asInt() - Util::unixMS() + Util::bootMS());
+        }else{
+          MEDIUM_MSG("No member \'unixzero\' found in DTSC::Scan. Calculating locally.");
+          int64_t lastMs = 0;
+          std::set<size_t> tracks = M.getValidTracks();
+          for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+            if (M.getLastms(*it) > lastMs){
+              lastMs = M.getLastms(*it);
+            }
+          }
+          meta.setBootMsOffset(Util::bootMS() - lastMs);
+        }
         std::stringstream rep;
         rep << "DTSC_HEAD parsed, we went from " << prevTracks << " to " << meta.getValidTracks().size() << " tracks. Bring on those data packets!";
         sendOk(rep.str());

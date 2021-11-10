@@ -20,7 +20,7 @@ JSON::Value & pData = pStat["proc_status_update"]["status"];
 tthread::mutex statsMutex;
 uint64_t statSinkMs = 0;
 uint64_t statSourceMs = 0;
-uint64_t bootMsOffset = 0;
+int64_t bootMsOffset = 0;
 
 namespace Mist{
 

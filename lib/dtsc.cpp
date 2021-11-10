@@ -985,6 +985,20 @@ namespace DTSC{
     for (int i = 0; i < tNum; i++){
       addTrackFrom(src.getMember("tracks").getIndice(i));
     }
+
+    // Unix Time at zero point of a stream
+    if (src.hasMember("unixzero")){
+      setBootMsOffset(src.getMember("unixzero").asInt() - Util::unixMS() + Util::bootMS());
+    }else{
+      MEDIUM_MSG("No member \'unixzero\' found in DTSC::Scan. Calculating locally.");
+      int64_t lastMs = 0;
+      for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
+        if (it->second.track.getInt(it->second.trackLastmsField) > lastMs){
+          lastMs = it->second.track.getInt(it->second.trackLastmsField);
+        }
+      }
+      setBootMsOffset(Util::bootMS() - lastMs);
+    }
   }
 
   void Meta::addTrackFrom(const DTSC::Scan &trak){
@@ -2620,7 +2634,7 @@ namespace DTSC{
   uint64_t Meta::getSendLen(bool skipDynamic, std::set<size_t> selectedTracks) const{
     uint64_t dataLen = 34; // + (merged ? 17 : 0) + (bufferWindow ? 24 : 0) + 21;
     if (getVod()){dataLen += 14;}
-    if (getLive()){dataLen += 15;}
+    if (getLive()){dataLen += 15 + 19;} // 19 for unixzero
     for (std::map<size_t, Track>::const_iterator it = tracks.begin(); it != tracks.end(); it++){
       if (!it->second.parts.getPresent()){continue;}
       if (!selectedTracks.size() || selectedTracks.count(it->first)){
@@ -2880,6 +2894,10 @@ namespace DTSC{
     if (getLive()){conn.SendNow("\000\004live\001\000\000\000\000\000\000\000\001", 15);}
     conn.SendNow("\000\007version\001", 10);
     conn.SendNow(c64(DTSH_VERSION), 8);
+    if (getLive()){
+      conn.SendNow("\000\010unixzero\001", 11);
+      conn.SendNow(c64(Util::unixMS() - Util::bootMS() + getBootMsOffset()), 8);
+    }
     conn.SendNow("\000\006tracks\340", 9);
     for (std::set<size_t>::const_iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       std::string tmp = getTrackIdentifier(*it, true);

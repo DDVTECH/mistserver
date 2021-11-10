@@ -166,6 +166,7 @@ namespace Mist{
       DTSC::Meta nM("", metaPack.getScan());
       meta.reInit(streamName, false);
       meta.merge(nM, true, false);
+      meta.setBootMsOffset(nM.getBootMsOffset());
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       userSelect.clear();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){

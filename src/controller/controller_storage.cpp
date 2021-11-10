@@ -33,6 +33,7 @@ namespace Controller{
   Util::RelAccX *rlxAccs = 0;
   IPC::sharedPage *shmStrm = 0;
   Util::RelAccX *rlxStrm = 0;
+  uint64_t systemBoot = Util::unixMS() - Util::bootMS();
 
   Util::RelAccX *logAccessor(){return rlxLogs;}
 
@@ -422,13 +423,30 @@ namespace Controller{
       if (!globCfg.mapped){globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);}
       if (globCfg.mapped){
         Util::RelAccX globAccX(globCfg.mapped, false);
+
+        // if fields missing, recreate the page
+        if (globAccX.isReady()){
+          if(globAccX.getFieldAccX("systemBoot")){
+            systemBoot = globAccX.getInt("systemBoot");
+          }
+          if(!globAccX.getFieldAccX("defaultStream")
+             || !globAccX.getFieldAccX("systemBoot")){
+            globAccX.setReload();
+            globCfg.master = true;
+            globCfg.close();
+            globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);
+            globAccX = Util::RelAccX(globCfg.mapped, false);
+          }
+        }
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
+          globAccX.addField("systemBoot", RAX_64UINT);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
         }
         globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
+        globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
       }
     }

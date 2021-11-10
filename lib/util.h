@@ -203,6 +203,7 @@ namespace Util{
     const char * ptr(size_t recordNo) const;
     void set(uint64_t val, size_t recordNo = 0);
     void set(const std::string &val, size_t recordNo = 0);
+    operator bool() const {return src;}
 
   private:
     RelAccX *src;

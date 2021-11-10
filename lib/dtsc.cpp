@@ -3332,6 +3332,38 @@ namespace DTSC{
     // return is by reference
   }
 
+  /// Returns true if the tracks idx1 and idx2 are keyframe aligned
+  bool Meta::keyTimingsMatch(size_t idx1, size_t idx2) const {
+    const DTSC::Track &t1 = tracks.at(idx1);
+    const DTSC::Track &t2 = tracks.at(idx2);
+    uint64_t t1Firstms = t1.track.getInt(t1.trackFirstmsField);
+    uint64_t t2Firstms = t2.track.getInt(t2.trackFirstmsField);
+    uint64_t firstms = t1Firstms > t2Firstms ? t1Firstms : t2Firstms;
+
+    uint64_t t1Lastms = t1.track.getInt(t1.trackFirstmsField);
+    uint64_t t2Lastms = t2.track.getInt(t2.trackFirstmsField);
+    uint64_t lastms = t1Lastms > t2Lastms ? t1Lastms : t2Lastms;
+
+    if (firstms > lastms) {
+      WARN_MSG("Cannot check for timing alignment for tracks %zu and %zu: No overlap", idx1, idx2);
+      return false;
+    }
+
+    uint32_t keyIdx1 = getKeyIndexForTime(idx1,firstms);
+    uint32_t keyIdx2 = getKeyIndexForTime(idx2,firstms);
+
+    DTSC::Keys keys1(tracks.at(idx1).keys);
+    DTSC::Keys keys2(tracks.at(idx2).keys);
+
+    while(true) {
+      if (lastms < keys1.getTime(keyIdx1) || lastms < keys2.getTime(keyIdx2)) {return true;}
+      if (keys1.getTime(keyIdx1) != keys2.getTime(keyIdx2)) {return false;}
+      keyIdx1++;
+      keyIdx2++;
+    }
+    return true;
+  }
+
   Parts::Parts(const Util::RelAccX &_parts) : parts(_parts){
     sizeField = parts.getFieldData("size");
     durationField = parts.getFieldData("duration");

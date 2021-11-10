@@ -450,6 +450,7 @@ namespace DTSC{
     size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;
     size_t getPageNumberForKey(uint32_t idx, uint64_t keynumber) const;
     size_t getKeyNumForTime(uint32_t idx, uint64_t time) const;
+    bool keyTimingsMatch(size_t idx1, size_t idx2) const;
 
     const Util::RelAccX &parts(size_t idx) const;
     Util::RelAccX &keys(size_t idx);

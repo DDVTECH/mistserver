@@ -36,6 +36,7 @@ namespace Mist{
     //But! What if our current key is 20+ seconds long? HAVE YOU THOUGHT OF THAT?!
     //Exactly! I thought not! So, if the end key number == the first, we increase by one.
     if (endKey == key){++endKey;}
+    DONTEVEN_MSG("User with ID:%zu is on key %zu->%zu (timestamp %" PRIu64 ")", id, key, endKey, time);
     for (size_t i = key; i <= endKey; i++){bufferFrame(track, i);}
     //Now, we can rest assured that the next ~120 seconds or so is pre-buffered in RAM.
   }
@@ -987,11 +988,19 @@ namespace Mist{
       for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
         uint64_t pageNum = tPages.getInt("firstkey", i);
         if (pageCounter[*it].count(pageNum)){
+          // If the page is still being written to, reset the counter rather than potentially unloading it
+          if (isCurrentLivePage(*it, pageNum)){
+            pageCounter[*it][pageNum] = DEFAULT_PAGE_TIMEOUT;
+            continue;
+          }
           --pageCounter[*it][pageNum];
           if (!pageCounter[*it][pageNum]){
             pageCounter[*it].erase(pageNum);
             bufferRemove(*it, pageNum);
           }
+        }
+        else{
+          pageCounter[*it][pageNum] = DEFAULT_PAGE_TIMEOUT;
         }
       }
     }
@@ -1212,8 +1221,8 @@ namespace Mist{
   }
 
   bool Input::bufferFrame(size_t idx, uint32_t keyNum){
-    if (M.getLive()){return true;}
-    HIGH_MSG("Buffering track %zu, key %" PRIu32, idx, keyNum);
+    if (!M.getVod()){return true;}
+    DONTEVEN_MSG("Buffering track %zu, key %" PRIu32, idx, keyNum);
     bool isVideo = M.getType(idx) == "video";
     size_t sourceIdx = M.getSourceTrack(idx);
     if (sourceIdx == INVALID_TRACK_ID){sourceIdx = idx;}
@@ -1241,9 +1250,9 @@ namespace Mist{
     }
     uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
     if (isBuffered(idx, pageNumber)){
-      // get corresponding page number
-      pageCounter[idx][pageNumber] = 15;
-      VERYHIGH_MSG("Track %zu, key %" PRIu32 "is already buffered in page %" PRIu32
+      // Mark the page for removal after 15 seconds of no one watching it
+      pageCounter[idx][pageNumber] = DEFAULT_PAGE_TIMEOUT;
+      DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32
                    ". Cancelling bufferFrame",
                    idx, keyNum, pageNumber);
       return true;
@@ -1251,7 +1260,8 @@ namespace Mist{
     // Update keynum to point to the corresponding page
     uint64_t bufferTimer = Util::bootMS();
     keyNum = pageNumber;
-    if (!bufferStart(idx, pageNumber)){
+    IPC::sharedPage page;
+    if (!bufferStart(idx, pageNumber, page)){
       WARN_MSG("bufferStart failed! Cancelling bufferFrame");
       return false;
     }
@@ -1291,7 +1301,7 @@ namespace Mist{
           size_t dataLen;
           srtPack.getString("data", data, dataLen);
           bufferNext(srtPack.getTime(), 0, idx, data, dataLen, srtPack.getInt("bpos"),
-                     srtPack.getFlag("keyframe"));
+                     srtPack.getFlag("keyframe"), page);
           ++packCounter;
           byteCounter += srtPack.getDataLen();
           lastBuffered = srtPack.getTime();
@@ -1348,8 +1358,9 @@ namespace Mist{
             INFO_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
           }
           ++partNo;
+          HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisPacket.getTime(), idx, thisPacket.getInt("offset"));
           bufferNext(thisPacket.getTime(), thisPacket.getInt("offset"), idx, data, dataLen,
-                     thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"));
+                     thisPacket.getInt("bpos"), thisPacket.getFlag("keyframe"), page);
           ++packCounter;
           byteCounter += thisPacket.getDataLen();
           lastBuffered = thisPacket.getTime();
@@ -1369,13 +1380,13 @@ namespace Mist{
         }
       }
     }
-    bufferFinalize(idx);
+    bufferFinalize(idx, page);
     bufferTimer = Util::bootMS() - bufferTimer;
     INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
              idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisPacket.getTime(), bufferTimer);
     INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
              tPages.getInt("parts", pageIdx), byteCounter);
-    pageCounter[idx][keyNum] = 15;
+    pageCounter[idx][pageNumber] = DEFAULT_PAGE_TIMEOUT;
     return true;
   }
 

@@ -108,6 +108,8 @@ namespace Mist{
     firstData = true;
     newUA = true;
     lastPushUpdate = 0;
+    previousFile = "";
+    currentFile = "";
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -418,9 +420,9 @@ namespace Mist{
     statComm.reload();
     stats(true);
     if (isPushing()){return;}
-    if (!isRecording() && !M.getVod() && !isReadyForPlay()){
+    if (!isRecording() && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
-      while (!M.getVod() && !isReadyForPlay()){
+      while (M.getLive() && !isReadyForPlay()){
         if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. IP: %s", getConnectedHost().c_str());
           break;
@@ -537,6 +539,7 @@ namespace Mist{
     if (!keys.getValidCount()){return 0;}
     //Get the key for the current time
     size_t keyNum = M.getKeyNumForTime(trk, lastPacketTime);
+    if (keyNum == INVALID_KEY_NUM){return 0;}
     if (keys.getEndValid() <= keyNum+1){return 0;}
     //Return the next key
     return keys.getTime(keyNum+1);
@@ -546,7 +549,7 @@ namespace Mist{
     const Util::RelAccX &tPages = M.pages(trackId);
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       uint64_t pageNum = tPages.getInt("firstkey", i);
-      if (pageNum > keyNum) break;
+      if (pageNum > keyNum) continue;
       uint64_t pageKeys = tPages.getInt("keycount", i);
       if (keyNum > pageNum + pageKeys - 1) continue;
       uint64_t pageAvail = tPages.getInt("avail", i);
@@ -581,7 +584,7 @@ namespace Mist{
       return;
     }
     size_t lastAvailKey = keys.getEndValid() - 1;
-    if (meta.getVod() && keyNum > lastAvailKey){
+    if (!meta.getLive() && keyNum > lastAvailKey){
       INFO_MSG("Load for track %zu key %zu aborted, is > %zu", trackId, keyNum, lastAvailKey);
       curPage.erase(trackId);
       currentPage.erase(trackId);
@@ -729,6 +732,10 @@ namespace Mist{
       if (M.getType(mainTrack) == "video"){
         DTSC::Keys keys(M.keys(mainTrack));
         uint32_t keyNum = M.getKeyNumForTime(mainTrack, pos);
+        if (keyNum == INVALID_KEY_NUM){
+          FAIL_MSG("Attempted seek on empty track %zu", mainTrack);
+          return false;
+        }
         pos = keys.getTime(keyNum);
       }
     }
@@ -774,13 +781,15 @@ namespace Mist{
     }
     DTSC::Keys keys(M.keys(tid));
     uint32_t keyNum = M.getKeyNumForTime(tid, pos);
+    if (keyNum == INVALID_KEY_NUM){
+      FAIL_MSG("Attempted seek on empty track %zu", tid);
+      return false;
+    }
     uint64_t actualKeyTime = keys.getTime(keyNum);
     HIGH_MSG("Seeking to track %zu key %" PRIu32 " => time %" PRIu64, tid, keyNum, pos);
     if (actualKeyTime > pos){
-      if (M.getLive()){
-        pos = actualKeyTime;
-        userSelect[tid].setKeyNum(keyNum);
-      }
+      pos = actualKeyTime;
+      userSelect[tid].setKeyNum(keyNum);
     }
     loadPageForKey(tid, keyNum + (getNextKey ? 1 : 0));
     if (!curPage.count(tid) || !curPage[tid].mapped){
@@ -818,7 +827,7 @@ namespace Mist{
     VERYHIGH_MSG("Track %zu no data (key %" PRIu32 " @ %" PRIu64 ") - waiting...", tid,
                  keyNum + (getNextKey ? 1 : 0), tmp.offset);
     uint32_t i = 0;
-    while (!meta.getLive() && curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
+    while (meta.getVod() && curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
       Util::wait(100 * i);
       stats();
     }
@@ -917,7 +926,7 @@ namespace Mist{
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
         uint64_t startRec = atoll(targetParams["recstart"].c_str());
         if (startRec > endTime()){
-          if (M.getVod()){
+          if (!M.getLive()){
             onFail("Recording start past end of non-live source", true);
             return;
           }
@@ -1028,7 +1037,7 @@ namespace Mist{
         size_t mainTrack = getMainSelectedTrack();
         int64_t startRec = atoll(targetParams["start"].c_str());
         if (startRec > M.getLastms(mainTrack)){
-          if (M.getVod()){
+          if (!M.getLive()){
             onFail("Playback start past end of non-live source", true);
             return;
           }
@@ -1360,6 +1369,9 @@ namespace Mist{
                 if (newTarget.rfind('?') != std::string::npos){
                   newTarget.erase(newTarget.rfind('?'));
                 }
+                // Keep track of filenames written, so that they can be added to the playlist file
+                previousFile = currentFile;
+                currentFile = newTarget;
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
                 if (!connectToFile(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
@@ -1486,11 +1498,16 @@ namespace Mist{
     // now, seek to the exact timestamp of the keyframe
     DTSC::Keys keys(M.keys(mainTrack));
     uint32_t targetKey = M.getKeyNumForTime(mainTrack, currTime);
-    seek(keys.getTime(targetKey));
-    // attempt to load the key into thisPacket
-    bool ret = prepareNext();
-    if (!ret){
-      WARN_MSG("Failed to load keyframe for %" PRIu64 "ms - continuing without it", currTime);
+    bool ret = false;
+    if (targetKey == INVALID_KEY_NUM){
+      FAIL_MSG("No keyframes available on track %zu", mainTrack);
+    }else{
+      seek(keys.getTime(targetKey));
+      // attempt to load the key into thisPacket
+      ret = prepareNext();
+      if (!ret){
+        WARN_MSG("Failed to load keyframe for %" PRIu64 "ms - continuing without it", currTime);
+      }
     }
 
     // restore state to before the seek/load
@@ -1547,7 +1564,39 @@ namespace Mist{
       return false;
     }
 
-    Util::sortedPageInfo nxt;
+    Util::sortedPageInfo nxt = *(buffer.begin());
+
+    if (meta.reloadReplacedPagesIfNeeded()){return false;}
+    if (!M.getValidTracks().count(nxt.tid)){
+      dropTrack(nxt.tid, "disappeared from metadata");
+      return false;
+    }
+
+    // if we're going to read past the end of the data page, load the next page
+    // this only happens for VoD
+    if (nxt.offset >= curPage[nxt.tid].len ||
+        (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
+      if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
+        dropTrack(nxt.tid, "end of non-live track reached", false);
+        return false;
+      }
+      if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
+        loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
+        nxt.offset = 0;
+        //Only read the next time if the page load succeeded and there is a packet to read from
+        if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
+          nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+        }
+        buffer.replaceFirst(nxt);
+        return false;
+      }
+      dropTrack(nxt.tid, "VoD page load failure");
+      return false;
+    }
+
+    // We know this packet will be valid, pre-load it so we know its length
+    DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+
     uint64_t nextTime = 0;
     //In case we're not in sync mode, we might have to retry a few times
     for (size_t trackTries = 0; trackTries < buffer.size(); ++trackTries){
@@ -1582,7 +1631,6 @@ namespace Mist{
         dropTrack(nxt.tid, "VoD page load failure");
         return false;
       }
-
       // We know this packet will be valid, pre-load it so we know its length
       DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
 
@@ -1605,10 +1653,10 @@ namespace Mist{
       }else{
         //no next packet yet!
         //Check if this is the last packet of a VoD stream. Return success and drop the track.
-        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+        if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
           thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
           thisIdx = nxt.tid;
-          dropTrack(nxt.tid, "end of VoD track reached", false);
+          dropTrack(nxt.tid, "end of non-live track reached", false);
           return true;
         }
         uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);

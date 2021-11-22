@@ -19,13 +19,14 @@ namespace Mist{
 
     size_t getMainSelectedTrack();
 
-    bool bufferStart(size_t idx, uint32_t pageNumber);
-    void bufferFinalize(size_t idx);
+    bool bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page);
+    void bufferFinalize(size_t idx, IPC::sharedPage & page);
+    bool isCurrentLivePage(size_t idx, uint32_t pageNumber);
     void bufferRemove(size_t idx, uint32_t pageNumber);
     void bufferLivePacket(const DTSC::Packet &packet);
 
     void bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
-                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe);
+                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page);
     void bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                           size_t packDataSize, uint64_t packBytePos, bool isKeyframe);
 
@@ -42,7 +43,8 @@ namespace Mist{
 
     std::map<size_t, Comms::Users> userSelect;
 
-    std::map<size_t, uint32_t> curPageNum; ///< For each track, holds the number page that is currently being written.
-    std::map<size_t, IPC::sharedPage> curPage; ///< For each track, holds the page that is currently being written.
+  private:
+    std::map<uint32_t, IPC::sharedPage> livePage;
+    std::map<uint32_t, size_t> curPageNum;
   };
 }// namespace Mist

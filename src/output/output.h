@@ -31,6 +31,8 @@ namespace Mist{
     /*LTS-START*/
     std::string reqUrl;
     /*LTS-END*/
+    std::string previousFile;
+    std::string currentFile;
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
@@ -155,6 +157,8 @@ namespace Mist{
 
     size_t thisIdx;
     uint64_t thisTime;
+
+    std::map<size_t, IPC::sharedPage> curPage; ///< For each track, holds the page that is currently being written.
   };
 
 }// namespace Mist

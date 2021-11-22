@@ -17,7 +17,7 @@ namespace Mist{
     if (config->getString("target").size()){
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
-      if (M.getVod()){calcVodSizes();}
+      if (!M.getLive()){calcVodSizes();}
       if (!streamName.size()){
         WARN_MSG("Recording unconnected EBML output to file! Cancelled.");
         conn.close();
@@ -139,7 +139,7 @@ namespace Mist{
     if (thisPacket.getTime() >= newClusterTime){
       if (liveSeek()){return;}
       currentClusterTime = thisPacket.getTime();
-      if (M.getVod()){
+      if (!M.getLive()){
         // In case of VoD, clusters are aligned with the main track fragments
         // EXCEPT when they are more than 30 seconds long, because clusters are limited to -32 to 32
         // seconds.
@@ -318,7 +318,7 @@ namespace Mist{
   void OutEBML::sendHeader(){
     double duration = 0;
     size_t idx = getMainSelectedTrack();
-    if (M.getVod()){
+    if (!M.getLive()){
       duration = M.getLastms(idx) - M.getFirstms(idx);
     }else{
       needsLookAhead = 420;
@@ -326,7 +326,7 @@ namespace Mist{
     // EBML header and Segment
     EBML::sendElemEBML(myConn, doctype);
     EBML::sendElemHead(myConn, EBML::EID_SEGMENT, segmentSize); // Default = Unknown size
-    if (M.getVod()){
+    if (!M.getLive()){
       // SeekHead
       EBML::sendElemHead(myConn, EBML::EID_SEEKHEAD, seekSize);
       EBML::sendElemSeek(myConn, EBML::EID_INFO, seekheadSize);
@@ -344,7 +344,7 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       sendElemTrackEntry(it->first);
     }
-    if (M.getVod()){
+    if (!M.getLive()){
       EBML::sendElemHead(myConn, EBML::EID_CUES, cuesSize);
       uint64_t tmpsegSize = infoSize + tracksSize + seekheadSize + cuesSize +
                             EBML::sizeElemHead(EBML::EID_CUES, cuesSize);
@@ -407,7 +407,7 @@ namespace Mist{
 
     // Calculate the sizes of various parts, if we're VoD.
     size_t totalSize = 0;
-    if (M.getVod()){
+    if (!M.getLive()){
       calcVodSizes();
       // We now know the full size of the segment, thus can calculate the total size
       totalSize = EBML::sizeElemEBML(doctype) + EBML::sizeElemHead(EBML::EID_SEGMENT, segmentSize) + segmentSize;

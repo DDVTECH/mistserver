@@ -37,7 +37,7 @@ namespace Mist{
   /// Buffering itself is done by bufferNext().
   ///\param tid The trackid of the page to start buffering
   ///\param pageNumber The number of the page to start buffering
-  bool InOutBase::bufferStart(size_t idx, uint32_t pageNumber){
+  bool InOutBase::bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page){
     VERYHIGH_MSG("bufferStart for stream %s, track %zu, page %" PRIu32, streamName.c_str(), idx, pageNumber);
     // Initialize the stream metadata if it does not yet exist
 #ifndef TSLIVE_INPUT
@@ -51,10 +51,9 @@ namespace Mist{
 
     // If we are currently buffering a page, abandon it completely and print a message about this
     // This page will NEVER be deleted, unless we open it again later.
-    if (curPage.count(idx)){
-      WARN_MSG("Abandoning current page (%" PRIu32 ") for track %zu", curPageNum[idx], idx);
-      curPage.erase(idx);
-      curPageNum.erase(idx);
+    if (page){
+      WARN_MSG("Abandoning current page (%s) for track %zu", page.name.c_str(), idx);
+      page.close();
     }
 
     Util::RelAccX &tPages = meta.pages(idx);
@@ -91,17 +90,36 @@ namespace Mist{
     snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, pageNumber);
     uint64_t pageSize = tPages.getInt("size", pageIdx);
     std::string pageName(pageId);
-    curPage[idx].init(pageName, pageSize, true);
+    page.init(pageName, pageSize, true);
+
+    if (!page){
+      ERROR_MSG("Could not open page %s", pageId);
+      return false;
+    }
+
     // Make sure the data page is not destroyed when we are done buffering it later on.
-    curPage[idx].master = false;
-    // Store the pagenumber of the currently buffer page
-    curPageNum[idx] = pageNumber;
+    page.master = false;
 
     // Set the current offset to 0, to allow for using it in bufferNext()
     tPages.setInt("avail", 0, pageIdx);
 
     HIGH_MSG("Start buffering page %" PRIu32 " on track %zu successful", pageNumber, idx);
     return true;
+  }
+
+  /// Checks whether a given page is currently being written to
+  /// \return True if the page is the current live page, and thus not safe to remove
+  bool InOutBase::isCurrentLivePage(size_t idx, uint32_t pageNumber){
+    // Base case: for nonlive situations no new data will be added
+    if (!M.getLive()){
+      return false;
+    }
+    // All pages at or after the current live page should not get removed
+    if (curPageNum[idx] && curPageNum[idx] <= pageNumber){
+      return true;
+    }
+    // If there is no set curPageNum we are definitely not writing to it
+    return false;
   }
 
   /// Removes a fully buffered page
@@ -166,9 +184,10 @@ namespace Mist{
 
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       uint64_t pageNum = tPages.getInt("firstkey", i);
-      if (pageNum > keyNum) break;
+      if (pageNum > keyNum) continue;
       uint64_t keyCount = tPages.getInt("keycount", i);
       if (pageNum + keyCount - 1 < keyNum) continue;
+      if (keyCount && pageNum + keyCount - 1 < keyNum) continue;
       uint64_t avail = tPages.getInt("avail", i);
       return avail ? pageNum : INVALID_KEY_NUM;
     }
@@ -178,7 +197,7 @@ namespace Mist{
   /// Buffers the next packet on the currently opened page
   ///\param pack The packet to buffer
   void InOutBase::bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
-                             size_t packDataSize, uint64_t packBytePos, bool isKeyframe){
+                             size_t packDataSize, uint64_t packBytePos, bool isKeyframe, IPC::sharedPage & page){
     size_t packDataLen =
         24 + (packOffset ? 17 : 0) + (packBytePos ? 15 : 0) + (isKeyframe ? 19 : 0) + packDataSize + 11;
 
@@ -190,7 +209,7 @@ namespace Mist{
     }
 
     // these checks were already done in bufferSinglePacket, but we check again just to be sure
-    if (meta.getLive() && packTime < meta.getLastms(packTrack)){
+    if (!meta.getVod() && packTime < meta.getLastms(packTrack)){
       DEBUG_MSG(((multiWrong == 0) ? DLVL_WARN : DLVL_HIGH),
                 "Wrong order on track %" PRIu32 " ignored: %" PRIu64 " < %" PRIu64, packTrack,
                 packTime, meta.getLastms(packTrack));
@@ -198,16 +217,15 @@ namespace Mist{
       return;
     }
     // Do nothing if no page is opened for this track
-    if (!curPage.count(packTrack)){
+    if (!page){
       INFO_MSG("Trying to buffer a packet on track %" PRIu32 ", but no page is initialized", packTrack);
       return;
     }
     multiWrong = false;
-    IPC::sharedPage &myPage = curPage[packTrack];
 
     Util::RelAccX &tPages = meta.pages(packTrack);
     uint32_t pageIdx = 0;
-    uint32_t currPagNum = curPageNum[packTrack];
+    uint32_t currPagNum = atoi(page.name.data() + page.name.rfind('_') + 1);
     Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
       if (tPages.getInt(firstkey, i) == currPagNum){
@@ -218,6 +236,7 @@ namespace Mist{
     // Save the current write position
     uint64_t pageOffset = tPages.getInt("avail", pageIdx);
     uint64_t pageSize = tPages.getInt("size", pageIdx);
+    INSANE_MSG("Current packet %" PRIu64 " on track %" PRIu32 " has an offset on page %s of %" PRIu64, packTime, packTrack, page.name.c_str(), pageOffset);
     // Do nothing when there is not enough free space on the page to add the packet.
     if (pageSize - pageOffset < packDataLen){
       FAIL_MSG("Track %" PRIu32 "p%" PRIu32 " : Pack %" PRIu64 "ms of %zub exceeds size %" PRIu64 " @ bpos %" PRIu64,
@@ -228,7 +247,7 @@ namespace Mist{
     // First generate only the payload on the correct destination
     // Leaves the 20 bytes inbetween empty to ensure the data is not accidentally read before it is
     // complete
-    char *data = myPage.mapped + pageOffset;
+    char *data = page.mapped + pageOffset;
 
     data[20] = 0xE0; // start container object
     unsigned int offset = 21;
@@ -254,18 +273,15 @@ namespace Mist{
 
     // Copy the remaining values in reverse order:
     // 8 byte timestamp
-    Bit::htobll(myPage.mapped + pageOffset + 12, packTime);
+    Bit::htobll(page.mapped + pageOffset + 12, packTime);
     // The mapped track id
-    Bit::htobl(myPage.mapped + pageOffset + 8, packTrack);
+    Bit::htobl(page.mapped + pageOffset + 8, packTrack);
     // Write the size
-    Bit::htobl(myPage.mapped + pageOffset + 4, packDataLen - 8);
+    Bit::htobl(page.mapped + pageOffset + 4, packDataLen - 8);
     // write the 'DTP2' bytes to conclude the packet and allow for reading it
-    memcpy(myPage.mapped + pageOffset, "DTP2", 4);
+    memcpy(page.mapped + pageOffset, "DTP2", 4);
 
-    if (M.getLive()){
-      meta.update(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe);
-    }
-
+    DONTEVEN_MSG("Setting page %" PRIu32 " available to %" PRIu64, pageIdx, pageOffset + packDataLen);
     tPages.setInt("avail", pageOffset + packDataLen, pageIdx);
   }
 
@@ -273,10 +289,10 @@ namespace Mist{
   ///
   /// Registers the data page on the track index page as well
   ///\param tid The trackid of the page to finalize
-  void InOutBase::bufferFinalize(size_t idx){
+  void InOutBase::bufferFinalize(size_t idx, IPC::sharedPage & page){
     // If no page is open, do nothing
-    if (!curPage.count(idx)){
-      INFO_MSG("Trying to finalize the current page on track %zu, but no page is initialized", idx);
+    if (!page){
+      WARN_MSG("Trying to finalize the current page on track %zu, but no page is initialized", idx);
       return;
     }
 
@@ -298,8 +314,7 @@ namespace Mist{
     // Close our link to the page. This will NOT destroy the shared page, as we've set master to
     // false upon construction Note: if there was a registering failure above, this WILL destroy the
     // shared page, to prevent a memory leak
-    curPage.erase(idx);
-    curPageNum.erase(idx);
+    page.close();
   }
 
   /// Buffers a live packet to a page.
@@ -325,7 +340,7 @@ namespace Mist{
   void InOutBase::bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                                    size_t packDataSize, uint64_t packBytePos, bool isKeyframe){
     meta.reloadReplacedPagesIfNeeded();
-    meta.setLive();
+    meta.setLive(true);
 
     // Store the trackid for easier access
     // Do nothing if the trackid is invalid
@@ -336,7 +351,7 @@ namespace Mist{
 
     if (M.getType(packTrack) != "video"){
       isKeyframe = false;
-      if (!tPages.getEndPos()){
+      if (!tPages.getEndPos() || !livePage[packTrack]){
         // Assume this is the first packet on the track
         isKeyframe = true;
       }else{
@@ -358,84 +373,97 @@ namespace Mist{
         WARN_MSG("Sudden jump in timestamp from %" PRIu64 " to %" PRIu64, M.getLastms(packTrack), packTime);
       }
     }
-
+    
     // Determine if we need to open the next page
-    uint32_t nextPageNum = INVALID_KEY_NUM;
     if (isKeyframe){
       updateTrackFromKeyframe(packTrack, packData, packDataSize);
       uint64_t endPage = tPages.getEndPos();
-
-      // If there is no page, create it
-      if (!endPage){
-        nextPageNum = 0;
-        tPages.setInt("firstkey", 0, 0);
-        tPages.setInt("firsttime", packTime, 0);
-        tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, 0);
-        tPages.setInt("keycount", 0, 0);
-        tPages.setInt("avail", 0, 0);
-        tPages.addRecords(1);
-        ++endPage;
+      size_t curPage = 0;
+      size_t currPagNum = atoi(livePage[packTrack].name.data() + livePage[packTrack].name.rfind('_') + 1);
+      Util::RelAccXFieldData firstkey = tPages.getFieldData("firstkey");
+      for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+        if (tPages.getInt(firstkey, i) == currPagNum){
+          curPage = i;
+          break;
+        }
       }
 
-      uint64_t prevPageTime = tPages.getInt("firsttime", endPage - 1);
-      // Compare on 8 mb boundary and target duration
-      if (tPages.getInt("avail", endPage - 1) > FLIP_DATA_PAGE_SIZE || packTime - prevPageTime > FLIP_TARGET_DURATION){
+      // If there is no page, create it
+      if (!livePage[packTrack]){
+        size_t keyNum = M.getKeyNumForTime(packTrack, packTime);
+        if (keyNum == INVALID_KEY_NUM){
+          curPageNum[packTrack] = 0;
+        }else{
+          curPageNum[packTrack] = M.getKeyNumForTime(packTrack, packTime) + 1;
+        }
 
-        if ((endPage - tPages.getDeleted()) >= tPages.getRCount()){
+        if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
           meta.resizeTrack(packTrack, M.fragments(packTrack).getRCount(), M.keys(packTrack).getRCount(), M.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
         }
-        // Create the book keeping data for the new page
-        nextPageNum = tPages.getInt("firstkey", endPage - 1) + tPages.getInt("keycount", endPage - 1);
-        HIGH_MSG("Live page transition from %" PRIu32 ":%" PRIu64 " to %" PRIu32 ":%" PRIu32, packTrack,
-                 tPages.getInt("firstkey", endPage - 1), packTrack, nextPageNum);
-        tPages.setInt("firstkey", nextPageNum, endPage);
+
+        tPages.addRecords(1);
+        tPages.setInt("firstkey", curPageNum[packTrack], endPage);
         tPages.setInt("firsttime", packTime, endPage);
         tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
         tPages.setInt("keycount", 0, endPage);
         tPages.setInt("avail", 0, endPage);
-        tPages.addRecords(1);
-        ++endPage;
-      }
-      tPages.setInt("lastkeytime", packTime, endPage - 1);
-      tPages.setInt("keycount", tPages.getInt("keycount", endPage - 1) + 1, endPage - 1);
-    }
-    // Set the pageNumber if it has not been set yet
-    if (nextPageNum == INVALID_KEY_NUM){
-      if (curPageNum.count(packTrack)){
-        nextPageNum = curPageNum[packTrack];
+        curPage = endPage;
+        DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
+        if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack])){
+          // if this fails, return instantly without actually buffering the packet
+          WARN_MSG("Dropping packet %s:%" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
+          return;
+        }
       }else{
-        nextPageNum = 0;
+        uint64_t prevPageTime = tPages.getInt("firsttime", curPage);
+        // Compare on 8 mb boundary and target duration
+        if (tPages.getInt("avail", curPage) > FLIP_DATA_PAGE_SIZE || packTime - prevPageTime > FLIP_TARGET_DURATION){
+          // Create the book keeping data for the new page
+          curPageNum[packTrack] = tPages.getInt("firstkey", curPage) + tPages.getInt("keycount", curPage);
+          DONTEVEN_MSG("Live page transition from %" PRIu32 ":%zu to %" PRIu32 ":%zu", packTrack,
+                  tPages.getInt("firstkey", curPage), packTrack, curPageNum[packTrack]);
+
+          if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
+            meta.resizeTrack(packTrack, M.fragments(packTrack).getRCount(), M.keys(packTrack).getRCount(), M.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
+          }
+
+          tPages.addRecords(1);
+          tPages.setInt("firstkey", curPageNum[packTrack], endPage);
+          tPages.setInt("firsttime", packTime, endPage);
+          tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
+          tPages.setInt("keycount", 0, endPage);
+          tPages.setInt("avail", 0, endPage);
+          curPage = endPage;
+          if (livePage[packTrack]){bufferFinalize(packTrack, livePage[packTrack]);}
+          DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
+          if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack])){
+            // if this fails, return instantly without actually buffering the packet
+            WARN_MSG("Dropping packet %s:%" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
+            return;
+          }
+        }
       }
+      DONTEVEN_MSG("Setting page %lu lastkeyTime to '%lu' and keycount to '%lu'", tPages.getInt("firstkey", curPage), packTime, tPages.getInt("keycount", curPage) + 1);
+      tPages.setInt("lastkeytime", packTime, curPage);
+      tPages.setInt("keycount", tPages.getInt("keycount", curPage) + 1, curPage);
     }
-    // If we have no pages by track, we have not received a starting keyframe yet. Drop this packet.
-    if (!tPages.getEndPos()){
-      INFO_MSG("Track %" PRIu32 " not starting with a keyframe!", packTrack);
+    if (!livePage[packTrack]) {
+      INFO_MSG("Track %" PRIu32 " page %zu not starting with a keyframe!", packTrack, curPageNum[packTrack]);
       return;
     }
 
-    if (curPage.count(packTrack) && !curPage[packTrack].exists()){
-      WARN_MSG("Data page was deleted - forcing source shutdown to prevent unstable state");
+    if (!livePage[packTrack].exists()){
+      WARN_MSG("Data page '%s' was deleted - forcing source shutdown to prevent unstable state", livePage[packTrack].name.c_str());
       Util::logExitReason("data page was deleted, forcing shutdown to prevent unstable state");
-      bufferFinalize(packTrack);
+      bufferFinalize(packTrack, livePage[packTrack]);
       kill(getpid(), SIGINT);
       return;
     }
 
-
-    if (!curPageNum.count(packTrack) || nextPageNum != curPageNum[packTrack]){
-      if (curPageNum.count(packTrack)){
-        // Close the currently opened page when it exists
-        bufferFinalize(packTrack);
-      }
-      // Open the new page
-      if (!bufferStart(packTrack, nextPageNum)){
-        // if this fails, return instantly without actually buffering the packet
-        WARN_MSG("Dropping packet for %s: (no page) %" PRIu32 "@%" PRIu64, streamName.c_str(), packTrack, packTime);
-        return;
-      }
-    }
     // Buffer the packet
-    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe);
+    DONTEVEN_MSG("Buffering live packet (%zuB) @%" PRIu64 " ms on track %" PRIu32 " with offset %" PRIu64, packDataSize, packTime, packTrack, packOffset);
+    bufferNext(packTime, packOffset, packTrack, packData, packDataSize, packBytePos, isKeyframe, livePage[packTrack]);
+    meta.update(packTime, packOffset, packTrack, packDataSize, packBytePos, isKeyframe);
   }
 
   ///Handles updating track metadata from a new keyframe, if applicable

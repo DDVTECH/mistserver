@@ -503,7 +503,7 @@ namespace Mist{
       json_resp["width"] = 640;
       json_resp["height"] = (hasVideo ? 480 : 20);
     }
-    json_resp["type"] = (M.getVod() ? "vod" : "live");
+    json_resp["type"] = (M.getLive() ? "live" : "vod");
     if (M.getLive()){
       json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
     }

@@ -243,7 +243,7 @@ namespace Mist{
                 + 8                                           // MINF Box
                 + 36                                          // DINF Box
                 + 8;                                          // STBL Box
-      if (M.getVod() && M.getFirstms(it->first) != firstms){
+      if (!M.getLive() && M.getFirstms(it->first) != firstms){
         tmpRes += 12; // EDTS entry extra
       }
 
@@ -379,7 +379,7 @@ namespace Mist{
     // Construct with duration of -1, as this is the default for fragmented
     MP4::MVHD mvhdBox(-1);
     // Then override it when we are not sending a VoD asset
-    if (M.getVod()){
+    if (!M.getLive()){
       // calculating longest duration
       uint64_t lastms = 0;
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
@@ -413,7 +413,7 @@ namespace Mist{
       MP4::ELST elstBox;
       elstBox.setVersion(0);
       elstBox.setFlags(0);
-      if (M.getVod() && M.getFirstms(it->first) != firstms){
+      if (!M.getLive() && M.getFirstms(it->first) != firstms){
         elstBox.setCount(2);
 
         elstBox.setSegmentDuration(0, M.getFirstms(it->first) - firstms);
@@ -1161,7 +1161,7 @@ namespace Mist{
         H.StartResponse("206", "Partial content", req, myConn);
       }
     }else{
-      if (M.getVod()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
+      if (!M.getLive()){H.SetHeader("Content-Length", byteEnd - byteStart + 1);}
       H.StartResponse("200", "OK", req, myConn);
     }
 

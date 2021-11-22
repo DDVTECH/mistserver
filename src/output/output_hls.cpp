@@ -125,7 +125,7 @@ namespace Mist{
     }
     size_t skippedLines = 0;
     if (M.getLive() && lines.size()){
-      // only print the last segment when VoD
+      // only print the last segment when non-live
       lines.pop_back();
       totalDuration -= durations.back();
       durations.pop_back();

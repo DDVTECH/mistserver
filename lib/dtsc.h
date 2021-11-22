@@ -405,10 +405,10 @@ namespace DTSC{
     uint64_t getFragmentDuration() const{return DEFAULT_FRAGMENT_DURATION;}
     LTS-END*/
 
-    void setVod(bool vod = true);
+    void setVod(bool vod);
     bool getVod() const;
 
-    void setLive(bool live = true);
+    void setLive(bool live);
     bool getLive() const;
 
     bool hasBFrames(size_t idx = INVALID_TRACK_ID) const;
@@ -416,8 +416,8 @@ namespace DTSC{
     void setBufferWindow(uint64_t bufferWindow);
     uint64_t getBufferWindow() const;
 
-    void setBootMsOffset(uint64_t bootMsOffset);
-    uint64_t getBootMsOffset() const;
+    void setBootMsOffset(int64_t bootMsOffset);
+    int64_t getBootMsOffset() const;
 
     std::set<size_t> getValidTracks(bool skipEmpty = false) const;
     std::set<size_t> getMySourceTracks(size_t pid) const;

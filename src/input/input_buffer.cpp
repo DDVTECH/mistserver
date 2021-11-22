@@ -317,7 +317,6 @@ namespace Mist{
       break;
     }
 
-    curPageNum.erase(tid);
     INFO_MSG("Should remove track %zu", tid);
     meta.reloadReplacedPagesIfNeeded();
     meta.removeTrack(tid);

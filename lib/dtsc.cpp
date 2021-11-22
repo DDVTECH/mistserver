@@ -1815,7 +1815,7 @@ namespace DTSC{
     setInit(trackIdx, init.data(), init.size());
   }
 
-  /// Sets the given track's init data.
+  /// Sets the given track's init data.setvod
   void Meta::setInit(size_t trackIdx, const char *init, size_t initLen){
     DTSC::Track &t = tracks.at(trackIdx);
     char *_init = t.track.getPointer(t.trackInitField);
@@ -2049,13 +2049,11 @@ namespace DTSC{
 
   void Meta::setVod(bool vod){
     stream.setInt(streamVodField, vod ? 1 : 0);
-    stream.setInt(streamLiveField, vod ? 0 : 1);
   }
   bool Meta::getVod() const{return stream.getInt(streamVodField);}
 
   void Meta::setLive(bool live){
     stream.setInt(streamLiveField, live ? 1 : 0);
-    stream.setInt(streamVodField, live ? 0 : 1);
   }
   bool Meta::getLive() const{return stream.getInt(streamLiveField);}
 
@@ -2085,10 +2083,11 @@ namespace DTSC{
   }
   uint64_t Meta::getBufferWindow() const{return stream.getInt(streamBufferWindowField);}
 
-  void Meta::setBootMsOffset(uint64_t bootMsOffset){
+  void Meta::setBootMsOffset(int64_t bootMsOffset){
+    DONTEVEN_MSG("Setting streamBootMsOffsetField to '%ld'", bootMsOffset);
     stream.setInt(streamBootMsOffsetField, bootMsOffset);
   }
-  uint64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
+  int64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
   /*LTS-START*/
   void Meta::setMinimumFragmentDuration(uint64_t fragmentDuration){
     stream.setInt(streamMinimumFragmentDurationField, fragmentDuration);
@@ -2326,12 +2325,7 @@ namespace DTSC{
                      (isKeyframe ? 19 : 0) + packDataSize + 11;
     }
 
-    if ((packBytePos > 0) != (stream.getInt(streamVodField) == 1)){
-      INFO_MSG("Changing stream from %s to %s (bPos=%" PRIu64 ")",
-               stream.getInt(streamVodField) ? "VoD" : "live", (packBytePos >= 0) ? "Vod" : "live", packBytePos);
-      stream.setInt(streamVodField, packBytePos > 0 ? 1 : 0);
-      stream.setInt(streamLiveField, packBytePos > 0 ? 0 : 1);
-    }
+    if ((packBytePos > 0) && !getVod()){setVod(true);}
 
     size_t tNumber = packTrack;
     std::map<size_t, DTSC::Track>::iterator it = tracks.find(tNumber);
@@ -3148,6 +3142,7 @@ namespace DTSC{
       if (pages.getInt(firsttime, i) > time){break;}
       res = i;
     }
+    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %zu", time, idx, pages.getInt("firstkey", res));
     return pages.getInt("firstkey", res);
   }
 
@@ -3166,13 +3161,13 @@ namespace DTSC{
 
   /// Returns the key number containing a given time.
   /// Or, closest key if given time is not available.
-  /// Or, zero if no keys are available at all.
+  /// Or, INVALID_KEY_NUM if no keys are available at all.
   /// If the time is in the gap before a key, returns that next key instead.
   size_t Meta::getKeyNumForTime(uint32_t idx, uint64_t time) const{
     const Track &trk = tracks.at(idx);
     const Util::RelAccX &keys = trk.keys;
     const Util::RelAccX &parts = trk.parts;
-    if (!keys.getEndPos()){return 0;}
+    if (!keys.getEndPos()){return INVALID_KEY_NUM;}
     size_t res = keys.getStartPos();
     for (size_t i = res; i < keys.getEndPos(); i++){
       if (keys.getInt(trk.keyTimeField, i) > time){
@@ -3185,10 +3180,11 @@ namespace DTSC{
           uint64_t dur = parts.getInt(trk.partDurationField, keys.getInt(trk.keyFirstPartField, i)-1);
           if (keys.getInt(trk.keyTimeField, i) - dur < time){res = i;}
         }
-        break;
+        continue;
       }
       res = i;
     }
+    DONTEVEN_MSG("Key number for time %" PRIu64 " on track %" PRIu32 " is %zu", time, idx, res);
     return res;
   }
 

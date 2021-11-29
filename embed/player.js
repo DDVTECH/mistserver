@@ -1133,12 +1133,15 @@ function MistVideo(streamName,options) {
 
               //set listeners for player reporting
               MistUtil.event.addListener(video,"waiting",function(){
+                if (!MistVideo || !MistVideo.reporting) { return; }
                 MistVideo.reporting.stats.add("nWaiting");
               });
               MistUtil.event.addListener(video,"stalled",function(){
+                if (!MistVideo || !MistVideo.reporting) { return; }
                 MistVideo.reporting.stats.add("nStalled");
               });
               MistUtil.event.addListener(MistVideo.options.target,"error",function(e){
+                if (!MistVideo || !MistVideo.reporting) { return; }
                 MistVideo.reporting.stats.add("nError");
                 MistVideo.reporting.stats.set("lastError",e.message);
               },video); //remove event listener when the player is removed

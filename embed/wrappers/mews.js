@@ -839,6 +839,7 @@ p.prototype.build = function (MistVideo,callback) {
           if (responseType) {
             var starttime = new Date().getTime();
             function onResponse() {
+              if (!player.ws || !player.ws.serverDelay) { return; }
               player.ws.serverDelay.add(new Date().getTime() - starttime);
               player.ws.removeListener(responseType,onResponse);
             }
@@ -896,6 +897,7 @@ p.prototype.build = function (MistVideo,callback) {
       return;
     }
     if (player.ws.readyState >= player.ws.CLOSING) {
+      if (MistVideo.destroyed) { return; }
       //throw "WebSocket has been closed already.";
       MistVideo.log("MP4 over WS: reopening websocket");
       player.wsconnect().then(function(){

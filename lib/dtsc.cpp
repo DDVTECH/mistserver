@@ -2394,7 +2394,7 @@ namespace DTSC{
       return;
     }
 
-    uint32_t newPartNum = t.parts.getEndPos();
+    uint64_t newPartNum = t.parts.getEndPos();
     if ((newPartNum - t.parts.getDeleted()) >= t.parts.getRCount()){
       resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount(), t.parts.getRCount() * 2, t.pages.getRCount(), "not enough parts");
     }
@@ -2409,7 +2409,7 @@ namespace DTSC{
     }
     t.parts.addRecords(1);
 
-    uint32_t newKeyNum = t.keys.getEndPos();
+    uint64_t newKeyNum = t.keys.getEndPos();
     if (isKeyframe || newKeyNum == 0 ||
         (getType(tNumber) != "video" && packTime >= AUDIO_KEY_INTERVAL &&
          packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1) >= AUDIO_KEY_INTERVAL)){
@@ -2436,9 +2436,9 @@ namespace DTSC{
       t.keys.addRecords(1);
       t.track.setInt(t.trackFirstmsField, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
 
-      uint32_t newFragNum = t.fragments.getEndPos();
+      uint64_t newFragNum = t.fragments.getEndPos();
       if (newFragNum == 0 ||
-          (packTime > getMinimumFragmentDuration() &&
+          (packTime >= getMinimumFragmentDuration() &&
            (packTime - getMinimumFragmentDuration()) >=
                t.keys.getInt(t.keyTimeField, t.fragments.getInt(t.fragmentFirstKeyField, newFragNum - 1)))){
         if ((newFragNum - t.fragments.getDeleted()) >= t.fragments.getRCount()){
@@ -2474,17 +2474,17 @@ namespace DTSC{
                            t.fragments.getInt(t.fragmentKeysField, newFragNum - 1) + 1, newFragNum - 1);
       }
     }else{
-      uint32_t lastKeyNum = t.keys.getEndPos() - 1;
+      uint64_t lastKeyNum = t.keys.getEndPos() - 1;
       t.keys.setInt(t.keyDurationField,
                     t.keys.getInt(t.keyDurationField, lastKeyNum) +
                         t.parts.getInt(t.partDurationField, newPartNum - 1),
                     lastKeyNum);
     }
 
-    uint32_t lastKeyNum = t.keys.getEndPos() - 1;
+    uint64_t lastKeyNum = t.keys.getEndPos() - 1;
     t.keys.setInt(t.keyPartsField, t.keys.getInt(t.keyPartsField, lastKeyNum) + 1, lastKeyNum);
     t.keys.setInt(t.keySizeField, t.keys.getInt(t.keySizeField, lastKeyNum) + packSendSize, lastKeyNum);
-    uint32_t lastFragNum = t.fragments.getEndPos() - 1;
+    uint64_t lastFragNum = t.fragments.getEndPos() - 1;
     t.fragments.setInt(t.fragmentSizeField,
                        t.fragments.getInt(t.fragmentSizeField, lastFragNum) + packDataSize, lastFragNum);
     t.track.setInt(t.trackLastmsField, packTime);
@@ -3055,10 +3055,10 @@ namespace DTSC{
     uint32_t trackIdx = (idx == INVALID_TRACK_ID ? mainTrack() : idx);
     if (!tM.count(trackIdx)){return 0;}
     DTSC::Fragments fragments(tracks.at(trackIdx).fragments);
-    uint32_t firstFragment = fragments.getFirstValid();
-    uint32_t endFragment = fragments.getEndValid();
+    uint64_t firstFragment = fragments.getFirstValid();
+    uint64_t endFragment = fragments.getEndValid();
     uint32_t ret = 0;
-    for (uint32_t i = firstFragment; i < endFragment; i++){
+    for (uint64_t i = firstFragment; i < endFragment; i++){
       uint32_t fragDur = fragments.getDuration(i);
       if (fragDur > ret){ret = fragDur;}
     }

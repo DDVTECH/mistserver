@@ -856,7 +856,7 @@ namespace TS{
       default: break;
       }
     }else if (pidToCodec[tid] == H265){
-      typeNal = (((pesPayload[0] & 0x7E) >> 1) & 0xFF);
+      typeNal = (pesPayload[0] & 0x7E) >> 1;
       switch (typeNal){
       case 2:
       case 3: // TSA Picture
@@ -865,7 +865,10 @@ namespace TS{
       case 6:
       case 7: // RADL Picture
       case 8:
-      case 9: // RASL Picture
+      case 9:{// RASL Picture
+        isKeyFrame = false;
+        break;
+      }
       case 16:
       case 17:
       case 18: // BLA Picture

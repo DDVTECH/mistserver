@@ -3044,7 +3044,7 @@ namespace DTSC{
     if (!trackList.getPresent()){return INVALID_TRACK_ID;}
     std::set<size_t> validTracks = getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-      if (getCodec(*it) == "video"){return *it;}
+      if (getType(*it) == "video"){return *it;}
     }
     return *validTracks.begin();
   }

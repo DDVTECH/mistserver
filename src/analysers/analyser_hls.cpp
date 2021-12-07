@@ -64,7 +64,7 @@ bool AnalyserHLS::readPlaylist(std::string source){
   if (!s){return false;}
 
   std::string line;
-  std::stringstream body(data);
+  std::stringstream body(std::string(data, s));
   while (body.good()){
     std::getline(body, line);
     if (line.size() && *line.rbegin() == '\r'){line.resize(line.size() - 1);}
@@ -72,7 +72,7 @@ bool AnalyserHLS::readPlaylist(std::string source){
     if (line[0] != '#'){
       if (line.find("m3u") != std::string::npos){
         root = root.link(line);
-        MEDIUM_MSG("Found a sub-playlist, re-targeting %s", root.getUrl().c_str());
+        INFO_MSG("Found a sub-playlist (%s), re-targeting %s", line.c_str(), root.getUrl().c_str());
         return readPlaylist(root.getUrl());
       }
     }

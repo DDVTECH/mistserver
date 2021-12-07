@@ -174,6 +174,14 @@ int main(int argc, char *argv[]){
   config.addOption("ulimit", option);
   option.null();
 
+  option["arg"] = "integer";
+  option["default"] = 0;
+  option["short"] = "d";
+  option["long"] = "delay";
+  option["help"] = "Delay between viewers in milliseconds";
+  config.addOption("delay", option);
+  option.null();
+
   if (!config.parseArgs(argc, argv)){
     config.printHelp(std::cout);
     return 0;
@@ -222,13 +230,10 @@ int main(int argc, char *argv[]){
   thread_handler = true;
   tthread::thread prom(prom_fetch, &total_time);
 
+  uint64_t delay = config.getInteger("delay");
   for(int i = 0; i < total; i++){
-/* burst
-    if(i % 25 == 0 && i > 0){
-      Util::sleep(1000);
-    }
-*/
     processes.push_back(newViewer(total_time, url, protocol));
+    if (delay){Util::sleep(delay);}
   }
 
 

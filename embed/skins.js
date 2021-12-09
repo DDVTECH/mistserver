@@ -633,7 +633,7 @@ MistSkins["default"] = {
         MistUtil.class.add(this.container,"hasControls");
         
         var container = this.UI.buildStructure(this.skin.structure.controls);
-        if (MistUtil.isTouchDevice() && (this.size.width > 300)) {
+        if (MistUtil.isTouchDevice() && this.size && (this.size.width > 300)) {
           container.style.zoom = 1.5;
         }
         return container;

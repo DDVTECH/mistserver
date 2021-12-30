@@ -462,6 +462,9 @@ macro(makeInput inputName format)
   if (";${ARGN};" MATCHES ";with_srt;")
     target_link_libraries(MistIn${inputName} mist_srt )
   endif()
+  if (";${ARGN};" MATCHES ";with_rist;")
+    target_link_libraries(MistIn${inputName} rist cjson)
+  endif()
 
   #Set compile definitions
   unset(my_definitions)
@@ -503,6 +506,9 @@ makeInput(SDP sdp)
 
 if(SRT_LIB)
   makeInput(TSSRT tssrt with_srt)#LTS
+endif()
+if(RIST_LIB)
+  makeInput(TSRIST tsrist with_rist)#LTS
 endif()
 
 ########################################

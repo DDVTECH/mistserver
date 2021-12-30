@@ -180,6 +180,8 @@ namespace Mist{
 
     hasSrt = false;
     srtTrack = 0;
+    lastBufferCheck = 0;
+    bufferPid = 0;
   }
 
   void Input::checkHeaderTimes(std::string streamFile){
@@ -734,7 +736,7 @@ namespace Mist{
       }
       overrides["singular"] = "";
       if (!Util::startInput(streamName, "push://INTERNAL_ONLY:" + config->getString("input"), true,
-                            true, overrides)){// manually override stream url to start the buffer
+                            true, overrides, &bufferPid)){// manually override stream url to start the buffer
         WARN_MSG("Could not start buffer, cancelling");
         return;
       }
@@ -782,6 +784,13 @@ namespace Mist{
     return;
   }
 
+  bool Input::bufferActive(){
+    if (bufferPid && Util::bootSecs() > lastBufferCheck){
+      if (!Util::Procs::isRunning(bufferPid)){bufferPid = 0;}
+    }
+    return bufferPid;
+  }
+
   void Input::streamMainLoop(){
     uint64_t statTimer = 0;
     uint64_t startTime = Util::bootSecs();
@@ -794,6 +803,10 @@ namespace Mist{
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
         Util::logExitReason("buffer requested shutdown");
         break;
+      }
+      if (!bufferActive()){
+        Util::logExitReason("Buffer shut down");
+        return;
       }
       bufferLivePacket(thisPacket);
       getNext();

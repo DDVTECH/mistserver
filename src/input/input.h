@@ -102,6 +102,9 @@ namespace Mist{
     uint64_t simStartTime;
 
     IPC::sharedPage pidPage; ///Stores responsible input process PID
+    bool bufferActive(); ///< Returns true if the buffer process for this stream input is alive.
+    pid_t bufferPid;
+    uint64_t lastBufferCheck;///< Time of last buffer liveness check.
 
     void handleBuyDRM();
   };

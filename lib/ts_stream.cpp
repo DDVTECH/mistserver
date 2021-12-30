@@ -522,14 +522,14 @@ namespace TS{
       }
 
       if (paySize - offset - pesOffset < realPayloadSize){
-        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), glitches will occur",
+        WARN_MSG("Packet loss detected (%" PRIu64 " != %" PRIu64 "), throwing away data to compensate",
                  paySize - offset - pesOffset, realPayloadSize);
         realPayloadSize = paySize - offset - pesOffset;
+      }else{
+        const char *pesPayload = pesHeader + pesOffset;
+        parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
+        lastms[tid] = timeStamp;
       }
-
-      const char *pesPayload = pesHeader + pesOffset;
-      parseBitstream(tid, pesPayload, realPayloadSize, timeStamp, timeOffset, bPos, pesHeader[6] & 0x04);
-      lastms[tid] = timeStamp;
 
       // Shift the offset by the payload size, the mandatory headers and the optional
       // headers/padding

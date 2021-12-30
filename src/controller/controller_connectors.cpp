@@ -182,6 +182,14 @@ namespace Controller{
         }
         continue;
       }
+      if (capabilities["connectors"][connName].isMember("PUSHONLY")){
+        (*ait)["online"] = "Push-only";
+        if ((*ait)["online"].asString() != prevOnline){
+          Log("WARN",
+              connName + " connector is enabled but can only be used by the pushing system! Ignoring connector.");
+        }
+        continue;
+      }
       // list connectors that go through HTTP as 'enabled' without actually running them.
       const JSON::Value &connCapa = capabilities["connectors"][connName];
       if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){

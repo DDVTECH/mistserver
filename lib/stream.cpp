@@ -526,7 +526,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
         HIGH_MSG("Overriding option '%s' to '%s'", prm.key().c_str(), overrides.at(prm.key()).c_str());
         str_args[opt] = overrides.at(prm.key());
       }else{
-        if (stream_cfg.isMember(prm.key()) && stream_cfg[prm.key()]){
+        if (stream_cfg.isMember(prm.key()) && ((!prm->isMember("default") && stream_cfg[prm.key()]) || (prm->isMember("default") && stream_cfg[prm.key()] != (*prm)["default"]))){
           if (stream_cfg[prm.key()].isString()){
             str_args[opt] = stream_cfg[prm.key()].asStringRef();
           }else{

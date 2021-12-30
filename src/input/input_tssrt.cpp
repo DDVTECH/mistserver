@@ -201,7 +201,7 @@ namespace Mist{
     }
 
     tsStream.initializeMetadata(meta);
-    size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+    thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
     if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
 
     uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;
@@ -219,13 +219,7 @@ namespace Mist{
 
   bool inputTSSRT::openStreamSource(){return true;}
 
-  void inputTSSRT::parseStreamHeader(){
-    // Placeholder empty track to force normal code to continue despite no tracks available
-    tmpIdx = meta.addTrack(0, 0, 0, 0);
-  }
-
   void inputTSSRT::streamMainLoop(){
-    meta.removeTrack(tmpIdx);
     // If we do not have a srtConn here, we are the main thread and should start accepting pushes.
     if (srtConn.getSocket() == -1){
       cfgPointer = config;

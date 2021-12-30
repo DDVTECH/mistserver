@@ -28,9 +28,9 @@ namespace Mist{
     virtual bool needHeader(){return false;}
     virtual bool isSingular(){return singularFlag;}
     virtual bool isThread(){return !singularFlag;}
+    virtual bool publishesTracks(){return false;}
 
     bool openStreamSource();
-    void parseStreamHeader();
     void streamMainLoop();
     TS::Stream tsStream; ///< Used for parsing the incoming ts stream
     TS::Packet tsBuf;
@@ -40,7 +40,6 @@ namespace Mist{
 
     Socket::SRTConnection srtConn;
     bool singularFlag;
-    size_t tmpIdx;
     virtual void connStats(Comms::Statistics &statComm);
   };
 }// namespace Mist

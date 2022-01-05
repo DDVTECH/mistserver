@@ -13,14 +13,6 @@ namespace CMAF{
     return payloadSize;
   }
 
-  size_t simplifiedTrackId(const DTSC::Meta & M, size_t idx) {
-    std::string type = M.getType(idx);
-    if (type == "video") {return 1;}
-    if (type == "audio") {return 2;}
-    if (type == "meta") {return 3;}
-    return idx;
-  }
-
   std::string trackHeader(const DTSC::Meta &M, size_t track, bool simplifyTrackIds){
     std::string tType = M.getType(track);
 
@@ -43,9 +35,6 @@ namespace CMAF{
     MP4::TRAK trakBox;
 
     MP4::TKHD tkhdBox(M, track);
-    if (simplifyTrackIds){
-      tkhdBox.setTrackID(simplifiedTrackId(M, track));
-    }
     tkhdBox.setDuration(0);
     trakBox.setContent(tkhdBox, 0);
 
@@ -87,7 +76,7 @@ namespace CMAF{
       btrtBox.setAverageBitrate(M.getBps(track));
       btrtBox.setMaxBitrate(M.getMaxBps(track));
 
-      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(),btrtBox);
+      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(), btrtBox);
       stsdBox.setEntry(sampleEntry, 0);
     }else if (tType == "audio"){
       MP4::AudioSampleEntry sampleEntry(M, track);
@@ -96,7 +85,7 @@ namespace CMAF{
       btrtBox.setAverageBitrate(M.getBps(track));
       btrtBox.setMaxBitrate(M.getMaxBps(track));
 
-      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(),btrtBox);
+      sampleEntry.setBoxEntry(sampleEntry.getBoxEntryCount(), btrtBox);
       stsdBox.setEntry(sampleEntry, 0);
     }else if (tType == "meta"){
       MP4::TextSampleEntry sampleEntry(M, track);
@@ -131,9 +120,6 @@ namespace CMAF{
     }
 
     MP4::TREX trexBox(track + 1);
-    if (simplifyTrackIds){
-      trexBox.setTrackID(simplifiedTrackId(M, track));
-    }
     trexBox.setDefaultSampleDuration(1000);
     mvexBox.setContent(trexBox, M.getVod() ? 1 : 0);
 
@@ -148,7 +134,8 @@ namespace CMAF{
       MP4::SIDX sidxBox;
       sidxBox.setReferenceID(track + 1);
       sidxBox.setTimescale(1000);
-      sidxBox.setEarliestPresentationTime(keys.getTime(0) + parts.getOffset(0) - M.getFirstms(track));
+      sidxBox.setEarliestPresentationTime(keys.getTime(0) + parts.getOffset(0) -
+                                          M.getFirstms(track));
 
       for (size_t i = 0; i < fragments.getEndValid(); i++){
         size_t firstKey = fragments.getFirstKey(i);
@@ -156,9 +143,12 @@ namespace CMAF{
             ((i + 1 < fragments.getEndValid()) ? fragments.getFirstKey(i + 1) : keys.getEndValid());
 
         MP4::sidxReference refItem;
-        refItem.referencedSize = payloadSize(M, track, keys.getTime(firstKey), keys.getTime(endKey)) + keyHeaderSize(M, track, i) + 8;
+        refItem.referencedSize =
+            payloadSize(M, track, keys.getTime(firstKey), keys.getTime(endKey)) +
+            keyHeaderSize(M, track, i) + 8;
         refItem.subSegmentDuration =
-            (endKey == keys.getEndValid() ? M.getLastms(track) : keys.getTime(endKey)) - keys.getTime(firstKey);
+            (endKey == keys.getEndValid() ? M.getLastms(track) : keys.getTime(endKey)) -
+            keys.getTime(firstKey);
         refItem.sapStart = true;
         refItem.sapType = 16;
         refItem.sapDeltaTime = 0;
@@ -209,7 +199,8 @@ namespace CMAF{
   }
 
   /// Generates the 'moof' box for a DTSC::Key based CMAF fragment.
-  std::string keyHeader(const DTSC::Meta &M, size_t track, uint64_t startTime, uint64_t endTime, uint64_t segmentNum, bool simplifyTrackIds, bool UTCTime){
+  std::string keyHeader(const DTSC::Meta &M, size_t track, uint64_t startTime, uint64_t endTime,
+                        uint64_t segmentNum, bool simplifyTrackIds, bool UTCTime){
 
     size_t firstPart = M.getPartIndex(startTime, track);
     size_t endPart = M.getPartIndex(endTime, track);
@@ -218,10 +209,9 @@ namespace CMAF{
     MP4::MFHD mfhdBox(segmentNum);
     moofBox.setContent(mfhdBox, 0);
 
-
     std::set<sortPart> trunOrder;
 
-    //We use keyHeaderSize here to determine the relative offsets of the data in the 'mdat' box. 
+    // We use keyHeaderSize here to determine the relative offsets of the data in the 'mdat' box.
     uint64_t relativeOffset = keyHeaderSize(M, track, startTime, endTime) + 8;
 
     sortPart temp;
@@ -242,13 +232,11 @@ namespace CMAF{
 
     tfhdBox.setFlags(MP4::tfhdSampleFlag | MP4::tfhdBaseIsMoof | MP4::tfhdSampleDesc);
     tfhdBox.setTrackID(track + 1);
-    if (simplifyTrackIds){
-      tfhdBox.setTrackID(simplifiedTrackId(M, track));
-    }
     tfhdBox.setDefaultSampleDuration(444);
     tfhdBox.setDefaultSampleSize(444);
-    tfhdBox.setDefaultSampleFlags((M.getType(track) == "video") ? (MP4::noIPicture | MP4::noKeySample)
-                                                                : (MP4::isIPicture | MP4::isKeySample));
+    tfhdBox.setDefaultSampleFlags((M.getType(track) == "video")
+                                      ? (MP4::noIPicture | MP4::noKeySample)
+                                      : (MP4::isIPicture | MP4::isKeySample));
     tfhdBox.setSampleDescriptionIndex(1);
     trafBox.setContent(tfhdBox, 0);
 
@@ -256,7 +244,8 @@ namespace CMAF{
     if (M.getVod()){
       tfdtBox.setBaseMediaDecodeTime(startTime - M.getFirstms(track));
     }else{
-      tfdtBox.setBaseMediaDecodeTime((UTCTime ? startTime + M.getBootMsOffset() + unixBootDiff : startTime));
+      tfdtBox.setBaseMediaDecodeTime(
+          (UTCTime ? startTime + M.getBootMsOffset() + unixBootDiff : startTime));
     }
     trafBox.setContent(tfdtBox, 1);
 
@@ -277,15 +266,14 @@ namespace CMAF{
         MP4::trunSampleInformation sampleInfo;
         sampleInfo.sampleSize = parts.getSize(it->partIndex);
         sampleInfo.sampleDuration = parts.getDuration(it->partIndex);
-        if (it == lastOne){
-          sampleInfo.sampleDuration = endTime - it->time;
-        }
+        if (it == lastOne){sampleInfo.sampleDuration = endTime - it->time;}
         sampleInfo.sampleOffset = parts.getOffset(it->partIndex);
         trunBox.setSampleInformation(sampleInfo, trunOffset++);
       }
     }else{
-      WARN_MSG("Empty CMAF header for track %zu: %" PRIu64 "-%" PRIu64 " contains no packets (first: %" PRIu64
-               ", last: %" PRIu64 "), firstPart=%zu, lastPart=%zu",
+      WARN_MSG("Empty CMAF header for track %zu: %" PRIu64 "-%" PRIu64
+               " contains no packets (first: %" PRIu64 ", last: %" PRIu64
+               "), firstPart=%zu, lastPart=%zu",
                track, startTime, endTime, M.getFirstms(track), M.getLastms(track), firstPart,
                endPart);
     }

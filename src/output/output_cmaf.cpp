@@ -489,32 +489,32 @@ namespace Mist{
   }
 
   void OutCMAF::generateSegmentlist(size_t idx, std::stringstream &s,
-                                    void callBack(uint64_t, uint64_t, std::stringstream &, bool)){
-    DTSC::Fragments fragments(M.fragments(idx));
+                                    void dashSegmentCallBack(uint64_t, uint64_t,
+                                                             std::stringstream &, bool)){
+    // NOTE: Weirdly making the 0th track as the reference track fixed everything.
+    // Looks like a nomenclature issue.
+    // TODO: Investigate with spec and refactor stuff appropriately.
+
+    size_t mainTrack = *M.getValidTracks().begin(); // M.mainTrack();
+
+    if (mainTrack == INVALID_TRACK_ID){return;}
+    DTSC::Fragments fragments(M.fragments(mainTrack));
     uint32_t firstFragment = fragments.getFirstValid();
     uint32_t lastFragment = fragments.getEndValid();
     bool first = true;
     // skip the first two fragments if live
     if (M.getLive() && (lastFragment - firstFragment) > 6){firstFragment += 2;}
 
-    if (M.getType(idx) == "audio"){
-      uint32_t mainTrack = M.mainTrack();
-      if (mainTrack == INVALID_TRACK_ID){return;}
-      DTSC::Fragments f(M.fragments(mainTrack));
-      uint64_t firstVidTime = M.getTimeForFragmentIndex(mainTrack, f.getFirstValid());
-      firstFragment = M.getFragmentIndexForTime(idx, firstVidTime);
-    }
-
-    DTSC::Keys keys(M.keys(idx));
+    DTSC::Keys keys(M.keys(mainTrack));
     for (; firstFragment < lastFragment; ++firstFragment){
       uint32_t duration = fragments.getDuration(firstFragment);
       uint64_t starttime = keys.getTime(fragments.getFirstKey(firstFragment));
       if (!duration){
         if (M.getLive()){continue;}// skip last fragment when live
-        duration = M.getLastms(idx) - starttime;
+        duration = M.getLastms(mainTrack) - starttime;
       }
-      if (M.getVod()){starttime -= M.getFirstms(idx);}
-      callBack(starttime, duration, s, first);
+      if (M.getVod()){starttime -= M.getFirstms(mainTrack);}
+      dashSegmentCallBack(starttime, duration, s, first);
       first = false;
     }
 
@@ -662,7 +662,7 @@ namespace Mist{
          it++){
       if (M.getType(it->first) == "video"){vTracks.insert(it->first);}
       if (M.getType(it->first) == "audio"){aTracks.insert(it->first);}
-      if (M.getType(it->first) == "subtitle"){sTracks.insert(it->first);}
+      if (M.getCodec(it->first) == "subtitle"){sTracks.insert(it->first);}
     }
 
     if (!vTracks.size() && !aTracks.size()){return "";}
@@ -685,12 +685,18 @@ namespace Mist{
         << "\" suggestedPresentationDelay=\"PT5.0S\" minBufferTime=\"PT2.0S\" publishTime=\""
         << Util::getUTCString(Util::epoch()) << "\" ";
     }
+
+    r << "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ";
+    r << "xmlns:xlink=\"http://www.w3.org/1999/xlink\" ";
+    r << "xsi:schemaLocation=\"urn:mpeg:DASH:schema:MPD:2011 "
+         "http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/"
+         "DASH-MPD.xsd\" ";
     r << "profiles=\"urn:mpeg:dash:profile:isoff-live:2011\" "
          "xmlns=\"urn:mpeg:dash:schema:mpd:2011\" >"
       << std::endl;
     r << "<ProgramInformation><Title>" << streamName << "</Title></ProgramInformation>"
       << std::endl;
-    r << "<Period " << (M.getLive() ? "start=\"0\"" : "") << ">" << std::endl;
+    r << "<Period " << (M.getLive() ? "start=\"PT0.0S\"" : "") << ">" << std::endl;
 
     dashAdaptation(1, vTracks, videoAligned, r);
     dashAdaptation(2, aTracks, audioAligned, r);

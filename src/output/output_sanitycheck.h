@@ -27,7 +27,6 @@ namespace Mist{
     OutSanityCheck(Socket::Connection &conn);
     static void init(Util::Config *cfg);
     void sendNext();
-    void initialSeek();
     static bool listenMode(){return false;}
 
   protected:

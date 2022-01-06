@@ -1384,8 +1384,13 @@ namespace DTSC{
       setType(newIdx, M.getType(*it));
       setCodec(newIdx, M.getCodec(*it));
       setLang(newIdx, M.getLang(*it));
-      setFirstms(newIdx, M.getFirstms(*it));
-      setLastms(newIdx, M.getLastms(*it));
+      if (copyData){
+        setFirstms(newIdx, M.getFirstms(*it));
+        setLastms(newIdx, M.getLastms(*it));
+      }else{
+        setFirstms(newIdx, 0);
+        setLastms(newIdx, 0);
+      }
       setBps(newIdx, M.getBps(*it));
       setMaxBps(newIdx, M.getMaxBps(*it));
       setFpks(newIdx, M.getFpks(*it));
@@ -3241,8 +3246,8 @@ namespace DTSC{
       uint32_t longest_cnt = 0;
       DTSC::Keys Mkeys(keys(i));
       uint32_t firstKey = Mkeys.getFirstValid();
-      uint32_t endKey = Mkeys.getEndValid() - 1;
-      for (int k = firstKey; k < endKey; k++){
+      uint32_t endKey = Mkeys.getEndValid();
+      for (uint32_t k = firstKey; k+1 < endKey; k++){
         uint64_t kDur = Mkeys.getDuration(k);
         uint64_t kParts = Mkeys.getParts(k);
         if (!kDur){continue;}

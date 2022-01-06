@@ -14,6 +14,11 @@ namespace Mist{
     //}
     parseData = true;
     wantRequest = false;
+    if (config->getBool("sync")){
+      setSyncMode(true);
+    }else{
+      setSyncMode(false);
+    }
     initialize();
     initialSeek();
     sortSet.clear();
@@ -50,19 +55,7 @@ namespace Mist{
         seek(seekPoint);
       }
     }
-  }
 
-  void OutSanityCheck::initialSeek(){
-    if (M.getLive()){
-      liveSeek();
-      if (getKeyFrame() && thisPacket){
-        sendNext();
-        INFO_MSG("Initial sent!");
-      }
-      firstTime = Util::getMS() - currentTime();
-    }else{
-      Output::initialSeek();
-    }
   }
 
   void OutSanityCheck::init(Util::Config *cfg){
@@ -74,8 +67,11 @@ namespace Mist{
                                                   "\"stream\",\"help\":\"The name of the stream "
                                                   "that this connector will transmit.\"}"));
     cfg->addOption(
-        "seek", JSON::fromString("{\"arg\":\"string\",\"short\":\"S\",\"long\":\"seek\",\"help\":"
+        "seek", JSON::fromString("{\"arg\":\"string\",\"short\":\"k\",\"long\":\"seek\",\"help\":"
                                  "\"Time in ms to check from - by default start of stream\"}"));
+    cfg->addOption(
+        "sync", JSON::fromString("{\"short\":\"y\",\"long\":\"sync\",\"help\":"
+                                 "\"Retrieve tracks in sync (default async)\"}"));
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
   }
@@ -89,36 +85,23 @@ namespace Mist{
   }
   */
 
+#define printTime(t) std::setfill('0') << std::setw(2) << (t / 3600000) << ":" << std::setw(2) << ((t % 3600000) / 60000) << ":" << std::setw(2) << ((t % 60000) / 1000) << "." << std::setw(3) << (t % 1000)
+
   void OutSanityCheck::sendNext(){
+    static std::map<size_t, uint64_t> trkTime;
     if (M.getLive()){
-      static uint64_t prevTime = 0;
-      static size_t prevTrack = 0;
-      uint64_t t = thisPacket.getTime();
-      if (t < prevTime){
-        std::cout << "Time error: ";
-        std::cout << std::setfill('0') << std::setw(2) << (t / 3600000) << ":" << std::setw(2)
-                  << ((t % 3600000) / 60000) << ":" << std::setw(2) << ((t % 60000) / 1000) << "."
-                  << std::setw(3) << (t % 1000);
-        std::cout << " (" << thisIdx << ")";
-        std::cout << " < ";
-        std::cout << std::setfill('0') << std::setw(2) << (prevTime / 3600000) << ":"
-                  << std::setw(2) << ((prevTime % 3600000) / 60000) << ":" << std::setw(2)
-                  << ((prevTime % 60000) / 1000) << "." << std::setw(3) << (prevTime % 1000);
-        std::cout << " (" << prevTrack << ")";
-        std::cout << std::endl << std::endl;
+      if (thisTime < trkTime[thisIdx]){
+        std::cout << "Time error in track " << thisIdx << ": ";
+        std::cout << printTime(thisTime) << " < " << printTime(trkTime[thisIdx]) << std::endl << std::endl;
       }else{
-        prevTime = t;
-        prevTrack = thisIdx;
+        trkTime[thisIdx] = thisTime;
       }
-      std::cout << "\033[A" << std::setfill('0') << std::setw(2) << (t / 3600000) << ":"
-                << std::setw(2) << ((t % 3600000) / 60000) << ":" << std::setw(2)
-                << ((t % 60000) / 1000) << "." << std::setw(3) << (t % 1000) << "   ";
-      uint32_t mainTrack = M.mainTrack();
-      if (mainTrack == INVALID_TRACK_ID){return;}
-      t = M.getLastms(mainTrack);
-      std::cout << std::setfill('0') << std::setw(2) << (t / 3600000) << ":" << std::setw(2)
-                << ((t % 3600000) / 60000) << ":" << std::setw(2) << ((t % 60000) / 1000) << "."
-                << std::setw(3) << (t % 1000) << "   " << std::endl;
+      std::cout << "\033[A";
+      for (std::map<size_t, uint64_t>::iterator it = trkTime.begin(); it != trkTime.end(); ++it){
+        uint64_t t = M.getLastms(it->first);
+        std::cout << it->first << ":" << printTime(it->second) << "/" << printTime(t) << ", ";
+      }
+      std::cout << std::endl;
       return;
     }
 

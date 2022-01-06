@@ -165,7 +165,7 @@ namespace Mist{
       DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
       DTSC::Meta nM("", metaPack.getScan());
       meta.reInit(streamName, false);
-      meta.merge(nM);
+      meta.merge(nM, true, false);
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       userSelect.clear();
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
@@ -342,20 +342,39 @@ namespace Mist{
         // userClient.keepAlive();
         std::string cmd;
         thisPacket.getString("cmd", cmd);
-        if (cmd != "reset"){
+        if (cmd == "reset"){
+          // Read next packet
           thisPacket.reInit(srcConn);
+          if (thisPacket.getVersion() != DTSC::DTSC_HEAD){
+            meta.clear();
+            continue;
+          }
+          DTSC::Meta nM("", thisPacket.getScan());
+          meta.merge(nM, true, false);
+          thisPacket.reInit(srcConn); // read the next packet before continuing
+          continue;                   // parse the next packet before returning
+        }
+        if (cmd == "error"){
+          thisPacket.getString("msg", cmd);
+          Util::logExitReason("%s", cmd.c_str());
+          thisPacket.null();
+          return;
+        }
+        if (cmd == "ping"){
+          thisPacket.reInit(srcConn);
+          JSON::Value prep;
+          prep["cmd"] = "ok";
+          prep["msg"] = "Pong!";
+          srcConn.SendNow("DTCM");
+          char sSize[4] ={0, 0, 0, 0};
+          Bit::htobl(sSize, prep.packedSize());
+          srcConn.SendNow(sSize, 4);
+          prep.sendTo(srcConn);
           continue;
         }
-        // Read next packet
+        INFO_MSG("Unhandled command: %s", cmd.c_str());
         thisPacket.reInit(srcConn);
-        if (thisPacket.getVersion() != DTSC::DTSC_HEAD){
-          meta.clear();
-          continue;
-        }
-        DTSC::Meta nM("", thisPacket.getScan());
-        meta.merge(nM, true, false);
-        thisPacket.reInit(srcConn); // read the next packet before continuing
-        continue;                   // parse the next packet before returning
+        continue;
       }
       if (thisPacket.getVersion() == DTSC::DTSC_HEAD){
         DTSC::Meta nM("", thisPacket.getScan());
@@ -364,7 +383,33 @@ namespace Mist{
         continue;                   // parse the next packet before returning
       }
       thisTime = thisPacket.getTime();
-      thisIdx = thisPacket.getTrackId();
+      thisIdx = M.trackIDToIndex(thisPacket.getTrackId());
+      if (thisPacket.getFlag("keyframe") && M.trackValid(thisIdx)){
+        uint32_t shrtest_key = 0xFFFFFFFFul;
+        uint32_t longest_key = 0;
+        DTSC::Keys Mkeys(M.keys(thisIdx));
+        uint32_t firstKey = Mkeys.getFirstValid();
+        uint32_t endKey = Mkeys.getEndValid();
+        uint32_t checkKey = (endKey-firstKey <= 3)?firstKey:endKey-3;
+        for (uint32_t k = firstKey; k+1 < endKey; k++){
+          uint64_t kDur = Mkeys.getDuration(k);
+          if (!kDur){continue;}
+          if (kDur > longest_key && k >= checkKey){longest_key = kDur;}
+          if (kDur < shrtest_key){shrtest_key = kDur;}
+        }
+        if (longest_key > shrtest_key*2){
+          JSON::Value prep;
+          prep["cmd"] = "check_key_duration";
+          prep["id"] = thisPacket.getTrackId();
+          prep["duration"] = longest_key;
+          srcConn.SendNow("DTCM");
+          char sSize[4] ={0, 0, 0, 0};
+          Bit::htobl(sSize, prep.packedSize());
+          srcConn.SendNow(sSize, 4);
+          prep.sendTo(srcConn);
+          INFO_MSG("Key duration %" PRIu32 " is quite long - confirming with upstream source", longest_key);
+        }
+      }
       return; // we have a packet
     }
   }

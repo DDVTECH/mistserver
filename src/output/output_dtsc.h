@@ -11,7 +11,6 @@ namespace Mist{
     void onRequest();
     void sendNext();
     void sendHeader();
-    void initialSeek();
     static bool listenMode(){return !(config->getString("target").size());}
     void onFail(const std::string &msg, bool critical = false);
     void stats(bool force = false);

@@ -75,6 +75,7 @@ namespace Util{
       void moveFirstToEnd();
       bool hasEntry(size_t tid) const;
       void getTrackList(std::set<size_t> &toFill) const;
+      void getTrackList(std::map<size_t, uint64_t> &toFill) const;
       void setSyncMode(bool synced);
       bool getSyncMode() const;
     private:

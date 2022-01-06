@@ -280,12 +280,10 @@ void Util::packetSorter::dropTrack(size_t tid){
 /// Removes the first packet from the sorter and inserts the given packet.
 void Util::packetSorter::replaceFirst(const sortedPageInfo &pInfo){
   if (dequeMode){
+    //in deque mode, insertion of the new packet is at the back
+    //this works, as a failure to retrieve a packet will swap the front entry to the back as well
     dequeBuffer.pop_front();
-    if (dequeBuffer.size() && dequeBuffer.front().time > pInfo.time){
-      dequeBuffer.push_front(pInfo);
-    }else{
-      dequeBuffer.push_back(pInfo);
-    }
+    dequeBuffer.push_back(pInfo);
   }else{
     setBuffer.erase(setBuffer.begin());
     setBuffer.insert(pInfo);
@@ -324,6 +322,20 @@ void Util::packetSorter::getTrackList(std::set<size_t> &toFill) const{
   }else{
     for (std::set<Util::sortedPageInfo>::const_iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
       toFill.insert(it->tid);
+    }
+  }
+}
+
+/// Fills toFill with track IDs and current playback position of tracks that are in the sorter.
+void Util::packetSorter::getTrackList(std::map<size_t, uint64_t> &toFill) const{
+  toFill.clear();
+  if (dequeMode){
+    for (std::deque<Util::sortedPageInfo>::const_iterator it = dequeBuffer.begin(); it != dequeBuffer.end(); ++it){
+      toFill[it->tid] = it->time;
+    }
+  }else{
+    for (std::set<Util::sortedPageInfo>::const_iterator it = setBuffer.begin(); it != setBuffer.end(); ++it){
+      toFill[it->tid] = it->time;
     }
   }
 }

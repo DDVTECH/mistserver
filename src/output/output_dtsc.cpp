@@ -115,47 +115,6 @@ namespace Mist{
 
   std::string OutDTSC::getStatsName(){return (pushing ? "INPUT:DTSC" : "OUTPUT:DTSC");}
 
-  /// Seeks to the first sync'ed keyframe of the main track.
-  /// Aborts if there is no main track or it has no keyframes.
-  void OutDTSC::initialSeek(){
-    uint64_t seekPos = 0;
-    if (M.getLive()){
-      size_t mainTrack = getMainSelectedTrack();
-      // cancel if there are no keys in the main track
-      if (mainTrack == INVALID_TRACK_ID){return;}
-
-      DTSC::Keys keys(M.keys(mainTrack));
-      if (!keys.getValidCount()){return;}
-      // seek to the oldest keyframe
-      std::set<size_t> validTracks = M.getValidTracks();
-      for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
-        seekPos = keys.getTime(i);
-        bool good = true;
-        // check if all tracks have data for this point in time
-        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
-          if (mainTrack == ti->first){continue;}// skip self
-          if (!validTracks.count(ti->first)){
-            HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
-            continue;
-          }// ignore missing tracks
-          if (M.getLastms(ti->first) == M.getFirstms(ti->first)){
-            HIGH_MSG("Skipping track %zu, last equals first", ti->first);
-            continue;
-          }// ignore point-tracks
-          if (M.getFirstms(ti->first) > seekPos){
-            good = false;
-            break;
-          }
-          HIGH_MSG("Track %zu is good", ti->first);
-        }
-        // if yes, seek here
-        if (good){break;}
-      }
-    }
-    MEDIUM_MSG("Initial seek to %" PRIu64 "ms", seekPos);
-    seek(seekPos);
-  }
-
   void OutDTSC::sendNext(){
     // If selectable tracks changed, set sentHeader to false to force it to send init data
     static uint64_t lastMeta = 0;
@@ -167,7 +126,7 @@ namespace Mist{
         return;
       }
     }
-    DTSC::Packet p(thisPacket, thisIdx + 1);
+    DTSC::Packet p(thisPacket, thisIdx+1);
     myConn.SendNow(p.getData(), p.getDataLen());
     lastActive = Util::epoch();
   }
@@ -201,6 +160,10 @@ namespace Mist{
         std::string dataPacket = myConn.Received().remove(rSize);
         DTSC::Scan dScan((char *)dataPacket.data(), rSize);
         HIGH_MSG("Received DTCM: %s", dScan.asJSON().toString().c_str());
+        if (dScan.getMember("cmd").asString() == "ok"){
+          INFO_MSG("Remote OK: %s", dScan.getMember("msg").asString().c_str());
+          continue;
+        }
         if (dScan.getMember("cmd").asString() == "push"){
           handlePush(dScan);
           continue;
@@ -228,6 +191,29 @@ namespace Mist{
         if (dScan.getMember("cmd").asString() == "reset"){
           userSelect.clear();
           sendOk("Internal state reset");
+          continue;
+        }
+        if (dScan.getMember("cmd").asString() == "check_key_duration"){
+          size_t idx = dScan.getMember("id").asInt() - 1;
+          size_t dur = dScan.getMember("duration").asInt();
+          if (!M.trackValid(idx)){
+            ERROR_MSG("Cannot check key duration %zu for track %zu: not valid", dur, idx);
+            return;
+          }
+          uint32_t longest_key = 0;
+          DTSC::Keys Mkeys(M.keys(idx));
+          uint32_t firstKey = Mkeys.getFirstValid();
+          uint32_t endKey = Mkeys.getEndValid();
+          for (uint32_t k = firstKey; k+1 < endKey; k++){
+            uint64_t kDur = Mkeys.getDuration(k);
+            if (kDur > longest_key){longest_key = kDur;}
+          }
+          if (dur > longest_key*1.2){
+            onFail("Key duration mismatch; disconnecting "+myConn.getHost()+" to recover ("+JSON::Value(longest_key).asString()+" -> "+JSON::Value(dur).asString()+")", true);
+            return;
+          }else{
+            sendOk("Key duration matches upstream");
+          }
           continue;
         }
         WARN_MSG("Unhandled DTCM command: '%s'", dScan.getMember("cmd").asString().c_str());

@@ -295,7 +295,7 @@ void Controller::SharedMemStats(void *config){
         while (cpustat.getline(line, 300)){
           static unsigned long long cl_total = 0, cl_idle = 0;
           unsigned long long c_user, c_nice, c_syst, c_idle, c_total;
-          if (sscanf(line, "cpu %Lu %Lu %Lu %Lu", &c_user, &c_nice, &c_syst, &c_idle) == 4){
+          if (sscanf(line, "cpu %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 "", &c_user, &c_nice, &c_syst, &c_idle) == 4){
             c_total = c_user + c_nice + c_syst + c_idle;
             if (c_total > cl_total){
               cpu_use = (long long)(1000 - ((c_idle - cl_idle) * 1000) / (c_total - cl_total));

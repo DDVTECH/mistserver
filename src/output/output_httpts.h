@@ -28,7 +28,6 @@ namespace Mist{
     std::string prepend;
     // Defaults to True. When exporting to .m3u8 & TS, it will overwrite the existing playlist file and remove existing .TS files
     bool removeOldPlaylistFiles;
-    // lastTime of previous segment
     uint64_t previousTimestamp;
   };
 }// namespace Mist

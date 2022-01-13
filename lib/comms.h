@@ -36,7 +36,7 @@ namespace Comms{
   class Comms{
   public:
     Comms();
-    ~Comms();
+    virtual ~Comms();
     operator bool() const;
     void reload(const std::string & prefix, size_t baseSize, bool _master = false, bool reIssue = false);
     virtual void addFields();

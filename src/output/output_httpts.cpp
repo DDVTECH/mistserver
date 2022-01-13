@@ -224,6 +224,36 @@ namespace Mist{
     wantRequest = false;
   }
 
+  /// \brief Goes through all of the packets in a TS file in order to calculate the total duration
+  /// \param firstTime: is set to the firstTime of the TS file
+  float OutHTTPTS::calculateSegmentDuration(std::string filepath, uint64_t & firstTime){
+    firstTime = -1;
+    uint64_t lastTime = 0;
+    FILE *inFile;
+    TS::Packet packet;
+    DTSC::Packet headerPack;
+    TS::Stream tsStream;
+
+    inFile = fopen(filepath.c_str(), "r");
+    while (!feof(inFile)){
+      if (!packet.FromFile(inFile)){
+        break;
+      }
+      tsStream.parse(packet, 0);
+      while (tsStream.hasPacketOnEachTrack()){
+        tsStream.getEarliestPacket(headerPack);
+        lastTime = headerPack.getTime();
+        if (firstTime > lastTime){
+          firstTime = headerPack.getTime();
+        }
+        DONTEVEN_MSG("Found DTSC packet with timestamp '%" PRIu64 "'", lastTime);
+      }
+    }
+    fclose(inFile);
+    HIGH_MSG("Duration of TS file at location '%s' is %" PRIu64 " ms (%" PRIu64 " - %" PRIu64 ")", filepath.c_str(), (lastTime - firstTime), lastTime, firstTime);
+    return (lastTime - firstTime);
+  }
+
   void OutHTTPTS::sendHeader(){
     bool writeTimestamp = true;
     if (!previousTimestamp && lastPacketTime != 0xFFFFFFFFFFFFFFFFull){ previousTimestamp = lastPacketTime; }
@@ -252,7 +282,7 @@ namespace Mist{
           time_t uSecs = unixMs/1000;
           struct tm *tVal = gmtime(&uSecs);
           char UTCTime[25];
-          snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3zuZ", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
+          snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3" PRIu64 "Z", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
           
           plsConn.SendNow(std::string("#EXT-X-PROGRAM-DATE-TIME:") + UTCTime + "\n");
           writeTimestamp = false;
@@ -264,7 +294,7 @@ namespace Mist{
         time_t uSecs = unixMs/1000;
         struct tm *tVal = gmtime(&uSecs);
         char UTCTime[25];
-        snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3zuZ", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
+        snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3" PRIu64 "Z", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
         
         plsConn.SendNow(std::string("#EXT-X-PROGRAM-DATE-TIME:") + UTCTime + "\n");
       }

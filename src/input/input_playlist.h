@@ -23,7 +23,6 @@ namespace Mist{
     std::string currentSource;
     size_t playlistIndex;
     size_t minIndex, maxIndex;
-    bool seenValidEntry;
     uint32_t wallTime;
     uint32_t reloadOn;
   };

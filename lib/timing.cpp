@@ -110,8 +110,17 @@ std::string Util::getUTCString(uint64_t epoch){
   struct tm *ptm;
   ptm = gmtime(&rawtime);
   char result[20];
-  snprintf(result, 20, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d", ptm->tm_year + 1900, ptm->tm_mon + 1,
-           ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  snprintf(result, 20, "%.4u-%.2u-%.2uT%.2u:%.2u:%.2u", (ptm->tm_year + 1900)%10000, (ptm->tm_mon + 1)%100, ptm->tm_mday%100, ptm->tm_hour%100, ptm->tm_min%100, ptm->tm_sec%100);
+  return std::string(result);
+}
+
+std::string Util::getUTCStringMillis(uint64_t epoch_millis){
+  if (!epoch_millis){epoch_millis = unixMS();}
+  time_t rawtime = epoch_millis/1000;
+  struct tm *ptm;
+  ptm = gmtime(&rawtime);
+  char result[25];
+  snprintf(result, 25, "%.4u-%.2u-%.2uT%.2u:%.2u:%.2u.%.3uZ", (ptm->tm_year + 1900)%10000, (ptm->tm_mon + 1)%100, ptm->tm_mday%100, ptm->tm_hour%100, ptm->tm_min%100, ptm->tm_sec%100, (unsigned int)(epoch_millis%1000));
   return std::string(result);
 }
 

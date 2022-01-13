@@ -13,8 +13,8 @@ namespace HTTP{
   class URL{
   public:
     URL(const std::string &url = "");
-    uint32_t getPort() const;
-    uint32_t getDefaultPort() const;
+    uint16_t getPort() const;
+    uint16_t getDefaultPort() const;
     std::string getExt() const;
     std::string getUrl() const;
     std::string getFilePath() const;

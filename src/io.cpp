@@ -437,7 +437,7 @@ namespace Mist{
         if (tPages.getInt("avail", curPage) > FLIP_DATA_PAGE_SIZE || packTime - prevPageTime > FLIP_TARGET_DURATION){
           // Create the book keeping data for the new page
           curPageNum[packTrack] = tPages.getInt("firstkey", curPage) + tPages.getInt("keycount", curPage);
-          DONTEVEN_MSG("Live page transition from %" PRIu32 ":%zu to %" PRIu32 ":%zu", packTrack,
+          DONTEVEN_MSG("Live page transition from %" PRIu32 ":%" PRIu64 " to %" PRIu32 ":%zu", packTrack,
                   tPages.getInt("firstkey", curPage), packTrack, curPageNum[packTrack]);
 
           if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
@@ -460,7 +460,7 @@ namespace Mist{
           }
         }
       }
-      DONTEVEN_MSG("Setting page %lu lastkeyTime to '%lu' and keycount to '%lu'", tPages.getInt("firstkey", curPage), packTime, tPages.getInt("keycount", curPage) + 1);
+      DONTEVEN_MSG("Setting page %" PRIu64 " lastkeyTime to %" PRIu64 " and keycount to %" PRIu64, tPages.getInt("firstkey", curPage), packTime, tPages.getInt("keycount", curPage) + 1);
       tPages.setInt("lastkeytime", packTime, curPage);
       tPages.setInt("keycount", tPages.getInt("keycount", curPage) + 1, curPage);
     }

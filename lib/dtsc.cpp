@@ -2124,7 +2124,7 @@ namespace DTSC{
   uint64_t Meta::getBufferWindow() const{return stream.getInt(streamBufferWindowField);}
 
   void Meta::setBootMsOffset(int64_t bootMsOffset){
-    DONTEVEN_MSG("Setting streamBootMsOffsetField to '%ld'", bootMsOffset);
+    DONTEVEN_MSG("Setting streamBootMsOffsetField to %" PRId64, bootMsOffset);
     stream.setInt(streamBootMsOffsetField, bootMsOffset);
   }
   int64_t Meta::getBootMsOffset() const{return stream.getInt(streamBootMsOffsetField);}
@@ -3190,7 +3190,7 @@ namespace DTSC{
       if (pages.getInt(firsttime, i) > time){break;}
       res = i;
     }
-    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %zu", time, idx, pages.getInt("firstkey", res));
+    DONTEVEN_MSG("Page number for time %" PRIu64 " on track %" PRIu32 " can be found on page %" PRIu64, time, idx, pages.getInt("firstkey", res));
     return pages.getInt("firstkey", res);
   }
 

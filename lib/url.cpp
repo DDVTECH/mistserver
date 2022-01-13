@@ -151,13 +151,13 @@ HTTP::URL::URL(const std::string &url){
 }
 
 /// Returns the port in numeric format
-uint32_t HTTP::URL::getPort() const{
+uint16_t HTTP::URL::getPort() const{
   if (!port.size()){return getDefaultPort();}
   return atoi(port.c_str());
 }
 
 /// Returns the default port for the protocol in numeric format
-uint32_t HTTP::URL::getDefaultPort() const{
+uint16_t HTTP::URL::getDefaultPort() const{
   if (protocol == "http"){return 80;}
   if (protocol == "https"){return 443;}
   if (protocol == "ws"){return 80;}

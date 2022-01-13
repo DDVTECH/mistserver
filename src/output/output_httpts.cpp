@@ -229,11 +229,11 @@ namespace Mist{
         if (firstTime > lastTime){
           firstTime = headerPack.getTime();
         }
-        DONTEVEN_MSG("Found DTSC packet with timestamp '%zu'", lastTime);
+        DONTEVEN_MSG("Found DTSC packet with timestamp %" PRIu64, lastTime);
       }
     }
     fclose(inFile);
-    HIGH_MSG("Duration of TS file at location '%s' is %zu ms (%zu - %zu)", filepath.c_str(), (lastTime - firstTime), lastTime, firstTime);
+    HIGH_MSG("Duration of TS file at location '%s' is " PRETTY_PRINT_MSTIME " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ")", filepath.c_str(), PRETTY_ARG_MSTIME(lastTime - firstTime), PRETTY_ARG_MSTIME(lastTime), PRETTY_ARG_MSTIME(firstTime));
     return (lastTime - firstTime);
   }
 
@@ -258,12 +258,7 @@ namespace Mist{
         // Add current livestream timestamp
         if (M.getLive()){
           uint64_t unixMs = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS()) + firstTime;
-          time_t uSecs = unixMs/1000;
-          struct tm *tVal = gmtime(&uSecs);
-          char UTCTime[25];
-          snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3zuZ", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
-          
-          outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << UTCTime << std::endl;
+          outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << Util::getUTCStringMillis(unixMs) << std::endl;
           writeTimestamp = false;
         }
       // Otherwise open it in append mode
@@ -274,12 +269,7 @@ namespace Mist{
       // Add current timestamp
       if (M.getLive() && writeTimestamp){
         uint64_t unixMs = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS()) + firstTime;
-        time_t uSecs = unixMs/1000;
-        struct tm *tVal = gmtime(&uSecs);
-        char UTCTime[25];
-        snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3zuZ", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
-        
-        outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << UTCTime << std::endl;
+        outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << Util::getUTCStringMillis(unixMs) << std::endl;
       }
       INFO_MSG("Adding new segment of %.2f seconds to playlist '%s'", segmentDuration, playlistLocation.c_str());
       // Append duration & TS filename to playlist file

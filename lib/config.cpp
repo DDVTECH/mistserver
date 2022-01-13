@@ -743,7 +743,7 @@ std::string Util::getMyPath(){
 #ifdef __APPLE__
   memset(mypath, 0, 500);
   unsigned int refSize = 500;
-  int ret = _NSGetExecutablePath(mypath, &refSize);
+  _NSGetExecutablePath(mypath, &refSize);
 #else
   int ret = readlink("/proc/self/exe", mypath, 500);
   if (ret != -1){

@@ -113,7 +113,7 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
   }
   if (codec == "AAC"){return "mp4a.40.2";}
   if (codec == "MP3"){return "mp4a.40.34";}
-  if (codec == "AC3"){return "ec-3";}
+  if (codec == "AC3"){return "mp4a.a5";}
   return "";
 }
 

@@ -572,6 +572,7 @@ namespace RTP{
     //Update wanted counter if we passed it (2 of 2)
     if ((int16_t)(rtpWSeq - rtpSeq) < 0){rtpWSeq = rtpSeq;}
   }
+    toDTSC::~toDTSC(){};
 
   toDTSC::toDTSC(){
     wrapArounds = 0;

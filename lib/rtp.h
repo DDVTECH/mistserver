@@ -133,6 +133,7 @@ namespace RTP{
   class toDTSC{
   public:
     toDTSC();
+    virtual ~toDTSC();
     void setProperties(const uint64_t track, const std::string &codec, const std::string &type,
                        const std::string &init, const double multiplier);
     void setProperties(const DTSC::Meta &M, size_t tid);

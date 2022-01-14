@@ -603,6 +603,7 @@ namespace SDP{
     SDP::Media *currMedia = NULL;
     std::stringstream ss(sdp);
     std::string line;
+    bool mozilla = false;
 
     while (std::getline(ss, line, '\n')){
 
@@ -611,6 +612,7 @@ namespace SDP{
       if (line.empty()){
         continue;
       }
+      if (line.find("mozilla") != std::string::npos){mozilla = true;}
 
       // Parse session (or) media data.
       else if (line.substr(0, 2) == "m="){
@@ -662,6 +664,8 @@ namespace SDP{
         sdp_get_attribute_value(line, currMedia->mediaID);
       }else if (line.substr(0, 7) == "a=ssrc:"){
         currMedia->parseSSRCLine(line);
+      }else if (mozilla && line.substr(0, 9) == "a=extmap:"){
+        currMedia->extmap.insert(line);
       }
     }// while
 
@@ -1022,7 +1026,14 @@ namespace SDP{
       }else if (fmtMedia->encodingName == "OPUS"){
         addLine("a=fmtp:%u minptime=10;useinbandfec=1", fmtMedia->payloadType);
       }
-
+      //hacky way of adding sdes:mid extension line
+      if (isVideoEnabled && isAudioEnabled){
+        for (std::set<std::string>::iterator it = media->extmap.begin(); it != media->extmap.end(); ++it){
+          if (it->find("sdes:mid") != std::string::npos){
+            addLine(*it);
+          }
+        }
+      }
       addLine("a=candidate:1 1 udp 2130706431 %s %u typ host", candidateIP.c_str(), candidatePort);
       addLine("a=end-of-candidates");
     }

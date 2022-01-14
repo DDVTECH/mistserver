@@ -131,6 +131,7 @@ namespace SDP{
     bool supportsRTCPMux; ///< From `a=rtcp-mux`, indicates if it can mux RTP and RTCP on one
                           ///< transport channel.
     bool supportsRTCPReducedSize; ///< From `a=rtcp-rsize`, reduced size RTCP packets.
+    std::set<std::string> extmap;
     std::string payloadTypes; ///< From `m=` line, all the payload types as string, separated by space.
     std::map<uint64_t, MediaFormat> formats; ///< Formats indexed by payload type. Payload type is the number in the <fmt>
                                              ///< field(s) from the `m=` line.

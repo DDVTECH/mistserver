@@ -411,13 +411,13 @@ namespace Mist{
           aMeta.resizeTrack(packTrack, aMeta.fragments(packTrack).getRCount(), aMeta.keys(packTrack).getRCount(), aMeta.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
         }
 
-        tPages.addRecords(1);
+        curPage = endPage;
         tPages.setInt("firstkey", curPageNum[packTrack], endPage);
         tPages.setInt("firsttime", packTime, endPage);
         tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
         tPages.setInt("keycount", 0, endPage);
         tPages.setInt("avail", 0, endPage);
-        curPage = endPage;
+        tPages.addRecords(1);
         DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
         if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack], aMeta)){
           // if this fails, return instantly without actually buffering the packet
@@ -437,13 +437,13 @@ namespace Mist{
             aMeta.resizeTrack(packTrack, aMeta.fragments(packTrack).getRCount(), aMeta.keys(packTrack).getRCount(), aMeta.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
           }
 
-          tPages.addRecords(1);
+          curPage = endPage;
           tPages.setInt("firstkey", curPageNum[packTrack], endPage);
           tPages.setInt("firsttime", packTime, endPage);
           tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
           tPages.setInt("keycount", 0, endPage);
           tPages.setInt("avail", 0, endPage);
-          curPage = endPage;
+          tPages.addRecords(1);
           if (livePage[packTrack]){bufferFinalize(packTrack, livePage[packTrack]);}
           DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
           if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack], aMeta)){

@@ -228,10 +228,11 @@ namespace Mist{
                 if (S.lastPacket >= statSinkMs){statSinkMs = S.lastPacket;}
               }
               trackId = (S.ID << 16) + thisPacket.getTrackId();
-              size_t idx = M.trackIDToIndex(trackId, getpid());
-              if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
+              thisIdx = M.trackIDToIndex(trackId, getpid());
+              if (thisIdx == INVALID_TRACK_ID || !M.getCodec(thisIdx).size()){
                 INFO_MSG("Initializing track %zi as %" PRIu64 " for playlist %zu", thisPacket.getTrackId(), trackId, S.ID);
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
+                thisIdx = M.trackIDToIndex(trackId, getpid());
               }
             }
             if (S.byteOffset >= S.data.size() && !S.S.hasPacket()){
@@ -254,7 +255,8 @@ namespace Mist{
         //overwrite trackID
         Bit::htobl(data + 8, trackId);
         //overwrite packettime
-        Bit::htobll(data + 12, thisPacket.getTime() + timeOffset);
+        thisTime = thisPacket.getTime() + timeOffset;
+        Bit::htobll(data + 12, thisTime);
       }
     }
     bool checkArguments(){return true;}

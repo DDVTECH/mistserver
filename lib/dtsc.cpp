@@ -3233,7 +3233,6 @@ namespace DTSC{
       JSON::Value &track = retRef[getTrackIdentifier(i)];
       uint64_t minKeep = getMinKeepAway(*it);
       track["jitter"] = minKeep;
-      if (jitter < minKeep){jitter = minKeep;}
       std::string codec = getCodec(i);
       std::string type = getType(i);
       track["kbits"] = getBps(i) * 8 / 1024;
@@ -3266,16 +3265,26 @@ namespace DTSC{
       track["keys"]["frames_max"] = longest_cnt;
       uint64_t trBuffer = getLastms(i) - getFirstms(i);
       track["buffer"] = trBuffer;
+      size_t srcTrk = getSourceTrack(i);
+      if (srcTrk != INVALID_TRACK_ID){
+        if (trackValid(srcTrk)){
+          track["source"] = getTrackIdentifier(srcTrk);
+        }else{
+          track["source"] = "Invalid track " + JSON::Value(srcTrk).asString();
+        }
+      }else{
+        if (jitter < minKeep){jitter = minKeep;}
+        if (longest_prt > 500){
+          issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
+        }
+        if (shrtest_cnt < 6){
+          issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
+        }
+        if (longest_key > shrtest_key*1.30){
+          issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
+        }
+      }
       if (buffer < trBuffer){buffer = trBuffer;}
-      if (longest_prt > 500){
-        issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
-      }
-      if (shrtest_cnt < 6){
-        issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
-      }
-      if (longest_key > shrtest_key*1.30){
-        issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
-      }
       if (codec == "AAC"){hasAAC = true;}
       if (codec == "H264"){hasH264 = true;}
       if (type == "video"){

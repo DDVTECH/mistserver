@@ -33,6 +33,7 @@ Util::Config conf;
 
 size_t insertTurn = 0;
 bool isStuck = false;
+size_t sourceIndex = INVALID_TRACK_ID;
 
 namespace Mist{
 
@@ -134,6 +135,7 @@ namespace Mist{
       }
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
       if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video" && (thisTime - presegs[currPreSeg].time) >= 1000){
+        sourceIndex = getMainSelectedTrack();
         if (presegs[currPreSeg].data.size() > 187){
           presegs[currPreSeg].keyNo = keyCount;
           presegs[currPreSeg].width = M.getWidth(thisIdx);
@@ -233,6 +235,7 @@ namespace Mist{
                 INFO_MSG("Initializing track %zi as %" PRIu64 " for playlist %zu", thisPacket.getTrackId(), trackId, S.ID);
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
                 thisIdx = M.trackIDToIndex(trackId, getpid());
+                meta.setSourceTrack(thisIdx, sourceIndex);
               }
             }
             if (S.byteOffset >= S.data.size() && !S.S.hasPacket()){

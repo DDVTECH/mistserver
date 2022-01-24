@@ -143,14 +143,16 @@ namespace Mist{
     ptr.truncate(0);
     readingMinimal = true;
     uint32_t needed = EBML::Element::needBytes(ptr, ptr.size(), readingMinimal);
-    while (ptr.size() < needed){
+    while (ptr.size() < needed && config->is_active){
       if (!ptr.allocate(needed)){return false;}
       int64_t toRead = needed - ptr.size();
       int readResult = 0;
       while (!readResult){
         readResult = fread(ptr + ptr.size(), toRead, 1, inFile);
         if (!readResult){
-          if (errno == EINTR){continue;}
+          if (errno == EINTR){
+            continue;
+          }
           // At EOF we don't print a warning
           if (!feof(inFile)){
             FAIL_MSG("Could not read more data! (have %zu, need %" PRIu32 ")", ptr.size(), needed);
@@ -436,7 +438,7 @@ namespace Mist{
             frameSize = assStr.size();
           }
           if (frameSize){
-            TP.add(newTime * timeScale, idx, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
+            TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos, B.isKeyframe() && !isAudio, isVideo);
           }
         }
         while (TP.hasPackets()){
@@ -477,8 +479,9 @@ namespace Mist{
   }
 
   void InputEBML::fillPacket(packetData &C){
+    thisIdx = M.trackIDToIndex(C.track, getpid());
     if (swapEndianness.count(C.track)){
-      switch (M.getSize(M.trackIDToIndex(C.track, getpid()))){
+      switch (M.getSize(thisIdx)){
       case 16:{
         char *ptr = C.ptr;
         uint32_t ptrSize = C.dsize;
@@ -514,7 +517,6 @@ namespace Mist{
     thisPacket.genericFill(C.time, C.offset, C.track, C.ptr, C.dsize,
                            C.bpos, C.key);
     thisTime = C.time;
-    thisIdx = C.track;
   }
 
   void InputEBML::getNext(size_t idx){
@@ -613,7 +615,7 @@ namespace Mist{
           memcpy(ptr, assStr.data(), frameSize);
         }
         if (frameSize){
-          TP.add(newTime * timeScale, thisIdx, frameSize, lastClusterBPos,
+          TP.add(newTime * timeScale, tNum, frameSize, lastClusterBPos,
                  B.isKeyframe() && !isAudio, isVideo, (void *)ptr);
           ++bufferedPacks;
         }

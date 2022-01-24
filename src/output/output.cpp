@@ -1493,9 +1493,16 @@ namespace Mist{
   }
 
   void Output::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
-    if (!userSelect.count(trackId)){return;}
+    //We can drop from the buffer without any checks, it's a no-op if no entry exists
+    buffer.dropTrack(trackId);
     // depending on whether this is probably bad and the current debug level, print a message
     size_t printLevel = (probablyBad ? DLVL_WARN : DLVL_INFO);
+    //The rest of the operations depends on userSelect, so we ignore it if it doesn't exist.
+    if (!userSelect.count(trackId)){
+      DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
+                meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+      return;
+    }
     const Comms::Users &usr = userSelect.at(trackId);
     if (!usr){
       DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
@@ -1505,8 +1512,6 @@ namespace Mist{
                 meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
                 pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
     }
-    // now actually drop the track from the buffer
-    buffer.dropTrack(trackId);
     userSelect.erase(trackId);
   }
 

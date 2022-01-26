@@ -1021,6 +1021,23 @@ p.prototype.build = function (MistVideo,callback) {
         } catch (e) {  }
       });
       player.ws.close();
+    },
+    setSubtitle: function(trackmeta) {
+      //remove previous subtitles
+      var tracks = video.getElementsByTagName("track");
+      for (var i = tracks.length - 1; i >= 0; i--) {
+        video.removeChild(tracks[i]);
+      }
+      if (trackmeta) { //if the chosen track exists
+        //add the new one
+        var track = document.createElement("track");
+        video.appendChild(track);
+        track.kind = "subtitles";
+        track.label = trackmeta.label;
+        track.srclang = trackmeta.lang;
+        track.src = trackmeta.src;
+        track.setAttribute("default","");
+      }
     }
   };
  

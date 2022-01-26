@@ -1536,7 +1536,7 @@ MistSkins["default"] = {
             for (var i in MistVideo.info.source) {
               var source = MistVideo.info.source[i];
               //this is a subtitle source, and it's the same protocol (HTTP/HTTPS) as the video source
-              if ((source.type == "html5/text/vtt") && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol)) {
+              if ((source.type == "html5/text/vtt") && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol.replace(/^ws/,"http"))) {
                 subtitleSource = source.url.replace(/.srt$/,".vtt");
                 break;
               }

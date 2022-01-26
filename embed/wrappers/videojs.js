@@ -193,52 +193,53 @@ p.prototype.build = function (MistVideo,callback) {
         //MistVideo.video.currentTime = value;
       };
       
+      //get first and lastms
+      var lastms = 0;
+      var firstms = Infinity;
+      for (var i in MistVideo.info.meta.tracks) {
+        lastms = Math.max(lastms,MistVideo.info.meta.tracks[i].lastms);
+        firstms = Math.min(firstms,MistVideo.info.meta.tracks[i].firstms);
+      }
+      //correct the currentTime timestamp
+      var correction = firstms*1e-3;
+
+      overrides.get.duration = function(){
+        if (MistVideo.info) {
+          var duration = ele.duration;
+          return duration + correction;
+        }
+        return 0;
+      };
+      
+      MistUtil.event.addListener(ele,"progress",function(){
+        MistVideo.player.api.lastProgress = new Date();
+      });
+      overrides.set.currentTime = function(value){
+        var diff = MistVideo.player.api.currentTime - value;
+        var offset = value - MistVideo.player.api.duration;
+        
+        MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
+        MistVideo.player.videojs.currentTime(MistVideo.video.currentTime - diff);
+      }
+      overrides.get.currentTime = function(){
+        var time = MistVideo.player.videojs ? MistVideo.player.videojs.currentTime() : ele.currentTime;
+        if (isNaN(time)) { return 0; }
+        return time + correction;
+      }
+      overrides.get.buffered = function(){
+        var buffered = MistVideo.player.videojs ? MistVideo.player.videojs.buffered() : ele.buffered;
+        return {
+          length: buffered.length,
+          start: function(i) { return buffered.start(i) + correction; },
+          end: function(i) { return buffered.end(i) + correction; }
+        }
+      };
+
       if (MistVideo.info.type == "live") {
 
-        function getLastBuffer(video) {
-          var buffer_end = 0;
-          if (video.buffered.length) {
-            buffer_end = video.buffered.end(video.buffered.length-1)
-          }
-          return buffer_end;
-        }
-        var HLSlatency = 0; //best guess..
-        
-        overrides.get.duration = function(){
-          if (MistVideo.info) {
-            var duration = ele.duration;
-            return duration;
-          }
-          return 0;
-        };
         MistVideo.player.api.lastProgress = new Date();
         MistVideo.player.api.liveOffset = 0;
-        
-        MistUtil.event.addListener(ele,"progress",function(){
-          MistVideo.player.api.lastProgress = new Date();
-        });
-        overrides.set.currentTime = function(value){
-          var diff = MistVideo.player.api.currentTime - value;
-          var offset = value - MistVideo.player.api.duration;
-          
-          MistVideo.log("Seeking to "+MistUtil.format.time(value)+" ("+Math.round(offset*-10)/10+"s from live)");
-          MistVideo.player.videojs.currentTime(MistVideo.video.currentTime - diff);
-        }
-        var lastms = 0;
-        overrides.get.currentTime = function(){
-          if (MistVideo.info) { lastms = MistVideo.info.lastms*1e-3; }
-          var time = MistVideo.player.videojs ? MistVideo.player.videojs.currentTime() : ele.currentTime;
-          if (isNaN(time)) { return 0; }
-          return time;
-        }
-        overrides.get.buffered = function(){
-          var buffered = MistVideo.player.videojs ? MistVideo.player.videojs.buffered() : ele.buffered;
-          return {
-            length: buffered.length,
-            start: function(i) { return buffered.start(i); },
-            end: function(i) { return buffered.end(i); i}
-          }
-        };
+
       }
     }
     else {

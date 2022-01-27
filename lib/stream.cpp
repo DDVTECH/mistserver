@@ -1140,6 +1140,15 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 
   // Video-specific matches
   if (!trackType.size() || trackType == "video"){
+    //All tracks containing bframes
+    if (trackLow == "bframes"){
+      for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
+        if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+          if (M.hasBFrames(*it)){result.insert(*it);}
+        }
+      }
+      return result;
+    }
     //Highest resolution
     if (trackLow == "highres" || trackLow == "bestres" || trackLow == "maxres"){
       //Select highest resolution track of this type

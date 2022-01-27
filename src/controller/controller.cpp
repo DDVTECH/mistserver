@@ -614,13 +614,18 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   raise(SIGINT); // trigger restart
 }
 
+void handleUSR1Parent(int signum, siginfo_t *sigInfo, void *ignore){
+  Controller::Log("CONF", "USR1 received - passing on to child");
+  Util::Config::is_restarting = true;
+}
+
 ///\brief The controller angel process.
 /// Starts a forked main_loop in a loop. Yes, you read that right.
 int main(int argc, char **argv){
   Util::Procs::setHandler(); // set child handler
   {
     struct sigaction new_action;
-    new_action.sa_sigaction = handleUSR1;
+    new_action.sa_sigaction = handleUSR1Parent;
     sigemptyset(&new_action.sa_mask);
     new_action.sa_flags = 0;
     sigaction(SIGUSR1, &new_action, NULL);
@@ -663,11 +668,11 @@ int main(int argc, char **argv){
       continue;
     }
     // if the exit was clean, don't restart it
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0 && !Util::Config::is_restarting)){
       MEDIUM_MSG("Controller shut down cleanly");
       break;
     }
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 42)){
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 42 || Util::Config::is_restarting)){
       WARN_MSG("Refreshing angel process for update");
       std::string myFile = Util::getMyPath() + "MistController";
       execvp(myFile.c_str(), argv);

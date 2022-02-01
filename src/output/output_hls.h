@@ -13,17 +13,18 @@ namespace Mist{
     bool isReadyForPlay();
     virtual void onFail(const std::string &msg, bool critical = false);
     virtual std::string getStatsName(){return Output::getStatsName();}
+
   protected:
     std::string h264init(const std::string &initData);
     std::string h265init(const std::string &initData);
 
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
-    std::string liveIndex();
-    std::string liveIndex(size_t tid, const std::string &sessId);
 
-    size_t vidTrack;
-    size_t audTrack;
-    uint64_t until;
+    void sendHlsManifest(const std::string url);
+    void sendHlsMasterManifest();
+    void sendHlsMediaManifest(const size_t requestTid);
+
+    uint64_t targetTime;
   };
 }// namespace Mist
 

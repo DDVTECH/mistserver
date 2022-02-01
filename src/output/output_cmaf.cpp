@@ -1,76 +1,86 @@
 #include "output_cmaf.h"
-#include <iomanip>
 #include <mist/bitfields.h>
 #include <mist/checksum.h>
 #include <mist/cmaf.h>
-#include <mist/defines.h>
-#include <mist/encode.h>
-#include <mist/langcodes.h> /*LTS*/
-#include <mist/mp4.h>
-#include <mist/mp4_dash.h>
-#include <mist/mp4_encryption.h>
-#include <mist/mp4_generic.h>
-#include <mist/stream.h>
-#include <mist/timing.h>
+// #include <mist/defines.h>
+// #include <mist/encode.h>
+#include <mist/hls_support.h>
+// #include <mist/mp4.h>
+// #include <mist/mp4_dash.h>
+// #include <mist/mp4_encryption.h>
+// #include <mist/mp4_generic.h>
+// #include <mist/timing.h>
 
-uint64_t bootMsOffset;
+int64_t bootMsOffset; // boot time in ms
+uint64_t systemBoot;  // time since boot in ms
+const std::string hlsMediaFormat = ".m4s";
+
 uint64_t cmafBoot = Util::bootSecs();
 uint64_t dataUp = 0;
 uint64_t dataDown = 0;
 
 namespace Mist{
-  void CMAFPushTrack::connect(std::string debugParam) {
+  void CMAFPushTrack::connect(std::string debugParam){
     D.setHeader("Transfer-Encoding", "chunked");
     D.prepareRequest(url, "POST");
 
-    HTTP::Parser & http = D.getHTTP();
+    HTTP::Parser &http = D.getHTTP();
     http.sendingChunks = true;
     http.SendRequest(D.getSocket());
 
     if (debugParam.length()){
-      if (debugParam[debugParam.length()-1] != '/'){
-        debugParam += '/';
-      }
+      if (debugParam[debugParam.length() - 1] != '/'){debugParam += '/';}
       debug = true;
       std::string filename = url.getUrl();
-      filename.erase(0, filename.rfind("/")+1);
-      snprintf(debugName, 500, "%s%s-%" PRIu64, debugParam.c_str(), filename.c_str(), Util::bootMS());
+      filename.erase(0, filename.rfind("/") + 1);
+      snprintf(debugName, 500, "%s%s-%" PRIu64, debugParam.c_str(), filename.c_str(),
+               Util::bootMS());
       INFO_MSG("CMAF DEBUG FILE: %s", debugName);
       debugFile = fopen(debugName, "wb");
     }
   }
 
-  void CMAFPushTrack::disconnect() {
-    Socket::Connection & sock = D.getSocket();
+  void CMAFPushTrack::disconnect(){
+    Socket::Connection &sock = D.getSocket();
 
     MP4::MFRA mfraBox;
     send(mfraBox.asBox(), mfraBox.boxedSize());
     send("");
     sock.close();
 
-    if (debugFile) {
+    if (debugFile){
       fclose(debugFile);
       debugFile = 0;
     }
   }
 
-  void CMAFPushTrack::send(const char * data, size_t len){
+  void CMAFPushTrack::send(const char *data, size_t len){
     uint64_t preUp = D.getSocket().dataUp();
     uint64_t preDown = D.getSocket().dataDown();
     D.getHTTP().Chunkify(data, len, D.getSocket());
-    if (debug && debugFile) {
-      fwrite(data, 1, len, debugFile);
-
-    }
+    if (debug && debugFile){fwrite(data, 1, len, debugFile);}
     dataUp += D.getSocket().dataUp() - preUp;
     dataDown += D.getSocket().dataDown() - preDown;
   }
 
-  void CMAFPushTrack::send(const std::string & data){
-    send(data.data(), data.size());
+  void CMAFPushTrack::send(const std::string &data){send(data.data(), data.size());}
+
+  bool OutCMAF::isReadyForPlay(){
+    if (!isInitialized){initialize();}
+    meta.reloadReplacedPagesIfNeeded();
+    if (!M.getValidTracks().size()){return false;}
+    uint32_t mainTrack = M.mainTrack();
+    if (mainTrack == INVALID_TRACK_ID){return false;}
+    DTSC::Fragments fragments(M.fragments(mainTrack));
+    return fragments.getValidCount() > 6;
   }
 
   OutCMAF::OutCMAF(Socket::Connection &conn) : HTTPOutput(conn){
+    // load from global config
+    systemBoot = Util::getGlobalConfig("systemBoot").asInt();
+    // fall back to local calculation if loading from global config fails
+    if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
+
     uaDelay = 0;
     realTime = 0;
     if (config->getString("target").size()){
@@ -78,32 +88,36 @@ namespace Mist{
 
       streamName = config->getString("streamname");
       std::string target = config->getString("target");
-      target.replace(0, 4, "http");//Translate to http for cmaf:// or https for cmafs://
+      target.replace(0, 4, "http"); // Translate to http for cmaf:// or https for cmafs://
       pushUrl = HTTP::URL(target);
 
-      INFO_MSG("About to push stream %s out. Host: %s, port: %d, location: %s", streamName.c_str(),
-               pushUrl.host.c_str(), pushUrl.getPort(), pushUrl.path.c_str());
+      INFO_MSG("About to push stream %s out. Host: %s, port: %" PRIu32 ", location: %s",
+               streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), pushUrl.path.c_str());
       initialize();
       initialSeek();
       startPushOut();
+    }else{
+      realTime = 0;
     }
   }
 
   void OutCMAF::connStats(uint64_t now, Comms::Statistics &statComm){
-    //For non-push usage, call usual function.
+    // For non-push usage, call usual function.
     if (!isRecording()){
       Output::connStats(now, statComm);
       return;
     }
-    //For push output, this data is not coming from the usual place as we have multiple connections to worry about.
+    // For push output, this data is not coming from the usual place as we have multiple
+    // connections to worry about.
     statComm.setUp(dataUp);
     statComm.setDown(dataDown);
     statComm.setTime(now - cmafBoot);
   }
 
-  //Properly end all tracks on shutdown.
-  OutCMAF::~OutCMAF() {
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+  // Properly end all tracks on shutdown.
+  OutCMAF::~OutCMAF(){
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end();
+         it++){
       onTrackEnd(it->first);
     }
   }
@@ -145,6 +159,18 @@ namespace Mist{
     // MP3 does not work in browsers
     capa["exceptions"]["codec:MP3"] = JSON::fromString("[[\"blacklist\",[\"Mozilla/\"]]]");
 
+    cfg->addOption(
+        "listlimit",
+        JSON::fromString(
+            "{\"arg\":\"integer\",\"default\":0,\"short\":\"y\",\"long\":\"list-limit\","
+            "\"help\":\"Maximum number of segments in live playlists (0 = infinite).\"}"));
+    capa["optional"]["listlimit"]["name"] = "Live playlist limit";
+    capa["optional"]["listlimit"]["help"] =
+        "Maximum number of parts in live playlists. (0 = infinite)";
+    capa["optional"]["listlimit"]["default"] = 0;
+    capa["optional"]["listlimit"]["type"] = "uint";
+    capa["optional"]["listlimit"]["option"] = "--list-limit";
+
     cfg->addOption("nonchunked",
                    JSON::fromString("{\"short\":\"C\",\"long\":\"nonchunked\",\"help\":\"Do not "
                                     "send chunked, but buffer whole segments.\"}"));
@@ -153,6 +179,28 @@ namespace Mist{
         "Disables chunked transfer encoding, forcing per-segment buffering. Reduces performance "
         "significantly, but increases compatibility somewhat.";
     capa["optional"]["nonchunked"]["option"] = "--nonchunked";
+
+    cfg->addOption("mergesessions",
+                   JSON::fromString("{\"short\":\"M\",\"long\":\"mergesessions\",\"help\":\"Merge "
+                                    "together sessions from one user into a single session.\"}"));
+    capa["optional"]["mergesessions"]["name"] = "Merge sessions";
+    capa["optional"]["mergesessions"]["help"] =
+        "If enabled, merges together all views from a single user into a single combined session. "
+        "If disabled, each view (main playlist request) is a separate session.";
+    capa["optional"]["mergesessions"]["option"] = "--mergesessions";
+
+    cfg->addOption("chunkpath",
+                   JSON::fromString("{\"arg\":\"string\",\"default\":\"\",\"short\":\"e\",\"long\":"
+                                    "\"chunkpath\",\"help\":\"Alternate URL path to "
+                                    "prepend to chunk paths, for serving through e.g. a CDN\"}"));
+    capa["optional"]["chunkpath"]["name"] = "Prepend path for chunks";
+    capa["optional"]["chunkpath"]["help"] =
+        "Chunks will be served from this path. This also disables sessions IDs for chunks.";
+    capa["optional"]["chunkpath"]["default"] = "";
+    capa["optional"]["chunkpath"]["type"] = "str";
+    capa["optional"]["chunkpath"]["option"] = "--chunkpath";
+    capa["optional"]["chunkpath"]["short"] = "e";
+    capa["optional"]["chunkpath"]["default"] = "";
 
     capa["push_urls"].append("cmaf://*");
     capa["push_urls"].append("cmafs://*");
@@ -165,39 +213,148 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
+  /******************************/
+  /* HLS Manifest Generation */
+  /******************************/
+
+  /// \brief Builds master playlist for (LL)HLS.
+  ///\return The master playlist file for (LL)HLS.
+  void OutCMAF::sendHlsMasterManifest(){
+    selectDefaultTracks();
+
+    std::string sessId = "";
+    if (hasSessionIDs()){
+      std::string ua = UA + JSON::Value(getpid()).asString();
+      crc = checksum::crc32(0, ua.data(), ua.size());
+      sessId = JSON::Value(crc).asString();
+    }
+
+    // check for forced "no low latency" parameter
+    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
+
+    // Populate the struct that will help generate the master playlist
+    const HLS::MasterData masterData ={
+        hasSessionIDs(),
+        noLLHLS,
+        hlsMediaFormat == ".ts",
+        getMainSelectedTrack(),
+        H.GetHeader("User-Agent"),
+        sessId,
+        systemBoot,
+        bootMsOffset,
+    };
+
+    std::stringstream result;
+    HLS::addMasterManifest(result, M, userSelect, masterData);
+
+    H.SetBody(result.str());
+    H.SendResponse("200", "OK", myConn);
+  }
+
+  /// \brief Builds media playlist to (LL)HLS
+  ///\return The media playlist file to (LL)HLS
+  void OutCMAF::sendHlsMediaManifest(const size_t requestTid){
+    const HLS::HlsSpecData hlsSpec ={H.GetVar("_HLS_skip"), H.GetVar("_HLS_msn"),
+                                      H.GetVar("_HLS_part")};
+
+    size_t timingTid = HLS::getTimingTrackId(M, H.GetVar("mTrack"), getMainSelectedTrack());
+
+    // Chunkpath & Session ID logic
+    std::string urlPrefix = "";
+    std::string sessId = "";
+    if (config->getString("chunkpath").size()){
+      urlPrefix = HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl();
+    }else{
+      sessId = H.GetVar("sessId");
+    }
+
+    // check for forced "no low latency" parameter
+    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
+    // override if valid header forces "no low latency"
+    noLLHLS = H.GetHeader("X-Mist-LLHLS").size() ? H.GetHeader("X-Mist-LLHLS") == "0" : noLLHLS;
+
+    const HLS::TrackData trackData ={
+        M.getLive(),
+        M.getType(requestTid) == "video",
+        noLLHLS,
+        hlsMediaFormat,
+        M.getEncryption(requestTid),
+        sessId,
+        timingTid,
+        requestTid,
+        M.biggestFragment(timingTid) / 1000,
+        atol(H.GetVar("iMsn").c_str()),
+        config->getInteger("listlimit"),
+        urlPrefix,
+        systemBoot,
+        bootMsOffset,
+    };
+
+    // Fragment & Key handlers
+    DTSC::Fragments fragments(M.fragments(trackData.timingTrackId));
+    DTSC::Keys keys(M.keys(trackData.timingTrackId));
+
+    uint32_t bprErrCode = HLS::blockPlaylistReload(M, userSelect, trackData, hlsSpec, fragments, keys);
+    if (bprErrCode == 400){
+      H.SendResponse("400", "Bad Request: Invalid LLHLS parameter", myConn);
+      return;
+    }else if (bprErrCode == 503){
+      H.SendResponse("503", "Service Unavailable", myConn);
+      return;
+    }
+
+    HLS::FragmentData fragData;
+    HLS::populateFragmentData(M, userSelect, fragData, trackData, fragments, keys);
+
+    std::stringstream result;
+    HLS::addStartingMetaTags(result, fragData, trackData, hlsSpec);
+    HLS::addMediaFragments(result, M, fragData, trackData, fragments, keys);
+    HLS::addEndingTags(result, M, userSelect, fragData, trackData);
+
+    H.SetBody(result.str());
+    H.SendResponse("200", "OK", myConn);
+  }// namespace Mist
+
+  void OutCMAF::sendHlsManifest(const std::string url){
+    H.setCORSHeaders();
+    H.SetHeader("Content-Type", "application/vnd.apple.mpegurl;version=7"); // for .m3u8
+    H.SetHeader("Cache-Control", "no-store");
+    if (H.method == "OPTIONS" || H.method == "HEAD"){
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      return;
+    }
+
+    if (url.find("/") == std::string::npos){
+      sendHlsMasterManifest();
+    }else{
+      sendHlsMediaManifest(atoll(url.c_str()));
+    }
+  }
+
   void OutCMAF::onHTTP(){
     initialize();
     bootMsOffset = 0;
     if (M.getLive()){bootMsOffset = M.getBootMsOffset();}
 
-    if (H.url.size() < streamName.length() + 7){
-      H.Clean();
+    if (H.url.find('/', 6) == std::string::npos){
       H.SendResponse("404", "Stream not found", myConn);
-      H.Clean();
       return;
     }
 
-    std::string method = H.method;
-    std::string url = H.url.substr(streamName.length() + 7); // Strip /cmaf/<streamname>/ from url
+    // Strip /cmaf/<streamname>/ from url
+    std::string url = H.url.substr(H.url.find('/', 6) + 1);
+    HTTP::URL req(reqUrl);
 
     // Send a dash manifest for any URL with .mpd in the path
-    if (url.find(".mpd") != std::string::npos){
+    if (req.getExt() == "mpd"){
       sendDashManifest();
       return;
     }
 
     // Send a hls manifest for any URL with index.m3u8 in the path
-    if (url.find("index.m3u8") != std::string::npos){
-      size_t loc = url.find("index.m3u8");
-      if (loc == 0){
-        sendHlsManifest();
-        return;
-      }
-      size_t idx = atoll(url.c_str());
-      if (url.find("?") == std::string::npos){
-        sendHlsManifest(idx);
-        return;
-      }
+    if (req.getExt() == "m3u8"){
+      sendHlsManifest(url);
       return;
     }
 
@@ -207,13 +364,24 @@ namespace Mist{
       return;
     }
 
-    H.Clean();
-    H.SetHeader("Content-Type", "video/mp4");
-    H.SetHeader("Cache-Control", "no-cache");
+    const uint64_t msn = atoll(H.GetVar("msn").c_str());
+    const uint64_t dur = atoll(H.GetVar("dur").c_str());
+    const uint64_t mTrack = atoll(H.GetVar("mTrack").c_str());
+
+    H.SetHeader("Content-Type", "video/mp4"); // For .m4s
+    if (hasSessionIDs() && !config->getOption("chunkpath")){
+      H.SetHeader("Cache-Control", "no-store");
+    }else{
+      H.SetHeader("Cache-Control",
+                  "public, max-age=" +
+                      JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
+                      ", immutable");
+      H.SetHeader("Pragma", "");
+      H.SetHeader("Expires", "");
+    }
     H.setCORSHeaders();
-    if (method == "OPTIONS" || method == "HEAD"){
+    if (H.method == "OPTIONS" || H.method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
-      H.Clean();
       return;
     }
 
@@ -222,16 +390,20 @@ namespace Mist{
       idx = atoll(url.c_str() + url.find("Q(") + 2) % 100;
     }
     if (!M.getValidTracks().count(idx)){
-      H.Clean();
       H.SendResponse("404", "Track not found", myConn);
-      H.Clean();
       return;
     }
 
-    if (url.find(".m4s") == std::string::npos){
-      H.Clean();
+    if (url.find(hlsMediaFormat) == std::string::npos){
       H.SendResponse("404", "File not found", myConn);
-      H.Clean();
+      return;
+    }
+
+    if (url.find("init" + hlsMediaFormat) != std::string::npos){
+      std::string headerData = CMAF::trackHeader(M, idx);
+      H.StartResponse(H, myConn, config->getBool("nonchunked"));
+      H.Chunkify(headerData.c_str(), headerData.size(), myConn);
+      H.Chunkify("", 0, myConn);
       return;
     }
 
@@ -239,28 +411,42 @@ namespace Mist{
     userSelect.clear();
     userSelect[idx].reload(streamName, idx);
 
-    H.StartResponse(H, myConn, config->getBool("nonchunked"));
+    uint64_t fragmentIndex;
+    uint64_t startTime;
+    uint32_t part;
 
-    if (url.find("init.m4s") != std::string::npos){
-      std::string headerData = CMAF::trackHeader(M, idx);
-      H.Chunkify(headerData.c_str(), headerData.size(), myConn);
-      H.Chunkify("", 0, myConn);
-      H.Clean();
+    // set targetTime
+    if (sscanf(url.c_str(), "%*d/chunk_%" PRIu64 ".%" PRIu32 ".*", &startTime, &part) == 2){
+      // Logic: calculate targetTime for partial segments
+      targetTime = HLS::getPartTargetTime(M, idx, mTrack, startTime, msn, part);
+      if (!targetTime){
+        H.SendResponse("404", "Partial fragment does not exist", myConn);
+        return;
+      }
+      startTime += part * HLS::partDurationMaxMs;
+      fragmentIndex = M.getFragmentIndexForTime(mTrack, startTime);
+      DEBUG_MSG(5, "partial segment requested: %s st %" PRIu64 " et %" PRIu64, url.c_str(),
+                startTime, targetTime);
+    }else if (sscanf(url.c_str(), "%*d/chunk_%" PRIu64 ".*", &startTime) == 1){
+      // Logic: calculate targetTime for full segments
+      if (M.getVod()){startTime += M.getFirstms(idx);}
+      fragmentIndex = M.getFragmentIndexForTime(mTrack, startTime);
+      targetTime = dur ? startTime + dur : M.getTimeForFragmentIndex(mTrack, fragmentIndex + 1);
+      DEBUG_MSG(5, "full segment requested: %s st %" PRIu64 " et %" PRIu64 " asd", url.c_str(),
+                startTime, targetTime);
+    }else{
+      H.SendResponse("400", "Bad Request: Could not parse the url", myConn);
       return;
     }
+    std::string headerData =
+        CMAF::keyHeader(M, idx, startTime, targetTime, fragmentIndex, false, false);
 
-    uint64_t startTime = atoll(url.c_str() + url.find("/chunk_") + 7);
-    if (M.getVod()){startTime += M.getFirstms(idx);}
-    uint64_t fragmentIndex = M.getFragmentIndexForTime(idx, startTime);
-    targetTime = M.getTimeForFragmentIndex(idx, fragmentIndex + 1);
-
-    std::string headerData = CMAF::fragmentHeader(M, idx, fragmentIndex, false, false);
-    H.Chunkify(headerData.c_str(), headerData.size(), myConn);
-
-    uint64_t mdatSize = 8 + CMAF::payloadSize(M, idx, targetTime, M.getTimeForFragmentIndex(idx, fragmentIndex+1));
+    uint64_t mdatSize = 8 + CMAF::payloadSize(M, idx, startTime, targetTime);
     char mdatHeader[] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
     Bit::htobl(mdatHeader, mdatSize);
 
+    H.StartResponse(H, myConn, config->getBool("nonchunked"));
+    H.Chunkify(headerData.c_str(), headerData.size(), myConn);
     H.Chunkify(mdatHeader, 8, myConn);
 
     seek(startTime);
@@ -268,8 +454,6 @@ namespace Mist{
     wantRequest = false;
     parseData = true;
   }
-
-
 
   void OutCMAF::sendNext(){
     if (isRecording()){
@@ -281,7 +465,6 @@ namespace Mist{
       wantRequest = true;
       parseData = false;
       H.Chunkify("", 0, myConn);
-      H.Clean();
       return;
     }
     char *data;
@@ -309,10 +492,10 @@ namespace Mist{
                                     void callBack(uint64_t, uint64_t, std::stringstream &, bool)){
     DTSC::Fragments fragments(M.fragments(idx));
     uint32_t firstFragment = fragments.getFirstValid();
-    uint32_t endFragment = fragments.getEndValid();
+    uint32_t lastFragment = fragments.getEndValid();
     bool first = true;
     // skip the first two fragments if live
-    if (M.getLive() && (endFragment - firstFragment) > 6){firstFragment += 2;}
+    if (M.getLive() && (lastFragment - firstFragment) > 6){firstFragment += 2;}
 
     if (M.getType(idx) == "audio"){
       uint32_t mainTrack = M.mainTrack();
@@ -323,7 +506,7 @@ namespace Mist{
     }
 
     DTSC::Keys keys(M.keys(idx));
-    for (; firstFragment < endFragment; ++firstFragment){
+    for (; firstFragment < lastFragment; ++firstFragment){
       uint32_t duration = fragments.getDuration(firstFragment);
       uint64_t starttime = keys.getTime(fragments.getFirstKey(firstFragment));
       if (!duration){
@@ -379,7 +562,7 @@ namespace Mist{
     std::string method = H.method;
     H.Clean();
     H.SetHeader("Content-Type", "application/dash+xml");
-    H.SetHeader("Cache-Control", "no-cache");
+    H.SetHeader("Cache-Control", "no-store");
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
@@ -414,7 +597,8 @@ namespace Mist{
         << M.getFpks(idx) / 1000 << "\" ";
     }
     r << "segmentAlignment=\"true\" id=\"" << idx
-      << "\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">" << std::endl;
+      << "\" startWithSAP=\"1\" subsegmentAlignment=\"true\" subsegmentStartsWithSAP=\"1\">"
+      << std::endl;
   }
 
   void OutCMAF::dashRepresentation(size_t id, size_t idx, std::stringstream &r){
@@ -440,7 +624,8 @@ namespace Mist{
       << std::endl;
   }
 
-  void OutCMAF::dashAdaptation(size_t id, std::set<size_t> tracks, bool aligned, std::stringstream &r){
+  void OutCMAF::dashAdaptation(size_t id, std::set<size_t> tracks, bool aligned,
+                               std::stringstream &r){
     if (!tracks.size()){return;}
     if (aligned){
       size_t firstTrack = *tracks.begin();
@@ -473,7 +658,8 @@ namespace Mist{
     std::set<size_t> vTracks;
     std::set<size_t> aTracks;
     std::set<size_t> sTracks;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end();
+         it++){
       if (M.getType(it->first) == "video"){vTracks.insert(it->first);}
       if (M.getType(it->first) == "audio"){aTracks.insert(it->first);}
       if (M.getType(it->first) == "subtitle"){sTracks.insert(it->first);}
@@ -490,7 +676,8 @@ namespace Mist{
     size_t mainTrack = getMainSelectedTrack();
     size_t mainDuration = M.getDuration(mainTrack);
     if (M.getVod()){
-      r << "type=\"static\" mediaPresentationDuration=\"" << dashTime(mainDuration) << "\" minBufferTime=\"PT1.5S\" ";
+      r << "type=\"static\" mediaPresentationDuration=\"" << dashTime(mainDuration)
+        << "\" minBufferTime=\"PT1.5S\" ";
     }else{
       r << "type=\"dynamic\" minimumUpdatePeriod=\"PT2.0S\" availabilityStartTime=\""
         << Util::getUTCString(Util::epoch() - M.getLastms(mainTrack) / 1000)
@@ -501,7 +688,8 @@ namespace Mist{
     r << "profiles=\"urn:mpeg:dash:profile:isoff-live:2011\" "
          "xmlns=\"urn:mpeg:dash:schema:mpd:2011\" >"
       << std::endl;
-    r << "<ProgramInformation><Title>" << streamName << "</Title></ProgramInformation>" << std::endl;
+    r << "<ProgramInformation><Title>" << streamName << "</Title></ProgramInformation>"
+      << std::endl;
     r << "<Period " << (M.getLive() ? "start=\"0\"" : "") << ">" << std::endl;
 
     dashAdaptation(1, vTracks, videoAligned, r);
@@ -511,155 +699,15 @@ namespace Mist{
       for (std::set<size_t>::iterator it = sTracks.begin(); it != sTracks.end(); it++){
         std::string lang = (M.getLang(*it) == "" ? "unknown" : M.getLang(*it));
         r << "<AdaptationSet id=\"" << *it << "\" group=\"3\" mimeType=\"text/vtt\" lang=\"" << lang
-          << "\"><Representation id=\"" << *it << "\" bandwidth=\"256\"><BaseURL>../../" << streamName
-          << ".vtt?track=" << *it << "</BaseURL></Representation></AdaptationSet>" << std::endl;
+          << "\"><Representation id=\"" << *it << "\" bandwidth=\"256\"><BaseURL>../../"
+          << streamName << ".vtt?track=" << *it << "</BaseURL></Representation></AdaptationSet>"
+          << std::endl;
       }
     }
 
     r << "</Period></MPD>" << std::endl;
 
     return r.str();
-  }
-
-  /******************************/
-  /* HLS v7 Manifest Generation */
-  /******************************/
-
-  void OutCMAF::sendHlsManifest(size_t idx, const std::string &sessId){
-    std::string method = H.method;
-    H.Clean();
-    //    H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
-    H.SetHeader("Content-Type", "audio/mpegurl");
-    H.SetHeader("Cache-Control", "no-cache");
-    H.setCORSHeaders();
-    if (method == "OPTIONS" || method == "HEAD"){
-      H.SendResponse("200", "OK", myConn);
-      H.Clean();
-      return;
-    }
-    if (idx == INVALID_TRACK_ID){
-      H.SetBody(hlsManifest());
-    }else{
-      H.SetBody(hlsManifest(idx, sessId));
-    }
-    H.SendResponse("200", "OK", myConn);
-    H.Clean();
-  }
-
-  void hlsSegment(uint64_t start, uint64_t duration, std::stringstream &s, bool first){
-    if (bootMsOffset){
-      uint64_t unixMs = start + bootMsOffset + (Util::unixMS() - Util::bootMS());
-      time_t uSecs = unixMs/1000;
-      struct tm * tVal = gmtime(&uSecs);
-      s << "#EXT-X-PROGRAM-DATE-TIME: " << (tVal->tm_year+1900) << "-" << std::setw(2) << std::setfill('0') << (tVal->tm_mon+1) << "-" << std::setw(2) << std::setfill('0') << tVal->tm_mday << "T" << std::setw(2) << std::setfill('0') << tVal->tm_hour << ":" << std::setw(2) << std::setfill('0') << tVal->tm_min << ":" << std::setw(2) << std::setfill('0') << tVal->tm_sec << "." << std::setw(3) << std::setfill('0') << (unixMs%1000) << "Z" << std::endl;
-    }
-    s << "#EXTINF:" << (((double)duration) / 1000) << ",\r\nchunk_" << start << ".m4s" << std::endl;
-  }
-
-  ///\brief Builds an index file for HTTP Live streaming.
-  ///\return The index file for HTTP Live Streaming.
-  std::string OutCMAF::hlsManifest(){
-    std::stringstream result;
-    result << "#EXTM3U\r\n#EXT-X-VERSION:7\r\n#EXT-X-INDEPENDENT-SEGMENTS\r\n";
-
-    selectDefaultTracks();
-    std::set<size_t> vTracks;
-    std::set<size_t> aTracks;
-    std::set<size_t> sTracks;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      if (M.getType(it->first) == "video"){vTracks.insert(it->first);}
-      if (M.getType(it->first) == "audio"){aTracks.insert(it->first);}
-      if (M.getType(it->first) == "subtitle"){sTracks.insert(it->first);}
-    }
-    for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); it++){
-      std::string codec = M.getCodec(*it);
-      if (codec == "H264" || codec == "HEVC" || codec == "MPEG2"){
-        int bWidth = M.getBps(*it);
-        if (bWidth < 5){bWidth = 5;}
-        if (aTracks.size()){bWidth += M.getBps(*aTracks.begin());}
-        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (bWidth * 8)
-               << ",RESOLUTION=" << M.getWidth(*it) << "x" << M.getHeight(*it);
-        if (M.getFpks(*it)){result << ",FRAME-RATE=" << (float)M.getFpks(*it) / 1000;}
-        if (aTracks.size()){result << ",AUDIO=\"aud1\"";}
-        if (sTracks.size()){result << ",SUBTITLES=\"sub1\"";}
-        if (codec == "H264" || codec == "HEVC"){
-          result << ",CODECS=\"";
-          result << Util::codecString(M.getCodec(*it), M.getInit(*it));
-          result << "\"";
-        }
-        result << "\r\n" << *it;
-        if (hasSessionIDs()){
-          result << "/index.m3u8?sessId=" << getpid() << "\r\n";
-        }else{
-          result << "/index.m3u8\r\n";
-        }
-      }else if (codec == "subtitle"){
-
-        if (M.getLang(*it).empty()){meta.setLang(*it, "und");}
-
-        result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << M.getLang(*it)
-               << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(*it))
-               << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << *it << "/index.m3u8\""
-               << "\r\n";
-      }
-    }
-    for (std::set<size_t>::iterator it = aTracks.begin(); it != aTracks.end(); it++){
-      if (M.getLang(*it).empty()){meta.setLang(*it, "und");}
-
-      result << "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud1\",LANGUAGE=\"" << M.getLang(*it)
-             << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(*it))
-             << "\",AUTOSELECT=YES,DEFAULT=YES,URI=\"" << *it << "/index.m3u8\""
-             << "\r\n";
-    }
-    for (std::set<size_t>::iterator it = sTracks.begin(); it != sTracks.end(); it++){
-      if (M.getLang(*it).empty()){meta.setLang(*it, "und");}
-
-      result << "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"sub1\",LANGUAGE=\"" << M.getLang(*it)
-             << "\",NAME=\"" << Encodings::ISO639::decode(M.getLang(*it))
-             << "\",AUTOSELECT=NO,DEFAULT=NO,FORCED=NO,URI=\"" << *it << "/index.m3u8\""
-             << "\r\n";
-    }
-    if (aTracks.size() && !vTracks.size()){
-      std::string codec = M.getCodec(*aTracks.begin());
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << M.getBps(*aTracks.begin()) * 8;
-      result << ",CODECS=\""
-             << Util::codecString(M.getCodec(*aTracks.begin()), M.getInit(*aTracks.begin())) << "\"\r\n";
-      result << *aTracks.begin() << "/index.m3u8\r\n";
-    }
-    HIGH_MSG("Sending this index: %s", result.str().c_str());
-    return result.str();
-  }
-
-  std::string OutCMAF::hlsManifest(size_t idx, const std::string &sessId){
-    std::stringstream result;
-    // parse single track
-    uint32_t targetDuration = (M.biggestFragment(idx) / 1000) + 1;
-
-    DTSC::Fragments fragments(M.fragments(idx));
-    uint32_t firstFragment = fragments.getFirstValid();
-    uint32_t endFragment = fragments.getEndValid();
-    // skip the first two fragments if live
-    if (M.getLive() && (endFragment - firstFragment) > 6){firstFragment += 2;}
-    if (M.getType(idx) == "audio"){
-      uint32_t mainTrack = M.mainTrack();
-      if (mainTrack == INVALID_TRACK_ID){return "";}
-      DTSC::Fragments f(M.fragments(mainTrack));
-      uint64_t firstVidTime = M.getTimeForFragmentIndex(mainTrack, f.getFirstValid());
-      firstFragment = M.getFragmentIndexForTime(idx, firstVidTime);
-    }
-
-    result << "#EXTM3U\r\n"
-              "#EXT-X-VERSION:7\r\n"
-              "#EXT-X-TARGETDURATION:"
-           << targetDuration << "\r\n";
-    if (M.getLive()){result << "#EXT-X-MEDIA-SEQUENCE:" << firstFragment << "\r\n";}
-    result << "#EXT-X-MAP:URI=\"init.m4s"
-           << "\"\r\n";
-
-    generateSegmentlist(idx, result, hlsSegment);
-
-    if (M.getVod()){result << "#EXT-X-ENDLIST\r\n";}
-    return result.str();
   }
 
   /****************************************/
@@ -676,8 +724,9 @@ namespace Mist{
     return result;
   }
 
-  /// Converts bytes per second and track ID into a single bits per second value, where the last two
-  /// digits are the track ID. Breaks for track IDs > 99. But really, this is MS-SS, so who cares..?
+  /// Converts bytes per second and track ID into a single bits per second value, where the last
+  /// two digits are the track ID. Breaks for track IDs > 99. But really, this is MS-SS, so who
+  /// cares..?
   uint64_t bpsAndIdToBitrate(uint32_t bps, uint64_t tid){
     return ((uint64_t)((bps * 8) / 100)) * 100 + tid;
   }
@@ -692,7 +741,7 @@ namespace Mist{
     std::string method = H.method;
     H.Clean();
     H.SetHeader("Content-Type", "application/dash+xml");
-    H.SetHeader("Cache-Control", "no-cache");
+    H.SetHeader("Cache-Control", "no-store");
     H.setCORSHeaders();
     if (method == "OPTIONS" || method == "HEAD"){
       H.SendResponse("200", "OK", myConn);
@@ -704,7 +753,8 @@ namespace Mist{
     H.Clean();
   }
 
-  void OutCMAF::smoothAdaptation(const std::string &type, std::set<size_t> tracks, std::stringstream &r){
+  void OutCMAF::smoothAdaptation(const std::string &type, std::set<size_t> tracks,
+                                 std::stringstream &r){
     if (!tracks.size()){return;}
     DTSC::Keys keys(M.keys(*tracks.begin()));
     r << "<StreamIndex Type=\"" << type << "\" QualityLevels=\"" << tracks.size() << "\" Name=\""
@@ -763,7 +813,8 @@ namespace Mist{
     selectDefaultTracks();
     std::set<size_t> vTracks;
     std::set<size_t> aTracks;
-    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end();
+         it++){
       if (M.getType(it->first) == "video"){vTracks.insert(it->first);}
       if (M.getType(it->first) == "audio"){aTracks.insert(it->first);}
     }
@@ -774,7 +825,8 @@ namespace Mist{
     }
 
     if (M.getVod()){
-      r << "Duration=\"" << M.getLastms(vTracks.size() ? *vTracks.begin() : *aTracks.begin()) << "\">\n";
+      r << "Duration=\"" << M.getLastms(vTracks.size() ? *vTracks.begin() : *aTracks.begin())
+        << "\">\n";
     }else{
       r << "Duration=\"0\" IsLive=\"TRUE\" LookAheadFragmentCount=\"2\" DVRWindowLength=\""
         << M.getBufferWindow() << "\" CanSeek=\"TRUE\" CanPause=\"TRUE\">\n";
@@ -791,24 +843,25 @@ namespace Mist{
   /* CMAF Push Output functionality */
   /**********************************/
 
-  //When we disconnect a track, or when we're done pushing out, send an empty 'mfra' box to indicate track end.
-  void OutCMAF::onTrackEnd(size_t idx) {
+  // When we disconnect a track, or when we're done pushing out, send an empty 'mfra' box to
+  // indicate track end.
+  void OutCMAF::onTrackEnd(size_t idx){
     if (!isRecording()){return;}
     if (!pushTracks.count(idx) || !pushTracks.at(idx).D.getSocket()){return;}
     INFO_MSG("Disconnecting track %zu", idx);
-    pushTracks[idx].disconnect(); 
+    pushTracks[idx].disconnect();
     pushTracks.erase(idx);
   }
-  
-  //Create the connections and post request needed to start pushing out a track.
-  void OutCMAF::setupTrackObject(size_t idx) {
-    CMAFPushTrack & track = pushTracks[idx];
+
+  // Create the connections and post request needed to start pushing out a track.
+  void OutCMAF::setupTrackObject(size_t idx){
+    CMAFPushTrack &track = pushTracks[idx];
     track.url = pushUrl;
     if (targetParams.count("usp") && targetParams["usp"] == "1"){
-      std::string usp_path = "Streams(" + M.getTrackIdentifier(idx) + ")"; 
+      std::string usp_path = "Streams(" + M.getTrackIdentifier(idx) + ")";
       track.url = track.url.link(usp_path);
     }else{
-      track.url.path += "/"; 
+      track.url.path += "/";
       track.url = track.url.link(M.getTrackIdentifier(idx));
     }
 
@@ -818,26 +871,31 @@ namespace Mist{
     track.send(header);
   }
 
-
-  /// Function that waits at most `maxWait` ms (in steps of 100ms) for the next keyframe to become available.
-  /// Uses thisIdx and thisPacket to determine track and current timestamp respectively.
+  /// Function that waits at most `maxWait` ms (in steps of 100ms) for the next keyframe to become
+  /// available. Uses thisIdx and thisPacket to determine track and current timestamp
+  /// respectively.
   bool OutCMAF::waitForNextKey(uint64_t maxWait){
     uint64_t mTrk = getMainSelectedTrack();
     size_t currentKey = M.getKeyIndexForTime(mTrk, thisTime);
     uint64_t startTime = Util::bootMS();
     DTSC::Keys keys(M.keys(mTrk));
     while (startTime + maxWait > Util::bootMS() && keepGoing()){
-      if (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey+1)){
+      if (keys.getEndValid() > currentKey + 1 &&
+          M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey + 1)){
         return true;
       }
       Util::sleep(20);
       meta.reloadReplacedPagesIfNeeded();
     }
-    INFO_MSG("Timed out waiting for next key (track %" PRIu64 ", %zu+1, last is %zu, time is %" PRIu64 ")", mTrk, currentKey, keys.getEndValid()-1, M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey+1));
-    return (keys.getEndValid() > currentKey + 1 && M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey+1));
+    INFO_MSG("Timed out waiting for next key (track %" PRIu64
+             ", %zu+1, last is %zu, time is %" PRIu64 ")",
+             mTrk, currentKey, keys.getEndValid() - 1,
+             M.getTimeForKeyIndex(getMainSelectedTrack(), currentKey + 1));
+    return (keys.getEndValid() > currentKey + 1 &&
+            M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey + 1));
   }
 
-  //Set up an empty connection to the target to make sure we can push data towards it.
+  // Set up an empty connection to the target to make sure we can push data towards it.
   void OutCMAF::startPushOut(){
     myConn.close();
     myConn.Received().clear();
@@ -846,26 +904,30 @@ namespace Mist{
     parseData = true;
   }
 
-  //CMAF Push output uses keyframe boundaries instead of fragment boundaries, to allow for lower latency
-  void OutCMAF::pushNext() {
+  // CMAF Push output uses keyframe boundaries instead of fragment boundaries, to allow for lower
+  // latency
+  void OutCMAF::pushNext(){
     size_t mTrk = getMainSelectedTrack();
-    //Set up a new connection if this is a new track, or if we have been disconnected.
+    // Set up a new connection if this is a new track, or if we have been disconnected.
     if (!pushTracks.count(thisIdx) || !pushTracks.at(thisIdx).D.getSocket()){
-      if (pushTracks.count(thisIdx)){INFO_MSG("Reconnecting existing track: socket was disconnected");}
-      CMAFPushTrack & track = pushTracks[thisIdx];
+      if (pushTracks.count(thisIdx)){
+        INFO_MSG("Reconnecting existing track: socket was disconnected");
+      }
+      CMAFPushTrack &track = pushTracks[thisIdx];
       size_t keyIndex = M.getKeyIndexForTime(mTrk, thisPacket.getTime());
       track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex);
       if (track.headerFrom < thisPacket.getTime()){
         track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
       }
 
-      INFO_MSG("Starting track %zu at %" PRIu64 "ms into the stream, current packet at %" PRIu64 "ms", thisIdx, track.headerFrom, thisPacket.getTime());
+      INFO_MSG("Starting track %zu at %" PRIu64 "ms into the stream, current packet at %" PRIu64
+               "ms",
+               thisIdx, track.headerFrom, thisPacket.getTime());
 
       setupTrackObject(thisIdx);
       track.headerUntil = 0;
-
     }
-    CMAFPushTrack & track = pushTracks[thisIdx];
+    CMAFPushTrack &track = pushTracks[thisIdx];
     if (thisPacket.getTime() < track.headerFrom){return;}
     if (thisPacket.getTime() >= track.headerUntil){
       size_t keyIndex = M.getKeyIndexForTime(mTrk, thisTime);
@@ -873,7 +935,9 @@ namespace Mist{
       if (keyTime > thisTime){
         realTime = 1000;
         if (!liveSeek()){
-          WARN_MSG("Corruption probably occurred, initiating reconnect. Key %zu is time %" PRIu64 ", but packet is time %" PRIu64, keyIndex, keyTime, thisTime);
+          WARN_MSG("Corruption probably occurred, initiating reconnect. Key %zu is time %" PRIu64
+                   ", but packet is time %" PRIu64,
+                   keyIndex, keyTime, thisTime);
           onTrackEnd(thisIdx);
           track.headerFrom = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
           track.headerUntil = 0;
@@ -889,7 +953,8 @@ namespace Mist{
         return;
       }
       track.headerUntil = M.getTimeForKeyIndex(mTrk, keyIndex + 1);
-      std::string keyHeader = CMAF::keyHeader(M, thisIdx, track.headerFrom, track.headerUntil, keyIndex+1, true, true);
+      std::string keyHeader = CMAF::keyHeader(M, thisIdx, track.headerFrom, track.headerUntil,
+                                              keyIndex + 1, true, true);
       uint64_t mdatSize = 8 + CMAF::payloadSize(M, thisIdx, track.headerFrom, track.headerUntil);
       char mdatHeader[] ={0x00, 0x00, 0x00, 0x00, 'm', 'd', 'a', 't'};
       Bit::htobl(mdatHeader, mdatSize);
@@ -903,6 +968,5 @@ namespace Mist{
 
     track.send(data, dataLen);
   }
-
 
 }// namespace Mist

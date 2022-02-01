@@ -1,28 +1,31 @@
 #include "output_http.h"
-#include <mist/http_parser.h>
 #include <mist/downloader.h>
-#include <mist/mp4_generic.h>
+#include <mist/http_parser.h>
+// #include <mist/mp4_generic.h>
 
 namespace Mist{
   /// Keeps track of the state of an outgoing CMAF Push track.
-  class CMAFPushTrack {
-    public:
-      CMAFPushTrack() {debug = false; debugFile = 0;}
-      ~CMAFPushTrack() {disconnect();}
-      void connect(std::string debugParam = "");
-      void disconnect();
+  class CMAFPushTrack{
+  public:
+    CMAFPushTrack(){
+      debug = false;
+      debugFile = 0;
+    }
+    ~CMAFPushTrack(){disconnect();}
+    void connect(std::string debugParam = "");
+    void disconnect();
 
-      void send(const char * data, size_t len);
-      void send(const std::string & data);
+    void send(const char *data, size_t len);
+    void send(const std::string &data);
 
-      HTTP::Downloader D;
-      HTTP::URL url;
-      uint64_t headerFrom;
-      uint64_t headerUntil;
+    HTTP::Downloader D;
+    HTTP::URL url;
+    uint64_t headerFrom;
+    uint64_t headerUntil;
 
-      bool debug;
-      char debugName[500];
-      FILE * debugFile;
+    bool debug;
+    char debugName[500];
+    FILE *debugFile;
   };
 
   class OutCMAF : public HTTPOutput{
@@ -33,10 +36,12 @@ namespace Mist{
     void onHTTP();
     void sendNext();
     void sendHeader(){};
+    bool isReadyForPlay();
 
   protected:
     virtual void connStats(uint64_t now, Comms::Statistics &statComm);
     void onTrackEnd(size_t idx);
+    bool hasSessionIDs(){return !config->getBool("mergesessions");}
 
     void sendDashManifest();
     void dashAdaptationSet(size_t id, size_t idx, std::stringstream &r);
@@ -46,9 +51,9 @@ namespace Mist{
     std::string dashTime(uint64_t time);
     std::string dashManifest(bool checkAlignment = true);
 
-    void sendHlsManifest(size_t idx = INVALID_TRACK_ID, const std::string &sessId = "");
-    std::string hlsManifest();
-    std::string hlsManifest(size_t idx, const std::string &sessId);
+    void sendHlsManifest(const std::string url);
+    void sendHlsMasterManifest();
+    void sendHlsMediaManifest(const size_t requestTid);
 
     void sendSmoothManifest();
     std::string smoothManifest(bool checkAlignment = true);
@@ -68,7 +73,7 @@ namespace Mist{
     void pushNext();
 
     HTTP::URL pushUrl;
-    std::map<size_t, CMAFPushTrack> pushTracks; 
+    std::map<size_t, CMAFPushTrack> pushTracks;
     void setupTrackObject(size_t idx);
     bool waitForNextKey(uint64_t maxWait = 15000);
     // End CMAF push out

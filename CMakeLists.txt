@@ -145,9 +145,13 @@ if (NOCRASHCHECK)
   add_definitions(-DNOCRASHCHECK=1)
 endif()
 
-
 if (DEFINED STATS_DELAY)
   add_definitions(-DSTATS_DELAY=${STATS_DELAY})
+endif()
+
+option(NOLLHLS "Disable LLHLS")
+if (NOLLHLS)
+  add_definitions(-DNOLLHLS=1)
 endif()
 
 ########################################
@@ -193,6 +197,7 @@ set(libHeaders
   lib/flv_tag.h
   lib/h264.h
   lib/h265.h
+  lib/hls_support.h
   lib/http_parser.h
   lib/downloader.h
   lib/json.h
@@ -260,6 +265,7 @@ add_library (mist
   lib/flv_tag.cpp
   lib/h264.cpp
   lib/h265.cpp
+  lib/hls_support.cpp
   lib/http_parser.cpp
   lib/downloader.cpp
   lib/json.cpp

@@ -265,7 +265,11 @@ int main_loop(int argc, char **argv){
       msghandler.detach();
       // Attempt to open and redirect log messages to named pipe
       int outFD = -1;
-      if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
+      if (getenv("MIST_NO_PRETTY_LOGGING")) {
+        WARN_MSG(
+            "MIST_NO_PRETTY_LOGGING is active, printing lots of pipes");
+      }
+      else if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
         ERROR_MSG(
             "Could not open log message pipe %s for writing! %s; falling back to standard error",
             logPipe.c_str(), strerror(errno));

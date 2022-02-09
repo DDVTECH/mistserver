@@ -21,6 +21,8 @@ namespace Mist{
     rtmpOffset = 0;
     authAttempts = 0;
     maxbps = config->getInteger("maxkbps") * 128;
+    //Switch realtime tracking system to mode where it never skips ahead, but only changes playback speed
+    maxSkipAhead = 0;
     if (config->getString("target").size()){
       streamName = config->getString("streamname");
       pushUrl = HTTP::URL(config->getString("target"));
@@ -72,8 +74,6 @@ namespace Mist{
       }
       setBlocking(false);
     }
-
-    maxSkipAhead = 0;
   }
 
   void OutRTMP::startPushOut(const char *args){

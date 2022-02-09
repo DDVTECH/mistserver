@@ -1020,10 +1020,24 @@ namespace Mist{
       }
     }else{
       if (M.getLive() && targetParams.count("pushdelay")){
-        INFO_MSG("Converting pushdelay syntax into corresponding startunix+realtime options");
-        targetParams["startunix"] = std::string("-") + targetParams["pushdelay"];
+        INFO_MSG("Converting pushdelay syntax into corresponding recstart+realtime options");
+
+        uint64_t delayTime = JSON::Value(targetParams["pushdelay"]).asInt()*1000; 
+        if (endTime() - startTime() < delayTime){
+          uint64_t waitTime = delayTime - (endTime() - startTime());
+          INFO_MSG("Waiting for buffer to fill up: waiting %" PRIu64 "ms", waitTime);
+          Util::wait(waitTime);
+          if (endTime() - startTime() < delayTime){
+            WARN_MSG("Waited for %" PRIu64 "ms, but buffer still too small for a push delay of %" PRIu64 "ms. Doing the best we can.", waitTime, delayTime);
+          }
+        }
+        if (endTime() < delayTime){
+          INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", endTime());
+          while (endTime() < delayTime && keepGoing()){Util::wait(250);}
+        }
+        targetParams["start"] = JSON::Value(endTime() - delayTime).asString();
         targetParams["realtime"] = "1"; //force real-time speed
-        targetParams["noskip"] = "1"; //disable rate control / skipping forward
+        maxSkipAhead = 1;
       }
       if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
@@ -1312,10 +1326,6 @@ namespace Mist{
       wantRequest = false;
       if (!targetParams.count("realtime")){
         realTime = 0;
-      }
-      if (targetParams.count("noskip")){
-        //Disable rate control systems for pushes; we want real-time speed
-        maxSkipAhead = 1;
       }
     }
     // Handle CONN_OPEN trigger, if needed

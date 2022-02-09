@@ -209,7 +209,6 @@ namespace Mist{
       INFO_MSG("inFile failed!");
       return false;
     }
-    if (readExistingHeader()){return true;}
 
     // first we get the necessary header parts
     size_t tNumber = 0;

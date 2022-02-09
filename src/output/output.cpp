@@ -1022,7 +1022,8 @@ namespace Mist{
       if (M.getLive() && targetParams.count("pushdelay")){
         INFO_MSG("Converting pushdelay syntax into corresponding startunix+realtime options");
         targetParams["startunix"] = std::string("-") + targetParams["pushdelay"];
-        targetParams["realtime"] = "1";
+        targetParams["realtime"] = "1"; //force real-time speed
+        targetParams["noskip"] = "1"; //disable rate control / skipping forward
       }
       if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
@@ -1136,8 +1137,9 @@ namespace Mist{
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(bool rateOnly){
     if (!realTime){return false;}//Makes no sense when playing in turbo mode
-    uint64_t seekPos = 0;
+    if (maxSkipAhead == 1){return false;}//A skipAhead of 1 signifies disabling the skipping/rate control system entirely.
     if (!meta.getLive()){return false;}
+    uint64_t seekPos = 0;
     size_t mainTrack = getMainSelectedTrack();
     if (mainTrack == INVALID_TRACK_ID){return false;}
     uint64_t lMs = meta.getLastms(mainTrack);
@@ -1296,9 +1298,6 @@ namespace Mist{
         return 3;
       }
       if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        if (!targetParams.count("realtime")){realTime = 0;}
         INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
                  capa["name"].asString().c_str());
       }else{
@@ -1306,11 +1305,17 @@ namespace Mist{
           onFail("Could not connect to the target for recording", true);
           return 3;
         }
-        parseData = true;
-        wantRequest = false;
-        if (!targetParams.count("realtime")){realTime = 0;}
         INFO_MSG("Recording %s to %s with %s format", streamName.c_str(),
                  config->getString("target").c_str(), capa["name"].asString().c_str());
+      }
+      parseData = true;
+      wantRequest = false;
+      if (!targetParams.count("realtime")){
+        realTime = 0;
+      }
+      if (targetParams.count("noskip")){
+        //Disable rate control systems for pushes; we want real-time speed
+        maxSkipAhead = 1;
       }
     }
     // Handle CONN_OPEN trigger, if needed

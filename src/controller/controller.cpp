@@ -28,7 +28,6 @@
 #include <sys/wait.h>
 #include <vector>
 /*LTS-START*/
-#include "controller_license.h"
 #include "controller_limits.h"
 #include "controller_updater.h"
 #include "controller_uplink.h"
@@ -529,11 +528,6 @@ int main_loop(int argc, char **argv){
 #ifdef UPDATER
   if (Controller::conf.getBool("update")){Controller::checkUpdates();}
 #endif
-#ifdef LICENSING
-  Controller::initLicense();
-  // start license checking thread
-  tthread::thread licenseThread(Controller::licenseLoop, 0);
-#endif
   /*LTS-END*/
 
   // start main loop
@@ -548,9 +542,6 @@ int main_loop(int argc, char **argv){
     }
     if (Util::Config::is_restarting){shutdown_reason = "restart (on request)";}
 /*LTS-START*/
-#ifdef LICENSING
-    if (!Controller::isLicensed()){shutdown_reason = "no valid license";}
-#endif
     if (Triggers::shouldTrigger("SYSTEM_STOP")){
       if (!Triggers::doTrigger("SYSTEM_STOP", shutdown_reason)){
         Controller::conf.is_active = true;
@@ -580,10 +571,6 @@ int main_loop(int argc, char **argv){
   uplinkThread.join();
   HIGH_MSG("Joining push thread...");
   pushThread.join();
-#ifdef LICENSING
-  HIGH_MSG("Joining license thread...");
-  licenseThread.join();
-#endif
 #ifdef UPDATER
   HIGH_MSG("Joining updater thread...");
   updaterThread.join();
@@ -597,11 +584,6 @@ int main_loop(int argc, char **argv){
   // give everything some time to print messages
   Util::wait(100);
   std::cout << "Killed all processes, wrote config to disk. Exiting." << std::endl;
-  if (Controller::exitDelay){
-    std::cout << "Delaying shutdown by " << Controller::exitDelay
-              << " seconds, on license server request..." << std::endl;
-    while (Controller::exitDelay--){Util::wait(1000);}
-  }
   if (Util::Config::is_restarting){return 42;}
   // close stderr to make the stderr reading thread exit
   close(STDERR_FILENO);

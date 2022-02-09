@@ -74,10 +74,9 @@ else()
   message("Shared memory use is turned OFF")
 endif()
 
-if (NOT DEFINED FILLER_DATA OR NOT DEFINED SHARED_SECRET OR NOT DEFINED SUPER_SECRET)#LTS
-  message(WARNING "Not all LTS variables have been set and this is an LTS build - are you sure about this?")#LTS
-endif()#LTS
+if (FILLER_DATA AND SHARED_SECRET AND SUPER_SECRET)
 add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
+endif()
 
 option(GEOIP "Enable GeoIP capabilities (deprecated)")
 if (GEOIP)
@@ -817,7 +816,6 @@ add_executable(MistController
   src/controller/controller_capabilities.h
   src/controller/controller_streams.h
   src/controller/controller_push.h
-  src/controller/controller_license.h
   src/controller/controller.cpp
   src/controller/controller_updater.cpp
   src/controller/controller_streams.cpp
@@ -829,7 +827,6 @@ add_executable(MistController
   src/controller/controller_uplink.cpp
   src/controller/controller_api.cpp
   src/controller/controller_push.cpp
-  src/controller/controller_license.cpp
   generated/server.html.h
   ${BINARY_DIR}/mist/.headers
 )

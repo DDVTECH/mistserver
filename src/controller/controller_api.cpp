@@ -17,7 +17,6 @@
 #include <mist/url.h>
 #include <sys/stat.h> //for browse API call
 /*LTS-START*/
-#include "controller_license.h"
 #include "controller_limits.h"
 #include "controller_push.h"
 #include "controller_updater.h"
@@ -976,11 +975,6 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     Response["config"] = Controller::Storage["config"];
     Response["config"]["iid"] = instanceId;
     Response["config"]["version"] = PACKAGE_VERSION " " RELEASE;
-/*LTS-START*/
-#ifdef LICENSING
-    Response["config"]["license"] = getLicense();
-#endif
-    /*LTS-END*/
     // add required data to the current unix time to the config, for syncing reasons
     Response["config"]["time"] = Util::epoch();
     if (!Response["config"].isMember("serverid")){Response["config"]["serverid"] = "";}

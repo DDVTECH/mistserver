@@ -359,9 +359,6 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
         }
       }
 #endif
-#ifndef LICENSING
-      std::cout << "- Flag: Licensing system disabled. No checks for validity will occur." << std::endl;
-#endif
       /*LTS-END*/
       std::cout << "Built on " __DATE__ ", " __TIME__ << std::endl;
       exit(0);

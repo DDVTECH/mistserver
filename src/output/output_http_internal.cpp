@@ -1043,24 +1043,6 @@ namespace Mist{
 
   void OutHTTP::sendIcon(){
     std::string method = H.method;
-    /*LTS-START*/
-    if (H.GetVar("s").size() && H.GetVar("s") == SUPER_SECRET){
-      H.Clean();
-      H.SetHeader("Server", APPIDENT);
-      H.setCORSHeaders();
-      if (method == "OPTIONS" || method == "HEAD"){
-        H.SendResponse("200", "OK", myConn);
-        responded = true;
-        H.Clean();
-        return;
-      }
-      H.SetBody("Yup");
-      H.SendResponse("200", "OK", myConn);
-      responded = true;
-      H.Clean();
-      return;
-    }
-    /*LTS-END*/
     H.Clean();
 #include "../icon.h"
     H.SetHeader("Content-Type", "image/x-icon");

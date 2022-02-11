@@ -1487,6 +1487,7 @@ namespace Mist{
         }
       }
       selectDefaultTracks();
+      initialSeek();
       sendHeader();
     }else if (command["type"] == "seek") {
       handleWebsocketSeek(command);

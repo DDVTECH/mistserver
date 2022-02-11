@@ -7086,58 +7086,29 @@ var mist = {
       return obj;
     }
     
-    if ("sort" in input) {
-      //sort by key input.sort
-      var list = [];
-      for (var j in type) {
-        if (input[type[j]]) {
-          for (var i in input[type[j]]) {
-            var ele = input[type[j]][i];
-            if (Array.isArray(ele)) {
-              for (var m in ele) {
-                if (!("validate" in ele[m])) {
-                  ele[m].validate = [];
-                }
-                ele[m].validate = type[j];
-                ele[m].id = i;
-                list.push(ele[m]);
-              }
-            }
-            else {
-              if (!("validate" in ele)) {
-                ele.validate = [];
-              }
-              ele.validate.push(type[j]);
-              ele.id = i;
-              list.push(ele);
+    for (var j in type) {
+      if (input[type[j]]) {
+        build.push(
+          $('<h4>').text(UI.format.capital(type[j])+' parameters')
+        );
+        var list = Object.keys(input[type[j]]); //array of the field names
+        if ("sort" in input) {
+          //sort by key input.sort
+          list.sort(function(a,b){
+            return (""+input[type[j]][a][input.sort]).localeCompare(input[type[j]][b][input.sort]);
+          });
+        }
+        //loop over the list of field names
+        for (var n in list) {
+          var i = list[n];
+          var ele = input[type[j]][i];
+          if (Array.isArray(ele)) {
+            for (var m in ele) {
+              build.push(processEle(j,i,ele[m]));
             }
           }
-        }
-      }
-      list.sort(function(a,b){
-        return (""+a[input.sort]).localeCompare(b[input.sort]);
-      });
-      for (var i in list) {
-        var ele = list[i];
-        build.push(processEle(ele.validate,ele.id,ele));
-      }
-    }
-    else {
-      for (var j in type) {
-        if (input[type[j]]) {
-          build.push(
-            $('<h4>').text(UI.format.capital(type[j])+' parameters')
-          );
-          for (var i in input[type[j]]) {
-            var ele = input[type[j]][i];
-            if (Array.isArray(ele)) {
-              for (var m in ele) {
-                build.push(processEle(j,i,ele[m]));
-              }
-            }
-            else {
-              build.push(processEle(j,i,ele));
-            }
+          else {
+            build.push(processEle(j,i,ele));
           }
         }
       }

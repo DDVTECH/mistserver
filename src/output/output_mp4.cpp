@@ -1506,14 +1506,14 @@ namespace Mist{
       webSock->sendFrame("{\"type\":\"pause\",\"paused\":true}");
     }else if (command["type"] == "tracks") {
       if (command.isMember("audio")){
-        if (!command["audio"].isNull()){
+        if (!command["audio"].isNull() && command["audio"] != "auto"){
           targetParams["audio"] = command["audio"].asString();
         }else{
           targetParams.erase("audio");
         }
       }
       if (command.isMember("video")){
-        if (!command["video"].isNull()){
+        if (!command["video"].isNull() && command["video"] != "auto"){
           targetParams["video"] = command["video"].asString();
         }else{
           targetParams.erase("video");
@@ -1552,8 +1552,12 @@ namespace Mist{
       return false;
     }
     if (seekTarget != currentTime()){prevVidTrack = INVALID_TRACK_ID;}
+    bool hasVideo = false;
+    for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+      if (M.getType(it->first) == "video"){hasVideo = true;}
+    }
     // Add the previous video track back, if we had one.
-    if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
+    if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack) && hasVideo){
       userSelect[prevVidTrack].reload(streamName, prevVidTrack);
       seek(seekTarget);
       std::set<size_t> newSelTracks;

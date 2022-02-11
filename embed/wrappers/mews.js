@@ -618,12 +618,51 @@ p.prototype.build = function (MistVideo,callback) {
                 }
                 return true;
               }
+              function setSeekingPosition(t) {
+                var currPos = video.currentTime.toFixed(3);
+                if (currPos > t) {
+                  //don't seek backwards
+                  t = currPos;
+                }
+                if (!video.buffered.length || (video.buffered.end(video.buffered.length-1) < t)) {
+                  if (player.debugging) { console.log("Desired seeking position ("+MistUtil.format.time(t,{ms:true})+") not yet in buffer ("+(video.buffered.length ? MistUtil.format.time(video.buffered.end(video.buffered.length-1),{ms:true}) : "null")+")"); }
+                  player.sb._doNext(function(){ setSeekingPosition(t); });
+                  return;
+                }
+                video.currentTime = t;
+                MistVideo.log("Setting playback position to "+MistUtil.format.time(t,{ms:true}));
+                if (video.currentTime.toFixed(3) < t) {
+                  player.sb._doNext(function(){ setSeekingPosition(t); });
+                  if (player.debugging) { console.log("Could not set playback position"); }
+                }
+                else {
+                  if (player.debugging) { console.log("Set playback position to "+MistUtil.format.time(t,{ms:true})); }
+                  var p = function(){
+                    player.sb._doNext(function(){
+                      if (video.buffered.length) {
+                        //if (player.debugging) { console.log(video.buffered.start(0),video.buffered.end(0),video.currentTime); }
+                        if (video.buffered.start(0) > video.currentTime) { 
+                          var b = video.buffered.start(0);
+                          video.currentTime = b;
+                          if (video.currentTime != b) {
+                            p();
+                          }
+                        }
+                      }
+                      else {
+                        p();
+                      }
+                    });
+                  };
+                  p();
+                }
+              }
               
 
               if (checkEqual(player.last_codecs ? player.last_codecs : player.sb._codecs,msg.data.codecs)) {
                 MistVideo.log("Player switched tracks, keeping source buffer as codecs are the same as before.");
                 if ((video.currentTime == 0) && (msg.data.current != 0)) {
-                  video.currentTime = msg.data.current;
+                  setSeekingPosition((msg.data.current*1e-3).toFixed(3));
                 }
               }
               else {
@@ -642,7 +681,6 @@ p.prototype.build = function (MistVideo,callback) {
                 //play out buffer, then when we reach the starting timestamp of the new data, reset the source buffers
                 var clear = function(){
                   //once the source buffer is done updating the current segment, clear the specified interval from the buffer
-                  currPos = video.currentTime.toFixed(3);
                   if (player && player.sb) {
                     player.sb._do(function(remaining_do_on_updateend){
                       if (!player.sb.updating) {
@@ -650,7 +688,6 @@ p.prototype.build = function (MistVideo,callback) {
                         player.sb.queue = [];
                         player.ms.removeSourceBuffer(player.sb);
                         player.sb = null;
-                        var t = (msg.data.current*1e-3).toFixed(3); //rounded because of floating point issues
                         video.src = "";
                         player.ms.onsourceclose = null;
                         player.ms.onsourceended = null;
@@ -666,44 +703,7 @@ p.prototype.build = function (MistVideo,callback) {
                           var e = MistUtil.event.addListener(video,"loadedmetadata",function(){
                             MistVideo.log("Buffer cleared");
 
-                            var f = function() {
-                              if (currPos > t) {
-                                t = currPos;
-                              }
-                              if (!video.buffered.length || (video.buffered.end(video.buffered.length-1) < t)) {
-                                if (player.debugging) { console.log("Desired seeking position ("+MistUtil.format.time(t,{ms:true})+") not yet in buffer ("+(video.buffered.length ? MistUtil.format.time(video.buffered.end(video.buffered.length-1),{ms:true}) : "null")+")"); }
-                                player.sb._doNext(f);
-                                return;
-                              }
-                              video.currentTime = t;
-                              MistVideo.log("Setting playback position to "+MistUtil.format.time(t,{ms:true}));
-                              if (video.currentTime.toFixed(3) < t) {
-                                player.sb._doNext(f);
-                                if (player.debugging) { console.log("Could not set playback position"); }
-                              }
-                              else {
-                                if (player.debugging) { console.log("Set playback position to "+MistUtil.format.time(t,{ms:true})); }
-                                var p = function(){
-                                  player.sb._doNext(function(){
-                                    if (video.buffered.length) {
-                                      //if (player.debugging) { console.log(video.buffered.start(0),video.buffered.end(0),video.currentTime); }
-                                      if (video.buffered.start(0) > video.currentTime) { 
-                                        var b = video.buffered.start(0);
-                                        video.currentTime = b;
-                                        if (video.currentTime != b) {
-                                          p();
-                                        }
-                                      }
-                                    }
-                                    else {
-                                      p();
-                                    }
-                                  });
-                                };
-                                p();
-                              }
-                            }
-                            f();
+                            setSeekingPosition((msg.data.current*1e-3).toFixed(3));
 
                             MistUtil.event.removeListener(e);
                           });

@@ -804,7 +804,7 @@ namespace Mist{
         Util::logExitReason("buffer requested shutdown");
         break;
       }
-      if (!bufferActive()){
+      if (isSingular() && !bufferActive()){
         Util::logExitReason("Buffer shut down");
         return;
       }

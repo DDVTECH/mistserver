@@ -68,6 +68,11 @@ if (NOT DEBUG)
 endif()
 
 option(NOSHM "Disabled shared memory (falling back to shared temporary files)")
+
+if (APPLE)
+  set(NOSHM 1)
+endif()
+
 if (NOT NOSHM)
   add_definitions(-DSHM_ENABLED=1)
 else()
@@ -300,6 +305,7 @@ add_library (mist
   lib/urireader.cpp
   lib/ptvtmp.cpp
 )
+
 if (NOT APPLE)
   set (LIBRT -lrt)
 endif()
@@ -308,7 +314,14 @@ target_link_libraries(mist
   ${LIBRT}
 )
 if (NOT NOSSL)
-  target_link_libraries(mist mbedtls mbedx509 mbedcrypto)
+  find_library(MBEDTLS_LIB mbedtls)
+  find_library(MBEDX509_LIB mbedx509)
+  find_library(MBEDCRYPTO_LIB mbedcrypto)
+  find_library(SRTP2_LIB srtp2)
+  target_link_libraries(mist ${MBEDTLS_LIB} ${MBEDX509_LIB} ${MBEDCRYPTO_LIB})
+  find_path(MBEDTLS_HEADER_DIR "mbedtls/net.h")
+  find_path(SRTP2_HEADER_DIR "srtp2/srtp.h")
+  include_directories(${MBEDTLS_HEADER_DIR} ${SRTP2_HEADER_DIR})
 endif()
 install(
   FILES ${libHeaders}
@@ -322,7 +335,9 @@ install(
 
 if(SRT_LIB)
   add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
-  target_link_libraries(mist_srt mist srt)
+  target_link_libraries(mist_srt mist ${SRT_LIB})
+  find_path(SRT_HEADER_DIR "srt/srt.h")
+  include_directories(${SRT_HEADER_DIR})
   install(
     TARGETS mist_srt
     DESTINATION lib
@@ -512,10 +527,10 @@ macro(makeOutput outputName format)
     target_link_libraries(MistOut${outputName} rist cjson)
   endif()
   if (";${ARGN};" MATCHES ";srtp;")
-    target_link_libraries(MistOut${outputName} srtp2)
+    target_link_libraries(MistOut${outputName} ${SRTP2_LIB})
   endif()
-  target_link_libraries(MistOut${outputName} mist )
-  install( 
+  target_link_libraries(MistOut${outputName} mist)
+  install(
     TARGETS MistOut${outputName}
     DESTINATION bin
   )
@@ -572,6 +587,10 @@ add_executable(MistProcFFMPEG
   src/io.cpp
 )
 target_link_libraries(MistProcFFMPEG mist)
+install(
+  TARGETS MistProcFFMPEG
+  DESTINATION bin
+)
 
 add_executable(MistProcMKVExec
   src/process/process_exec.cpp
@@ -583,6 +602,10 @@ add_executable(MistProcMKVExec
   src/io.cpp
 )
 target_link_libraries(MistProcMKVExec mist)
+install(
+  TARGETS MistProcMKVExec
+  DESTINATION bin
+)
 
 add_executable(MistProcLivepeer
   src/process/process_livepeer.cpp
@@ -593,6 +616,10 @@ add_executable(MistProcLivepeer
   src/io.cpp
 )
 target_link_libraries(MistProcLivepeer mist)
+install(
+  TARGETS MistProcLivepeer
+  DESTINATION bin
+)
 
 if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS

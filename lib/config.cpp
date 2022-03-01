@@ -787,6 +787,7 @@ void Util::getMyExec(std::deque<std::string> &execs){
     errno = 0;
     if ((dp = readdir(d))){
       if (strncmp(dp->d_name, "Mist", 4) == 0){execs.push_back(dp->d_name);}
+      if (strncmp(dp->d_name, "livepeer", 8) == 0){execs.push_back(dp->d_name);}
     }
   }while (dp != NULL);
   closedir(d);

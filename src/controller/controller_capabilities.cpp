@@ -268,6 +268,16 @@ namespace Controller{
           capabilities["connectors"].removeMember(entryName);
         }
       }
+      if ((*it).substr(0, 8) == "livepeer"){
+        arg_one = Util::getMyPath() + (*it);
+        conn_args[0] = arg_one.c_str();
+        std::string entryName = (*it);
+        capabilities["connectors"][entryName] =
+            JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
+        if (capabilities["connectors"][entryName].size() < 1){
+          capabilities["connectors"].removeMember(entryName);
+        }
+      }
       if ((*it).substr(0, 8) == "MistProc"){
         arg_one = Util::getMyPath() + (*it);
         conn_args[0] = arg_one.c_str();

@@ -778,7 +778,7 @@ void Util::getMyExec(std::deque<std::string> &execs){
   do{
     errno = 0;
     if ((dp = readdir(d))){
-      if (dp->d_type != DT_DIR && strncmp(dp->d_name, "Mist", 4) == 0){
+      if (dp->d_type != DT_DIR && (strncmp(dp->d_name, "Mist", 4) == 0 || strncmp(dp->d_name, "livepeer", 8) == 0)){
         if (dp->d_type != DT_REG) {
           struct stat st = {};
           stat(dp->d_name, &st);

@@ -133,7 +133,16 @@ namespace Controller{
     if (::stat(tmparg.c_str(), &buf) != 0){
       tmparg = Util::getMyPath() + std::string("MistConn") + p["connector"].asStringRef();
     }
+    // Also check for & allow exact matches for livepeer-x binaries
+    if (::stat(tmparg.c_str(), &buf) != 0){
+      tmparg = Util::getMyPath() + p["connector"].asStringRef();
+    }
     if (::stat(tmparg.c_str(), &buf) != 0){return;}
+    if (p["connector"].asStringRef().substr(0, 8) == "livepeer") {
+      static std::string logarg = (Util::getMyPath() + "livepeer-log").c_str();
+      argarr[argnum++] = (char *)logarg.c_str();
+      INFO_MSG("added logger for %s", p["connector"].asStringRef().c_str());
+    }
     argarr[argnum++] = (char *)tmparg.c_str();
     const JSON::Value &pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
@@ -160,7 +169,7 @@ namespace Controller{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[30]; // approx max # of args (with a wide margin)
+    char *argarr[256]; // approx max # of args (with a wide margin)
     int i;
 
     std::string tmp;

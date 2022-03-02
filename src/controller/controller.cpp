@@ -124,8 +124,26 @@ static unsigned long mix(unsigned long a, unsigned long b, unsigned long c){
   return c;
 }
 
+void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
+  Controller::Log("CONF", "USR1 received - restarting controller");
+  Util::Config::is_restarting = true;
+  raise(SIGINT); // trigger restart
+}
+
+void handleUSR1Parent(int signum, siginfo_t *sigInfo, void *ignore){
+  Controller::Log("CONF", "USR1 received - passing on to child");
+  Util::Config::is_restarting = true;
+}
+
 ///\brief The main loop for the controller.
 int main_loop(int argc, char **argv){
+  {
+    struct sigaction new_action;
+    new_action.sa_sigaction = handleUSR1;
+    sigemptyset(&new_action.sa_mask);
+    new_action.sa_flags = 0;
+    sigaction(SIGUSR1, &new_action, NULL);
+  }
   Controller::isTerminal = Controller::isColorized = isatty(fileno(stdout));
   if (!isatty(fileno(stdin))){Controller::isTerminal = false;}
   Controller::Storage = JSON::fromFile("config.json");
@@ -598,17 +616,6 @@ int main_loop(int argc, char **argv){
   return 0;
 }
 
-void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
-  Controller::Log("CONF", "USR1 received - restarting controller");
-  Util::Config::is_restarting = true;
-  raise(SIGINT); // trigger restart
-}
-
-void handleUSR1Parent(int signum, siginfo_t *sigInfo, void *ignore){
-  Controller::Log("CONF", "USR1 received - passing on to child");
-  Util::Config::is_restarting = true;
-}
-
 ///\brief The controller angel process.
 /// Starts a forked main_loop in a loop. Yes, you read that right.
 int main(int argc, char **argv){
@@ -623,19 +630,13 @@ int main(int argc, char **argv){
 
   Controller::conf = Util::Config(argv[0]);
   Controller::conf.activate();
+  if (getenv("ATHEIST")){return main_loop(argc, argv);}
   uint64_t reTimer = 0;
   while (Controller::conf.is_active){
     Util::Procs::fork_prepare();
     pid_t pid = fork();
     if (pid == 0){
       Util::Procs::fork_complete();
-      {
-        struct sigaction new_action;
-        new_action.sa_sigaction = handleUSR1;
-        sigemptyset(&new_action.sa_mask);
-        new_action.sa_flags = 0;
-        sigaction(SIGUSR1, &new_action, NULL);
-      }
       return main_loop(argc, argv);
     }
     Util::Procs::fork_complete();

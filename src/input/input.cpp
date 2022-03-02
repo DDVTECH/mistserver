@@ -375,8 +375,8 @@ namespace Mist{
 
     config->activate();
 
-    if (getenv("NOFORK")){
-      INFO_MSG("Not using angel process due to NOFORK environment variable");
+    if (getenv("NOFORK") || getenv("ATHEIST")){
+      INFO_MSG("Not using angel process due to ATHEIST environment variable");
       if (playerLock){
         // Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];

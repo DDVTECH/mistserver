@@ -7,6 +7,7 @@
 #include <mist/http_parser.h>
 #include <mist/timing.h>
 #include <string.h>
+#include <mist/checksum.h>
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);
@@ -49,6 +50,8 @@ bool AnalyserHLS::open(const std::string & filename){
     return false;
   }
   uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
+  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString();
+  uri.sidOverride = JSON::Value(checksum::crc32(0, sidAsString.data(), sidAsString.size())).asString();
   root = uri.getURI().link(filename);
   return readPlaylist(root.getUrl());
 }

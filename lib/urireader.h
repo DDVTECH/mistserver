@@ -67,6 +67,7 @@ namespace HTTP{
     void dataCallback(const char *ptr, size_t size);
 
     std::string userAgentOverride;
+    std::string sidOverride;
 
   private:
     // Internal state variables

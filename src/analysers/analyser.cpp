@@ -3,7 +3,7 @@
 #include <mist/timing.h>
 #include <mist/http_parser.h>
 #include <mist/urireader.h>
-
+#include <mist/checksum.h>
 
 /// Reads configuration and opens a passed filename replacing standard input if needed.
 Analyser::Analyser(Util::Config &conf){
@@ -22,6 +22,8 @@ Analyser::Analyser(Util::Config &conf){
 ///Opens the filename. Supports stdin and plain files.
 bool Analyser::open(const std::string & filename){
   uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
+  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString();
+  uri.sidOverride = JSON::Value(checksum::crc32(0, sidAsString.data(), sidAsString.size())).asString();
   uri.open(filename);
   return true;
 }

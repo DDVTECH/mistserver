@@ -4002,45 +4002,7 @@ var UI = {
             type: 'custom',
             custom: $inputoptions
           },$processes,
-          $('<br>'),$('<h3>').text('Encryption'),{
-            type: 'help',
-            help: 'To enable encryption, the licence acquisition url must be entered, as well as either the content key or the key ID and seed.<br>Unsure how you should fill in your encryption or missing your preferred encryption? Please contact us.'
-          },{
-            label: 'License acquisition url',
-            type: 'str',
-            LTSonly: true,
-            pointer: {
-              main: saveas,
-              index: 'la_url'
-            }
-          },$('<br>'),{
-            label: 'Content key',
-            type: 'str',
-            LTSonly: true,
-            pointer: {
-              main: saveas,
-              index: 'contentkey'
-            }
-          },{
-            type: 'text',
-            text: ' - or - '
-          },{
-            label: 'Key ID',
-            type: 'str',
-            LTSonly: true,
-            pointer: {
-              main: saveas,
-              index: 'keyid'
-            }
-          },{
-            label: 'Key seed',
-            type: 'str',
-            LTSonly: true,
-            pointer: {
-              main: saveas,
-              index: 'keyseed'
-            }
-          },{
+          {
             type: 'buttons',
             buttons: [
               {

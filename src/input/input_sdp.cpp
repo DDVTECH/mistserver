@@ -236,7 +236,7 @@ namespace Mist{
     bool receivedPacket = false;
     // How often to send RTCP receiver requests in seconds
     const uint32_t rtcpInterval = 7;
-    for (std::map<size_t, SDP::Track>::iterator it = sdpState.tracks.begin();
+    for (std::map<uint64_t, SDP::Track>::iterator it = sdpState.tracks.begin();
          it != sdpState.tracks.end(); ++it){
 
       // Get RTP socket for selected track

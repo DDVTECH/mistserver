@@ -66,7 +66,7 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #if DEBUG >= DLVL_DEVEL
 #define DEBUG_MSG(lvl, msg, ...)                                                                   \
   if (Util::printDebugLevel >= lvl){\
-    fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", getprogname(), DBG_LVL_LIST[lvl], getpid(), __FILE__, \
+    fprintf(stderr, "%s|%s|%d|%s:%d|%s|" msg "\n", DBG_LVL_LIST[lvl], getprogname(),  getpid(), __FILE__, \
             __LINE__, Util::streamName, ##__VA_ARGS__);                            \
   }
 #else

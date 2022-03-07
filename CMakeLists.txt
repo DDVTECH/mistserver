@@ -334,29 +334,7 @@ endif()
 ########################################
 # MistLib - Local Header Install       #
 ########################################
-if (${CMAKE_VERSION} VERSION_LESS 3.3.0)
-add_custom_command(OUTPUT ${BINARY_DIR}/mist/.headers
-  COMMAND ${CMAKE_COMMAND}
-  ARGS    -E make_directory ${BINARY_DIR}/mist
-  COMMAND cp
-  ARGS    ${libHeaders} ${BINARY_DIR}/mist
-  COMMAND touch
-  ARGS    ${BINARY_DIR}/mist/.headers
-  WORKING_DIRECTORY ${SOURCE_DIR}
-  DEPENDS ${libHeaders}
-)
-else()
-add_custom_command(OUTPUT ${BINARY_DIR}/mist/.headers
-  COMMAND ${CMAKE_COMMAND}
-  ARGS    -E make_directory ${BINARY_DIR}/mist
-  COMMAND ${CMAKE_COMMAND}
-  ARGS    -E copy ${libHeaders} ${BINARY_DIR}/mist
-  COMMAND ${CMAKE_COMMAND}
-  ARGS    -E touch ${BINARY_DIR}/mist/.headers
-  WORKING_DIRECTORY ${SOURCE_DIR}
-  DEPENDS ${libHeaders}
-)
-endif()
+file(COPY ${libHeaders} DESTINATION ${BINARY_DIR}/mist)
 
 ########################################
 # MistServer - Analysers               #
@@ -366,7 +344,6 @@ macro(makeAnalyser analyserName format)
     src/analysers/mist_analyse.cpp
     src/analysers/analyser.cpp
     src/analysers/analyser_${format}.cpp
-    ${BINARY_DIR}/mist/.headers
   )
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
@@ -400,7 +377,6 @@ makeAnalyser(RTSP rtsp) #LTS
 macro(makeUtil utilName utilFile)
   add_executable(MistUtil${utilName}
     src/utils/util_${utilFile}.cpp
-    ${BINARY_DIR}/mist/.headers
   )
   target_link_libraries(MistUtil${utilName}
     mist
@@ -425,7 +401,6 @@ endif()
 
 add_executable(MistTranslateH264
   src/analysers/h264_translate.cpp
-  ${BINARY_DIR}/mist/.headers
 )
 target_link_libraries(MistTranslateH264
   mist
@@ -440,7 +415,6 @@ macro(makeInput inputName format)
     src/input/input.cpp 
     src/input/input_${format}.cpp 
     src/io.cpp
-    ${BINARY_DIR}/mist/.headers
   )
   if (";${ARGN};" MATCHES ";with_srt;")
     target_link_libraries(MistIn${inputName} mist_srt )
@@ -526,7 +500,6 @@ macro(makeOutput outputName format)
     ${httpOutput}
     ${tsOutput} 
     ${mp4Output}
-    ${BINARY_DIR}/mist/.headers
   )
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
@@ -576,7 +549,6 @@ makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
 
 add_executable(MistSession
-  ${BINARY_DIR}/mist/.headers
   src/session.cpp
 )
 install(
@@ -587,7 +559,6 @@ target_link_libraries(MistSession mist)
 
 
 add_executable(MistProcFFMPEG
-  ${BINARY_DIR}/mist/.headers
   src/process/process_ffmpeg.cpp
   src/output/output_ebml.cpp
   src/input/input_ebml.cpp
@@ -599,7 +570,6 @@ add_executable(MistProcFFMPEG
 target_link_libraries(MistProcFFMPEG mist)
 
 add_executable(MistProcMKVExec
-  ${BINARY_DIR}/mist/.headers
   src/process/process_exec.cpp
   src/output/output_ebml.cpp
   src/input/input_ebml.cpp
@@ -611,7 +581,6 @@ add_executable(MistProcMKVExec
 target_link_libraries(MistProcMKVExec mist)
 
 add_executable(MistProcLivepeer
-  ${BINARY_DIR}/mist/.headers
   src/process/process_livepeer.cpp
   src/input/input.cpp
   src/output/output_http.cpp
@@ -622,7 +591,6 @@ add_executable(MistProcLivepeer
 target_link_libraries(MistProcLivepeer mist)
 
 add_executable(MistProcLivepeerText
-  ${BINARY_DIR}/mist/.headers
   src/process/process_livepeertext.cpp
   src/input/input.cpp
   src/output/output.cpp
@@ -631,7 +599,6 @@ add_executable(MistProcLivepeerText
 target_link_libraries(MistProcLivepeerText mist)
 
 add_executable(MistProcLivepeerVideo
-  ${BINARY_DIR}/mist/.headers
   src/process/process_livepeervideo.cpp
   src/input/input.cpp
   src/output/output.cpp
@@ -650,7 +617,6 @@ if (WITH_SANITY)
 endif()
 
 add_executable(MistOutHTTP 
-  ${BINARY_DIR}/mist/.headers
   src/output/mist_out.cpp
   src/output/output.cpp
   src/output/output_http.cpp 
@@ -885,7 +851,6 @@ add_executable(MistController
   src/controller/controller_api.cpp
   src/controller/controller_push.cpp
   generated/server.html.h
-  ${BINARY_DIR}/mist/.headers
 )
 set_target_properties(MistController
   PROPERTIES COMPILE_DEFINITIONS RELEASE=${RELEASE}
@@ -916,29 +881,29 @@ add_custom_target(clean-all
 ########################################
 # Tests                                #
 ########################################
-add_executable(urltest test/url.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(urltest test/url.cpp)
 target_link_libraries(urltest mist)
 add_test(URLTest COMMAND urltest)
-add_executable(logtest test/log.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(logtest test/log.cpp)
 target_link_libraries(logtest mist)
 add_test(LOGTest COMMAND logtest)
-add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(downloadertest test/downloader.cpp)
 target_link_libraries(downloadertest mist)
 add_test(DownloaderTest COMMAND downloadertest)
-add_executable(urireadertest test/urireader.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(urireadertest test/urireader.cpp)
 target_link_libraries(urireadertest mist)
 add_test(URIReaderTest COMMAND urireadertest)
-add_executable(jsontest test/json.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(jsontest test/json.cpp)
 target_link_libraries(jsontest mist)
 add_test(JSONTest COMMAND jsontest)
-add_executable(resolvetest test/resolve.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(resolvetest test/resolve.cpp)
 target_link_libraries(resolvetest mist)
-add_executable(bitwritertest test/bitwriter.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(bitwritertest test/bitwriter.cpp)
 target_link_libraries(bitwritertest mist)
 add_test(BitWriterTest COMMAND bitwritertest)
-add_executable(streamstatustest test/status.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(streamstatustest test/status.cpp)
 target_link_libraries(streamstatustest mist)
-add_executable(websockettest test/websocket.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(websockettest test/websocket.cpp)
 target_link_libraries(websockettest mist)
-add_executable(dtsc_sizing_test test/dtsc_sizing.cpp ${BINARY_DIR}/mist/.headers)
+add_executable(dtsc_sizing_test test/dtsc_sizing.cpp)
 target_link_libraries(dtsc_sizing_test mist)

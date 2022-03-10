@@ -535,11 +535,15 @@ namespace Mist{
     if (autoSeek){
       buffer.clear();
       INFO_MSG("Automatically seeking to resume playback");
-      for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
-        if (seekTargets.count(*it)){
-          seek(*it, seekTargets[*it], false);
-        }else{
-          seek(*it, 0, false);
+      if (!seekTargets.size()){
+        initialSeek();
+      }else{
+        for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
+          if (seekTargets.count(*it)){
+            seek(*it, seekTargets[*it], false);
+          }else{
+            seek(*it, seekTargets.begin()->second, false);
+          }
         }
       }
     }

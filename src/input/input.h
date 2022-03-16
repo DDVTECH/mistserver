@@ -104,5 +104,6 @@ namespace Mist{
     IPC::sharedPage pidPage; ///Stores responsible input process PID
 
     void handleBuyDRM();
+    uint64_t sessionMode;
   };
 }// namespace Mist

@@ -27,6 +27,10 @@
   }
 
 namespace Comms{
+  extern uint8_t sessionViewerMode;
+  extern uint8_t sessionInputMode;
+  extern uint8_t sessionOutputMode;
+
   class Comms{
   public:
     Comms();
@@ -66,7 +70,7 @@ namespace Comms{
 
   class Connections : public Comms{
   public:
-    void reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, uint64_t sessionMode, bool _master = false, bool reIssue = false);
+    void reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master = false, bool reIssue = false);
     void unload();
     operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
     std::string generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode);
@@ -119,11 +123,6 @@ namespace Comms{
     void setConnector(std::string _connector);
     void setConnector(std::string _connector, size_t idx);
     bool hasConnector(size_t idx, std::string protocol);
-
-    std::string getTags() const;
-    std::string getTags(size_t idx) const;
-    void setTags(std::string _sid);
-    void setTags(std::string _sid, size_t idx);
 
     uint64_t getPacketCount() const;
     uint64_t getPacketCount(size_t idx) const;
@@ -197,5 +196,10 @@ namespace Comms{
       virtual void addFields();
       virtual void nullFields();
       virtual void fieldAccess();
+
+      std::string getTags() const;
+      std::string getTags(size_t idx) const;
+      void setTags(std::string _sid);
+      void setTags(std::string _sid, size_t idx);
   };
 }// namespace Comms

@@ -353,19 +353,19 @@ void Controller::SharedMemStats(void *config){
           switch (it->second.getSessType()){
           case SESS_UNSET: break;
           case SESS_VIEWER:
-            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-              streamStats[it->first].currViews++;
+            if (it->second.hasDataFor(tOut)){
+              streamStats[it->second.getStreamName()].currViews++;
             }
             servSeconds += it->second.getConnTime();
             break;
           case SESS_INPUT:
-            if (it->second.hasDataFor(tIn) && it->second.isViewerOn(tIn)){
-              streamStats[it->first].currIns++;
+            if (it->second.hasDataFor(tIn)){
+              streamStats[it->second.getStreamName()].currIns++;
             }
             break;
           case SESS_OUTPUT:
-            if (it->second.hasDataFor(tOut) && it->second.isViewerOn(tOut)){
-              streamStats[it->first].currOuts++;
+            if (it->second.hasDataFor(tOut)){
+              streamStats[it->second.getStreamName()].currOuts++;
             }
             break;
           }
@@ -508,6 +508,8 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       tagStream << "[" << *it << "]";
     }
     statComm.setTags(tagStream.str(), index);
+  } else {
+    statComm.setTags("", index);
   }
 
   long long prevDown = getDown();
@@ -572,19 +574,16 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       ++servInputs;
       createEmptyStatsIfNeeded(streamName);
       streamStats[streamName].inputs++;
-      streamStats[streamName].currIns++;
       sessionType = SESS_INPUT;
     }else if (curConnector.size() >= 6 && curConnector.substr(0, 6) == "OUTPUT"){
       ++servOutputs;
       createEmptyStatsIfNeeded(streamName);
       streamStats[streamName].outputs++;
-      streamStats[streamName].currOuts++;
       sessionType = SESS_OUTPUT;
     }else{
       ++servViewers;
       createEmptyStatsIfNeeded(streamName);
       streamStats[streamName].viewers++;
-      streamStats[streamName].currViews++;
       sessionType = SESS_VIEWER;
     }
   }
@@ -610,18 +609,6 @@ Controller::sessType Controller::statSession::getSessType(){
 
 Controller::statSession::~statSession(){
   if (!tracked){return;}
-  switch (sessionType){
-    case SESS_INPUT:
-      if (streamStats.count(streamName) && streamStats[streamName].currIns){streamStats[streamName].currIns--;}
-      break;
-    case SESS_OUTPUT:
-      if (streamStats.count(streamName) && streamStats[streamName].currOuts){streamStats[streamName].currOuts--;}
-      break;
-    case SESS_VIEWER:
-      if (streamStats.count(streamName) && streamStats[streamName].currViews){streamStats[streamName].currViews--;}
-      break;
-    default: break;
-  }
   uint64_t duration = lastSec - firstActive;
   if (duration < 1){duration = 1;}
   std::stringstream tagStream;
@@ -705,11 +692,6 @@ bool Controller::statSession::hasDataFor(uint64_t t){
   if (firstSec > t){return false;}
   if (curData.hasDataFor(t)){return true;}
   return false;
-}
-
-/// Returns true if this session should count as a viewer on the given timestamp.
-bool Controller::statSession::isViewerOn(uint64_t t){
-  return getUp(t) + getDown(t);
 }
 
 std::string Controller::statSession::getStreamName(){

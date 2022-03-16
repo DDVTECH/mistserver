@@ -71,7 +71,6 @@ namespace Controller{
     void update(uint64_t index, Comms::Sessions &data);
     uint64_t getStart();
     uint64_t getEnd();
-    bool isViewerOn(uint64_t time);
     bool isTracked();
     bool hasDataFor(uint64_t time);
     std::string getStreamName();

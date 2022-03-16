@@ -742,13 +742,13 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
 
 /// HTTP variable parser to std::map<std::string, std::string> structure.
 /// Reads variables from data, decodes and stores them to storage.
-void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage){
+void HTTP::parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator){
   std::string varname;
   std::string varval;
   // position where a part starts (e.g. after &)
   size_t pos = 0;
   while (pos < data.length()){
-    size_t nextpos = data.find('&', pos);
+    size_t nextpos = data.find(separator, pos);
     if (nextpos == std::string::npos){nextpos = data.length();}
     size_t eq_pos = data.find('=', pos);
     if (eq_pos < nextpos){
@@ -769,7 +769,7 @@ void HTTP::parseVars(const std::string &data, std::map<std::string, std::string>
       break;
     }
     // erase &
-    pos = nextpos + 1;
+    pos = nextpos + separator.size();
   }
 }
 

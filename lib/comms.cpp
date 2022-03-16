@@ -10,6 +10,10 @@
 #include "config.h"
 
 namespace Comms{
+  uint8_t sessionViewerMode = 0xff;
+  uint8_t sessionInputMode = 0xff;
+  uint8_t sessionOutputMode = 0xff;
+
   Comms::Comms(){
     index = INVALID_RECORD_INDEX;
     currentSize = 0;
@@ -170,17 +174,28 @@ namespace Comms{
 
   void Sessions::addFields(){
     Connections::addFields();
+    dataAccX.addField("tags", RAX_STRING, 512);
     dataAccX.addField("sessid", RAX_STRING, 80);
   }
 
   void Sessions::nullFields(){
     Connections::nullFields();
     setSessId("");
+    setTags("");
   }
 
   void Sessions::fieldAccess(){
     Connections::fieldAccess();
+    tags = dataAccX.getFieldAccX("tags");
     sessId = dataAccX.getFieldAccX("sessid");
+  }
+
+  std::string Sessions::getTags() const{return tags.string(index);}
+  std::string Sessions::getTags(size_t idx) const{return (master ? tags.string(idx) : 0);}
+  void Sessions::setTags(std::string _sid){tags.set(_sid, index);}
+  void Sessions::setTags(std::string _sid, size_t idx){
+    if (!master){return;}
+    tags.set(_sid, idx);
   }
 
   Users::Users() : Comms(){}
@@ -258,24 +273,20 @@ namespace Comms{
   /// \param ip: IP address of the viewer which wants to access streamName. For inputs this value can be set to any value
   /// \param sid: Session ID given by the player or randomly generated
   /// \param protocol: Protocol currently in use for this connection
-  /// \param sessionMode: Determines how a viewer session is defined:
-  //         If set to 0, all connections with the same viewer IP and stream name are bundled.
-  //         If set to 1, all connections with the same viewer IP and player ID are bundled.
-  //         If set to 2, all connections with the same player ID and stream name are bundled.
-  //         If set to 3, all connections with the same viewer IP, player ID and stream name are bundled.
   /// \param _master: If True, we are reading from this page. If False, we are writing (to our entry) on this page
   /// \param reIssue: If True, claim a new entry on this page
-  void Connections::reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, uint64_t sessionMode, bool _master, bool reIssue){
-    if (sessionMode == 0xFFFFFFFFFFFFFFFFull){
-      FAIL_MSG("The session mode was not initialised properly. Assuming default behaviour of bundling by viewer IP, stream name and player id");
-      sessionMode = SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID;
-    }
+  void Connections::reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master, bool reIssue){
     // Generate a unique session ID for each viewer, input or output
-    sessionId = generateSession(streamName, ip, sid, protocol, sessionMode);
+    uint8_t thisSessionMode;
     if (protocol.size() >= 6 && protocol.substr(0, 6) == "INPUT:"){
-      sessionId = "I" + sessionId;
+      sessionId = "I" + generateSession(streamName, ip, sid, protocol, sessionInputMode);
+      thisSessionMode = sessionInputMode;
     }else if (protocol.size() >= 7 && protocol.substr(0, 7) == "OUTPUT:"){
-      sessionId = "O" + sessionId;
+      sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessionOutputMode);
+      thisSessionMode = sessionOutputMode;
+    }else{
+      sessionId = generateSession(streamName, ip, sid, protocol, sessionViewerMode);
+      thisSessionMode = sessionViewerMode;
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessionId.c_str());
@@ -288,7 +299,7 @@ namespace Comms{
         args.push_back(Util::getMyPath() + "MistSession");
         args.push_back(sessionId);
         args.push_back("--sessionmode");
-        args.push_back(JSON::Value(sessionMode).asString());
+        args.push_back(JSON::Value(thisSessionMode).asString());
         args.push_back("--streamname");
         args.push_back(streamName);
         args.push_back("--ip");
@@ -312,7 +323,12 @@ namespace Comms{
       sem.open(semName, O_RDWR, ACCESSPERMS, 1);
     }
     Comms::reload(userPageName, COMMS_SESSIONS_INITSIZE, _master, reIssue);
-    VERYHIGH_MSG("Reloading connection. Claimed record %lu", index);
+    if (index != INVALID_RECORD_INDEX){
+      setConnector(protocol);
+      setHost(ip);
+      setStream(streamName);
+      VERYHIGH_MSG("Reloading connection. Claimed record %lu", index);
+    }
   }
 
   /// \brief Marks the data page as closed, so that we longer write any new data to is
@@ -341,7 +357,6 @@ namespace Comms{
     dataAccX.addField("host", RAX_RAW, 16);
     dataAccX.addField("stream", RAX_STRING, 100);
     dataAccX.addField("connector", RAX_STRING, 20);
-    dataAccX.addField("tags", RAX_STRING, 512);
     dataAccX.addField("pktcount", RAX_64UINT);
     dataAccX.addField("pktloss", RAX_64UINT);
     dataAccX.addField("pktretrans", RAX_64UINT);
@@ -349,7 +364,6 @@ namespace Comms{
 
   void Connections::nullFields(){
     Comms::nullFields();
-    setTags("");
     setConnector("");
     setStream("");
     setHost("");
@@ -373,7 +387,6 @@ namespace Comms{
     host = dataAccX.getFieldAccX("host");
     stream = dataAccX.getFieldAccX("stream");
     connector = dataAccX.getFieldAccX("connector");
-    tags = dataAccX.getFieldAccX("tags");
     pktcount = dataAccX.getFieldAccX("pktcount");
     pktloss = dataAccX.getFieldAccX("pktloss");
     pktretrans = dataAccX.getFieldAccX("pktretrans");
@@ -461,14 +474,6 @@ namespace Comms{
     return false;
   }
 
-  std::string Connections::getTags() const{return tags.string(index);}
-  std::string Connections::getTags(size_t idx) const{return (master ? tags.string(idx) : 0);}
-  void Connections::setTags(std::string _sid){tags.set(_sid, index);}
-  void Connections::setTags(std::string _sid, size_t idx){
-    if (!master){return;}
-    tags.set(_sid, idx);
-  }
-
   uint64_t Connections::getPacketCount() const{return pktcount.uint(index);}
   uint64_t Connections::getPacketCount(size_t idx) const{
     return (master ? pktcount.uint(idx) : 0);
@@ -504,27 +509,20 @@ namespace Comms{
   std::string Connections::generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode){
     std::string concat;
     // First bit defines whether to include stream name
-    if (sessionMode > 7){
+    if (sessionMode & 0x08){
       concat += streamName;
-      sessionMode -= 8;
     }
     // Second bit defines whether to include viewer ip
-    if (sessionMode > 3){
+    if (sessionMode & 0x04){
       concat += ip;
-      sessionMode -= 4;
     }
     // Third bit defines whether to include player ip
-    if (sessionMode > 1){
+    if (sessionMode & 0x02){
       concat += sid;
-      sessionMode -= 2;
     }
     // Fourth bit defines whether to include protocol
-    if (sessionMode == 1){
+    if (sessionMode & 0x01){
       concat += connector;
-      sessionMode = 0;
-    }
-    if (sessionMode > 0){
-      WARN_MSG("Could not resolve session mode of value %lu", sessionMode);
     }
     return Secure::sha256(concat.c_str(), concat.length());
   }

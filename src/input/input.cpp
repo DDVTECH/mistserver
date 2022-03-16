@@ -502,6 +502,7 @@ namespace Mist{
   }
 
   int Input::run(){
+    Comms::sessionInputMode = Util::getGlobalConfig("sessionInputMode").asInt();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
     checkHeaderTimes(config->getString("input"));
     if (needHeader()){
@@ -820,7 +821,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);}
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (!statComm){
             config->is_active = false;
@@ -830,7 +831,6 @@ namespace Mist{
           uint64_t now = Util::bootSecs();
           statComm.setNow(now);
           statComm.setStream(streamName);
-          statComm.setConnector("INPUT:" + capa["name"].asStringRef());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
           connStats(statComm);
@@ -984,7 +984,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);}
+        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;

@@ -92,7 +92,7 @@ namespace Mist{
     firstTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
-    sid = "";
+    tkn = "";
     parseData = false;
     wantRequest = true;
     sought = false;
@@ -111,7 +111,6 @@ namespace Mist{
     lastPushUpdate = 0;
     previousFile = "";
     currentFile = "";
-    sessionMode = 0xFFFFFFFFFFFFFFFFull;
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -230,7 +229,7 @@ namespace Mist{
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
     if (!capa.isMember("codecs")){return true;}
-    if (!isInitialized){initialize();}
+    if (!isInitialized){return false;}
     meta.reloadReplacedPagesIfNeeded();
     if (getSupportedTracks().size()){
       size_t minTracks = 2;
@@ -277,6 +276,7 @@ namespace Mist{
   /// Assumes streamName class member has been set already.
   /// Will start input if not currently active, calls onFail() if this does not succeed.
   void Output::reconnect(){
+    Comms::sessionConfigCache();
     thisPacket.null();
     if (config->hasOption("noinput") && config->getBool("noinput")){
       Util::sanitizeName(streamName);
@@ -347,11 +347,10 @@ namespace Mist{
     isInitialized = true;
 
     //Connect to stats reporting, if not connected already
-    if (!statComm){
-      statComm.reload(streamName, getConnectedHost(), sid, capa["name"].asStringRef(), reqUrl, sessionMode);
-      stats(true);
-    }
-    
+    stats(true);
+    //Abort if the stats code shut us down just now
+    if (!isInitialized){return;}
+
     //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
 
@@ -1216,7 +1215,7 @@ namespace Mist{
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
   int Output::run(){
-    sessionMode = Util::getGlobalConfig("sessionMode").asInt();
+    Comms::sessionConfigCache();
     /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1257,6 +1256,7 @@ namespace Mist{
     /*LTS-END*/
     DONTEVEN_MSG("MistOut client handler started");
     while (keepGoing() && (wantRequest || parseData)){
+      Comms::sessionConfigCache();
       if (wantRequest){requestHandler();}
       if (parseData){
         if (!isInitialized){
@@ -1779,27 +1779,35 @@ namespace Mist{
       }
     }
 
-    if (!statComm){statComm.reload(streamName, getConnectedHost(), sid, capa["name"].asStringRef(), reqUrl, sessionMode);}
-    if (!statComm){return;} 
-    if (statComm.getExit()){
-      onFail("Shutting down since this session is not allowed to view this stream");
-      return;
+    // Disable stats for HTTP internal output
+    if (Comms::sessionStreamInfoMode == SESS_HTTP_DISABLED && capa["name"].asStringRef() == "HTTP"){return;}
+
+    // Set the token to the pid for outputs which do not generate it in the requestHandler
+    if (!tkn.size()){ tkn = JSON::Value(getpid()).asString(); }
+
+    if (!statComm){
+      statComm.reload(streamName, getConnectedBinHost(), tkn, getStatsName(), reqUrl);
     }
+    if (!statComm || statComm.getExit()){
+      onFail("Shutting down since this session is not allowed to view this stream");
+      statComm.unload();
+      return;
+    } 
 
     lastStats = now;
 
     VERYHIGH_MSG("Writing stats: %s, %s, %s, %" PRIu64 ", %" PRIu64, getConnectedHost().c_str(), streamName.c_str(),
-             sid.c_str(), myConn.dataUp(), myConn.dataDown());
+             tkn.c_str(), myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
     if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
       onFail("Shutting down on controller request");
+      statComm.unload();
       return;
     }
     /*LTS-END*/
     statComm.setNow(now);
-    statComm.setConnector(getStatsName());
     connStats(now, statComm);
-    statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
+    statComm.setLastSecond(thisPacket ? thisPacket.getTime()/1000 : 0);
     statComm.setPid(getpid());
 
     /*LTS-START*/

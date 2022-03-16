@@ -231,7 +231,7 @@ static inline void show_stackframe(){}
 #define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
 #define SEM_SESSION "MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
-#define SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID 14
+#define SESS_TIMEOUT 600 // Session timeout in seconds
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
 #define SHM_PROXY "MstProx"

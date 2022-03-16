@@ -30,7 +30,7 @@ namespace Mist{
     int64_t timeStampOffset;
     uint64_t lastTimeStamp;
 
-    virtual void connStats(Comms::Statistics &statComm);
+    virtual void connStats(Comms::Connections &statComm);
 
     struct rist_ctx *receiver_ctx;
 

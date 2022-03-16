@@ -621,7 +621,7 @@ namespace Mist{
       // Check for and spawn threads here.
       if (Util::bootSecs() - threadCheckTimer > 1){
         // Connect to stats for INPUT detection
-        statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);
+        statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -636,7 +636,6 @@ namespace Mist{
           statComm.setDown(downCounter + tcpCon.dataDown());
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
         }
 
         std::set<size_t> activeTracks = liveStream.getActiveTracks();

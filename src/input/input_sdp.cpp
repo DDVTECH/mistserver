@@ -202,7 +202,7 @@ namespace Mist{
       if (lastSecs != currSecs){
         lastSecs = currSecs;
         // Connect to stats for INPUT detection
-        statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "", SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID);
+        statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");
         if (statComm){
           if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
@@ -217,7 +217,6 @@ namespace Mist{
           statComm.setUp(bytesUp);
           statComm.setTime(now - startTime);
           statComm.setLastSecond(0);
-          statComm.setHost(getConnectedBinHost());
         }
       }
       // If the error flag is raised or we are lacking data, try to recover

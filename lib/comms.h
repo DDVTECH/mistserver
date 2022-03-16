@@ -9,13 +9,21 @@
 #define COMM_STATUS_REQDISCONNECT 0x10
 #define COMM_STATUS_ACTIVE 0x1
 #define COMM_STATUS_INVALID 0x0
+#define SESS_BUNDLE_DEFAULT_VIEWER 14
+#define SESS_BUNDLE_DEFAULT_OTHER 15
+#define SESS_DEFAULT_STREAM_INFO_MODE 1
+#define SESS_HTTP_AS_VIEWER 1
+#define SESS_HTTP_AS_OUTPUT 2
+#define SESS_HTTP_DISABLED 3
+#define SESS_HTTP_AS_UNSPECIFIED 4
+#define SESS_TKN_DEFAULT_MODE 15
 
 
 #define COMM_LOOP(comm, onActive, onDisconnect) \
   {\
     for (size_t id = 0; id < comm.recordCount(); id++){\
       if (comm.getStatus(id) == COMM_STATUS_INVALID){continue;}\
-      if (!Util::Procs::isRunning(comm.getPid(id))){\
+      if (!(comm.getStatus(id) & COMM_STATUS_DISCONNECT) && comm.getPid(id) && !Util::Procs::isRunning(comm.getPid(id))){\
         comm.setStatus(COMM_STATUS_DISCONNECT | comm.getStatus(id), id);\
       }\
       onActive;\
@@ -27,6 +35,14 @@
   }
 
 namespace Comms{
+  extern uint8_t sessionViewerMode;
+  extern uint8_t sessionInputMode;
+  extern uint8_t sessionOutputMode;
+  extern uint8_t sessionUnspecifiedMode;
+  extern uint8_t sessionStreamInfoMode;
+  extern uint8_t tknMode;
+  void sessionConfigCache();
+
   class Comms{
   public:
     Comms();
@@ -66,11 +82,13 @@ namespace Comms{
 
   class Connections : public Comms{
   public:
-    void reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, uint64_t sessionMode, bool _master = false, bool reIssue = false);
+    void reload(const std::string & streamName, const std::string & ip, const std::string & tkn, const std::string & protocol, const std::string & reqUrl, bool _master = false, bool reIssue = false);
+    void reload(const std::string & sessId, bool _master = false, bool reIssue = false);
     void unload();
     operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
-    std::string generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode);
+    std::string generateSession(const std::string & streamName, const std::string & ip, const std::string & tkn, const std::string & connector, uint64_t sessionMode);
     std::string sessionId;
+    std::string initialTkn;
 
     void setExit();
     bool getExit();
@@ -78,6 +96,8 @@ namespace Comms{
     virtual void addFields();
     virtual void nullFields();
     virtual void fieldAccess();
+
+    const std::string & getTkn() const{return initialTkn;}
 
     uint64_t getNow() const;
     uint64_t getNow(size_t idx) const;
@@ -119,11 +139,6 @@ namespace Comms{
     void setConnector(std::string _connector);
     void setConnector(std::string _connector, size_t idx);
     bool hasConnector(size_t idx, std::string protocol);
-
-    std::string getTags() const;
-    std::string getTags(size_t idx) const;
-    void setTags(std::string _sid);
-    void setTags(std::string _sid, size_t idx);
 
     uint64_t getPacketCount() const;
     uint64_t getPacketCount(size_t idx) const;
@@ -197,5 +212,10 @@ namespace Comms{
       virtual void addFields();
       virtual void nullFields();
       virtual void fieldAccess();
+
+      std::string getTags() const;
+      std::string getTags(size_t idx) const;
+      void setTags(std::string _sid);
+      void setTags(std::string _sid, size_t idx);
   };
 }// namespace Comms

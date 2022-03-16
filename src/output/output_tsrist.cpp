@@ -178,6 +178,20 @@ namespace Mist{
   }
 
   OutTSRIST::~OutTSRIST(){}
+  
+  std::string OutTSRIST::getConnectedHost(){
+    if (!pushOut) { return Output::getConnectedHost(); }
+    return target.host;
+  }
+  std::string OutTSRIST::getConnectedBinHost(){
+    if (!pushOut) { return Output::getConnectedBinHost(); }
+    std::string binHost = Socket::getBinForms(target.host);
+    if (binHost.size() > 16){ binHost = binHost.substr(0, 16); }
+    if (binHost.size() < 16){
+      binHost = std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);
+    }
+    return binHost;
+  }
 
   void OutTSRIST::init(Util::Config *cfg){
     Output::init(cfg);
@@ -319,7 +333,7 @@ namespace Mist{
     }
   }
 
-  void OutTSRIST::connStats(uint64_t now, Comms::Statistics &statComm){
+  void OutTSRIST::connStats(uint64_t now, Comms::Connections &statComm){
     if (!myConn){return;}
     statComm.setUp(upBytes);
     statComm.setDown(0);

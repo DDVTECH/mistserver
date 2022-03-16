@@ -239,6 +239,18 @@ namespace Mist{
     }
   }
 
+  std::string OutTS::getConnectedHost(){
+    if (!pushOut) { return Output::getConnectedHost(); }
+    std::string hostname;
+    uint32_t port;
+    pushSock.GetDestination(hostname, port);
+    return hostname;
+  }
+  std::string OutTS::getConnectedBinHost(){
+    if (!pushOut) { return Output::getConnectedBinHost(); }
+    return pushSock.getBinDestination();
+  }
+
   bool OutTS::listenMode(){return !(config->getString("target").size());}
 
   void OutTS::onRequest(){

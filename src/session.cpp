@@ -7,17 +7,31 @@
 #include <mist/triggers.h>
 #include <signal.h>
 #include <stdio.h>
-// Stats of connections which have closed are added to these global counters
-uint64_t globalNow = 0;
+
+// Global counters
+uint64_t now = Util::bootSecs();
+uint64_t currentConnections = 0;
+uint64_t lastSecond = 0;
 uint64_t globalTime = 0;
 uint64_t globalDown = 0;
 uint64_t globalUp = 0;
 uint64_t globalPktcount = 0;
 uint64_t globalPktloss = 0;
 uint64_t globalPktretrans = 0;
+// Stores last values of each connection
+std::map<size_t, uint64_t> connTime;
+std::map<size_t, uint64_t> connDown;
+std::map<size_t, uint64_t> connUp;
+std::map<size_t, uint64_t> connPktcount;
+std::map<size_t, uint64_t> connPktloss;
+std::map<size_t, uint64_t> connPktretrans;
 // Counts the duration a connector has been active
 std::map<std::string, uint64_t> connectorCount;
 std::map<std::string, uint64_t> connectorLastActive;
+std::map<std::string, uint64_t> hostCount;
+std::map<std::string, uint64_t> hostLastActive;
+std::map<std::string, uint64_t> streamCount;
+std::map<std::string, uint64_t> streamLastActive;
 // Set to True when a session gets invalidated, so that we know to run a new USER_NEW trigger
 bool forceTrigger = false;
 void handleSignal(int signum){
@@ -26,96 +40,141 @@ void handleSignal(int signum){
   }
 }
 
-void userOnActive(uint64_t &connections){
-  ++connections;
-}
+const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-std::string getEnvWithDefault(const std::string variableName, const std::string defaultValue){
-    const char* value = getenv(variableName.c_str());
-    if (value){
-      unsetenv(variableName.c_str());
-      return value;
-    }else{
-      return defaultValue;
-    }
-}
-
-/// \brief Adds stats of closed connections to global counters
-void userOnDisconnect(Comms::Connections & connections, size_t idx){
+void userOnActive(Comms::Connections &connections, size_t idx){
+  uint64_t lastUpdate = connections.getNow(idx);
+  if (lastUpdate < now - 10){return;}
+  ++currentConnections;
   std::string thisConnector = connections.getConnector(idx);
-  if (thisConnector != ""){
-    connectorCount[thisConnector] += connections.getTime(idx);
+  std::string thisStreamName = connections.getStream(idx);
+  const std::string& thisHost = connections.getHost(idx);
+
+  if (connections.getLastSecond(idx) > lastSecond){lastSecond = connections.getLastSecond(idx);}
+  // Save info on the latest active stream, protocol and host separately
+  if (thisConnector.size() && thisConnector != "HTTP"){
+    connectorCount[thisConnector]++;
+    if (connectorLastActive[thisConnector] < lastUpdate){connectorLastActive[thisConnector] = lastUpdate;}
   }
-  globalTime += connections.getTime(idx);
-  globalDown += connections.getDown(idx);
-  globalUp += connections.getUp(idx);
-  globalPktcount += connections.getPacketCount(idx);
-  globalPktloss += connections.getPacketLostCount(idx);
-  globalPktretrans += connections.getPacketRetransmitCount(idx);
+  if (thisStreamName.size()){
+    streamCount[thisStreamName]++;
+    if (streamLastActive[thisStreamName] < lastUpdate){streamLastActive[thisStreamName] = lastUpdate;}
+  }
+  if (memcmp(thisHost.data(), nullAddress, 16)){
+    hostCount[thisHost]++;
+    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < lastUpdate){hostLastActive[thisHost] = lastUpdate;}
+  }
+  // Sanity checks
+  if (connections.getDown(idx) < connDown[idx]){
+    WARN_MSG("Connection downloaded bytes should be a counter, but has decreased in value");
+    connDown[idx] = connections.getDown(idx);
+  }
+  if (connections.getUp(idx) < connUp[idx]){
+    WARN_MSG("Connection uploaded bytes should be a counter, but has decreased in value");
+    connUp[idx] = connections.getUp(idx);
+  }
+  if (connections.getPacketCount(idx) < connPktcount[idx]){
+    WARN_MSG("Connection packet count should be a counter, but has decreased in value");
+    connPktcount[idx] = connections.getPacketCount(idx);
+  }
+  if (connections.getPacketLostCount(idx) < connPktloss[idx]){
+    WARN_MSG("Connection packet loss count should be a counter, but has decreased in value");
+    connPktloss[idx] = connections.getPacketLostCount(idx);
+  }
+  if (connections.getPacketRetransmitCount(idx) < connPktretrans[idx]){
+    WARN_MSG("Connection packets retransmitted should be a counter, but has decreased in value");
+    connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
+  }
+  // Add increase in stats to global stats
+  globalDown += connections.getDown(idx) - connDown[idx];
+  globalUp += connections.getUp(idx) - connUp[idx];
+  globalPktcount += connections.getPacketCount(idx) - connPktcount[idx];
+  globalPktloss += connections.getPacketLostCount(idx) - connPktloss[idx];
+  globalPktretrans += connections.getPacketRetransmitCount(idx) - connPktretrans[idx];
+  // Set last values of this connection
+  connTime[idx]++;
+  connDown[idx] = connections.getDown(idx);
+  connUp[idx] = connections.getUp(idx);
+  connPktcount[idx] = connections.getPacketCount(idx);
+  connPktloss[idx] = connections.getPacketLostCount(idx);
+  connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
+}
+
+/// \brief Remove mappings of inactive connections
+void userOnDisconnect(Comms::Connections & connections, size_t idx){
+  connTime.erase(idx);
+  connDown.erase(idx);
+  connUp.erase(idx);
+  connPktcount.erase(idx);
+  connPktloss.erase(idx);
+  connPktretrans.erase(idx);
 }
 
 int main(int argc, char **argv){
   Comms::Connections connections;
   Comms::Sessions sessions;
   uint64_t lastSeen = Util::bootSecs();
-  uint64_t currentConnections = 0;
   Util::redirectLogsIfNeeded();
   signal(SIGUSR1, handleSignal);
   // Init config and parse arguments
   Util::Config config = Util::Config("MistSession");
   JSON::Value option;
+  char * tmpStr = 0;
 
   option.null();
   option["arg_num"] = 1;
   option["arg"] = "string";
   option["help"] = "Session identifier of the entire session";
-  option["default"] = "";
   config.addOption("sessionid", option);
 
   option.null();
-  option["long"] = "sessionmode";
-  option["short"] = "m";
-  option["arg"] = "integer";
-  option["default"] = 0;
-  config.addOption("sessionmode", option);
-
-  option.null();
   option["long"] = "streamname";
-  option["short"] = "n";
+  option["short"] = "s";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Stream name initial value. May also be passed as SESSION_STREAM";
+  tmpStr = getenv("SESSION_STREAM");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("streamname", option);
 
   option.null();
   option["long"] = "ip";
   option["short"] = "i";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "IP address initial value. May also be passed as SESSION_IP";
+  tmpStr = getenv("SESSION_IP");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("ip", option);
 
   option.null();
-  option["long"] = "sid";
-  option["short"] = "s";
+  option["long"] = "tkn";
+  option["short"] = "t";
   option["arg"] = "string";
-  option["default"] = "";
-  config.addOption("sid", option);
+  option["help"] = "Client-side session ID initial value. May also be passed as SESSION_TKN";
+  tmpStr = getenv("SESSION_TKN");
+  option["default"] = tmpStr?tmpStr:"";
+  config.addOption("tkn", option);
 
   option.null();
   option["long"] = "protocol";
   option["short"] = "p";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Protocol initial value. May also be passed as SESSION_PROTOCOL";
+  tmpStr = getenv("SESSION_PROTOCOL");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("protocol", option);
 
   option.null();
   option["long"] = "requrl";
   option["short"] = "r";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Request URL initial value. May also be passed as SESSION_REQURL";
+  tmpStr = getenv("SESSION_REQURL");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("requrl", option);
 
   config.activate();
   if (!(config.parseArgs(argc, argv))){
+    config.printHelp(std::cout);
     FAIL_MSG("Cannot start a new session due to invalid arguments");
     return 1;
   }
@@ -123,24 +182,17 @@ int main(int argc, char **argv){
   const uint64_t bootTime = Util::getMicros();
   // Get session ID, session mode and other variables used as payload for the USER_NEW and USER_END triggers
   const std::string thisStreamName = config.getString("streamname");
-  const std::string thisHost = config.getString("ip");
-  const std::string thisSid = config.getString("sid");
+  const std::string thisToken = config.getString("tkn");
   const std::string thisProtocol = config.getString("protocol");
   const std::string thisReqUrl = config.getString("requrl");
   const std::string thisSessionId = config.getString("sessionid");
-  const uint64_t sessionMode = config.getInteger("sessionmode");
+  std::string thisHost = Socket::getBinForms(config.getString("ip"));
+  if (thisHost.size() > 16){thisHost = thisHost.substr(0, 16);}
 
-  if (thisSessionId == "" || thisProtocol == "" || thisStreamName == ""){
-    FAIL_MSG("Given the following incomplete arguments: SessionId: '%s', protocol: '%s', stream name: '%s'. Aborting opening a new session",
-    thisSessionId.c_str(), thisProtocol.c_str(), thisStreamName.c_str());
-    return 1;
-  }
-
-  MEDIUM_MSG("Starting a new session for sessionId '%s'", thisSessionId.c_str());
-  if (sessionMode < 1 || sessionMode > 15) {
-    FAIL_MSG("Invalid session mode of value %lu. Should be larger than 0 and smaller than 16", sessionMode);
-    return 1;
-  }
+  std::string ipHex;
+  Socket::hostBytesToStr(thisHost.c_str(), thisHost.size(), ipHex);
+  VERYHIGH_MSG("Starting a new session. Passed variables are stream name '%s', session token '%s', protocol '%s', requested URL '%s', IP '%s' and session id '%s'",
+  thisStreamName.c_str(), thisToken.c_str(), thisProtocol.c_str(), thisReqUrl.c_str(), ipHex.c_str(), thisSessionId.c_str());
 
   // Try to lock to ensure we are the only process initialising this session
   IPC::semaphore sessionLock;
@@ -174,194 +226,200 @@ int main(int argc, char **argv){
     sessionLock.post();
     return 1;
   }
-  // Open the shared memory page containing statistics for each individual connection in this session
-  connections.reload(thisStreamName, thisHost, thisSid, thisProtocol, thisReqUrl, sessionMode, true, false);
+
   // Initialise global session data
   sessions.setHost(thisHost);
   sessions.setSessId(thisSessionId);
   sessions.setStream(thisStreamName);
-  sessionLock.post();
+  if (thisProtocol.size() && thisProtocol != "HTTP"){connectorLastActive[thisProtocol] = now;}
+  if (thisStreamName.size()){streamLastActive[thisStreamName] = now;}
+  if (memcmp(thisHost.data(), nullAddress, 16)){hostLastActive[thisHost] = now;}
+
+  // Open the shared memory page containing statistics for each individual connection in this session
+  connections.reload(thisSessionId, true);
 
   // Determine session type, since triggers only get run for viewer type sessions
   uint64_t thisType = 0;
   if (thisSessionId[0] == 'I'){
-    INFO_MSG("Started new input session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
     thisType = 1;
-  }
-  else if (thisSessionId[0] == 'O'){
-    INFO_MSG("Started new output session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
+  } else if (thisSessionId[0] == 'O'){
     thisType = 2;
-  }
-  else{
-    INFO_MSG("Started new viewer session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
+  } else if (thisSessionId[0] == 'U'){
+    thisType = 3;
   }
 
   // Do a USER_NEW trigger if it is defined for this stream
   if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
-    std::string payload = thisStreamName + "\n" + thisHost + "\n" +
-                          thisSid + "\n" + thisProtocol +
+    std::string payload = thisStreamName + "\n" + config.getString("ip") + "\n" +
+                          thisToken + "\n" + thisProtocol +
                           "\n" + thisReqUrl + "\n" + thisSessionId;
     if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
       // Mark all connections of this session as finished, since this viewer is not allowed to view this stream
+      Util::logExitReason("Session rejected by USER_NEW");
       connections.setExit();
       connections.finishAll();
     }
   }
 
-  uint64_t lastSecond = 0;
-  uint64_t now = 0;
-  uint64_t time = 0;
-  uint64_t down = 0;
-  uint64_t up = 0;
-  uint64_t pktcount = 0;
-  uint64_t pktloss = 0;
-  uint64_t pktretrans = 0;
-  std::string connector = "";
+  //start allowing viewers
+  sessionLock.post();
+
+  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
+
   // Stay active until Mist exits or we no longer have an active connection
-  while (config.is_active && (currentConnections || Util::bootSecs() - lastSeen <= 10)){
-    time = 0;
-    connector = "";
-    down = 0;
-    up = 0;
-    pktcount = 0;
-    pktloss = 0;
-    pktretrans = 0;
+  while (config.is_active && (currentConnections || now - lastSeen <= STATS_DELAY) && !connections.getExit()){
     currentConnections = 0;
+    lastSecond = 0;
+    now = Util::bootSecs();
 
-    // Count active connections
-    COMM_LOOP(connections, userOnActive(currentConnections), userOnDisconnect(connections, id));
     // Loop through all connection entries to get a summary of statistics
-    for (uint64_t idx = 0; idx < connections.recordCount(); idx++){
-      if (connections.getStatus(idx) == COMM_STATUS_INVALID || connections.getStatus(idx) & COMM_STATUS_DISCONNECT){continue;}
-      uint64_t thisLastSecond = connections.getLastSecond(idx);
-      std::string thisConnector = connections.getConnector(idx);
-      // Save info on the latest active connection separately
-      if (thisLastSecond > lastSecond){
-        lastSecond = thisLastSecond;
-        now = connections.getNow(idx);
-      }
-      connectorLastActive[thisConnector] = thisLastSecond;
-      // Sum all other variables
-      time += connections.getTime(idx);
-      down += connections.getDown(idx);
-      up += connections.getUp(idx);
-      pktcount += connections.getPacketCount(idx);
-      pktloss += connections.getPacketLostCount(idx);
-      pktretrans += connections.getPacketRetransmitCount(idx);
+    COMM_LOOP(connections, userOnActive(connections, id), userOnDisconnect(connections, id));
+    if (currentConnections){
+      globalTime++;
+      lastSeen = now;
     }
 
-    // Convert connector duration to string
-    std::stringstream connectorSummary;
-    bool addDelimiter = false;
-    connectorSummary << "{";
-    for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
-          it != connectorLastActive.end(); ++it){
-      if (lastSecond - it->second < 10000){
-        connectorSummary << (addDelimiter ? "," : "") << it->first;
-        addDelimiter = true;
-      }
-    }
-    connectorSummary << "}";
 
-    // Write summary to global statistics
-    sessions.setTime(time + globalTime);
-    sessions.setDown(down + globalDown);
-    sessions.setUp(up + globalUp);
-    sessions.setPacketCount(pktcount + globalPktcount);
-    sessions.setPacketLostCount(pktloss + globalPktloss);
-    sessions.setPacketRetransmitCount(pktretrans + globalPktretrans);
+    sessions.setTime(globalTime);
+    sessions.setDown(globalDown);
+    sessions.setUp(globalUp);
+    sessions.setPacketCount(globalPktcount);
+    sessions.setPacketLostCount(globalPktloss);
+    sessions.setPacketRetransmitCount(globalPktretrans);
     sessions.setLastSecond(lastSecond);
-    sessions.setConnector(connectorSummary.str());
     sessions.setNow(now);
+
+    if (currentConnections){
+      {
+        // Convert active protocols to string
+        std::stringstream connectorSummary;
+        for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
+              it != connectorLastActive.end(); ++it){
+          if (now - it->second < STATS_DELAY){
+            connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
+          }
+        }
+        sessions.setConnector(connectorSummary.str());
+      }
+
+      {
+        // Set active host to last active or 0 if there were various hosts active recently
+        std::string thisHost;
+        for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
+              it != hostLastActive.end(); ++it){
+          if (now - it->second < STATS_DELAY){
+            if (!thisHost.size()){
+              thisHost = it->first;
+            }else if (thisHost != it->first){
+              thisHost = nullAddress;
+              break;
+            }
+          }
+        }
+        if (!thisHost.size()){
+          thisHost = nullAddress;
+        }
+        sessions.setHost(thisHost);
+      }
+
+      {
+        // Set active stream name to last active or "" if there were multiple streams active recently
+        std::string thisStream = "";
+        for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
+              it != streamLastActive.end(); ++it){
+          if (now - it->second < STATS_DELAY){
+            if (!thisStream.size()){
+              thisStream = it->first;
+            }else if (thisStream != it->first){
+              thisStream = "";
+              break;
+            }
+          }
+        }
+        sessions.setStream(thisStream);
+      }
+    }
 
     // Retrigger USER_NEW if a re-sync was requested
     if (!thisType && forceTrigger){
       forceTrigger = false;
+      std::string host;
+      Socket::hostBytesToStr(thisHost.data(), 16, host);
       if (Triggers::shouldTrigger("USER_NEW", thisStreamName)){
         INFO_MSG("Triggering USER_NEW for stream %s", thisStreamName.c_str());
-        std::string payload = thisStreamName + "\n" + thisHost + "\n" +
-                              thisSid + "\n" + thisProtocol +
+        std::string payload = thisStreamName + "\n" + host + "\n" +
+                              thisToken + "\n" + thisProtocol +
                               "\n" + thisReqUrl + "\n" + thisSessionId;
         if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
           INFO_MSG("USER_NEW rejected stream %s", thisStreamName.c_str());
+          Util::logExitReason("Session rejected by USER_NEW");
           connections.setExit();
           connections.finishAll();
+          break;
         }else{
           INFO_MSG("USER_NEW accepted stream %s", thisStreamName.c_str());
         }
       }
     }
 
-    // Invalidate connections if the session is marked as invalid
-    if(connections.getExit()){
-      connections.finishAll();
-      break;
-    }
     // Remember latest activity so we know when this session ends
     if (currentConnections){
-      lastSeen = Util::bootSecs();
     }
-    Util::sleep(1000);
+    Util::wait(1000);
+  }
+  if (Util::bootSecs() - lastSeen > STATS_DELAY){
+    Util::logExitReason("Session inactive for %d seconds", STATS_DELAY);
   }
 
   // Trigger USER_END
   if (!thisType && Triggers::shouldTrigger("USER_END", thisStreamName)){
-    lastSecond = 0;
-    time = 0;
-    down = 0;
-    up = 0;
 
-    // Get a final summary of this session
-    for (uint64_t idx = 0; idx < connections.recordCount(); idx++){
-      if (connections.getStatus(idx) == COMM_STATUS_INVALID || connections.getStatus(idx) & COMM_STATUS_DISCONNECT){continue;}
-      uint64_t thisLastSecond = connections.getLastSecond(idx);
-      // Set last second to the latest entry
-      if (thisLastSecond > lastSecond){
-        lastSecond = thisLastSecond;
-      }
-      // Count protocol durations across the entire session
-      std::string thisConnector = connections.getConnector(idx);
-      if (thisConnector != ""){
-        connectorCount[thisConnector] += connections.getTime(idx);
-      }
-      // Sum all other variables
-      time += connections.getTime(idx);
-      down += connections.getDown(idx);
-      up += connections.getUp(idx);
-    }
-
-    // Convert connector duration to string
+    // Convert connector, host and stream into lists and counts
     std::stringstream connectorSummary;
-    bool addDelimiter = false;
-    connectorSummary << "{";
-    for (std::map<std::string, uint64_t>::iterator it = connectorCount.begin();
-          it != connectorCount.end(); ++it){
-      connectorSummary << (addDelimiter ? "," : "") << it->first << ":" << it->second;
-      addDelimiter = true;
+    std::stringstream connectorTimes;
+    for (std::map<std::string, uint64_t>::iterator it = connectorCount.begin(); it != connectorCount.end(); ++it){
+      connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
+      connectorTimes << (connectorTimes.str().size() ? "," : "") << it->second;
     }
-    connectorSummary << "}";
+    std::stringstream hostSummary;
+    std::stringstream hostTimes;
+    for (std::map<std::string, uint64_t>::iterator it = hostCount.begin(); it != hostCount.end(); ++it){
+      std::string host;
+      Socket::hostBytesToStr(it->first.data(), 16, host);
+      hostSummary << (hostSummary.str().size() ? "," : "") << host;
+      hostTimes << (hostTimes.str().size() ? "," : "") << it->second;
+    }
+    std::stringstream streamSummary;
+    std::stringstream streamTimes;
+    for (std::map<std::string, uint64_t>::iterator it = streamCount.begin(); it != streamCount.end(); ++it){
+      streamSummary << (streamSummary.str().size() ? "," : "") << it->first;
+      streamTimes << (streamTimes.str().size() ? "," : "") << it->second;
+    }
 
-    const uint64_t duration = lastSecond - (bootTime / 1000);
     std::stringstream summary;
-    summary << thisSessionId << "\n"
-          << thisStreamName << "\n"
+    summary << thisToken << "\n"
+          << streamSummary.str() << "\n"
           << connectorSummary.str() << "\n"
-          << thisHost << "\n"
-          << duration << "\n"
-          << up << "\n"
-          << down << "\n"
-          << sessions.getTags();
+          << hostSummary.str() << "\n"
+          << globalTime << "\n"
+          << globalUp << "\n"
+          << globalDown << "\n"
+          << sessions.getTags() << "\n"
+          << hostTimes.str() << "\n"
+          << connectorTimes.str() << "\n"
+          << streamTimes.str() << "\n"
+          << thisSessionId;
     Triggers::doTrigger("USER_END", summary.str(), thisStreamName);
   }
 
   if (!thisType && connections.getExit()){
-    WARN_MSG("Session %s has been invalidated since it is not allowed to view stream %s", thisSessionId.c_str(), thisStreamName.c_str());
     uint64_t sleepStart = Util::bootSecs();
     // Keep session invalidated for 10 minutes, or until the session stops
-    while (config.is_active && sleepStart - Util::bootSecs() < 600){
+    while (config.is_active && Util::bootSecs() - sleepStart < SESS_TIMEOUT){
       Util::sleep(1000);
+      if (forceTrigger){break;}
     }
   }
-  INFO_MSG("Shutting down session %s", thisSessionId.c_str());
+  INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);
   return 0;
 }

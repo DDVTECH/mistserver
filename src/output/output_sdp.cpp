@@ -141,6 +141,18 @@ namespace Mist{
     }
   }
 
+  std::string OutSDP::getConnectedHost(){
+    if (!sdpState.tracks.size()) { return Output::getConnectedHost(); }
+    std::string hostname;
+    uint32_t port;
+    sdpState.tracks[0].data.GetDestination(hostname, port);
+    return hostname;
+  }
+  std::string OutSDP::getConnectedBinHost(){
+    if (!sdpState.tracks.size()) { return Output::getConnectedBinHost(); }
+    return sdpState.tracks[0].data.getBinDestination();
+  }
+
   void OutSDP::sendNext(){
     char *dataPointer = 0;
     size_t dataLen = 0;

@@ -222,24 +222,17 @@ namespace Mist{
   void OutCMAF::sendHlsMasterManifest(){
     selectDefaultTracks();
 
-    std::string sessId = "";
-    if (hasSessionIDs()){
-      std::string ua = UA + JSON::Value(getpid()).asString();
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      sessId = JSON::Value(crc).asString();
-    }
-
     // check for forced "no low latency" parameter
     bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
 
     // Populate the struct that will help generate the master playlist
     const HLS::MasterData masterData ={
-        hasSessionIDs(),
+        false,//hasSessionIDs, unused
         noLLHLS,
         hlsMediaFormat == ".ts",
         getMainSelectedTrack(),
         H.GetHeader("User-Agent"),
-        sessId,
+        (Comms::tknMode & 0x04)?tkn:"",
         systemBoot,
         bootMsOffset,
     };
@@ -261,11 +254,8 @@ namespace Mist{
 
     // Chunkpath & Session ID logic
     std::string urlPrefix = "";
-    std::string sessId = "";
     if (config->getString("chunkpath").size()){
       urlPrefix = HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl();
-    }else{
-      sessId = H.GetVar("sessId");
     }
 
     // check for forced "no low latency" parameter
@@ -279,7 +269,7 @@ namespace Mist{
         noLLHLS,
         hlsMediaFormat,
         M.getEncryption(requestTid),
-        sessId,
+        (Comms::tknMode & 0x04)?tkn:"",
         timingTid,
         requestTid,
         M.biggestFragment(timingTid) / 1000,
@@ -345,6 +335,16 @@ namespace Mist{
     // Strip /cmaf/<streamname>/ from url
     std::string url = H.url.substr(H.url.find('/', 6) + 1);
     HTTP::URL req(reqUrl);
+
+
+    if (tkn.size()){
+      if (Comms::tknMode & 0x08){
+        const std::string koekjes = H.GetHeader("Cookie");
+        std::stringstream cookieHeader;
+        cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
+    }
 
     // Send a dash manifest for any URL with .mpd in the path
     if (req.getExt() == "mpd"){
@@ -438,6 +438,7 @@ namespace Mist{
       H.SendResponse("400", "Bad Request: Could not parse the url", myConn);
       return;
     }
+
     std::string headerData =
         CMAF::keyHeader(M, idx, startTime, targetTime, fragmentIndex, false, false);
 

@@ -12,6 +12,8 @@ namespace Mist{
     virtual void initialSeek();
     bool isReadyForPlay();
     void onRequest();
+    std::string getConnectedHost();
+    std::string getConnectedBinHost();
 
   private:
     size_t udpSize;

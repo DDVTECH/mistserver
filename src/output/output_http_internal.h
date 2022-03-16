@@ -10,10 +10,10 @@ namespace Mist{
     virtual void onFail(const std::string &msg, bool critical = false);
     /// preHTTP is disabled in the internal HTTP output, since most don't need the stream alive to work
     virtual void preHTTP(){};
-    void HTMLResponse();
-    void onHTTP();
-    void sendIcon();
-    bool websocketHandler();
+    void HTMLResponse(const HTTP::Parser & req, bool headersOnly);
+    void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    void sendIcon(bool headersOnly);
+    bool websocketHandler(const HTTP::Parser & req, bool headersOnly);
     JSON::Value getStatusJSON(std::string &reqHost, const std::string &useragent = "");
     bool stayConnected;
     virtual bool onFinish(){return stayConnected;}

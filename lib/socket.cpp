@@ -166,6 +166,8 @@ bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
 /// Converts the given address with optional subnet to binary IPv6 form.
 /// Returns 16 bytes of address, followed by 1 byte of subnet bits, zero or more times.
 std::string Socket::getBinForms(std::string addr){
+  // Check for empty address
+  if (!addr.size()){return std::string(17, (char)0);}
   // Check if we need to do prefix matching
   uint8_t prefixLen = 128;
   if (addr.find('/') != std::string::npos){
@@ -1794,6 +1796,14 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
   destIp = "";
   port = 0;
   FAIL_MSG("Could not get destination for UDP socket");
+}// Socket::UDPConnection GetDestination
+
+/// Gets the properties of the receiving end of this UDP socket.
+/// This will be the receiving end for all SendNow calls.
+std::string Socket::UDPConnection::getBinDestination(){
+  std::string binList = getIPv6BinAddr(*(sockaddr_in6*)destAddr);
+  if (binList.size() < 16){ return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16); }
+  return binList.substr(0, 16);
 }// Socket::UDPConnection GetDestination
 
 /// Returns the port number of the receiving end of this socket.

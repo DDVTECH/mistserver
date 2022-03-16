@@ -76,11 +76,11 @@ namespace Mist{
     std::string method = H.method;
     // send logo icon
     if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
-      sendIcon();
+      sendIcon(false);
       return;
     }
     if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
-      HTMLResponse();
+      HTMLResponse(H, false);
       return;
     }
     if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
@@ -337,9 +337,9 @@ namespace Mist{
     }
   }
 
-  void OutHTTP::HTMLResponse(){
-    std::string method = H.method;
-    HTTP::URL fullURL(H.GetHeader("Host"));
+  void OutHTTP::HTMLResponse(const HTTP::Parser & req, bool headersOnly){
+    HTTPOutput::respondHTTP(req, headersOnly);
+    HTTP::URL fullURL(req.GetHeader("Host"));
     if (!fullURL.protocol.size()){fullURL.protocol = getProtocolForPort(fullURL.getPort());}
     if (config->getString("pubaddr") != ""){
       HTTP::URL altURL(config->getString("pubaddr"));
@@ -349,24 +349,22 @@ namespace Mist{
       fullURL.path = altURL.path;
     }
     if (mistPath.size()){fullURL = mistPath;}
-    std::string uAgent = H.GetHeader("User-Agent");
+    std::string uAgent = req.GetHeader("User-Agent");
 
     std::string forceType = "";
     if (H.GetVar("forcetype").size()){
-      forceType = ",forceType:\"" + H.GetVar("forcetype") + "\"";
+      forceType = ",forceType:\"" + req.GetVar("forcetype") + "\"";
     }
 
     std::string devSkin = "";
-    if (H.GetVar("dev").size()){devSkin = ",skin:\"dev\"";}
-    H.SetVar("stream", "");
-    H.SetVar("dev", "");
+    if (req.GetVar("dev").size()){devSkin = ",skin:\"dev\"";}
     devSkin += ",urlappend:\"" + H.allVars() + "\"";
     H.SetVar("stream", streamName);
 
     std::string seekTo = "";
-    if (H.GetVar("t").size()){
+    if (req.GetVar("t").size()){
       uint64_t autoSeekTime = 0;
-      std::string sTime = H.GetVar("t");
+      std::string sTime = req.GetVar("t");
       unsigned long long h = 0, m = 0, s = 0;
       autoSeekTime = JSON::Value(sTime).asInt();
       if (sscanf(sTime.c_str(), "%llum%llus", &m, &s) == 2){autoSeekTime = m * 60 + s;}
@@ -385,13 +383,10 @@ namespace Mist{
                  streamName + "\").addEventListener(\"initialized\",f);";
       }
     }
-
-    H.Clean();
+    
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");
-    H.SetHeader("Server", APPIDENT);
-    H.setCORSHeaders();
-    if (method == "OPTIONS" || method == "HEAD"){
+    if (headersOnly){
       H.SendResponse("200", "OK", myConn);
       responded = true;
       H.Clean();
@@ -427,6 +422,7 @@ namespace Mist{
     }
     H.SendResponse("200", "OK", myConn);
     responded = true;
+    H.Clean();
   }
 
   JSON::Value OutHTTP::getStatusJSON(std::string &reqHost, const std::string &useragent){
@@ -634,23 +630,31 @@ namespace Mist{
 
     // loop over the added sources, add them to json_resp["sources"]
     for (std::set<JSON::Value, sourceCompare>::iterator it = sources.begin(); it != sources.end(); it++){
-      if ((*it)["simul_tracks"].asInt() > 0){json_resp["source"].append(*it);}
+      if ((*it)["simul_tracks"].asInt() > 0){
+        if (Comms::tknMode & 0x04){
+          JSON::Value tmp;
+          tmp = (*it);
+          tmp["url"] = tmp["url"].asStringRef() + "?tkn=" + tkn;
+          tmp["relurl"] = tmp["relurl"].asStringRef() + "?tkn=" + tkn;
+          json_resp["source"].append(tmp);
+        }else{
+          json_resp["source"].append(*it);
+        }
+      }
     }
     return json_resp;
   }
 
-  void OutHTTP::onHTTP(){
+  void OutHTTP::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     origStreamName = streamName;
-    std::string method = H.method;
 
-    if (H.GetHeader("X-Mst-Path").size()){mistPath = H.GetHeader("X-Mst-Path");}
+    if (req.GetHeader("X-Mst-Path").size()){mistPath = req.GetHeader("X-Mst-Path");}
 
     // Handle certbot validations
-    if (H.url.substr(0, 28) == "/.well-known/acme-challenge/"){
+    if (req.url.substr(0, 28) == "/.well-known/acme-challenge/"){
       std::string cbToken = H.url.substr(28);
       jsonForEach(config->getOption("certbot", true), it){
         if (it->asStringRef().substr(0, cbToken.size() + 1) == cbToken + ":"){
-          H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetHeader("Server", APPIDENT);
           H.setCORSHeaders();
@@ -661,9 +665,7 @@ namespace Mist{
           return;
         }
       }
-      H.Clean();
       H.SetHeader("Content-Type", "text/plain");
-      H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetBody("No matching validation found for token '" + cbToken + "'");
       H.SendResponse("404", "Not found", myConn);
@@ -672,12 +674,11 @@ namespace Mist{
       return;
     }
 
-    if (H.url == "/crossdomain.xml"){
-      H.Clean();
+    if (req.url == "/crossdomain.xml"){
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -693,12 +694,11 @@ namespace Mist{
       return;
     }// crossdomain.xml
 
-    if (H.url == "/clientaccesspolicy.xml"){
-      H.Clean();
+    if (req.url == "/clientaccesspolicy.xml"){
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -716,8 +716,7 @@ namespace Mist{
       return;
     }// clientaccesspolicy.xml
 
-    if (H.url == "/flashplayer.swf"){
-      H.Clean();
+    if (req.url == "/flashplayer.swf"){
       H.SetHeader("Content-Type", "application/x-shockwave-flash");
       H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_101_swf, FlashMediaPlayback_101_swf_len);
@@ -725,8 +724,7 @@ namespace Mist{
       responded = true;
       return;
     }
-    if (H.url == "/oldflashplayer.swf"){
-      H.Clean();
+    if (req.url == "/oldflashplayer.swf"){
       H.SetHeader("Content-Type", "application/x-shockwave-flash");
       H.SetHeader("Server", APPIDENT);
       H.SetBody((const char *)FlashMediaPlayback_swf, FlashMediaPlayback_swf_len);
@@ -735,20 +733,21 @@ namespace Mist{
       return;
     }
     // send logo icon
-    if (H.url.length() > 4 && H.url.substr(H.url.length() - 4, 4) == ".ico"){
-      sendIcon();
+    if (req.url.length() > 4 && req.url.substr(req.url.length() - 4, 4) == ".ico"){
+      sendIcon(headersOnly);
       return;
     }
 
     // send generic HTML page
-    if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".html"){
-      HTMLResponse();
+    if (req.url.length() > 6 && req.url.substr(req.url.length() - 5, 5) == ".html"){
+      HTMLResponse(req, headersOnly);
       return;
     }
 
     // send smil MBR index
-    if (H.url.length() > 6 && H.url.substr(H.url.length() - 5, 5) == ".smil"){
-      std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
+    if (req.url.length() > 6 && req.url.substr(req.url.length() - 5, 5) == ".smil"){
+      HTTPOutput::respondHTTP(req, headersOnly);
+      std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
       std::string port, url_rel;
       std::string trackSources; // this string contains all track sources for MBR smil
       {
@@ -782,11 +781,8 @@ namespace Mist{
         }
       }
 
-      H.Clean();
       H.SetHeader("Content-Type", "application/smil");
-      H.SetHeader("Server", APPIDENT);
-      H.setCORSHeaders();
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -800,24 +796,22 @@ namespace Mist{
       return;
     }
 
-    if ((H.url.length() > 9 && H.url.substr(0, 6) == "/info_" && H.url.substr(H.url.length() - 3, 3) == ".js") ||
-        (H.url.length() > 9 && H.url.substr(0, 6) == "/json_" && H.url.substr(H.url.length() - 3, 3) == ".js")){
-      if (websocketHandler()){return;}
-      std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
-      std::string useragent = H.GetVar("ua");
-      if (!useragent.size()){useragent = H.GetHeader("User-Agent");}
+    if ((req.url.length() > 9 && req.url.substr(0, 6) == "/info_" && req.url.substr(req.url.length() - 3, 3) == ".js") ||
+        (req.url.length() > 9 && req.url.substr(0, 6) == "/json_" && req.url.substr(req.url.length() - 3, 3) == ".js")){
+      HTTPOutput::respondHTTP(req, headersOnly);
+      if (websocketHandler(req, headersOnly)){return;}
+      std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
+      std::string useragent = req.GetVar("ua");
+      if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
       std::string response;
-      std::string rURL = H.url;
-      if (method != "OPTIONS" && method != "HEAD"){initialize();}
-      H.Clean();
-      H.SetHeader("Server", APPIDENT);
-      H.setCORSHeaders();
+      std::string rURL = req.url;
+      if (headersOnly){initialize();}
       if (rURL.substr(0, 6) != "/json_"){
         H.SetHeader("Content-Type", "application/javascript");
       }else{
         H.SetHeader("Content-Type", "application/json");
       }
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -837,9 +831,9 @@ namespace Mist{
       return;
     }// embed code generator
 
-    if ((H.url == "/player.js") || ((H.url.substr(0, 7) == "/embed_") && (H.url.length() > 10) &&
-                                    (H.url.substr(H.url.length() - 3, 3) == ".js"))){
-      HTTP::URL fullURL(H.GetHeader("Host"));
+    if ((req.url == "/player.js") || ((req.url.substr(0, 7) == "/embed_") && (req.url.length() > 10) &&
+                                    (req.url.substr(H.url.length() - 3, 3) == ".js"))){
+      HTTP::URL fullURL(req.GetHeader("Host"));
       if (!fullURL.protocol.size()){fullURL.protocol = getProtocolForPort(fullURL.getPort());}
       if (config->getString("pubaddr") != ""){
         HTTP::URL altURL(config->getString("pubaddr"));
@@ -850,12 +844,17 @@ namespace Mist{
       }
       if (mistPath.size()){fullURL = mistPath;}
       std::string response;
-      std::string rURL = H.url;
-      H.Clean();
+      std::string rURL = req.url;
+
+      if ((rURL.substr(0, 7) == "/embed_") && (rURL.length() > 10) &&
+          (rURL.substr(rURL.length() - 3, 3) == ".js")){
+        HTTPOutput::respondHTTP(req, headersOnly);
+      }
+
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript; charset=utf-8");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -933,14 +932,13 @@ namespace Mist{
       return;
     }
 
-    if (H.url.substr(0, 7) == "/skins/"){
+    if (req.url.substr(0, 7) == "/skins/"){
       std::string response;
-      std::string url = H.url;
-      H.Clean();
+      std::string url = req.url;
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "text/css");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -970,13 +968,12 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/videojs.js"){
+    if (req.url == "/videojs.js"){
       std::string response;
-      H.Clean();
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -992,13 +989,12 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/dashjs.js"){
+    if (req.url == "/dashjs.js"){
       std::string response;
-      H.Clean();
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -1016,13 +1012,12 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/webrtc.js"){
+    if (req.url == "/webrtc.js"){
       std::string response;
-      H.Clean();
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         H.Clean();
@@ -1038,13 +1033,12 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/flv.js"){
+    if (req.url == "/flv.js"){
       std::string response;
-      H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
         return;
@@ -1058,13 +1052,12 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/hlsjs.js"){
+    if (req.url == "/hlsjs.js"){
       std::string response;
-      H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
         return;
@@ -1084,7 +1077,7 @@ namespace Mist{
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
         return;
@@ -1100,15 +1093,13 @@ namespace Mist{
     } 
   }
 
-  void OutHTTP::sendIcon(){
-    std::string method = H.method;
-    H.Clean();
+  void OutHTTP::sendIcon(bool headersOnly){
 #include "../icon.h"
     H.SetHeader("Content-Type", "image/x-icon");
     H.SetHeader("Server", APPIDENT);
     H.SetHeader("Content-Length", icon_len);
     H.setCORSHeaders();
-    if (method == "OPTIONS" || method == "HEAD"){
+    if (headersOnly){
       H.SendResponse("200", "OK", myConn);
       responded = true;
       H.Clean();
@@ -1120,16 +1111,16 @@ namespace Mist{
     H.Clean();
   }
 
-  bool OutHTTP::websocketHandler(){
+  bool OutHTTP::websocketHandler(const HTTP::Parser & req, bool headersOnly){
     stayConnected = true;
-    std::string reqHost = HTTP::URL(H.GetHeader("Host")).host;
-    if (H.GetHeader("X-Mst-Path").size()){mistPath = H.GetHeader("X-Mst-Path");}
-    std::string useragent = H.GetVar("ua");
-    if (!useragent.size()){useragent = H.GetHeader("User-Agent");}
-    std::string upgradeHeader = H.GetHeader("Upgrade");
+    std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
+    if (req.GetHeader("X-Mst-Path").size()){mistPath = req.GetHeader("X-Mst-Path");}
+    std::string useragent = req.GetVar("ua");
+    if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
+    std::string upgradeHeader = req.GetHeader("Upgrade");
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){return false;}
-    HTTP::Websocket ws(myConn, H);
+    HTTP::Websocket ws(myConn, req, H);
     if (!ws){return false;}
     setBlocking(false);
     // start the stream, if needed

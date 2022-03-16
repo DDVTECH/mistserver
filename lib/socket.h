@@ -215,6 +215,7 @@ namespace Socket{
     void setBlocking(bool blocking);
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);
+    std::string getBinDestination();
     const void * getDestAddr(){return destAddr;}
     size_t getDestAddrLen(){return destAddr_size;}
     std::string getBoundAddress();

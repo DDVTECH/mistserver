@@ -7,7 +7,7 @@
 namespace HTTP{
   class Websocket{
   public:
-    Websocket(Socket::Connection &c, HTTP::Parser &h);
+    Websocket(Socket::Connection &c, const HTTP::Parser &req, HTTP::Parser &resp);
     Websocket(Socket::Connection &c, const HTTP::URL & url, std::map<std::string, std::string> * headers = 0);
     Websocket(Socket::Connection &c, bool client);
     operator bool() const;

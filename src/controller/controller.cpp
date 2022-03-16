@@ -309,6 +309,24 @@ int main_loop(int argc, char **argv){
   Controller::Storage["config"]["prometheus"] = Controller::conf.getString("prometheus");
   Controller::Storage["config"]["accesslog"] = Controller::conf.getString("accesslog");
   Controller::normalizeTrustedProxies(Controller::Storage["config"]["trustedproxy"]);
+  if (!Controller::Storage["config"]["sessionViewerMode"]){
+    Controller::Storage["config"]["sessionViewerMode"] = SESS_BUNDLE_DEFAULT_VIEWER;
+  }
+  if (!Controller::Storage["config"]["sessionInputMode"]){
+    Controller::Storage["config"]["sessionInputMode"] = SESS_BUNDLE_DEFAULT_OTHER;
+  }
+  if (!Controller::Storage["config"]["sessionOutputMode"]){
+    Controller::Storage["config"]["sessionOutputMode"] = SESS_BUNDLE_DEFAULT_OTHER;
+  }
+  if (!Controller::Storage["config"]["sessionUnspecifiedMode"]){
+    Controller::Storage["config"]["sessionUnspecifiedMode"] = 0;
+  }
+  if (!Controller::Storage["config"]["sessionStreamInfoMode"]){
+    Controller::Storage["config"]["sessionStreamInfoMode"] = SESS_DEFAULT_STREAM_INFO_MODE;
+  }
+  if (!Controller::Storage["config"].isMember("tknMode")){
+    Controller::Storage["config"]["tknMode"] = SESS_TKN_DEFAULT_MODE;
+  }
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
   Controller::writeConfig();

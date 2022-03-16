@@ -217,7 +217,9 @@ namespace Mist{
         myConn.close();
         return;
       }
-      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName){
+
+      //Check if we need to change binary and/or reconnect
+      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         streamName = H.GetVar("stream");
@@ -268,20 +270,31 @@ namespace Mist{
           realTime = 0;
         }
       }
-      // Get session ID cookie or generate a random one if it wasn't set
-      if (!sid.size()){
+      // Read the session token
+      if (Comms::tknMode & 0x01){
+        // Get session token from the request url
+        if (H.GetVar("tkn") != ""){
+          tkn = H.GetVar("tkn");
+        } else if (H.GetVar("sid") != ""){
+          tkn = H.GetVar("sid");
+        } else if (H.GetVar("sessId") != ""){
+          tkn = H.GetVar("sessId");
+        }
+      }
+      if ((Comms::tknMode & 0x02) && !tkn.size()){
+        // Get session token from the request cookie
         std::map<std::string, std::string> storage;
         const std::string koekjes = H.GetHeader("Cookie");
-        HTTP::parseVars(koekjes, storage);
-        if (storage.count("sid")){
-          // Get sid cookie, which is used to divide connections into sessions
-          sid = storage.at("sid");
-        }else{
-          // Else generate one
-          const std::string newSid = UA + JSON::Value(getpid()).asString();
-          sid = JSON::Value(checksum::crc32(0, newSid.data(), newSid.size())).asString();
-          H.SetHeader("sid", sid.c_str());
+        HTTP::parseVars(koekjes, storage, "; ");
+        if (storage.count("tkn")){
+          tkn = storage.at("tkn");
         }
+      }
+      // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
+      if (!tkn.size() && Comms::tknMode > 3){
+        const std::string newTkn = UA + JSON::Value(getpid()).asString();
+        tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
+        HIGH_MSG("Generated tkn '%s'", tkn.c_str());
       }
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
@@ -290,7 +303,9 @@ namespace Mist{
         INFO_MSG("Switching to Websocket mode");
         setBlocking(false);
         preWebsocketConnect();
-        webSock = new HTTP::Websocket(myConn, H);
+        HTTP::Parser req = H;
+        H.Clean();
+        webSock = new HTTP::Websocket(myConn, req, H);
         if (!(*webSock)){
           delete webSock;
           webSock = 0;
@@ -333,6 +348,14 @@ namespace Mist{
   void HTTPOutput::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //We generally want the CORS headers to be set for all responses
     H.setCORSHeaders();
+    H.SetHeader("Server", APPIDENT);
+    if (tkn.size()){
+      if (Comms::tknMode & 0x08){
+        std::stringstream cookieHeader;
+        cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
+    }
     //Set attachment header to force download, if applicable
     if (req.GetVar("dl").size()){
       //If we want to download, and the string contains a dot, use as-is.
@@ -395,6 +418,8 @@ namespace Mist{
   ///\brief Handles requests by starting a corresponding output process.
   ///\param connector The type of connector to be invoked.
   void HTTPOutput::reConnector(std::string &connector){
+    // Clear tkn in order to deal with reverse proxies
+    tkn = "";
     // taken from CheckProtocols (controller_connectors.cpp)
     char *argarr[32];
     for (int i = 0; i < 32; i++){argarr[i] = 0;}

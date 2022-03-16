@@ -14,7 +14,7 @@ namespace HTTP{
 
   /// HTTP variable parser to std::map<std::string, std::string> structure.
   /// Reads variables from data, decodes and stores them to storage.
-  void parseVars(const std::string &data, std::map<std::string, std::string> &storage);
+  void parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator = "&");
 
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
   class Parser : public Util::DataCallback{

@@ -348,7 +348,7 @@ namespace Mist{
 
     //Connect to stats reporting, if not connected already
     if (!statComm){
-      statComm.reload(streamName, getConnectedHost(), sid, capa["name"].asStringRef(), reqUrl, sessionMode);
+      statComm.reload(streamName, getConnectedHost(), sid, getStatsName(), reqUrl);
       stats(true);
     }
     
@@ -1216,7 +1216,9 @@ namespace Mist{
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
   int Output::run(){
-    sessionMode = Util::getGlobalConfig("sessionMode").asInt();
+    Comms::sessionViewerMode = Util::getGlobalConfig("sessionViewerMode").asInt();
+    Comms::sessionInputMode = Util::getGlobalConfig("sessionInputMode").asInt();
+    Comms::sessionOutputMode = Util::getGlobalConfig("sessionOutputMode").asInt();
     /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1779,7 +1781,7 @@ namespace Mist{
       }
     }
 
-    if (!statComm){statComm.reload(streamName, getConnectedHost(), sid, capa["name"].asStringRef(), reqUrl, sessionMode);}
+    if (!statComm){statComm.reload(streamName, getConnectedHost(), sid, getStatsName(), reqUrl, sessionMode);}
     if (!statComm){return;} 
     if (statComm.getExit()){
       onFail("Shutting down since this session is not allowed to view this stream");
@@ -1797,7 +1799,6 @@ namespace Mist{
     }
     /*LTS-END*/
     statComm.setNow(now);
-    statComm.setConnector(getStatsName());
     connStats(now, statComm);
     statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
     statComm.setPid(getpid());

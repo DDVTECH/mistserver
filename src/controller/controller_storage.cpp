@@ -438,7 +438,9 @@ namespace Controller{
           }
           if(!globAccX.getFieldAccX("defaultStream")
              || !globAccX.getFieldAccX("systemBoot")
-             || !globAccX.getFieldAccX("sessionMode")){
+             || !globAccX.getFieldAccX("sessionViewerMode")
+             || !globAccX.getFieldAccX("sessionInputMode")
+             || !globAccX.getFieldAccX("sessionOutputMode")){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -449,16 +451,17 @@ namespace Controller{
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
           globAccX.addField("systemBoot", RAX_64UINT);
-          globAccX.addField("sessionMode", RAX_64UINT);
-          if (!Storage["config"]["sessionMode"]){
-            Storage["config"]["sessionMode"] = SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID;
-          }
+          globAccX.addField("sessionViewerMode", RAX_64UINT);
+          globAccX.addField("sessionInputMode", RAX_64UINT);
+          globAccX.addField("sessionOutputMode", RAX_64UINT);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
         }
         globAccX.setString("defaultStream", Storage["config"]["defaultStream"].asStringRef());
-        globAccX.setInt("sessionMode", Storage["config"]["sessionMode"].asInt());
+        globAccX.setInt("sessionViewerMode", Storage["config"]["sessionViewerMode"].asInt());
+        globAccX.setInt("sessionInputMode", Storage["config"]["sessionInputMode"].asInt());
+        globAccX.setInt("sessionOutputMode", Storage["config"]["sessionOutputMode"].asInt());
         globCfg.master = false; // leave the page after closing
       }
     }

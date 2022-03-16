@@ -222,13 +222,6 @@ namespace Mist{
   void OutCMAF::sendHlsMasterManifest(){
     selectDefaultTracks();
 
-    std::string sessId = "";
-    if (hasSessionIDs()){
-      std::string ua = UA + JSON::Value(getpid()).asString();
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      sessId = JSON::Value(crc).asString();
-    }
-
     // check for forced "no low latency" parameter
     bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
 
@@ -239,7 +232,7 @@ namespace Mist{
         hlsMediaFormat == ".ts",
         getMainSelectedTrack(),
         H.GetHeader("User-Agent"),
-        sessId,
+        sid,
         systemBoot,
         bootMsOffset,
     };
@@ -261,11 +254,8 @@ namespace Mist{
 
     // Chunkpath & Session ID logic
     std::string urlPrefix = "";
-    std::string sessId = "";
     if (config->getString("chunkpath").size()){
       urlPrefix = HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl();
-    }else{
-      sessId = H.GetVar("sessId");
     }
 
     // check for forced "no low latency" parameter
@@ -279,7 +269,7 @@ namespace Mist{
         noLLHLS,
         hlsMediaFormat,
         M.getEncryption(requestTid),
-        sessId,
+        sid,
         timingTid,
         requestTid,
         M.biggestFragment(timingTid) / 1000,

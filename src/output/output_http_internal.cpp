@@ -36,6 +36,7 @@ namespace Mist{
 
   OutHTTP::OutHTTP(Socket::Connection &conn) : HTTPOutput(conn){
     stayConnected = false;
+    thisError = "";
     // If this connection is a socket and not already connected to stdio, connect it to stdio.
     if (myConn.getPureSocket() != -1 && myConn.getSocket() != STDIN_FILENO && myConn.getSocket() != STDOUT_FILENO){
       std::string host = getConnectedHost();
@@ -63,6 +64,11 @@ namespace Mist{
   bool OutHTTP::listenMode(){return !(config->getString("ip").size());}
 
   void OutHTTP::onFail(const std::string &msg, bool critical){
+    // If we are connected through WS, the websockethandler should return the error message
+    if (stayConnected){
+      thisError = msg;
+      return;
+    }
     if (responded){
       HTTPOutput::onFail(msg, critical);
       return;
@@ -78,7 +84,6 @@ namespace Mist{
       return;
     }
     if (H.url.size() >= 3 && H.url.substr(H.url.size() - 3) == ".js"){
-      if (websocketHandler()){return;}
       JSON::Value json_resp;
       json_resp["error"] = "Could not retrieve stream. Sorry.";
       json_resp["error_guru"] = msg;
@@ -1149,12 +1154,23 @@ namespace Mist{
       if (meta){meta.reloadReplacedPagesIfNeeded();}
       if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks() != prevTracks)){
         if (newState == STRMSTAT_READY){
+          thisError = "";
           reconnect();
           prevTracks = M.getValidTracks();
         }else{
           disconnect();
         }
-        JSON::Value resp = getStatusJSON(reqHost, useragent);
+        JSON::Value resp;
+        // Check if we have an error message set
+        if (thisError == ""){
+          resp = getStatusJSON(reqHost, useragent);
+        }else{
+          resp["error"] = "Could not retrieve stream. Sorry.";
+          resp["error_guru"] = thisError;
+          if (config->getString("nostreamtext") != ""){
+            resp["on_error"] = config->getString("nostreamtext");
+          }
+        }
         if (currStreamName != streamName){
           currStreamName = streamName;
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());

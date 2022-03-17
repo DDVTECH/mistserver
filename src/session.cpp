@@ -182,8 +182,6 @@ int main(int argc, char **argv){
     sessionLock.post();
     return 1;
   }
-  // Open the shared memory page containing statistics for each individual connection in this session
-  connections.reload(thisStreamName, thisHost, thisSid, thisProtocol, thisReqUrl, true, false);
   // Initialise global session data
   sessions.setHost(thisHost);
   sessions.setSessId(thisSessionId);
@@ -191,21 +189,18 @@ int main(int argc, char **argv){
   connectorLastActive[thisProtocol] = 0;
   hostLastActive[thisHost] = 0;
   streamLastActive[thisStreamName] = 0;
+  // Open the shared memory page containing statistics for each individual connection in this session
+  connections.reload(thisSessionId, true);
   sessionLock.post();
 
   // Determine session type, since triggers only get run for viewer type sessions
   uint64_t thisType = 0;
   if (thisSessionId[0] == 'I'){
-    INFO_MSG("Started new input session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
     thisType = 1;
-  }
-  else if (thisSessionId[0] == 'O'){
-    INFO_MSG("Started new output session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
+  } else if (thisSessionId[0] == 'O'){
     thisType = 2;
   }
-  else{
-    INFO_MSG("Started new viewer session %s in %lu microseconds", thisSessionId.c_str(), Util::getMicros(bootTime));
-  }
+  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   // Do a USER_NEW trigger if it is defined for this stream
   if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
@@ -214,12 +209,15 @@ int main(int argc, char **argv){
                           "\n" + thisReqUrl + "\n" + thisSessionId;
     if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
       // Mark all connections of this session as finished, since this viewer is not allowed to view this stream
+      Util::logExitReason("Session rejected by USER_NEW");
       connections.setExit();
       connections.finishAll();
     }
   }
 
   uint64_t lastSecond = 0;
+  uint64_t bootSecond = Util::bootSecs();
+  uint64_t seenSecond = bootSecond;
   uint64_t now = 0;
   uint64_t time = 0;
   uint64_t down = 0;
@@ -229,7 +227,7 @@ int main(int argc, char **argv){
   uint64_t pktretrans = 0;
   std::string connector = "";
   // Stay active until Mist exits or we no longer have an active connection
-  while (config.is_active && (currentConnections || Util::bootSecs() - lastSeen <= 10)){
+  while (config.is_active && (currentConnections || Util::bootSecs() - lastSeen <= STATS_DELAY)){
     time = 0;
     connector = "";
     down = 0;
@@ -264,6 +262,7 @@ int main(int argc, char **argv){
       pktcount += connections.getPacketCount(idx);
       pktloss += connections.getPacketLostCount(idx);
       pktretrans += connections.getPacketRetransmitCount(idx);
+      if (connections.getNow(idx) > seenSecond){seenSecond = connections.getNow(idx);}
     }
 
     // Convert connector duration to string
@@ -324,24 +323,24 @@ int main(int argc, char **argv){
                               "\n" + thisReqUrl + "\n" + thisSessionId;
         if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
           INFO_MSG("USER_NEW rejected stream %s", thisStreamName.c_str());
+          Util::logExitReason("Session rejected by USER_NEW");
           connections.setExit();
           connections.finishAll();
+          break;
         }else{
           INFO_MSG("USER_NEW accepted stream %s", thisStreamName.c_str());
         }
       }
     }
 
-    // Invalidate connections if the session is marked as invalid
-    if(connections.getExit()){
-      connections.finishAll();
-      break;
-    }
     // Remember latest activity so we know when this session ends
     if (currentConnections){
       lastSeen = Util::bootSecs();
     }
     Util::sleep(1000);
+  }
+  if (Util::bootSecs() - lastSeen > STATS_DELAY){
+    Util::logExitReason("Session inactive for %d seconds", STATS_DELAY);
   }
 
   // Trigger USER_END
@@ -398,15 +397,14 @@ int main(int argc, char **argv){
       streamTimes << (streamTimes.str().size() ? "," : "") << it->second;
     }
 
-    const uint64_t duration = lastSecond - (bootTime / 1000);
     std::stringstream summary;
     summary << thisSessionId << "\n"
           << streamSummary.str() << "\n"
           << connectorSummary.str() << "\n"
           << hostSummary.str() << "\n"
-          << duration << "\n"
-          << up << "\n"
-          << down << "\n"
+          << (seenSecond - bootSecond) << "\n"
+          << (up+globalUp) << "\n"
+          << (down+globalDown) << "\n"
           << sessions.getTags() << "\n"
           << hostTimes.str() << "\n"
           << connectorTimes.str() << "\n"
@@ -415,20 +413,12 @@ int main(int argc, char **argv){
   }
 
   if (!thisType && connections.getExit()){
-    WARN_MSG("Session %s has been invalidated since it is not allowed to view stream %s", thisSessionId.c_str(), thisStreamName.c_str());
     uint64_t sleepStart = Util::bootSecs();
     // Keep session invalidated for 10 minutes, or until the session stops
     while (config.is_active && Util::bootSecs() - sleepStart < 600){
       Util::sleep(1000);
     }
-    // Clear the data page for this session
-    {
-      IPC::sharedPage dataPage;
-      char userPageName[NAME_BUFFER_SIZE];
-      snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, thisSessionId.c_str());
-      dataPage.init(userPageName, 1, true);
-    }
   }
-  INFO_MSG("Shutting down session %s", thisSessionId.c_str());
+  INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);
   return 0;
 }

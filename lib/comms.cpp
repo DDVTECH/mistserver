@@ -266,6 +266,20 @@ namespace Comms{
     keyNum.set(_keyNum, idx);
   }
 
+
+
+  void Connections::reload(const std::string & sessId, bool _master, bool reIssue){
+    // Open SEM_SESSION
+    if(!sem){
+      char semName[NAME_BUFFER_SIZE];
+      snprintf(semName, NAME_BUFFER_SIZE, SEM_SESSION, sessId.c_str());
+      sem.open(semName, O_RDWR, ACCESSPERMS, 1);
+    }
+    char userPageName[NAME_BUFFER_SIZE];
+    snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessId.c_str());
+    Comms::reload(userPageName, COMMS_SESSIONS_INITSIZE, _master, reIssue);
+  }
+
   /// \brief Claims a spot on the connections page for the input/output which calls this function
   ///        Starts the MistSession binary for each session, which handles the statistics
   ///         and the USER_NEW and USER_END triggers
@@ -275,18 +289,14 @@ namespace Comms{
   /// \param protocol: Protocol currently in use for this connection
   /// \param _master: If True, we are reading from this page. If False, we are writing (to our entry) on this page
   /// \param reIssue: If True, claim a new entry on this page
-  void Connections::reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master, bool reIssue){
+  void Connections::reload(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & protocol, const std::string & reqUrl, bool _master, bool reIssue){
     // Generate a unique session ID for each viewer, input or output
-    uint8_t thisSessionMode;
     if (protocol.size() >= 6 && protocol.substr(0, 6) == "INPUT:"){
       sessionId = "I" + generateSession(streamName, ip, sid, protocol, sessionInputMode);
-      thisSessionMode = sessionInputMode;
     }else if (protocol.size() >= 7 && protocol.substr(0, 7) == "OUTPUT:"){
       sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessionOutputMode);
-      thisSessionMode = sessionOutputMode;
     }else{
       sessionId = generateSession(streamName, ip, sid, protocol, sessionViewerMode);
-      thisSessionMode = sessionViewerMode;
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessionId.c_str());
@@ -298,8 +308,6 @@ namespace Comms{
         std::deque<std::string> args;
         args.push_back(Util::getMyPath() + "MistSession");
         args.push_back(sessionId);
-        args.push_back("--sessionmode");
-        args.push_back(JSON::Value(thisSessionMode).asString());
         args.push_back("--streamname");
         args.push_back(streamName);
         args.push_back("--ip");
@@ -316,13 +324,7 @@ namespace Comms{
         HIGH_MSG("Spawned new session executeable (pid %u) for sessionId '%s', corresponding to host %s and stream %s", thisPid, sessionId.c_str(), ip.c_str(), streamName.c_str());
       }
     }
-    // Open SEM_SESSION
-    if(!sem){
-      char semName[NAME_BUFFER_SIZE];
-      snprintf(semName, NAME_BUFFER_SIZE, SEM_SESSION, sessionId.c_str());
-      sem.open(semName, O_RDWR, ACCESSPERMS, 1);
-    }
-    Comms::reload(userPageName, COMMS_SESSIONS_INITSIZE, _master, reIssue);
+    reload(sessionId, _master, reIssue);
     if (index != INVALID_RECORD_INDEX){
       setConnector(protocol);
       setHost(ip);
@@ -506,7 +508,7 @@ namespace Comms{
 
   /// \brief Generates a session ID which is unique per viewer
   /// \return generated session ID as string
-  std::string Connections::generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode){
+  std::string Connections::generateSession(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & connector, uint64_t sessionMode){
     std::string concat;
     // First bit defines whether to include stream name
     if (sessionMode & 0x08){

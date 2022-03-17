@@ -914,7 +914,7 @@ void Controller::statOnDisconnect(size_t id){
     if(dataPage){
       // Session likely crashed while it was running
       dataPage.init(userPageName, 1, true);
-      FAIL_MSG("Session '%s' got canceled unexpectedly. Hoovering up the left overs...", thisSessionId.c_str());
+      FAIL_MSG("Session '%s' got cancelled unexpectedly. Cleaning up the leftovers...", thisSessionId.c_str());
     }
     // Finally remove the session lock which was created on bootup of the session
     sessionLock.unlink();

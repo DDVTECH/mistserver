@@ -70,10 +70,11 @@ namespace Comms{
 
   class Connections : public Comms{
   public:
-    void reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master = false, bool reIssue = false);
+    void reload(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & protocol, const std::string & reqUrl, bool _master = false, bool reIssue = false);
+    void reload(const std::string & sessId, bool _master = false, bool reIssue = false);
     void unload();
     operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
-    std::string generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode);
+    std::string generateSession(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & connector, uint64_t sessionMode);
     std::string sessionId;
 
     void setExit();

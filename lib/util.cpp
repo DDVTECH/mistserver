@@ -149,6 +149,21 @@ namespace Util{
     }
   }
 
+  //Returns the time to wait in milliseconds for exponential back-off waiting.
+  //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
+  //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.
+  //Wildly inaccurate for very short max durations and/or very large maxIter values, but otherwise works as expected.
+  int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait){
+    if (currIter > maxIter){return 5;}
+    int64_t w = maxWait >> 1;
+    for (size_t i = maxIter; i > currIter; --i){
+      w >>= 1;
+      if (w < 2){w = 2;}
+    }
+    DONTEVEN_MSG("Waiting %" PRId64 " ms out of %" PRId64 " for iteration %zu/%zu", w, maxWait, currIter, maxIter);
+    return w;
+  }
+
   /// 64-bits version of ftell
   uint64_t ftell(FILE *stream){
     /// \TODO Windows implementation (e.g. _ftelli64 ?)

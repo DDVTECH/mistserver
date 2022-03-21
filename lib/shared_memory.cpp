@@ -100,7 +100,7 @@ namespace IPC{
       }
       if (!(*this)){
         if (GetLastError() == ERROR_FILE_NOT_FOUND && !noWait){// Error code 2
-          Util::wait(500);
+          Util::wait(Util::expBackoffMs(timer-1, 10, 5000));
         }else{
           break;
         }
@@ -121,7 +121,7 @@ namespace IPC{
       }
       if (!(*this)){
         if (errno == ENOENT && !noWait){
-          Util::wait(500);
+          Util::wait(Util::expBackoffMs(timer-1, 10, 5000));
         }else{
           break;
         }
@@ -458,10 +458,10 @@ namespace IPC{
       }else{
         int i = 0;
         do{
-          if (i != 0){Util::wait(1000);}
+          if (i != 0){Util::wait(Util::expBackoffMs(i-1, 10, 10000));}
           handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name.c_str());
           i++;
-        }while (i < 10 && !handle && autoBackoff);
+        }while (i <= 10 && !handle && autoBackoff);
       }
       if (!handle){
         MEDIUM_MSG("%s for page %s failed with error code %u",
@@ -489,9 +489,9 @@ namespace IPC{
           handle = shm_open(name.c_str(), O_CREAT | O_RDWR, ACCESSPERMS);
         }else{
           int i = 0;
-          while (i < 10 && handle == -1 && autoBackoff){
+          while (i < 11 && handle == -1 && autoBackoff){
             i++;
-            Util::wait(1000);
+            Util::wait(Util::expBackoffMs(i-1, 10, 10000));
             handle = shm_open(name.c_str(), O_RDWR, ACCESSPERMS);
           }
         }
@@ -620,9 +620,9 @@ namespace IPC{
                         O_CREAT | O_TRUNC | O_RDWR, (mode_t)0600);
         }else{
           int i = 0;
-          while (i < 10 && handle == -1 && autoBackoff){
+          while (i < 11 && handle == -1 && autoBackoff){
             i++;
-            Util::wait(1000);
+            Util::wait(Util::expBackoffMs(i-1, 10, 10000));
             handle = open(std::string(Util::getTmpFolder() + name).c_str(), O_RDWR, (mode_t)0600);
           }
         }

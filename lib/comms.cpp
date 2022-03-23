@@ -304,6 +304,8 @@ namespace Comms{
     if (!_master){
       dataPage.init(userPageName, 0, false, false);
       if (!dataPage){
+        std::string host;
+        Socket::hostBytesToStr(ip.data(), 16, host);
         pid_t thisPid;
         std::deque<std::string> args;
         args.push_back(Util::getMyPath() + "MistSession");
@@ -311,7 +313,7 @@ namespace Comms{
         args.push_back("--streamname");
         args.push_back(streamName);
         args.push_back("--ip");
-        args.push_back(ip);
+        args.push_back(host);
         args.push_back("--sid");
         args.push_back(sid);
         args.push_back("--protocol");

@@ -279,7 +279,6 @@ namespace Mist{
         if (storage.count("sid")){
           // Get sid cookie, which is used to divide connections into sessions
           sid = storage.at("sid");
-          WARN_MSG("FOUND SID COOKIE '%s'", sid.c_str());
         }else{
           // Else generate one
           const std::string newSid = UA + JSON::Value(getpid()).asString();

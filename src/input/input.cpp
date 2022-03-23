@@ -971,7 +971,7 @@ namespace Mist{
 
       if (Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
-        if (!statComm){statComm.reload(streamName, "", JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;

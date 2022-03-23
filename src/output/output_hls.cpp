@@ -48,7 +48,7 @@ namespace Mist{
         result << "\"\r\n" << it->first;
         if (audioId != INVALID_TRACK_ID){result << "_" << audioId;}
         if (hasSessionIDs()){
-          result << "/index.m3u8?sessId=" << getpid() << "\r\n";
+          result << "/index.m3u8?sessId=" << sid << "\r\n";
         }else{
           result << "/index.m3u8\r\n";
         }
@@ -226,9 +226,15 @@ namespace Mist{
     /*LTS-END*/
   }
 
+  void OutHLS::preHTTP(){
+    if (H.GetVar("sessId").size()){
+      sid = H.GetVar("sessId");
+    }
+    HTTPOutput::preHTTP();
+  }
+
   void OutHLS::onHTTP(){
     std::string method = H.method;
-    std::string sessId = H.GetVar("sessId");
 
     if (H.url == "/crossdomain.xml"){
       H.SetHeader("Content-Type", "text/xml");
@@ -364,7 +370,7 @@ namespace Mist{
           return;
         }
 
-        manifest = liveIndex(idx, sessId);
+        manifest = liveIndex(idx, sid);
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);

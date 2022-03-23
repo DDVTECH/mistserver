@@ -28,12 +28,15 @@ namespace Controller{
 
   struct statLog{
     uint64_t time;
+    uint64_t firstActive;
     uint64_t lastSecond;
     uint64_t down;
     uint64_t up;
     uint64_t pktCount;
     uint64_t pktLost;
     uint64_t pktRetransmit;
+    std::string streamName;
+    std::string host;
     std::string connectors;
   };
 
@@ -51,33 +54,30 @@ namespace Controller{
   /// Allows for moving of connections to another session.
   class statSession{
   private:
-    uint64_t firstActive;
-    uint64_t firstSec;
-    uint64_t lastSec;
     sessType sessionType;
-    bool tracked;
     uint8_t noBWCount; ///< Set to 2 when not to count for external bandwidth
-    std::string streamName;
-    std::string host;
-    std::string curConnector;
     std::string sessId;
 
   public:
     statSession();
-    ~statSession();
+    void finish();
     statStorage curData;
     std::set<std::string> tags;
     sessType getSessType();
     void update(uint64_t index, Comms::Sessions &data);
     uint64_t getStart();
     uint64_t getEnd();
-    bool isTracked();
     bool hasDataFor(uint64_t time);
-    std::string getStreamName();
-    std::string getHost();
-    std::string getSessId();
-    std::string getCurrentProtocols();
-    uint64_t newestDataPoint();
+    const std::string& getSessId();
+    const std::string& getStreamName(uint64_t t);
+    const std::string& getStreamName();
+    std::string getStrHost(uint64_t t);
+    std::string getStrHost();
+    const std::string& getHost(uint64_t t);
+    const std::string& getHost();
+    const std::string& getConnectors(uint64_t t);
+    const std::string& getConnectors();
+    uint64_t getFirstActive();
     uint64_t getConnTime(uint64_t time);
     uint64_t getConnTime();
     uint64_t getLastSecond(uint64_t time);

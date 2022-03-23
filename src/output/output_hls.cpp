@@ -221,6 +221,13 @@ namespace Mist{
     }
   }
 
+  void OutHLS::preHTTP(){
+    if (H.GetVar("sessId").size()){
+      sid = H.GetVar("sessId");
+    }
+    HTTPOutput::preHTTP();
+  }
+
   void OutHLS::onHTTP(){
     initialize();
     bootMsOffset = 0;

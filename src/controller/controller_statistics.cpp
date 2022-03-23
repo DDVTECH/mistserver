@@ -58,6 +58,7 @@ static uint64_t cpu_use = 0;
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
 
+static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0 ,0 ,0, "", "", ""};
 
 // For server-wide totals. Local to this file only.
 struct streamTotals{
@@ -95,10 +96,10 @@ static uint64_t viewSecondsTotal = 0;
 // Mapping of streamName -> summary of stream-wide statistics
 static std::map<std::string, struct streamTotals> streamStats;
 
-// If sessId does not exist yet in streamStats, create and init an entry for it
-static void createEmptyStatsIfNeeded(const std::string & sessId){
-  if (streamStats.count(sessId)){return;}
-  streamTotals & sT = streamStats[sessId];
+// If streamName does not exist yet in streamStats, create and init an entry for it
+static void createEmptyStatsIfNeeded(const std::string & streamName){
+  if (streamStats.count(streamName)){return;}
+  streamTotals & sT = streamStats[streamName];
   sT.upBytes = 0;
   sT.downBytes = 0;
   sT.inputs = 0;
@@ -343,7 +344,7 @@ void Controller::SharedMemStats(void *config){
         uint64_t cutOffPoint = Util::bootSecs() - STAT_CUTOFF;
         for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           // This part handles ending sessions, keeping them in cache for now
-          if (it->second.getEnd() < cutOffPoint && it->second.newestDataPoint() < cutOffPoint){
+          if (it->second.getEnd() < cutOffPoint){
             viewSecondsTotal += it->second.getConnTime();
             mustWipe.push_back(it->first);
             // Don't count this session as a viewer
@@ -489,18 +490,32 @@ void Controller::killConnections(std::string sessId){
 
 /// Updates the given active connection with new stats data.
 void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
-  if (host == ""){
-    Socket::hostBytesToStr(statComm.getHost(index).data(), 16, host);
-  }
-  if (streamName == ""){
-    streamName = statComm.getStream(index);
-  }
-  if (curConnector == ""){
-    curConnector = statComm.getConnector(index);
-  }
   if (sessId == ""){
     sessId = statComm.getSessId(index);
   }
+
+  if (sessionType == SESS_UNSET){
+    if (sessId[0] == 'I'){
+      sessionType = SESS_INPUT;
+    }else if (sessId[0] == 'O'){
+      sessionType = SESS_OUTPUT;
+    }else{
+      sessionType = SESS_VIEWER;
+    }
+  }
+
+  uint64_t prevNow = curData.log.size() ? curData.log.rbegin()->first : 0;
+  // only parse last received data, if newer
+  if (prevNow > statComm.getNow(index)){return;};
+  long long prevDown = getDown();
+  long long prevUp = getUp();
+  uint64_t prevPktSent = getPktCount();
+  uint64_t prevPktLost = getPktLost();
+  uint64_t prevPktRetrans = getPktRetransmit();
+  uint64_t prevFirstActive = getFirstActive();
+
+  curData.update(statComm, index);
+  const std::string& streamName = getStreamName();
   // Export tags to session
   if (tags.size()){
     std::stringstream tagStream;
@@ -511,27 +526,8 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
   } else {
     statComm.setTags("", index);
   }
-
-  long long prevDown = getDown();
-  long long prevUp = getUp();
-  uint64_t prevPktSent = getPktCount();
-  uint64_t prevPktLost = getPktLost();
-  uint64_t prevPktRetrans = getPktRetransmit();
-  curData.update(statComm, index);
-  // store timestamp of first received data, if older
-  if (firstSec > statComm.getNow(index)){firstSec = statComm.getNow(index);}
-  uint64_t secIncr = 0;
-  // store timestamp of last received data, if newer
-  if (statComm.getNow(index) > lastSec){
-    lastSec = statComm.getNow(index);
-    if (!tracked){
-      tracked = true;
-      firstActive = firstSec;
-    }else{
-      secIncr = (statComm.getNow(index) - lastSec);
-    }
-    lastSec = statComm.getNow(index);
-  }
+  
+  uint64_t secIncr = prevFirstActive ? (statComm.getNow(index) - prevNow) : 0;
   long long currDown = getDown();
   long long currUp = getUp();
   uint64_t currPktSent = getPktCount();
@@ -539,7 +535,7 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
   uint64_t currPktRetrans = getPktRetransmit();
   if (currUp - prevUp < 0 || currDown - prevDown < 0){
     INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%" PRIu64, currUp - prevUp,
-             currDown - prevDown, prevUp, currUp, streamName.c_str(), curConnector.c_str(), index);
+             currDown - prevDown, prevUp, currUp, streamName.c_str(), curData.log.rbegin()->second.connectors.c_str(), index);
   }else{
     if (!noBWCount){
       size_t bwMatchOffset = 0;
@@ -569,37 +565,34 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       servPackRetrans += currPktRetrans - prevPktRetrans;
     }
   }
-  if (sessionType == SESS_UNSET){
-    if (curConnector.size() >= 5 && curConnector.substr(0, 5) == "INPUT"){
-      ++servInputs;
-      createEmptyStatsIfNeeded(streamName);
-      streamStats[streamName].inputs++;
-      sessionType = SESS_INPUT;
-    }else if (curConnector.size() >= 6 && curConnector.substr(0, 6) == "OUTPUT"){
-      ++servOutputs;
-      createEmptyStatsIfNeeded(streamName);
-      streamStats[streamName].outputs++;
-      sessionType = SESS_OUTPUT;
-    }else{
-      ++servViewers;
-      createEmptyStatsIfNeeded(streamName);
-      streamStats[streamName].viewers++;
-      sessionType = SESS_VIEWER;
+  if (!prevFirstActive && streamName.size()){
+    createEmptyStatsIfNeeded(streamName);
+    switch(sessionType){
+      case SESS_INPUT:
+        ++servInputs;
+        streamStats[streamName].inputs++;
+        break;
+      case SESS_OUTPUT:
+        ++servOutputs;
+        streamStats[streamName].outputs++;
+        break;
+      case SESS_VIEWER:
+        ++servViewers;
+        streamStats[streamName].viewers++;
+        break;
+      case SESS_UNSET:
+        break;
     }
   }
   // Only count connections that are countable
   if (noBWCount != 2){ 
-    if (!streamName.size() || streamName[0] == 0){
-      if (streamStats.count(streamName)){streamStats.erase(streamName);}
-    }else{
-      createEmptyStatsIfNeeded(streamName);
-      streamStats[streamName].upBytes += currUp - prevUp;
-      streamStats[streamName].downBytes += currDown - prevDown;
-      streamStats[streamName].packSent += currPktSent - prevPktSent;
-      streamStats[streamName].packLoss += currPktLost - prevPktLost;
-      streamStats[streamName].packRetrans += currPktRetrans - prevPktRetrans;
-      if (sessionType == SESS_VIEWER){streamStats[streamName].viewSeconds += secIncr;}
-    }
+    createEmptyStatsIfNeeded(streamName);
+    streamStats[streamName].upBytes += currUp - prevUp;
+    streamStats[streamName].downBytes += currDown - prevDown;
+    streamStats[streamName].packSent += currPktSent - prevPktSent;
+    streamStats[streamName].packLoss += currPktLost - prevPktLost;
+    streamStats[streamName].packRetrans += currPktRetrans - prevPktRetrans;
+    if (sessionType == SESS_VIEWER){streamStats[streamName].viewSeconds += secIncr;}
   }
 }
 
@@ -607,9 +600,10 @@ Controller::sessType Controller::statSession::getSessType(){
   return sessionType;
 }
 
-Controller::statSession::~statSession(){
-  if (!tracked){return;}
-  uint64_t duration = lastSec - firstActive;
+/// Ends the currently active session by inserting a null datapoint one second after the last datapoint
+void Controller::statSession::finish(){
+  if (!getFirstActive()){return;}
+  uint64_t duration = getEnd() - getFirstActive();
   if (duration < 1){duration = 1;}
   std::stringstream tagStream;
   if (tags.size()){
@@ -617,6 +611,9 @@ Controller::statSession::~statSession(){
       tagStream << "[" << *it << "]";
     }
   }
+  const std::string& streamName = getStreamName();
+  const std::string& curConnector = getConnectors();
+  const std::string& host = getStrHost();
   Controller::logAccess(sessId, streamName, curConnector, host, duration, getUp(),
                         getDown(), tagStream.str());
   if (Controller::accesslog.size()){
@@ -655,69 +652,97 @@ Controller::statSession::~statSession(){
       }
     }
   }
-  tracked = false;
-  firstActive = 0;
-  firstSec = 0xFFFFFFFFFFFFFFFFull;
-  lastSec = 0;
-  sessionType = SESS_UNSET;
+  tags.clear();
+  // Insert null datapoint
+  curData.log[curData.log.rbegin()->first + 1] = emptyLogEntry;
 }
 
 /// Constructs an empty session
 Controller::statSession::statSession(){
-  firstActive = 0;
-  tracked = false;
-  firstSec = 0xFFFFFFFFFFFFFFFFull;
-  lastSec = 0;
   sessionType = SESS_UNSET;
   noBWCount = 0;
-  streamName = "";
-  host = "";
-  curConnector = "";
   sessId = "";
 }
 
 /// Returns the first measured timestamp in this session.
 uint64_t Controller::statSession::getStart(){
-  return firstSec;
+  return curData.log.begin()->first;
 }
 
 /// Returns the last measured timestamp in this session.
 uint64_t Controller::statSession::getEnd(){
-  return lastSec;
+  return curData.log.rbegin()->first;
 }
 
 /// Returns true if there is data for this session at timestamp t.
 bool Controller::statSession::hasDataFor(uint64_t t){
-  if (lastSec < t){return false;}
-  if (firstSec > t){return false;}
   if (curData.hasDataFor(t)){return true;}
   return false;
 }
 
-std::string Controller::statSession::getStreamName(){
-  return streamName;
-}
-
-std::string Controller::statSession::getHost(){
-  return host;
-}
-
-std::string Controller::statSession::getSessId(){
+const std::string& Controller::statSession::getSessId(){
   return sessId;
 }
 
-std::string Controller::statSession::getCurrentProtocols(){
-  return curConnector;
+uint64_t Controller::statSession::getFirstActive(){
+  if (curData.log.size()){
+    return curData.log.rbegin()->second.firstActive;
+  }
+  return 0;
 }
 
-/// Returns true if this session should be considered connected
-uint64_t Controller::statSession::newestDataPoint(){
-  return lastSec;
+const std::string& Controller::statSession::getStreamName(uint64_t t){
+  if (curData.hasDataFor(t)){
+    return curData.getDataFor(t).streamName;
+  }
+  return emptyLogEntry.streamName;
 }
 
-/// Returns true if this session has started (tracked == true) but not yet ended (log entry written)
-bool Controller::statSession::isTracked(){
-  return tracked;
+const std::string& Controller::statSession::getStreamName(){
+  if (curData.log.size()){
+    return curData.log.rbegin()->second.streamName;
+  }
+  return emptyLogEntry.streamName;
+}
+
+std::string Controller::statSession::getStrHost(uint64_t t){
+  std::string host;
+  Socket::hostBytesToStr(getHost(t).data(), 16, host);
+  return host;
+}
+
+std::string Controller::statSession::getStrHost(){
+  std::string host;
+  Socket::hostBytesToStr(getHost().data(), 16, host);
+  return host;
+}
+
+const std::string& Controller::statSession::getHost(uint64_t t){
+  if (curData.hasDataFor(t)){
+    return curData.getDataFor(t).host;
+  }
+  return emptyLogEntry.host;
+}
+
+const std::string& Controller::statSession::getHost(){
+  if (curData.log.size()){
+    return curData.log.rbegin()->second.host;
+  }
+  return emptyLogEntry.host;
+}
+
+const std::string& Controller::statSession::getConnectors(uint64_t t){
+  if (curData.hasDataFor(t)){
+    return curData.getDataFor(t).connectors;
+  }
+  return emptyLogEntry.connectors;
+}
+
+const std::string& Controller::statSession::getConnectors(){
+  if (curData.log.size()){
+    return curData.log.rbegin()->second.connectors;
+  }
+  return emptyLogEntry.connectors;
 }
 
 /// Returns the cumulative connected time for this session at timestamp t.
@@ -824,7 +849,7 @@ uint64_t Controller::statSession::getPktRetransmit(){
 /// Returns the cumulative downloaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsDown(uint64_t t){
   uint64_t aTime = t - 5;
-  if (aTime < firstSec){aTime = firstSec;}
+  if (aTime < curData.log.begin()->first){aTime = curData.log.begin()->first;}
   if (t <= aTime){return 0;}
   uint64_t valA = getDown(aTime);
   uint64_t valB = getDown(t);
@@ -834,7 +859,7 @@ uint64_t Controller::statSession::getBpsDown(uint64_t t){
 /// Returns the cumulative uploaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsUp(uint64_t t){
   uint64_t aTime = t - 5;
-  if (aTime < firstSec){aTime = firstSec;}
+  if (aTime < curData.log.begin()->first){aTime = curData.log.begin()->first;}
   if (t <= aTime){return 0;}
   uint64_t valA = getUp(aTime);
   uint64_t valB = getUp(t);
@@ -849,17 +874,8 @@ bool Controller::statStorage::hasDataFor(unsigned long long t){
 
 /// Returns a reference to the most current data available at timestamp t.
 Controller::statLog &Controller::statStorage::getDataFor(unsigned long long t){
-  static statLog empty;
   if (!log.size()){
-    empty.time = 0;
-    empty.lastSecond = 0;
-    empty.down = 0;
-    empty.up = 0;
-    empty.pktCount = 0;
-    empty.pktLost = 0;
-    empty.pktRetransmit = 0;
-    empty.connectors = "";
-    return empty;
+    return emptyLogEntry;
   }
   std::map<unsigned long long, statLog>::iterator it = log.upper_bound(t);
   if (it != log.begin()){it--;}
@@ -871,6 +887,11 @@ Controller::statLog &Controller::statStorage::getDataFor(unsigned long long t){
 void Controller::statStorage::update(Comms::Sessions &statComm, size_t index){
   statLog tmp;
   tmp.time = statComm.getTime(index);
+  if (!log.size() || !log.rbegin()->second.firstActive){
+    tmp.firstActive = statComm.getNow(index);
+  } else{
+    tmp.firstActive = log.rbegin()->second.firstActive;
+  }
   tmp.lastSecond = statComm.getLastSecond(index);
   tmp.down = statComm.getDown(index);
   tmp.up = statComm.getUp(index);
@@ -878,6 +899,8 @@ void Controller::statStorage::update(Comms::Sessions &statComm, size_t index){
   tmp.pktLost = statComm.getPacketLostCount(index);
   tmp.pktRetransmit = statComm.getPacketRetransmitCount(index);
   tmp.connectors = statComm.getConnector(index);
+  tmp.streamName = statComm.getStream(index);
+  tmp.host = statComm.getHost(index);
   log[statComm.getNow(index)] = tmp;
   // wipe data older than STAT_CUTOFF seconds
   while (log.size() && log.begin()->first < Util::bootSecs() - STAT_CUTOFF){log.erase(log.begin());}
@@ -897,6 +920,7 @@ void Controller::statOnActive(size_t id){
 void Controller::statOnDisconnect(size_t id){
   // Check to see if cleanup is required (when a Session binary fails)
   const std::string thisSessionId = statComm.getSessId(id);
+  sessions[thisSessionId].finish();
   // Try to lock to see if the session crashed during boot
   IPC::semaphore sessionLock;
   char semName[NAME_BUFFER_SIZE];
@@ -1044,13 +1068,13 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if (now && reqTime - it->second.getEnd() < 5){time = it->second.getEnd();}
       // data present and wanted? insert it!
       if ((it->second.getEnd() >= time && it->second.getStart() <= time) &&
-          (!streams.size() || streams.count(it->second.getStreamName())) &&
-          (!protos.size() || protos.count(it->second.getCurrentProtocols()))){
+          (!streams.size() || streams.count(it->second.getStreamName(time))) &&
+          (!protos.size() || protos.count(it->second.getConnectors(time)))){
         if (it->second.hasDataFor(time)){
           JSON::Value d;
-          if (fields & STAT_CLI_HOST){d.append(it->second.getHost());}
-          if (fields & STAT_CLI_STREAM){d.append(it->second.getStreamName());}
-          if (fields & STAT_CLI_PROTO){d.append(it->second.getCurrentProtocols());}
+          if (fields & STAT_CLI_HOST){d.append(it->second.getStrHost(time));}
+          if (fields & STAT_CLI_STREAM){d.append(it->second.getStreamName(time));}
+          if (fields & STAT_CLI_PROTO){d.append(it->second.getConnectors(time));}
           if (fields & STAT_CLI_CONNTIME){d.append(it->second.getConnTime(time));}
           if (fields & STAT_CLI_POSITION){d.append(it->second.getLastSecond(time));}
           if (fields & STAT_CLI_DOWN){d.append(it->second.getDown(time));}
@@ -1399,7 +1423,7 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       if ((it->second.getEnd() >= (unsigned long long)reqStart ||
            it->second.getStart() <= (unsigned long long)reqEnd) &&
           (!streams.size() || streams.count(it->second.getStreamName())) &&
-          (!protos.size() || protos.count(it->second.getCurrentProtocols()))){
+          (!protos.size() || protos.count(it->second.getConnectors()))){
         for (unsigned long long i = reqStart; i <= reqEnd; ++i){
           if (it->second.hasDataFor(i)){
             totalsCount[i].add(it->second.getBpsDown(i), it->second.getBpsUp(i), it->second.getSessType(), it->second.getPktCount(), it->second.getPktLost(), it->second.getPktRetransmit());

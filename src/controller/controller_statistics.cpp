@@ -341,7 +341,14 @@ void Controller::SharedMemStats(void *config){
       // wipe old statistics and set session type counters
       if (sessions.size()){
         std::list<std::string> mustWipe;
-        uint64_t cutOffPoint = Util::bootSecs() - STAT_CUTOFF;
+        // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
+        // Prevents wrapping around to high values close to system boot time.
+        uint64_t cutOffPoint = Util::bootSecs();
+        if (cutOffPoint > STAT_CUTOFF){
+          cutOffPoint -= STAT_CUTOFF;
+        }else{
+          cutOffPoint = 0;
+        }
         for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           // This part handles ending sessions, keeping them in cache for now
           if (it->second.getEnd() < cutOffPoint){
@@ -666,11 +673,13 @@ Controller::statSession::statSession(){
 
 /// Returns the first measured timestamp in this session.
 uint64_t Controller::statSession::getStart(){
+  if (!curData.log.size()){return 0;}
   return curData.log.begin()->first;
 }
 
 /// Returns the last measured timestamp in this session.
 uint64_t Controller::statSession::getEnd(){
+  if (!curData.log.size()){return 0;}
   return curData.log.rbegin()->first;
 }
 
@@ -903,7 +912,15 @@ void Controller::statStorage::update(Comms::Sessions &statComm, size_t index){
   tmp.host = statComm.getHost(index);
   log[statComm.getNow(index)] = tmp;
   // wipe data older than STAT_CUTOFF seconds
-  while (log.size() && log.begin()->first < Util::bootSecs() - STAT_CUTOFF){log.erase(log.begin());}
+  // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
+  // Prevents wrapping around to high values close to system boot time.
+  uint64_t cutOffPoint = Util::bootSecs();
+  if (cutOffPoint > STAT_CUTOFF){
+    cutOffPoint -= STAT_CUTOFF;
+  }else{
+    cutOffPoint = 0;
+  }
+  while (log.size() && log.begin()->first < cutOffPoint){log.erase(log.begin());}
 }
 
 void Controller::statLeadIn(){
@@ -1005,11 +1022,21 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   if (req.isMember("time")){reqTime = req["time"].asInt();}
   // to make sure no nasty timing business takes place, we store the case "now" as a bool.
   bool now = (reqTime == 0);
-  //if greater than current bootsecs, assume unix time and subtract epoch from it
+  //if in the last 600 seconds of unix time (or higher), assume unix time and subtract epoch from it
   if (reqTime > (int64_t)epoch - STAT_CUTOFF){reqTime -= (epoch-bSecs);}
   // add the current time, if negative or zero.
   if (reqTime < 0){reqTime += bSecs;}
-  if (reqTime == 0){reqTime = bSecs - STAT_CUTOFF;}
+  if (reqTime == 0){
+    // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
+    // Prevents wrapping around to high values close to system boot time.
+    uint64_t cutOffPoint = Util::bootSecs();
+    if (cutOffPoint > STAT_CUTOFF){
+      cutOffPoint -= STAT_CUTOFF;
+    }else{
+      cutOffPoint = 0;
+    }
+    reqTime = cutOffPoint;
+  }
   // at this point, we have the absolute timestamp in bootsecs.
   rep["time"] = reqTime + (epoch-bSecs); // fill the absolute timestamp
 
@@ -1373,7 +1400,17 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   if (reqEnd > (int64_t)epoch - STAT_CUTOFF){reqEnd -= (epoch-bSecs);}
   // add the current time, if negative or zero.
   if (reqStart < 0){reqStart += bSecs;}
-  if (reqStart == 0){reqStart = bSecs - STAT_CUTOFF;}
+  if (reqStart == 0){
+    // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
+    // Prevents wrapping around to high values close to system boot time.
+    uint64_t cutOffPoint = Util::bootSecs();
+    if (cutOffPoint > STAT_CUTOFF){
+      cutOffPoint -= STAT_CUTOFF;
+    }else{
+      cutOffPoint = 0;
+    }
+    reqStart = cutOffPoint;
+  }
   if (reqEnd <= 0){reqEnd += bSecs;}
   // at this point, reqStart and reqEnd are the absolute timestamp in bootsecs.
   if (reqEnd < reqStart){reqEnd = reqStart;}

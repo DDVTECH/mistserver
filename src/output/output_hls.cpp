@@ -239,6 +239,7 @@ namespace Mist{
       H.setCORSHeaders();
       if (H.method == "OPTIONS" || H.method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         return;
       }
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM "
@@ -246,6 +247,7 @@ namespace Mist{
                 "cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" "
                 "/><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }// crossdomain.xml
 
@@ -269,6 +271,7 @@ namespace Mist{
       }
       H.SetBody("");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }
 
@@ -318,6 +321,7 @@ namespace Mist{
         targetTime = HLS::getPartTargetTime(M, idx, mTrack, startTime, msn, part);
         if (!targetTime){
           H.SendResponse("404", "Partial fragment does not exist", myConn);
+          responded = true;
           return;
         }
         startTime += part * HLS::partDurationMaxMs;
@@ -379,6 +383,7 @@ namespace Mist{
                   "served.\n");
         myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
         WARN_MSG("Fragment @ %" PRIu64 " too old", startTime);
+        responded = true;
         return;
       }
 
@@ -396,10 +401,12 @@ namespace Mist{
       }
       if (H.method == "OPTIONS" || H.method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         return;
       }
 
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
+      responded = true;
       // we assume whole fragments - but timestamps may be altered at will
       contPAT = fragmentIndex; // PAT continuity counter
       contPMT = fragmentIndex; // PMT continuity counter
@@ -426,6 +433,7 @@ namespace Mist{
       // Strip /hls/<streamname>/ from url
       std::string url = H.url.substr(H.url.find('/', 5) + 1);
       sendHlsManifest(url);
+      responded = true;
     }
   }
 

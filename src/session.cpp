@@ -188,8 +188,8 @@ int main(int argc, char **argv){
   const std::string thisProtocol = config.getString("protocol");
   const std::string thisReqUrl = config.getString("requrl");
   const std::string thisSessionId = config.getString("sessionid");
-  std::string thisHost;
-  Socket::hostBytesToStr(config.getString("ip").data(), 16, thisHost);
+  std::string thisHost = Socket::getBinForms(config.getString("ip"));
+  if (thisHost.size() > 16){thisHost = thisHost.substr(0, 16);}
 
   if (thisSessionId == "" || thisProtocol == "" || thisStreamName == ""){
     FAIL_MSG("Given the following incomplete arguments: SessionId: '%s', protocol: '%s', stream name: '%s'. Aborting opening a new session",
@@ -237,7 +237,6 @@ int main(int argc, char **argv){
   streamLastActive[thisStreamName] = 0;
   // Open the shared memory page containing statistics for each individual connection in this session
   connections.reload(thisSessionId, true);
-  sessionLock.post();
 
   // Determine session type, since triggers only get run for viewer type sessions
   uint64_t thisType = 0;
@@ -246,7 +245,6 @@ int main(int argc, char **argv){
   } else if (thisSessionId[0] == 'O'){
     thisType = 2;
   }
-  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   // Do a USER_NEW trigger if it is defined for this stream
   if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
@@ -261,6 +259,11 @@ int main(int argc, char **argv){
     }
   }
 
+  //start allowing viewers
+  sessionLock.post();
+
+  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
+
   uint64_t bootSecond = Util::bootSecs();
   uint64_t seenSecond = bootSecond;
   uint64_t lastSecond = 0;
@@ -274,44 +277,7 @@ int main(int argc, char **argv){
     // Loop through all connection entries to get a summary of statistics
     COMM_LOOP(connections, userOnActive(currentConnections, seenSecond, lastSecond, connections, id), userOnDisconnect(connections, id));
 
-    // Convert active protocols to string
-    std::stringstream connectorSummary;
-    for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
-          it != connectorLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
-      }
-    }
-    // Set active host to last active or 0 if there were various hosts active recently
-    std::string thisHost;
-    for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
-          it != hostLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (!thisHost.size()){
-          thisHost = it->first;
-        }else if (thisHost != it->first){
-          thisHost = nullAddress;
-          break;
-        }
-      }
-    }
-    if (!thisHost.size()){
-      thisHost = nullAddress;
-    }
-    // Set active stream name to last active or "" if there were multiple streams active recently
-    std::string thisStream = "";
-    for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
-          it != streamLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (!thisStream.size()){
-          thisStream = it->first;
-        }else if (thisStream != it->first){
-          thisStream = "";
-          break;
-        }
-      }
-    }
-    // Write summary to global statistics
+
     sessions.setTime(globalTime);
     sessions.setDown(globalDown);
     sessions.setUp(globalUp);
@@ -319,10 +285,58 @@ int main(int argc, char **argv){
     sessions.setPacketLostCount(globalPktloss);
     sessions.setPacketRetransmitCount(globalPktretrans);
     sessions.setLastSecond(lastSecond);
-    sessions.setConnector(connectorSummary.str());
     sessions.setNow(now);
-    sessions.setHost(thisHost);
-    sessions.setStream(thisStream);
+
+    if (lastSecond){
+      {
+        // Convert active protocols to string
+        std::stringstream connectorSummary;
+        for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
+              it != connectorLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
+          }
+        }
+        sessions.setConnector(connectorSummary.str());
+      }
+
+      {
+        // Set active host to last active or 0 if there were various hosts active recently
+        std::string thisHost;
+        for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
+              it != hostLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            if (!thisHost.size()){
+              thisHost = it->first;
+            }else if (thisHost != it->first){
+              thisHost = nullAddress;
+              break;
+            }
+          }
+        }
+        if (!thisHost.size()){
+          thisHost = nullAddress;
+        }
+        sessions.setHost(thisHost);
+      }
+
+      {
+        // Set active stream name to last active or "" if there were multiple streams active recently
+        std::string thisStream = "";
+        for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
+              it != streamLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            if (!thisStream.size()){
+              thisStream = it->first;
+            }else if (thisStream != it->first){
+              thisStream = "";
+              break;
+            }
+          }
+        }
+        sessions.setStream(thisStream);
+      }
+    }
 
     // Retrigger USER_NEW if a re-sync was requested
     if (!thisType && forceTrigger){
@@ -402,6 +416,7 @@ int main(int argc, char **argv){
     // Keep session invalidated for 10 minutes, or until the session stops
     while (config.is_active && Util::bootSecs() - sleepStart < 600){
       Util::sleep(1000);
+      if (forceTrigger){break;}
     }
   }
   INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);

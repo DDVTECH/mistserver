@@ -230,7 +230,7 @@ namespace Mist{
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
     if (!capa.isMember("codecs")){return true;}
-    if (!isInitialized){initialize();}
+    if (!isInitialized){return false;}
     meta.reloadReplacedPagesIfNeeded();
     if (getSupportedTracks().size()){
       size_t minTracks = 2;
@@ -348,6 +348,8 @@ namespace Mist{
 
     //Connect to stats reporting, if not connected already
     stats(true);
+    //Abort if the stats code shut us down just now
+    if (!isInitialized){return;}
 
     //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
@@ -1781,12 +1783,11 @@ namespace Mist{
     if (!statComm){
       statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
     }
-    if (!statComm){return;} 
-    if (statComm.getExit()){
+    if (!statComm || statComm.getExit()){
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;
-    }
+    } 
 
     lastStats = now;
 

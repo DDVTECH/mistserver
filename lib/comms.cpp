@@ -127,6 +127,10 @@ namespace Comms{
       return;
     }
     dataAccX = Util::RelAccX(dataPage.mapped);
+    if (dataAccX.isExit()){
+      dataPage.close();
+      return;
+    }
     fieldAccess();
     if (index == INVALID_RECORD_INDEX || reIssue){
       size_t reqCount = dataAccX.getRCount();
@@ -274,6 +278,7 @@ namespace Comms{
       char semName[NAME_BUFFER_SIZE];
       snprintf(semName, NAME_BUFFER_SIZE, SEM_SESSION, sessId.c_str());
       sem.open(semName, O_RDWR, ACCESSPERMS, 1);
+      if (!sem){return;}
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessId.c_str());

@@ -6,7 +6,7 @@
 
 namespace Mist{
   bool OutHLS::isReadyForPlay(){
-    if (!isInitialized){initialize();}
+    if (!isInitialized){return false;}
     meta.reloadReplacedPagesIfNeeded();
     if (!M.getValidTracks().size()){return false;}
     uint32_t mainTrack = M.mainTrack();

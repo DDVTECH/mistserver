@@ -79,26 +79,43 @@ namespace Mist{
     std::string bs;
     // prepare bufferstring
     if (video){
+      bool addInit = keyframe;
+      bool addEndNal = true;
       if (codec == "H264" || codec == "HEVC"){
         uint32_t extraSize = 0;
-        // dataPointer[4] & 0x1f is used to check if this should be done later:
-        // fillPacket("\000\000\000\001\011\360", 6);
-        if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){extraSize += 6;}
-        if (keyframe){
+        //Check if we need to skip sending some things
+        if (codec == "H264"){
+          size_t ctr = 0;
+          char * ptr = dataPointer;
+          while (ptr+4 < dataPointer+dataLen && ++ctr <= 5){
+            switch (ptr[4] & 0x1f){
+            case 0x07://init
+            case 0x08://init
+              addInit = false;
+              break;
+            case 0x09://new nal
+              addEndNal = false;
+              break;
+            default: break;
+            }
+            ptr += Bit::btohl(ptr);
+          }
+        }
+
+        if (addEndNal && codec == "H264"){extraSize += 6;}
+        if (addInit){
           if (codec == "H264"){
             MP4::AVCC avccbox;
             avccbox.setPayload(M.getInit(thisIdx));
             bs = avccbox.asAnnexB();
             extraSize += bs.size();
           }
-          /*LTS-START*/
           if (codec == "HEVC"){
             MP4::HVCC hvccbox;
             hvccbox.setPayload(M.getInit(thisIdx));
             bs = hvccbox.asAnnexB();
             extraSize += bs.size();
           }
-          /*LTS-END*/
         }
 
         const uint32_t MAX_PES_SIZE = 65490 - 13;
@@ -111,11 +128,13 @@ namespace Mist{
             (((dataLen + extraSize) > MAX_PES_SIZE) ? 0 : dataLen + extraSize),
             packTime, offset, true, M.getBps(thisIdx));
         fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
-        if (codec == "H264" && (dataPointer[4] & 0x1f) != 0x09){
-          // End of previous nal unit, if not already present
+
+        // End of previous nal unit, if not already present
+        if (addEndNal && codec == "H264"){
           fillPacket("\000\000\000\001\011\360", 6, firstPack, video, keyframe, pkgPid, contPkg);
         }
-        if (keyframe){
+        // Init data, if keyframe and not already present
+        if (addInit){
           if (codec == "H264"){
             MP4::AVCC avccbox;
             avccbox.setPayload(M.getInit(thisIdx));

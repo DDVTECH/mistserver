@@ -898,7 +898,6 @@ int main(int argc, char *argv[]){
     }
     Mist::lpBroad = JSON::fromString(dl.data());
   }
-  Mist::lpBroad = JSON::fromString(dl.data());
   if (!Mist::lpBroad || !Mist::lpBroad.isArray()){
     FAIL_MSG("No Livepeer broadcasters available");
     return 1;

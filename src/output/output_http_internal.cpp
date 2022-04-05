@@ -131,6 +131,7 @@ namespace Mist{
     capa["url_match"].append("/webrtc.js");
     capa["url_match"].append("/flv.js");
     capa["url_match"].append("/hlsjs.js");
+    capa["url_match"].append("/libde265.js");
     capa["url_match"].append("/skins/default.css");
     capa["url_match"].append("/skins/dev.css");
     capa["url_match"].append("/skins/videojs.css");
@@ -148,6 +149,7 @@ namespace Mist{
     capa["optional"]["wrappers"]["allowed"].append("dashjs");
     capa["optional"]["wrappers"]["allowed"].append("webrtc");
     capa["optional"]["wrappers"]["allowed"].append("mews");
+    capa["optional"]["wrappers"]["allowed"].append("rawws");
     capa["optional"]["wrappers"]["allowed"].append("flv");
     capa["optional"]["wrappers"]["allowed"].append("flash_strobe");
     capa["optional"]["wrappers"]["option"] = "--wrappers";
@@ -894,6 +896,11 @@ namespace Mist{
           response.append((char *)mews_js, (size_t)mews_js_len);
           used = true;
         }
+        if (it->asStringRef() == "rawws"){
+#include "rawws.js.h"
+          response.append((char *)rawws_js, (size_t)rawws_js_len);
+          used = true;
+        }
         if (it->asStringRef() == "flv"){
 #include "flv.js.h"
           response.append((char *)flv_js, (size_t)flv_js_len);
@@ -1066,6 +1073,26 @@ namespace Mist{
       H.Clean();
       return;
     }
+    if (H.url == "/libde265.js"){
+      std::string response;
+      H.Clean();
+      H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
+      H.setCORSHeaders();
+      H.SetHeader("Content-Type", "application/javascript");
+      if (method == "OPTIONS" || method == "HEAD"){
+        H.SendResponse("200", "OK", myConn);
+        H.Clean();
+        return;
+      }
+
+      #include "player_libde265.js.h"
+      response.append((char*)player_libde265_js, (size_t)player_libde265_js_len);
+
+      H.SetBody(response);
+      H.SendResponse("200", "OK", myConn);
+      H.Clean();
+      return;
+    } 
   }
 
   void OutHTTP::sendIcon(){

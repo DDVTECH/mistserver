@@ -653,12 +653,14 @@ add_executable(MistOutHTTP
   generated/mews.js.h
   generated/flv.js.h
   generated/hlsjs.js.h
+  generated/rawws.js.h
   generated/player_dash.js.h
   generated/player_dash_lic.js.h
   generated/player_video.js.h
   generated/player_webrtc.js.h
   generated/player_flv.js.h
   generated/player_hlsjs.js.h
+  generated/player_libde265.js.h
   generated/skin_default.css.h
   generated/skin_dev.css.h
   generated/skin_videojs.css.h
@@ -770,7 +772,10 @@ add_custom_command(OUTPUT generated/hlsjs.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/hlsjs.js hlsjs_js generated/hlsjs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/hlsjs.js
 )
-# players
+add_custom_command(OUTPUT generated/rawws.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/rawws.js rawws_js generated/rawws.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/rawws.js
+)# players
 add_custom_command(OUTPUT generated/player_dash_lic.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js player_dash_lic_js generated/player_dash_lic.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js
@@ -794,6 +799,10 @@ add_custom_command(OUTPUT generated/player_flv.js.h
 add_custom_command(OUTPUT generated/player_hlsjs.js.h
   COMMAND ./sourcery ${SOURCE_DIR}/embed/players/hls.js player_hlsjs_js generated/player_hlsjs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/hls.js
+)
+add_custom_command(OUTPUT generated/player_libde265.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/libde265.min.js player_libde265_js generated/player_libde265.js.h
+  DEPENDS sourcery ${SOURCE_DIR}/embed/players/libde265.min.js
 )
 # css
 add_custom_command(OUTPUT generated/skin_default.css.h

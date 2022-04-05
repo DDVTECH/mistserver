@@ -42,37 +42,38 @@ mistplayers.html5 = {
         return support;
       }
       
+      function translateCodec(track) {
+
+        function bin2hex(index) {
+          return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
+        }
+
+        switch (track.codec) {
+          case "AAC":
+            return "mp4a.40.2";
+          case "MP3":
+            return "mp3";
+            //return "mp4a.40.34";
+          case "AC3":
+            return "ec-3";
+          case "H264":
+            return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
+          case "HEVC":
+            return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
+          default:
+            return track.codec.toLowerCase();
+        }
+
+      }
+      var codecs = {};
+      for (var i in MistVideo.info.meta.tracks) {
+        if (MistVideo.info.meta.tracks[i].type != "meta") {
+          codecs[translateCodec(MistVideo.info.meta.tracks[i])] = 1;
+        }
+      }
+      codecs = MistUtil.object.keys(codecs);
+
       if (shortmime == "video/mp4") {
-        function translateCodec(track) {
-          
-          function bin2hex(index) {
-            return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
-          }
-          
-          switch (track.codec) {
-            case "AAC":
-              return "mp4a.40.2";
-            case "MP3":
-              return "mp3";
-              //return "mp4a.40.34";
-            case "AC3":
-              return "ec-3";
-            case "H264":
-              return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
-            case "HEVC":
-              return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
-            default:
-              return track.codec.toLowerCase();
-          }
-          
-        }
-        var codecs = {};
-        for (var i in MistVideo.info.meta.tracks) {
-          if (MistVideo.info.meta.tracks[i].type != "meta") {
-            codecs[translateCodec(MistVideo.info.meta.tracks[i])] = 1;
-          }
-        }
-        codecs = MistUtil.object.keys(codecs);
         if (codecs.length) {
           if (codecs.length > source.simul_tracks) {
             //not all of the tracks have to work
@@ -85,8 +86,17 @@ mistplayers.html5 = {
             }
             return (working >= source.simul_tracks);
           }
-          shortmime += ";codecs=\""+codecs.join(",")+"\"";
+          return test(shortmime+";codecs=\""+codecs.join(",")+"\"");
         }
+      }
+      else {
+        //if there's a h265 track, remove it from the list of codecs
+        for (var i = codecs.length-1; i >= 0; i--) {
+          if (codecs[i].substr(0,4) == "hev1") {
+            codecs.splice(i,1);
+          }
+        }
+        if (codecs.length < source.simul_tracks) { return false; } //if there's no longer enough playable tracks, skip this player
       }
       
       support = test(shortmime);

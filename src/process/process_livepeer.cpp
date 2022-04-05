@@ -623,9 +623,9 @@ int main(int argc, char *argv[]){
     capa["optional"]["audio_select"]["type"] = "track_selector_parameter";
     capa["optional"]["audio_select"]["default"] = "none";
 
-    capa["required"]["access_token"]["name"] = "Access token";
-    capa["required"]["access_token"]["help"] = "Your livepeer access token";
-    capa["required"]["access_token"]["type"] = "string";
+    capa["optional"]["access_token"]["name"] = "Access token";
+    capa["optional"]["access_token"]["help"] = "Your livepeer access token";
+    capa["optional"]["access_token"]["type"] = "string";
 
     capa["optional"]["leastlive"]["name"] = "Start in the past";
     capa["optional"]["leastlive"]["help"] = "Start the transcode as far back in the past as possible, instead of at the most-live point of the stream.";

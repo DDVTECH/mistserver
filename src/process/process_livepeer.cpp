@@ -880,11 +880,19 @@ int main(int argc, char *argv[]){
  
   //Connect to livepeer API
   HTTP::Downloader dl;
-  dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
-  //Get broadcaster list, pick first valid address
-  if (!dl.get(HTTP::URL(api_url+"/broadcaster"))){
-    FAIL_MSG("Livepeer API responded negatively to request for broadcaster list");
-    return 1;
+  if (Mist::opt["access_token"].size()){
+    dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
+  }
+
+  if (Mist::opt["hardcoded_broadcasters"].size()){
+    Mist::lpBroad = JSON::fromString(Mist::opt["hardcoded_broadcasters"].asStringRef());
+  } else {
+    //Get broadcaster list, pick first valid address
+    if (!dl.get(HTTP::URL(api_url+"/broadcaster"))){
+      FAIL_MSG("Livepeer API responded negatively to request for broadcaster list");
+      return 1;
+    }
+    Mist::lpBroad = JSON::fromString(dl.data());
   }
   Mist::lpBroad = JSON::fromString(dl.data());
   if (!Mist::lpBroad || !Mist::lpBroad.isArray()){
@@ -898,23 +906,27 @@ int main(int argc, char *argv[]){
   }
   INFO_MSG("Using broadcaster: %s", Mist::currBroadAddr.c_str());
 
-  //send transcode request
-  dl.setHeader("Content-Type", "application/json");
-  dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
-  if (!dl.post(HTTP::URL(api_url+"/stream"), pl.toString())){
-    FAIL_MSG("Livepeer API responded negatively to encode request");
-    return 1;
+  if (Mist::opt["access_token"].size()){
+    //send transcode request
+    dl.setHeader("Content-Type", "application/json");
+    dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
+    if (!dl.post(HTTP::URL(api_url+"/stream"), pl.toString())){
+      FAIL_MSG("Livepeer API responded negatively to encode request");
+      return 1;
+    }
+    Mist::lpEnc = JSON::fromString(dl.data());
+    if (!Mist::lpEnc){
+      FAIL_MSG("Livepeer API did not respond with JSON");
+      return 1;
+    }
+    if (!Mist::lpEnc.isMember("id")){
+      FAIL_MSG("Livepeer API did not respond with a valid ID: %s", dl.data().data());
+      return 1;
+    }
+    Mist::lpID = Mist::lpEnc["id"].asStringRef();
+  } else {
+    Mist::lpID = Util::streamName;
   }
-  Mist::lpEnc = JSON::fromString(dl.data());
-  if (!Mist::lpEnc){
-    FAIL_MSG("Livepeer API did not respond with JSON");
-    return 1;
-  }
-  if (!Mist::lpEnc.isMember("id")){
-    FAIL_MSG("Livepeer API did not respond with a valid ID: %s", dl.data().data());
-    return 1;
-  }
-  Mist::lpID = Mist::lpEnc["id"].asStringRef();
 
   INFO_MSG("Livepeer transcode ID: %s", Mist::lpID.c_str());
   uint64_t lastProcUpdate = Util::bootSecs();

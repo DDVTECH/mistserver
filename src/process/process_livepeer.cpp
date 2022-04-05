@@ -436,6 +436,14 @@ void uploadThread(void * num){
       upper.setHeader("Accept", "multipart/mixed");
       upper.setHeader("Content-Duration", JSON::Value(mySeg.segDuration).asString());
       upper.setHeader("Content-Resolution", JSON::Value(mySeg.width).asString()+"x"+JSON::Value(mySeg.height).asString());
+
+      // If the Livepeer API Key hasn't been set then we send the configuration as an HTTP header rather than pushing to the API
+      if (!Mist::opt.isMember("access_token") || !Mist::opt["access_token"] || !Mist::opt["access_token"].isString()){
+        JSON::Value tc;
+        tc["profiles"] = Mist::opt["target_profiles"];
+        upper.setHeader("Livepeer-Transcode-Configuration", tc.toString());
+      }
+
       uint64_t uplTime = Util::getMicros();
       if (upper.post(target, mySeg.data, mySeg.data.size())){
         uplTime = Util::getMicros(uplTime);

@@ -627,6 +627,10 @@ int main(int argc, char *argv[]){
     capa["optional"]["access_token"]["help"] = "Your livepeer access token";
     capa["optional"]["access_token"]["type"] = "string";
 
+    capa["optional"]["hardcoded_broadcasters"]["name"] = "Hardcoded Broadcasters";
+    capa["optional"]["hardcoded_broadcasters"]["help"] = "Use hardcoded broadcasters, rather than using Livepeer's gateway.";
+    capa["optional"]["hardcoded_broadcasters"]["type"] = "string";
+
     capa["optional"]["leastlive"]["name"] = "Start in the past";
     capa["optional"]["leastlive"]["help"] = "Start the transcode as far back in the past as possible, instead of at the most-live point of the stream.";
     capa["optional"]["leastlive"]["type"] = "boolean";

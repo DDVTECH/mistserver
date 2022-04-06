@@ -22,6 +22,8 @@ namespace Mist{
     capa["source_match"].append("/*.dtsc");
     capa["source_match"].append("dtsc://*");
     capa["always_match"].append("dtsc://*"); // can be said to always-on mode
+    capa["source_match"].append("dtscs://*");
+    capa["always_match"].append("dtscs://*");
     capa["source_file"] = "$source";
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("H263");
@@ -69,16 +71,16 @@ namespace Mist{
   bool inputDTSC::needsLock(){
     if (!lockCache){
       lockNeeded =
-          config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input") != "-";
+          config->getString("input").substr(0, 7) != "dtsc://" && config->getString("input").substr(0, 8) != "dtscs://" && config->getString("input") != "-";
       lockCache = true;
     }
     return lockNeeded;
   }
 
   void parseDTSCURI(const std::string &src, std::string &host, uint16_t &port,
-                    std::string &password, std::string &streamName){
+                    std::string &password, std::string &streamName, bool secure){
     host = "";
-    port = 4200;
+    port = secure ? 4300 : 4200;
     password = "";
     streamName = "";
     std::deque<std::string> matches;
@@ -182,15 +184,20 @@ namespace Mist{
       srcConn.open(fileno(stdout), fileno(stdin));
       return true;
     }
-    if (source.find("dtsc://") == 0){source.erase(0, 7);}
     std::string host;
     uint16_t port;
     std::string password;
     std::string streamName;
-    parseDTSCURI(source, host, port, password, streamName);
+    bool secure = false;
+    if (source.find("dtsc://") == 0){source.erase(0, 7);}
+    if (source.find("dtscs://") == 0){
+      source.erase(0, 8);
+      secure = true;
+    }
+    parseDTSCURI(source, host, port, password, streamName, secure);
     std::string givenStream = config->getString("streamname");
     if (streamName == ""){streamName = givenStream;}
-    srcConn.open(host, port, true);
+    srcConn.open(host, port, true, secure);
     if (!srcConn.connected()){return false;}
     JSON::Value prep;
     prep["cmd"] = "play";

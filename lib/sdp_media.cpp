@@ -1159,21 +1159,9 @@ namespace SDP{
     return ss.str();
   }
 
-  std::string Answer::generateIceUFrag(){return generateRandomString(4);}
+  std::string Answer::generateIceUFrag(){return Util::generateRandomString(4);}
 
-  std::string Answer::generateIcePwd(){return generateRandomString(22);}
-
-  std::string Answer::generateRandomString(const int len){
-
-    static const char alphanum[] = "0123456789"
-                                   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                   "abcdefghijklmnopqrstuvwxyz";
-
-    std::string s;
-    for (int i = 0; i < len; ++i){s.push_back(alphanum[rand() % (sizeof(alphanum) - 1)]);}
-
-    return s;
-  }
+  std::string Answer::generateIcePwd(){return Util::generateRandomString(22);}
 
   std::vector<std::string> Answer::splitString(const std::string &str, char delim){
 

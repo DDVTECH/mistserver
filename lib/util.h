@@ -13,6 +13,7 @@ namespace Util{
   bool createPath(const std::string &path);
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
+  std::string generateRandomString(const int len);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 

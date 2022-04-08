@@ -182,7 +182,6 @@ namespace SDP{
     std::string generateSessionId();
     std::string generateIceUFrag(); ///< Generates the `ice-ufrag` value.
     std::string generateIcePwd();   ///< Generates the `ice-pwd` value.
-    std::string generateRandomString(const int len);
     std::vector<std::string> splitString(const std::string &str, char delim);
 
   public:

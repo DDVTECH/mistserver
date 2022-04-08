@@ -928,7 +928,9 @@ int main(int argc, char *argv[]){
     }
     Mist::lpID = Mist::lpEnc["id"].asStringRef();
   } else {
-    Mist::lpID = Util::streamName;
+    // We don't want to use the same manifest ids for multiple proceses on the same stream
+    // name, so we append a random string to the upload URL.
+    Mist::lpID = Mist::opt["source"].asStringRef() + "-" + Util::generateRandomString(8);
   }
 
   INFO_MSG("Livepeer transcode ID: %s", Mist::lpID.c_str());

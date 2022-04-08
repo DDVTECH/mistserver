@@ -884,11 +884,11 @@ int main(int argc, char *argv[]){
  
   //Connect to livepeer API
   HTTP::Downloader dl;
-  if (Mist::opt["access_token"].size()){
+  if (!Mist::opt.isMember("access_token") || !Mist::opt["access_token"] || !Mist::opt["access_token"].isString()){
     dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
   }
 
-  if (Mist::opt["hardcoded_broadcasters"].size()){
+  if (!(!Mist::opt.isMember("hardcoded_broadcasters") || !Mist::opt["hardcoded_broadcasters"] || !Mist::opt["hardcoded_broadcasters"].isString())){
     Mist::lpBroad = JSON::fromString(Mist::opt["hardcoded_broadcasters"].asStringRef());
   } else {
     //Get broadcaster list, pick first valid address

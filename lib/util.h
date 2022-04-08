@@ -14,6 +14,7 @@ namespace Util{
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
   void replace(std::string &str, const std::string &from, const std::string &to);
+  std::string generateRandomString(const int len);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 

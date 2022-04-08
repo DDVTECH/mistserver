@@ -287,6 +287,22 @@ namespace Util{
     }
     return true;
   }
+
+  std::string generateRandomString(const int len)
+  {
+    static const char alphanum[] = "0123456789"
+                                   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                   "abcdefghijklmnopqrstuvwxyz";
+
+    std::string s;
+    for (int i = 0; i < len; ++i)
+    {
+      s.push_back(alphanum[rand() % (sizeof(alphanum) - 1)]);
+    }
+
+    return s;
+  }
+
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
   //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.

@@ -17,6 +17,7 @@ namespace Util{
   void stringTrim(std::string &val);
   void splitString(std::string &val, char delim, std::deque<std::string> &result);
   bool externalWriter(const std::string & file, int &outFile, bool append = false);
+  std::string generateRandomString(const int len);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 

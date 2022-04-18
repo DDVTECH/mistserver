@@ -16,6 +16,7 @@ namespace Controller{
   extern bool isTerminal;            ///< True if connected to a terminal and not a log file.
   extern bool isColorized;           ///< True if we colorize the output
   extern uint64_t logCounter;        ///< Count of logged messages since boot
+  extern uint64_t systemBoot;        ///< Unix time in milliseconds of system boot
 
   Util::RelAccX *logAccessor();
   Util::RelAccX *accesslogAccessor();

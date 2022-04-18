@@ -166,6 +166,8 @@ bool Socket::isBinAddress(const std::string &binAddr, std::string addr){
 /// Converts the given address with optional subnet to binary IPv6 form.
 /// Returns 16 bytes of address, followed by 1 byte of subnet bits, zero or more times.
 std::string Socket::getBinForms(std::string addr){
+  // Check for empty address
+  if (!addr.size()){return std::string(17, (char)0);}
   // Check if we need to do prefix matching
   uint8_t prefixLen = 128;
   if (addr.find('/') != std::string::npos){

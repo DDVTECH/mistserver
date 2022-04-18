@@ -58,7 +58,11 @@ static uint64_t cpu_use = 0;
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
 
-static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0 ,0 ,0, "", "", ""};
+const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0 ,0 ,0, "", nullAddress, ""};
+bool notEmpty(const Controller::statLog & dta){
+  return dta.time || dta.firstActive || dta.lastSecond || dta.down || dta.up || dta.streamName.size() || dta.connectors.size();
+}
 
 // For server-wide totals. Local to this file only.
 struct streamTotals{
@@ -1023,13 +1027,13 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   // to make sure no nasty timing business takes place, we store the case "now" as a bool.
   bool now = (reqTime == 0);
   //if in the last 600 seconds of unix time (or higher), assume unix time and subtract epoch from it
-  if (reqTime > (int64_t)epoch - STAT_CUTOFF){reqTime -= (epoch-bSecs);}
+  if (reqTime > (int64_t)epoch - STAT_CUTOFF){reqTime -= Controller::systemBoot/1000;}
   // add the current time, if negative or zero.
   if (reqTime < 0){reqTime += bSecs;}
   if (reqTime == 0){
     // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
     // Prevents wrapping around to high values close to system boot time.
-    uint64_t cutOffPoint = Util::bootSecs();
+    uint64_t cutOffPoint = bSecs;
     if (cutOffPoint > STAT_CUTOFF){
       cutOffPoint -= STAT_CUTOFF;
     }else{
@@ -1038,7 +1042,7 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
     reqTime = cutOffPoint;
   }
   // at this point, we have the absolute timestamp in bootsecs.
-  rep["time"] = reqTime + (epoch-bSecs); // fill the absolute timestamp
+  rep["time"] = reqTime + (Controller::systemBoot/1000); // fill the absolute timestamp
 
   unsigned int fields = 0;
   // next, figure out the fields wanted
@@ -1097,7 +1101,8 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if ((it->second.getEnd() >= time && it->second.getStart() <= time) &&
           (!streams.size() || streams.count(it->second.getStreamName(time))) &&
           (!protos.size() || protos.count(it->second.getConnectors(time)))){
-        if (it->second.hasDataFor(time)){
+        const statLog & dta = it->second.curData.getDataFor(time);
+        if (notEmpty(dta)){
           JSON::Value d;
           if (fields & STAT_CLI_HOST){d.append(it->second.getStrHost(time));}
           if (fields & STAT_CLI_STREAM){d.append(it->second.getStreamName(time));}
@@ -1396,14 +1401,14 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   if (req.isMember("start")){reqStart = req["start"].asInt();}
   if (req.isMember("end")){reqEnd = req["end"].asInt();}
   //if the reqStart or reqEnd is greater than current bootsecs, assume unix time and subtract epoch from it
-  if (reqStart > (int64_t)epoch - STAT_CUTOFF){reqStart -= (epoch-bSecs);}
-  if (reqEnd > (int64_t)epoch - STAT_CUTOFF){reqEnd -= (epoch-bSecs);}
+  if (reqStart > (int64_t)epoch - STAT_CUTOFF){reqStart -= Controller::systemBoot/1000;}
+  if (reqEnd > (int64_t)epoch - STAT_CUTOFF){reqEnd -= Controller::systemBoot/1000;}
   // add the current time, if negative or zero.
   if (reqStart < 0){reqStart += bSecs;}
   if (reqStart == 0){
     // Ensure cutOffPoint is either time of boot or 10 minutes ago, whichever is closer.
     // Prevents wrapping around to high values close to system boot time.
-    uint64_t cutOffPoint = Util::bootSecs();
+    uint64_t cutOffPoint = bSecs;
     if (cutOffPoint > STAT_CUTOFF){
       cutOffPoint -= STAT_CUTOFF;
     }else{
@@ -1479,8 +1484,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
     return;
   }
   // yay! We have data!
-  rep["start"] = totalsCount.begin()->first + (epoch-bSecs);
-  rep["end"] = totalsCount.rbegin()->first + (epoch-bSecs);
+  rep["start"] = totalsCount.begin()->first + (Controller::systemBoot/1000);
+  rep["end"] = totalsCount.rbegin()->first + (Controller::systemBoot/1000);
   rep["data"].null();
   rep["interval"].null();
   uint64_t prevT = 0;

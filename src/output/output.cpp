@@ -1804,7 +1804,7 @@ namespace Mist{
     /*LTS-END*/
     statComm.setNow(now);
     connStats(now, statComm);
-    statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
+    statComm.setLastSecond(thisPacket ? thisPacket.getTime()/1000 : 0);
     statComm.setPid(getpid());
 
     /*LTS-START*/

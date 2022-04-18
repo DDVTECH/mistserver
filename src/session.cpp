@@ -7,7 +7,10 @@
 #include <mist/triggers.h>
 #include <signal.h>
 #include <stdio.h>
-// Stats of connections which have closed are added to these global counters
+// Global counters
+uint64_t now = Util::bootSecs();
+uint64_t currentConnections = 0;
+uint64_t lastSecond = 0;
 uint64_t globalTime = 0;
 uint64_t globalDown = 0;
 uint64_t globalUp = 0;
@@ -38,34 +41,29 @@ void handleSignal(int signum){
 
 const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-void userOnActive(uint64_t &currentConnections, uint64_t &seenSecond, uint64_t &lastSecond, Comms::Connections &connections, size_t idx){
+void userOnActive(Comms::Connections &connections, size_t idx){
+  uint64_t lastUpdate = connections.getNow(idx);
+  if (lastUpdate < now - 10){return;}
   ++currentConnections;
-  uint64_t now = connections.getNow(idx);
-  uint64_t timeDelta = connections.getTime(idx) - connTime[idx];
   std::string thisConnector = connections.getConnector(idx);
   std::string thisStreamName = connections.getStream(idx);
   const std::string& thisHost = connections.getHost(idx);
 
-  if (connections.getNow(idx) > seenSecond){seenSecond = connections.getNow(idx);}
-  if (now > lastSecond){lastSecond = now;}
+  if (connections.getLastSecond(idx) > lastSecond){lastSecond = connections.getLastSecond(idx);}
   // Save info on the latest active stream, protocol and host separately
-  if (thisConnector != ""){
-    connectorCount[thisConnector] += timeDelta;
-    if (connectorLastActive[thisConnector] < now){connectorLastActive[thisConnector] = now;}
+  if (thisConnector.size() && thisConnector != "HTTP"){
+    connectorCount[thisConnector]++;
+    if (connectorLastActive[thisConnector] < lastUpdate){connectorLastActive[thisConnector] = lastUpdate;}
   }
-  if (thisStreamName != ""){
-    streamCount[thisStreamName] += timeDelta;
-    if (streamLastActive[thisStreamName] < now){streamLastActive[thisStreamName] = now;}
+  if (thisStreamName.size()){
+    streamCount[thisStreamName]++;
+    if (streamLastActive[thisStreamName] < lastUpdate){streamLastActive[thisStreamName] = lastUpdate;}
   }
   if (memcmp(thisHost.data(), nullAddress, 16)){
-    hostCount[thisHost] += timeDelta;
-    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < now){hostLastActive[thisHost] = now;}
+    hostCount[thisHost]++;
+    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < lastUpdate){hostLastActive[thisHost] = lastUpdate;}
   }
   // Sanity checks
-  if (connections.getTime(idx) < connTime[idx]){
-    WARN_MSG("Connection duration should be a counter, but has decreased in value");
-    connTime[idx] = connections.getTime(idx);
-  }
   if (connections.getDown(idx) < connDown[idx]){
     WARN_MSG("Connection downloaded bytes should be a counter, but has decreased in value");
     connDown[idx] = connections.getDown(idx);
@@ -87,14 +85,13 @@ void userOnActive(uint64_t &currentConnections, uint64_t &seenSecond, uint64_t &
     connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
   }
   // Add increase in stats to global stats
-  globalTime += timeDelta;
   globalDown += connections.getDown(idx) - connDown[idx];
   globalUp += connections.getUp(idx) - connUp[idx];
   globalPktcount += connections.getPacketCount(idx) - connPktcount[idx];
   globalPktloss += connections.getPacketLostCount(idx) - connPktloss[idx];
   globalPktretrans += connections.getPacketRetransmitCount(idx) - connPktretrans[idx];
   // Set last values of this connection
-  connTime[idx] = connections.getTime(idx);
+  connTime[idx]++;
   connDown[idx] = connections.getDown(idx);
   connUp[idx] = connections.getUp(idx);
   connPktcount[idx] = connections.getPacketCount(idx);
@@ -116,7 +113,6 @@ int main(int argc, char **argv){
   Comms::Connections connections;
   Comms::Sessions sessions;
   uint64_t lastSeen = Util::bootSecs();
-  uint64_t currentConnections = 0;
   Util::redirectLogsIfNeeded();
   signal(SIGUSR1, handleSignal);
   // Init config and parse arguments
@@ -224,12 +220,15 @@ int main(int argc, char **argv){
     sessionLock.post();
     return 1;
   }
+
   // Initialise global session data
   sessions.setHost(thisHost);
   sessions.setSessId(thisSessionId);
   sessions.setStream(thisStreamName);
-  connectorLastActive[thisProtocol] = 0;
-  streamLastActive[thisStreamName] = 0;
+  if (thisProtocol.size() && thisProtocol != "HTTP"){connectorLastActive[thisProtocol] = now;}
+  if (thisStreamName.size()){streamLastActive[thisStreamName] = now;}
+  if (memcmp(thisHost.data(), nullAddress, 16)){hostLastActive[thisHost] = now;}
+
   // Open the shared memory page containing statistics for each individual connection in this session
   connections.reload(thisSessionId, true);
 
@@ -259,18 +258,18 @@ int main(int argc, char **argv){
 
   INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
-  uint64_t bootSecond = Util::bootSecs();
-  uint64_t seenSecond = bootSecond;
-  uint64_t lastSecond = 0;
-  uint64_t now = 0;
   // Stay active until Mist exits or we no longer have an active connection
-  while (config.is_active && (currentConnections || Util::bootSecs() - lastSeen <= STATS_DELAY)){
+  while (config.is_active && (currentConnections || now - lastSeen <= STATS_DELAY)){
     currentConnections = 0;
     lastSecond = 0;
     now = Util::bootSecs();
 
     // Loop through all connection entries to get a summary of statistics
-    COMM_LOOP(connections, userOnActive(currentConnections, seenSecond, lastSecond, connections, id), userOnDisconnect(connections, id));
+    COMM_LOOP(connections, userOnActive(connections, id), userOnDisconnect(connections, id));
+    if (currentConnections){
+      globalTime++;
+      lastSeen = now;
+    }
 
 
     sessions.setTime(globalTime);
@@ -282,13 +281,13 @@ int main(int argc, char **argv){
     sessions.setLastSecond(lastSecond);
     sessions.setNow(now);
 
-    if (lastSecond){
+    if (currentConnections){
       {
         // Convert active protocols to string
         std::stringstream connectorSummary;
         for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
               it != connectorLastActive.end(); ++it){
-          if (lastSecond - it->second < STATS_DELAY){
+          if (now - it->second < STATS_DELAY){
             connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
           }
         }
@@ -300,7 +299,7 @@ int main(int argc, char **argv){
         std::string thisHost;
         for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
               it != hostLastActive.end(); ++it){
-          if (lastSecond - it->second < STATS_DELAY){
+          if (now - it->second < STATS_DELAY){
             if (!thisHost.size()){
               thisHost = it->first;
             }else if (thisHost != it->first){
@@ -320,7 +319,7 @@ int main(int argc, char **argv){
         std::string thisStream = "";
         for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
               it != streamLastActive.end(); ++it){
-          if (lastSecond - it->second < STATS_DELAY){
+          if (now - it->second < STATS_DELAY){
             if (!thisStream.size()){
               thisStream = it->first;
             }else if (thisStream != it->first){
@@ -357,9 +356,8 @@ int main(int argc, char **argv){
 
     // Remember latest activity so we know when this session ends
     if (currentConnections){
-      lastSeen = Util::bootSecs();
     }
-    Util::sleep(1000);
+    Util::wait(1000);
   }
   if (Util::bootSecs() - lastSeen > STATS_DELAY){
     Util::logExitReason("Session inactive for %d seconds", STATS_DELAY);
@@ -367,7 +365,6 @@ int main(int argc, char **argv){
 
   // Trigger USER_END
   if (!thisType && Triggers::shouldTrigger("USER_END", thisStreamName)){
-    lastSecond = 0;
 
     // Convert connector, host and stream into lists and counts
     std::stringstream connectorSummary;
@@ -396,9 +393,9 @@ int main(int argc, char **argv){
           << streamSummary.str() << "\n"
           << connectorSummary.str() << "\n"
           << hostSummary.str() << "\n"
-          << (seenSecond - bootSecond) << "\n"
-          << (globalUp) << "\n"
-          << (globalDown) << "\n"
+          << globalTime << "\n"
+          << globalUp << "\n"
+          << globalDown << "\n"
           << sessions.getTags() << "\n"
           << hostTimes.str() << "\n"
           << connectorTimes.str() << "\n"

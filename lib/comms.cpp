@@ -295,13 +295,16 @@ namespace Comms{
   /// \param _master: If True, we are reading from this page. If False, we are writing (to our entry) on this page
   /// \param reIssue: If True, claim a new entry on this page
   void Connections::reload(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & protocol, const std::string & reqUrl, bool _master, bool reIssue){
+    uint8_t sessMode = sessionViewerMode;
     // Generate a unique session ID for each viewer, input or output
     if (protocol.size() >= 6 && protocol.substr(0, 6) == "INPUT:"){
-      sessionId = "I" + generateSession(streamName, ip, sid, protocol, sessionInputMode);
+      sessMode = sessionInputMode;
+      sessionId = "I" + generateSession(streamName, ip, sid, protocol, sessMode);
     }else if (protocol.size() >= 7 && protocol.substr(0, 7) == "OUTPUT:"){
-      sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessionOutputMode);
+      sessMode = sessionOutputMode;
+      sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessMode);
     }else{
-      sessionId = generateSession(streamName, ip, sid, protocol, sessionViewerMode);
+      sessionId = generateSession(streamName, ip, sid, protocol, sessMode);
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessionId.c_str());
@@ -315,20 +318,44 @@ namespace Comms{
         std::deque<std::string> args;
         args.push_back(Util::getMyPath() + "MistSession");
         args.push_back(sessionId);
-        args.push_back("--streamname");
-        args.push_back(streamName);
-        args.push_back("--ip");
-        args.push_back(host);
-        args.push_back("--sid");
-        args.push_back(sid);
-        args.push_back("--protocol");
-        args.push_back(protocol);
-        args.push_back("--requrl");
-        args.push_back(reqUrl);
+
+        // First bit defines whether to include stream name
+        if (sessMode & 0x08){
+          args.push_back("--streamname");
+          args.push_back(streamName);
+        }else{
+          setenv("SESSION_STREAM", streamName.c_str(), 1);
+        }
+        // Second bit defines whether to include viewer ip
+        if (sessMode & 0x04){
+          args.push_back("--ip");
+          args.push_back(host);
+        }else{
+          setenv("SESSION_IP", host.c_str(), 1);
+        }
+        // Third bit defines whether to include sid
+        if (sessMode & 0x02){
+          args.push_back("--sid");
+          args.push_back(sid);
+        }else{
+          setenv("SESSION_SID", sid.c_str(), 1);
+        }
+        // Fourth bit defines whether to include protocol
+        if (sessMode & 0x01){
+          args.push_back("--protocol");
+          args.push_back(protocol);
+        }else{
+          setenv("SESSION_PROTOCOL", protocol.c_str(), 1);
+        }
+        setenv("SESSION_REQURL", reqUrl.c_str(), 1);
         int err = fileno(stderr);
         thisPid = Util::Procs::StartPiped(args, 0, 0, &err);
         Util::Procs::forget(thisPid);
-        HIGH_MSG("Spawned new session executeable (pid %u) for sessionId '%s', corresponding to host %s and stream %s", thisPid, sessionId.c_str(), ip.c_str(), streamName.c_str());
+        unsetenv("SESSION_STREAM");
+        unsetenv("SESSION_IP");
+        unsetenv("SESSION_SID");
+        unsetenv("SESSION_PROTOCOL");
+        unsetenv("SESSION_REQURL");
       }
     }
     reload(sessionId, _master, reIssue);
@@ -525,7 +552,7 @@ namespace Comms{
     if (sessionMode & 0x04){
       concat += ip;
     }
-    // Third bit defines whether to include player ip
+    // Third bit defines whether to include client-side session id
     if (sessionMode & 0x02){
       concat += sid;
     }

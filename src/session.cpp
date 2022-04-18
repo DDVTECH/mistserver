@@ -115,9 +115,6 @@ void userOnDisconnect(Comms::Connections & connections, size_t idx){
 int main(int argc, char **argv){
   Comms::Connections connections;
   Comms::Sessions sessions;
-  Comms::sessionViewerMode = Util::getGlobalConfig("sessionViewerMode").asInt();
-  Comms::sessionInputMode = Util::getGlobalConfig("sessionInputMode").asInt();
-  Comms::sessionOutputMode = Util::getGlobalConfig("sessionOutputMode").asInt();
   uint64_t lastSeen = Util::bootSecs();
   uint64_t currentConnections = 0;
   Util::redirectLogsIfNeeded();
@@ -125,58 +122,62 @@ int main(int argc, char **argv){
   // Init config and parse arguments
   Util::Config config = Util::Config("MistSession");
   JSON::Value option;
+  char * tmpStr = 0;
 
   option.null();
   option["arg_num"] = 1;
   option["arg"] = "string";
   option["help"] = "Session identifier of the entire session";
-  option["default"] = "";
   config.addOption("sessionid", option);
-
-  option.null();
-  option["long"] = "sessionmode";
-  option["short"] = "m";
-  option["arg"] = "integer";
-  option["default"] = 0;
-  config.addOption("sessionmode", option);
 
   option.null();
   option["long"] = "streamname";
   option["short"] = "n";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Stream name initial value. May also be passed as SESSION_STREAM";
+  tmpStr = getenv("SESSION_STREAM");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("streamname", option);
 
   option.null();
   option["long"] = "ip";
   option["short"] = "i";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "IP address initial value. May also be passed as SESSION_IP";
+  tmpStr = getenv("SESSION_IP");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("ip", option);
 
   option.null();
   option["long"] = "sid";
   option["short"] = "s";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Client-side session ID initial value. May also be passed as SESSION_SID";
+  tmpStr = getenv("SESSION_SID");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("sid", option);
 
   option.null();
   option["long"] = "protocol";
   option["short"] = "p";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Protocol initial value. May also be passed as SESSION_PROTOCOL";
+  tmpStr = getenv("SESSION_PROTOCOL");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("protocol", option);
 
   option.null();
   option["long"] = "requrl";
   option["short"] = "r";
   option["arg"] = "string";
-  option["default"] = "";
+  option["help"] = "Request URL initial value. May also be passed as SESSION_REQURL";
+  tmpStr = getenv("SESSION_REQURL");
+  option["default"] = tmpStr?tmpStr:"";
   config.addOption("requrl", option);
 
   config.activate();
   if (!(config.parseArgs(argc, argv))){
+    config.printHelp(std::cout);
     FAIL_MSG("Cannot start a new session due to invalid arguments");
     return 1;
   }
@@ -190,12 +191,6 @@ int main(int argc, char **argv){
   const std::string thisSessionId = config.getString("sessionid");
   std::string thisHost = Socket::getBinForms(config.getString("ip"));
   if (thisHost.size() > 16){thisHost = thisHost.substr(0, 16);}
-
-  if (thisSessionId == "" || thisProtocol == "" || thisStreamName == ""){
-    FAIL_MSG("Given the following incomplete arguments: SessionId: '%s', protocol: '%s', stream name: '%s'. Aborting opening a new session",
-    thisSessionId.c_str(), thisProtocol.c_str(), thisStreamName.c_str());
-    return 1;
-  }
 
   // Try to lock to ensure we are the only process initialising this session
   IPC::semaphore sessionLock;
@@ -397,7 +392,7 @@ int main(int argc, char **argv){
     }
 
     std::stringstream summary;
-    summary << thisSessionId << "\n"
+    summary << thisSid << "\n"
           << streamSummary.str() << "\n"
           << connectorSummary.str() << "\n"
           << hostSummary.str() << "\n"
@@ -407,7 +402,8 @@ int main(int argc, char **argv){
           << sessions.getTags() << "\n"
           << hostTimes.str() << "\n"
           << connectorTimes.str() << "\n"
-          << streamTimes.str();
+          << streamTimes.str() << "\n"
+          << thisSessionId;
     Triggers::doTrigger("USER_END", summary.str(), thisStreamName);
   }
 

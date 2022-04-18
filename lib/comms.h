@@ -15,7 +15,7 @@
   {\
     for (size_t id = 0; id < comm.recordCount(); id++){\
       if (comm.getStatus(id) == COMM_STATUS_INVALID){continue;}\
-      if (!Util::Procs::isRunning(comm.getPid(id))){\
+      if (!(comm.getStatus(id) & COMM_STATUS_DISCONNECT) && comm.getPid(id) && !Util::Procs::isRunning(comm.getPid(id))){\
         comm.setStatus(COMM_STATUS_DISCONNECT | comm.getStatus(id), id);\
       }\
       onActive;\

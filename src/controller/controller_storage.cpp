@@ -413,7 +413,7 @@ namespace Controller{
 
         // if fields missing, recreate the page
         if (globAccX.isReady()){
-          if(globAccX.getFieldAccX("systemBoot")){
+          if(globAccX.getFieldAccX("systemBoot") && globAccX.getInt("systemBoot")){
             systemBoot = globAccX.getInt("systemBoot");
           }
           if(!globAccX.getFieldAccX("defaultStream")
@@ -442,6 +442,7 @@ namespace Controller{
         globAccX.setInt("sessionViewerMode", Storage["config"]["sessionViewerMode"].asInt());
         globAccX.setInt("sessionInputMode", Storage["config"]["sessionInputMode"].asInt());
         globAccX.setInt("sessionOutputMode", Storage["config"]["sessionOutputMode"].asInt());
+        globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
       }
     }

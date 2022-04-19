@@ -585,7 +585,6 @@ makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
 
 add_executable(MistSession
-  ${BINARY_DIR}/mist/.headers
   src/session.cpp
 )
 install(

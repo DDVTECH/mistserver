@@ -583,7 +583,6 @@ makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
 
 add_executable(MistSession
-  ${BINARY_DIR}/mist/.headers
   src/session.cpp
 )
 install(
@@ -638,7 +637,6 @@ install(
 )
 
 add_executable(MistProcLivepeerText
-  ${BINARY_DIR}/mist/.headers
   src/process/process_livepeertext.cpp
   src/input/input.cpp
   src/output/output.cpp
@@ -647,7 +645,6 @@ add_executable(MistProcLivepeerText
 target_link_libraries(MistProcLivepeerText mist)
 
 add_executable(MistProcLivepeerVideo
-  ${BINARY_DIR}/mist/.headers
   src/process/process_livepeervideo.cpp
   src/input/input.cpp
   src/output/output.cpp

@@ -852,7 +852,7 @@ int main(int argc, char *argv[]){
     dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
   }
 
-  if (!(!Mist::opt.isMember("hardcoded_broadcasters") || !Mist::opt["hardcoded_broadcasters"] || !Mist::opt["hardcoded_broadcasters"].isString())){
+  if (Mist::opt.isMember("hardcoded_broadcasters") && Mist::opt["hardcoded_broadcasters"] && Mist::opt["hardcoded_broadcasters"].isString()){
     Mist::lpBroad = JSON::fromString(Mist::opt["hardcoded_broadcasters"].asStringRef());
   } else {
     //Get broadcaster list, pick first valid address
@@ -872,8 +872,7 @@ int main(int argc, char *argv[]){
     return 1;
   }
   INFO_MSG("Using broadcaster: %s", Mist::currBroadAddr.c_str());
-
-  if (Mist::opt["access_token"].size()){
+  if (Mist::opt.isMember("access_token") && Mist::opt["access_token"] && Mist::opt["access_token"].isString()){
     //send transcode request
     dl.setHeader("Content-Type", "application/json");
     dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());

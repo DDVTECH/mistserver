@@ -1,6 +1,6 @@
 #include "output_ts_base.h"
 #include <mist/ts_stream.h>
-
+#include <mist/rtp.h>
 namespace Mist{
   class OutTS : public TSOutput{
   public:
@@ -16,10 +16,17 @@ namespace Mist{
   private:
     size_t udpSize;
     bool pushOut;
+    bool wrapRTP;
+    bool sendFEC;
+    void onRTP(void *socket, const char *data, size_t nbytes);
     std::string packetBuffer;
     Socket::UDPConnection pushSock;
+    Socket::UDPConnection fecColumnSock;
+    Socket::UDPConnection fecRowSock;
+    uint8_t dropPercentage;
     TS::Stream tsIn;
     std::string getStatsName();
+    RTP::Packet tsOut;
 
   protected:
     inline virtual bool keepGoing(){

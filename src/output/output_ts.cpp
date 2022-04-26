@@ -10,12 +10,15 @@ namespace Mist{
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     streamName = config->getString("streamname");
     pushOut = false;
+    sendFEC = false;
+    wrapRTP = false;
+    dropPercentage = 0;
     std::string tracks = config->getString("tracks");
     if (config->getString("target").size()){
       HTTP::URL target(config->getString("target"));
-      if (target.protocol != "tsudp"){
-        FAIL_MSG("Target %s must begin with tsudp://, aborting", target.getUrl().c_str());
-        onFail("Invalid ts udp target: doesn't start with tsudp://", true);
+      if (target.protocol != "tsudp" && target.protocol != "tsrtp"){
+        FAIL_MSG("Target %s must begin with tsudp:// or tsrtp://, aborting", target.getUrl().c_str());
+        onFail("Invalid ts udp target: doesn't start with tsudp:// or tsrtp://", true);
         return;
       }
       if (!target.getPort()){
@@ -23,8 +26,40 @@ namespace Mist{
         onFail("Invalid ts udp target: missing port", true);
         return;
       }
+      // Wrap TS packets inside an RTP packet
+      if (target.protocol == "tsrtp"){
+        // MP2T payload, no CSRC list and init to sequence number 1, random SSRC and random timestamp
+        tsOut = RTP::Packet(33, 1, rand(), rand());
+        wrapRTP = true;
+      }
+      if (wrapRTP && targetParams.count("fec")){
+        if (targetParams.at("fec") == "prompeg"){
+          uint8_t rows = 8;
+          uint8_t columns = 4;
+          if (targetParams.count("rows")){
+            rows = atoi(targetParams.at("rows").c_str());
+          }
+          if (targetParams.count("columns")){
+            columns = atoi(targetParams.at("columns").c_str());
+          }
+          if (tsOut.configureFEC(rows, columns)){
+            // Send Pro-MPEG FEC columns over port number + 2
+            fecColumnSock.SetDestination(target.host, target.getPort() + 2);
+            // Send Pro-MPEG FEC rows over port number + 4
+            fecRowSock.SetDestination(target.host, target.getPort() + 4);
+            sendFEC = true;
+          } else {
+            WARN_MSG("Failed to configure FEC. Running without forward error correction");
+          }
+        }else{
+          WARN_MSG("Unsupported FEC of name '%s'. Running without forward error correction", targetParams.at("fec").c_str());
+        }
+      }
+      if (targetParams.count("drop")){
+        dropPercentage = atoi(targetParams.at("drop").c_str());
+      }
       pushOut = true;
-      udpSize = 5;
+      udpSize = 7;
       if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
       if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
       packetBuffer.reserve(188 * udpSize);
@@ -131,12 +166,13 @@ namespace Mist{
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
     capa["push_urls"].append("tsudp://*");
+    capa["push_urls"].append("tsrtp://*");
 
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
     opt["arg_num"] = 1;
-    opt["help"] = "Target tsudp:// URL to push out towards.";
+    opt["help"] = "Target tsudp:// or tsrtp:// URL to push out towards.";
     cfg->addOption("target", opt);
   }
 
@@ -150,8 +186,26 @@ namespace Mist{
     if (pushOut){
       static size_t curFilled = 0;
       if (curFilled == udpSize){
-        pushSock.SendNow(packetBuffer);
-        myConn.addUp(packetBuffer.size());
+        // in MPEG-TS over RTP mode, wrap TS packets in a RTP header
+        if (wrapRTP){
+          // Send RTP packet itself
+          if (rand() % 100 >= dropPercentage){
+            tsOut.sendTS(&pushSock, packetBuffer.c_str(), packetBuffer.size());
+            myConn.addUp(tsOut.getHsize() + tsOut.getPayloadSize());
+          } else {
+            INFO_MSG("Dropping RTP packet in order to simulate packet loss");
+            tsOut.sendNoPacket(packetBuffer.size());
+          }
+          if (sendFEC){
+            // Send FEC packet if available
+            uint64_t bytesSent = 0;
+            tsOut.parseFEC(&fecColumnSock, &fecRowSock, bytesSent, packetBuffer.c_str(), packetBuffer.size());
+            myConn.addUp(bytesSent);
+          }
+        }else{
+          pushSock.SendNow(packetBuffer);
+          myConn.addUp(packetBuffer.size());
+        }
         packetBuffer.clear();
         packetBuffer.reserve(udpSize * len);
         curFilled = 0;

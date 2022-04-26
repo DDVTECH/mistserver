@@ -29,6 +29,33 @@ namespace RTP{
   extern unsigned int PACKET_REORDER_WAIT;
   extern unsigned int PACKET_DROP_TIMEOUT;
 
+    struct FecData{
+    public:
+      uint16_t sequence;
+      uint32_t timestamp;
+      uint8_t *bitstring;
+  };
+
+  struct FEC{
+    public:
+      bool needsInit;
+      bool isFirst;
+      uint16_t maxIndex;
+      // Track the amount of row/column FEC packets were sent, as they have their own index
+      uint16_t columnSN;
+      uint16_t rowSN;
+      // Determines what row/column of FEC data we are currently on
+      uint8_t rows;
+      uint8_t columns;
+      uint16_t index;
+      uint16_t lengthRecovery;
+      uint32_t pktSize;
+      uint32_t rtpBufSize;
+      uint32_t bitstringSize;
+      FecData fecBufferRows; // Stores intermediate results or XOR'd RTP packets
+      std::map<uint8_t, FecData> fecBufferColumns;
+  };
+
   /// This class is used to make RTP packets. Currently, H264, and AAC are supported. RTP
   /// mechanisms, like increasing sequence numbers and setting timestamps are all taken care of in
   /// here.
@@ -39,6 +66,8 @@ namespace RTP{
     uint32_t maxDataLen; ///< Amount of reserved bytes for the packet(s)
     uint32_t sentPackets;
     uint32_t sentBytes; // Because ugly is beautiful
+    bool fecEnabled;
+    FEC fecContext;
   public:
     static double startRTCP;
     uint32_t getHsize() const;
@@ -58,6 +87,14 @@ namespace RTP{
 
     void setTimestamp(uint32_t t);
     void increaseSequence();
+    void initFEC(uint64_t bufSize);
+    void applyXOR(const uint8_t *in1, const uint8_t *in2, uint8_t *out, uint64_t size);
+    void generateBitstring(const char *payload, unsigned int payloadlen, uint8_t *bitstring);
+    bool configureFEC(uint8_t rows, uint8_t columns);
+    void sendFec(void *socket, FecData *fecData, bool isColumn);
+    void parseFEC(void *columnSocket, void *rowSocket, uint64_t & bytesSent, const char *payload, unsigned int payloadlen);
+    void sendNoPacket(unsigned int payloadlen);
+    void sendTS(void *socket, const char *payload, unsigned int payloadlen);
     void sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t), const char *payload,
                   unsigned int payloadlen, unsigned int channel, bool lastOfAccessUnit);
     void sendVP8(void *socket, void callBack(void *, const char *, size_t, uint8_t),

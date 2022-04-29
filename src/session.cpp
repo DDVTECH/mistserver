@@ -259,7 +259,7 @@ int main(int argc, char **argv){
   INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   // Stay active until Mist exits or we no longer have an active connection
-  while (config.is_active && (currentConnections || now - lastSeen <= STATS_DELAY)){
+  while (config.is_active && (currentConnections || now - lastSeen <= STATS_DELAY) && !connections.getExit()){
     currentConnections = 0;
     lastSecond = 0;
     now = Util::bootSecs();

@@ -1,0 +1,81 @@
+---
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+  pull_request:
+
+env:
+  PRE_COMMAND: |
+    git clone https://github.com/livepeer/mbedtls --branch dtls_srtp_support --depth 1
+    cd mbedtls
+    mkdir build
+    cd build
+    cmake .. -DENABLE_TESTING=Off
+    make install
+jobs:
+  # Regular C build with two compilers, using the environment:
+  build_using_compiler_in_environment:
+    strategy:
+      matrix:
+        compiler:
+          - [clang, clang++]
+          - [gcc, g++]
+    runs-on: ubuntu-latest
+    # We can use cmakeflags for this, or we can just use
+    # regular environment variables, as they are already
+    # supported by github actions:
+    env:
+      CC: ${{ matrix.compiler[0] }}
+      CXX: ${{ matrix.compiler[1] }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://lpenz/ghaction-cmake:0.18
+        with:
+          dependencies_debian: libsrtp2-dev
+          pre_command: ${{ env.PRE_COMMAND }}
+
+  # Static analyzers:
+  linters:
+    strategy:
+      matrix:
+        preset:
+          - cppcheck
+          - clang-tidy
+          - iwyu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://lpenz/ghaction-cmake:0.18
+        with:
+          preset: ${{ matrix.preset }}
+          # Dont fail on iwyu warnings
+          test_command: 'true'
+          dependencies_debian: libsrtp2-dev
+          pre_command: ${{ env.PRE_COMMAND }}
+  # Tests with various sanitizers and valgrind:
+  test:
+    strategy:
+      matrix:
+        preset:
+          # Commented out presets are failing
+          - clang-sanitize-address
+          - clang-sanitize-thread
+          # clang-sanitize-memory  fails in ./sourcery
+          - clang-sanitize-undefined
+          # clang-sanitize-dataflow rejected as detected as cross-compiling
+          - clang-sanitize-safe-stack
+          - valgrind
+          - install
+          # cpack CPack generator not specified
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://lpenz/ghaction-cmake:0.18
+        with:
+          preset: ${{ matrix.preset }}
+          dependencies_debian: libsrtp2-dev
+          pre_command: ${{ env.PRE_COMMAND }}

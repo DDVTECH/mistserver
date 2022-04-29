@@ -519,7 +519,8 @@ void Socket::Connection::setBoundAddr(){
   // Otherwise, read from socket pointer. Works for both SSL and non-SSL sockets, and real sockets passed as fd's, but not for non-sockets (duh)
   uint32_t boundport = 0;
   getSocketName(getSocket(), boundaddr, boundport);
-  getPeerName(getSocket(), remotehost, boundport);
+  socklen_t aLen = sizeof(remoteaddr);
+  getPeerName(getSocket(), remotehost, boundport, (sockaddr *)&remoteaddr, &aLen);
 }
 
 // Cleans up the socket by dropping the connection.

@@ -618,7 +618,6 @@ namespace Mist{
 
     if (type == "audio"){
       uint32_t rate = M.getRate(thisIdx);
-      WARN_MSG("Rate=%i", rate);
       rtmpheader[7] = 0x08;
       if (codec == "AAC"){
         dataheader[0] += 0xA0;

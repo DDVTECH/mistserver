@@ -22,7 +22,11 @@
 #include "mbedtls/debug.h"
 #include "mbedtls/entropy.h"
 #include "mbedtls/error.h"
-#include "mbedtls/net.h"
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
+#include <mbedtls/net.h>
+#else
+#include "mbedtls/net_sockets.h"
+#endif
 #include "mbedtls/ssl.h"
 #endif
 

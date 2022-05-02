@@ -18,18 +18,18 @@ if git.found()
   rv = run_command(git, 'describe', '--tags', check: false)
   version = rv.stdout().strip()
   if rv.returncode() != 0
-    fs = import('fs') 
+    fs = import('fs')
     if fs.is_file('VERSION')
       version = fs.read('VERSION').strip()
-    else 
+    else
       version = 'Unknown'
     endif
   endif
 else
-  fs = import('fs') 
+  fs = import('fs')
   if fs.is_file('VERSION')
     version = fs.read('VERSION').strip()
-  else 
+  else
     version = 'Unknown'
   endif
 endif
@@ -107,6 +107,21 @@ if usessl
   mbedcrypto = ccpp.find_library('mbedcrypto', required: false)
 
   # Test if we can compile the way we expect
+  ssl_deps = [mbedtls, mbedx509, mbedcrypto]
+
+  ##This currently only works for MbedTLS < 3
+  code_upstream = '''
+  #include <mbedtls/ssl.h>
+  static mbedtls_ssl_srtp_profile srtp_profiles[] ={MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80,
+                                              MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32,
+                                              MBEDTLS_TLS_SRTP_UNSET};
+  static int test()
+  {
+    mbedtls_ssl_config ssl_conf;
+    mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtp_profiles);
+    return 0;
+  }
+  '''
   code_ddvtech = '''
   #include <mbedtls/ssl.h>
   mbedtls_ssl_srtp_profile srtp_profiles[] ={MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
@@ -119,16 +134,19 @@ if usessl
     return 0;
   }
   '''
-  ddvtech_mbedtls = ccpp.compiles(code_ddvtech, dependencies: [mbedtls, mbedx509, mbedcrypto], name: 'MbedTLS is DDVTech fork')
-  if not mbedtls.found() or not ddvtech_mbedtls
+  have_upstream_mbedtls_srtp = ccpp.compiles(code_upstream, dependencies: ssl_deps, name: 'MbedTLS SRTP is upstream')
+  ddvtech_mbedtls = ccpp.compiles(code_ddvtech, dependencies: ssl_deps, name: 'MbedTLS SRTP is DDVTECH')
+
+  if not mbedtls.found() or (not ddvtech_mbedtls and not have_upstream_mbedtls_srtp)
     mbedtls_proj = subproject('mbedtls')
     mbedtls = mbedtls_proj.get_variable('mbedtls_dep')
     mbedx509 = mbedtls_proj.get_variable('mbedx509_dep')
     mbedcrypto = mbedtls_proj.get_variable('mbedcrypto_dep')
   endif
-
   mist_deps += [mbedtls, mbedx509, mbedcrypto]
   mist_deps += dependency('libsrtp2', default_options: ['tests=disabled'], fallback: ['libsrtp2', 'libsrtp2_dep'])
+
+  option_defines += int_opt.format('HAVE_UPSTREAM_MBEDTLS_SRTP', have_upstream_mbedtls_srtp.to_int())
 endif
 
 libsrt = false

@@ -40,6 +40,20 @@ private:
   mbedtls_ssl_config ssl_conf;
   mbedtls_ssl_cookie_ctx cookie_ctx;
   mbedtls_timing_delay_context timer_ctx;
+#if HAVE_UPSTREAM_MBEDTLS_SRTP
+  unsigned char master_secret[48];
+  unsigned char randbytes[64];
+  mbedtls_tls_prf_types tls_prf_type;
+  static int dtlsExtractKeyData( void *p_expkey,
+                              const unsigned char *ms,
+                              const unsigned char *,
+                              size_t,
+                              size_t,
+                              size_t,
+                              const unsigned char client_random[32],
+                              const unsigned char server_random[32],
+                              mbedtls_tls_prf_types tls_prf_type );
+#endif
 
 public:
   int (*write_callback)(const uint8_t *data, int *nbytes);

@@ -3,7 +3,11 @@
 #include <mbedtls/certs.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
+#if !HAVE_UPSTREAM_MBEDTLS_SRTP
 #include <mbedtls/net.h>
+#else
+#include <mbedtls/net_sockets.h>
+#endif
 #include <mbedtls/ssl.h>
 #include <mbedtls/timing.h>
 #include <mbedtls/x509.h>

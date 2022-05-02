@@ -33,8 +33,9 @@ int DTLSSRTPHandshake::init(mbedtls_x509_crt *certificate, mbedtls_pk_context *p
                             int (*writeCallback)(const uint8_t *data, int *nbytes)){
 
   int r = 0;
-  mbedtls_ssl_srtp_profile srtp_profiles[] ={MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80,
-                                              MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32};
+  mbedtls_ssl_srtp_profile srtp_profiles[] ={MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80,
+                                             MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32,
+                                             MBEDTLS_TLS_SRTP_UNSET};
 
   if (!writeCallback){
     FAIL_MSG("No writeCallack function given.");
@@ -90,13 +91,14 @@ int DTLSSRTPHandshake::init(mbedtls_x509_crt *certificate, mbedtls_pk_context *p
   mbedtls_debug_set_threshold(10);
 
   /* enable SRTP */
-  r = mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtp_profiles,
-                                                     sizeof(srtp_profiles) / sizeof(srtp_profiles[0]));
+  r = mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtp_profiles);
   if (0 != r){
     print_mbedtls_error(r);
     r = -40;
     goto error;
   }
+
+  mbedtls_ssl_conf_srtp_mki_value_supported(&ssl_conf, MBEDTLS_SSL_DTLS_SRTP_MKI_SUPPORTED);
 
   /* cert certificate chain + key, so we can verify the client-hello signed data */
   r = mbedtls_ssl_conf_own_cert(&ssl_conf, cert, key);
@@ -266,24 +268,17 @@ int DTLSSRTPHandshake::resetSession(){
 */
 int DTLSSRTPHandshake::extractKeyingMaterial(){
 
-  int r = 0;
-  uint8_t keying_material[MBEDTLS_DTLS_SRTP_MAX_KEY_MATERIAL_LENGTH] ={};
-  size_t keying_material_len = sizeof(keying_material);
+  uint8_t keying_material[MBEDTLS_TLS_SRTP_MAX_MKI_LENGTH] ={};
 
-  r = mbedtls_ssl_get_dtls_srtp_key_material(&ssl_ctx, keying_material, &keying_material_len);
-  if (0 != r){
-    print_mbedtls_error(r);
-    return -1;
-  }
+  memcpy(keying_material, ssl_ctx.dtls_srtp_info.mki_value, ssl_ctx.dtls_srtp_info.mki_len);
 
   /* @todo following code is for server mode only */
-  mbedtls_ssl_srtp_profile srtp_profile = mbedtls_ssl_get_dtls_srtp_protection_profile(&ssl_ctx);
-  switch (srtp_profile){
-  case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:{
+  switch (ssl_ctx.dtls_srtp_info.chosen_dtls_srtp_profile){
+  case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:{
     cipher = "SRTP_AES128_CM_SHA1_80";
     break;
   }
-  case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:{
+  case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_32:{
     cipher = "SRTP_AES128_CM_SHA1_32";
     break;
   }

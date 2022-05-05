@@ -71,9 +71,11 @@ struct streamTotals{
   uint64_t inputs;
   uint64_t outputs;
   uint64_t viewers;
+  uint64_t unspecified;
   uint64_t currIns;
   uint64_t currOuts;
   uint64_t currViews;
+  uint64_t currUnspecified;
   uint8_t status;
   uint64_t viewSeconds;
   uint64_t packSent;
@@ -89,6 +91,7 @@ static uint64_t servDownBytes = 0;
 static uint64_t servUpOtherBytes = 0;
 static uint64_t servDownOtherBytes = 0;
 static uint64_t servInputs = 0;
+static uint64_t servUnspecified = 0;
 static uint64_t servOutputs = 0;
 static uint64_t servViewers = 0;
 static uint64_t servSeconds = 0;
@@ -109,8 +112,10 @@ static void createEmptyStatsIfNeeded(const std::string & streamName){
   sT.inputs = 0;
   sT.outputs = 0;
   sT.viewers = 0;
+  sT.unspecified = 0;
   sT.currIns = 0;
   sT.currOuts = 0;
+  sT.currUnspecified = 0;
   sT.currViews = 0;
   sT.status = 0;
   sT.viewSeconds = 0;
@@ -340,6 +345,7 @@ void Controller::SharedMemStats(void *config){
           it->second.currViews = 0;
           it->second.currIns = 0;
           it->second.currOuts = 0;
+          it->second.currUnspecified = 0;
         }
       }
       // wipe old statistics and set session type counters
@@ -380,6 +386,11 @@ void Controller::SharedMemStats(void *config){
               streamStats[it->second.getStreamName()].currOuts++;
             }
             break;
+          case SESS_UNSPECIFIED:
+            if (it->second.hasDataFor(tOut)){
+              streamStats[it->second.getStreamName()].currUnspecified++;
+            }
+            break;
           }
         }
         while (mustWipe.size()){
@@ -418,6 +429,7 @@ void Controller::SharedMemStats(void *config){
             strmStats->setInt("viewers", it->second.currViews, strmPos);
             strmStats->setInt("inputs", it->second.currIns, strmPos);
             strmStats->setInt("outputs", it->second.currOuts, strmPos);
+            strmStats->setInt("unspecified", it->second.currUnspecified, strmPos);
             ++strmPos;
           }
         }
@@ -510,6 +522,8 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       sessionType = SESS_INPUT;
     }else if (sessId[0] == 'O'){
       sessionType = SESS_OUTPUT;
+    }else if (sessId[0] == 'U'){
+      sessionType = SESS_UNSPECIFIED;
     }else{
       sessionType = SESS_VIEWER;
     }
@@ -590,6 +604,10 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       case SESS_VIEWER:
         ++servViewers;
         streamStats[streamName].viewers++;
+        break;
+      case SESS_UNSPECIFIED:
+        ++servUnspecified;
+        streamStats[streamName].unspecified++;
         break;
       case SESS_UNSET:
         break;
@@ -1290,6 +1308,8 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
           F = it->second.currIns;
         }else if (j->asStringRef() == "outputs"){
           F = it->second.currOuts;
+        }else if (j->asStringRef() == "unspecified"){
+          F = it->second.currUnspecified;
         }else if (j->asStringRef() == "views"){
           F = it->second.viewers;
         }else if (j->asStringRef() == "viewseconds"){
@@ -1361,6 +1381,7 @@ public:
     clients = 0;
     inputs = 0;
     outputs = 0;
+    unspecified = 0;
     downbps = 0;
     upbps = 0;
     pktCount = 0;
@@ -1372,6 +1393,7 @@ public:
     case Controller::SESS_VIEWER: clients++; break;
     case Controller::SESS_INPUT: inputs++; break;
     case Controller::SESS_OUTPUT: outputs++; break;
+    case Controller::SESS_UNSPECIFIED: unspecified++; break;
     default: break;
     }
     downbps += down;
@@ -1383,6 +1405,7 @@ public:
   uint64_t clients;
   uint64_t inputs;
   uint64_t outputs;
+  uint64_t unspecified;
   uint64_t downbps;
   uint64_t upbps;
   uint64_t pktCount;
@@ -1554,12 +1577,15 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   uint32_t totViewers = 0;
   uint32_t totInputs = 0;
   uint32_t totOutputs = 0;
+  uint32_t totUnspecified = 0;
   for (uint64_t idx = 0; idx < statComm.recordCount(); idx++){
     if (statComm.getStatus(idx) == COMM_STATUS_INVALID || statComm.getStatus(idx) & COMM_STATUS_DISCONNECT){continue;}
     const std::string thisSessId = statComm.getSessId(idx);
     // Count active viewers, inputs, outputs and protocols
     if (thisSessId[0] == 'I'){
       totInputs++;
+    }else if (thisSessId[0] == 'U'){
+      totUnspecified++;
     }else if (thisSessId[0] == 'O'){
       totOutputs++;
       outputs[statComm.getConnector(idx)]++;
@@ -1650,6 +1676,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     response << "# TYPE mist_sessions_count counter\n";
     response << "mist_sessions_count{sessType=\"viewers\"}" << servViewers << "\n";
     response << "mist_sessions_count{sessType=\"incoming\"}" << servInputs << "\n";
+    response << "mist_sessions_count{sessType=\"unspecified\"}" << servUnspecified << "\n";
     response << "mist_sessions_count{sessType=\"outgoing\"}" << servOutputs << "\n\n";
 
     response << "# HELP mist_bw_total Count of bytes handled since server start, by direction.\n";
@@ -1685,6 +1712,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       response << "mist_sessions_total{sessType=\"viewers\"}" << totViewers << "\n";
       response << "mist_sessions_total{sessType=\"incoming\"}" << totInputs << "\n";
       response << "mist_sessions_total{sessType=\"outgoing\"}" << totOutputs << "\n";
+      response << "mist_sessions_total{sessType=\"unspecified\"}" << totUnspecified << "\n";
       response << "mist_sessions_total{sessType=\"cached\"}" << sessions.size() << "\n";
 
       response << "\n# HELP mist_viewcount Count of unique viewer sessions since stream start, per "
@@ -1704,6 +1732,8 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
                   << it->second.currIns << "\n";
         response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"outgoing\"}"
                   << it->second.currOuts << "\n";
+        response << "mist_sessions{stream=\"" << it->first << "\",sessType=\"unspecified\"}"
+                  << it->second.currUnspecified << "\n";
         response << "mist_viewcount{stream=\"" << it->first << "\"}" << it->second.viewers << "\n";
         response << "mist_viewseconds{stream=\"" << it->first << "\"} " << it->second.viewSeconds << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"}" << it->second.upBytes << "\n";
@@ -1739,9 +1769,11 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     resp["curr"].append(totViewers);
     resp["curr"].append(totInputs);
     resp["curr"].append(totOutputs);
+    resp["curr"].append(totUnspecified);
     resp["tot"].append(servViewers);
     resp["tot"].append(servInputs);
     resp["tot"].append(servOutputs);
+    resp["tot"].append(servUnspecified);
     resp["st"].append(bw_up_total);
     resp["st"].append(bw_down_total);
     resp["bw"].append(servUpBytes);
@@ -1783,6 +1815,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         resp["streams"][it->first]["curr"].append(it->second.currViews);
         resp["streams"][it->first]["curr"].append(it->second.currIns);
         resp["streams"][it->first]["curr"].append(it->second.currOuts);
+        resp["streams"][it->first]["curr"].append(it->second.currUnspecified);
         resp["streams"][it->first]["pkts"].append(it->second.packSent);
         resp["streams"][it->first]["pkts"].append(it->second.packLoss);
         resp["streams"][it->first]["pkts"].append(it->second.packRetrans);

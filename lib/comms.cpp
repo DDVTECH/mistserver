@@ -13,6 +13,8 @@ namespace Comms{
   uint8_t sessionViewerMode = 0xff;
   uint8_t sessionInputMode = 0xff;
   uint8_t sessionOutputMode = 0xff;
+  uint8_t sessionUnspecifiedMode = 0xff;
+  uint8_t sessionStreamInfoMode = 0xff;
 
   Comms::Comms(){
     index = INVALID_RECORD_INDEX;
@@ -305,7 +307,25 @@ namespace Comms{
       sessMode = sessionOutputMode;
       sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessMode);
     }else{
-      sessionId = generateSession(streamName, ip, sid, protocol, sessMode);
+      // If the session only contains the HTTP connector, check sessionStreamInfoMode
+      if (protocol.size() == 4 && protocol == "HTTP"){
+        if (sessionStreamInfoMode == SESS_HTTP_AS_VIEWER){
+          sessionId = generateSession(streamName, ip, sid, protocol, sessMode);
+        }else if (sessionStreamInfoMode == SESS_HTTP_AS_OUTPUT){
+          sessMode = sessionOutputMode;
+          sessionId = "O" + generateSession(streamName, ip, sid, protocol, sessMode);
+        }else if (sessionStreamInfoMode == SESS_HTTP_DISABLED){
+          return;
+        }else if (sessionStreamInfoMode == SESS_HTTP_AS_UNSPECIFIED){
+          // Set sessMode to include all variables when determining the session ID
+          sessMode = sessionUnspecifiedMode;
+          sessionId = "U" + generateSession(streamName, ip, sid, protocol, sessMode);
+        }else{
+          sessionId = generateSession(streamName, ip, sid, protocol, sessMode);
+        }
+      }else{
+        sessionId = generateSession(streamName, ip, sid, protocol, sessMode);
+      }
     }
     char userPageName[NAME_BUFFER_SIZE];
     snprintf(userPageName, NAME_BUFFER_SIZE, COMMS_SESSIONS, sessionId.c_str());

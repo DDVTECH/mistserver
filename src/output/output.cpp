@@ -111,7 +111,6 @@ namespace Mist{
     lastPushUpdate = 0;
     previousFile = "";
     currentFile = "";
-    sessionMode = 0xFFFFFFFFFFFFFFFFull;
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -1218,6 +1217,9 @@ namespace Mist{
     Comms::sessionViewerMode = Util::getGlobalConfig("sessionViewerMode").asInt();
     Comms::sessionInputMode = Util::getGlobalConfig("sessionInputMode").asInt();
     Comms::sessionOutputMode = Util::getGlobalConfig("sessionOutputMode").asInt();
+    Comms::sessionUnspecifiedMode = Util::getGlobalConfig("sessionUnspecifiedMode").asInt();
+    Comms::sessionStreamInfoMode = Util::getGlobalConfig("sessionStreamInfoMode").asInt();
+    streamInfoMode = Util::getGlobalConfig("sessionStreamInfoMode").asInt();
     /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1782,6 +1784,8 @@ namespace Mist{
       }
     }
 
+    // Disable stats for HTTP internal output
+    if (streamInfoMode == SESS_HTTP_DISABLED && capa["name"].asStringRef() == "HTTP"){return;}
     if (!statComm){
       statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
     }

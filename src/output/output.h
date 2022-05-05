@@ -131,7 +131,7 @@ namespace Mist{
     Comms::Connections statComm;
     bool isBlocking; ///< If true, indicates that myConn is blocking.
     std::string sid;    ///< Random identifier used to split connections into sessions
-    uint64_t sessionMode;
+    uint64_t streamInfoMode; ///< How to classify the HTTP internal output
     uint64_t nextKeyTime();
 
     // stream delaying variables

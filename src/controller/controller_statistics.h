@@ -40,7 +40,7 @@ namespace Controller{
     std::string connectors;
   };
 
-  enum sessType{SESS_UNSET = 0, SESS_INPUT, SESS_OUTPUT, SESS_VIEWER};
+  enum sessType{SESS_UNSET = 0, SESS_INPUT, SESS_OUTPUT, SESS_VIEWER, SESS_UNSPECIFIED};
 
   class statStorage{
   public:

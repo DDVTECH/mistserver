@@ -101,12 +101,12 @@ void userOnActive(Comms::Connections &connections, size_t idx){
 
 /// \brief Remove mappings of inactive connections
 void userOnDisconnect(Comms::Connections & connections, size_t idx){
-  connTime.erase(connTime.find(idx));
-  connDown.erase(connDown.find(idx));
-  connUp.erase(connUp.find(idx));
-  connPktcount.erase(connPktcount.find(idx));
-  connPktloss.erase(connPktloss.find(idx));
-  connPktretrans.erase(connPktretrans.find(idx));
+  connTime.erase(idx);
+  connDown.erase(idx);
+  connUp.erase(idx);
+  connPktcount.erase(idx);
+  connPktloss.erase(idx);
+  connPktretrans.erase(idx);
 }
 
 int main(int argc, char **argv){

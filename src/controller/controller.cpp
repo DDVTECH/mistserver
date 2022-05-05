@@ -318,6 +318,12 @@ int main_loop(int argc, char **argv){
   if (!Controller::Storage["config"]["sessionOutputMode"]){
     Controller::Storage["config"]["sessionOutputMode"] = SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID;
   }
+  if (!Controller::Storage["config"]["sessionUnspecifiedMode"]){
+    Controller::Storage["config"]["sessionUnspecifiedMode"] = 0;
+  }
+  if (!Controller::Storage["config"]["sessionStreamInfoMode"]){
+    Controller::Storage["config"]["sessionStreamInfoMode"] = SESS_DEFAULT_STREAM_INFO_MODE;
+  }
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();
   Controller::accesslog = Controller::Storage["config"]["accesslog"].asStringRef();
   Controller::writeConfig();

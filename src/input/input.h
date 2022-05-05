@@ -107,6 +107,5 @@ namespace Mist{
     uint64_t lastBufferCheck;///< Time of last buffer liveness check.
 
     void handleBuyDRM();
-    uint64_t sessionMode;
   };
 }// namespace Mist

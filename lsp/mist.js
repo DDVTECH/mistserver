@@ -2401,6 +2401,8 @@ var UI = {
           sessionViewerMode: mist.data.config.sessionViewerMode,
           sessionInputMode: mist.data.config.sessionInputMode,
           sessionOutputMode: mist.data.config.sessionOutputMode,
+          sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
+          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
           defaultStream: mist.data.config.defaultStream,
           trustedproxy: mist.data.config.trustedproxy,
           location: "location" in mist.data.config ? mist.data.config.location : {}
@@ -2573,7 +2575,8 @@ var UI = {
               [4, '4 - All connections with the same viewer ip are bundled'],
               [3, '3 - All connections with the same player id and protocol are bundled'],
               [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
+              [1, '1 - All connections with the same protocol are bundled'],
+              [0, '0 - All connections are bundled in one session']
             ],
             pointer: {
               main: s,
@@ -2598,13 +2601,54 @@ var UI = {
               [4, '4 - All connections with the same viewer ip are bundled'],
               [3, '3 - All connections with the same player id and protocol are bundled'],
               [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
+              [1, '1 - All connections with the same protocol are bundled'],
+              [0, '0 - All connections are bundled in one session']
             ],
             pointer: {
               main: s,
               index: 'sessionOutputMode'
             },
             help: 'Change the way output connections are bundled into sessions.'
+          },{
+            type: 'select',
+            label: 'Unspecified sessions',
+            select: [
+              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
+              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
+              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
+              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
+              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
+              [10, '10 - All connections with the same stream name and player id are bundled'],
+              [9, '9 - All connections with the same stream name and protocol are bundled'],
+              [8, '8 - All connections with the same stream name are bundled'],
+              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
+              [6, '6 - All connections with the same viewer ip and player id are bundled'],
+              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
+              [4, '4 - All connections with the same viewer ip are bundled'],
+              [3, '3 - All connections with the same player id and protocol are bundled'],
+              [2, '2 - All connections with the same player id are bundled'],
+              [1, '1 - All connections with the same protocol are bundled'],
+              [0, '0 - All connections are bundled in one session']
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionUnspecifiedMode'
+            },
+            help: 'Change the way unspecified connections are bundled into sessions.'
+          },{
+            type: 'select',
+            label: 'HTTP Session',
+            select: [
+              [4, '4 - Treat it as a separate \'unspecified\' session type, which skips executing the USER_NEW and USER_END triggers'],
+              [3, '3 - Do not start a session at all, which means no stats get counted and skips executing the USER_NEW and USER_END triggers'],
+              [2, '2 - Treat it as a output session, which skips executing the USER_NEW and USER_END triggers'],
+              [1, '1 - Treat it as a viewer session']
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionStreamInfoMode'
+            },
+            help: 'Change the way the stream info connection gets treated.'
           },{
             type: "inputlist",
             label: "Trusted proxies",

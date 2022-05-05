@@ -30,6 +30,8 @@ namespace Comms{
   extern uint8_t sessionViewerMode;
   extern uint8_t sessionInputMode;
   extern uint8_t sessionOutputMode;
+  extern uint8_t sessionUnspecifiedMode;
+  extern uint8_t sessionStreamInfoMode;
 
   class Comms{
   public:

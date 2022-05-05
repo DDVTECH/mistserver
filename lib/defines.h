@@ -232,6 +232,11 @@ static inline void show_stackframe(){}
 #define SEM_SESSION "MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID 14
+#define SESS_DEFAULT_STREAM_INFO_MODE 1
+#define SESS_HTTP_AS_VIEWER 1
+#define SESS_HTTP_AS_OUTPUT 2
+#define SESS_HTTP_DISABLED 3
+#define SESS_HTTP_AS_UNSPECIFIED 4
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
 #define SHM_PROXY "MstProx"

@@ -238,6 +238,8 @@ int main(int argc, char **argv){
     thisType = 1;
   } else if (thisSessionId[0] == 'O'){
     thisType = 2;
+  } else if (thisSessionId[0] == 'U'){
+    thisType = 3;
   }
 
   // Do a USER_NEW trigger if it is defined for this stream

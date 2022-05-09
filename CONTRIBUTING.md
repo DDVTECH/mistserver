@@ -1,40 +1,16 @@
-MistServer
-==========
+# Contributing to MistServer
 
-MistServer is an open source, public domain, full-featured, next-generation streaming media toolkit for OTT (internet streaming), designed to be ideal for developers and system integrators.
+Hey there, potential contributor!
 
-For full documentation, tutorials, guides and assistance, please look on our website at: https://mistserver.org
+Thanks for your interest in this project. Every contribution is welcome and appreciated. We're super excited to help you to get started 😎
 
-Getting MistServer onto your system
-===================================
+**Note:** If you still have questions after reading through this guide, you can get in touch via info@mistserver.org
 
-We provide precompiled binaries for most common operating systems here: https://mistserver.org/download
+## Submitting Changes
 
-Using the "Copy install cmd" button will give you a command you can paste into a terminal to set up MistServer running as root under your system's init daemon (systemd recommended, but not required).
+We welcome changes in the form of pull requests. If your change is going to be large, then get in touch with us first to discuss the idea and approach.
 
-You can also manually install, will instructions can be found in our manual: https://mistserver.org/guides/latest
+### Git Branching & Release Strategy
 
-Compile instructions
-====================
+Please fork off and submit pull requests to the `development` branch. The MistServer team will periodically cut a release from the HEAD of this branch and merge into `master`. 
 
-We make use of cmake for compilation. The default configuration requires mbedtls and libsrtp2 to be installed on your system.
-
-The version of mbedtls we require is a specific branch that supports DTLS and SRTP for WebRTC, which can be found here: https://github.com/livepeer/mbedtls/tree/dtls_srtp_support
-
-All compilaton options can be discovered and set through `cmake-gui`; more complete compile instructions will follow soon.
-
-Usage
-=====
-
-MistServer is booted by starting the `MistController` binary, which then scans the directory it is stored in for further `Mist*` binaries and runs them to discover what inputs/outputs/processes are available.
-
-Running the controller in a terminal will walk you through a brief first-time setup, and then listen on port 4242 for API connections. Accessing port 4242 from a web browser will bring up a web interface capable of easily running most API commands for human-friendly configuration.
-
-Full usage instructions and API specifications can be found in the manual: https://mistserver.org/guides/latest
-
-Contributing
-============
-
-Please follow our ![Contribution Guidelines](http://www.google.com)
-
-If you're interested in contributing to MistServer development, please reach out to us through info@mistserver.org.

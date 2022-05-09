@@ -35,4 +35,6 @@ Full usage instructions and API specifications can be found in the manual: https
 Contributing
 ============
 
-Please follow [the contributing guide](CONTRIBUTING.md).
+Please follow our ![Contribution Guidelines](http://www.google.com)
+
+If you're interested in contributing to MistServer development, please reach out to us through info@mistserver.org.

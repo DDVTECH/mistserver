@@ -23,7 +23,7 @@ namespace Mist{
     maxbps = config->getInteger("maxkbps") * 128;
     //Switch realtime tracking system to mode where it never skips ahead, but only changes playback speed
     maxSkipAhead = 0;
-    if (config->getString("target").size()){
+    if (config->getString("target").size() && config->getString("target") != "-"){
       streamName = config->getString("streamname");
       pushUrl = HTTP::URL(config->getString("target"));
 #ifdef SSL

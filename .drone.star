@@ -1,28 +1,83 @@
-def docker_pipeline_steps():
-    return [
-        {
-            "name": "build",
-            "commands": [
-                "docker login -u ${DOCKERHUB_USERNAME} -p ${DOCKERHUB_PASSWORD}",
-                "docker buildx build --target=mist-debug-release --tag livepeerci/mistserver:debug-latest --tag livepeerci/mistserver:debug-$(date -u +'%Y%m%d%H%M%S') --tag livepeerci/mistserver:debug-catalyst .",
-            ],
-            "environment": {
-                "DOCKERHUB_USERNAME": {"from_secret": "DOCKERHUB_USERNAME"},
-                "DOCKERHUB_PASSWORD": {"from_secret": "DOCKERHUB_PASSWORD"},
-            },
-        },
-    ]
-
-
 def main(context):
-    print(context)
     if context.build.event == "tag":
         return [{}]
-    return [
-        {
-            "kind": "pipeline",
-            "name": "docker",
-            "type": "exec",
-            "steps": docker_pipeline_steps(),
-        }
-    ]
+    return [docker_image_pipeline(), binaries_pipeline()]
+
+
+def docker_image_pipeline():
+    image_tags = get_docker_tags("livepeerci/mistserver", "debug")
+    return {
+        "kind": "pipeline",
+        "name": "docker",
+        "type": "exec",
+        "platform": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "steps": [
+            {
+                "name": "build",
+                "commands": [
+                    "docker buildx build --target=mist-debug-release --tag {} .".format(
+                        " --tag ".join(image_tags),
+                    ),
+                ],
+            },
+            {
+                "name": "login",
+                "commands": [
+                    "docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD",
+                ],
+                "environment": {
+                    "DOCKERHUB_USERNAME": {"from_secret": "DOCKERHUB_USERNAME"},
+                    "DOCKERHUB_PASSWORD": {"from_secret": "DOCKERHUB_PASSWORD"},
+                },
+            },
+            {
+                "name": "push",
+                "commands": ["docker push %s" % (tag,) for tag in image_tags],
+            },
+        ],
+    }
+
+
+def binaries_pipeline():
+    return {
+        "kind": "pipeline",
+        "name": "build",
+        "type": "exec",
+        "platform": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "workspace": {"path": "drone/mistserver"},
+        "steps": [
+            {
+                "name": "dependencies",
+                "commands": [
+                    'export CI_PATH="$(realpath ..)" && env',
+                    "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
+                    "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
+                    "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
+                    "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
+                    "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PATH=$CI_PATH/compiled .. && make -j $(nproc) install",
+                    "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PATH=$CI_PATH/compiled .. && make -j $(nproc) install",
+                    "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PATH=$CI_PATH/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false .. && make -j $(nproc) install",
+                ],
+            },
+            {
+                "name": "binaries",
+                "commands": [
+                    'export LD_LIBRARY_PATH="$(realpath ..)/compiled/lib" && export C_INCLUDE_PATH="$(realpath ..)/compiled/include" && export CI_PATH=$(realpath ..)',
+                    "mkdir -p build/",
+                    "cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
+                    "make -j $(nproc) && make install",
+                ],
+            },
+        ],
+    }
+
+
+def get_docker_tags(repo, prefix):
+    tags = ["latest", "catalyst"]
+    return ["%s:%s-%s" % (repo, prefix, tag) for tag in tags]

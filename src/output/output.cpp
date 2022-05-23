@@ -1220,6 +1220,7 @@ namespace Mist{
     Comms::sessionUnspecifiedMode = Util::getGlobalConfig("sessionUnspecifiedMode").asInt();
     Comms::sessionStreamInfoMode = Util::getGlobalConfig("sessionStreamInfoMode").asInt();
     streamInfoMode = Util::getGlobalConfig("sessionStreamInfoMode").asInt();
+    sidMode = Util::getGlobalConfig("sidMode").asInt();
     /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1786,6 +1787,7 @@ namespace Mist{
 
     // Disable stats for HTTP internal output
     if (streamInfoMode == SESS_HTTP_DISABLED && capa["name"].asStringRef() == "HTTP"){return;}
+
     if (!statComm){
       statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
     }

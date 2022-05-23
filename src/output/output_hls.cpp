@@ -121,17 +121,20 @@ namespace Mist{
     cfg->addConnectorOptions(8081, capa);
   }
 
-  void OutHLS::preHTTP(){
-    if (H.GetVar("sessId").size()){
-      sid = H.GetVar("sessId");
-    }
-    HTTPOutput::preHTTP();
-  }
-
   void OutHLS::onHTTP(){
     initialize();
     bootMsOffset = 0;
     if (M.getLive()){bootMsOffset = M.getBootMsOffset();}
+
+    if (sid.size()){
+      if (sidMode & 0x08){
+        const std::string koekjes = H.GetHeader("Cookie");
+        const std::string setkoekjes = H.GetHeader("Set-Cookie");
+        std::stringstream cookieHeader;
+        cookieHeader << "sid=" << sid << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
+    }
 
     if (H.url == "/crossdomain.xml"){
       H.SetHeader("Content-Type", "text/xml");

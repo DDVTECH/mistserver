@@ -188,7 +188,9 @@ void Controller::handleWebSocket(HTTP::Parser &H, Socket::Connection &C){
   std::string logs = H.GetVar("logs");
   std::string accs = H.GetVar("accs");
   bool doStreams = H.GetVar("streams").size();
-  HTTP::Websocket W(C, H);
+  HTTP::Parser req = H;
+  H.Clean();
+  HTTP::Websocket W(C, req, H);
   if (!W){return;}
 
   IPC::sharedPage shmLogs(SHM_STATE_LOGS, 1024 * 1024);
@@ -599,6 +601,7 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     if (in.isMember("sessionOutputMode")){out["sessionOutputMode"] = in["sessionOutputMode"];}
     if (in.isMember("sessionUnspecifiedMode")){out["sessionUnspecifiedMode"] = in["sessionUnspecifiedMode"];}
     if (in.isMember("sessionStreamInfoMode")){out["sessionStreamInfoMode"] = in["sessionStreamInfoMode"];}
+    if (in.isMember("sidMode")){out["sidMode"] = in["sidMode"];}
     if (in.isMember("defaultStream")){out["defaultStream"] = in["defaultStream"];}
     if (in.isMember("location") && in["location"].isObject()){
       out["location"]["lat"] = in["location"]["lat"].asDouble();

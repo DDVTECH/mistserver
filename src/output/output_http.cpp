@@ -279,22 +279,28 @@ namespace Mist{
           realTime = 0;
         }
       }
-      // Get session ID cookie or generate a random one if it wasn't set
-      if (H.GetVar("sid") != ""){
-        sid = H.GetVar("sid");
-      }
-      if (!sid.size()){
+      // Read the session id
+      if (sidMode & 0x01){
+        // Get session ID from the request url
+        if (H.GetVar("sid") != ""){
+          sid = H.GetVar("sid");
+        } else if (H.GetVar("sessId") != ""){
+          sid = H.GetVar("sessId");
+        }
+      } else if (sidMode & 0x02 && !sid.size()){
+        // Get session ID from the request cookie
         std::map<std::string, std::string> storage;
         const std::string koekjes = H.GetHeader("Cookie");
         HTTP::parseVars(koekjes, storage, "; ");
         if (storage.count("sid")){
-          // Get sid cookie, which is used to divide connections into sessions
           sid = storage.at("sid");
-        }else{
-          // Else generate one
-          const std::string newSid = UA + JSON::Value(getpid()).asString();
-          sid = JSON::Value(checksum::crc32(0, newSid.data(), newSid.size())).asString();
         }
+      } 
+      // Generate a session id if it is being sent as a cookie or url parameter
+      if (!sid.size() && sidMode > 3){
+        const std::string newSid = UA + JSON::Value(getpid()).asString();
+        sid = JSON::Value(checksum::crc32(0, newSid.data(), newSid.size())).asString();
+        HIGH_MSG("Generated sid '%s'", sid.c_str());
       }
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
@@ -303,7 +309,9 @@ namespace Mist{
         INFO_MSG("Switching to Websocket mode");
         setBlocking(false);
         preWebsocketConnect();
-        webSock = new HTTP::Websocket(myConn, H);
+        HTTP::Parser req = H;
+        H.Clean();
+        webSock = new HTTP::Websocket(myConn, req, H);
         if (!(*webSock)){
           delete webSock;
           webSock = 0;
@@ -347,8 +355,13 @@ namespace Mist{
   void HTTPOutput::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //We generally want the CORS headers to be set for all responses
     H.setCORSHeaders();
+    H.SetHeader("Server", APPIDENT);
     if (sid.size()){
-      H.SetHeader("Set-Cookie", "sid=" + sid + "; Max-Age=600");
+      if (sidMode & 0x08){
+        std::stringstream cookieHeader;
+        cookieHeader << "sid=" << sid << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
     }
     //Set attachment header to force download, if applicable
     if (req.GetVar("dl").size()){

@@ -2402,6 +2402,7 @@ var UI = {
           sessionInputMode: mist.data.config.sessionInputMode,
           sessionOutputMode: mist.data.config.sessionOutputMode,
           sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
+          sidMode: mist.data.config.sidMode,
           sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
           defaultStream: mist.data.config.defaultStream,
           trustedproxy: mist.data.config.trustedproxy,
@@ -2649,6 +2650,32 @@ var UI = {
               index: 'sessionStreamInfoMode'
             },
             help: 'Change the way the stream info connection gets treated.'
+          },{
+            type: "select",
+            label: "Session ID",
+            select: [
+              [15, "15 - Read the sid from the request URL and cookie and respond with the sid as a cookie and URL parameter"],
+              [14, "14 - Read the sid from the request cookie and respond with the sid as a cookie and URL parameter"],
+              [13, "13 - Read the sid from the request URL and respond with the sid as a cookie and URL parameter"],
+              [12, "12 - Do not read the sid from the request and respond with the sid as a cookie and URL parameter"],
+              [11, "11 - Read the sid from the request URL and cookie and respond with the sid as a cookie"],
+              [10, "10 - Read the sid from the request cookie and respond with the sid as a cookie"],
+              [9, "9 - Read the sid from the request cookie and respond with the sid as a cookie"],
+              [8, "8 - Do not read the sid from the request and respond with the sid as a cookie"],
+              [7, "7 - Read the sid from the request URL and cookie and respond with the sid as a URL parameter"],
+              [6, "6 - Read the sid from the request URL and respond with the sid as a cookie"],
+              [5, "5 - Read the sid from the request URL and respond with the sid as a URL parameter"],
+              [4, "4 - Do not read the sid from the request and respond with the sid as a URL parameter"],
+              [3, "3 - Read the sid from the request URL and cookie and do not write the sid"],
+              [2, "2 - Read the sid from the request cookie and do not write the sid"],
+              [1, "1 - Read the sid from the request URL and do not write the sid"],
+              [0, "0 - Ignore the session id"]
+            ],
+            pointer: {
+              main: s,
+              index: "sidMode"
+            },
+            help: "Change the way the session identifier gets passed to and from Mist."
           },{
             type: "inputlist",
             label: "Trusted proxies",

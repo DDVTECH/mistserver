@@ -237,6 +237,8 @@ static inline void show_stackframe(){}
 #define SESS_HTTP_AS_OUTPUT 2
 #define SESS_HTTP_DISABLED 3
 #define SESS_HTTP_AS_UNSPECIFIED 4
+#define SESS_TIMEOUT 600 // Session timeout in seconds
+#define SESS_SID_DEFAULT_MODE 15
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
 #define SHM_PROXY "MstProx"

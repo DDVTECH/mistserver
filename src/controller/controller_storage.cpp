@@ -443,7 +443,8 @@ namespace Controller{
              || !globAccX.getFieldAccX("sessionInputMode")
              || !globAccX.getFieldAccX("sessionOutputMode")
              || !globAccX.getFieldAccX("sessionUnspecifiedMode")
-             || !globAccX.getFieldAccX("sessionStreamInfoMode")){
+             || !globAccX.getFieldAccX("sessionStreamInfoMode")
+             || !globAccX.getFieldAccX("sidMode")){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -459,6 +460,7 @@ namespace Controller{
           globAccX.addField("sessionOutputMode", RAX_64UINT);
           globAccX.addField("sessionUnspecifiedMode", RAX_64UINT);
           globAccX.addField("sessionStreamInfoMode", RAX_64UINT);
+          globAccX.addField("sidMode", RAX_64UINT);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
@@ -469,6 +471,7 @@ namespace Controller{
         globAccX.setInt("sessionOutputMode", Storage["config"]["sessionOutputMode"].asInt());
         globAccX.setInt("sessionUnspecifiedMode", Storage["config"]["sessionUnspecifiedMode"].asInt());
         globAccX.setInt("sessionStreamInfoMode", Storage["config"]["sessionStreamInfoMode"].asInt());
+        globAccX.setInt("sidMode", Storage["config"]["sidMode"].asInt());
         globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
       }

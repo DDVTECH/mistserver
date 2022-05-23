@@ -409,7 +409,7 @@ int main(int argc, char **argv){
   if (!thisType && connections.getExit()){
     uint64_t sleepStart = Util::bootSecs();
     // Keep session invalidated for 10 minutes, or until the session stops
-    while (config.is_active && Util::bootSecs() - sleepStart < 600){
+    while (config.is_active && Util::bootSecs() - sleepStart < SESS_TIMEOUT){
       Util::sleep(1000);
       if (forceTrigger){break;}
     }

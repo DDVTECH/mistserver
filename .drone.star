@@ -79,7 +79,7 @@ def binaries_pipeline(platform):
                 "commands": [
                     'export LD_LIBRARY_PATH="$(realpath ..)/compiled/lib" && export C_INCLUDE_PATH="$(realpath ..)/compiled/include" && export CI_PATH=$(realpath ..)',
                     "mkdir -p build/",
-                    "cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
+                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
                     "make -j $(nproc) && make install",
                 ],
             },

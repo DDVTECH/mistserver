@@ -1,7 +1,16 @@
+PLATFORMS = [
+    {"os": "linux", "arch": "amd64"},
+    {"os": "darwin", "arch": "amd64"},
+]
+
+
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    return [docker_image_pipeline(), binaries_pipeline()]
+    manifest = [docker_image_pipeline()]
+    for platform in PLATFORMS:
+        manifest.append(binaries_pipeline(platform))
+    return manifest
 
 
 def docker_image_pipeline():
@@ -41,14 +50,14 @@ def docker_image_pipeline():
     }
 
 
-def binaries_pipeline():
+def binaries_pipeline(platform):
     return {
         "kind": "pipeline",
-        "name": "build",
+        "name": "build-%s-%s" % (platform["os"], platform["arch"]),
         "type": "exec",
         "platform": {
-            "os": "linux",
-            "arch": "amd64",
+            "os": platform["os"],
+            "arch": platform["arch"],
         },
         "workspace": {"path": "drone/mistserver"},
         "steps": [

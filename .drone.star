@@ -4,13 +4,9 @@ PLATFORMS = [
 ]
 
 
-def main(context):
-    if context.build.event == "tag":
-        return [{}]
-    manifest = [docker_image_pipeline()]
-    for platform in PLATFORMS:
-        manifest.append(binaries_pipeline(platform))
-    return manifest
+def get_docker_tags(repo, prefix):
+    tags = ["latest", "catalyst"]
+    return ["%s:%s-%s" % (repo, prefix, tag) for tag in tags]
 
 
 def docker_image_pipeline():
@@ -64,7 +60,7 @@ def binaries_pipeline(platform):
             {
                 "name": "dependencies",
                 "commands": [
-                    'export CI_PATH="$(realpath ..)" && env',
+                    'export CI_PATH="$(realpath ..)"',
                     "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
                     "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
                     "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
@@ -87,6 +83,19 @@ def binaries_pipeline(platform):
     }
 
 
-def get_docker_tags(repo, prefix):
-    tags = ["latest", "catalyst"]
-    return ["%s:%s-%s" % (repo, prefix, tag) for tag in tags]
+def get_context(context):
+    return {
+        "kind": "pipeline",
+        "type": "exec",
+        "name": "context",
+        "steps": [{"name": "print", "commands": ["echo '%s'" % (context,)]}],
+    }
+
+
+def main(context):
+    if context.build.event == "tag":
+        return [{}]
+    manifest = [docker_image_pipeline(), get_context(context)]
+    for platform in PLATFORMS:
+        manifest.append(binaries_pipeline(platform))
+    return manifest

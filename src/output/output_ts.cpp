@@ -16,17 +16,18 @@ namespace Mist{
     std::string tracks = config->getString("tracks");
     if (config->getString("target").size()){
       HTTP::URL target(config->getString("target"));
-      if (target.protocol != "tsudp" && target.protocol != "tsrtp"){
-        FAIL_MSG("Target %s must begin with tsudp:// or tsrtp://, aborting", target.getUrl().c_str());
-        onFail("Invalid ts udp target: doesn't start with tsudp:// or tsrtp://", true);
+      if (target.protocol != "tsudp" && target.protocol != "tsrtp" && target.protocol != "tstcp"){
+        FAIL_MSG("Target %s must begin with tsudp:// or tsrtp:// or tstcp://, aborting", target.getUrl().c_str());
+        onFail("Invalid TS target: doesn't start with tsudp:// or tsrtp:// or tstcp://", true);
         return;
       }
       if (!target.getPort()){
         FAIL_MSG("Target %s must contain a port, aborting", target.getUrl().c_str());
-        onFail("Invalid ts udp target: missing port", true);
+        onFail("Invalid TS target: missing port", true);
         return;
       }
       // Wrap TS packets inside an RTP packet
+      wrapRTP = false;
       if (target.protocol == "tsrtp"){
         // MP2T payload, no CSRC list and init to sequence number 1, random SSRC and random timestamp
         tsOut = RTP::Packet(33, 1, rand(), rand());
@@ -59,6 +60,17 @@ namespace Mist{
         dropPercentage = atoi(targetParams.at("drop").c_str());
       }
       pushOut = true;
+      if (target.protocol == "tstcp"){
+        pushOut = false;
+        myConn.open(target.host, target.getPort(), true);
+        if (!myConn){
+          disconnect();
+          streamName = "";
+          userSelect.clear();
+          config->is_active = false;
+          return;
+        }
+      }
       udpSize = 7;
       if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
       if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
@@ -73,15 +85,19 @@ namespace Mist{
         }
       }
       pushSock.SetDestination(target.host, target.getPort());
+      pushing = false;
+    }else{
+      //No push target? Check if this is a push input or pull output by waiting for data for 5s
+      setBlocking(false);
+      size_t ctr = 0;
+      while (++ctr <= 50 && !pushing){
+        Util::wait(100);
+        pushing = conn.spool() || conn.Received().size();
+      }
+      setBlocking(true);
     }
 
-    setBlocking(false);
-    size_t ctr = 0;
-    while (++ctr <= 50 && !pushing){
-      Util::wait(100);
-      pushing = conn.spool() || conn.Received().size();
-    }
-    setBlocking(true);
+    //set the correct mode depending on pushing yes/no
     wantRequest = pushing;
     parseData = !pushing;
     if (pushing){
@@ -140,7 +156,7 @@ namespace Mist{
     Output::init(cfg);
     capa["name"] = "TS";
     capa["friendly"] = "TS over TCP";
-    capa["desc"] = "Real time streaming in MPEG2/TS format over raw TCP";
+    capa["desc"] = "Real time streaming in MPEG2/TS format over TCP, UDP or RTP";
     capa["deps"] = "";
     capa["required"]["streamname"]["name"] = "Stream";
     capa["required"]["streamname"]["help"] = "What streamname to serve. For multiple streams, add "
@@ -167,12 +183,13 @@ namespace Mist{
     config = cfg;
     capa["push_urls"].append("tsudp://*");
     capa["push_urls"].append("tsrtp://*");
+    capa["push_urls"].append("tstcp://*");
 
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";
     opt["arg_num"] = 1;
-    opt["help"] = "Target tsudp:// or tsrtp:// URL to push out towards.";
+    opt["help"] = "Target tsudp:// or tsrtp:// or tstcp:// URL to push out towards.";
     cfg->addOption("target", opt);
   }
 
@@ -214,6 +231,10 @@ namespace Mist{
       curFilled++;
     }else{
       myConn.SendNow(tsData, len);
+      if (!myConn){
+        Util::logExitReason("connection closed by peer");
+        config->is_active = false;
+      }
     }
   }
 

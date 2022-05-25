@@ -1,32 +1,59 @@
 PLATFORMS = [
     {"os": "linux", "arch": "amd64"},
+    {"os": "linux", "arch": "arm64"},
     {"os": "darwin", "arch": "amd64"},
 ]
 
+TRIGGER_CONDITION = {
+    "event": [
+        "push",
+        # "pull_request",
+        "tag",
+    ]
+}
 
-def get_docker_tags(repo, prefix):
-    tags = ["latest", "catalyst"]
+
+def get_docker_tags(repo, prefix, branch, commit):
+    tags = [
+        "latest",
+        "catalyst",
+        branch.replace("/", "-"),
+        "$DRONE_BUILD_CREATED",
+        commit,
+        commit[:8],
+    ]
     return ["%s:%s-%s" % (repo, prefix, tag) for tag in tags]
 
 
-def docker_image_pipeline():
-    image_tags = get_docker_tags("livepeerci/mistserver", "debug")
+def docker_image_pipeline(arch, target, build_context):
+    image_tags = get_docker_tags(
+        "livepeerci/mistserver",
+        target,
+        build_context.branch,
+        build_context.commit,
+    )
     return {
         "kind": "pipeline",
-        "name": "docker",
+        "name": "docker-%s-%s"
+        % (
+            arch,
+            target,
+        ),
         "type": "exec",
         "platform": {
             "os": "linux",
-            "arch": "amd64",
+            "arch": arch,
         },
         "steps": [
             {
                 "name": "build",
                 "commands": [
-                    "docker buildx build --target=mist-debug-release --tag {} .".format(
+                    "docker buildx build --target=mist-{}-release --tag {} .".format(
+                        target,
                         " --tag ".join(image_tags),
                     ),
                 ],
+                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "login",
@@ -37,10 +64,12 @@ def docker_image_pipeline():
                     "DOCKERHUB_USERNAME": {"from_secret": "DOCKERHUB_USERNAME"},
                     "DOCKERHUB_PASSWORD": {"from_secret": "DOCKERHUB_PASSWORD"},
                 },
+                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "push",
                 "commands": ["docker push %s" % (tag,) for tag in image_tags],
+                "when": TRIGGER_CONDITION,
             },
         ],
     }
@@ -69,6 +98,7 @@ def binaries_pipeline(platform):
                     "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PATH=$CI_PATH/compiled .. && make -j $(nproc) install",
                     "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PATH=$CI_PATH/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false .. && make -j $(nproc) install",
                 ],
+                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "binaries",
@@ -78,12 +108,14 @@ def binaries_pipeline(platform):
                     "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
                     "make -j $(nproc) && make install",
                 ],
+                "when": TRIGGER_CONDITION,
             },
         ],
     }
 
 
 def get_context(context):
+    """Template pipeline to get information about build context."""
     return {
         "kind": "pipeline",
         "type": "exec",
@@ -95,7 +127,10 @@ def get_context(context):
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    manifest = [docker_image_pipeline(), get_context(context)]
+    manifest = []
+    for arch in ("amd64", "arm64"):
+        manifest.append(docker_image_pipeline(arch, "debug", context.build))
+        manifest.append(docker_image_pipeline(arch, "strip", context.build))
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
     return manifest

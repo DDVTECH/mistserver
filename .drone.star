@@ -48,7 +48,6 @@ def docker_image_pipeline(arch, release, stripped, build_context):
             release,
         ),
         "type": "exec",
-        "when": TRIGGER_CONDITION,
         "platform": {
             "os": "linux",
             "arch": arch,

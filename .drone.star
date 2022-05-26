@@ -33,20 +33,17 @@ def get_docker_tags(repo, prefix, branch, commit, debug):
 
 
 def docker_image_pipeline(arch, release, stripped, build_context):
+    debug = stripped == "false"
     image_tags = get_docker_tags(
         "livepeerci/mistserver",
         release,
         build_context.branch,
         build_context.commit,
-        stripped == "false",
+        debug,
     )
     return {
         "kind": "pipeline",
-        "name": "docker-%s-%s"
-        % (
-            arch,
-            release,
-        ),
+        "name": "docker-%s-%s-%s" % (arch, release, "debug" if debug else "strip"),
         "type": "exec",
         "platform": {
             "os": "linux",
@@ -136,7 +133,12 @@ def get_context(context):
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    manifest = []
+    manifest = [
+        docker_image_pipeline(arch, release, stripped, context.build)
+        for arch in DOCKER_BUILDS["arch"]
+        for release in DOCKER_BUILDS["release"]
+        for stripped in DOCKER_BUILDS["strip"]
+    ]
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
     return manifest

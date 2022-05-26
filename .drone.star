@@ -2,7 +2,14 @@ PLATFORMS = [
     {"os": "linux", "arch": "amd64"},
     {"os": "linux", "arch": "arm64"},
     {"os": "darwin", "arch": "amd64"},
+    {"os": "darwin", "arch": "arm64"},
 ]
+
+DOCKER_BUILDS = {
+    "arch": ["amd64", "arm64"],
+    "release": ["static", "shared"],
+    "strip": ["true", "false"],
+}
 
 TRIGGER_CONDITION = {
     "event": [
@@ -13,33 +20,35 @@ TRIGGER_CONDITION = {
 }
 
 
-def get_docker_tags(repo, prefix, branch, commit):
+def get_docker_tags(repo, prefix, branch, commit, debug):
     tags = [
-        "latest",
-        "catalyst",
         branch.replace("/", "-"),
-        "$DRONE_BUILD_CREATED",
         commit,
         commit[:8],
     ]
-    return ["%s:%s-%s" % (repo, prefix, tag) for tag in tags]
+    if branch == "catalyst":
+        tags.append("latest")
+    suffix = "-debug" if debug else ""
+    return ["%s:%s-%s%s" % (repo, prefix, tag, suffix) for tag in tags]
 
 
-def docker_image_pipeline(arch, target, build_context):
+def docker_image_pipeline(arch, release, stripped, build_context):
     image_tags = get_docker_tags(
         "livepeerci/mistserver",
-        target,
+        release,
         build_context.branch,
         build_context.commit,
+        stripped == "false",
     )
     return {
         "kind": "pipeline",
         "name": "docker-%s-%s"
         % (
             arch,
-            target,
+            release,
         ),
         "type": "exec",
+        "when": TRIGGER_CONDITION,
         "platform": {
             "os": "linux",
             "arch": arch,
@@ -48,8 +57,9 @@ def docker_image_pipeline(arch, target, build_context):
             {
                 "name": "build",
                 "commands": [
-                    "docker buildx build --target=mist-{}-release --tag {} .".format(
-                        target,
+                    "docker buildx build --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} .".format(
+                        release,
+                        stripped,
                         " --tag ".join(image_tags),
                     ),
                 ],
@@ -128,9 +138,6 @@ def main(context):
     if context.build.event == "tag":
         return [{}]
     manifest = []
-    for arch in ("amd64", "arm64"):
-        manifest.append(docker_image_pipeline(arch, "debug", context.build))
-        manifest.append(docker_image_pipeline(arch, "strip", context.build))
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
     return manifest

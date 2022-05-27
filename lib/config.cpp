@@ -626,6 +626,13 @@ void Util::Config::activate(){
     new_action.sa_handler = SIG_IGN;
     sigaction(SIGCHLD, &new_action, NULL);
   }
+  // Check if a USR2 signal handler exists. If not, ignore that signal (default is terminate).
+  sigaction(SIGUSR2, 0, &cur_action);
+  if (cur_action.sa_handler == SIG_DFL) {
+    new_action.sa_flags = 0;
+    new_action.sa_handler = SIG_IGN;
+    sigaction(SIGUSR2, &new_action, NULL);
+  }
   is_active = true;
 }
 

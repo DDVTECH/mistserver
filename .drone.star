@@ -90,6 +90,10 @@ def binaries_pipeline(platform):
             "os": platform["os"],
             "arch": platform["arch"],
         },
+        "node": {
+            "os": platform["os"],
+            "arch": platform["arch"],
+        },
         "workspace": {"path": "drone/mistserver"},
         "steps": [
             {

@@ -49,6 +49,10 @@ def docker_image_pipeline(arch, release, stripped, build_context):
             "os": "linux",
             "arch": arch,
         },
+        "node": {
+            "os": "linux",
+            "arch": arch,
+        },
         "steps": [
             {
                 "name": "build",

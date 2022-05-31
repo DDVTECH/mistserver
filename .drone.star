@@ -103,6 +103,8 @@ def binaries_pipeline(platform):
             {
                 "name": "dependencies",
                 "commands": [
+                    "env",
+                    "uname -a",
                     'export CI_PATH="$(realpath ..)"',
                     "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
                     "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",

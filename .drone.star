@@ -109,6 +109,7 @@ def binaries_pipeline(platform):
                     "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
                     "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
                     "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
+                    'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
                     "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
                     "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false .. && make -j $(nproc) install",
                 ],

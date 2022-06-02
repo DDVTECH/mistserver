@@ -139,6 +139,9 @@ def binaries_pipeline(platform, build_context):
                     "gsutil cp ./livepeer-mistserver-%s-%s.tar.gz gs://$GCLOUD_BUCKET/mistserver/%s"
                     % (platform["os"], platform["arch"], branch_name),
                 ],
+                "environment": {
+                    "GCLOUD_BUCKET": {"from_secret": "GCLOUD_BUCKET"},
+                },
                 "when": TRIGGER_CONDITION,
             },
         ],

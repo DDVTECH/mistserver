@@ -20,6 +20,13 @@ TRIGGER_CONDITION = {
 }
 
 
+def get_environment(*names):
+    env = {}
+    for name in names:
+        env[name] = {"from_secret": name}
+    return env
+
+
 def get_docker_tags(repo, prefix, branch, commit, debug):
     tags = [
         branch.replace("/", "-"),
@@ -70,10 +77,10 @@ def docker_image_pipeline(arch, release, stripped, build_context):
                 "commands": [
                     "docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD",
                 ],
-                "environment": {
-                    "DOCKERHUB_USERNAME": {"from_secret": "DOCKERHUB_USERNAME"},
-                    "DOCKERHUB_PASSWORD": {"from_secret": "DOCKERHUB_PASSWORD"},
-                },
+                "environment": get_environment(
+                    "DOCKERHUB_USERNAME",
+                    "DOCKERHUB_PASSWORD",
+                ),
                 "when": TRIGGER_CONDITION,
             },
             {
@@ -130,18 +137,29 @@ def binaries_pipeline(platform, build_context):
                 "when": TRIGGER_CONDITION,
             },
             {
-                "name": "upload",
+                "name": "compress",
                 "commands": [
                     'export CI_PATH="$(realpath ..)"',
                     "cd $CI_PATH/bin",
                     "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
                     % (platform["os"], platform["arch"]),
-                    "gsutil cp ./livepeer-mistserver-%s-%s.tar.gz gs://$GCLOUD_BUCKET/mistserver/%s"
+                    # "gsutil cp -m ./livepeer-mistserver-%s-%s.tar.gz gs://$GCLOUD_BUCKET/mistserver/%s"
+                    # % (platform["os"], platform["arch"], branch_name),
+                ],
+                "environment": get_environment("GCLOUD_BUCKET"),
+                "when": TRIGGER_CONDITION,
+            },
+            {
+                "name": "upload",
+                "commands": [
+                    'scripts/upload_build.sh "%s" "%s" "%s" "$(realpath ..)"'
                     % (platform["os"], platform["arch"], branch_name),
                 ],
-                "environment": {
-                    "GCLOUD_BUCKET": {"from_secret": "GCLOUD_BUCKET"},
-                },
+                "environment": get_environment(
+                    "GLOUD_KEY",
+                    "GCLOUD_SECRET",
+                    "GCLOUD_BUCKET",
+                ),
                 "when": TRIGGER_CONDITION,
             },
         ],

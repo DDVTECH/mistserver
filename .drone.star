@@ -85,7 +85,8 @@ def docker_image_pipeline(arch, release, stripped, build_context):
     }
 
 
-def binaries_pipeline(platform):
+def binaries_pipeline(platform, build_context):
+    branch_name = build_context.branch.replace("/", "-")
     return {
         "kind": "pipeline",
         "name": "build-%s-%s" % (platform["os"], platform["arch"]),
@@ -112,7 +113,7 @@ def binaries_pipeline(platform):
                     "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
                     "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
-                    "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
+                    "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install VERBOSE=1",
                     "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false .. && make -j $(nproc) install",
                 ],
                 "when": TRIGGER_CONDITION,
@@ -125,6 +126,18 @@ def binaries_pipeline(platform):
                     "mkdir -p build/",
                     "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
                     "make -j $(nproc) && make install",
+                ],
+                "when": TRIGGER_CONDITION,
+            },
+            {
+                "name": "upload",
+                "commands": [
+                    'export CI_PATH="$(realpath ..)"',
+                    "cd $CI_PATH/bin",
+                    "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
+                    % (platform["os"], platform["arch"]),
+                    "gsutil cp ./livepeer-mistserver-%s-%s.tar.gz gs://$GCLOUD_BUCKET/mistserver/%s"
+                    % (platform["os"], platform["arch"], branch_name),
                 ],
                 "when": TRIGGER_CONDITION,
             },
@@ -152,5 +165,5 @@ def main(context):
         for stripped in DOCKER_BUILDS["strip"]
     ]
     for platform in PLATFORMS:
-        manifest.append(binaries_pipeline(platform))
+        manifest.append(binaries_pipeline(platform, context.build))
     return manifest

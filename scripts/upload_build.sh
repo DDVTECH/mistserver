@@ -31,7 +31,7 @@ function main() {
     exit 0
   fi
 
-  curl -X PUT -T "${FILE}" \
+  curl -X PUT -T "${TAR_FILE}" \
     -H "Host: storage.googleapis.com" \
     -H "Date: ${dateValue}" \
     -H "Content-Type: ${contentType}" \

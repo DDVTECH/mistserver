@@ -121,7 +121,7 @@ def binaries_pipeline(platform, build_context):
                     "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
                     "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install VERBOSE=1",
-                    "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false .. && make -j $(nproc) install",
+                    "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DUSE_ENCLIB=mbedtls -DENABLE_SHARED=false .. && make -j $(nproc) install",
                 ],
                 "when": TRIGGER_CONDITION,
             },
@@ -143,17 +143,14 @@ def binaries_pipeline(platform, build_context):
                     "cd $CI_PATH/bin",
                     "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
                     % (platform["os"], platform["arch"]),
-                    # "gsutil cp -m ./livepeer-mistserver-%s-%s.tar.gz gs://$GCLOUD_BUCKET/mistserver/%s"
-                    # % (platform["os"], platform["arch"], branch_name),
                 ],
-                # "environment": get_environment("GCLOUD_BUCKET"),
                 "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "%s" "%s" "%s" "$(realpath ..)"'
-                    % (platform["os"], platform["arch"], branch_name),
+                    'scripts/upload_build.sh "%s" "%s" "$(realpath ..)"'
+                    % (platform["os"], platform["arch"]),
                 ],
                 "environment": get_environment(
                     "GCLOUD_KEY",

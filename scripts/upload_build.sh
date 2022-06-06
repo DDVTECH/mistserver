@@ -2,8 +2,7 @@
 
 PLATFORM="$1"
 ARCH="$2"
-BRANCH_NAME="$3"
-CI_PATH="$4"
+CI_PATH="$3"
 TAR_FILE="livepeer-mistserver-${PLATFORM}-${ARCH}.tar.gz"
 
 function main() {
@@ -17,11 +16,12 @@ function main() {
   # https://stackoverflow.com/a/44751929/990590
   BUCKET="${GCLOUD_BUCKET}"
   PROJECT="mistserver"
-  BUCKET_PATH="${PROJECT}/${BRANCH_NAME}/${CI_COMMIT_SHA}/${TAR_FILE}"
+  BUCKET_PATH="${PROJECT}/${CI_COMMIT_SHA}/${TAR_FILE}"
   RESOURCE="/${BUCKET}/${BUCKET_PATH}"
-  contentType="application/x-compressed-tar"
-  dateValue="$(date -R)"
-  stringToSign="PUT\n\n${contentType}\n${dateValue}\n${RESOURCE}"
+  CONTENT_TYPE="application/x-compressed-tar"
+  DATE="$(date -R)"
+
+  stringToSign="PUT\n\n${CONTENT_TYPE}\n${DATE}\n${RESOURCE}"
   SIGNATURE="$(echo -en ${stringToSign} | openssl sha1 -hmac "${GCLOUD_SECRET}" -binary | base64)"
   FULL_URL="https://storage.googleapis.com${RESOURCE}"
 
@@ -33,8 +33,8 @@ function main() {
 
   curl -X PUT -T "${TAR_FILE}" \
     -H "Host: storage.googleapis.com" \
-    -H "Date: ${dateValue}" \
-    -H "Content-Type: ${contentType}" \
+    -H "Date: ${DATE}" \
+    -H "Content-Type: ${CONTENT_TYPE}" \
     -H "Authorization: AWS ${GCLOUD_KEY}:${SIGNATURE}" \
     "${FULL_URL}"
 

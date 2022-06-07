@@ -2119,14 +2119,22 @@ namespace Mist{
         // If so, the next key is our next packet
         nextTime = keys.getTime(thisKey + 1);
 
-        //If the next packet should've been before the current packet, something is wrong. Abort, abort!
+        //If the next packet should've been before the current packet, something is wrong.
         if (nextTime < nxt.time){
-          std::stringstream errMsg;
-          errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
-          errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
-          errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
-          dropTrack(nxt.tid, errMsg.str().c_str());
-          return false;
+          //Re-try the read in ~5ms, hoping this is a race condition we missed somewhere.
+          Util::sleep(5);
+          nextTime = keys.getTime(thisKey + 1);
+          //Still wrong? Abort, abort!
+          if (nextTime < nxt.time){
+            std::stringstream errMsg;
+            errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
+            errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
+            errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
+            dropTrack(nxt.tid, errMsg.str().c_str());
+            return false;
+          }else{
+            WARN_MSG("Recovered from race condition");
+          }
         }
         break;//Valid packet!
       }

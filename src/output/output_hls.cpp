@@ -121,6 +121,115 @@ namespace Mist{
     cfg->addConnectorOptions(8081, capa);
   }
 
+  /******************************/
+  /* HLS Manifest Generation */
+  /******************************/
+
+  /// \brief Builds master playlist for (LL)HLS.
+  ///\return The master playlist file for (LL)HLS.
+  void OutHLS::sendHlsMasterManifest(){
+    selectDefaultTracks();
+
+    // check for forced "no low latency" parameter
+    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
+
+    // Populate the struct that will help generate the master playlist
+    const HLS::MasterData masterData ={
+        hasSessionIDs(),
+        noLLHLS,
+        hlsMediaFormat == ".ts",
+        getMainSelectedTrack(),
+        H.GetHeader("User-Agent"),
+        sid,
+        systemBoot,
+        bootMsOffset,
+    };
+
+    std::stringstream result;
+    HLS::addMasterManifest(result, M, userSelect, masterData);
+
+    H.SetBody(result.str());
+    H.SendResponse("200", "OK", myConn);
+  }
+
+  /// \brief Builds media playlist to (LL)HLS
+  ///\return The media playlist file to (LL)HLS
+  void OutHLS::sendHlsMediaManifest(const size_t requestTid){
+    const HLS::HlsSpecData hlsSpec ={H.GetVar("_HLS_skip"), H.GetVar("_HLS_msn"),
+                                      H.GetVar("_HLS_part")};
+
+    size_t timingTid = HLS::getTimingTrackId(M, H.GetVar("mTrack"), getMainSelectedTrack());
+
+    // Chunkpath & Session ID logic
+    std::string urlPrefix = "";
+    if (config->getString("chunkpath").size()){
+      urlPrefix = HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl();
+    }
+
+    // check for forced "no low latency" parameter
+    bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
+    // override if valid header forces "no low latency"
+    noLLHLS = H.GetHeader("X-Mist-LLHLS").size() ? H.GetHeader("X-Mist-LLHLS") == "0" : noLLHLS;
+
+    const HLS::TrackData trackData ={
+        M.getLive(),
+        M.getType(requestTid) == "video",
+        noLLHLS,
+        hlsMediaFormat,
+        M.getEncryption(requestTid),
+        sid,
+        timingTid,
+        requestTid,
+        M.biggestFragment(timingTid) / 1000,
+        atol(H.GetVar("iMsn").c_str()),
+        config->getInteger("listlimit"),
+        urlPrefix,
+        systemBoot,
+        bootMsOffset,
+    };
+
+    // Fragment & Key handlers
+    DTSC::Fragments fragments(M.fragments(trackData.timingTrackId));
+    DTSC::Keys keys(M.keys(trackData.timingTrackId));
+
+    uint32_t bprErrCode = HLS::blockPlaylistReload(M, userSelect, trackData, hlsSpec, fragments, keys);
+    if (bprErrCode == 400){
+      H.SendResponse("400", "Bad Request: Invalid LLHLS parameter", myConn);
+      return;
+    }else if (bprErrCode == 503){
+      H.SendResponse("503", "Service Unavailable", myConn);
+      return;
+    }
+
+    HLS::FragmentData fragData;
+    HLS::populateFragmentData(M, userSelect, fragData, trackData, fragments, keys);
+
+    std::stringstream result;
+    HLS::addStartingMetaTags(result, fragData, trackData, hlsSpec);
+    HLS::addMediaFragments(result, M, fragData, trackData, fragments, keys);
+    HLS::addEndingTags(result, M, userSelect, fragData, trackData);
+
+    H.SetBody(result.str());
+    H.SendResponse("200", "OK", myConn);
+  }
+
+  void OutHLS::sendHlsManifest(const std::string url){
+    H.setCORSHeaders();
+    H.SetHeader("Content-Type", "application/vnd.apple.mpegurl"); // for .m3u8
+    H.SetHeader("Cache-Control", "no-store");
+    if (H.method == "OPTIONS" || H.method == "HEAD"){
+      H.SetBody("");
+      H.SendResponse("200", "OK", myConn);
+      return;
+    }
+
+    if (url.find("/") == std::string::npos){
+      sendHlsMasterManifest();
+    }else{
+      sendHlsMediaManifest(atoll(url.c_str()));
+    }
+  }
+
   void OutHLS::onHTTP(){
     initialize();
     bootMsOffset = 0;

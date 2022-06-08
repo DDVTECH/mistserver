@@ -234,7 +234,7 @@ namespace Mist{
   }
 
 
-  void inputTSRIST::connStats(Comms::Statistics &statComm){
+  void inputTSRIST::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(downBytes);
     statComm.setHost(getConnectedBinHost());

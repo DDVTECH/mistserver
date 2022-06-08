@@ -18,7 +18,7 @@ namespace Mist{
     static void listener(Util::Config &conf, int (*callback)(Socket::Connection &S));
 
   protected:
-    virtual void connStats(uint64_t now, Comms::Statistics &statComm);
+    virtual void connStats(uint64_t now, Comms::Connections &statComm);
     //virtual std::string getConnectedHost(){
     //  return srtConn.remotehost;
     //}

@@ -324,7 +324,7 @@ int main_loop(int argc, char **argv){
   if (!Controller::Storage["config"]["sessionStreamInfoMode"]){
     Controller::Storage["config"]["sessionStreamInfoMode"] = SESS_DEFAULT_STREAM_INFO_MODE;
   }
-  if (!Controller::Storage["config"]["sidMode"]){
+  if (!Controller::Storage["config"].isMember("sidMode")){
     Controller::Storage["config"]["sidMode"] = SESS_SID_DEFAULT_MODE;
   }
   Controller::prometheus = Controller::Storage["config"]["prometheus"].asStringRef();

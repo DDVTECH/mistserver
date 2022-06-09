@@ -225,19 +225,14 @@ namespace Mist{
     // check for forced "no low latency" parameter
     bool noLLHLS = H.GetVar("llhls").size() ? H.GetVar("llhls") == "0" : false;
 
-    bool hasSessionId = false;
-    if (sidMode & 0x04){
-      hasSessionId = hasSessionIDs();
-    }
-
     // Populate the struct that will help generate the master playlist
     const HLS::MasterData masterData ={
-        hasSessionId,
+        false,//hasSessionIDs, unused
         noLLHLS,
         hlsMediaFormat == ".ts",
         getMainSelectedTrack(),
         H.GetHeader("User-Agent"),
-        sid,
+        (sidMode & 0x04)?sid:"",
         systemBoot,
         bootMsOffset,
     };
@@ -274,7 +269,7 @@ namespace Mist{
         noLLHLS,
         hlsMediaFormat,
         M.getEncryption(requestTid),
-        sid,
+        (sidMode & 0x04)?sid:"",
         timingTid,
         requestTid,
         M.biggestFragment(timingTid) / 1000,
@@ -340,6 +335,16 @@ namespace Mist{
     // Strip /cmaf/<streamname>/ from url
     std::string url = H.url.substr(H.url.find('/', 6) + 1);
     HTTP::URL req(reqUrl);
+
+
+    if (sid.size()){
+      if (sidMode & 0x08){
+        const std::string koekjes = H.GetHeader("Cookie");
+        std::stringstream cookieHeader;
+        cookieHeader << "sid=" << sid << "; Max-Age=" << SESS_TIMEOUT;
+        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+      }
+    }
 
     // Send a dash manifest for any URL with .mpd in the path
     if (req.getExt() == "mpd"){
@@ -432,14 +437,6 @@ namespace Mist{
     }else{
       H.SendResponse("400", "Bad Request: Could not parse the url", myConn);
       return;
-    }
-
-    if (sid.size()){
-      if (sidMode & 0x08){
-        std::stringstream cookieHeader;
-        cookieHeader << "sid=" << sid << "; Max-Age=" << SESS_TIMEOUT;
-        H.SetHeader("Set-Cookie", cookieHeader.str()); 
-      }
     }
 
     std::string headerData =

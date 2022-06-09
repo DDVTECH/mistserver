@@ -287,7 +287,8 @@ namespace Mist{
         } else if (H.GetVar("sessId") != ""){
           sid = H.GetVar("sessId");
         }
-      } else if (sidMode & 0x02 && !sid.size()){
+      }
+      if ((sidMode & 0x02) && !sid.size()){
         // Get session ID from the request cookie
         std::map<std::string, std::string> storage;
         const std::string koekjes = H.GetHeader("Cookie");
@@ -295,7 +296,7 @@ namespace Mist{
         if (storage.count("sid")){
           sid = storage.at("sid");
         }
-      } 
+      }
       // Generate a session id if it is being sent as a cookie or url parameter
       if (!sid.size() && sidMode > 3){
         const std::string newSid = UA + JSON::Value(getpid()).asString();

@@ -77,8 +77,15 @@ namespace Controller{
     std::set<pid_t> toWipe;
     for (std::map<pid_t, JSON::Value>::iterator it = activePushes.begin(); it != activePushes.end(); ++it){
       if (Util::Procs::isActive(it->first)){
-        if (it->second[1u].asStringRef() == streamname && it->second[2u].asStringRef() == target){
-          return true;
+        // Apply variable substitution to make sure another push target does not resolve to the same target
+        if (it->second[1u].asStringRef() == streamname){
+          std::string activeTarget = it->second[2u].asStringRef();
+          std::string cmpTarget = target;
+          Util::streamVariables(activeTarget, streamname);
+          Util::streamVariables(cmpTarget, streamname);
+          if (activeTarget == cmpTarget){
+            return true;
+          }
         }
       }else{
         toWipe.insert(it->first);
@@ -323,9 +330,7 @@ namespace Controller{
         for (std::set<std::string>::iterator it = activeStreams.begin(); it != activeStreams.end(); ++it){
           std::string streamname = *it;
           if (pStr == streamname || (*pStr.rbegin() == '+' && streamname.substr(0, pStr.size()) == pStr)){
-            std::string tmpName = streamname;
-            std::string tmpTarget = target;
-            startPush(tmpName, tmpTarget);
+            startPush(streamname, target);
           }
         }
       }
@@ -372,7 +377,9 @@ namespace Controller{
         std::string stream = streamname;
         Util::sanitizeName(stream);
         std::string target = (*it)[1u];
-        startPush(stream, target);
+        if (!isPushActive(stream, target)){
+          startPush(stream, target);
+        }
       }
     }
   }

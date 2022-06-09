@@ -234,19 +234,96 @@ void Util::Procs::childsig_handler(int signum){
 }
 
 /// Runs the given command and returns the stdout output as a string.
-std::string Util::Procs::getOutputOf(char *const *argv){
+/// \param maxWait amount of milliseconds to wait for new output to come in over stdout before aborting
+std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
   int fin = 0, fout = -1, ferr = 0;
+  uint64_t waitedFor = 0;
+  uint8_t tries = 0;
   pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
   Socket::Connection O(-1, fout);
+  O.setBlocking(false);
   Util::ResizeablePointer ret;
   while (childRunning(myProc) || O){
     if (O.spool() || O.Received().size()){
+      waitedFor = 0;
+      tries = 0;
       while (O.Received().size()){
         std::string & t = O.Received().get();
         ret.append(t);
         t.clear();
       }
     }else{
+      if (maxWait && waitedFor > maxWait){
+        WARN_MSG("Timeout while getting output of '%s', returning %luB of data",  (char *)argv, ret.size());
+        break;
+      }
+      else if(maxWait){
+        uint64_t waitTime = Util::expBackoffMs(tries++, 10, maxWait);
+        Util::sleep(waitTime);
+        waitedFor += waitTime;
+      }
+      else{
+        Util::sleep(50);
+      }
+    }
+  }
+  return std::string(ret, ret.size());
+}
+
+/// Runs the given command and returns the stdout output as a string.
+/// \param maxWait amount of milliseconds to wait before shutting down the spawned process
+/// \param maxValBytes amount of Bytes allowed in the output before shutting down the spawned process
+std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes){
+  int fin = 0, fout = -1, ferr = 0;
+  uint64_t waitedFor = 0;
+  uint8_t tries = 0;
+  pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
+  Socket::Connection O(-1, fout);
+  O.setBlocking(false);
+  Util::ResizeablePointer ret;
+  std::string fullCmd;
+  uint8_t idx = 0;
+  while (argv[idx]){
+    fullCmd += argv[idx++];
+    fullCmd += " ";
+  }
+  while (childRunning(myProc) || O){
+    if (O.spool() || O.Received().size()){
+      tries = 0;
+      while (O.Received().size()){
+        std::string & t = O.Received().get();
+        ret.append(t);
+        t.clear();
+      }
+    }else{
+      if (waitedFor > maxWait){
+        WARN_MSG("Reached timeout of %lu ms. Killing process with command %s...", maxWait, fullCmd.c_str());
+        break;
+      }
+      else {
+        uint64_t waitTime = Util::expBackoffMs(tries++, 10, maxWait);
+        Util::sleep(waitTime);
+        waitedFor += waitTime;
+      }
+    }
+    if (ret.size() > maxValBytes){
+      WARN_MSG("Have a limit of %uB, but received %luB of data. Killing process with command %s...",  maxValBytes, ret.size(), fullCmd.c_str());
+      break;
+    }
+  }
+  // Stop the process if it is still running
+  if (childRunning(myProc)){
+    close(fout);
+    Stop(myProc);
+    waitedFor = 0;
+  }
+  // Give it a few seconds, but then forcefully stop it
+  while (childRunning(myProc)){
+    if (waitedFor > 2000){
+      Murder(myProc);
+      break;
+    }else{
+      waitedFor += 50;
       Util::sleep(50);
     }
   }
@@ -261,10 +338,10 @@ char *const *Util::Procs::dequeToArgv(std::deque<std::string> &argDeq){
   return ret;
 }
 
-std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq){
+std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq, uint64_t maxWait){
   std::string ret;
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command
-  ret = getOutputOf(argv);
+  ret = getOutputOf(argv, maxWait);
   return ret;
 }
 

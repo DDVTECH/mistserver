@@ -8,6 +8,7 @@
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
+#include "controller_variables.h"
 #include <ctime>
 #include <fstream> //for ram space check
 #include <iostream>
@@ -567,6 +568,8 @@ int main_loop(int argc, char **argv){
   tthread::thread uplinkThread(Controller::uplinkConnection, 0); /*LTS*/
   // start push checking thread
   tthread::thread pushThread(Controller::pushCheckLoop, 0);
+  // start variable checking thread
+  tthread::thread variableThread(Controller::variableCheckLoop, 0);
 #ifdef UPDATER
   // start updater thread
   tthread::thread updaterThread(Controller::updateThread, 0);
@@ -620,6 +623,8 @@ int main_loop(int argc, char **argv){
   uplinkThread.join();
   HIGH_MSG("Joining push thread...");
   pushThread.join();
+  HIGH_MSG("Joining variable thread...");
+  variableThread.join();
 #ifdef UPDATER
   HIGH_MSG("Joining updater thread...");
   updaterThread.join();

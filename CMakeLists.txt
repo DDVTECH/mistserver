@@ -855,6 +855,7 @@ add_executable(MistController
   src/controller/controller_capabilities.h
   src/controller/controller_streams.h
   src/controller/controller_push.h
+  src/controller/controller_variables.h
   src/controller/controller.cpp
   src/controller/controller_updater.cpp
   src/controller/controller_streams.cpp
@@ -866,6 +867,7 @@ add_executable(MistController
   src/controller/controller_uplink.cpp
   src/controller/controller_api.cpp
   src/controller/controller_push.cpp
+  src/controller/controller_variables.cpp
   generated/server.html.h
   ${BINARY_DIR}/mist/.headers
 )

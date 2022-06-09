@@ -94,9 +94,9 @@ namespace Triggers{
         while (Util::Procs::isActive(myProc) && counter < 150){
           Util::sleep(100);
           ++counter;
-          if (counter >= 150){
-            if (counter == 150){FAIL_MSG("Trigger taking too long - killing process");}
-            if (counter >= 250){
+          if (counter >= 100){
+            if (counter == 100){FAIL_MSG("Trigger taking too long - killing process");}
+            if (counter >= 140){
               Util::Procs::Stop(myProc);
             }else{
               Util::Procs::Murder(myProc);

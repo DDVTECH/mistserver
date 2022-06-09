@@ -107,35 +107,87 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
   return "";
 }
 
+/// Local-only helper function that replaces a variable and returns the amount of replacements done
+size_t replaceVar(std::string & input, const std::string & var, const std::string & rep){
+  size_t count = 0;
+  const std::string withBraces = "${"+var+"}";
+  const std::string noBraces = "$"+var;
+  count += Util::replace(input, withBraces, rep);
+  count += Util::replace(input, noBraces, rep);
+  return count;
+}
+
+size_t Util::streamCustomVariables(std::string &str){
+  size_t count = 0;
+  // Read shared memory page containing custom variables
+  static IPC::sharedPage variablePage(SHM_CUSTOM_VARIABLES, 0, false, false);
+  // Check if the page needs to be reopened
+  if (variablePage.mapped){
+    Util::RelAccX varAccX(variablePage.mapped, false);
+    if (varAccX.isReload()){variablePage.close();}
+  }
+  // Reopen memory page if it has been closed
+  if (!variablePage.mapped){
+    variablePage.init(SHM_CUSTOM_VARIABLES, 0, false, false);
+    if(!variablePage.mapped){
+      ERROR_MSG("Unable to substitute custom variables, as memory page %s failed to open", SHM_CUSTOM_VARIABLES);
+      return 0;
+    }
+  }
+  // Extract variables
+  Util::RelAccX varAccX(variablePage.mapped, false);
+  for (size_t i = 0; i < varAccX.getEndPos(); i++){
+    // Replace $thisName with $thisVal
+    if (varAccX.getPointer("name", i)){
+      std::string thisName = "$" + std::string(varAccX.getPointer("name", i));
+      std::string thisVal = std::string(varAccX.getPointer("lastVal", i));
+      count += replaceVar(str, thisName, thisVal);
+    }
+  }
+  return count;
+}
+
 /// Replaces all stream-related variables in the given 'str' with their values.
-void Util::streamVariables(std::string &str, const std::string &streamname, const std::string &source){
-  Util::replace(str, "$source", source);
-  Util::replace(str, "$datetime", "$year.$month.$day.$hour.$minute.$second");
-  Util::replace(str, "$day", strftime_now("%d"));
-  Util::replace(str, "$month", strftime_now("%m"));
-  Util::replace(str, "$year", strftime_now("%Y"));
-  Util::replace(str, "$hour", strftime_now("%H"));
-  Util::replace(str, "$minute", strftime_now("%M"));
-  Util::replace(str, "$second", strftime_now("%S"));
-  Util::replace(str, "$wday", strftime_now("%u")); // weekday, 1-7, monday=1
-  Util::replace(str, "$yday", strftime_now("%j")); // yearday, 001-366
-  Util::replace(str, "$week", strftime_now("%V")); // week number, 01-53
-  Util::replace(str, "$stream", streamname);
+size_t Util::streamVariables(std::string &str, const std::string &streamname, const std::string &source, uint8_t depth){
+  size_t replaced = 0;
+  if (depth > 9){
+    WARN_MSG("Reached a depth of %u when replacing stream variables", depth);
+    return 0;
+  }
+  // If there are no variables, abort
+  if (str.find('$') == std::string::npos){return 0;}
+  // Find and replace any custom variables
+  replaced += streamCustomVariables(str);
+  replaced += replaceVar(str, "source", source);
+  replaced += replaceVar(str, "datetime", "$year.$month.$day.$hour.$minute.$second");
+  replaced += replaceVar(str, "day", strftime_now("%d"));
+  replaced += replaceVar(str, "month", strftime_now("%m"));
+  replaced += replaceVar(str, "year", strftime_now("%Y"));
+  replaced += replaceVar(str, "hour", strftime_now("%H"));
+  replaced += replaceVar(str, "minute", strftime_now("%M"));
+  replaced += replaceVar(str, "second", strftime_now("%S"));
+  replaced += replaceVar(str, "wday", strftime_now("%u")); // weekday, 1-7, monday=1
+  replaced += replaceVar(str, "yday", strftime_now("%j")); // yearday, 001-366
+  replaced += replaceVar(str, "week", strftime_now("%V")); // week number, 01-53
+  replaced += replaceVar(str, "stream", streamname);
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));
     std::string strext = streamname.substr(streamname.find('+') + 1);
-    Util::replace(str, "$basename", strbase);
-    Util::replace(str, "$wildcard", strext);
+    replaced += Util::replace(str, "basename", strbase);
+    replaced += Util::replace(str, "wildcard", strext);
     if (strext.size()){
-      Util::replace(str, "$pluswildcard", "+" + strext);
+      replaced += Util::replace(str, "pluswildcard", "+" + strext);
     }else{
-      Util::replace(str, "$pluswildcard", "");
+      replaced += Util::replace(str, "pluswildcard", "");
     }
   }else{
-    Util::replace(str, "$basename", streamname);
-    Util::replace(str, "$wildcard", "");
-    Util::replace(str, "$pluswildcard", "");
+    replaced += Util::replace(str, "basename", streamname);
+    replaced += Util::replace(str, "wildcard", "");
+    replaced += Util::replace(str, "pluswildcard", "");
   }
+  // Continue recursively if we've replaced a variable which exposed another variable to be replaced
+  if (replaced && str.find('$') != std::string::npos){replaced += streamVariables(str, streamName, source, ++depth);}
+  return replaced;
 }
 
 std::string Util::getTmpFolder(){

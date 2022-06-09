@@ -19,6 +19,7 @@
 /*LTS-START*/
 #include "controller_limits.h"
 #include "controller_push.h"
+#include "controller_variables.h"
 #include "controller_updater.h"
 /*LTS-END*/
 
@@ -1197,6 +1198,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("push_settings")){
     Controller::pushSettings(Request["push_settings"], Response["push_settings"]);
   }
+
+  if (Request.isMember("variable_list")){Controller::listCustomVariables(Response["variable_list"]);}
+  if (Request.isMember("variable_add")){Controller::addVariable(Request["variable_add"], Response["variable_list"]);}
+  if (Request.isMember("variable_remove")){Controller::removeVariable(Request["variable_remove"], Response["variable_list"]);}
 
   Controller::writeConfig();
   Controller::configChanged = false;

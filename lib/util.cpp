@@ -150,14 +150,41 @@ namespace Util{
     }
   }
 
-  /// Replaces any occurrences of 'from' with 'to' in 'str'.
-  void replace(std::string &str, const std::string &from, const std::string &to){
-    if (from.empty()){return;}
+  /// Replaces any occurrences of 'from' with 'to' in 'str', returns how many replacements were made
+  size_t replace(std::string &str, const std::string &from, const std::string &to){
+    if (from.empty()){return 0;}
+    size_t counter = 0;
     size_t start_pos = 0;
     while ((start_pos = str.find(from, start_pos)) != std::string::npos){
       str.replace(start_pos, from.length(), to);
+      ++counter;
       start_pos += to.length();
     }
+    return counter;
+  }
+
+  /// \brief Removes whitespace from the beginning and end of a given string
+  void stringTrim(std::string &val){
+    if (!val.size()){ return; }
+    uint64_t startPos = 0;
+    uint64_t length = 0;
+    // Set startPos to the first character which does not have value 09-13
+    for (uint64_t i = 0; i < val.size(); i++){
+      if (val[i] == 32){continue;}
+      if (val[i] < 9 || val[i] > 13){
+        startPos = i;
+        break;
+      }
+    }
+    // Same thing in reverse for endPos
+    for (uint64_t i = val.size() - 1; i > 0 ; i--){
+      if (val[i] == 32){continue;}
+      if (val[i] < 9 || val[i] > 13){
+        length = i + 1 - startPos;
+        break;
+      }
+    }
+    val = val.substr(startPos, length);
   }
 
   //Returns the time to wait in milliseconds for exponential back-off waiting.

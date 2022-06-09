@@ -135,12 +135,12 @@ namespace Mist{
 
     // Populate the struct that will help generate the master playlist
     const HLS::MasterData masterData ={
-        hasSessionIDs(),
+        false,//hasSessionIDs, unused
         noLLHLS,
         hlsMediaFormat == ".ts",
         getMainSelectedTrack(),
         H.GetHeader("User-Agent"),
-        sid,
+        (sidMode & 0x04)?sid:"",
         systemBoot,
         bootMsOffset,
     };
@@ -177,7 +177,7 @@ namespace Mist{
         noLLHLS,
         hlsMediaFormat,
         M.getEncryption(requestTid),
-        sid,
+        (sidMode & 0x04)?sid:"",
         timingTid,
         requestTid,
         M.biggestFragment(timingTid) / 1000,
@@ -238,7 +238,6 @@ namespace Mist{
     if (sid.size()){
       if (sidMode & 0x08){
         const std::string koekjes = H.GetHeader("Cookie");
-        const std::string setkoekjes = H.GetHeader("Set-Cookie");
         std::stringstream cookieHeader;
         cookieHeader << "sid=" << sid << "; Max-Age=" << SESS_TIMEOUT;
         H.SetHeader("Set-Cookie", cookieHeader.str()); 

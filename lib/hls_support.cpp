@@ -274,7 +274,7 @@ namespace HLS{
     if (trackData.mediaFormat == ".ts"){return;}
 
     result << "#EXT-X-MAP:URI=\"" << trackData.urlPrefix << "init" << trackData.mediaFormat;
-    if (trackData.sessionId.size()){result << "?sessId=" << trackData.sessionId;}
+    if (trackData.sessionId.size()){result << "?sid=" << trackData.sessionId;}
     result << "\"\r\n";
   }
 
@@ -327,7 +327,7 @@ namespace HLS{
     result << "?msn=" << fragData.currentFrag;
     result << "&mTrack=" << trackData.timingTrackId;
     result << "&dur=" << fragData.duration;
-    if (trackData.sessionId.size()){result << "&sessId=" << trackData.sessionId;}
+    if (trackData.sessionId.size()){result << "&sid=" << trackData.sessionId;}
     result << "\r\n";
   }
 
@@ -341,7 +341,7 @@ namespace HLS{
     result << "?msn=" << fragData.currentFrag;
     result << "&mTrack=" << trackData.timingTrackId;
     result << "&dur=" << duration;
-    if (trackData.sessionId.size()){result << "&sessId=" << trackData.sessionId;}
+    if (trackData.sessionId.size()){result << "&sid=" << trackData.sessionId;}
     result << "\"";
 
     // NOTE: INDEPENDENT tags, specified ONLY for VIDEO tracks, indicate the first partial fragment
@@ -448,7 +448,7 @@ namespace HLS{
     result << "?msn=" << fragData.currentFrag - 1;
     result << "&mTrack=" << trackData.timingTrackId;
     result << "&dur=" << partDurationMaxMs;
-    if (trackData.sessionId.size()){result << "&sessId=" << trackData.sessionId;}
+    if (trackData.sessionId.size()){result << "&sid=" << trackData.sessionId;}
     result << "\"\r\n";
   }
 
@@ -509,7 +509,7 @@ namespace HLS{
     result << ",NAME=\"" << name << "\",URI=\"" << trackId << "/index.m3u8";
     result << "?mTrack=" << masterData.mainTrack;
     result << "&iMsn=" << iFrag;
-    if (masterData.hasSessId){result << "&sessId=" << masterData.sessId;}
+    if (masterData.sessId.size()){result << "&sessId=" << masterData.sessId;}
     if (masterData.noLLHLS){result << "&llhls=0";}
     result << "\"\r\n";
   }
@@ -529,7 +529,7 @@ namespace HLS{
     result << "/index.m3u8";
     result << "?mTrack=" << masterData.mainTrack;
     result << "&iMsn=" << iFrag;
-    if (masterData.hasSessId){result << "&sessId=" << masterData.sessId;}
+    if (masterData.sessId.size()){result << "&sessId=" << masterData.sessId;}
     if (masterData.noLLHLS){result << "&llhls=0";}
     result << "\r\n";
   }

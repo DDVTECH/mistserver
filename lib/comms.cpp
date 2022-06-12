@@ -23,7 +23,7 @@ namespace Comms{
   }
 
   Comms::~Comms(){
-    if (index != INVALID_RECORD_INDEX){
+    if (index != INVALID_RECORD_INDEX && status){
       setStatus(COMM_STATUS_DISCONNECT | getStatus());
     }
     if (master){

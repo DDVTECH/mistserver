@@ -107,6 +107,9 @@ namespace HTTP{
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());
+        // Close the socket, and clean up the buffer
+        downer.getSocket().close();
+        downer.getSocket().Received().clear();
         if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
@@ -256,6 +259,8 @@ namespace HTTP{
   void URIReader::close(){
     // Close downloader socket if open
     downer.getSocket().close();
+    downer.getSocket().Received().clear();
+    downer.getHTTP().Clean();
     // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);

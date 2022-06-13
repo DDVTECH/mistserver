@@ -87,6 +87,7 @@ namespace HTTP{
     if (!proxied || needSSL){
       if (!getSocket() || link.host != connectedHost || link.getPort() != connectedPort || needSSL != ssl){
         getSocket().close();
+        getSocket().Received().clear();
         connectedHost = link.host;
         connectedPort = link.getPort();
 #ifdef SSL
@@ -102,6 +103,7 @@ namespace HTTP{
     }else{
       if (!getSocket() || proxyUrl.host != connectedHost || proxyUrl.getPort() != connectedPort || needSSL != ssl){
         getSocket().close();
+        getSocket().Received().clear();
         connectedHost = proxyUrl.host;
         connectedPort = proxyUrl.getPort();
         getSocket().open(connectedHost, connectedPort, true);
@@ -195,6 +197,16 @@ namespace HTTP{
         // Data! Check if we can parse it...
         if (H.Read(getSocket())){
           H.headerOnly = false;
+
+          // If the return status code is invalid, close the socket, wipe all buffers, and return false
+          if(!getStatusCode()){
+            H.headerOnly = false;
+            getSocket().close();
+            getSocket().Received().clear();
+            H.Clean();
+            return false;
+          }
+
           if (shouldContinue()){
             if (maxRecursiveDepth == 0){
               FAIL_MSG("Maximum recursion depth reached");

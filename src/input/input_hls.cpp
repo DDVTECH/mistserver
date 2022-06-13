@@ -687,6 +687,11 @@ namespace Mist{
             break; // we have all tracks discovered, next playlist!
           }
         }while (!segDowner.atEnd());
+        if (!segDowner.atEnd()){
+          segDowner.close();
+          tsStream.clear();
+        }
+
         if (prepidCounter < pidCounter){break;}// We're done reading this playlist!
       }
     }

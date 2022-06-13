@@ -125,7 +125,7 @@ def binaries_pipeline(platform):
                     'export CI_PATH="$(realpath ..)"',
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
                     "mkdir -p build/",
-                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
+                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNORIST=yes ..",
                     "make -j $(nproc) && make install",
                 ],
                 "when": TRIGGER_CONDITION,

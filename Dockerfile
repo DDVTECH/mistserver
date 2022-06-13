@@ -47,6 +47,7 @@ RUN mkdir -p build/ \
 	  -DCMAKE_INSTALL_PREFIX=/opt \
 	  -DCMAKE_PREFIX_PATH=/src/compiled \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+		-DNORIST=yes \
 	  .. \
 	&& make -j$(nproc) \
 	&& make install
@@ -67,6 +68,7 @@ RUN mkdir -p build/ \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DBUILD_SHARED_LIBS=yes \
 	  -DCMAKE_C_FLAGS="-fPIC" \
+		-DNORIST=yes \
 	  .. \
 	&& make -j$(nproc) \
 	&& make install

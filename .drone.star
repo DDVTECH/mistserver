@@ -6,7 +6,6 @@ PLATFORMS = [
 ]
 
 DOCKER_BUILDS = {
-    "arch": ["amd64", "arm64"],
     "release": ["static", "shared"],
     "strip": ["true", "false"],
 }
@@ -39,7 +38,7 @@ def get_docker_tags(repo, prefix, branch, commit, debug):
     return ["%s:%s-%s%s" % (repo, prefix, tag, suffix) for tag in tags]
 
 
-def docker_image_pipeline(arch, release, stripped, build_context):
+def docker_image_pipeline(release, stripped, build_context):
     debug = stripped == "false"
     image_tags = get_docker_tags(
         "livepeerci/mistserver",
@@ -50,28 +49,17 @@ def docker_image_pipeline(arch, release, stripped, build_context):
     )
     return {
         "kind": "pipeline",
-        "name": "docker-%s-%s-%s" % (arch, release, "debug" if debug else "strip"),
+        "name": "docker-%s-%s" % (release, "debug" if debug else "strip"),
         "type": "exec",
         "platform": {
             "os": "linux",
-            "arch": arch,
+            "arch": "amd64",
         },
         "node": {
             "os": "linux",
-            "arch": arch,
+            "arch": "amd64",
         },
         "steps": [
-            {
-                "name": "build",
-                "commands": [
-                    "docker buildx build --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} .".format(
-                        release,
-                        stripped,
-                        " --tag ".join(image_tags),
-                    ),
-                ],
-                "when": TRIGGER_CONDITION,
-            },
             {
                 "name": "login",
                 "commands": [
@@ -84,16 +72,21 @@ def docker_image_pipeline(arch, release, stripped, build_context):
                 "when": TRIGGER_CONDITION,
             },
             {
-                "name": "push",
-                "commands": ["docker push %s" % (tag,) for tag in image_tags],
+                "name": "build",
+                "commands": [
+                    "docker buildx build --platform linux/arm64,linux/amd64 --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
+                        release,
+                        stripped,
+                        " --tag ".join(image_tags),
+                    ),
+                ],
                 "when": TRIGGER_CONDITION,
             },
         ],
     }
 
 
-def binaries_pipeline(platform, build_context):
-    branch_name = build_context.branch.replace("/", "-")
+def binaries_pipeline(platform):
     return {
         "kind": "pipeline",
         "name": "build-%s-%s" % (platform["os"], platform["arch"]),
@@ -111,8 +104,6 @@ def binaries_pipeline(platform, build_context):
             {
                 "name": "dependencies",
                 "commands": [
-                    "env",
-                    "uname -a",
                     'export CI_PATH="$(realpath ..)"',
                     "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
                     "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
@@ -131,7 +122,7 @@ def binaries_pipeline(platform, build_context):
                     'export CI_PATH="$(realpath ..)"',
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
                     "mkdir -p build/",
-                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH/bin -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
+                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo ..",
                     "make -j $(nproc) && make install",
                 ],
                 "when": TRIGGER_CONDITION,
@@ -140,7 +131,7 @@ def binaries_pipeline(platform, build_context):
                 "name": "compress",
                 "commands": [
                     'export CI_PATH="$(realpath ..)"',
-                    "cd $CI_PATH/bin",
+                    "cd $CI_PATH/bin/",
                     "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
                     % (platform["os"], platform["arch"]),
                 ],
@@ -177,11 +168,10 @@ def main(context):
     if context.build.event == "tag":
         return [{}]
     manifest = [
-        docker_image_pipeline(arch, release, stripped, context.build)
-        for arch in DOCKER_BUILDS["arch"]
+        docker_image_pipeline(release, stripped, context.build)
         for release in DOCKER_BUILDS["release"]
         for stripped in DOCKER_BUILDS["strip"]
     ]
     for platform in PLATFORMS:
-        manifest.append(binaries_pipeline(platform, context.build))
+        manifest.append(binaries_pipeline(platform))
     return manifest

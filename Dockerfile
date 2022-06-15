@@ -38,7 +38,7 @@ FROM	mist-base	as	mist-static-build
 
 WORKDIR	/src
 
-RUN mkdir -p build/ \
+RUN	mkdir -p build/ \
 	&& cd build/ \
 	&& cmake \
 	  -DPERPETUAL=1 \
@@ -47,7 +47,7 @@ RUN mkdir -p build/ \
 	  -DCMAKE_INSTALL_PREFIX=/opt \
 	  -DCMAKE_PREFIX_PATH=/src/compiled \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-		-DNORIST=yes \
+	  -DNORIST=yes \
 	  .. \
 	&& make -j$(nproc) \
 	&& make install
@@ -58,7 +58,7 @@ RUN	if [ "$STRIP_BINARIES" = "true" ]; then strip -s /opt/bin/*; fi
 
 FROM	mist-base	as	mist-shared-build
 
-RUN mkdir -p build/ \
+RUN	mkdir -p build/ \
 	&& cd build/ \
 	&& cmake \
 	  -DPERPETUAL=1 \
@@ -68,7 +68,7 @@ RUN mkdir -p build/ \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DBUILD_SHARED_LIBS=yes \
 	  -DCMAKE_C_FLAGS="-fPIC" \
-		-DNORIST=yes \
+	  -DNORIST=yes \
 	  .. \
 	&& make -j$(nproc) \
 	&& make install
@@ -83,11 +83,13 @@ FROM	ubuntu:20.04	AS	mist
 
 LABEL	maintainer="Amritanshu Varshney <amritanshu+github@livepeer.org>"
 
+ARG	STRIP_BINARIES
+
 ENV	DEBIAN_FRONTEND=noninteractive
 
 # Needed for working TLS
-RUN	apt-get update \
-	&& apt-get install -yqq ca-certificates musl \
+RUN	apt update \
+	&& apt install -yqq ca-certificates musl "$(if [ "$STRIP_BINARIES" != "true" ]; then echo "gdb"; fi)" \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=mist-build	/opt/	/usr/

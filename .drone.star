@@ -75,7 +75,7 @@ def docker_image_pipeline(release, stripped, build_context):
                 "name": "build",
                 "commands": [
                     "docker buildx create --use --name drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
-                    "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes",
+                    "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true",
                     "docker buildx build --platform linux/arm64,linux/amd64 --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
                         release,
                         stripped,

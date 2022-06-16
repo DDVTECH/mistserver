@@ -308,12 +308,12 @@ namespace Mist{
    // @param <idx> trackID of the AAC track
   void inputAAC::seek(uint64_t seekTime, size_t idx){
     DTSC::Keys keys(M.keys(idx));
-    uint32_t keyNum = keys.getNumForTime(seekTime);
+    uint32_t keyIdx = M.getKeyIndexForTime(idx, seekTime);
     // We minus the filePos by one, since we init it 1 higher
-    inFile.seek(keys.getBpos(keyNum)-1);
-    timestamp = keys.getTime(keyNum);
+    inFile.seek(keys.getBpos(keyIdx)-1);
+    timestamp = keys.getTime(keyIdx);
     DONTEVEN_MSG("inputAAC wants to seek to timestamp %li on track %li", seekTime, idx);
-    DONTEVEN_MSG("inputAAC seeked to timestamp %f with bytePos %li", timestamp, keys.getBpos(keyNum)-1);
+    DONTEVEN_MSG("inputAAC seeked to timestamp %f with bytePos %li", timestamp, keys.getBpos(keyIdx)-1);
   }
 }// namespace Mist
 

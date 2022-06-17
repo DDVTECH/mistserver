@@ -6,6 +6,7 @@ PLATFORMS = [
 ]
 
 DOCKER_BUILDS = {
+    "arch": ["amd64", "arm64"],
     "release": ["static", "shared"],
     "strip": ["true", "false"],
 }
@@ -32,32 +33,50 @@ def get_docker_tags(repo, prefix, branch, commit, debug):
         commit,
         commit[:8],
     ]
-    if branch == "catalyst":
+    if branch in ("catalyst", "catalyst-updates", "catalyst-updates-drone"):
         tags.append("latest")
     suffix = "-debug" if debug else ""
     return ["%s:%s-%s%s" % (repo, prefix, tag, suffix) for tag in tags]
 
 
-def docker_image_pipeline(release, stripped, build_context):
+def docker_image_pipeline(arch, release, stripped, context):
+    build_context = context.build
+    commit = build_context.commit
     debug = stripped == "false"
+    temporary_docker_image = "mist-current"
     image_tags = get_docker_tags(
         "livepeerci/mistserver",
         release,
         build_context.branch,
-        build_context.commit,
+        commit,
         debug,
     )
+    manifest_commands = []
+    for tag in image_tags:
+        arch_tag = "%s-%s" % (tag, arch)
+        manifest_commands.append(
+            "docker tag %s %s" % (temporary_docker_image, arch_tag)
+        )
+        manifest_commands.append("docker push %s" % (arch_tag,))
+        manifest_commands.append(
+            "docker manifest create %s --amend %s" % (tag, arch_tag)
+        )
+        manifest_commands.append(
+            "docker manifest annotate --arch %s %s %s" % (arch, tag, arch_tag)
+        )
+        manifest_commands.append("docker manifest push %s" % (tag,))
+
     return {
         "kind": "pipeline",
-        "name": "docker-%s-%s" % (release, "debug" if debug else "strip"),
+        "name": "docker-%s-%s-%s" % (arch, release, "debug" if debug else "strip"),
         "type": "exec",
         "platform": {
             "os": "linux",
-            "arch": "amd64",
+            "arch": arch,
         },
         "node": {
             "os": "linux",
-            "arch": "amd64",
+            "arch": arch,
         },
         "steps": [
             {
@@ -74,15 +93,23 @@ def docker_image_pipeline(release, stripped, build_context):
             {
                 "name": "build",
                 "commands": [
-                    "docker buildx create --use --name drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
-                    "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true",
-                    "docker buildx build --platform linux/arm64,linux/amd64 --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
+                    # "docker buildx create --use --name drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
+                    # "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true",
+                    "docker buildx build --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} .".format(
                         release,
                         stripped,
-                        " --tag ".join(image_tags),
+                        temporary_docker_image,
                     ),
-                    "docker buildx rm drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
+                    # "docker buildx rm drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
                 ],
+                "when": TRIGGER_CONDITION,
+            },
+            {
+                "name": "manifest",
+                "commands": manifest_commands,
+                "environment": {
+                    "DOCKER_CLI_EXPERIMENTAL": "enabled",
+                },
                 "when": TRIGGER_CONDITION,
             },
         ],
@@ -171,7 +198,8 @@ def main(context):
     if context.build.event == "tag":
         return [{}]
     manifest = [
-        docker_image_pipeline(release, stripped, context.build)
+        docker_image_pipeline(arch, release, stripped, context)
+        for arch in DOCKER_BUILDS["arch"]
         for release in DOCKER_BUILDS["release"]
         for stripped in DOCKER_BUILDS["strip"]
     ]

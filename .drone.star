@@ -222,7 +222,7 @@ def binaries_pipeline(platform):
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "%s" "%s" "$(realpath ..)"'
+                    'scripts/upload_build.sh "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
                     % (platform["os"], platform["arch"]),
                 ],
                 "environment": get_environment(
@@ -231,6 +231,71 @@ def binaries_pipeline(platform):
                     "GCLOUD_BUCKET",
                 ),
                 "when": TRIGGER_CONDITION,
+            },
+        ],
+    }
+
+
+def checksum_pipeline(context):
+    build_context = context.build
+    commit = build_context.commit
+    checksum_file = "{}_checksums.txt".format(commit)
+
+    download_commands = [
+        'export CI_PATH="$(realpath ..)"',
+        'mkdir -p "${CI_PATH}/download"',
+        'cd "${CI_PATH}/download"',
+    ]
+    for platform in PLATFORMS:
+        download_commands.append(
+            "wget https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}-{}.tar.gz".format(
+                commit,
+                platform["os"],
+                platform["arch"],
+            )
+        )
+
+    return {
+        "kind": "pipeline",
+        "name": "checksum",
+        "type": "exec",
+        "depends_on": [
+            "build-{}-{}".format(platform["os"], platform["arch"])
+            for platform in PLATFORMS
+        ],
+        "platform": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "node": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "steps": [
+            {
+                "name": "download",
+                "commands": download_commands,
+            },
+            {
+                "name": "checksum",
+                "commands": [
+                    'export CI_PATH="$(realpath ..)"',
+                    'cd "${CI_PATH}/download',
+                    "sha256sum * > {}".format(checksum_file),
+                ],
+            },
+            {
+                "name": "upload",
+                "commands": [
+                    'scripts/upload_build.sh "$(realpath ..)/download" "{}"'.format(
+                        checksum_file,
+                    ),
+                ],
+                "environment": get_environment(
+                    "GCLOUD_KEY",
+                    "GCLOUD_SECRET",
+                    "GCLOUD_BUCKET",
+                ),
             },
         ],
     }
@@ -262,4 +327,5 @@ def main(context):
     ]
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
+    manifest.append(checksum_pipeline(context))
     return manifest

@@ -1,12 +1,10 @@
 #!/bin/bash
 
-PLATFORM="$1"
-ARCH="$2"
-CI_PATH="$3"
-TAR_FILE="livepeer-mistserver-${PLATFORM}-${ARCH}.tar.gz"
+FILE_PATH="$1"
+FILE_NAME="$2"
 
 function main() {
-  cd "${CI_PATH}/bin"
+  cd "${FILE_PATH}"
 
   if [[ "${GCLOUD_KEY:-}" == "" ]]; then
     echo "GCLOUD_KEY not found, not uploading to Google Cloud."
@@ -16,7 +14,7 @@ function main() {
   # https://stackoverflow.com/a/44751929/990590
   BUCKET="${GCLOUD_BUCKET}"
   PROJECT="mistserver"
-  BUCKET_PATH="${PROJECT}/${CI_COMMIT_SHA}/${TAR_FILE}"
+  BUCKET_PATH="${PROJECT}/${CI_COMMIT_SHA}/${FILE_NAME}"
   RESOURCE="/${BUCKET}/${BUCKET_PATH}"
   CONTENT_TYPE="application/x-compressed-tar"
   DATE="$(date -R)"
@@ -31,7 +29,7 @@ function main() {
     exit 0
   fi
 
-  curl -X PUT -T "${TAR_FILE}" \
+  curl -X PUT -T "${FILE_NAME}" \
     -H "Host: storage.googleapis.com" \
     -H "Date: ${DATE}" \
     -H "Content-Type: ${CONTENT_TYPE}" \

@@ -66,12 +66,13 @@ namespace Mist{
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"][0u][1u].append("AAC");
-    timestamp = 0;
+    thisTime = 0;
     // init filePos at 1, else a 15 bit mismatch in expected frame size occurs
     // dtsc.ccp +- line 215
     // (  bpos, if >= 0, adds 9 bytes (integer type) and 6 bytes (2+namelen)  )
     // but at line 224: (packBytePos ? 15 : 0)
     filePos = 1;
+    audioTrack = INVALID_TRACK_ID;
   }
 
   inputAAC::~inputAAC(){}
@@ -177,7 +178,7 @@ namespace Mist{
     
     // Init track info
     meta.reInit(config->getString("streamname"));
-    size_t audioTrack = meta.addTrack();
+    audioTrack = meta.addTrack();
     meta.setID(audioTrack, audioTrack);
     meta.setInit(audioTrack, adtsPack.getInit());
     meta.setType(audioTrack, "audio");
@@ -186,11 +187,11 @@ namespace Mist{
     meta.setChannels(audioTrack, adtsPack.getChannelCount());
  
     // Add current frame info
-    thisPacket.genericFill(timestamp, 0, audioTrack, adtsPack.getPayload(), adtsPack.getPayloadSize(), filePos, false);
+    thisPacket.genericFill(thisTime, 0, audioTrack, adtsPack.getPayload(), adtsPack.getPayloadSize(), filePos, false);
     meta.update(thisPacket);
         
     // Update internal variables
-    timestamp += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
+    thisTime += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
     filePos += frameSize;
     
     // Parse the rest of the ADTS frames
@@ -202,7 +203,7 @@ namespace Mist{
     
     if (!inFile.seek(0))
       ERROR_MSG("Could not seek back to position 0!");
-    timestamp = 0;
+    thisTime = 0;
     M.toFile(config->getString("input") + ".dtsh");
 
     return true;
@@ -211,6 +212,9 @@ namespace Mist{
   // Reads the ADTS frame at the current position then updates thisPacket
   // @param <idx> contains the trackID to which we want to add the ADTS payload
   void inputAAC::getNext(size_t idx){
+    //packets should be initialised to null to ensure termination
+    thisPacket.null();
+
     DONTEVEN_MSG("Parsing next ADTS frame...");
     // Temp variable which points to the urireader buffer so that we can copy this data
     char *aacData;
@@ -227,8 +231,6 @@ namespace Mist{
     // Amount of bytes to subtract from expected payload if the found payload
     // is smaller than the ADTS header specifies
     size_t disregardAmount = 0;
-    //packets should be initialised to null to ensure termination
-    thisPacket.null();
     
     if (!inFile || inFile.isEOF()){
       INFO_MSG("Reached EOF");
@@ -296,10 +298,11 @@ namespace Mist{
       return;
     }
     
-    thisPacket.genericFill(timestamp, 0, idx, adtsPack.getPayload(), adtsPack.getPayloadSize() - disregardAmount, filePos, false);
+    thisIdx = audioTrack;
+    thisPacket.genericFill(thisTime, 0, thisIdx, adtsPack.getPayload(), adtsPack.getPayloadSize() - disregardAmount, filePos, false);
         
     //Update the internal timestamp
-    timestamp += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
+    thisTime += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
     filePos = nextFramePos;
   }
   
@@ -307,13 +310,24 @@ namespace Mist{
    // @param <seekTime> timestamp of the DTSH entry containing required file pos info
    // @param <idx> trackID of the AAC track
   void inputAAC::seek(uint64_t seekTime, size_t idx){
-    DTSC::Keys keys(M.keys(idx));
-    uint32_t keyIdx = M.getKeyIndexForTime(idx, seekTime);
+    if (audioTrack == INVALID_TRACK_ID){
+      std::set<size_t> trks = meta.getValidTracks();
+      if (trks.size()){
+        audioTrack = *(trks.begin());
+      }else{
+        Util::logExitReason("no audio track in header");
+        FAIL_MSG("No audio track in header - aborting");
+        return;
+      }
+    }
+
+    DTSC::Keys keys(M.keys(audioTrack));
+    uint32_t keyIdx = M.getKeyIndexForTime(audioTrack, seekTime);
     // We minus the filePos by one, since we init it 1 higher
     inFile.seek(keys.getBpos(keyIdx)-1);
-    timestamp = keys.getTime(keyIdx);
+    thisTime = keys.getTime(keyIdx);
     DONTEVEN_MSG("inputAAC wants to seek to timestamp %li on track %li", seekTime, idx);
-    DONTEVEN_MSG("inputAAC seeked to timestamp %f with bytePos %li", timestamp, keys.getBpos(keyIdx)-1);
+    DONTEVEN_MSG("inputAAC seeked to timestamp %f with bytePos %li", thisTime, keys.getBpos(keyIdx)-1);
   }
 }// namespace Mist
 

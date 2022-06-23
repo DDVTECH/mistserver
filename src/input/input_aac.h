@@ -19,7 +19,7 @@ namespace Mist{
     bool keepRunning();
     uint64_t lastModTime;
     HTTP::URIReader inFile;
-    double timestamp;
+    size_t audioTrack;
     size_t filePos;
   };
 }// namespace Mist

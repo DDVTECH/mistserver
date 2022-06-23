@@ -246,11 +246,11 @@ def checksum_pipeline(context):
     download_commands = [
         'export CI_PATH="$(realpath ..)"',
         'mkdir -p "${CI_PATH}/download"',
-        'cd "${CI_PATH}/download"',
+        'cd "${CI_PATH}/download" && pwd',
     ]
     for platform in PLATFORMS:
         download_commands.append(
-            "wget https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}-{}.tar.gz".format(
+            "wget -q https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}-{}.tar.gz".format(
                 commit,
                 platform["os"],
                 platform["arch"],
@@ -282,7 +282,7 @@ def checksum_pipeline(context):
             {
                 "name": "checksum",
                 "commands": [
-                    'cd "$(realpath ..)/download"',
+                    'pwd && ls -lha && cd "$(realpath ..)/download"',
                     "sha256sum * > {}".format(checksum_file),
                 ],
                 "when": TRIGGER_CONDITION,

@@ -29,7 +29,7 @@ function main() {
     exit 0
   fi
 
-  curl -X PUT -T "${FILE_NAME}" \
+  curl --silent -X PUT -T "${FILE_NAME}" \
     -H "Host: storage.googleapis.com" \
     -H "Date: ${DATE}" \
     -H "Content-Type: ${CONTENT_TYPE}" \

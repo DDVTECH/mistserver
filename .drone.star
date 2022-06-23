@@ -244,7 +244,7 @@ def checksum_pipeline(context):
     checksum_file = "{}_checksums.txt".format(commit)
 
     download_commands = [
-        'export CI_PATH="$(realpath ..)" && echo $CI_PATH ${CI_PATH}',
+        'export CI_PATH="$(realpath ..)"',
         'mkdir -p "$CI_PATH/download"',
         'cd "$CI_PATH/download" && pwd',
     ]
@@ -282,7 +282,7 @@ def checksum_pipeline(context):
             {
                 "name": "checksum",
                 "commands": [
-                    'pwd && ls -lha && cd "$(realpath ..)/download"',
+                    'cd "$(realpath ..)/download"',
                     "sha256sum * > {}".format(checksum_file),
                 ],
                 "when": TRIGGER_CONDITION,
@@ -318,18 +318,17 @@ def get_context(context):
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    manifest = []
-    # manifest = [
-    #     docker_image_pipeline(arch, release, stripped, context)
-    #     for arch in DOCKER_BUILDS["arch"]
-    #     for release in DOCKER_BUILDS["release"]
-    #     for stripped in DOCKER_BUILDS["strip"]
-    # ]
-    # manifest += [
-    #     docker_manifest_pipeline(release, stripped, context)
-    #     for release in DOCKER_BUILDS["release"]
-    #     for stripped in DOCKER_BUILDS["strip"]
-    # ]
+    manifest = [
+        docker_image_pipeline(arch, release, stripped, context)
+        for arch in DOCKER_BUILDS["arch"]
+        for release in DOCKER_BUILDS["release"]
+        for stripped in DOCKER_BUILDS["strip"]
+    ]
+    manifest += [
+        docker_manifest_pipeline(release, stripped, context)
+        for release in DOCKER_BUILDS["release"]
+        for stripped in DOCKER_BUILDS["strip"]
+    ]
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
     manifest.append(checksum_pipeline(context))

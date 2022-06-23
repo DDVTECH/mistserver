@@ -282,8 +282,7 @@ def checksum_pipeline(context):
             {
                 "name": "checksum",
                 "commands": [
-                    'export CI_PATH="$(realpath ..)"',
-                    'cd "${CI_PATH}/download',
+                    'cd "$(realpath ..)/download"',
                     "sha256sum * > {}".format(checksum_file),
                 ],
                 "when": TRIGGER_CONDITION,

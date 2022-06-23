@@ -277,6 +277,7 @@ def checksum_pipeline(context):
             {
                 "name": "download",
                 "commands": download_commands,
+                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "checksum",
@@ -285,6 +286,7 @@ def checksum_pipeline(context):
                     'cd "${CI_PATH}/download',
                     "sha256sum * > {}".format(checksum_file),
                 ],
+                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
@@ -298,6 +300,7 @@ def checksum_pipeline(context):
                     "GCLOUD_SECRET",
                     "GCLOUD_BUCKET",
                 ),
+                "when": TRIGGER_CONDITION,
             },
         ],
     }

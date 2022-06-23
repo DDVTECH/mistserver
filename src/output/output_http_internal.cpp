@@ -1077,7 +1077,7 @@ namespace Mist{
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/javascript");
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (headersOnly){
         H.SendResponse("200", "OK", myConn);
         H.Clean();
         return;

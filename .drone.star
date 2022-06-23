@@ -169,6 +169,18 @@ def docker_manifest_pipeline(release, stripped, context):
 
 
 def binaries_pipeline(platform):
+    dependency_setup_commands = [
+        'export CI_PATH="$(realpath ..)"',
+        "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
+        "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
+        "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
+        "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
+        "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
+        'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
+        "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install VERBOSE=1",
+        "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DUSE_ENCLIB=mbedtls -DENABLE_SHARED=false .. && make -j $(nproc) install",
+    ]
+
     return {
         "kind": "pipeline",
         "name": "build-%s-%s" % (platform["os"], platform["arch"]),
@@ -185,17 +197,7 @@ def binaries_pipeline(platform):
         "steps": [
             {
                 "name": "dependencies",
-                "commands": [
-                    'export CI_PATH="$(realpath ..)"',
-                    "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
-                    "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
-                    "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
-                    "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
-                    "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",
-                    'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
-                    "cd $CI_PATH/mbedtls/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install VERBOSE=1",
-                    "cd $CI_PATH/srt/build/ && cmake -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DUSE_ENCLIB=mbedtls -DENABLE_SHARED=false .. && make -j $(nproc) install",
-                ],
+                "commands": dependency_setup_commands,
                 "when": TRIGGER_CONDITION,
             },
             {

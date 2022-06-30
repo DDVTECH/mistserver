@@ -241,6 +241,7 @@ namespace Mist{
     }
     // If we are here: we have a proper connection (either accepted or pull input) and should start parsing it as such
     Input::streamMainLoop();
+    srtConn.close();
   }
 
   bool inputTSSRT::needsLock(){return false;}

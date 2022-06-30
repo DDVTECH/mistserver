@@ -725,9 +725,14 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
     _exit(42);
   }
 
+  {
+    JSON::Value prePid = getpid();
+    setenv("PARENT_PID", prePid.asString().c_str(), 1);
+  }
   int fdErr = STDERR_FILENO;
   pid_t pid = Util::Procs::StartPiped(args, 0, 0, &fdErr);
   if (!hadOriginal){unsetenv("MIST_ORIGINAL_SOURCE");}
+  unsetenv("PARENT_PID");
   if (!pid) {
     FAIL_MSG("Starting process for stream %s failed: %s", streamname.c_str(), strerror(errno));
     return false;

@@ -572,6 +572,13 @@ namespace Mist{
 #endif
 
     setenv("HOLY_CHILD", playerLock ? "1" : "0", 1);
+
+    std::string ppid;
+    if (getenv("PARENT_PID")) {
+      ppid = getenv("PARENT_PID");
+      unsetenv("PARENT_PID");
+    }
+
     while (config->is_active){
       pid_t pid = Util::Procs::StartPiped(argv);
       if (!pid) {
@@ -587,7 +594,7 @@ namespace Mist{
       int status;
       bool wasClean = false;
       while (true){
-        pid_t ret = waitpid(pid, &status, 0);
+        pid_t ret = waitpid(pid, &status, WNOHANG);
         // Stop the loop if our process exited, or we have a non-interruption error
         if (ret && (ret == pid || errno != EINTR)){
           if (ret < 0){
@@ -609,7 +616,17 @@ namespace Mist{
           INFO_MSG("Shutting down input for stream %s because of signal interrupt...", streamName.c_str());
           Util::Procs::Stop(pid);
         }
-        continue;
+        if (ppid.size() && config->getString("input").find("push://INTERNAL") != std::string::npos) {
+          JSON::Value parPid = ppid;
+          if (getppid() != parPid.asInt()) {
+            size_t currPPid = getppid();
+            WARN_MSG("Shutting down: parent PID changed from %s to %zu", ppid.c_str(), currPPid);
+            Util::logExitReason("parent PID changed from %s to %zu", ppid.c_str(), currPPid);
+            config->is_active = false;
+            kill(pid, SIGINT);
+          }
+        }
+        if (!ret) { Util::sleep(500); }
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
@@ -987,6 +1004,24 @@ namespace Mist{
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
     bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < inputTimeout);
+
+    if (!ret && config->is_active && isAlwaysOn()) {
+      ret = true;
+      activityCounter = Util::bootSecs();
+    }
+    if (config->getString("input").find("push://INTERNAL") != std::string::npos) {
+      char *ppid = getenv("PARENT_PID");
+      if (ppid) {
+        JSON::Value parPid = (std::string)ppid;
+        if (getppid() != parPid.asInt()) {
+          size_t currPPid = getppid();
+          WARN_MSG("Shutting down: parent PID changed from %s to %zu", ppid, currPPid);
+          Util::logExitReason("parent PID changed from %s to %zu", ppid, currPPid);
+          config->is_active = false;
+          return false;
+        }
+      }
+    }
     /*LTS-START*/
     if (!ret){
       if (Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){

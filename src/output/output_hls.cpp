@@ -233,6 +233,9 @@ namespace Mist{
   void OutHLS::onHTTP(){
     initialize();
     bootMsOffset = 0;
+    HTTP::Parser request = H;
+    H.Clean();
+
     if (M.getLive()){bootMsOffset = M.getBootMsOffset();}
 
     if (sid.size()){
@@ -244,11 +247,11 @@ namespace Mist{
       }
     }
 
-    if (H.url == "/crossdomain.xml"){
+    if (request.url == "/crossdomain.xml"){
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
-      if (H.method == "OPTIONS" || H.method == "HEAD"){
+      if (request.method == "OPTIONS" || request.method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         return;
@@ -262,8 +265,8 @@ namespace Mist{
       return;
     }// crossdomain.xml
 
-    if (H.method == "OPTIONS"){
-      bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
+    if (request.method == "OPTIONS"){
+      bool isTS = (HTTP::URL(request.url).getExt().substr(0, 3) != "m3u");
       H.setCORSHeaders();
       if (isTS){
         H.SetHeader("Content-Type", "video/mp2t");
@@ -286,12 +289,12 @@ namespace Mist{
       return;
     }
 
-    if (H.url.find("hls") == std::string::npos){
+    if (request.url.find("hls") == std::string::npos){
       onFail("HLS handler active, but this is not a HLS URL. Eh... What...?");
       return;
     }
 
-    std::string userAgent = H.GetHeader("User-Agent");
+    std::string userAgent = request.GetHeader("User-Agent");
     bool VLCworkaround = false;
     if (userAgent.substr(0, 3) == "VLC"){
       std::string vlcver = userAgent.substr(4);
@@ -304,12 +307,12 @@ namespace Mist{
     initialize();
     if (!keepGoing()){return;}
 
-    if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
-      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
-      std::string url = H.url.substr(H.url.find('/', 5) + 1); // Strip /hls/<streamname>/ from url
-      const uint64_t msn = atoll(H.GetVar("msn").c_str());
-      const uint64_t dur = atoll(H.GetVar("dur").c_str());
-      const uint64_t mTrack = atoll(H.GetVar("mTrack").c_str());
+    if (HTTP::URL(request.url).getExt().substr(0, 3) != "m3u"){
+      std::string tmpStr = request.getUrl().substr(5 + streamName.size());
+      std::string url = request.url.substr(request.url.find('/', 5) + 1); // Strip /hls/<streamname>/ from url
+      const uint64_t msn = atoll(request.GetVar("msn").c_str());
+      const uint64_t dur = atoll(request.GetVar("dur").c_str());
+      const uint64_t mTrack = atoll(request.GetVar("mTrack").c_str());
       size_t idx = atoll(url.c_str());
 
       if (url.find(hlsMediaFormat) == std::string::npos){
@@ -416,7 +419,7 @@ namespace Mist{
         return;
       }
 
-      H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
+      H.StartResponse(request, myConn, VLCworkaround || config->getBool("nonchunked"));
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
       contPAT = fragmentIndex; // PAT continuity counter
@@ -436,13 +439,13 @@ namespace Mist{
         H.SendResponse("404", "Not online or found", myConn);
         return;
       }
-      if (H.method == "OPTIONS" || H.method == "HEAD"){
+      if (request.method == "OPTIONS" || request.method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         return;
       }
 
       // Strip /hls/<streamname>/ from url
-      std::string url = H.url.substr(H.url.find('/', 5) + 1);
+      std::string url = request.url.substr(request.url.find('/', 5) + 1);
       sendHlsManifest(url);
       responded = true;
     }

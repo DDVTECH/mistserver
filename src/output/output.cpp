@@ -2050,7 +2050,7 @@ namespace Mist{
         INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
         while (streamStatus != STRMSTAT_OFF && keepGoing()){
           userSelect.clear();
-          Util::wait(1000);
+          Util::wait(250);
           streamStatus = Util::getStreamStatus(streamName);
         }
         reconnect();
@@ -2059,13 +2059,14 @@ namespace Mist{
     while (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){
       INFO_MSG("Waiting for %s buffer to be ready... (%u)", streamName.c_str(), streamStatus);
       disconnect();
-      Util::wait(1000);
       streamStatus = Util::getStreamStatus(streamName);
       if (streamStatus == STRMSTAT_OFF || streamStatus == STRMSTAT_WAIT || streamStatus == STRMSTAT_READY){
         INFO_MSG("Reconnecting to %s buffer... (%u)", streamName.c_str(), streamStatus);
-        Util::wait(500);
         reconnect();
         streamStatus = Util::getStreamStatus(streamName);
+      }
+      if (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){
+        Util::wait(100);
       }
     }
     if (streamStatus == STRMSTAT_READY || streamStatus == STRMSTAT_WAIT){reconnect();}

@@ -19,6 +19,7 @@
 #endif
 #include <stdlib.h>
 #include <sys/resource.h>
+#include "triggers.h"
 
 #define RAXHDR_FIELDOFFSET p[1]
 #define RAX_REQDFIELDS_LEN 36

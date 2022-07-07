@@ -11,25 +11,30 @@ if release.contains('DEFAULT')
 endif
 release = release.strip()
 
-# Grab version number from git, if available
-# Falls back to a file called "VERSION" or the string "Unknown" otherwise
+# Grab version number from git, if available. Falls back to a file
+# called "BUILD_VERSION" or "VERSION" or the string "Unknown"
+# otherwise
 git = find_program('git', required: false)
 if git.found()
   rv = run_command(git, 'describe', check: false)
   version = rv.stdout().strip()
   if rv.returncode() != 0
-    fs = import('fs') 
-    if fs.is_file('VERSION')
+    fs = import('fs')
+    if fs.is_file('BUILD_VERSION')
+      version = fs.read('BUILD_VERSION').strip()
+    elif fs.is_file('VERSION')
       version = fs.read('VERSION').strip()
-    else 
+    else
       version = 'Unknown'
     endif
   endif
 else
-  fs = import('fs') 
-  if fs.is_file('VERSION')
+  fs = import('fs')
+  if fs.is_file('BUILD_VERSION')
+    version = fs.read('BUILD_VERSION').strip()
+  elif fs.is_file('VERSION')
     version = fs.read('VERSION').strip()
-  else 
+  else
     version = 'Unknown'
   endif
 endif
@@ -198,4 +203,3 @@ if doxygen.found()
   })
   run_target('docs', command: [doxygen, doxyfile])
 endif
-

@@ -1,6 +1,8 @@
 MistServer
 ==========
 
+[![Build Status](https://drone.livepeer.fish/api/badges/DDVTECH/mistserver/status.svg?ref=refs/heads/catalyst)](https://drone.livepeer.fish/DDVTECH/mistserver)
+
 MistServer is an open source, public domain, full-featured, next-generation streaming media toolkit for OTT (internet streaming), designed to be ideal for developers and system integrators.
 
 For full documentation, tutorials, guides and assistance, please look on our website at: https://mistserver.org

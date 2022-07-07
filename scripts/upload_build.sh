@@ -11,10 +11,14 @@ function main() {
     exit 0
   fi
 
+  if [[ "${CI_COMMIT_SHA:-}" != "" ]]; then
+    CI_COMMIT_SHA="$CI_COMMIT_SHA/"
+  fi
+
   # https://stackoverflow.com/a/44751929/990590
   BUCKET="${GCLOUD_BUCKET}"
   PROJECT="mistserver"
-  BUCKET_PATH="${PROJECT}/${CI_COMMIT_SHA}/${FILE_NAME}"
+  BUCKET_PATH="${PROJECT}/${CI_COMMIT_SHA}${FILE_NAME}"
   RESOURCE="/${BUCKET}/${BUCKET_PATH}"
   CONTENT_TYPE="application/x-compressed-tar"
   DATE="$(date -R)"

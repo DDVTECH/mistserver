@@ -303,10 +303,7 @@ def checksum_pipeline(context):
             },
         ],
     }
-        # "depends_on": [
-        #     "build-{}-{}".format(platform["os"], platform["arch"])
-        #     for platform in PLATFORMS
-        # ],
+
 def manifest_pipeline(context):
     clean_branch = context.build.branch.replace("/", "-")
 
@@ -322,9 +319,9 @@ def manifest_pipeline(context):
         "kind": "pipeline",
         "name": "manifest",
         "type": "exec",
-        # "depends_on": [
-        #     "checksum"
-        # ],
+        "depends_on": [
+            "checksum"
+        ],
         "platform": {
             "os": "linux",
             "arch": "amd64",
@@ -371,19 +368,19 @@ def get_context(context):
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    return [manifest_pipeline(context)]
-    # manifest = [
-    #     docker_image_pipeline(arch, release, stripped, context)
-    #     for arch in DOCKER_BUILDS["arch"]
-    #     for release in DOCKER_BUILDS["release"]
-    #     for stripped in DOCKER_BUILDS["strip"]
-    # ]
-    # manifest += [
-    #     docker_manifest_pipeline(release, stripped, context)
-    #     for release in DOCKER_BUILDS["release"]
-    #     for stripped in DOCKER_BUILDS["strip"]
-    # ]
-    # for platform in PLATFORMS:
-    #     manifest.append(binaries_pipeline(platform))
-    # manifest.append(checksum_pipeline(context))
-    # return manifest
+    manifest = [
+        docker_image_pipeline(arch, release, stripped, context)
+        for arch in DOCKER_BUILDS["arch"]
+        for release in DOCKER_BUILDS["release"]
+        for stripped in DOCKER_BUILDS["strip"]
+    ]
+    manifest += [
+        docker_manifest_pipeline(release, stripped, context)
+        for release in DOCKER_BUILDS["release"]
+        for stripped in DOCKER_BUILDS["strip"]
+    ]
+    for platform in PLATFORMS:
+        manifest.append(binaries_pipeline(platform))
+    manifest.append(checksum_pipeline(context))
+    manifest.append(manifest_pipeline(context))
+    return manifest

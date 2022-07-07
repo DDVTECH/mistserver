@@ -310,6 +310,14 @@ def checksum_pipeline(context):
 def manifest_pipeline(context):
     clean_branch = context.build.branch.replace("/", "-")
 
+    builds = {}
+    for platform in PLATFORMS:
+        key = "{}-{}".format(platform["os"], platform["arch"])
+        url = "https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}.tar.gz".format(context.build.commit, key)
+        builds[key] = url
+
+    output = {"builds": builds}
+
     return {
         "kind": "pipeline",
         "name": "manifest",
@@ -329,24 +337,24 @@ def manifest_pipeline(context):
             {
                 "name": "manifest",
                 "commands": [
-                    'echo {}'.format(json.encode(context.build))
+                    'echo {} > $(realpath ..)/{}.json'.format(output, clean_branch)
                 ],
                 "when": TRIGGER_CONDITION,
             },
-            # {
-            #     "name": "upload",
-            #     "commands": [
-            #         'scripts/upload_build.sh "$(realpath ..)/download" "{}"'.format(
-            #             checksum_file,
-            #         ),
-            #     ],
-            #     "environment": get_environment(
-            #         "GCLOUD_KEY",
-            #         "GCLOUD_SECRET",
-            #         "GCLOUD_BUCKET",
-            #     ),
-            #     "when": TRIGGER_CONDITION,
-            # },
+            {
+                "name": "upload",
+                "commands": [
+                    'CI_COMMIT_SHA="" scripts/upload_build.sh "$(realpath ..)" "{}.json"'.format(
+                        clean_branch
+                    ),
+                ],
+                "environment": get_environment(
+                    "GCLOUD_KEY",
+                    "GCLOUD_SECRET",
+                    "GCLOUD_BUCKET",
+                ),
+                "when": TRIGGER_CONDITION,
+            },
         ],
     }
 

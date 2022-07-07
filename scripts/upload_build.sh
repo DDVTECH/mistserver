@@ -27,10 +27,12 @@ function main() {
   SIGNATURE="$(echo -en ${stringToSign} | openssl sha1 -hmac "${GCLOUD_SECRET}" -binary | base64)"
   FULL_URL="https://storage.googleapis.com${RESOURCE}"
 
-  # Failsafe - don't overwrite existing uploads!
-  if curl --head --fail "${FULL_URL}" 2>/dev/null; then
-    echo "${FULL_URL} already exists, not overwriting!"
-    exit 0
+  if [[ "${CLOBBER:-}" != "true" ]]; then
+    # Failsafe - don't overwrite existing uploads!
+    if curl --head --fail "${FULL_URL}" 2>/dev/null; then
+      echo "${FULL_URL} already exists, not overwriting!"
+      exit 1
+    fi
   fi
 
   curl --silent -X PUT -T "${FILE_NAME}" \

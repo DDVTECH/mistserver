@@ -341,7 +341,7 @@ def manifest_pipeline(context):
             {
                 "name": "upload",
                 "commands": [
-                    'CI_COMMIT_SHA="" scripts/upload_build.sh "$(realpath ..)" "{}.json"'.format(
+                    'CI_COMMIT_SHA="" CLOBBER="true" scripts/upload_build.sh "$(realpath ..)" "{}.json"'.format(
                         clean_branch
                     ),
                 ],

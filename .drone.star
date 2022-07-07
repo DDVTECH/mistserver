@@ -337,7 +337,7 @@ def manifest_pipeline(context):
             {
                 "name": "manifest",
                 "commands": [
-                    'echo {} > $(realpath ..)/{}.json'.format(output, clean_branch)
+                    "echo '{}' > $(realpath ..)/{}.json".format(output, clean_branch)
                 ],
                 "when": TRIGGER_CONDITION,
             },

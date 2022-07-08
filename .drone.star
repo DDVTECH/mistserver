@@ -224,7 +224,7 @@ def binaries_pipeline(platform):
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
+                    'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
                     % (platform["os"], platform["arch"]),
                 ],
                 "environment": get_environment(
@@ -290,7 +290,7 @@ def checksum_pipeline(context):
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "$(realpath ..)/download" "{}"'.format(
+                    'scripts/upload_build.sh -d "$(realpath ..)/download" "{}"'.format(
                         checksum_file,
                     ),
                 ],
@@ -304,24 +304,25 @@ def checksum_pipeline(context):
         ],
     }
 
+
 def manifest_pipeline(context):
     clean_branch = context.build.branch.replace("/", "-")
 
     builds = {}
     for platform in PLATFORMS:
         key = "{}-{}".format(platform["os"], platform["arch"])
-        url = "https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}.tar.gz".format(context.build.commit, key)
+        url = "https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}.tar.gz".format(
+            context.build.commit, key
+        )
         builds[key] = url
 
-    output = {"builds": builds}
+    output_manifest = {"builds": builds}
 
     return {
         "kind": "pipeline",
         "name": "manifest",
         "type": "exec",
-        "depends_on": [
-            "checksum"
-        ],
+        # "depends_on": ["checksum"],
         "platform": {
             "os": "linux",
             "arch": "amd64",
@@ -334,15 +335,18 @@ def manifest_pipeline(context):
             {
                 "name": "manifest",
                 "commands": [
-                    "echo '{}' > $(realpath ..)/{}.json".format(output, clean_branch)
+                    "echo '{}' > \"$(realpath ..)/{}.json\"".format(
+                        output_manifest,
+                        clean_branch,
+                    )
                 ],
                 "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
                 "commands": [
-                    'CI_COMMIT_SHA="" CLOBBER="true" scripts/upload_build.sh "$(realpath ..)" "{}.json"'.format(
-                        clean_branch
+                    'scripts/upload_build.sh -f -r -d "$(realpath ..)" "{}.json"'.format(
+                        clean_branch,
                     ),
                 ],
                 "environment": get_environment(
@@ -354,6 +358,7 @@ def manifest_pipeline(context):
             },
         ],
     }
+
 
 def get_context(context):
     """Template pipeline to get information about build context."""
@@ -368,19 +373,20 @@ def get_context(context):
 def main(context):
     if context.build.event == "tag":
         return [{}]
-    manifest = [
-        docker_image_pipeline(arch, release, stripped, context)
-        for arch in DOCKER_BUILDS["arch"]
-        for release in DOCKER_BUILDS["release"]
-        for stripped in DOCKER_BUILDS["strip"]
-    ]
-    manifest += [
-        docker_manifest_pipeline(release, stripped, context)
-        for release in DOCKER_BUILDS["release"]
-        for stripped in DOCKER_BUILDS["strip"]
-    ]
-    for platform in PLATFORMS:
-        manifest.append(binaries_pipeline(platform))
-    manifest.append(checksum_pipeline(context))
-    manifest.append(manifest_pipeline(context))
-    return manifest
+    return [manifest_pipeline(context)]
+    # manifest = [
+    #     docker_image_pipeline(arch, release, stripped, context)
+    #     for arch in DOCKER_BUILDS["arch"]
+    #     for release in DOCKER_BUILDS["release"]
+    #     for stripped in DOCKER_BUILDS["strip"]
+    # ]
+    # manifest += [
+    #     docker_manifest_pipeline(release, stripped, context)
+    #     for release in DOCKER_BUILDS["release"]
+    #     for stripped in DOCKER_BUILDS["strip"]
+    # ]
+    # for platform in PLATFORMS:
+    #     manifest.append(binaries_pipeline(platform))
+    # manifest.append(checksum_pipeline(context))
+    # manifest.append(manifest_pipeline(context))
+    # return manifest

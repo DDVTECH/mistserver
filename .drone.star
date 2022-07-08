@@ -316,7 +316,12 @@ def manifest_pipeline(context):
         )
         builds[key] = url
 
-    output_manifest = {"builds": builds}
+    output_manifest = {
+        "builds": builds,
+        "commit": context.build.commit,
+        "ref": context.build.ref,
+        "branch": context.build.branch,
+    }
 
     return {
         "kind": "pipeline",

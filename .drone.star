@@ -224,7 +224,7 @@ def binaries_pipeline(platform):
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
+                    'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
                     % (platform["os"], platform["arch"]),
                 ],
                 "environment": get_environment(
@@ -290,8 +290,68 @@ def checksum_pipeline(context):
             {
                 "name": "upload",
                 "commands": [
-                    'scripts/upload_build.sh "$(realpath ..)/download" "{}"'.format(
+                    'scripts/upload_build.sh -d "$(realpath ..)/download" "{}"'.format(
                         checksum_file,
+                    ),
+                ],
+                "environment": get_environment(
+                    "GCLOUD_KEY",
+                    "GCLOUD_SECRET",
+                    "GCLOUD_BUCKET",
+                ),
+                "when": TRIGGER_CONDITION,
+            },
+        ],
+    }
+
+
+def manifest_pipeline(context):
+    clean_branch = context.build.branch.replace("/", "-")
+
+    builds = {}
+    for platform in PLATFORMS:
+        key = "{}-{}".format(platform["os"], platform["arch"])
+        url = "https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}.tar.gz".format(
+            context.build.commit, key
+        )
+        builds[key] = url
+
+    output_manifest = {
+        "builds": builds,
+        "commit": context.build.commit,
+        "ref": context.build.ref,
+        "branch": context.build.branch,
+    }
+
+    return {
+        "kind": "pipeline",
+        "name": "manifest",
+        "type": "exec",
+        "depends_on": ["checksum"],
+        "platform": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "node": {
+            "os": "linux",
+            "arch": "amd64",
+        },
+        "steps": [
+            {
+                "name": "manifest",
+                "commands": [
+                    "echo '{}' > \"$(realpath ..)/{}.json\"".format(
+                        output_manifest,
+                        clean_branch,
+                    )
+                ],
+                "when": TRIGGER_CONDITION,
+            },
+            {
+                "name": "upload",
+                "commands": [
+                    'scripts/upload_build.sh -f -r -d "$(realpath ..)" "{}.json"'.format(
+                        clean_branch,
                     ),
                 ],
                 "environment": get_environment(
@@ -332,4 +392,5 @@ def main(context):
     for platform in PLATFORMS:
         manifest.append(binaries_pipeline(platform))
     manifest.append(checksum_pipeline(context))
+    manifest.append(manifest_pipeline(context))
     return manifest

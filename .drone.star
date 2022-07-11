@@ -85,7 +85,7 @@ def docker_image_pipeline(arch, release, stripped, context):
                 "commands": [
                     # "docker buildx create --use --name drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
                     # "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true",
-                    "docker buildx build --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
+                    "docker buildx build --progress=plain --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
                         release,
                         stripped,
                         " --tag ".join(image_tags),
@@ -170,6 +170,7 @@ def docker_manifest_pipeline(release, stripped, context):
 
 def binaries_pipeline(platform):
     dependency_setup_commands = [
+        'set -e',
         'export CI_PATH="$(realpath ..)"',
         "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
         "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",

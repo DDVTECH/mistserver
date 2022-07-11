@@ -170,6 +170,7 @@ def docker_manifest_pipeline(release, stripped, context):
 
 def binaries_pipeline(platform):
     dependency_setup_commands = [
+        'set -e',
         'export CI_PATH="$(realpath ..)"',
         "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
         "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",

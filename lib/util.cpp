@@ -446,7 +446,15 @@ namespace Util{
     hdrOffset = (uint16_t*)(p+26);
     hdrEndPos = (uint64_t*)(p+28);
     if (waitReady){
-      while (!isReady()){Util::sleep(50);}
+      uint64_t maxWait = Util::bootMS() + 10000;
+      while (!isReady()){
+        if (Util::bootMS() > maxWait){
+          FAIL_MSG("Waiting for RelAccX structure to be ready timed out, aborting");
+          p = 0;
+          return;
+        }
+        Util::sleep(50);
+      }
     }
     if (isReady()){
       uint16_t offset = RAXHDR_FIELDOFFSET;

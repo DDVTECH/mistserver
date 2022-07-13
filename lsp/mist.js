@@ -258,12 +258,8 @@ var UI = {
           Embed: {}
         }
       },
-      Push: {
-        LTSonly: true
-      },
-      'Triggers': {
-        LTSonly: false
-      },
+      Push: {},
+      Triggers: {},
       Logs: {},
       Statistics: {},
       'Server Stats': {}
@@ -300,9 +296,6 @@ var UI = {
       );
       for (var k in button.classes) {
         $button.addClass(button.classes[k]);
-      }
-      if ('LTSonly' in button) {
-        $button.addClass('LTSonly');
       }
       if ('link' in button) {
         $button.attr('href',button.link).attr('target','_blank');
@@ -599,7 +592,7 @@ var UI = {
           $field = $('<div>').addClass('radioselect');
           for (var i in e.radioselect) {
             var $radio = $('<input>').attr('type','radio').val(e.radioselect[i][0]).attr('name',e.label);
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+            if (e.readonly) {
               $radio.prop('disabled',true);
             }
             var $label = $('<label>').append(
@@ -613,7 +606,7 @@ var UI = {
                 $(this).parent().find('input[type=radio]:enabled').prop('checked','true');
               });
               $label.append($select);
-              if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+              if (e.readonly) {
                 $select.prop('disabled',true);
               }
               for (var j in e.radioselect[i][2]) {
@@ -660,10 +653,6 @@ var UI = {
           $field.append($select);
           $select.data("input",false);
           
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            $select.prop('disabled',true);
-          }
-          
           for (var i in e.selectinput) {
             var $option = $("<option>");
             $select.append($option);
@@ -700,7 +689,7 @@ var UI = {
           $field = $('<div>').addClass('inputlist');
           var newitem = function(){
             var $part = $("<input>").attr("type","text").addClass("listitem");
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+            if (e.readonly) {
               $part.prop('disabled',true);
             }
             var keyup = function(e){
@@ -956,10 +945,6 @@ var UI = {
       if ('rows' in e) {
         $field.attr('rows',e.rows);
       }
-      if (('LTSonly' in e) && (!mist.data.LTS)) {
-        $fc.addClass('LTSonly');
-        $field.prop('disabled',true);
-      }
       if ("dependent" in e) {
         for (var i in e.dependent) {
           $e.attr("data-dependent-"+i,e.dependent[i]);
@@ -1143,10 +1128,6 @@ var UI = {
             }
             subUI.field.trigger('change');
           });
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            subUI.blackwhite.prop('disabled',true);
-            subUI.prototype.prop('disabled',true);
-          }
           subUI.values.append(subUI.prototype.clone(true));
           $fc.data('subUI',subUI).addClass('limit_list').append(subUI.blackwhite).append(subUI.values);
           break;
@@ -2427,8 +2408,7 @@ var UI = {
           },{
             type: 'span',
             label: 'Version check',
-            value: $versioncheck,
-            LTSonly: true
+            value: $versioncheck
           },{
             type: 'span',
             label: 'Server time',
@@ -2436,13 +2416,11 @@ var UI = {
           },{
             type: 'span',
             label: 'Licensed to',
-            value: ("license" in mist.data.config ? mist.data.config.license.user : ""),
-            LTSonly: true
+            value: ("license" in mist.data.config ? mist.data.config.license.user : "")
           },{
             type: 'span',
             label: 'Active licenses',
-            value: $activeproducts,
-            LTSonly: true
+            value: $activeproducts
           },{
             type: 'span',
             label: 'Configured streams',
@@ -2782,16 +2760,14 @@ var UI = {
               ["LOG","Log to MistServer log"],
               [{
                 type:"str",
-                label:"Path",
-                LTSonly: true
+                label:"Path"
               },"Log to file"]
             ],
             pointer: {
               main: s,
               index: "accesslog"
             },
-            help: "Enable access logs.",
-            LTSonly: true
+            help: "Enable access logs."
           },{
             type: "selectinput",
             label: "Prometheus stats output",
@@ -2799,16 +2775,14 @@ var UI = {
               ["","Disabled"],
               [{
                 type: "str",
-                label:"Passphrase",
-                LTSonly: true
+                label:"Passphrase"
               },"Enabled"]
             ],
             pointer: {
               main: s,
               index: "prometheus"
             },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
-            LTSonly: true
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json."
           },{
             type: "str",
             validate: ['streamname_with_wildcard_and_variables'],
@@ -2817,8 +2791,7 @@ var UI = {
               main: s,
               index: "defaultStream"
             },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
-            LTSonly: true
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name."
           },
           $("<h3>").text("Sessions"),
           {
@@ -2909,7 +2882,6 @@ var UI = {
             type: "inputlist",
             label: "Trusted proxies",
             help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            LTSonly: true,
             pointer: {
               main: s,
               index: "trustedproxy"
@@ -2935,8 +2907,7 @@ var UI = {
               main: b,
               index: "limit"
             },
-            help: "This is the amount of traffic this server is willing to handle.",
-            LTSonly: true
+            help: "This is the amount of traffic this server is willing to handle."
           },{
             type: "inputlist",
             label: "Bandwidth exceptions",
@@ -2944,8 +2915,7 @@ var UI = {
               main: b,
               index: "exceptions"
             },
-            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
-            LTSonly: true
+            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>"
           },{
             type: "int",
             step: 0.00000001,
@@ -2954,8 +2924,7 @@ var UI = {
               main: s.location,
               index: "lat"
             },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
           },{
             type: "int",
             step: 0.00000001,
@@ -2964,8 +2933,7 @@ var UI = {
               main: s.location,
               index: "lon"
             },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
           },{
             type: "str",
             label: "Server location name",
@@ -2973,8 +2941,7 @@ var UI = {
               main: s.location,
               index: "name"
             },
-            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
-            LTSonly: true
+            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
           },{
             type: 'buttons',
             buttons: [{
@@ -3978,7 +3945,7 @@ var UI = {
                         Linux/MacOS:&nbsp;/PATH/<br>\
                         Windows:&nbsp;/cygdrive/DRIVE/PATH/\
                       </td>\
-                      <td class=LTSonly>\
+                      <td>\
                         A folder stream makes all the recognised files in the selected folder available as a stream.\
                       </td>\
                     </tr>\
@@ -3997,12 +3964,12 @@ var UI = {
                     <tr>\
                       <th>RTSP</th>\
                       <td>push://(IP)(@PASSWORD)</td>\
-                      <td class=LTSonly>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
+                      <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
                     </tr>\
                     <tr>\
                       <th>TS</th>\
                       <td>tsudp://(IP):PORT(/INTERFACE)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
                         PORT is the port you reserve for this stream on the chosen IP.<br>\
                         INTERFACE is the interface used, if left all interfaces will be used.\
@@ -4023,19 +3990,19 @@ var UI = {
                     <tr>\
                       <th>HLS</th>\
                       <td>http://URL/TO/STREAM.m3u8</td>\
-                      <td class=LTSonly>The URL where the HLS stream is available to MistServer.</td>\
+                      <td>The URL where the HLS stream is available to MistServer.</td>\
                     </tr>\
                     <tr>\
                       <th>RTSP</th>\
                       <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         USER:PASSWORD is the account used if authorization is required.<br>\
                         IP is the IP address used to pull this stream from.<br>\
                         PORT is the port used to connect through.<br>\
                         PATH is the path to be used to identify the correct stream.\
                       </td>\
                     </tr>\
-                  </table>").replace(/LTSonly/g,(mist.data.LTS ? "\"\"" : "LTSonly"))
+                  </table>")
         ,
             'function': function(){
               var source = $(this).val();
@@ -4139,7 +4106,6 @@ var UI = {
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
-            LTSonly: true,
             pointer: {
               main: saveas,
               index: 'stop_sessions'
@@ -5433,8 +5399,7 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'wait'
-                },
-                LTSonly: 1
+                }
               },{
                 label: 'Maximum retries',
                 unit: '/s',
@@ -5445,8 +5410,7 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'maxspeed'
-                },
-                LTSonly: 1
+                }
               },{
                 type: 'buttons',
                 buttons: [{
@@ -5702,8 +5666,7 @@ var UI = {
                 "break": false
               };
             }],
-            datalist: allthestreams,
-            LTSonly: 1
+            datalist: allthestreams
           },{
             label: 'Target',
             type: 'str',
@@ -5768,8 +5731,7 @@ var UI = {
                 optional: mist.data.capabilities.connectors[match].push_parameters
               };
               $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
-            },
-            LTSonly: 1
+            }
           },$additional_params];
           
           
@@ -6055,7 +6017,6 @@ var UI = {
           help: 'For what event this trigger should activate.',
           type: 'select',
           select: triggerSelect,
-          LTSonly: true,
           validate: ['required'],
           'function': function(){
             var v = $(this).getval();
@@ -6138,8 +6099,7 @@ var UI = {
           },
           help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
           type: 'checklist',
-          checklist: Object.keys(mist.data.streams),
-          LTSonly: true
+          checklist: Object.keys(mist.data.streams)
         },$('<br>'),{
           label: 'Handler (URL or executable)',
           help: 'This can be either an HTTP URL or a full path to an executable.',
@@ -6148,8 +6108,7 @@ var UI = {
             index: 'url'
           },
           validate: ['required'],
-          type: 'str',
-          LTSonly: true
+          type: 'str'
         },{
           label: 'Blocking',
           type: 'checkbox',
@@ -6157,8 +6116,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'async'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Parameters',
           type: 'str',
@@ -6166,8 +6124,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'params'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Default response',
           type: 'str',
@@ -6176,8 +6133,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'default'
-          },
-          LTSonly: true
+          }
         },{
           type: 'buttons',
           buttons: [
@@ -6876,8 +6832,6 @@ var mist = {
             UI.elements.connection.user_and_host.text(mist.user.name+' @ '+mist.user.host);
             UI.elements.connection.msg.removeClass('red').text('Last communication with the server at '+UI.format.time((new Date).getTime()/1000));
             
-            //if this is LTS, get rid of the banner on menu buttons
-            if (d.LTS) { UI.elements.menu.find('.LTSonly').removeClass('LTSonly'); }
             
             if (d.log) {
               var lastlog = d.log[d.log.length-1];

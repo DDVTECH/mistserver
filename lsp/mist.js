@@ -249,6 +249,7 @@ var UI = {
   menu: [
     {
       Overview: {},
+      General: {},
       Protocols: {},
       Streams: {
         hiddenmenu: {
@@ -832,7 +833,7 @@ var UI = {
           $c.append($itemsettings);
           break;
         }
-        case "json":
+        case "json": {
           $field = $("<textarea>").on('keydown',function(e){
             e.stopPropagation();
           }).on('keyup change',function(e){
@@ -855,6 +856,20 @@ var UI = {
             e.validate = [f];
           }
           break;
+        }
+        case "bitmask": {
+          $field = $("<div>").addClass("bitmask");
+          for (var i in e.bitmask) {
+            $field.append(
+              $("<label>").append(
+                $("<input>").attr("type","checkbox").attr("name","bitmask_"+("pointer" in e ? e.pointer.index : "")).attr("value",e.bitmask[i][0]).addClass("field")
+              ).append(
+                $("<span>").text(e.bitmask[i][1])
+              )
+            );
+          }
+          break;
+        }
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -2393,40 +2408,10 @@ var UI = {
         var $protocols_on = $('<span>');
         var $protocols_off = $('<span>');
         
-        var s = {
-          serverid: mist.data.config.serverid,
-          debug: mist.data.config.debug,
-          accesslog: mist.data.config.accesslog,
-          prometheus: mist.data.config.prometheus,
-          sessionViewerMode: mist.data.config.sessionViewerMode,
-          sessionInputMode: mist.data.config.sessionInputMode,
-          sessionOutputMode: mist.data.config.sessionOutputMode,
-          sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
-          sidMode: mist.data.config.sidMode,
-          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
-          defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy,
-          location: "location" in mist.data.config ? mist.data.config.location : {}
-        };
-        var b = {};
-        if ("bandwidth" in mist.data) {
-          b = mist.data.bandwidth;
-          if (b == null) { b = {}; }
-          if (!b.limit) {
-            b.limit = "";
-          }
-        }
-        var $bitunit = $("<select>").html(
-          $("<option>").val(1).text("bytes/s")
-        ).append(
-          $("<option>").val(1024).text("KiB/s")
-        ).append(
-          $("<option>").val(1048576).text("MiB/s")
-        ).append(
-          $("<option>").val(1073741824).text("GiB/s")
-        );
         var host = parseURL(mist.user.host);
         host = host.protocol+host.host+host.port;
+
+        var s = {};
         
         $main.append(UI.buildUI([
           {
@@ -2482,299 +2467,26 @@ var UI = {
             type: 'span',
             label: 'Recent problems',
             value: $errors
-          },$('<br>'),{
-            type: 'str',
-            label: 'Human readable name',
-            pointer: {
-              main: s,
-              index: 'serverid'
-            },
-            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
-          },{
-            type: 'debug',
-            label: 'Debug level',
-            pointer: {
-              main: s,
-              index: 'debug'
-            },
-            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
-          },{
-            type: "selectinput",
-            label: "Access log",
-            selectinput: [
-              ["","Do not track"],
-              ["LOG","Log to MistServer log"],
-              [{
-                type:"str",
-                label:"Path",
-                LTSonly: true
-              },"Log to file"]
-            ],
-            pointer: {
-              main: s,
-              index: "accesslog"
-            },
-            help: "Enable access logs.",
-            LTSonly: true
-          },{
-            type: "selectinput",
-            label: "Prometheus stats output",
-            selectinput: [
-              ["","Disabled"],
-              [{
-                type: "str",
-                label:"Passphrase",
-                LTSonly: true
-              },"Enabled"]
-            ],
-            pointer: {
-              main: s,
-              index: "prometheus"
-            },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
-            LTSonly: true
-          },{
-            type: 'select',
-            label: 'Viewer sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionViewerMode'
-            },
-            help: 'Change the way viewer connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'Input sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled'],
-              [0, '0 - All connections are bundled in one session']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionInputMode'
-            },
-            help: 'Change the way input connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'Output sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled'],
-              [0, '0 - All connections are bundled in one session']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionOutputMode'
-            },
-            help: 'Change the way output connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'Unspecified sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled'],
-              [0, '0 - All connections are bundled in one session']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionUnspecifiedMode'
-            },
-            help: 'Change the way unspecified connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'HTTP Session',
-            select: [
-              [4, '4 - Treat it as a separate \'unspecified\' session type, which skips executing the USER_NEW and USER_END triggers'],
-              [3, '3 - Do not start a session at all, which means no stats get counted and skips executing the USER_NEW and USER_END triggers'],
-              [2, '2 - Treat it as a output session, which skips executing the USER_NEW and USER_END triggers'],
-              [1, '1 - Treat it as a viewer session']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionStreamInfoMode'
-            },
-            help: 'Change the way the stream info connection gets treated.'
-          },{
-            type: "select",
-            label: "Session ID",
-            select: [
-              [15, "15 - Read the sid from the request URL and cookie and respond with the sid as a cookie and URL parameter"],
-              [14, "14 - Read the sid from the request cookie and respond with the sid as a cookie and URL parameter"],
-              [13, "13 - Read the sid from the request URL and respond with the sid as a cookie and URL parameter"],
-              [12, "12 - Do not read the sid from the request and respond with the sid as a cookie and URL parameter"],
-              [11, "11 - Read the sid from the request URL and cookie and respond with the sid as a cookie"],
-              [10, "10 - Read the sid from the request cookie and respond with the sid as a cookie"],
-              [9, "9 - Read the sid from the request cookie and respond with the sid as a cookie"],
-              [8, "8 - Do not read the sid from the request and respond with the sid as a cookie"],
-              [7, "7 - Read the sid from the request URL and cookie and respond with the sid as a URL parameter"],
-              [6, "6 - Read the sid from the request URL and respond with the sid as a cookie"],
-              [5, "5 - Read the sid from the request URL and respond with the sid as a URL parameter"],
-              [4, "4 - Do not read the sid from the request and respond with the sid as a URL parameter"],
-              [3, "3 - Read the sid from the request URL and cookie and do not write the sid"],
-              [2, "2 - Read the sid from the request cookie and do not write the sid"],
-              [1, "1 - Read the sid from the request URL and do not write the sid"],
-              [0, "0 - Ignore the session id"]
-            ],
-            pointer: {
-              main: s,
-              index: "sidMode"
-            },
-            help: "Change the way the session identifier gets passed to and from Mist."
-          },{
-            type: "inputlist",
-            label: "Trusted proxies",
-            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            LTSonly: true,
-            pointer: {
-              main: s,
-              index: "trustedproxy"
-            }
-          },{
-            type: "selectinput",
-            label: "Load balancer bandwidth limit",
-            selectinput: [
-              ["","Default (1 gbps)"],
-              [{
-                label: "Custom",
-                type: "int",
-                min: 0,
-                unit: $bitunit
-              },"Custom"]
-            ],
-            pointer: {
-              main: b,
-              index: "limit"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. This is the amount of traffic this server is willing to handle.",
-            LTSonly: true
-          },{
-            type: "inputlist",
-            label: "Load balancer bandwidth exceptions",
-            pointer: {
-              main: b,
-              index: "exceptions"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server latitude",
-            pointer: {
-              main: s.location,
-              index: "lat"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server longitude",
-            pointer: {
-              main: s.location,
-              index: "lon"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "str",
-            label: "Server location name",
-            pointer: {
-              main: s.location,
-              index: "name"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
-            LTSonly: true
-          },{
-            type: "str",
-            validate: ['streamname_with_wildcard_and_variables'],
-            label: 'Fallback stream',
-            pointer: {
-              main: s,
-              index: "defaultStream"
-            },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
-            LTSonly: true
+          },
+          $("<br>"),
+          $("<h3>").text("Write config now"),
+          {
+            type: "help",
+            help: "Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box."
           },{
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
               main: s,
               index: 'save'
-            },
-            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box.'
+            }            
           },{
             type: 'buttons',
             buttons: [{
               type: 'save',
               label: 'Save',
               'function': function(){
-                var save = {config: s};
-                
-                var bandwidth = {};
-                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
-                bandwidth.exceptions = b.exceptions;
-                if (bandwidth.exceptions === null) {
-                  bandwidth.exceptions = [];
-                }
-                
-                save.bandwidth = bandwidth;
+                var save = {};
                 
                 if (s.save) {
                   save.save = s.save;
@@ -3006,6 +2718,291 @@ var UI = {
         UI.interval.set(updateViewers,30e3);
         
         break;
+      case 'General': {
+
+        var s = {
+          serverid: mist.data.config.serverid,
+          debug: mist.data.config.debug,
+          accesslog: mist.data.config.accesslog,
+          prometheus: mist.data.config.prometheus,
+          sessionViewerMode: mist.data.config.sessionViewerMode,
+          sessionInputMode: mist.data.config.sessionInputMode,
+          sessionOutputMode: mist.data.config.sessionOutputMode,
+          sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
+          sidMode: mist.data.config.sidMode,
+          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
+          defaultStream: mist.data.config.defaultStream,
+          trustedproxy: mist.data.config.trustedproxy,
+          location: "location" in mist.data.config ? mist.data.config.location : {}
+        };
+        var b = {};
+        if ("bandwidth" in mist.data) {
+          b = mist.data.bandwidth;
+          if (b == null) { b = {}; }
+          if (!b.limit) {
+            b.limit = "";
+          }
+        }
+        var $bitunit = $("<select>").html(
+          $("<option>").val(1).text("bytes/s")
+        ).append(
+          $("<option>").val(1024).text("KiB/s")
+        ).append(
+          $("<option>").val(1048576).text("MiB/s")
+        ).append(
+          $("<option>").val(1073741824).text("GiB/s")
+        );
+
+
+        $main.html(UI.buildUI([
+          $("<h2>").text("General settings"),{
+            type: "help",
+            help: "These are settings that apply to your MistServer instance in general."
+          },{
+            type: 'str',
+            label: 'Human readable name',
+            pointer: {
+              main: s,
+              index: 'serverid'
+            },
+            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
+          },{
+            type: 'debug',
+            label: 'Debug level',
+            pointer: {
+              main: s,
+              index: 'debug'
+            },
+            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
+          },{
+            type: "selectinput",
+            label: "Access log",
+            selectinput: [
+              ["","Do not track"],
+              ["LOG","Log to MistServer log"],
+              [{
+                type:"str",
+                label:"Path",
+                LTSonly: true
+              },"Log to file"]
+            ],
+            pointer: {
+              main: s,
+              index: "accesslog"
+            },
+            help: "Enable access logs.",
+            LTSonly: true
+          },{
+            type: "selectinput",
+            label: "Prometheus stats output",
+            selectinput: [
+              ["","Disabled"],
+              [{
+                type: "str",
+                label:"Passphrase",
+                LTSonly: true
+              },"Enabled"]
+            ],
+            pointer: {
+              main: s,
+              index: "prometheus"
+            },
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
+            LTSonly: true
+          },{
+            type: "str",
+            validate: ['streamname_with_wildcard_and_variables'],
+            label: 'Fallback stream',
+            pointer: {
+              main: s,
+              index: "defaultStream"
+            },
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
+            LTSonly: true
+          },
+          $("<h3>").text("Sessions"),
+          {
+            type: 'bitmask',
+            label: 'Bundle viewer sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"Viewer IP"],
+              [2,"Player id"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionViewerMode'
+            },
+            help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+          },{
+            type: 'bitmask',
+            label: 'Bundle input sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"Viewer IP"],
+              [2,"Player id"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionInputMode'
+            },
+            help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+          },{
+            type: 'bitmask',
+            label: 'Bundle output sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"Viewer IP"],
+              [2,"Player id"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionOutputMode'
+            },
+            help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+          },{
+            type: 'bitmask',
+            label: 'Bundle unspecified sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"Viewer IP"],
+              [2,"Player id"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionUnspecifiedMode'
+            },
+            help: 'Change the way unspecified connections are bundled into sessions.<br>Default: none'
+          },{
+            type: 'select',
+            label: 'Treat HTTP-only sessions as',
+            select: [
+              [1, 'A viewer session'],
+              [2, 'An output session: skip executing the USER_NEW and USER_END triggers'],
+              [4, 'A separate \'unspecified\' session: skip executing the USER_NEW and USER_END triggers'],
+              [3, 'Do not start a session: skip executing the USER_NEW and USER_END triggers and do not count for statistics']
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionStreamInfoMode'
+            },
+            help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
+          },{
+            type: "bitmask",
+            label: "Communicate session ID",
+            bitmask: [
+              [8,"Write to cookie"],
+              [4,"Write to URL parameter"],
+              [2,"Read from cookie"],
+              [1,"Read from URL parameter"]
+            ],
+            pointer: {
+              main: s,
+              index: "sidMode"
+            },
+            help: "Change the way the session identifier gets passed to and from MistServer.<br>Default: all"
+          },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            LTSonly: true,
+            pointer: {
+              main: s,
+              index: "trustedproxy"
+            }
+          },
+          $('<h3>').text("Load balancer"),
+          {
+            type: "help",
+            help: "If you're using MistServer's load balancer, the information below is passed to it so that it can make informed decisions."
+          },{
+            type: "selectinput",
+            label: "Server's bandwidth limit",
+            selectinput: [
+              ["","Default (1 gbps)"],
+              [{
+                label: "Custom",
+                type: "int",
+                min: 0,
+                unit: $bitunit
+              },"Custom"]
+            ],
+            pointer: {
+              main: b,
+              index: "limit"
+            },
+            help: "This is the amount of traffic this server is willing to handle.",
+            LTSonly: true
+          },{
+            type: "inputlist",
+            label: "Bandwidth exceptions",
+            pointer: {
+              main: b,
+              index: "exceptions"
+            },
+            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
+            LTSonly: true
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server latitude",
+            pointer: {
+              main: s.location,
+              index: "lat"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
+            LTSonly: true
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server longitude",
+            pointer: {
+              main: s.location,
+              index: "lon"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
+            LTSonly: true
+          },{
+            type: "str",
+            label: "Server location name",
+            pointer: {
+              main: s.location,
+              index: "name"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
+            LTSonly: true
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s};
+                
+                var bandwidth = {};
+                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
+                bandwidth.exceptions = b.exceptions;
+                if (bandwidth.exceptions === null) {
+                  bandwidth.exceptions = [];
+                }
+                save.bandwidth = bandwidth;
+                
+                mist.send(function(){
+                  UI.navto('General');
+                },save)
+              }
+            }]
+          }
+
+        ]));
+        break;
+      }
       case 'Protocols':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
@@ -7330,6 +7327,15 @@ $.fn.getval = function(){
           val = null;
         }
         break;
+      case "bitmask": {
+        val = 0;
+        $(this).find("input").each(function(){
+          if ($(this).prop("checked")) {
+            val += Number($(this).val());
+          }
+        });
+        break;
+      }
     }
   }
   return val;
@@ -7476,6 +7482,21 @@ $.fn.setval = function(val){
         break;
       case "json": {
         $(this).val(val === null ? "" : JSON.stringify(val,null,2));
+        break;
+      }
+      case "bitmask": {
+        var map = $(this).data("opts").bitmask;
+        var $inputs = $(this).find("input");
+        for (var i in map) {
+          $el = $inputs.eq(i);
+          if ((val & map[i][0]) == map[i][0]) {
+            $el.attr("checked","checked");
+          }
+          else {
+            $el.removeAttr("checked");
+          }
+        }
+        break;
       }
     }
   }

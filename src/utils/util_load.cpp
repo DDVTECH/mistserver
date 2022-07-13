@@ -16,6 +16,7 @@ Util::Config *cfg = 0;
 std::string passphrase;
 std::string fallback;
 bool localMode = false;
+bool useDtscs = false;
 tthread::mutex globalMutex;
 
 size_t weight_cpu = 500;
@@ -636,7 +637,7 @@ int handleRequest(Socket::Connection &conn){
             }
             uint64_t score = HOST(i).details->source(source, lat, lon, tagAdjust, 0);
             if (score > bestScore){
-              bestHost = "dtsc://" + HOST(i).details->host;
+              bestHost = (useDtscs ? "dtscs://" : "dtsc://") + HOST(i).details->host;
               bestScore = score;
             }
           }
@@ -938,6 +939,12 @@ int main(int argc, char **argv){
   opt["help"] = "Control only from local interfaces, request balance from all";
   conf.addOption("localmode", opt);
 
+  opt.null();
+  opt["short"] = "S";
+  opt["long"] = "secure";
+  opt["help"] = "Use DTSC-over-TSL i.e. dtscs:// instead of dtsc:// as pull protocol";
+  conf.addOption("secure", opt);
+
   conf.parseArgs(argc, argv);
 
   passphrase = conf.getOption("passphrase").asStringRef();
@@ -948,7 +955,10 @@ int main(int argc, char **argv){
   weight_bonus = conf.getInteger("extra");
   fallback = conf.getString("fallback");
   localMode = conf.getBool("localmode");
+  useDtscs = conf.getBool("secure");
+
   INFO_MSG("Local control only mode is %s", localMode ? "on" : "off");
+  INFO_MSG("Pull protocol is %s", useDtscs ? "dtscs://" : "dtsc://");
 
   JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();

@@ -88,6 +88,9 @@ namespace Controller{
       removeActivePush(*toWipe.begin());
       toWipe.erase(toWipe.begin());
     }
+    //Check if the stream has a pull source, if yes, pretend all pushes are already active
+    DTSC::Meta M(streamname, false);
+    if (M && M.getSource().find("INTERNAL_ONLY:dtsc") != std::string::npos){return true;}
     return false;
   }
 

@@ -140,6 +140,9 @@ namespace Mist{
             startTime = 0; // note success
             break;         // break out of while loop
           }
+        }else{
+          //Prevent 100% CPU usage if the response is slow
+          Util::sleep(25);
         }
       }
       if (startTime){

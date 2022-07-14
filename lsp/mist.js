@@ -857,6 +857,9 @@ var UI = {
               )
             );
           }
+
+          //when the main label is clicked, do nothing (instead of toggeling the first checkbox)
+          $e.attr("for","none");
           break;
         }
         default:

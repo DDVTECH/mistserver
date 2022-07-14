@@ -1005,7 +1005,8 @@ namespace Mist{
         }
       }
       if (targetParams.count("recstart") && atoll(targetParams["recstart"].c_str()) != 0){
-        uint64_t startRec = atoll(targetParams["recstart"].c_str());
+        int64_t startRec = atoll(targetParams["recstart"].c_str());
+        if (startRec < 0){startRec = 0;}
         if (startRec > endTime()){
           if (!M.getLive()){
             onFail("Recording start past end of non-live source", true);
@@ -1014,7 +1015,7 @@ namespace Mist{
         }
         if (startRec < startTime()){
           startRec = startTime();
-          WARN_MSG("Record begin at %llu ms not available, starting at %" PRIu64
+          WARN_MSG("Record begin at %lld ms not available, starting at %" PRIu64
                    " ms instead", atoll(targetParams["recstart"].c_str()), startRec);
           targetParams["recstart"] = JSON::Value(startRec).asString();
         }

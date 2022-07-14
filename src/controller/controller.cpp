@@ -291,7 +291,11 @@ int main_loop(int argc, char **argv){
       }
     }
   }
-
+  // Set default delay before retry
+  if (!Controller::Storage.isMember("push_settings")){
+    Controller::Storage["push_settings"]["wait"] = 3;
+    Controller::Storage["push_settings"]["maxspeed"] = 0;
+  }
   if (Controller::conf.getOption("debug", true).size() > 1){
     Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");
   }

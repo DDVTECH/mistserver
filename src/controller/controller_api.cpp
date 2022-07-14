@@ -1181,13 +1181,13 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     }
   }
 
-  if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"]);}
+  if (Request.isMember("push_auto_add")){Controller::addPush(Request["push_auto_add"], Response["push_list"]);}
 
   if (Request.isMember("push_auto_remove")){
     if (Request["push_auto_remove"].isArray()){
-      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it);}
+      jsonForEach(Request["push_auto_remove"], it){Controller::removePush(*it, Response["push_list"]);}
     }else{
-      Controller::removePush(Request["push_auto_remove"]);
+      Controller::removePush(Request["push_auto_remove"], Response["push_list"]);
     }
   }
 

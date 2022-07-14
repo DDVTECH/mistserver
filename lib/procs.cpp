@@ -274,10 +274,10 @@ std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
 /// \param maxWait amount of milliseconds to wait before shutting down the spawned process
 /// \param maxValBytes amount of Bytes allowed in the output before shutting down the spawned process
 std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes){
-  int fin = 0, fout = -1, ferr = 0;
+  int fout = -1;
   uint64_t waitedFor = 0;
   uint8_t tries = 0;
-  pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
+  pid_t myProc = StartPiped(argv, NULL, &fout, NULL);
   Socket::Connection O(-1, fout);
   O.setBlocking(false);
   Util::ResizeablePointer ret;
@@ -311,9 +311,9 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
       break;
     }
   }
+  O.close();
   // Stop the process if it is still running
   if (childRunning(myProc)){
-    close(fout);
     Stop(myProc);
     waitedFor = 0;
   }
@@ -469,11 +469,11 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
       uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
       uSock.SendNow(j.toString());
       std::cout << getenv("MIST_TRIG_DEF");
-      exit(42);
+      _exit(42);
     }
     /*LTS-END*/
     ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
-    exit(42);
+    _exit(42);
   }else if (pid == -1){
     ERROR_MSG("fork failed for process %s, reason: %s", argv[0], strerror(errno));
     if (fdin && *fdin == -1){

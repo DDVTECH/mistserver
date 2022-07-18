@@ -862,8 +862,16 @@ var UI = {
           $e.attr("for","none");
           break;
         }
-        default:
+        case "str": 
+        default: {
           $field = $('<input>').attr('type','text');
+          if ("maxlength" in e) {
+            $field.attr("maxlength",e.maxlength);
+          }
+          if ("minlength" in e) {
+            $field.attr("minlength",e.minlength);
+          }
+        }
       }
       $field.addClass('field').data('opts',e);
       if ('pointer' in e) { $field.attr('name',e.pointer.index); }
@@ -2701,22 +2709,27 @@ var UI = {
         break;
       case 'General': {
 
-        var s = {
+        var s_general = {
           serverid: mist.data.config.serverid,
           debug: mist.data.config.debug,
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
+          defaultStream: mist.data.config.defaultStream
+        };
+        var s_sessions = {
           sessionViewerMode: mist.data.config.sessionViewerMode,
           sessionInputMode: mist.data.config.sessionInputMode,
           sessionOutputMode: mist.data.config.sessionOutputMode,
           sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
           tknMode: mist.data.config.tknMode,
           sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
-          defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy,
+          trustedproxy: mist.data.config.trustedproxy
+        };
+        var s_balancer = {
           location: "location" in mist.data.config ? mist.data.config.location : {}
         };
-        var b = {};
+
+        var b = {limit:""};
         if ("bandwidth" in mist.data) {
           b = mist.data.bandwidth;
           if (b == null) { b = {}; }
@@ -2743,7 +2756,7 @@ var UI = {
             type: 'str',
             label: 'Human readable name',
             pointer: {
-              main: s,
+              main: s_general,
               index: 'serverid'
             },
             help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
@@ -2751,7 +2764,7 @@ var UI = {
             type: 'debug',
             label: 'Debug level',
             pointer: {
-              main: s,
+              main: s_general,
               index: 'debug'
             },
             help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
@@ -2763,14 +2776,16 @@ var UI = {
               ["LOG","Log to MistServer log"],
               [{
                 type:"str",
-                label:"Path"
+                label:"Path",
+                LTSonly: true
               },"Log to file"]
             ],
             pointer: {
-              main: s,
+              main: s_general,
               index: "accesslog"
             },
-            help: "Enable access logs."
+            help: "Enable access logs.",
+            LTSonly: true
           },{
             type: "selectinput",
             label: "Prometheus stats output",
@@ -2778,14 +2793,16 @@ var UI = {
               ["","Disabled"],
               [{
                 type: "str",
-                label:"Passphrase"
+                label:"Passphrase",
+                LTSonly: true
               },"Enabled"]
             ],
             pointer: {
-              main: s,
+              main: s_general,
               index: "prometheus"
             },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json."
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
+            LTSonly: true
           },{
             type: "inputlist",
             label: "Trusted proxies",
@@ -2799,16 +2816,16 @@ var UI = {
             validate: ['streamname_with_wildcard_and_variables'],
             label: 'Fallback stream',
             pointer: {
-              main: s,
+              main: s_general,
               index: "defaultStream"
             },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name."
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
+            LTSonly: true
           },
 
 
 
           $("<h3>").text("Sessions"),
-
           {
             type: 'bitmask',
             label: 'Bundle viewer sessions by',
@@ -2819,7 +2836,7 @@ var UI = {
               [1,"Protocol"]
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: 'sessionViewerMode'
             },
             help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and token'
@@ -2833,7 +2850,7 @@ var UI = {
               [1,"Protocol"]
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: 'sessionInputMode'
             },
             help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, input IP, token and protocol'
@@ -2847,7 +2864,7 @@ var UI = {
               [1,"Protocol"]
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: 'sessionOutputMode'
             },
             help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, output IP, token and protocol'
@@ -2861,7 +2878,7 @@ var UI = {
               [1,"Protocol"]
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: 'sessionUnspecifiedMode'
             },
             help: 'Change the way unspecified connections are bundled into sessions.<br>Default: none'
@@ -2875,7 +2892,7 @@ var UI = {
               [3, 'Do not start a session: skip executing the USER_NEW and USER_END triggers and do not count for statistics']
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: 'sessionStreamInfoMode'
             },
             help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
@@ -2889,14 +2906,127 @@ var UI = {
               [1,"Read from URL parameter"]
             ],
             pointer: {
-              main: s,
+              main: s_sessions,
               index: "tknMode"
             },
             help: "Change the way the session token gets passed to and from MistServer, which can be set as a cookie or URL parameter named `tkn`. Reading the session token as a URL parameter takes precedence over reading from the cookie.<br>Default: all"
+          },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            LTSonly: true,
+            pointer: {
+              main: s_sessions,
+              index: "trustedproxy"
+            }
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s_sessions};
+                                
+                mist.send(function(){
+                  UI.navto('General');
+                },save)
+              }
+            }]
+          }
+
+        ]));
+
+        var $variables = $("<div>").html("Loading..");
+        mist.send(function(d){
+          if (!d.variable_list) {
+            $variables.html("None configured.");
+            return;
+          }
+          var $tbody = $("<tbody>");
+          $variables.html(
+            $("<table>").html(
+              $("<thead>").html(
+                $("<tr>").append(
+                  $("<th>").text("Variable")
+                ).append(
+                  $("<th>").text("Latest value")
+                ).append(
+                  $("<th>").text("Command")
+                ).append(
+                  $("<th>").text("Check interval")
+                ).append(
+                  $("<th>").text("Last checked")
+                ).append(
+                  $("<th>")
+                )
+              )
+            ).append($tbody)
+          );
+          for (var i in d.variable_list) {
+            var v = d.variable_list[i];
+            $tbody.append(
+              $("<tr>").addClass("variable").attr("data-name",i).html(
+                $("<td>").text("$"+i)
+              ).append(
+                $("<td>").html(
+                  $("<code>").text(
+                    typeof v == "string" ?
+                    JSON.stringify(v) :
+                    (v[2] > 0 ? JSON.stringify(v[3]) : "" )
+                  )
+                )
+              ).append(
+                $("<td>").text(typeof v == "string" ? "" : v[0])
+              ).append(
+                $("<td>").html(typeof v == "string" ? "Never" : (v[1] == 0 ? "Once" : UI.format.duration(v[1])))
+              ).append(
+                $("<td>").attr("title",
+                  v[2] > 0 ?
+                  (typeof v == "string" ? "" : "At "+UI.format.dateTime(new Date(v[2]),"long")) :
+                  "Not yet"
+                ).html(
+                  typeof v == "string" ?
+                  "" : 
+                  (v[2] > 0 ? UI.format.duration(new Date().getTime()*1e-3 - v[2])+" ago" : "Not yet")
+                )
+              ).append(
+                $("<td>").html(
+                  $("<button>").text("Edit").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    UI.navto("Edit variable",i);
+                  })
+                ).append(
+                  $("<button>").text("Remove").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    if (confirm("Are you sure you want to remove the custom variable $"+i+"?")) {
+                      mist.send(function(){
+                        UI.showTab("General");
+                      },{variable_remove:i});
+                    }
+                  })
+                )
+              )
+            );
+          }
+        },{variable_list:true});
+
+        $main.append(UI.buildUI([
+          $('<h3>').text("Custom variables"),
+          {
+            type: "help",
+            help: "In certain places, like target URL's and pushes, variable substitution is applied in order to replace a $variable with their corresponding value. Here you can define your own constants and variables which will be used when variable substitution is applied. Variables can be used within variables but will not be reflected in their latest value on this page."
           },
+          $("<div>").css("text-align","right").html(
+            $("<button>").text("New variable").click(function(){
+              UI.navto("Edit variable","");
+            })
+          ),
+          $variables
+        ]));
 
-
-
+        $main.append(UI.buildUI([
           $('<h3>').text("Load balancer"),
           {
             type: "help",
@@ -2933,7 +3063,7 @@ var UI = {
             step: 0.00000001,
             label: "Server latitude",
             pointer: {
-              main: s.location,
+              main: s_balancer.location,
               index: "lat"
             },
             help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
@@ -2942,7 +3072,7 @@ var UI = {
             step: 0.00000001,
             label: "Server longitude",
             pointer: {
-              main: s.location,
+              main: s_balancer.location,
               index: "lon"
             },
             help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
@@ -2950,7 +3080,7 @@ var UI = {
             type: "str",
             label: "Server location name",
             pointer: {
-              main: s.location,
+              main: s_balancer.location,
               index: "name"
             },
             help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
@@ -2962,7 +3092,7 @@ var UI = {
               'function': function(ele){
                 $(ele).text("Saving..");
 
-                var save = {config: s};
+                var save = {config: s_balancer};
                 
                 var bandwidth = {};
                 bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
@@ -2978,8 +3108,186 @@ var UI = {
               }
             }]
           }
-
         ]));
+        break;
+      }
+      case 'Edit variable': {
+        var editing = false;
+        if (other != '') { editing = true; }
+
+        function build(saveas,saveas_dyn) {
+          if (!editing) {
+            $main.html($('<h2>').text('New Variable'));
+          }
+          else {
+            $main.html($('<h2>').text('Edit Variable "$'+other+'"'));
+          }
+
+          var $dynamicinputs = $("<div>");
+
+          $main.append(UI.buildUI([
+            {
+              type: "str",
+              maxlength: 31,
+              label: "Variable name",
+              help: "What should the variable be called? A dollar sign will automatically be prepended.",
+              pointer: {
+                main: saveas,
+                index: "name"
+              },
+              validate: ["required",function(val){
+                if (val.length && (val[0] == "$")) {
+                  return {
+                    msg: 'The dollar sign will automatically be prepended. You don\'t need to type it here.',
+                    classes: ['red']
+                  };
+                }
+                if ((val.indexOf("{") !== -1) || (val.indexOf("}") !== -1) || (val.indexOf("$") !== -1)) {
+                  return {
+                    msg: 'The following symbols are not permitted: "$ { }".',
+                    classes: ['red']
+                  };
+                }
+              }]
+            },{
+              type: "select",
+              label: "Type",
+              help: "What kind of variable is this? It can either be a static value that you can enter below, or a dynamic one that is returned by a command.",
+              select: [
+                ["value","Static value"],
+                ["command","Dynamic through command"]
+              ],
+              value: "value",
+              pointer: {
+                main: saveas_dyn,
+                index: "type"
+              },
+              'function': function(){
+                var b = [$("Invalid variable type")];
+                switch ($(this).val()) {
+                  case "value": {
+                    b = [{
+                      type: "str",
+                      label: "Value",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "value"
+                      },
+                      help: "The static value that this variable should be replaced with. There is a character limit of 63 characters.",
+                      validate: ["required"]
+                    }];
+                    break;
+                  }
+                  case "command": {
+                    b = [{
+                      type: "str",
+                      label: "Command",
+                      help: "The command that should be executed to retrieve the value for this variable.<br>For example:<br><code>/usr/bin/date +%A</code><br>There is a character limit of 511 characters.",
+                      validate: ["required"],
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "target"
+                      }
+                    },{
+                      type: "int",
+                      min: 0,
+                      max: 4294967295,
+                      'default': 0,
+                      label: "Checking interval",
+                      unit: "s",
+                      help: "At what interval, in seconds, MistServer should execute the command and update the value.<br>To execute the command once when MistServer starts up (and then never update), set the interval to 0.",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "interval"
+                      }
+                    },{
+                      type: "int",
+                      min: 0,
+                      max: 4294967295,
+                      'default': 1,
+                      label: "Wait time",
+                      unit: "s",
+                      help: "Specifies the maximum time, in seconds, MistServer should wait for data when executing the variable target. If set to 0 this variable takes on the same value as the interval.<br>MistServer only updates one variable at a time, so setting this value too high can block other variables from updating.",
+                      pointer: {
+                        main: saveas_dyn,
+                        index: "waitTime"
+                      }
+                    }];
+                    break;
+                  }
+                }
+                $dynamicinputs.html(UI.buildUI(b));
+              }
+            },
+            $dynamicinputs,
+            {
+              type: "buttons",
+              buttons: [
+                {
+                  type: 'cancel',
+                  label: 'Cancel',
+                  'function': function(){
+                    UI.navto('General');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    var o = {variable_add:saveas};
+
+                    switch (saveas_dyn.type) {
+                      case "value": {
+                        saveas.value = saveas_dyn.value;
+                        break;
+                      }
+                      case "command": {
+                        saveas.target = saveas_dyn.target;
+                        saveas.interval = saveas_dyn.interval;
+                        saveas.waitTime = saveas_dyn.waitTime;
+                        break;
+                      }
+                    }
+
+                    if (saveas.name != other) {
+                      o.variable_remove = other;
+                    }
+                    mist.send(function(){
+                      UI.navto('General');
+                    },o);
+                  }
+                }
+              ]
+            }
+          ]));
+        }
+
+        $main.html("Loading..");
+        if (!editing) {
+          build({},{});
+        }
+        else {
+          mist.send(function(d){
+            if (other in d.variable_list) {
+              var v = d.variable_list[other];
+              build({
+                name: other
+              },(typeof v == "string" ? {
+                value: v,
+                type: "value"
+              } : {
+                target: v[0],
+                interval: v[1],
+                waitTime: v[4],
+                type: "command"
+              }));
+            }
+            else {
+              $main.append('Variable "$'+other+'" does not exist.');
+            }
+          },{variable_list:true});
+        }
+
+
         break;
       }
       case 'Protocols':

@@ -12,13 +12,37 @@ int main(int argc, char **argv){
   option["arg"] = "string";
   option["help"] = "URL to retrieve";
   c.addOption("url", option);
+  option.null();
+  option["help"] = "Interval for messages";
+  option["long"] = "interval";
+  option["short"] = "I";
+  option["default"] = 4;
+  option["arg"] = "int";
+  c.addOption("interval", option);
   if (!(c.parseArgs(argc, argv))){return 1;}
 
   Util::redirectLogsIfNeeded();
   Socket::Connection C;
-  HTTP::Websocket ws(C, HTTP::URL(c.getString("url")));
+  HTTP::URL url(c.getString("url"));
+  INFO_MSG("Connect to: %s", url.getUrl().c_str());
+  HTTP::Websocket ws(C, url);
   if (!ws){return 1;}
+  uint64_t lastChat = Util::bootMS();
+  srand(getpid());
+  uint64_t interval = c.getInteger("interval") * 1000;
   while (ws){
+    if (Util::bootMS() > lastChat + interval){
+      JSON::Value msg;
+      msg["type"] = "chat";
+      std::string rndMsg;
+      rndMsg.reserve(100);
+      for (size_t i = 0; i < 100; ++i){
+        rndMsg += ('a' + (rand() % 26));
+      }
+      msg["message"] = rndMsg;
+      ws.sendFrame(msg.toString());
+      lastChat = Util::bootMS();
+    }
     if (!ws.readFrame()){
       Util::sleep(100);
       continue;

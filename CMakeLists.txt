@@ -344,6 +344,10 @@ if (NOT NOSSL)
   find_path(SRTP2_HEADER_DIR "srtp2/srtp.h")
   include_directories(${MBEDTLS_HEADER_DIR} ${SRTP2_HEADER_DIR})
 endif()
+if(SRT_LIB)
+  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
+  target_link_libraries(mist srt)
+endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist
@@ -352,7 +356,6 @@ install(
   TARGETS mist
   DESTINATION lib
 )
-
 
 if(SRT_LIB)
   add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
@@ -382,9 +385,7 @@ macro(makeAnalyser analyserName format)
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
-  target_link_libraries(MistAnalyser${analyserName}
-    mist
-  )
+  target_link_libraries(MistAnalyser${analyserName} mist)
   install(
     TARGETS MistAnalyser${analyserName}
     DESTINATION bin
@@ -403,6 +404,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
+makeAnalyser(WebRTC webrtc) #LTS
 
 #LTS_START
 ########################################
@@ -450,6 +452,7 @@ macro(makeInput inputName format)
     src/input/input_${format}.cpp 
     src/io.cpp
   )
+<<<<<<< HEAD
   if (";${ARGN};" MATCHES ";with_srt;")
     target_link_libraries(MistIn${inputName} mist_srt )
   endif()
@@ -457,6 +460,8 @@ macro(makeInput inputName format)
     target_link_libraries(MistIn${inputName} rist cjson)
   endif()
 
+=======
+>>>>>>> dms-dev-repo/Pro_LoadTestV26
   #Set compile definitions
   unset(my_definitions)
   list(APPEND my_definitions "INPUTTYPE=\"input_${format}.h\"")
@@ -536,12 +541,15 @@ macro(makeOutput outputName format)
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
   )
+<<<<<<< HEAD
   if (";${ARGN};" MATCHES ";with_srt;")
     target_link_libraries(MistOut${outputName} mist_srt)
   endif()
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistOut${outputName} rist cjson)
   endif()
+=======
+>>>>>>> dms-dev-repo/Pro_LoadTestV26
   target_link_libraries(MistOut${outputName} mist )
   install(
     TARGETS MistOut${outputName}
@@ -867,6 +875,13 @@ add_custom_command(OUTPUT generated/server.html.h
   COMMAND ./sourcery generated/server.html server_html generated/server.html.h
   DEPENDS sourcery ${BINARY_DIR}/generated/server.html
 )
+#########
+# Load Tester result interface
+#########
+add_custom_command(OUTPUT generated/loadtest_html.h
+  COMMAND ./sourcery ${SOURCE_DIR}/lsp/loadtest/index.html loadtest_html generated/loadtest_html.h '"stats.json"'
+  DEPENDS sourcery ${SOURCE_DIR}/lsp/loadtest/index.html ${SOURCE_DIR}/lsp/loadtest/loadtest.js ${SOURCE_DIR}/lsp/loadtest/graphs.css ${SOURCE_DIR}/lsp/plugins/drawgraph.js 
+)
 
 ########################################
 # MistController - Build               #
@@ -950,3 +965,9 @@ add_executable(streamstatustest test/status.cpp)
 target_link_libraries(streamstatustest mist)
 add_executable(websockettest test/websocket.cpp)
 target_link_libraries(websockettest mist)
+<<<<<<< HEAD
+=======
+add_executable(MistLoadTest test/load.cpp ${BINARY_DIR}/mist/.headers generated/loadtest_html.h)
+target_link_libraries(MistLoadTest mist)
+
+>>>>>>> dms-dev-repo/Pro_LoadTestV26

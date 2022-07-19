@@ -45,6 +45,8 @@ int URITest::main(int argc, char **argv){
 }
 
 int main(int argc, char **argv){
+  Util::Config cfg;
+  cfg.activate();
   URITest t;
   t.main(argc, argv);
 }

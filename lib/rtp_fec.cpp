@@ -532,32 +532,14 @@ namespace RTP{
 
   void FECPacket::sendRTCP_RR(RTP::FECSorter &sorter, uint32_t mySSRC, uint32_t theirSSRC, void *userData,
                               void callBack(void *userData, const char *payload, size_t nbytes, uint8_t channel), uint32_t jitter){
-    char *rtcpData = (char *)malloc(32);
-    if (!rtcpData){
-      FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
-      return;
-    }
     if (!(sorter.lostCurrent + sorter.packCurrent)){sorter.packCurrent++;}
-    rtcpData[0] = 0x81;                  // version 2, no padding, one receiver report
-    rtcpData[1] = 201;                   // receiver report
-    Bit::htobs(rtcpData + 2, 7);         // 7 4-byte words follow the header
-    Bit::htobl(rtcpData + 4, mySSRC);    // set receiver identifier
-    Bit::htobl(rtcpData + 8, theirSSRC); // set source identifier
-    rtcpData[12] = (sorter.lostCurrent * 255) / (sorter.lostCurrent + sorter.packCurrent); // fraction lost since prev RR
-    Bit::htob24(rtcpData + 13, sorter.lostTotal); // cumulative packets lost since start
-    Bit::htobl(rtcpData + 16,
-               sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul)); // highest sequence received
-    Bit::htobl(rtcpData + 20, jitter); // jitter
-    Bit::htobl(rtcpData + 24, sorter.lastNTP); // last SR NTP time (middle 32 bits)
+    uint32_t SRdelay = 0;
     if (sorter.lastBootMS){
-      Bit::htobl(rtcpData + 28, (Util::bootMS() - sorter.lastBootMS) * 65.536); // delay since last SR in 1/65536th of a second
-    }else{
-      Bit::htobl(rtcpData + 28, 0); // no delay since last SR yet
+      SRdelay = (Util::bootMS() - sorter.lastBootMS) * 65.536; // delay since last SR in 1/65536th of a second
     }
-    callBack(userData, rtcpData, 32, 0);
+    Packet::sendRTCP_RR(mySSRC, theirSSRC, (sorter.lostCurrent * 255) / (sorter.lostCurrent + sorter.packCurrent), sorter.lostTotal, sorter.rtpSeq | (sorter.packTotal & 0xFFFF0000ul), jitter, sorter.lastNTP, SRdelay, userData, callBack);
     sorter.lostCurrent = 0;
     sorter.packCurrent = 0;
-    free(rtcpData);
   }
 
 }// namespace RTP

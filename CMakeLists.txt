@@ -184,7 +184,7 @@ if (NOT NORIST)
   find_library(RIST_LIB rist)
   if(RIST_LIB)
     add_definitions(-DWITH_RIST=1)
-    message("Building with RIST")
+    message("Building with RIST at ${RIST_LIB}")
   else()
     message("Building without RIST support")
   endif()
@@ -355,14 +355,9 @@ install(
 
 if(SRT_LIB)
   target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
-  add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
-  target_link_libraries(mist_srt mist ${SRT_LIB})
+  target_link_libraries(mist ${SRT_LIB})
   find_path(SRT_HEADER_DIR "srt/srt.h")
   include_directories(${SRT_HEADER_DIR})
-  install(
-    TARGETS mist_srt
-    DESTINATION lib
-  )
   message(SRT-LIB-IS-XXX="${SRT_LIB}")
 endif()
 
@@ -450,9 +445,6 @@ macro(makeInput inputName format)
     src/input/input_${format}.cpp 
     src/io.cpp
   )
-  if (";${ARGN};" MATCHES ";with_srt;")
-    target_link_libraries(MistIn${inputName} mist_srt )
-  endif()
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistIn${inputName} rist cjson)
   endif()
@@ -536,9 +528,6 @@ macro(makeOutput outputName format)
   set_target_properties(MistOut${outputName} 
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
   )
-  if (";${ARGN};" MATCHES ";with_srt;")
-    target_link_libraries(MistOut${outputName} mist_srt)
-  endif()
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistOut${outputName} rist cjson)
   endif()

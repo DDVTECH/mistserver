@@ -344,10 +344,6 @@ if (NOT NOSSL)
   find_path(SRTP2_HEADER_DIR "srtp2/srtp.h")
   include_directories(${MBEDTLS_HEADER_DIR} ${SRTP2_HEADER_DIR})
 endif()
-if(SRT_LIB)
-  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
-  target_link_libraries(mist srt)
-endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist
@@ -357,8 +353,8 @@ install(
   DESTINATION lib
 )
 
-
 if(SRT_LIB)
+  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
   add_library(mist_srt lib/socket_srt.h lib/socket_srt.cpp)
   target_link_libraries(mist_srt mist ${SRT_LIB})
   find_path(SRT_HEADER_DIR "srt/srt.h")
@@ -367,6 +363,7 @@ if(SRT_LIB)
     TARGETS mist_srt
     DESTINATION lib
   )
+  message(SRT-LIB-IS-XXX="${SRT_LIB}")
 endif()
 
 ########################################

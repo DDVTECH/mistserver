@@ -7,8 +7,8 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <string>
-#include <../lib/config.h>
-#include <../lib/util.h>
+#include "../lib/config.h"
+#include "../lib/util.h"
 #include <iostream>
 #include <loadtest_html.h>
 #include <sys/resource.h>

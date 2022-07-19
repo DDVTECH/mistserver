@@ -11,14 +11,16 @@ public:
   float dur;
 };
 
-class AnalyserHLS : public Analyser{
+class AnalyserHLS : public Analyser, public Util::DataCallback{
 public:
   AnalyserHLS(Util::Config &conf);
   bool parsePacket();
   static void init(Util::Config &conf);
   bool isOpen();
-  bool open(const std::string &filename);
+//  bool open(const std::string &filename);
   void stop();
+  bool readPlaylist(std::string source);
+  bool open(const std::string & filename);
 
 private:
   std::deque<HLSPart> parts;
@@ -28,5 +30,5 @@ private:
   uint64_t parsedPart;
   uint64_t refreshAt;
   std::ofstream reconstruct;
-  HTTP::Downloader DL;
+  bool refreshPlaylist;
 };

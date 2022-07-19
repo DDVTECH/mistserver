@@ -181,7 +181,7 @@ namespace Mist{
 
       size_t recvSize = srtConn.RecvNow();
       if (recvSize){
-        if (assembler.assemble(tsStream, srtConn.recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
+        if (assembler.assemble(tsStream, (const char*)srtConn.recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
       }else if (srtConn){
         // This should not happen as the SRT socket is read blocking and won't return until there is
         // data. But if it does, wait before retry

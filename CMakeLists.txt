@@ -344,6 +344,10 @@ if (NOT NOSSL)
   find_path(SRTP2_HEADER_DIR "srtp2/srtp.h")
   include_directories(${MBEDTLS_HEADER_DIR} ${SRTP2_HEADER_DIR})
 endif()
+if(SRT_LIB)
+  target_sources(mist PRIVATE lib/socket_srt.h PRIVATE lib/socket_srt.cpp)
+  target_link_libraries(mist srt)
+endif()
 install(
   FILES ${libHeaders}
   DESTINATION include/mist
@@ -382,9 +386,7 @@ macro(makeAnalyser analyserName format)
   set_target_properties(MistAnalyser${analyserName} 
     PROPERTIES COMPILE_DEFINITIONS "ANALYSERHEADER=\"analyser_${format}.h\"; ANALYSERTYPE=Analyser${analyserName}"
   )
-  target_link_libraries(MistAnalyser${analyserName}
-    mist
-  )
+  target_link_libraries(MistAnalyser${analyserName} mist)
   install(
     TARGETS MistAnalyser${analyserName}
     DESTINATION bin
@@ -403,6 +405,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
+makeAnalyser(WebRTC webrtc) #LTS
 
 #LTS_START
 ########################################
@@ -867,6 +870,13 @@ add_custom_command(OUTPUT generated/server.html.h
   COMMAND ./sourcery generated/server.html server_html generated/server.html.h
   DEPENDS sourcery ${BINARY_DIR}/generated/server.html
 )
+#########
+# Load Tester result interface
+#########
+add_custom_command(OUTPUT generated/loadtest_html.h
+  COMMAND ./sourcery ${SOURCE_DIR}/lsp/loadtest/index.html loadtest_html generated/loadtest_html.h '"stats.json"'
+  DEPENDS sourcery ${SOURCE_DIR}/lsp/loadtest/index.html ${SOURCE_DIR}/lsp/loadtest/loadtest.js ${SOURCE_DIR}/lsp/loadtest/graphs.css ${SOURCE_DIR}/lsp/plugins/drawgraph.js 
+)
 
 ########################################
 # MistController - Build               #
@@ -950,3 +960,5 @@ add_executable(streamstatustest test/status.cpp)
 target_link_libraries(streamstatustest mist)
 add_executable(websockettest test/websocket.cpp)
 target_link_libraries(websockettest mist)
+add_executable(MistLoadTest test/load.cpp ${BINARY_DIR}/mist/.headers generated/loadtest_html.h)
+target_link_libraries(MistLoadTest mist)

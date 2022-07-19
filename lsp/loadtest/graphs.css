@@ -1,0 +1,248 @@
+.chart {
+  border: 1px solid #bbb;
+  font: 14px sans-serif;
+  margin: 10px;
+  box-sizing: border-box;
+  
+  width: 800px;
+  height: 480px;
+  
+  --blue:     #5bf;
+  --red:      #f57;
+  --green:    #0b1;
+  --purple:   #91f;
+  --yellow:   #ed0;
+  --brown:    #754;
+  --darkblue: #019;
+  
+  --color-1: var(--blue);
+  --color-2: var(--red);
+  --color-3: var(--green);
+  --color-4: var(--purple);
+  --color-5: var(--yellow);
+  --color-6: var(--brown);
+  
+  --background: #fff;
+}
+.chart .title {
+  font-size: 1.5em;
+}
+.chart .chartarea {
+  fill: #ffffff01;
+  stroke: none;
+}
+.chart .cursor {
+  stroke: red;
+  stroke-width: 1;
+  pointer-events: none;
+}
+.chart .axis {
+  color: #888;
+}
+.chart .axis .label:hover {
+  opacity: 0;
+  cursor: pointer;
+}
+.chart .axis .label rect {
+  fill: var(--background);
+  stroke: none;
+  rx: 3;
+  fill-opacity: 0.8;
+  filter: url(#dropshadow);
+}
+.data_container {
+  pointer-events: none;
+  filter: url(#dropshadow);
+}
+.chart .series:nth-child(6n+1) { --color: var(--color-1); }
+.chart .series:nth-child(6n+2) { --color: var(--color-2); }
+.chart .series:nth-child(6n+3) { --color: var(--color-3); }
+.chart .series:nth-child(6n+4) { --color: var(--color-4); }
+.chart .series:nth-child(6n+5) { --color: var(--color-5); }
+.chart .series:nth-child(6n+6) { --color: var(--color-6); }
+
+.chart .line {
+  fill: none;
+  stroke: var(--color);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+.chart .series.animate * {
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+  animation-timing-function: ease;
+}
+.chart .series.animate .line {
+  --path-length: 1000; /* actual value will be set with js */
+  stroke-dasharray: var(--path-length);
+  animation-name: animate-line;
+  animation-duration: 2s;
+  animation-delay: 0.5s;
+}
+@keyframes animate-line {
+  from {
+    stroke-dashoffset: var(--path-length);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.chart .series.animate .label > *,
+.chart .series.animate .dots,
+.chart .series.animate .fill {
+  animation-name: animate-line-appear;
+  animation-duration: 0.25s;
+  animation-delay: 2.75s;
+}
+.chart .series.animate .fill {
+  animation-duration: 2s;
+}
+.chart .series.animate .label circle {
+  animation-delay: 2.5s;
+}
+@keyframes animate-line-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+.chart .dot {
+  r: 2.5px;
+  --larger-radius: 3px;
+  fill: var(--color);
+  opacity: 0.6;
+}
+.chart.smalldots .dot {
+  r: 1.5px;
+  --larger-radius: 2.5px;
+}
+.chart .dots-hidden .dot, 
+.chart .line-hidden .line {
+  display: none;
+}
+.chart .series .band {
+  stroke: none;
+  fill: var(--color);
+  opacity: 0.1;
+}
+.chart .series .fill {
+  stroke: none;
+  fill: none;
+}
+.chart .series.show-fill .fill {
+  fill: var(--color);
+  opacity: 0.5;
+}
+.chart .series.show-fill.fill-fade .fill {
+  mask: url("#chart_transparency_gradient");
+}
+.chart .labels .label text {
+  fill: var(--color);
+  font-size: 0.8em;
+}
+.chart .labels .label circle {
+  fill: var(--color);
+  r:3;
+}
+.chart .labels .label rect {
+  fill: var(--background);
+  stroke: none;
+  rx: 3;
+  fill-opacity: 0.8;
+  filter: url(#dropshadow);
+}
+.chart .labels .label:hover {
+  opacity: 0;
+}
+
+.chart .legend {
+  font-size: 0.8em;
+  user-select: none; /*because we hide it on mouseover anyway..*/
+}
+.chart .legend > rect {
+  fill: #fff;
+  stroke: #888;
+  stroke-width: 0.5;
+}
+.chart .series[data-type="bar"] .dot { 
+  display: none;
+}
+.chart .legend:hover { opacity: 0; }
+.chart .series[data-type="bar"] .fill {
+  fill: var(--color);
+  stroke: none;
+  fill-opacity: 0.5;
+  mask: url("#barchart_transparency_gradient");
+}
+.chart .series[data-type="bar"] .stroke {
+  fill: none;
+  stroke: var(--color);
+}
+
+.chart .series.animate[data-type="bar"] .bar > * {
+  animation-name: rise_up;
+  animation-duration: 1s;
+  animation-timing-functions: ease-out;
+  animation-delay: var(--data-delay);
+}
+@keyframes rise_up {
+  from {
+    y: 100%;
+  }
+  to {
+    y: var(--bar-y);
+  }
+}
+
+.chart .pie .slice {
+  fill: var(--color);
+  pointer-events: auto;
+  opacity: 0.5;
+}
+.chart .pie .slice:hover {
+  opacity: 1;
+}
+
+.tooltip {
+  border: 1px solid #bbb;
+  background: #fffd;
+  padding: 0.25em 0.5em;
+  position: absolute;
+  margin: 1em 0 0 1em;
+  text-align: left;
+}
+.tooltip p {
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chart {
+    --background: #333;
+    --text: #ddd;
+    --muted: #666;
+    --dark: #444;
+  }
+  .chart {
+    border-color: var(--dark);
+  }
+  .chart text {
+    fill: currentColor;
+  }
+  .chart .chartarea {
+    fill: #00000001;
+  }
+  .chart .line { opacity: 1; }
+  .chart .axis {
+    color: var(--muted);
+  }
+  .chart .line { opacity: 1; }
+  .tooltip {
+    border-color: var(--dark);
+    background-color: var(--background);
+  }
+  .chart .legend > rect {
+    fill: var(--background);
+    stroke: var(--dark);
+  }
+}

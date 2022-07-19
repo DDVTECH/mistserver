@@ -99,11 +99,12 @@ namespace HTTP{
 
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){
-      stateType = HTTP::HTTP;
+      stateType = HTTP;
 
       // Send HEAD request to determine range request is supported, and get total length
       downer.clearHeaders();
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
+      if (sidOverride.size()){downer.setHeader("Cookie", "sid=" + sidOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());
@@ -135,6 +136,30 @@ namespace HTTP{
       }
       return true;
     }
+
+#ifdef WITH_SRT
+    if (myURI.protocol == "srt"){
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(myURI.args, arguments); 
+      size_t connectCnt = 0;
+      do{
+          srtConn.connect(myURI.host, myURI.getPort(), "input", arguments);
+          if (!srtConn){Util::sleep(1000);}
+          ++connectCnt;
+        }while (!srtConn && connectCnt < 10);
+
+      stateType = SRT;
+      startPos = 0;
+      endPos = std::string::npos;
+      totalSize = std::string::npos;
+      if (!srtConn){
+        FAIL_MSG("Could not open '%s'", myURI.getUrl().c_str());
+        stateType = Closed;
+        return false;
+      }
+      return true;
+    }
+#endif
 
     FAIL_MSG("URI type not implemented: %s", myURI.getUrl().c_str());
     return false;
@@ -214,6 +239,19 @@ namespace HTTP{
         Util::sleep(50);
       }
       curPos = downer.const_data().size();
+
+#ifdef WITH_SRT    
+    }else if (stateType == SRT){
+      int s;
+      static int totaal = 0;
+      if((srtConn && ((s = srtConn.Recv()) >0))){
+        cb.dataCallback(srtConn.recvbuf, s);
+        totaal += s;
+      }else{
+        Util::sleep(50);
+      }
+#endif
+
     }else{// streaming mode
       int s;
       static int totaal = 0;
@@ -267,6 +305,9 @@ namespace HTTP{
       ::close(handle);
       handle = -1;
     }
+#ifdef WITH_SRT
+    srtConn.close();
+#endif
   }
 
   void URIReader::onProgress(bool (*progressCallback)(uint8_t)){
@@ -302,6 +343,14 @@ namespace HTTP{
       }
       return false;
     }
+#ifdef WITH_SRT
+    else if(stateType == SRT){
+      if(!srtConn.connected()){
+        return true;
+      }
+      return false; //TODO 
+    }
+#endif
     return true;
   }
 

@@ -137,7 +137,9 @@ namespace Mist{
       HTTP::URL u(source);
       INFO_MSG("Parsed url: %s", u.getUrl().c_str());
       if (Socket::interpretSRTMode(u) == "listener"){
-        sSock = Socket::SRTServer(u.getPort(), u.host, false);
+        std::map<std::string, std::string> arguments;
+        HTTP::parseVars(u.args, arguments);
+        sSock = Socket::SRTServer(u.getPort(), u.host, arguments, false);
         struct sigaction new_action;
         struct sigaction cur_action;
         new_action.sa_sigaction = signal_handler;

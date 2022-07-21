@@ -97,7 +97,7 @@ namespace Socket{
   public:
     SRTServer();
     SRTServer(int existingSock);
-    SRTServer(int port, std::string hostname, bool nonblock = false, const std::string &_direction = "input");
+    SRTServer(int port, std::string hostname, std::map<std::string, std::string> params, bool nonblock = false, const std::string &_direction = "input");
     SRTConnection accept(bool nonblock = false, const std::string &direction = "input");
     void setBlocking(bool blocking);
     bool connected() const;

@@ -207,6 +207,18 @@ namespace DTSC{
     Util::RelAccXFieldData sizeField;
   };
 
+  class KeysTimer{
+  public:
+    KeysTimer(const Util::RelAccX &_keys);
+    uint64_t getTime(size_t idx) const;
+    size_t getNumForTime(uint64_t time) const;
+
+  private:
+    const Util::RelAccX &cKeys;
+
+    Util::RelAccXFieldData timeField;
+  };
+
   class Fragments{
   public:
     Fragments(const Util::RelAccX &_fragments);

@@ -1,5 +1,5 @@
-#include "analyser.h"
 #include "analyser_ts.h"
+#include "analyser.h"
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
@@ -16,6 +16,13 @@
 #include <string.h>
 #include <string>
 #include <unistd.h>
+
+Util::ResizeablePointer buffer;
+
+
+void AnalyserCallback::hasPacket(TS::Packet & p){
+  buffer.append(p.checkAndGetBuffer(), 188);
+}
 
 
 std::set<unsigned int> pmtTracks;
@@ -47,7 +54,13 @@ void AnalyserTS::init(Util::Config &conf){
   opt["help"] = "Write raw PES payloads to given file";
   conf.addOption("raw", opt);
   opt.null();
-}
+
+  opt["long"] = "assembler";
+  opt["short"] = "A";
+  opt["help"] = "Use TS packet assembler";
+  conf.addOption("assembler", opt);
+  opt.null();
+ }
 
 AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
   pidOnly = conf.getInteger("pid");
@@ -55,24 +68,36 @@ AnalyserTS::AnalyserTS(Util::Config &conf) : Analyser(conf){
     outFile.open(conf.getString("raw").c_str());
   }
   bytes = 0;
+  dataOffset = 0;
+  buffer.allocate(18800);
+  useAssembler = conf.getBool("assembler");
 }
 
 bool AnalyserTS::parsePacket(){
-  static char packetPtr[188];
-  std::cin.read(packetPtr, 188);
-  if (std::cin.gcount() != 188){return false;}
+  while (buffer.size()-dataOffset < 188) {
+    if (!isOpen()) {
+      FAIL_MSG("End of file");
+      return false;
+    }
+    uri.readSome(188,*this);
+    if (buffer.size()-dataOffset < 188){
+      Util::sleep(50);
+    }
+  }
   DONTEVEN_MSG("Reading from position %" PRIu64, bytes);
   bytes += 188;
-  if (!packet.FromPointer(packetPtr)){return false;}
-  if (detail){
-    if (packet.getUnitStart() && payloads.count(packet.getPID()) && payloads[packet.getPID()] != ""){
+
+  if (!packet.FromPointer(buffer+dataOffset)){return false;}
+  if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
+  if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
+  if (detail && !validate){
+    if (packet.getUnitStart() && payloads.count(packet.getPID()) &&
+        payloads[packet.getPID()] != ""){
       if ((detail & 1) && (!pidOnly || packet.getPID() == pidOnly)){
         std::cout << printPES(payloads[packet.getPID()], packet.getPID());
       }
       payloads.erase(packet.getPID());
     }
-    if (packet.getPID() == 0){((TS::ProgramAssociationTable *)&packet)->parsePIDs(pmtTracks);}
-    if (packet.isPMT(pmtTracks)){((TS::ProgramMappingTable *)&packet)->parseStreams();}
     if ((((detail & 2) && !packet.isStream()) || ((detail & 4) && packet.isStream())) &&
         (!pidOnly || packet.getPID() == pidOnly)){
       std::cout << packet.toPrettyString(pmtTracks, 0, detail);
@@ -82,22 +107,29 @@ bool AnalyserTS::parsePacket(){
       payloads[packet.getPID()].append(packet.getPayload(), packet.getPayloadLength());
     }
   }
-  if (packet && packet.getAdaptationField() > 1 && packet.hasPCR()){
+  if (packet.getPID() >= 0x10 && !packet.isPMT(pmtTracks) && packet.getPID() != 17 && packet.isStream() && packet.getAdaptationField() > 1 && packet.getAdaptationFieldLen() && packet.hasPCR()){
     mediaTime = packet.getPCR() / 27000;
+  }
+  mediaDown += 188;
+  dataOffset += 188;
+  if (dataOffset > 18800){
+    buffer.pop(dataOffset);
+    dataOffset = 0;
   }
   return true;
 }
 
 AnalyserTS::~AnalyserTS(){
-  for (std::map<size_t, std::string>::iterator it = payloads.begin(); it != payloads.end(); it++){
+  for (std::map<unsigned long long, std::string>::iterator it = payloads.begin();
+       it != payloads.end(); it++){
     if ((detail & 1) && (!pidOnly || it->first == pidOnly)){
       std::cout << printPES(it->second, it->first);
     }
   }
 }
 
-std::string AnalyserTS::printPES(const std::string &d, size_t PID){
-  size_t headSize = 0;
+std::string AnalyserTS::printPES(const std::string &d, unsigned long PID){
+  unsigned int headSize = 0;
   std::stringstream res;
   bool known = false;
   res << "[PES " << PID << "]";
@@ -115,9 +147,10 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
   }
   if (!known){res << " [Unknown stream ID: " << (int)d[3] << "]";}
   if (d[0] != 0 || d[1] != 0 || d[2] != 1){
-    res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2] << " ]";
+    res << " [!!! INVALID START CODE: " << (int)d[0] << " " << (int)d[1] << " " << (int)d[2]
+        << " ]";
   }
-  size_t padding = 0;
+  unsigned int padding = 0;
   if (known){
     if ((d[6] & 0xC0) != 0x80){res << " [!INVALID FIRST BITS!]";}
     if (d[6] & 0x30){res << " [SCRAMBLED]";}
@@ -163,18 +196,18 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
       res << " [Padding: " << padding << "b]";
     }
     if (timeFlags & 0x02){
-      uint64_t time = ((d[9] & 0xE) >> 1);
+      long long unsigned int time = (((unsigned int)d[9] & 0xE) >> 1);
       time <<= 15;
-      time |= ((uint32_t)d[10] << 7) | ((d[11] >> 1) & 0x7F);
+      time |= ((unsigned int)d[10] << 7) | (((unsigned int)d[11] >> 1) & 0x7F);
       time <<= 15;
       time |= ((uint32_t)d[12] << 7) | ((d[13] >> 1) & 0x7F);
       res.precision(3);
       res << " [PTS " << std::fixed << (time / 90000.0) << "s]";
     }
     if (timeFlags & 0x01){
-      uint64_t time = ((d[14] >> 1) & 0x07);
+      long long unsigned int time = ((d[14] >> 1) & 0x07);
       time <<= 15;
-      time |= ((uint32_t)d[15] << 7) | (d[16] >> 1);
+      time |= ((int)d[15] << 7) | (d[16] >> 1);
       time <<= 15;
       time |= ((uint32_t)d[17] << 7) | (d[18] >> 1);
       res.precision(3);
@@ -182,8 +215,7 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
     }
   }
   if ((((int)d[4]) << 8 | d[5]) != (d.size() - 6)){
-    res << " [Size " << (((int)d[4]) << 8 | d[5]) + 6 << " => " << (d.size()) << "] [Payload "
-        << (d.size() - 9 - headSize) << "]";
+    res << " [Size " << (((int)d[4]) << 8 | d[5]) + 6 << " => " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
   }else{
     res << " [Size " << (d.size()) << "] [Payload " << (d.size() - 9 - headSize) << "]";
   }
@@ -193,17 +225,11 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
     outFile.write(d.data() + 9 + headSize + padding, d.size()-(9 + headSize + padding));
   }
   if (detail & 32){
-    size_t counter = 0;
-    for (size_t i = 9 + headSize + padding; i < d.size(); ++i){
+    unsigned int counter = 0;
+    for (unsigned int i = 9 + headSize + padding; i < d.size(); ++i){
       if ((i < d.size() - 4) && d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 0 && d[i + 3] == 1){
         res << std::endl;
         counter = 0;
-      }
-      if ((i < d.size() - 3) && d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 1){
-        if (counter > 1){
-          res << std::endl << "   ";
-          counter = 0;
-        }
       }
       res << std::hex << std::setw(2) << std::setfill('0') << (int)(d[i] & 0xff) << " ";
       if ((counter) % 32 == 31){res << std::endl;}
@@ -213,3 +239,12 @@ std::string AnalyserTS::printPES(const std::string &d, size_t PID){
   }
   return res.str();
 }
+
+void AnalyserTS::dataCallback(const char *ptr, size_t size) {
+  if(useAssembler){
+    assembler.assemble(ptr,size);
+  }else{
+    buffer.append(ptr,size);
+  }
+}
+

@@ -258,6 +258,16 @@ namespace Util{
     if (currSize > newLen){currSize = newLen;}
   }
 
+  /// Removes popLen bytes from the front of the buffer and shifts the rest of the contents over, if any
+  void ResizeablePointer::pop(const size_t popLen){
+    if (popLen >= currSize){
+      currSize = 0;
+      return;
+    }
+    memmove(ptr, ((char*)ptr)+popLen, currSize - popLen);
+    currSize -= popLen;
+  }
+
   /// Redirects stderr to log parser, writes log parser to the old stderr.
   /// Does nothing if the MIST_CONTROL environment variable is set.
   void redirectLogsIfNeeded(){

@@ -1,6 +1,8 @@
 #include "analyser_dtsc.h"
-#include <iomanip>
+#include <mist/bitfields.h>
 #include <mist/h264.h>
+#include <iomanip>
+std::string tmp;
 
 void AnalyserDTSC::init(Util::Config &conf){
   Analyser::init(conf);
@@ -17,8 +19,7 @@ void AnalyserDTSC::init(Util::Config &conf){
 }
 
 bool AnalyserDTSC::open(const std::string &filename){
-  if (!Analyser::open(filename)){return false;}
-  conn.open(1, 0);
+  uri.open(filename);
   totalBytes = 0;
   return true;
 }
@@ -28,26 +29,71 @@ AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
   sizePrepended = conf.getBool("sizeprepended");
 }
 
+uint64_t AnalyserDTSC::neededBytes(){
+  if(buffer.available(8)){
+    if(buffer.copy(2) != "DT"){
+      WARN_MSG("Invalid DTSC Packet header encountered (%s)", buffer.copy(4).c_str());
+    }
+    return Bit::btohl(buffer.copy(8).data() + 4);
+  }else{
+    return 0;
+  }
+}
+
 bool AnalyserDTSC::parsePacket(){
   if (headLess){
-    while (conn){
-      if (!conn.spool()){Util::sleep(50);}
+    INFO_MSG("headless");
+
+    while(!uri.isEOF()){
+      uri.readSome(4096, *this);
     }
-    std::string dataBuf = conn.Received().remove(conn.Received().bytes(0xFFFFFFFFul));
-    DTSC::Scan S((char *)dataBuf.data(), dataBuf.size());
+ 
+    //read everything in buffer
+    std::string dataBuf = buffer.remove(buffer.bytes(0xFFFFFFFFul));
+    DTSC::Scan S((char*)dataBuf.data(), dataBuf.size());
     std::cout << S.toPrettyString() << std::endl;
     return false;
   }
-  P.reInit(conn);
-  if (conn && !P){
-    FAIL_MSG("Invalid DTSC packet @ byte %" PRIu64, totalBytes)
-    return false;
-  }
-  if (!conn && !P){
-    stop();
-    return false;
-  }
+ 
+  size_t bytesNeeded = 1000;
 
+  int sleepCount = 0;
+  int toReceive = 0;
+  bool keepRunning = true;
+
+ 
+  while(keepRunning){
+    if(!toReceive){
+      toReceive = neededBytes();
+    }
+
+    if(toReceive && buffer.available(toReceive + 8)){
+      std::string dataBuf = buffer.remove(toReceive + 8);
+      P.reInit(dataBuf.data(), dataBuf.size());
+      if (!P) {
+        FAIL_MSG("Invalid DTSC packet @ byte %llu", totalBytes)
+        return false;
+      }
+      break;
+    }
+
+    if(!buffer.available(8) && !uri.isEOF()){
+      if (sleepCount++ > 150){
+        WARN_MSG("Waiting for packet on connection timed out");
+        return false;
+      }
+      Util::wait(100);
+    }       
+
+    uri.readSome(toReceive + 8, *this);
+
+    if(uri.isEOF() && !buffer.available(1)){
+      FAIL_MSG("End of file");
+      stop();
+      return false;
+    }
+  }
+  
   switch (P.getVersion()){
   case DTSC::DTSC_V1:{
     if (detail >= 2){
@@ -169,4 +215,8 @@ bool AnalyserDTSC::parsePacket(){
 
   totalBytes += P.getDataLen();
   return true;
+}
+
+void AnalyserDTSC::dataCallback(const char *ptr, size_t size) {
+  buffer.append(ptr, size);
 }

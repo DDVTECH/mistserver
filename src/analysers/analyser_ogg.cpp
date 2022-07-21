@@ -9,8 +9,22 @@ void AnalyserOGG::init(Util::Config &conf){
 
 AnalyserOGG::AnalyserOGG(Util::Config &conf) : Analyser(conf){}
 
+std::string tmp;
+
 bool AnalyserOGG::parsePacket(){
-  if (!oggPage.read(stdin)){return false;}
+  //if (!oggPage.read(stdin)){return false;}
+size_t bytesNeeded = 1900;
+
+
+  if (!oggPage.read(tmp)){
+    if(uri.isEOF()){
+    FAIL_MSG("stop");
+    return false;
+    }else{
+      uri.readSome(bytesNeeded, *this);
+    }
+  }
+  
 
   // We now have an Ogg page
   // Print it, if we're at high detail level.
@@ -105,4 +119,10 @@ bool AnalyserOGG::parsePacket(){
     }
   }
   return true;
+}
+
+void AnalyserOGG::dataCallback(const char *ptr, size_t size) {
+//WARN_MSG("got data: %lu", size);
+  tmp.append(ptr, size);
+//  buffer.append(ptr, size);
 }

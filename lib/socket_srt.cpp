@@ -462,12 +462,11 @@ namespace Socket{
 
   SRTServer::SRTServer(int fromSock){conn = SRTConnection(fromSock);}
 
-  SRTServer::SRTServer(int port, std::string hostname, bool nonblock, const std::string &_direction){
+  SRTServer::SRTServer(int port, std::string hostname, std::map<std::string, std::string> _params, bool nonblock, const std::string &_direction){
     // We always create a server as listening
-    std::map<std::string, std::string> listenMode;
-    listenMode["mode"] = "listener";
+    _params["mode"] = "listener";
     if (hostname == ""){hostname = "0.0.0.0";}
-    conn.connect(hostname, port, _direction, listenMode);
+    conn.connect(hostname, port, _direction, _params);
     conn.setBlocking(true);
     if (!conn){
       ERROR_MSG("Unable to create socket");

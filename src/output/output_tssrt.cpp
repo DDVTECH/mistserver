@@ -434,7 +434,8 @@ int main(int argc, char *argv[]){
       sigaction(SIGUSR1, &new_action, NULL);
     }
     if (conf.getInteger("port") && conf.getString("interface").size()){
-      server_socket = Socket::SRTServer(conf.getInteger("port"), conf.getString("interface"), false, "output");
+      std::map<std::string, std::string> arguments;
+      server_socket = Socket::SRTServer(conf.getInteger("port"), conf.getString("interface"), arguments, false, "output");
     }
     if (!server_socket.connected()){
       DEVEL_MSG("Failure to open socket");

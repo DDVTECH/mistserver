@@ -182,6 +182,14 @@ int main(int argc, char *argv[]){
   config.addOption("delay", option);
   option.null();
 
+  option["arg"] = "string";
+  option["default"] = "";
+  option["short"] = "o";
+  option["long"] = "outputdir";
+  option["help"] = "Output directory to save json/html results e.g. /tmp/";
+  config.addOption("outputdir", option);
+  option.null();
+
   if (!config.parseArgs(argc, argv)){
     config.printHelp(std::cout);
     return 0;
@@ -298,13 +306,13 @@ int main(int argc, char *argv[]){
   }
   {
     // Write raw JSON
-    std::string fName = outFile.str()+".json";
+    std::string fName = config.getString("outputdir")+"/"+outFile.str()+".json";
     std::ofstream fPromOut(fName.c_str());
     fPromOut << allStats.toString() << std::endl;
   }
   {
     // Write HTML page
-    std::string fName = outFile.str()+".html";
+    std::string fName = config.getString("outputdir")+"/"+outFile.str()+".html";
     std::ofstream fHtmlOut(fName.c_str());
     fHtmlOut << loadtest_html_prefix << allStats.toString() << loadtest_html_suffix << std::endl;
   }

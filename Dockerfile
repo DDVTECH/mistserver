@@ -1,4 +1,5 @@
 ARG	STRIP_BINARIES="true"
+ARG	BUILD_VERSION="Unknown"
 ARG	BUILD_TARGET
 
 FROM	ubuntu:20.04	as	mist-base
@@ -34,13 +35,18 @@ ENV	LD_LIBRARY_PATH="/src/compiled/lib" \
 
 COPY	.	.
 
+ARG	BUILD_VERSION
+ENV	BUILD_VERSION="${BUILD_VERSION}"
+
+RUN	mkdir -p /src/build/ \
+	&& cd /src/build/ \
+	&& echo "${BUILD_VERSION}" > VERSION
+
 FROM	mist-base	as	mist-static-build
 
-WORKDIR	/src
+WORKDIR	/src/build
 
-RUN	mkdir -p build/ \
-	&& cd build/ \
-	&& cmake \
+RUN	cmake \
 	  -DPERPETUAL=1 \
 	  -DLOAD_BALANCE=1 \
 	  -DCMAKE_C_FLAGS="-fPIC" \
@@ -58,9 +64,9 @@ RUN	if [ "$STRIP_BINARIES" = "true" ]; then strip -s /opt/bin/*; fi
 
 FROM	mist-base	as	mist-shared-build
 
-RUN	mkdir -p build/ \
-	&& cd build/ \
-	&& cmake \
+WORKDIR	/src/build
+
+RUN	cmake \
 	  -DPERPETUAL=1 \
 	  -DLOAD_BALANCE=1 \
 	  -DCMAKE_INSTALL_PREFIX=/opt \
@@ -93,6 +99,9 @@ RUN	apt update \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=mist-build	/opt/	/usr/
+
+ARG	BUILD_VERSION
+ENV	BUILD_VERSION="${BUILD_VERSION}"
 
 EXPOSE	1935 4242 8080 8889/udp
 

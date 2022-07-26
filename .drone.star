@@ -29,37 +29,42 @@ def get_environment(*names):
     return env
 
 
-def get_docker_tags(repo, prefix, branch, commit, debug, arch=""):
+def get_docker_tags(repo, prefix, debug, build_info, *args, arch=""):
+    branch = build_info.branch
+    commit = build_info.commit
+
     tags = [
         branch.replace("/", "-"),
         commit,
         commit[:8],
-    ]
+    ] + list(args)
     if branch in ("catalyst", "catalyst-updates", "catalyst-updates-drone"):
         tags.append("latest")
     suffix = "-debug" if debug else ""
     if arch != "":
         arch = "-" + arch
-    return ["%s:%s-%s%s%s" % (repo, prefix, tag, suffix, arch) for tag in tags]
+    return ["%s:%s-%s%s%s" % (repo, prefix, tag, suffix, arch) for tag in tuple(tags)]
 
 
 def docker_image_pipeline(arch, release, stripped, context):
-    build_context = context.build
-    commit = build_context.commit
+    build_info = context.build
+    version = (build_info.event == "tag" and build_info.ref) or build_info.commit
+
     debug = stripped == "false"
     image_tags = get_docker_tags(
         DOCKER_REPOSITORY,
         release,
-        build_context.branch,
-        commit,
         debug,
-        arch,
+        build_info,
+        version,
+        arch=arch,
     )
 
     return {
         "kind": "pipeline",
         "name": "docker-%s-%s-%s" % (arch, release, "debug" if debug else "strip"),
         "type": "exec",
+        "trigger": TRIGGER_CONDITION,
         "platform": {
             "os": "linux",
             "arch": arch,
@@ -78,37 +83,36 @@ def docker_image_pipeline(arch, release, stripped, context):
                     "DOCKERHUB_USERNAME",
                     "DOCKERHUB_PASSWORD",
                 ),
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "build",
                 "commands": [
-                    # "docker buildx create --use --name drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
-                    # "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes || true",
-                    "docker buildx build --progress=plain --target=mist --build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --tag {} --push .".format(
+                    "docker buildx build --progress=plain --target=mist "
+                    + "--build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --build-arg BUILD_VERSION={} --tag {} ".format(
                         release,
                         stripped,
+                        version,
                         " --tag ".join(image_tags),
-                        # temporary_docker_image,
-                    ),
-                    # "docker buildx rm drone-runner-${DRONE_BUILD_NUMBER}-${DRONE_STAGE_NUMBER}",
+                    )
+                    + "--push .",
                 ],
-                "when": TRIGGER_CONDITION,
             },
         ],
     }
 
 
 def docker_manifest_pipeline(release, stripped, context):
-    build_context = context.build
-    commit = build_context.commit
+    build_info = context.build
+    version = (build_info.event == "tag" and build_info.ref) or build_info.commit
+
     debug = stripped == "false"
     image_tags = get_docker_tags(
         DOCKER_REPOSITORY,
         release,
-        build_context.branch,
-        commit,
         debug,
+        build_info,
+        version,
+        arch="",
     )
 
     arch_image_tags = {
@@ -132,6 +136,7 @@ def docker_manifest_pipeline(release, stripped, context):
         "kind": "pipeline",
         "name": "docker-manifest-%s-%s" % (release, "debug" if debug else "strip"),
         "type": "exec",
+        "trigger": TRIGGER_CONDITION,
         "depends_on": [
             "docker-%s-%s-%s" % (arch, release, "debug" if debug else "strip")
             for arch in DOCKER_BUILDS["arch"]
@@ -154,7 +159,6 @@ def docker_manifest_pipeline(release, stripped, context):
                     "DOCKERHUB_USERNAME",
                     "DOCKERHUB_PASSWORD",
                 ),
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "manifest",
@@ -162,15 +166,18 @@ def docker_manifest_pipeline(release, stripped, context):
                 "environment": {
                     "DOCKER_CLI_EXPERIMENTAL": "enabled",
                 },
-                "when": TRIGGER_CONDITION,
             },
         ],
     }
 
 
-def binaries_pipeline(platform):
+def binaries_pipeline(context, platform):
+    version = (
+        context.build.event == "tag" and context.build.ref
+    ) or context.build.commit
+
     dependency_setup_commands = [
-        'set -e',
+        "set -e",
         'export CI_PATH="$(realpath ..)"',
         "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
         "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
@@ -186,6 +193,7 @@ def binaries_pipeline(platform):
         "kind": "pipeline",
         "name": "build-%s-%s" % (platform["os"], platform["arch"]),
         "type": "exec",
+        "trigger": TRIGGER_CONDITION,
         "platform": {
             "os": platform["os"],
             "arch": platform["arch"],
@@ -195,22 +203,21 @@ def binaries_pipeline(platform):
             "arch": platform["arch"],
         },
         "workspace": {"path": "drone/mistserver"},
+        "clone": {"depth": 0},
         "steps": [
             {
                 "name": "dependencies",
                 "commands": dependency_setup_commands,
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "binaries",
                 "commands": [
                     'export CI_PATH="$(realpath ..)"',
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
-                    "mkdir -p build/",
+                    "mkdir -p build/ && echo {} | tee build/VERSION".format(version),
                     "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNORIST=yes ..",
                     "make -j $(nproc) && make install",
                 ],
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "compress",
@@ -220,7 +227,6 @@ def binaries_pipeline(platform):
                     "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
                     % (platform["os"], platform["arch"]),
                 ],
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
@@ -233,7 +239,6 @@ def binaries_pipeline(platform):
                     "GCLOUD_SECRET",
                     "GCLOUD_BUCKET",
                 ),
-                "when": TRIGGER_CONDITION,
             },
         ],
     }
@@ -262,6 +267,7 @@ def checksum_pipeline(context):
         "kind": "pipeline",
         "name": "checksum",
         "type": "exec",
+        "trigger": TRIGGER_CONDITION,
         "depends_on": [
             "build-{}-{}".format(platform["os"], platform["arch"])
             for platform in PLATFORMS
@@ -278,7 +284,6 @@ def checksum_pipeline(context):
             {
                 "name": "download",
                 "commands": download_commands,
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "checksum",
@@ -286,7 +291,6 @@ def checksum_pipeline(context):
                     'cd "$(realpath ..)/download"',
                     "sha256sum * > {}".format(checksum_file),
                 ],
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
@@ -300,13 +304,12 @@ def checksum_pipeline(context):
                     "GCLOUD_SECRET",
                     "GCLOUD_BUCKET",
                 ),
-                "when": TRIGGER_CONDITION,
             },
         ],
     }
 
 
-def manifest_pipeline(context):
+def branch_manifest_pipeline(context):
     clean_branch = context.build.branch.replace("/", "-")
 
     builds = {}
@@ -328,6 +331,7 @@ def manifest_pipeline(context):
         "kind": "pipeline",
         "name": "manifest",
         "type": "exec",
+        "trigger": TRIGGER_CONDITION,
         "depends_on": ["checksum"],
         "platform": {
             "os": "linux",
@@ -346,7 +350,6 @@ def manifest_pipeline(context):
                         clean_branch,
                     )
                 ],
-                "when": TRIGGER_CONDITION,
             },
             {
                 "name": "upload",
@@ -360,7 +363,6 @@ def manifest_pipeline(context):
                     "GCLOUD_SECRET",
                     "GCLOUD_BUCKET",
                 ),
-                "when": TRIGGER_CONDITION,
             },
         ],
     }
@@ -391,7 +393,7 @@ def main(context):
         for stripped in DOCKER_BUILDS["strip"]
     ]
     for platform in PLATFORMS:
-        manifest.append(binaries_pipeline(platform))
+        manifest.append(binaries_pipeline(context, platform))
     manifest.append(checksum_pipeline(context))
-    manifest.append(manifest_pipeline(context))
+    manifest.append(branch_manifest_pipeline(context))
     return manifest

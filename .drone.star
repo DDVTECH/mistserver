@@ -214,7 +214,9 @@ def binaries_pipeline(context, platform):
                 "commands": [
                     'export CI_PATH="$(realpath ..)"',
                     'export PKG_CONFIG_PATH="$CI_PATH/compiled/lib/pkgconfig" && export LD_LIBRARY_PATH="$CI_PATH/compiled/lib" && export C_INCLUDE_PATH="$CI_PATH/compiled/include"',
-                    "mkdir -p build/ && echo {} | tee build/VERSION".format(version),
+                    "mkdir -p build/ && echo {} | tee build/BUILD_VERSION".format(
+                        version,
+                    ),
                     "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNORIST=yes ..",
                     "make -j $(nproc) && make install",
                 ],

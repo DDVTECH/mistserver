@@ -51,14 +51,14 @@ set(RELEASE \"${RELEASE}\" )
 #See if we have a git repo to get the version from
 execute_process(COMMAND git describe --tags OUTPUT_VARIABLE PACKAGE_VERSION_RAW ERROR_QUIET)
 if (NOT PACKAGE_VERSION_RAW)
-  execute_process(COMMAND cat VERSION OUTPUT_VARIABLE PACKAGE_VERSION_RAW ERROR_QUIET)
+  execute_process(COMMAND cat BUILD_VERSION OUTPUT_VARIABLE PACKAGE_VERSION_RAW ERROR_QUIET)
 endif()
 if (NOT PACKAGE_VERSION_RAW)
   set(PACKAGE_VERSION_RAW Unknown)
 endif()
 #strip off the trailing spaces and newline
 string(STRIP "${PACKAGE_VERSION_RAW}" PACKAGE_VERSION)
-set(PACKAGE_VERSION \"${PACKAGE_VERSION}\" ) 
+set(PACKAGE_VERSION \"${PACKAGE_VERSION}\" )
 
 ########################################
 # Build Variables - Everything else    #

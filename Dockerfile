@@ -40,7 +40,7 @@ ENV	BUILD_VERSION="${BUILD_VERSION}"
 
 RUN	mkdir -p /src/build/ \
 	&& cd /src/build/ \
-	&& echo "${BUILD_VERSION}" > VERSION
+	&& echo "${BUILD_VERSION}" > BUILD_VERSION
 
 FROM	mist-base	as	mist-static-build
 

@@ -1721,9 +1721,14 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
   hints.ai_addr = NULL;
   hints.ai_next = NULL;
   int s = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
-  if (s != 0){
-    FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s", destIp.c_str(), port, gai_strmagic(s));
-    return;
+  if (s){
+    hints.ai_family = AF_UNSPEC;
+    HIGH_MSG("Re-setting destination using unspecified address family...");
+    int s2 = getaddrinfo(destIp.c_str(), ss.str().c_str(), &hints, &result);
+    if (s2){
+      FAIL_MSG("Could not connect UDP socket to %s:%i! Error: %s / %s", destIp.c_str(), port, gai_strmagic(s), gai_strmagic(s2));
+      return;
+    }
   }
 
   for (rp = result; rp != NULL; rp = rp->ai_next){

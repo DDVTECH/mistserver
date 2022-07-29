@@ -315,18 +315,23 @@ def branch_manifest_pipeline(context):
     clean_branch = context.build.branch.replace("/", "-")
 
     builds = {}
+    src_filenames = {}
     for platform in PLATFORMS:
         key = "{}-{}".format(platform["os"], platform["arch"])
-        url = "https://build.livepeer.live/mistserver/{}/livepeer-mistserver-{}.tar.gz".format(
-            context.build.commit, key
+        filename = "livepeer-mistserver-{}.tar.gz".format(key)
+        url = "https://build.livepeer.live/mistserver/{}/{}".format(
+            context.build.commit,
+            filename,
         )
         builds[key] = url
+        src_filenames[key] = filename
 
     output_manifest = {
         "builds": builds,
         "commit": context.build.commit,
         "ref": context.build.ref,
         "branch": context.build.branch,
+        "srcFilenames": src_filenames,
     }
 
     return {
@@ -365,6 +370,12 @@ def branch_manifest_pipeline(context):
                     "GCLOUD_SECRET",
                     "GCLOUD_BUCKET",
                 ),
+            },
+            {
+                "name": "notification",
+                "commands": [
+                    "curl -X POST https://holy-bread-207a.livepeer.workers.dev/",
+                ],
             },
         ],
     }

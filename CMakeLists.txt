@@ -948,3 +948,7 @@ add_executable(websockettest test/websocket.cpp)
 target_link_libraries(websockettest mist)
 add_executable(MistLoadTest test/load.cpp generated/loadtest_html.h)
 target_link_libraries(MistLoadTest mist)
+install(
+  TARGETS MistLoadTest
+  DESTINATION bin
+)

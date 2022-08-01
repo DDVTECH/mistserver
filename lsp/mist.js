@@ -2802,8 +2802,8 @@ var UI = {
             label: 'Bundle viewer sessions by',
             bitmask: [
               [8,"Stream name"],
-              [4,"Viewer IP"],
-              [2,"Player id"],
+              [4,"IP address"],
+              [2,"Session id"],
               [1,"Protocol"]
             ],
             pointer: {
@@ -2816,8 +2816,8 @@ var UI = {
             label: 'Bundle input sessions by',
             bitmask: [
               [8,"Stream name"],
-              [4,"Viewer IP"],
-              [2,"Player id"],
+              [4,"IP address"],
+              [2,"Session id"],
               [1,"Protocol"]
             ],
             pointer: {
@@ -2830,8 +2830,8 @@ var UI = {
             label: 'Bundle output sessions by',
             bitmask: [
               [8,"Stream name"],
-              [4,"Viewer IP"],
-              [2,"Player id"],
+              [4,"IP address"],
+              [2,"Session id"],
               [1,"Protocol"]
             ],
             pointer: {
@@ -2844,8 +2844,8 @@ var UI = {
             label: 'Bundle unspecified sessions by',
             bitmask: [
               [8,"Stream name"],
-              [4,"Viewer IP"],
-              [2,"Player id"],
+              [4,"IP address"],
+              [2,"Session id"],
               [1,"Protocol"]
             ],
             pointer: {
@@ -2869,7 +2869,7 @@ var UI = {
             help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
           },{
             type: "bitmask",
-            label: "Communicate session ID",
+            label: "Communicate session id",
             bitmask: [
               [8,"Write to cookie"],
               [4,"Write to URL parameter"],

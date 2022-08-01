@@ -136,6 +136,9 @@ endif()
 option(NOLLHLS "Disable LLHLS")
 if (NOLLHLS)
   add_definitions(-DNOLLHLS=1)
+  message("Building WITHOUT LL-HLS support")
+else()
+  message("Building WITH LL-HLS support")
 endif()
 
 ########################################

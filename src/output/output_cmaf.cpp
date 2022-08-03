@@ -274,7 +274,7 @@ namespace Mist{
         requestTid,
         M.biggestFragment(timingTid) / 1000,
         atol(H.GetVar("iMsn").c_str()),
-        config->getInteger("listlimit"),
+        M.getLive()? config->getInteger("listlimit") : 0,
         urlPrefix,
         systemBoot,
         bootMsOffset,

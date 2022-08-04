@@ -3,10 +3,62 @@
 #include "timing.h"
 #include "urireader.h"
 #include "util.h"
+#include "encode.h"
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <cstdlib>
+#include <ctime>
 
 namespace HTTP{
+
+  // Helper for Date header
+  std::string dateToString() {
+    char buffer[80];
+    time_t rawtime;
+    struct tm * timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", timeinfo);
+    return std::string(buffer);
+  }
+
+  // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+  // Transform to: 
+  // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+  // header Date: ${dateToString()}
+  // header Authorization: AWS ${url.user}:${signature}
+  bool transformS3ToHttp(HTTP::Downloader& downloader, HTTP::URL& url) {
+    // Adjust URL
+    url.protocol = url.protocol.erase(0, 3); // remove "s3+" prefix
+    std::string accessKey(url.user), secret(url.pass), date(dateToString());
+    url.user = "";
+    url.pass = "";
+    std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
+    if(url.args.size()) requestPath += "?" + url.args;
+    // Calculate Authorization data
+    std::string toSign = "GET\n\n\n" + date + "\n" + requestPath;
+    unsigned char signature[MBEDTLS_MD_MAX_SIZE];
+    const int sha1Size = 20;
+    mbedtls_md_context_t md_ctx = {0};
+    // TODO: When we use MBEDTLS_MD_SHA512 ? Consult documentation/code
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+    if (!md_info){ FAIL_MSG("error s3 MBEDTLS_MD_SHA1 unavailable"); return false; }
+    int status = mbedtls_md_setup(&md_ctx, md_info, 1);
+    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_setup error %d", status); return false; }
+    status = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)secret.c_str(), secret.size());
+    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_starts error %d", status); return false; }
+    status = mbedtls_md_hmac_update(&md_ctx, (const unsigned char *)toSign.c_str(), toSign.size());
+    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_update error %d", status); return false; }
+    status = mbedtls_md_hmac_finish(&md_ctx, signature);
+    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status); return false; }
+    std::string base64encoded = Encodings::Base64::encode(std::string((const char*)signature, sha1Size));
+    std::string authorization = "AWS " + accessKey + ":" + base64encoded;
+    // Set headers:
+    downloader.clearHeaders();
+    downloader.setHeader("Authorization", authorization);
+    downloader.setHeader("Date", date);
+    return true;
+  }
 
   void URIReader::init(){
     handle = -1;
@@ -97,12 +149,37 @@ namespace HTTP{
       }
     }
 
+    // In case of s3 URI we prepare HTTP request with AWS authorization and rely on HTTP logic below
+    if (myURI.protocol == "s3+https" || myURI.protocol == "s3+http"){
+      // Check fallback to global credentials in env vars
+      bool haveCredentials = myURI.user.size() && myURI.pass.size();
+      if(!haveCredentials) {
+        // Use environment variables
+        char * envValue = std::getenv("S3_ACCESS_KEY_ID");
+        if(envValue == NULL) {
+          FAIL_MSG("error s3 uri without credentials. Consider setting S3_ACCESS_KEY_ID env var");
+          return false;
+        }
+        myURI.user = envValue;
+        envValue = std::getenv("S3_SECRET_ACCESS_KEY");
+        if(envValue == NULL) {
+          FAIL_MSG("error s3 uri without credentials. Consider setting S3_SECRET_ACCESS_KEY env var");
+          return false;
+        }
+        myURI.pass = envValue;
+      }
+      // Do not return, continue to HTTP case
+      if(!transformS3ToHttp(downer, myURI)) return false;
+    } else {
+      // clear headers only if not s3 protocol
+      downer.clearHeaders();
+    }
+
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){
       stateType = HTTP;
 
       // Send HEAD request to determine range request is supported, and get total length
-      downer.clearHeaders();
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
       if (sidOverride.size()){downer.setHeader("Cookie", "sid=" + sidOverride);}
       if (!downer.head(myURI) || !downer.isOk()){

@@ -1249,7 +1249,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   std::set<size_t> result;
 
   /*LTS-START*/
-  bool noSelAudio = false, noSelVideo = false, noSelSub = false;
+  bool noSelAudio = false, noSelVideo = false, noSelSub = false, noSelMeta = false;
   // Then, select the tracks we've been asked to select.
   if (targetParams.count("audio") && targetParams.at("audio").size()){
     if (targetParams.at("audio") != "-1" && targetParams.at("audio") != "none"){
@@ -1269,6 +1269,11 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
     std::set<size_t> tracks = Util::findTracks(M, capa, "subtitle", targetParams.at("subtitle"), UA);
     result.insert(tracks.begin(), tracks.end());
     noSelSub = true;
+  }
+  if (targetParams.count("meta") && targetParams.at("meta").size()){
+    std::set<size_t> tracks = Util::findTracks(M, capa, "meta", targetParams.at("meta"), UA);
+    result.insert(tracks.begin(), tracks.end());
+    noSelMeta = true;
   }
   /*LTS-END*/
 
@@ -1291,6 +1296,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   // loop through all codec combinations, count max simultaneous active
   unsigned int bestSoFar = 0;
   unsigned int bestSoFarCount = 0;
+  unsigned int bestSoFarCountExtra = 0;
   unsigned int index = 0;
   bool allowBFrames = true;
   if (capa.isMember("methods")){
@@ -1319,6 +1325,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
         if (problems){continue;}
         if (noSelAudio && M.getType(*trit) == "audio"){continue;}
         if (noSelVideo && M.getType(*trit) == "video"){continue;}
+        if (noSelMeta && M.getType(*trit) == "meta"){continue;}
         if (noSelSub && (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){continue;}
         result.insert(*trit);
     }
@@ -1328,6 +1335,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
 
   jsonForEachConst(capa["codecs"], it){
     unsigned int selCounter = 0;
+    unsigned int extraCounter = 0;
     if ((*it).size() > 0){
       jsonForEachConst((*it), itb){
         if ((*itb).size() > 0){
@@ -1360,6 +1368,26 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
                 }
                 if (problems){break;}
                 selCounter++;
+                extraCounter++;
+                if (!multiSel){break;}
+              }
+            }
+            for (std::set<size_t>::iterator itd = validTracks.begin(); itd != validTracks.end(); itd++){
+              if ((!byType && M.getCodec(*itd) == strRef.substr(shift)) ||
+                  (byType && M.getType(*itd) == strRef.substr(shift)) || strRef.substr(shift) == "*"){
+                // user-agent-check
+                bool problems = false;
+                if (capa.isMember("exceptions") && capa["exceptions"].isObject() &&
+                    capa["exceptions"].size()){
+                  jsonForEachConst(capa["exceptions"], ex){
+                    if (ex.key() == "codec:" + strRef.substr(shift)){
+                      problems = !Util::checkException(*ex, UA);
+                      break;
+                    }
+                  }
+                }
+                if (problems){break;}
+                extraCounter++;
                 if (!multiSel){break;}
               }
             }
@@ -1367,8 +1395,9 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
         }
       }
       if (selCounter == result.size()){
-        if (selCounter > bestSoFarCount){
+        if (selCounter > bestSoFarCount || (selCounter == bestSoFarCount && extraCounter > bestSoFarCountExtra)){
           bestSoFarCount = selCounter;
+          bestSoFarCountExtra = extraCounter;
           bestSoFar = index;
           HIGH_MSG("Matched %u: %s", selCounter, (*it).toString().c_str());
         }

@@ -114,3 +114,15 @@ std::string Util::getUTCString(uint64_t epoch){
            ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
   return std::string(result);
 }
+
+std::string Util::getDateString(uint64_t epoch){
+  char buffer[80];
+  time_t rawtime = epoch;
+  if (!epoch) {
+    time(&rawtime);
+  }
+  struct tm * timeinfo;
+  timeinfo = localtime(&rawtime);
+  strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", timeinfo);
+  return std::string(buffer);
+}

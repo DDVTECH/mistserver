@@ -11,26 +11,16 @@
 
 namespace HTTP{
 
-  // Helper for Date header
-  std::string dateToString() {
-    char buffer[80];
-    time_t rawtime;
-    struct tm * timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", timeinfo);
-    return std::string(buffer);
-  }
-
+#ifndef NOSSL
   // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
   // Transform to: 
   // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // header Date: ${dateToString()}
+  // header Date: ${Util::getDateString(()}
   // header Authorization: AWS ${url.user}:${signature}
-  bool transformS3ToHttp(HTTP::Downloader& downloader, HTTP::URL& url) {
+  inline bool transformS3ToHttp(HTTP::Downloader& downloader, HTTP::URL& url) {
     // Adjust URL
     url.protocol = url.protocol.erase(0, 3); // remove "s3+" prefix
-    std::string accessKey(url.user), secret(url.pass), date(dateToString());
+    std::string accessKey(url.user), secret(url.pass), date(Util::getDateString());
     url.user = "";
     url.pass = "";
     std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
@@ -54,11 +44,11 @@ namespace HTTP{
     std::string base64encoded = Encodings::Base64::encode(std::string((const char*)signature, sha1Size));
     std::string authorization = "AWS " + accessKey + ":" + base64encoded;
     // Set headers:
-    downloader.clearHeaders();
     downloader.setHeader("Authorization", authorization);
     downloader.setHeader("Date", date);
     return true;
   }
+#endif // ifndef NOSSL
 
   void URIReader::init(){
     handle = -1;
@@ -149,6 +139,9 @@ namespace HTTP{
       }
     }
 
+    downer.clearHeaders(); // prepare for s3 and http
+
+#ifndef NOSSL
     // In case of s3 URI we prepare HTTP request with AWS authorization and rely on HTTP logic below
     if (myURI.protocol == "s3+https" || myURI.protocol == "s3+http"){
       // Check fallback to global credentials in env vars
@@ -170,10 +163,8 @@ namespace HTTP{
       }
       // Do not return, continue to HTTP case
       if(!transformS3ToHttp(downer, myURI)) return false;
-    } else {
-      // clear headers only if not s3 protocol
-      downer.clearHeaders();
     }
+#endif // ifndef NOSSL
 
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){

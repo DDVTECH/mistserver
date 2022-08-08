@@ -11,45 +11,6 @@
 
 namespace HTTP{
 
-#ifndef NOSSL
-  // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // Transform to: 
-  // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // header Date: ${Util::getDateString(()}
-  // header Authorization: AWS ${url.user}:${signature}
-  inline bool transformS3ToHttp(HTTP::Downloader& downloader, HTTP::URL& url) {
-    // Adjust URL
-    url.protocol = url.protocol.erase(0, 3); // remove "s3+" prefix
-    std::string accessKey(url.user), secret(url.pass), date(Util::getDateString());
-    url.user = "";
-    url.pass = "";
-    std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
-    if(url.args.size()) requestPath += "?" + url.args;
-    // Calculate Authorization data
-    std::string toSign = "GET\n\n\n" + date + "\n" + requestPath;
-    unsigned char signature[MBEDTLS_MD_MAX_SIZE];
-    const int sha1Size = 20;
-    mbedtls_md_context_t md_ctx = {0};
-    // TODO: When we use MBEDTLS_MD_SHA512 ? Consult documentation/code
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
-    if (!md_info){ FAIL_MSG("error s3 MBEDTLS_MD_SHA1 unavailable"); return false; }
-    int status = mbedtls_md_setup(&md_ctx, md_info, 1);
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_setup error %d", status); return false; }
-    status = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)secret.c_str(), secret.size());
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_starts error %d", status); return false; }
-    status = mbedtls_md_hmac_update(&md_ctx, (const unsigned char *)toSign.c_str(), toSign.size());
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_update error %d", status); return false; }
-    status = mbedtls_md_hmac_finish(&md_ctx, signature);
-    if(status != 0) { FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status); return false; }
-    std::string base64encoded = Encodings::Base64::encode(std::string((const char*)signature, sha1Size));
-    std::string authorization = "AWS " + accessKey + ":" + base64encoded;
-    // Set headers:
-    downloader.setHeader("Authorization", authorization);
-    downloader.setHeader("Date", date);
-    return true;
-  }
-#endif // ifndef NOSSL
-
   void URIReader::init(){
     handle = -1;
     mapped = 0;
@@ -161,8 +122,60 @@ namespace HTTP{
         }
         myURI.pass = envValue;
       }
+      // Transform s3 url to HTTP request:
+
+      // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+      // Transform to: 
+      // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+      // header Date: ${Util::getDateString(()}
+      // header Authorization: AWS ${url.user}:${signature}
+
+      // remove "s3+" prefix
+      myURI.protocol = myURI.protocol.erase(0, 3); 
+      // Use user and pass to create signature and remove from HTTP request
+      std::string accessKey(myURI.user), secret(myURI.pass), date(Util::getDateString());
+      myURI.user = "";
+      myURI.pass = "";
+      // AWS signature logic:
+      std::string requestPath = "/" + Encodings::URL::encode(myURI.path, "/:=@[]#?&");
+      if(myURI.args.size()) requestPath += "?" + myURI.args;
+      // Calculate Authorization data
+      std::string toSign = "GET\n\n\n" + date + "\n" + requestPath;
+      unsigned char signature[MBEDTLS_MD_MAX_SIZE];
+      const int sha1Size = 20;
+      mbedtls_md_context_t md_ctx = {0};
+      // TODO: When we use MBEDTLS_MD_SHA512 ? Consult documentation/code
+      const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+      if (!md_info){ 
+        FAIL_MSG("error s3 MBEDTLS_MD_SHA1 unavailable"); 
+        return false; 
+      }
+      int status = mbedtls_md_setup(&md_ctx, md_info, 1);
+      if(status != 0){ 
+        FAIL_MSG("error s3 mbedtls_md_setup error %d", status); 
+        return false; 
+      }
+      status = mbedtls_md_hmac_starts(&md_ctx, (const unsigned char *)secret.c_str(), secret.size());
+      if(status != 0){ 
+        FAIL_MSG("error s3 mbedtls_md_hmac_starts error %d", status); 
+        return false; 
+      }
+      status = mbedtls_md_hmac_update(&md_ctx, (const unsigned char *)toSign.c_str(), toSign.size());
+      if(status != 0){ 
+        FAIL_MSG("error s3 mbedtls_md_hmac_update error %d", status); 
+        return false; 
+      }
+      status = mbedtls_md_hmac_finish(&md_ctx, signature);
+      if(status != 0){ 
+        FAIL_MSG("error s3 mbedtls_md_hmac_finish error %d", status); 
+        return false; 
+      }
+      std::string base64encoded = Encodings::Base64::encode(std::string((const char*)signature, sha1Size));
+      std::string authorization = "AWS " + accessKey + ":" + base64encoded;
+      // Set headers:
+      downer.setHeader("Authorization", authorization);
+      downer.setHeader("Date", date);
       // Do not return, continue to HTTP case
-      if(!transformS3ToHttp(downer, myURI)) return false;
     }
 #endif // ifndef NOSSL
 

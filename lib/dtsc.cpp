@@ -1284,7 +1284,7 @@ namespace DTSC{
     }
     char pageName[NAME_BUFFER_SIZE];
 
-    if (stream.isReload()){
+    if (stream.isReload() || stream.isExit()){
       INFO_MSG("Reloading entire metadata");
       streamPage.close();
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, streamName.c_str());

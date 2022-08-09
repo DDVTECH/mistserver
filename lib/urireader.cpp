@@ -197,6 +197,8 @@ namespace HTTP{
       }
       // Transform s3 url to HTTP request:
       httpHeaderOverride = s3TransformToHttp(myURI);
+      bool errorInSignatureCalculation = !httpHeaderOverride.continueOperation;
+      if(errorInSignatureCalculation) return false;
       // Do not return, continue to HTTP case
     }
 #endif // ifndef NOSSL

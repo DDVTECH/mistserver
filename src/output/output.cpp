@@ -2320,7 +2320,7 @@ namespace Mist{
   bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
     int outFile = -1;
     if (!conn){conn = &myConn;}
-        // If file starts with s3+http(s)://, spawn livepeer-catalyst-uploader
+    // If file starts with s3+http(s)://, spawn livepeer-catalyst-uploader
     if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://"){
       int sout = -1;
       int serr = -1;
@@ -2331,7 +2331,7 @@ namespace Mist{
         return false;
       }
       Util::Procs::forget(child);
-    } else {
+    }else{
       int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
       int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
       if (!Util::createPathFor(file)){

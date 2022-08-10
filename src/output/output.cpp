@@ -2318,25 +2318,39 @@ namespace Mist{
   }
 
   bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
+    int outFile = -1;
     if (!conn){conn = &myConn;}
-    int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
-    if (!Util::createPathFor(file)){
-      ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
-      return false;
-    }
-    int outFile = open(file.c_str(), mode, flags);
-    if (outFile < 0){
-      ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
-      return false;
-    }
-    if (*conn){
-      flock(conn->getSocket(), LOCK_UN | LOCK_NB);
-    }
-    // Lock the file in exclusive mode to ensure no other processes write to it
-    if(flock(outFile, LOCK_EX | LOCK_NB)){
-      ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
-      return false;
+        // If file starts with s3+http(s)://, spawn livepeer-catalyst-uploader
+    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://"){
+      int sout = -1;
+      int serr = -1;
+      char *cmd[] = {"livepeer-catalyst-uploader", (char*)file.c_str(), 0};
+      pid_t child = Util::Procs::StartPiped(cmd, &outFile, &sout, &serr);
+      if (child == -1){
+        ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
+        return false;
+      }
+      Util::Procs::forget(child);
+    } else {
+      int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
+      if (!Util::createPathFor(file)){
+        ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
+        return false;
+      }
+      outFile = open(file.c_str(), mode, flags);
+      if (outFile < 0){
+        ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
+        return false;
+      }
+      if (*conn){
+        flock(conn->getSocket(), LOCK_UN | LOCK_NB);
+      }
+      // Lock the file in exclusive mode to ensure no other processes write to it
+      if(flock(outFile, LOCK_EX | LOCK_NB)){
+        ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
+        return false;
+      }
     }
 
     //Ensure the Socket::Connection is valid before we overwrite the socket

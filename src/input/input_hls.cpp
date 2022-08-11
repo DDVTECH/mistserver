@@ -170,8 +170,6 @@ namespace Mist{
     nextUTC = 0;
     id = 0; // to be set later
     INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());
-    plsDL.dataTimeout = 15;
-    plsDL.retryCount = 8;
     lastFileIndex = 0;
     waitTime = 2;
     playlistEnd = false;
@@ -370,13 +368,17 @@ namespace Mist{
     std::ifstream fileSource;
 
     if (isUrl()){
-      if (!plsDL.get(uri) || !plsDL.isOk()){
-        FAIL_MSG("Could not download playlist '%s', aborting: %" PRIu32 " %s", uri.c_str(),
-                 plsDL.getStatusCode(), plsDL.getStatusText().c_str());
+      HTTP::URIReader plsDL;
+      plsDL.open(uri);
+      char * dataPtr;
+      size_t dataLen;
+      plsDL.readAll(dataPtr, dataLen);
+      if (!dataLen){
+        FAIL_MSG("Could not download playlist '%s', aborting.", uri.c_str());
         reloadNext = Util::bootSecs() + waitTime;
         return false;
       }
-      urlSource.str(plsDL.data());
+      urlSource.str().assign(dataPtr, dataLen);
     }else{
       fileSource.open(uri.c_str());
       if (!fileSource.good()){
@@ -1293,14 +1295,16 @@ namespace Mist{
     bool isUrl = (playlistLocation.find("://") != std::string::npos);
     if (isUrl){
       INFO_MSG("Downloading main playlist file from '%s'", uri.c_str());
-      HTTP::Downloader plsDL;
-      plsDL.dataTimeout = 15;
-      plsDL.retryCount = 8;
-      if (!plsDL.get(playlistRootPath) || !plsDL.isOk()){
+      HTTP::URIReader plsDL;
+      plsDL.open(playlistRootPath);
+      char * dataPtr;
+      size_t dataLen;
+      plsDL.readAll(dataPtr, dataLen);
+      if (!dataLen){
         FAIL_MSG("Could not download main playlist, aborting.");
         return false;
       }
-      urlSource.str(plsDL.data());
+      urlSource.str().assign(dataPtr, dataLen);
     }else{
       // If we're not a URL and there is no / at the start, ensure we get the full absolute path.
       if (playlistLocation[0] != '/'){

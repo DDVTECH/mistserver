@@ -190,7 +190,8 @@ namespace TS{
     uint32_t tid = newPack.getPID();
     bool unitStart = newPack.getUnitStart();
     static uint32_t wantPrev = 0;
-    bool wantTrack = ((wantPrev == tid) || (tid == 0 || newPack.isPMT(pmtTracks) || pidToCodec.count(tid)));
+    bool isData = pidToCodec.count(tid);
+    bool wantTrack = ((wantPrev == tid) || (tid == 0 || newPack.isPMT(pmtTracks) || isData));
     if (!wantTrack){return;}
     if (psCacheTid != tid || !psCache){
       psCache = &(pesStreams[tid]);
@@ -199,7 +200,7 @@ namespace TS{
     if (unitStart || !psCache->empty()){
       wantPrev = tid;
       psCache->push_back(newPack);
-      if (unitStart){
+      if (unitStart && isData){
         pesPositions[tid].push_back(bytePos);
         ++(seenUnitStart[tid]);
       }
@@ -210,7 +211,7 @@ namespace TS{
     if (tid == 0){return false;}
     {
       tthread::lock_guard<tthread::recursive_mutex> guard(tMutex);
-      return !pmtTracks.count(tid);
+      return pidToCodec.count(tid);
     }
   }
 
@@ -280,6 +281,11 @@ namespace TS{
     }
 
     if (!pidToCodec.count(tid)){
+      pesStreams.erase(tid);
+      pesPositions.erase(tid);
+      seenUnitStart.erase(tid);
+      psCacheTid = 0;
+      psCache = 0;
       return; // skip unknown codecs
     }
 

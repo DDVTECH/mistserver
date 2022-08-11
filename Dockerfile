@@ -48,6 +48,7 @@ WORKDIR	/src/build
 
 RUN	cmake \
 	  -DPERPETUAL=1 \
+	  -DDEBUG=3 \
 	  -DLOAD_BALANCE=1 \
 	  -DCMAKE_C_FLAGS="-fPIC" \
 	  -DCMAKE_INSTALL_PREFIX=/opt \

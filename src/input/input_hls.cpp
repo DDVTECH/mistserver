@@ -587,6 +587,12 @@ namespace Mist{
     capa["source_match"].append("https://*.m3u");
     capa["source_match"].append("https-hls://*");
     capa["source_match"].append("http-hls://*");
+    capa["source_match"].append("s3+http://*.m3u8");
+    capa["source_match"].append("s3+http://*.m3u");
+    capa["source_match"].append("s3+https://*.m3u8");
+    capa["source_match"].append("s3+https://*.m3u");
+    capa["source_match"].append("s3+https-hls://*");
+    capa["source_match"].append("s3+http-hls://*");
 
     // All URLs can be set to always-on mode.
     capa["always_match"] = capa["source_match"];
@@ -1278,6 +1284,8 @@ namespace Mist{
     // Convert custom http(s)-hls protocols into regular notation.
     if (playlistRootPath.protocol == "http-hls"){playlistRootPath.protocol = "http";}
     if (playlistRootPath.protocol == "https-hls"){playlistRootPath.protocol = "https";}
+    if (playlistRootPath.protocol == "s3+http-hls"){playlistRootPath.protocol = "s3+http";}
+    if (playlistRootPath.protocol == "s3+https-hls"){playlistRootPath.protocol = "s3+https";}
 
     std::istringstream urlSource;
     std::ifstream fileSource;

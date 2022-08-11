@@ -217,7 +217,7 @@ def binaries_pipeline(context, platform):
                     "mkdir -p build/ && echo {} | tee build/BUILD_VERSION".format(
                         version,
                     ),
-                    "cd build && cmake -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX=$CI_PATH -DCMAKE_PREFIX_PATH=$CI_PATH/compiled -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNORIST=yes ..",
+                    'cd build && cmake -DDEBUG=3 -DPERPETUAL=1 -DLOAD_BALANCE=1 -DCMAKE_INSTALL_PREFIX="$CI_PATH" -DCMAKE_PREFIX_PATH="$CI_PATH/compiled" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNORIST=yes ..',
                     "make -j $(nproc) && make install",
                 ],
             },

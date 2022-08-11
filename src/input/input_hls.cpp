@@ -378,7 +378,7 @@ namespace Mist{
         reloadNext = Util::bootSecs() + waitTime;
         return false;
       }
-      urlSource.str().assign(dataPtr, dataLen);
+      urlSource.str(std::string(dataPtr, dataLen));
     }else{
       fileSource.open(uri.c_str());
       if (!fileSource.good()){
@@ -1296,7 +1296,10 @@ namespace Mist{
     if (isUrl){
       INFO_MSG("Downloading main playlist file from '%s'", uri.c_str());
       HTTP::URIReader plsDL;
-      plsDL.open(playlistRootPath);
+      if (!plsDL.open(playlistRootPath) || !plsDL){
+        FAIL_MSG("Could not open main playlist, aborting");
+        return false;
+      }
       char * dataPtr;
       size_t dataLen;
       plsDL.readAll(dataPtr, dataLen);
@@ -1304,7 +1307,7 @@ namespace Mist{
         FAIL_MSG("Could not download main playlist, aborting.");
         return false;
       }
-      urlSource.str().assign(dataPtr, dataLen);
+      urlSource.str(std::string(dataPtr, dataLen));
     }else{
       // If we're not a URL and there is no / at the start, ensure we get the full absolute path.
       if (playlistLocation[0] != '/'){

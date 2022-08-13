@@ -772,6 +772,16 @@ namespace Mist{
     }
     // don't print anything for empty packets - not sign of corruption, just unfinished stream.
     if (curPage[tid].mapped[tmp.offset] != 0){
+      //There's a chance the packet header was written in between this check and the previous.
+      //Let's check one more time before aborting
+      tmpPack.reInit(mpd + tmp.offset, 0, true);
+      tmp.time = tmpPack.getTime();
+      if (tmpPack){
+        HIGH_MSG("Sought to time %" PRIu64 " in %s", tmp.time, curPage[tid].name.c_str());
+        tmp.partIndex = M.getPartIndex(tmpPack.getTime(), tmp.tid);
+        buffer.insert(tmp);
+        return true;
+      }
       FAIL_MSG("Noes! Couldn't find packet on track %zu because of some kind of corruption error "
                "or somesuch.",
                tid);

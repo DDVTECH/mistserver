@@ -61,6 +61,12 @@ namespace Mist{
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 1900;
+
+    capa["optional"]["maxkeepaway"]["name"] = "Maximum live keep-away distance";
+    capa["optional"]["maxkeepaway"]["help"] = "Maximum distance in milliseconds to fall behind the live point for stable playback.";
+    capa["optional"]["maxkeepaway"]["option"] = "--resume";
+    capa["optional"]["maxkeepaway"]["type"] = "uint";
+    capa["optional"]["maxkeepaway"]["default"] = 7500;
     /*LTS-END*/
 
     F = NULL;

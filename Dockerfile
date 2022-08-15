@@ -50,6 +50,7 @@ RUN	cmake \
 	  -DPERPETUAL=1 \
 	  -DDEBUG=3 \
 	  -DLOAD_BALANCE=1 \
+	  -DNOLLHLS=1 \
 	  -DCMAKE_C_FLAGS="-fPIC" \
 	  -DCMAKE_INSTALL_PREFIX=/opt \
 	  -DCMAKE_PREFIX_PATH=/src/compiled \
@@ -70,6 +71,7 @@ WORKDIR	/src/build
 RUN	cmake \
 	  -DPERPETUAL=1 \
 	  -DLOAD_BALANCE=1 \
+	  -DNOLLHLS=1 \
 	  -DCMAKE_INSTALL_PREFIX=/opt \
 	  -DCMAKE_PREFIX_PATH=/src/compiled \
 	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \

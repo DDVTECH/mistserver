@@ -470,6 +470,9 @@ namespace HLS{
   /// keyframe alginment is a MUST for LLHLS track switch
   bool checkFramesAlignment(std::stringstream &result, const DTSC::Meta &M,
                             const MasterData &masterData, const size_t trackId){
+    if (masterData.noLLHLS || !serverSupport.tags) {
+      return true;
+    }
     bool keyFramesAligned =
         masterData.mainTrack == trackId || M.keyTimingsMatch(masterData.mainTrack, trackId);
     if (!keyFramesAligned){

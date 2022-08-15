@@ -64,7 +64,7 @@ namespace Mist{
 
     capa["optional"]["maxkeepaway"]["name"] = "Maximum live keep-away distance";
     capa["optional"]["maxkeepaway"]["help"] = "Maximum distance in milliseconds to fall behind the live point for stable playback.";
-    capa["optional"]["maxkeepaway"]["option"] = "--resume";
+    capa["optional"]["maxkeepaway"]["option"] = "--maxkeepaway";
     capa["optional"]["maxkeepaway"]["type"] = "uint";
     capa["optional"]["maxkeepaway"]["default"] = 7500;
     /*LTS-END*/

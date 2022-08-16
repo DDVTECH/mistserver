@@ -68,8 +68,6 @@ namespace Mist{
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
 
-    HTTP::Downloader plsDL;
-
     uint64_t reloadNext;
 
     uint32_t id;

@@ -928,9 +928,9 @@ namespace Util{
   /// Updates the present record counter, shifting the ring buffer end position forward without
   /// moving the ring buffer start position.
   void RelAccX::addRecords(uint32_t amount){
-    if ((*hdrPresent) + amount > *hdrRecordCnt){
+    if ((*hdrEndPos) + amount - *hdrDeleted > *hdrRecordCnt){
       BACKTRACE;
-      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", (*hdrPresent) + amount, *hdrPresent, amount, *hdrRecordCnt);
+      WARN_MSG("Exceeding recordCount (%" PRIu64 " [%" PRIu64 " + %" PRIu32 " - %" PRIu64 "] > %" PRIu32 ")", (*hdrEndPos) + amount - (*hdrDeleted), *hdrEndPos, amount, *hdrDeleted, *hdrRecordCnt);
       *hdrPresent = 0;
     }else{
       *hdrPresent += amount;

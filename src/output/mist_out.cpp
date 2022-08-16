@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
     {
       std::string defTrkSrt = conf.getString("default_track_sorting");
       if (!defTrkSrt.size()){
-        //defTrkSrt = Util::getGlobalConfig("default_track_sorting").asString();
+        defTrkSrt = Util::getGlobalConfig("default_track_sorting").asString();
       }
       if (defTrkSrt.size()){
         if (defTrkSrt == "bps_lth"){Util::defaultTrackSortOrder = Util::TRKSORT_BPS_LTH;}

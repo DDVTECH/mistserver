@@ -17,4 +17,5 @@ namespace Util{
   uint64_t getNTP();
   uint64_t epoch(); ///< Gets the amount of seconds since 01/01/1970.
   std::string getUTCString(uint64_t epoch = 0);
+  std::string getDateString(uint64_t epoch = 0);
 }// namespace Util

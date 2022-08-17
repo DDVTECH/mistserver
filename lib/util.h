@@ -45,6 +45,7 @@ namespace Util{
     bool append(const void *p, uint32_t l);
     bool append(const std::string &str);
     bool allocate(uint32_t l);
+    void shift(size_t byteCount);
     uint32_t rsize();
     void truncate(const size_t newLen);
     inline operator char *(){return (char *)ptr;}

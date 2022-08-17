@@ -191,6 +191,17 @@ namespace Util{
     maxSize = 0;
   }
 
+  void ResizeablePointer::shift(size_t byteCount){
+    //Shifting the entire buffer is easy, we do nothing and set size to zero
+    if (byteCount >= currSize){
+      currSize = 0;
+      return;
+    }
+    //Shifting partial needs a memmove and size change
+    memmove(ptr, ((char*)ptr)+byteCount, currSize-byteCount);
+    currSize -= byteCount;
+  }
+
   bool ResizeablePointer::assign(const void *p, uint32_t l){
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);

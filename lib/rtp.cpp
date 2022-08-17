@@ -877,7 +877,7 @@ namespace RTP{
     if (!firstTime){
       milliSync = Util::bootMS();
       firstTime = pTime + 1;
-      INFO_MSG("RTP timestamp rollover expected in " PRETTY_PRINT_TIME,
+      INFO_MSG("RTP timestamp rollover for %" PRIu64 " (%s) expected in " PRETTY_PRINT_TIME, trackId, codec.c_str(),
                PRETTY_ARG_TIME((0xFFFFFFFFul - firstTime) / multiplier / 1000));
     }else{
       if (recentWrap){
@@ -886,14 +886,15 @@ namespace RTP{
       }else{
         if (prevTime > pTime && pTime < 0x40000000lu && prevTime > 0x80000000lu){
           ++wrapArounds;
+          INFO_MSG("RTP timestamp rollover %" PRIu32 " for %" PRIu64 " (%s) happened; next should be in " PRETTY_PRINT_TIME, wrapArounds, trackId, codec.c_str(), PRETTY_ARG_TIME((0xFFFFFFFFul) / multiplier / 1000));
           recentWrap = true;
         }
       }
     }
     // When there are B-frames, the firstTime can be higher than the current time
     //   causing msTime to become negative and thus overflow
-    if (firstTime > pTime + 1){
-      WARN_MSG("firstTime was higher than current packet time. Readjusting firsTime...");
+    if (!wrapArounds && firstTime > pTime + 1){
+      WARN_MSG("firstTime was higher than current packet time. Readjusting firstTime...");
       firstTime = pTime + 1;
     }
     prevTime = pkt.getTimeStamp();

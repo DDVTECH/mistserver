@@ -1,5 +1,6 @@
 #include "input.h"
 #include <mist/dtsc.h>
+#include <mist/urireader.h>
 #include <mist/mp4.h>
 #include <mist/mp4_generic.h>
 namespace Mist{
@@ -70,10 +71,10 @@ namespace Mist{
     bool stco64;
   };
 
-  class inputMP4 : public Input{
+  class inputMP4 : public Input, public Util::DataCallback {
   public:
     inputMP4(Util::Config *cfg);
-    ~inputMP4();
+    void dataCallback(const char *ptr, size_t size);
 
   protected:
     // Private Functions
@@ -85,7 +86,10 @@ namespace Mist{
     void seek(uint64_t seekTime, size_t idx = INVALID_TRACK_ID);
     void handleSeek(uint64_t seekTime, size_t idx);
 
-    FILE *inFile;
+    HTTP::URIReader inFile;
+    Util::ResizeablePointer readBuffer;
+    uint64_t readPos;
+    uint64_t bps;
 
     mp4TrackHeader &headerData(size_t trackID);
 
@@ -94,11 +98,6 @@ namespace Mist{
 
     // remember last seeked keyframe;
     std::map<size_t, uint32_t> nextKeyframe;
-
-    // these next two variables keep a buffer for reading from filepointer inFile;
-    uint64_t malSize;
-    char *data; ///\todo rename this variable to a more sensible name, it is a temporary piece of
-                /// memory to read from files
   };
 }// namespace Mist
 

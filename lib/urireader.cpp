@@ -277,20 +277,30 @@ namespace HTTP{
 
   // seek to pos, return true if succeeded.
   bool URIReader::seek(const uint64_t pos){
-    if (isSeekable()){
-      allData.truncate(0);
-      bufPos = 0;
-      if (stateType == HTTP::File){
-        curPos = pos;
-        return true;
-      }else if (stateType == HTTP::HTTP && supportRangeRequest){
-        INFO_MSG("SEEK: RangeRequest to %" PRIu64, pos);
-        if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
-          FAIL_MSG("error loading request");
-        }
-      }
+    //Seeking in a non-seekable source? No-op, always fails.
+    if (!isSeekable()){return false;}
+
+    //Reset internal buffers
+    allData.truncate(0);
+    bufPos = 0;
+
+    //Files always succeed because we use memmap
+    if (stateType == HTTP::File){
+      curPos = pos;
+      return true;
     }
 
+    //HTTP-based needs to do a range request
+    if (stateType == HTTP::HTTP && supportRangeRequest){
+      downer.getSocket().close();
+      downer.getSocket().Received().clear();
+      if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
+        FAIL_MSG("Error making range request");
+        return false;
+      }
+      curPos = pos;
+      return true;
+    }
     return false;
   }
 
@@ -361,16 +371,13 @@ namespace HTTP{
         Util::sleep(50);
       }
 #endif
-
     }else{// streaming mode
       int s;
-      static int totaal = 0;
       if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){
         s = downer.getSocket().Received().bytes(wantedLen);
         std::string buf = downer.getSocket().Received().remove(s);
 
         cb.dataCallback(buf.data(), s);
-        totaal += s;
       }else{
         Util::sleep(50);
       }

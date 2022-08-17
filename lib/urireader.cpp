@@ -311,6 +311,10 @@ namespace HTTP{
 
     }else if (stateType == HTTP::HTTP){
       downer.continueNonBlocking(cb);
+      if (curPos == downer.const_data().size()){
+        Util::sleep(50);
+      }
+      curPos = downer.const_data().size();
     }else{// streaming mode
       int s;
       if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){

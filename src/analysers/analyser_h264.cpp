@@ -5,7 +5,6 @@
 #include <mist/bitfields.h>
 #include <mist/bitstream.h>
 #include <mist/h264.h>
-const int chunkSize = 8192;
 
 void AnalyserH264::init(Util::Config &conf){
   Analyser::init(conf);
@@ -23,28 +22,15 @@ AnalyserH264::AnalyserH264(Util::Config &conf) : Analyser(conf){
 }
 
 bool AnalyserH264::parsePacket(){
-  while (dataBuffer.size() < neededBytes()) {
+  // Read in smart bursts until we have enough data
+  while (isOpen() && dataBuffer.size() < neededBytes()){
     uint64_t needed = neededBytes();
-    uint64_t required = 0;
     dataBuffer.reserve(needed);
-
-    while (dataBuffer.size() < needed ) {
-      if (uri.isEOF()) {
-        FAIL_MSG("End of file");
-        return false;
-      }
-      required = needed - dataBuffer.size() - buffer.bytes(0xffffffff);
-      if(required > chunkSize){
-        uri.readSome(chunkSize, *this);
-      }else{
-        uri.readSome(required, *this);
-      }
-
-      dataBuffer.append(buffer.remove(buffer.bytes(0xffffffff)));
+    for (uint64_t i = dataBuffer.size(); i < needed; ++i){
+      dataBuffer += std::cin.get();
+      ++curPos;
+      if (!std::cin.good()){dataBuffer.erase(dataBuffer.size() - 1, 1);}
     }
-
-    uint64_t appending = needed - dataBuffer.size();
-    curPos += appending; 
   }
 
   size_t size = 0;
@@ -79,8 +65,4 @@ uint64_t AnalyserH264::neededBytes(){
   // otherwise, buffer the exact size needed
   if (dataBuffer.size() < 4){return 4;}
   return Bit::btohl(dataBuffer.data()) + 4;
-}
-
-void AnalyserH264::dataCallback(const char *ptr, size_t size) {
-  buffer.append(ptr, size);
 }

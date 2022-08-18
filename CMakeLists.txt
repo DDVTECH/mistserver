@@ -402,7 +402,6 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
-makeAnalyser(WebRTC webrtc) #LTS
 
 #LTS_START
 ########################################

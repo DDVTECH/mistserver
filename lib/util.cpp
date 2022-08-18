@@ -206,6 +206,17 @@ namespace Util{
     maxSize = 0;
   }
 
+  void ResizeablePointer::shift(size_t byteCount){
+    //Shifting the entire buffer is easy, we do nothing and set size to zero
+    if (byteCount >= currSize){
+      currSize = 0;
+      return;
+    }
+    //Shifting partial needs a memmove and size change
+    memmove(ptr, ((char*)ptr)+byteCount, currSize-byteCount);
+    currSize -= byteCount;
+  }
+
   bool ResizeablePointer::assign(const void *p, uint32_t l){
     if (!allocate(l)){return false;}
     memcpy(ptr, p, l);
@@ -218,8 +229,8 @@ namespace Util{
   }
 
   bool ResizeablePointer::append(const void *p, uint32_t l){
-    // We're writing from null pointer - assume outside write (e.g. fread or socket operation) and update the size
-    if (!p){
+    // We're writing to ourselves or from null pointer - assume outside write (e.g. fread or socket operation) and update the size
+    if (!p || p == ((char *)ptr) + currSize){
       if (currSize + l > maxSize){
         FAIL_MSG("Pointer write went beyond allocated size! Memory corruption likely.");
         BACKTRACE;
@@ -320,6 +331,8 @@ namespace Util{
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool)){
     if (getenv("MIST_COLOR")){colored = true;}
     bool sysd_log = getenv("MIST_LOG_SYSTEMD");
+    char buf[1024];
+    FILE *output = fdopen(in, "r");
     char *color_time, *color_msg, *color_end, *color_strm, *CONF_msg, *FAIL_msg, *ERROR_msg,
         *WARN_msg, *INFO_msg;
     if (colored){
@@ -349,125 +362,86 @@ namespace Util{
       WARN_msg = (char *)"";
       INFO_msg = (char *)"";
     }
-
-    Socket::Connection O(-1, in);
-    O.setBlocking(true);
-    Util::ResizeablePointer buf;
-    while (O){
-      if (O.spool()){
-        while (O.Received().size()){
-          std::string & t = O.Received().get();
-          buf.append(t);
-          if (buf.size() && (buf.size() > 1024 || *t.rbegin() == '\n')){
-            unsigned int i = 0;
-            char *kind = buf; // type of message, at begin of string
-            char *progname = 0;
-            char *progpid = 0;
-            char *lineno = 0;
-            char *strmNm = 0;
-            char *message = 0;
-            while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
-            if (buf[i] != '|'){
-              // on parse error, skip to next message
-              t.clear();
-              buf.truncate(0);
-              continue;
-            }
-            buf[i] = 0;                      // insert null byte
-            ++i;
-            progname = buf + i; // progname starts here
-            while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
-            if (buf[i] != '|'){
-              // on parse error, skip to next message
-              t.clear();
-              buf.truncate(0);
-              continue;
-            }
-            buf[i] = 0;                      // insert null byte
-            ++i;
-            progpid = buf + i; // progpid starts here
-            while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
-            if (buf[i] != '|'){
-              // on parse error, skip to next message
-              t.clear();
-              buf.truncate(0);
-              continue;
-            }
-            buf[i] = 0;                      // insert null byte
-            ++i;
-            lineno = buf + i; // lineno starts here
-            while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
-            if (buf[i] != '|'){
-              // on parse error, skip to next message
-              t.clear();
-              buf.truncate(0);
-              continue;
-            }
-            buf[i] = 0;                      // insert null byte
-            ++i;
-            strmNm = buf + i; // stream name starts here
-            while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
-            if (buf[i] != '|'){
-              // on parse error, skip to next message
-              t.clear();
-              buf.truncate(0);
-              continue;
-            }
-            buf[i] = 0;                      // insert null byte
-            ++i;
-            message = buf + i; // message starts here
-            // insert null byte for end of line
-            buf[buf.size()-1] = 0;
-            // print message
-            if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
-            color_msg = color_end;
-            if (colored){
-              if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
-              if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
-              if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
-              if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
-              if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
-            }
-            if (sysd_log){
-              if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
-              if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
-              if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
-              if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
-              if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
-              if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
-                dprintf(out, "<7>");
-              }
-            }else{
-              time_t rawtime;
-              struct tm *timeinfo;
-              struct tm timetmp;
-              char buffer[100];
-              time(&rawtime);
-              timeinfo = localtime_r(&rawtime, &timetmp);
-              strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
-              dprintf(out, "%s[%s] ", color_time, buffer);
-            }
-            if (progname && progpid && strlen(progname) && strlen(progpid)){
-              if (strmNm && strlen(strmNm)){
-                dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
-              }else{
-                dprintf(out, "%s (%s) ", progname, progpid);
-              }
-            }else{
-              if (strmNm && strlen(strmNm)){dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);}
-            }
-            dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
-            if (lineno && strlen(lineno)){dprintf(out, " (%s) ", lineno);}
-            dprintf(out, "\n");
-            buf.truncate(0);
-          }
-          t.clear();
+    while (fgets(buf, 1024, output)){
+      unsigned int i = 0;
+      char *kind = buf; // type of message, at begin of string
+      char *progname = 0;
+      char *progpid = 0;
+      char *lineno = 0;
+      char *strmNm = 0;
+      char *message = 0;
+      while (i < 9 && buf[i] != '|' && buf[i] != 0 && buf[i] < 128){++i;}
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
+      ++i;
+      progname = buf + i; // progname starts here
+      while (i < 40 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
+      ++i;
+      progpid = buf + i; // progpid starts here
+      while (i < 60 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
+      ++i;
+      lineno = buf + i; // lineno starts here
+      while (i < 180 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
+      ++i;
+      strmNm = buf + i; // stream name starts here
+      while (i < 380 && buf[i] != '|' && buf[i] != 0){++i;}
+      if (buf[i] != '|'){continue;}// on parse error, skip to next message
+      buf[i] = 0;                      // insert null byte
+      ++i;
+      message = buf + i; // message starts here
+      // find end of line, insert null byte
+      unsigned int j = i;
+      while (j < 1023 && buf[j] != '\n' && buf[j] != 0){++j;}
+      buf[j] = 0;
+      // print message
+      if (callback){callback(kind, message, strmNm, JSON::Value(progpid).asInt(), true);}
+      color_msg = color_end;
+      if (colored){
+        if (!strcmp(kind, "CONF")){color_msg = CONF_msg;}
+        if (!strcmp(kind, "FAIL")){color_msg = FAIL_msg;}
+        if (!strcmp(kind, "ERROR")){color_msg = ERROR_msg;}
+        if (!strcmp(kind, "WARN")){color_msg = WARN_msg;}
+        if (!strcmp(kind, "INFO")){color_msg = INFO_msg;}
+      }
+      if (sysd_log){
+        if (!strcmp(kind, "CONF")){dprintf(out, "<5>");}
+        if (!strcmp(kind, "FAIL")){dprintf(out, "<0>");}
+        if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
+        if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
+        if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
+        if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
+          dprintf(out, "<7>");
         }
       }else{
-        Util::sleep(50);
+        time_t rawtime;
+        struct tm *timeinfo;
+        struct tm timetmp;
+        char buffer[100];
+        time(&rawtime);
+        timeinfo = localtime_r(&rawtime, &timetmp);
+        strftime(buffer, 100, "%F %H:%M:%S", timeinfo);
+        dprintf(out, "%s[%s] ", color_time, buffer);
       }
+      if (progname && progpid && strlen(progname) && strlen(progpid)){
+        if (strmNm && strlen(strmNm)){
+          dprintf(out, "%s:%s%s%s (%s) ", progname, color_strm, strmNm, color_time, progpid);
+        }else{
+          dprintf(out, "%s (%s) ", progname, progpid);
+        }
+      }else{
+        if (strmNm && strlen(strmNm)){dprintf(out, "%s%s%s ", color_strm, strmNm, color_time);}
+      }
+      dprintf(out, "%s%s: %s%s", color_msg, kind, message, color_end);
+      if (lineno && strlen(lineno)){dprintf(out, " (%s) ", lineno);}
+      dprintf(out, "\n");
     }
-    close(out);
+    fclose(output);
     close(in);
   }
 
@@ -508,7 +482,15 @@ namespace Util{
     hdrOffset = (uint16_t*)(p+26);
     hdrEndPos = (uint64_t*)(p+28);
     if (waitReady){
-      while (!isReady()){Util::sleep(50);}
+      uint64_t maxWait = Util::bootMS() + 10000;
+      while (!isReady()){
+        if (Util::bootMS() > maxWait){
+          FAIL_MSG("Waiting for RelAccX structure to be ready timed out, aborting");
+          p = 0;
+          return;
+        }
+        Util::sleep(50);
+      }
     }
     if (isReady()){
       uint16_t offset = RAXHDR_FIELDOFFSET;

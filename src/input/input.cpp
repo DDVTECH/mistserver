@@ -1382,10 +1382,12 @@ namespace Mist{
             size_t currPos = tPages.getInt("avail", pageIdx);
             if (currPos){
               size_t keySize = keys.getSize(keyNum);
-              if (currPos-prevPos != keySize){
-                INFO_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
-              }else{
+              if (currPos-prevPos == keySize){
                 VERYHIGH_MSG("Key %" PRIu32 " was %zu bytes", keyNum, currPos-prevPos);
+              }else if (currPos-prevPos > keySize){
+                FAIL_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+              }else{
+                MEDIUM_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
               }
               ++keyNum;
               prevPos = currPos;
@@ -1412,8 +1414,12 @@ namespace Mist{
         size_t currPos = tPages.getInt("avail", pageIdx);
         if (currPos){
           size_t keySize = keys.getSize(keyNum);
-          if (currPos-prevPos != keySize){
-            INFO_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+          if (currPos-prevPos == keySize){
+            VERYHIGH_MSG("Key %" PRIu32 " was %zu bytes", keyNum, currPos-prevPos);
+          }else if (currPos-prevPos > keySize){
+            FAIL_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
+          }else{
+            MEDIUM_MSG("Key %" PRIu32 " was %zu bytes but should've been %zu bytes! (differs %d)", keyNum, currPos-prevPos, keySize, (int)(currPos-prevPos-keySize));
           }
           ++keyNum;
           prevPos = currPos;

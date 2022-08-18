@@ -212,12 +212,10 @@ namespace HTTP{
       httpHeaderOverride.prepareHeadHeaders(downer);
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
+      if (sidOverride.size()){downer.setHeader("Cookie", "sid=" + sidOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());
-        // Close the socket, and clean up the buffer
-        downer.getSocket().close();
-        downer.getSocket().Received().clear();
         if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
@@ -249,36 +247,50 @@ namespace HTTP{
       return true;
     }
 
+#ifdef WITH_SRT
+    if (myURI.protocol == "srt"){
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(myURI.args, arguments); 
+      size_t connectCnt = 0;
+      do{
+          srtConn.connect(myURI.host, myURI.getPort(), "input", arguments);
+          if (!srtConn){Util::sleep(1000);}
+          ++connectCnt;
+        }while (!srtConn && connectCnt < 10);
+
+      stateType = SRT;
+      startPos = 0;
+      endPos = std::string::npos;
+      totalSize = std::string::npos;
+      if (!srtConn){
+        FAIL_MSG("Could not open '%s'", myURI.getUrl().c_str());
+        stateType = Closed;
+        return false;
+      }
+      return true;
+    }
+#endif
+
     FAIL_MSG("URI type not implemented: %s", myURI.getUrl().c_str());
     return false;
   }
 
   // seek to pos, return true if succeeded.
   bool URIReader::seek(const uint64_t pos){
-    //Seeking in a non-seekable source? No-op, always fails.
-    if (!isSeekable()){return false;}
-
-    //Reset internal buffers
-    allData.truncate(0);
-    bufPos = 0;
-
-    //Files always succeed because we use memmap
-    if (stateType == HTTP::File){
-      curPos = pos;
-      return true;
-    }
-
-    //HTTP-based needs to do a range request
-    if (stateType == HTTP::HTTP && supportRangeRequest){
-      downer.getSocket().close();
-      downer.getSocket().Received().clear();
-      if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
-        FAIL_MSG("Error making range request");
-        return false;
+    if (isSeekable()){
+      allData.truncate(0);
+      bufPos = 0;
+      if (stateType == HTTP::File){
+        curPos = pos;
+        return true;
+      }else if (stateType == HTTP::HTTP && supportRangeRequest){
+        INFO_MSG("SEEK: RangeRequest to %" PRIu64, pos);
+        if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
+          FAIL_MSG("error loading request");
+        }
       }
-      curPos = pos;
-      return true;
     }
+
     return false;
   }
 
@@ -333,13 +345,32 @@ namespace HTTP{
 
     }else if (stateType == HTTP::HTTP){
       downer.continueNonBlocking(cb);
+      if (curPos == downer.const_data().size()){
+        Util::sleep(50);
+      }
+      curPos = downer.const_data().size();
+
+#ifdef WITH_SRT    
+    }else if (stateType == SRT){
+      int s;
+      static int totaal = 0;
+      if((srtConn && ((s = srtConn.Recv()) >0))){
+        cb.dataCallback(srtConn.recvbuf, s);
+        totaal += s;
+      }else{
+        Util::sleep(50);
+      }
+#endif
+
     }else{// streaming mode
       int s;
+      static int totaal = 0;
       if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){
         s = downer.getSocket().Received().bytes(wantedLen);
         std::string buf = downer.getSocket().Received().remove(s);
 
         cb.dataCallback(buf.data(), s);
+        totaal += s;
       }else{
         Util::sleep(50);
       }
@@ -373,8 +404,6 @@ namespace HTTP{
   void URIReader::close(){
     // Close downloader socket if open
     downer.getSocket().close();
-    downer.getSocket().Received().clear();
-    downer.getHTTP().Clean();
     // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);
@@ -386,6 +415,9 @@ namespace HTTP{
       ::close(handle);
       handle = -1;
     }
+#ifdef WITH_SRT
+    srtConn.close();
+#endif
   }
 
   void URIReader::onProgress(bool (*progressCallback)(uint8_t)){
@@ -421,6 +453,14 @@ namespace HTTP{
       }
       return false;
     }
+#ifdef WITH_SRT
+    else if(stateType == SRT){
+      if(!srtConn.connected()){
+        return true;
+      }
+      return false; //TODO 
+    }
+#endif
     return true;
   }
 

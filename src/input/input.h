@@ -87,7 +87,7 @@ namespace Mist{
 
     IPC::sharedPage streamStatus;
 
-    std::map<size_t, std::map<uint32_t, size_t> > pageCounter;
+    std::map<size_t, std::map<uint32_t, uint64_t> > pageCounter;
 
     static Input *singleton;
 

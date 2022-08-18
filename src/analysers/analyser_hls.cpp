@@ -7,6 +7,7 @@
 #include <mist/http_parser.h>
 #include <mist/timing.h>
 #include <string.h>
+#include <mist/checksum.h>
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);
@@ -18,6 +19,69 @@ void AnalyserHLS::init(Util::Config &conf){
   opt["help"] = "Reconstruct TS file from HLS to the given filename";
   conf.addOption("reconstruct", opt);
   opt.null();
+}
+
+/// Returns true if we either still have parts to download, or are still refreshing the playlist.
+bool AnalyserHLS::isOpen(){
+  return (*isActive) && (parts.size() || refreshAt);
+}
+
+void AnalyserHLS::stop(){
+  parts.clear();
+  refreshAt = 0;
+}
+
+AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
+  if (conf.getString("reconstruct") != ""){
+    reconstruct.open(conf.getString("reconstruct").c_str());
+    if (reconstruct.good()){
+      WARN_MSG("Will reconstruct to %s", conf.getString("reconstruct").c_str());
+    }
+  }
+  hlsTime = 0;
+  parsedPart = 0;
+  refreshAt = Util::bootSecs();
+  refreshPlaylist = true;
+}
+
+bool AnalyserHLS::open(const std::string & filename){
+  if (filename == "-") {
+    FAIL_MSG("input from stdin not supported");
+    return false;
+  }
+  uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
+  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString();
+  uri.sidOverride = JSON::Value(checksum::crc32(0, sidAsString.data(), sidAsString.size())).asString();
+  root = uri.getURI().link(filename);
+  return readPlaylist(root.getUrl());
+}
+
+bool AnalyserHLS::readPlaylist(std::string source){
+  char * data;
+  size_t s;
+  std::string pl = root.link(source).getUrl();
+  DONTEVEN_MSG("playlist open url: %s", pl.c_str());
+  uri.open(pl);
+  uri.readAll(data,s);
+  mediaDown += s;
+  if (!s){return false;}
+
+  std::string line;
+  std::stringstream body(std::string(data, s));
+  while (body.good()){
+    std::getline(body, line);
+    if (line.size() && *line.rbegin() == '\r'){line.resize(line.size() - 1);}
+    if (!line.size()){continue;}
+    if (line[0] != '#'){
+      if (line.find("m3u") != std::string::npos){
+        root = root.link(line);
+        INFO_MSG("Found a sub-playlist (%s), re-targeting %s", line.c_str(), root.getUrl().c_str());
+        return readPlaylist(root.getUrl());
+      }
+    }
+  }
+  getParts(data);
+  return true;
 }
 
 void AnalyserHLS::getParts(const std::string &body){
@@ -32,18 +96,13 @@ void AnalyserHLS::getParts(const std::string &body){
     if (line.size() && *line.rbegin() == '\r'){line.resize(line.size() - 1);}
     if (!line.size()){continue;}
     if (line[0] != '#'){
-      if (line.find("m3u") != std::string::npos){
-        root = root.link(line);
-        INFO_MSG("Found a sub-playlist, re-targeting %s", root.getUrl().c_str());
-        refreshAt = Util::bootSecs();
-        return;
+      if((line.find(".ts") != std::string::npos) || (line.find(".mp4") != std::string::npos) ){
+        if (!parsedPart || no > parsedPart) {
+          HTTP::URL newURL = root.link(line);
+          parts.push_back(HLSPart(newURL, no, durat));
+        }
+        ++no;
       }
-      if (!parsedPart || no > parsedPart){
-        HTTP::URL newURL = root.link(line);
-        INFO_MSG("Discovered #%" PRIu64 ": %s", no, newURL.getUrl().c_str());
-        parts.push_back(HLSPart(newURL, no, durat));
-      }
-      ++no;
     }else{
       if (line.substr(0, 8) == "#EXTINF:"){durat = atof(line.c_str() + 8) * 1000;}
       if (line.substr(0, 22) == "#EXT-X-MEDIA-SEQUENCE:"){no = atoll(line.c_str() + 22);}
@@ -55,80 +114,55 @@ void AnalyserHLS::getParts(const std::string &body){
   }
 }
 
-/// Returns true if we either still have parts to download, or are still refreshing the playlist.
-bool AnalyserHLS::isOpen(){
-  return (*isActive) && (parts.size() || refreshAt);
-}
-
-void AnalyserHLS::stop(){
-  parts.clear();
-  refreshAt = 0;
-}
-
-bool AnalyserHLS::open(const std::string &url){
-  root = HTTP::URL(url);
-  if (root.protocol != "http" && root.protocol != "https"){
-    FAIL_MSG("Only http(s) protocol is supported (%s not supported)", root.protocol.c_str());
-    return false;
-  }
-  return true;
-}
-
-AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
-  if (conf.getString("reconstruct") != ""){
-    reconstruct.open(conf.getString("reconstruct").c_str());
-    if (reconstruct.good()){
-      WARN_MSG("Will reconstruct to %s", conf.getString("reconstruct").c_str());
-    }
-  }
-  hlsTime = 0;
-  parsedPart = 0;
-  refreshAt = Util::bootSecs();
-}
 
 bool AnalyserHLS::parsePacket(){
   while (isOpen()){
-    // If needed, refresh the playlist
+    // If there are parts to download, get one.
+    if (parts.size()){
+      HLSPart part = *parts.begin();
+      parts.pop_front();
+
+      char * pl;
+      size_t s;
+      uint64_t micros = Util::getMicros();
+      uri.open(part.uri);
+      uri.readAll(pl,s);
+      mediaDown += s;
+      micros = Util::getMicros(micros);
+      if (part.dur < micros / 1000){
+        WARN_MSG("Downloading segment %s took %" PRIu64 "ms but has a duration of %zums", part.uri.getUrl().c_str(), micros/1000,(size_t)part.dur);
+      }
+      MEDIUM_MSG("reading file: %s, size: %zu", part.uri.getUrl().c_str(), s);
+      
+      if(s % 188){
+        FAIL_MSG("Expected a multiple of 188 bytes, received %zu bytes", s);
+        return false;
+      }
+
+      parsedPart = part.no;
+      hlsTime += part.dur;
+      mediaTime = (uint64_t)hlsTime;
+      if (reconstruct.good()){reconstruct.write(pl, s);}
+      return true;
+    }
+
+    //Refresh playlist if needed
     if (refreshAt && Util::bootSecs() >= refreshAt){
-      if (DL.get(root)){
-        getParts(DL.data());
-      }else{
+      if(!readPlaylist(root.getUrl())){
         FAIL_MSG("Could not refresh playlist!");
         return false;
       }
     }
 
-    // If there are parts to download, get one.
-    if (parts.size()){
-      HLSPart part = *parts.begin();
-      parts.pop_front();
-      if (!DL.get(part.uri)){return false;}
-      if (DL.getHeader("Content-Length") != ""){
-        if (DL.data().size() != atoi(DL.getHeader("Content-Length").c_str())){
-          FAIL_MSG("Expected %s bytes of data, but only received %zu.",
-                   DL.getHeader("Content-Length").c_str(), DL.data().size());
-          return false;
-        }
-      }
-      if (DL.data().size() % 188){
-        FAIL_MSG("Expected a multiple of 188 bytes, received %zu bytes", DL.data().size());
-        return false;
-      }
-      parsedPart = part.no;
-      hlsTime += part.dur;
-      mediaTime = (uint64_t)hlsTime;
-      if (reconstruct.good()){reconstruct << DL.data();}
-      return true;
-    }
-
-    // Hm. I guess we had no parts to get.
+    // Hm. I guess we had no parts to get, and no playlist to refresh.
     if (refreshAt && refreshAt > Util::bootSecs()){
       // We're getting a live stream. Let's wait and check again.
       uint64_t sleepSecs = (refreshAt - Util::bootSecs());
-      INFO_MSG("Sleeping for %" PRIu64 " seconds", sleepSecs);
+      HIGH_MSG("Sleeping for %" PRIu64 " seconds", sleepSecs);
       Util::sleep(sleepSecs * 1000);
     }
     // The non-live case is already handled in isOpen()
   }
   return false;
 }
+

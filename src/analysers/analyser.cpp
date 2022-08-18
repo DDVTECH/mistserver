@@ -1,87 +1,119 @@
 #include "analyser.h"
 #include <iostream>
 #include <mist/timing.h>
+#include <mist/http_parser.h>
+#include <mist/urireader.h>
+#include <mist/checksum.h>
 
 /// Reads configuration and opens a passed filename replacing standard input if needed.
 Analyser::Analyser(Util::Config &conf){
   validate = conf.getBool("validate");
   detail = conf.getInteger("detail");
-  timeOut = conf.getInteger("timeout");
+  timeOut = conf.getInteger("timeout") *1000;
   mediaTime = 0;
-  upTime = Util::bootSecs();
+  upTime = Util::bootMS();
   isActive = &conf.is_active;
+  firstMediaTime=0;
+  firstMediaBootTime=0;
+  measureInterval = timeOut / 300;
+  if (measureInterval < 1000){measureInterval = 1000;}
 }
 
-/// Opens the filename. Supports stdin and plain files.
-bool Analyser::open(const std::string &filename){
-  if (filename.size() && filename != "-"){
-    int fp = ::open(filename.c_str(), O_RDONLY);
-    if (fp <= 0){
-      FAIL_MSG("Cannot open '%s': %s", filename.c_str(), strerror(errno));
-      return false;
-    }
-    dup2(fp, STDIN_FILENO);
-    close(fp);
-    INFO_MSG("Parsing %s...", filename.c_str());
-  }else{
-    INFO_MSG("Parsing standard input...");
-  }
+///Opens the filename. Supports stdin and plain files.
+bool Analyser::open(const std::string & filename){
+  uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
+  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString();
+  uri.sidOverride = JSON::Value(checksum::crc32(0, sidAsString.data(), sidAsString.size())).asString();
+  uri.open(filename);
   return true;
 }
 
 /// Stops analysis by closing the standard input
 void Analyser::stop(){
-  close(STDIN_FILENO);
-  std::cin.setstate(std::ios_base::eofbit);
+  uri.close();
+}
+
+
+void Analyser::stopReason(const std::string & reason){
+  if (!reasonForStop.size()){reasonForStop = reason;}
 }
 
 /// Prints validation message if needed
 Analyser::~Analyser(){
   if (validate){
-    std::cout << upTime << ", " << finTime << ", " << (finTime - upTime) << ", " << mediaTime << std::endl;
+    finTime = Util::bootMS();
+    JSON::Value out;
+    out["system_start"] = upTime;
+    out["system_stop"] = finTime;
+    out["system_firstmedia"] = firstMediaBootTime;
+    out["media_start"] = firstMediaTime;
+    out["media_stop"] = mediaTime;
+    if (reasonForStop.size()){out["error"] = reasonForStop;}
+    for (std::map<uint64_t, uint64_t>::iterator it = mediaTimes.begin(); it != mediaTimes.end(); ++it){
+      JSON::Value val;
+      val.append(it->first);
+      val.append(it->second);
+      val.append(mediaBytes[it->first]);
+      out["media"].append(val);
+
+    }
+    std::cout << out.toString() << std::endl;
   }
 }
 
 /// Checks if standard input is still valid.
 bool Analyser::isOpen(){
-  return (*isActive) && std::cin.good();
+  return (*isActive) && !uri.isEOF();
 }
 
 /// Main loop for all analysers. Reads packets while not interrupted, parsing and/or printing them.
 int Analyser::run(Util::Config &conf){
   isActive = &conf.is_active;
   if (!open(conf.getString("filename"))){return 1;}
-  while (conf.is_active){
+  while (isOpen()){
     if (!parsePacket()){
       if (isOpen()){
+        stopReason("media parse error");
         FAIL_MSG("Could not parse packet!");
         return 1;
       }
-      INFO_MSG("Reached end of file");
+      stopReason("reached end of file/stream");
+      MEDIUM_MSG("Reached end of file/stream");
       return 0;
     }
     if (validate){
-      finTime = Util::bootSecs();
-
-      // slow down to realtime + 10s
-      if (validate && ((finTime - upTime + 10) * 1000 < mediaTime)){
-        uint32_t sleepMs = mediaTime - (Util::bootSecs() - upTime + 10) * 1000;
-        if ((finTime - upTime + sleepMs / 1000) >= timeOut){
-          WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
-          return 3;
+      finTime = Util::bootMS();
+      if (mediaTime){
+        if (!mediaTimes.size() || finTime > mediaTimes.rbegin()->first + measureInterval){
+          mediaTimes[finTime] = mediaTime;
+          mediaBytes[finTime] = mediaDown;
         }
-        INFO_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
-        Util::sleep(sleepMs);
-        finTime = Util::bootSecs();
+      }
+      if(mediaTime && !firstMediaBootTime){
+        firstMediaBootTime = finTime;
+        firstMediaTime = mediaTime;
+      }
+      if (firstMediaBootTime && finTime - upTime < timeOut){
+        // slow down to no faster than real-time speed + 10s
+        if ((finTime - firstMediaBootTime + 10000) < mediaTime - firstMediaTime){
+          uint32_t sleepMs = (mediaTime - firstMediaTime) - (finTime - firstMediaBootTime + 10000);
+          if (finTime - upTime + sleepMs > timeOut){
+            sleepMs = timeOut - (finTime - upTime);
+          }
+          DONTEVEN_MSG("Sleeping for %" PRIu32 "ms", sleepMs);
+          Util::sleep(sleepMs);
+        }
+        //Stop analysing when too far behind real-time speed
+        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 7500){
+          stopReason("fell too far behind");
+          FAIL_MSG("Media time %" PRIu64 " ms behind!", (finTime - firstMediaBootTime) - (mediaTime - firstMediaTime));
+          return 4;
+        }
       }
 
-      if ((finTime - upTime) > (mediaTime / 1000) + 2){
-        FAIL_MSG("Media time more than 2 seconds behind!");
-        return 4;
-      }
-      if ((finTime - upTime) >= timeOut){
-        WARN_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut);
-        return 3;
+      if ((finTime - upTime ) >= timeOut){
+        MEDIUM_MSG("Reached timeout of %" PRIu64 " seconds, stopping", timeOut/1000);
+        break;
       }
     }
   }
@@ -109,7 +141,7 @@ void Analyser::init(Util::Config &conf){
   opt["long"] = "timeout";
   opt["short"] = "T";
   opt["arg"] = "num";
-  opt["default"] = 0;
+  opt["default"] = 30;
   opt["help"] = "Time out after X seconds of processing/retrieving";
   conf.addOption("timeout", opt);
   opt.null();

@@ -16,7 +16,6 @@
 #include <sys/statvfs.h> //for fstatvfs
 #include <mist/triggers.h>
 #include <signal.h>
-#include <mist/ptvtmp.h>
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -49,7 +48,6 @@
 
 // Mapping of sessId -> session statistics
 std::map<std::string, Controller::statSession> sessions;
-std::map<Controller::uxIndex, Controller::uxInfo> experience; ///< Map of socket IDs to session info.
 
 std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Holds prometheus stats for trigger executions
 bool Controller::killOnExit = KILL_ON_EXIT;
@@ -86,7 +84,6 @@ struct streamTotals{
 };
 
 Comms::Sessions statComm;
-Comms::PlayerUX playUX;
 bool statCommActive = false;
 // Global server wide statistics
 static uint64_t servUpBytes = 0;
@@ -159,47 +156,6 @@ void Controller::updateBandwidthConfig(){
       offset += newbins.size();
     }
   }
-}
-
-Controller::uxIndex::uxIndex(){
-  qual = 0;
-}
-
-Controller::uxIndex::uxIndex(const std::string & _s, const std::string & _p, const std::string & _g, uint8_t _q){
-  stream = _s;
-  proto = _p;
-  geo = _g;
-  qual = _q;
-}
-
-bool Controller::uxIndex::operator==(const Controller::uxIndex &b) const{
-  return (stream == b.stream && proto == b.proto && geo == b.geo && qual == b.qual);
-}
-
-bool Controller::uxIndex::operator!=(const Controller::uxIndex &b) const{
-  return !(*this == b);
-}
-
-bool Controller::uxIndex::operator>(const Controller::uxIndex &b) const{
-  return stream > b.stream ||
-         (stream == b.stream &&
-          (proto > b.proto || (proto == b.proto && (geo > b.geo ||
-                                            (geo == b.geo && qual > b.qual)))));
-}
-
-bool Controller::uxIndex::operator<(const Controller::uxIndex &b) const{
-  return stream < b.stream ||
-         (stream == b.stream &&
-          (proto < b.proto || (proto == b.proto && (geo < b.geo ||
-                                            (geo == b.geo && qual < b.qual)))));
-}
-
-bool Controller::uxIndex::operator<=(const Controller::uxIndex &b) const{
-  return !(*this > b);
-}
-
-bool Controller::uxIndex::operator>=(const Controller::uxIndex &b) const{
-  return !(*this < b);
 }
 
 /// This function is ran whenever a stream becomes active.
@@ -326,9 +282,6 @@ void Controller::sessions_shutdown(const std::string &streamname, const std::str
 void Controller::SharedMemStats(void *config){
   HIGH_MSG("Starting stats thread");
   statComm.reload(true);
-
-  playUX.reload(true);
-
   statCommActive = true;
   std::set<std::string> inactiveStreams;
   Controller::initState();
@@ -362,7 +315,6 @@ void Controller::SharedMemStats(void *config){
       // parse current users
       statLeadIn();
       COMM_LOOP(statComm, statOnActive(id), statOnDisconnect(id));
-      COMM_LOOP(playUX, uxOnActive(id), uxOnDisconnect(id));
       statLeadOut();
 
       if (firstRun){
@@ -995,7 +947,6 @@ void Controller::statStorage::update(Comms::Sessions &statComm, size_t index){
 
 void Controller::statLeadIn(){
   statDropoff = Util::bootSecs() - 3;
-  experience.clear();
 }
 
 void Controller::statOnActive(size_t id){
@@ -1032,10 +983,7 @@ void Controller::statOnDisconnect(size_t id){
     sessionLock.unlink();
   }
 }
-void Controller::uxOnActive(size_t id){
-  experience[uxIndex(playUX.getStream(id), playUX.getProto(id), playUX.getGeohash(id), playUX.getQuality(id))].add(playUX.getExperience(id));
-}
-void Controller::uxOnDisconnect(size_t id){}
+
 void Controller::statLeadOut(){}
 
 /// Returns true if this stream has at least one connected client.
@@ -1806,20 +1754,6 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
           response << "mist_trigger_fails{trigger=\"" << it->first << "\"}" << it->second.failCount << "\n";
         }
         response << "\n";
-      }
-
-      response << "\n\n";
-      response << "# TYPE mist_playux_perfect gauge\n";
-      response << "# HELP mist_playux_perfect Count of people that have a perfect viewer experience.\n";
-      response << "# TYPE mist_playux_okay gauge\n";
-      response << "# HELP mist_playux_okay Count of people that have an okay viewer experience.\n";
-      response << "# TYPE mist_playux_bad gauge\n";
-      response << "# HELP mist_playux_bad Count of people that have a bad viewer experience.\n";
-      for (std::map<Controller::uxIndex, Controller::uxInfo>::iterator it = experience.begin();
-           it != experience.end(); ++it){
-        response << "mist_playux_perfect{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.great << "\n";
-        response << "mist_playux_okay{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.good << "\n";
-        response << "mist_playux_bad{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.bad << "\n";
       }
     }
     H.Chunkify(response.str(), conn);

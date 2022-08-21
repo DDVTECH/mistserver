@@ -53,7 +53,7 @@ function main() {
     BUCKET_PATH="${PROJECT}/${FILE_NAME}"
   fi
   RESOURCE="/${BUCKET}/${BUCKET_PATH}"
-  CONTENT_TYPE="$(file -b --mime-type "${FILE_DIR}/${FILE_NAME}")"
+  CONTENT_TYPE="$(mimetype --brief "${FILE_DIR}/${FILE_NAME}")"
   DATE="$(date -R)"
 
   stringToSign="PUT\n\n${CONTENT_TYPE}\n${DATE}\n${RESOURCE}"

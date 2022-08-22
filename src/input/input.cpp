@@ -1010,9 +1010,9 @@ namespace Mist{
 
   void Input::finish(){
     if (!standAlone || config->getBool("realtime")){return;}
-    for (std::map<size_t, std::map<uint32_t, size_t> >::iterator it = pageCounter.begin();
+    for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
-      for (std::map<uint32_t, size_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+      for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
         it2->second = 1;
       }
     }
@@ -1044,9 +1044,9 @@ namespace Mist{
       }
     }
     //Check pages we buffered but forgot about
-    for (std::map<size_t, std::map<uint32_t, size_t> >::iterator it = pageCounter.begin();
+    for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
-      for (std::map<uint32_t, size_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
+      for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
         if (!checkedPages.count(it->first) || !checkedPages[it->first].count(it2->first)){
           INFO_MSG("Deleting forgotten page %zu:%" PRIu32, it->first, it2->first);
           bufferRemove(it->first, it2->first);

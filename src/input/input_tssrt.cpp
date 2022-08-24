@@ -211,7 +211,6 @@ namespace Mist{
             }
             uint64_t packetTime = Util::bootMS();
             thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);
-            bufferLivePacket(thisPacket);
             lastRawPacket = packetTime;
             rawBuffer.truncate(0);
             return;

@@ -392,6 +392,10 @@ namespace Socket{
       }
     }
     params["payloadsize"] = asString(chunkTransmitSize);
+    //This line forces the transmission type to live if unset.
+    //Live is actually the default, but not explicitly setting the option means
+    //that all other defaults do not get applied either, which is bad.
+    if (!params.count("transtype")){params["transtype"] = "live";}
   }
 
   int SRTConnection::preConfigureSocket(){

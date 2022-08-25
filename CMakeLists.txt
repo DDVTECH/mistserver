@@ -260,6 +260,7 @@ set(libHeaders
   lib/websocket.h
   lib/url.h
   lib/urireader.h
+  lib/ptvtmp.h
 )
 
 if(SRT_LIB)
@@ -328,6 +329,7 @@ add_library (mist
   lib/websocket.cpp
   lib/url.cpp
   lib/urireader.cpp
+  lib/ptvtmp.cpp
 )
 
 if (NOT APPLE)

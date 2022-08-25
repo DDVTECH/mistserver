@@ -11,6 +11,7 @@
 #include <mist/socket.h>
 #include <mist/timing.h>
 #include <mist/stream.h>
+#include <mist/url.h>
 #include <set>
 
 namespace Mist{
@@ -31,8 +32,6 @@ namespace Mist{
     /*LTS-START*/
     std::string reqUrl;
     /*LTS-END*/
-    std::string previousFile;
-    std::string currentFile;
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
@@ -93,6 +92,9 @@ namespace Mist{
     uint64_t pageNumMax(size_t trackId);
     bool isRecordingToFile;
     uint64_t lastStats; ///< Time of last sending of stats.
+    void reinitPlaylist(std::string &playlistBuffer, uint64_t &maxAge, uint64_t &maxEntries,
+                        uint64_t &segmentCount, uint64_t &segmentsRemoved, uint64_t &curTime,
+                        std::string targetDuration, HTTP::URL &playlistLocation);
 
     Util::packetSorter buffer; ///< A sorted list of next-to-be-loaded packets.
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on

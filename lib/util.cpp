@@ -315,6 +315,78 @@ namespace Util{
     }
   }
 
+  void convertLogs(const char *progName){
+    int pipeErr[2];
+    int pipeOut[2];
+    pid_t thisPid = getpid();
+    if (pipe(pipeErr) >= 0 && pipe(pipeOut) >= 0){
+      // Start reading log messages from the unnamed pipe
+      Util::Procs::fork_prepare();
+      pid_t pid = fork();
+      if (pid == 0){// child
+        Util::Procs::fork_complete();
+        close(pipeErr[1]); // close the unneeded pipe file descriptor
+        close(pipeOut[1]);
+        // Close all sockets in the socketList
+        for (std::set<int>::iterator it = Util::Procs::socketList.begin();
+             it != Util::Procs::socketList.end(); ++it){
+          close(*it);
+        }
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        struct sigaction new_action;
+        new_action.sa_handler = SIG_IGN;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGINT, &new_action, NULL);
+        sigaction(SIGHUP, &new_action, NULL);
+        sigaction(SIGTERM, &new_action, NULL);
+        sigaction(SIGPIPE, &new_action, NULL);
+        Util::logConverter(pipeErr[0], pipeOut[0], STDERR_FILENO, progName, thisPid);
+        exit(0);
+      }
+      Util::Procs::fork_complete();
+      if (pid == -1){
+        FAIL_MSG("Failed to fork child process for log handling!");
+      }else{
+        dup2(pipeErr[1], STDERR_FILENO); // cause stderr to write to the pipe
+        dup2(pipeOut[1], STDOUT_FILENO); // cause stdout to write to the pipe
+      }
+      close(pipeErr[1]); // close the unneeded pipe file descriptor
+      close(pipeErr[0]);
+      close(pipeOut[1]);
+      close(pipeOut[0]);
+    }
+  }
+
+  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid){
+    Socket::Connection errStream(-1, inErr);
+    Socket::Connection outStream(-1, inOut);
+    errStream.setBlocking(false);
+    outStream.setBlocking(false);
+    while (errStream || outStream){
+      if (errStream.spool() || errStream.Received().size()){
+        while (errStream.Received().size()){
+          std::string &line = errStream.Received().get();
+          while (line.find('\r') != std::string::npos){line.erase(line.find('\r'));}
+          while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
+          dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
+          line.clear();
+        }
+      }else if (outStream.spool() || outStream.Received().size()){
+        while (outStream.Received().size()){
+          std::string &line = outStream.Received().get();
+          while (line.find('\r') != std::string::npos){line.erase(line.find('\r'));}
+          while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
+          dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
+          line.clear();
+        }      
+      }else{Util::sleep(25);}
+    }
+    errStream.close();
+    outStream.close();
+  }
+
   /// Parses log messages from the given file descriptor in, printing them to out, optionally
   /// calling the given callback for each valid message. Closes the file descriptor on read error
   void logParser(int in, int out, bool colored,

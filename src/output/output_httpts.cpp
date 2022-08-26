@@ -57,7 +57,7 @@ namespace Mist{
 
       wantRequest = false;
       parseData = true;
-    } else if (target.protocol == "s3+http" || target.protocol == "s3+https" || target.protocol == "s3"){
+    } else if (target.protocol == "s3+http" || target.protocol == "s3+https"){
       prepend = "";
       playlistLocation = target.getUrl();
       tsFilePath = target.link("./$datetime.ts").getUrl();

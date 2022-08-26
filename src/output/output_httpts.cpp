@@ -109,6 +109,14 @@ namespace Mist{
 
   bool OutHTTPTS::isRecording(){return config->getString("target").size();}
 
+  bool OutHTTPTS::onFinish(){
+    if(addFinalHeader){
+      addFinalHeader = false;
+      sendHeader();
+    }
+    return false;
+  }
+
   void OutHTTPTS::onHTTP(){
     std::string method = H.method;
     initialize();

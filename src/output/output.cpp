@@ -2321,7 +2321,7 @@ namespace Mist{
     int outFile = -1;
     if (!conn){conn = &myConn;}
     // If file starts with s3+http(s)://, spawn livepeer-catalyst-uploader
-    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://"){
+    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://" || file.substr(0,5) == "s3://"){
       int sout = -1;
       int serr = -1;
       char *cmd[] = {"livepeer-catalyst-uploader", (char*)file.c_str(), 0};

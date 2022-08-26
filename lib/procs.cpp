@@ -436,6 +436,89 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
   return pid;
 }
 
+pid_t Util::Procs::startConverted(const char *const *argv, int *fdin){
+  pid_t pid;
+  int pipein[2];
+  setHandler();
+  if (fdin && *fdin == -1 && pipe(pipein) < 0){
+    ERROR_MSG("stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+    return 0;
+  }
+  int devnull = -1;
+  if (!fdin){
+    devnull = open("/dev/null", O_RDWR);
+    if (devnull == -1){
+      ERROR_MSG("Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
+      if (fdin && *fdin == -1){
+        close(pipein[0]);
+        close(pipein[1]);
+      }
+      return 0;
+    }
+  }
+  pid = fork();
+  if (pid == 0){// child
+    int ch_stdin = 0;
+    handler_set = false;
+    if (!fdin){
+      ch_stdin = dup(devnull);
+    }else if (*fdin == -1){
+      close(pipein[1]); // close unused write end
+      ch_stdin = dup(pipein[0]);
+      close(pipein[0]);
+    }else{
+      ch_stdin = dup(*fdin);
+    }
+    while (ch_stdin < 3){ch_stdin = dup(ch_stdin);}
+    if (fdin && *fdin != -1){close(*fdin);}
+    if (devnull != -1){close(devnull);}
+    // Close all sockets in the socketList
+    for (std::set<int>::iterator it = Util::Procs::socketList.begin();
+         it != Util::Procs::socketList.end(); ++it){
+      close(*it);
+    }
+    dup2(ch_stdin, 0);
+    close(ch_stdin);
+    convertLogs(argv[0]);
+    execvp(argv[0], (char *const *)argv);
+    /*LTS-START*/
+    char *trggr = getenv("MIST_TRIGGER");
+    if (trggr && strlen(trggr)){
+      ERROR_MSG("%s trigger failed to execute %s: %s", trggr, argv[0], strerror(errno));
+      JSON::Value j;
+      j["trigger_fail"] = trggr;
+      Socket::UDPConnection uSock;
+      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+      uSock.SendNow(j.toString());
+      std::cout << getenv("MIST_TRIG_DEF");
+      exit(42);
+    }
+    /*LTS-END*/
+    ERROR_MSG("execvp failed for process %s, reason: %s", argv[0], strerror(errno));
+    exit(42);
+  }else if (pid == -1){
+    ERROR_MSG("fork failed for process %s, reason: %s", argv[0], strerror(errno));
+    if (fdin && *fdin == -1){
+      close(pipein[0]);
+      close(pipein[1]);
+    }
+    if (devnull != -1){close(devnull);}
+    return 0;
+  }else{// parent
+    {
+      tthread::lock_guard<tthread::mutex> guard(plistMutex);
+      plist.insert(pid);
+    }
+    HIGH_MSG("Piped process %s started, PID %d", argv[0], pid);
+    if (devnull != -1){close(devnull);}
+    if (fdin && *fdin == -1){
+      close(pipein[0]); // close unused end end
+      *fdin = pipein[1];
+    }
+  }
+  return pid;
+}
+
 /// Stops the process with this pid, if running.
 /// \arg name The PID of the process to stop.
 void Util::Procs::Stop(pid_t name){

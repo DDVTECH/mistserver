@@ -14,6 +14,13 @@ namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection &conn) : TSOutput(conn){
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     removeOldPlaylistFiles = true;
+    previousStartTime = 0xFFFFFFFFFFFFFFFFull;
+    prevTsFile = "";
+    durationSum = 0;
+    addFinalHeader = false;
+    isUrlTarget = false;
+    playlistBuffer = "";
+    HTTP::URL target(config->getString("target"));
 
     if (targetParams["overwrite"].size()){
       std::string paramValue = targetParams["overwrite"];
@@ -22,7 +29,7 @@ namespace Mist{
       }
     }
 
-    if (config->getString("target").substr(0, 6) == "srt://"){
+    if (target.protocol == "srt"){
       std::string tgt = config->getString("target");
       HTTP::URL srtUrl(tgt);
       config->getOption("target", true).append("ts-exec:srt-live-transmit file://con " + srtUrl.getUrl());
@@ -55,7 +62,21 @@ namespace Mist{
 
       wantRequest = false;
       parseData = true;
+    } else if (target.protocol == "s3+http" || target.protocol == "s3+https" || target.protocol == "s3"){
+      addFinalHeader = true;
+      isUrlTarget = true;
+      prepend = "";
+      playlistLocation = target.getUrl();
+      tsLocation = target.link("./0.ts").getUrl();
+      INFO_MSG("Uploading to S3 using dms-uploader with URL '%s'", playlistLocation.c_str());
+      setenv("MST_ORIG_TARGET", tsLocation.c_str(), 1);
+      INFO_MSG("Playlist location will be '%s'. TS location will be '%s'", playlistLocation.c_str(), tsLocation.c_str());
+      config->getOption("target", true).append(tsLocation);
+      std::stringstream ss;
+      ss << config->getInteger("targetSegmentLength");
+      targetParams["split"] = ss.str();
     } else if (config->getString("target").size()){
+      addFinalHeader = true;
       HTTP::URL target(config->getString("target"));
       // If writing to a playlist file, set target strings and remember playlist location
       if(target.getExt() == "m3u" || target.getExt() == "m3u8"){
@@ -63,11 +84,11 @@ namespace Mist{
         playlistLocation = target.getFilePath();
         // Subfolder name which gets prepended to each entry in the playlist file
         prepend = "./segments_" + target.path.substr(target.path.rfind("/") + 1, target.path.size() - target.getExt().size() - target.path.rfind("/") - 2) + "/";
-        HTTP::URL tsFolderPath(target.link(prepend).getFilePath());
-        tsFilePath = tsFolderPath.getFilePath() + "$datetime.ts";
-        INFO_MSG("Playlist location will be '%s'. TS filename will be in the form of '%s'", playlistLocation.c_str(), tsFilePath.c_str());
+        HTTP::URL tsFolderPath(target.link(prepend + "/0.ts").getFilePath());
+        tsLocation = tsFolderPath.getFilePath();
+        INFO_MSG("Playlist location will be '%s'. TS filename will be in the form of '%s'", playlistLocation.c_str(), tsLocation.c_str());
         // Remember target name including the $datetime variable
-        setenv("MST_ORIG_TARGET", tsFilePath.c_str(), 1);
+        setenv("MST_ORIG_TARGET", tsLocation.c_str(), 1);
         // If the playlist exists, first remove existing TS files
         if (removeOldPlaylistFiles){
           DIR *dir = opendir(tsFolderPath.getFilePath().c_str());
@@ -97,12 +118,7 @@ namespace Mist{
           outPlsFile << "#EXT-X-DISCONTINUITY" << "\n";
           outPlsFile.close();
         }
-        // Set first target filename
-        Util::streamVariables(tsFilePath, streamName);
-        if (tsFilePath.rfind('?') != std::string::npos){
-          tsFilePath.erase(tsFilePath.rfind('?'));
-        }
-        config->getOption("target", true).append(tsFilePath);
+        config->getOption("target", true).append(tsLocation);
         // Finally set split time in seconds
         std::stringstream ss;
         ss << config->getInteger("targetSegmentLength");
@@ -142,8 +158,8 @@ namespace Mist{
     capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");
-    capa["push_urls"].append("/*.m3u");
-    capa["push_urls"].append("/*.m3u8");
+    capa["push_urls"].append("*.m3u");
+    capa["push_urls"].append("*.m3u8");
 
 #ifndef WITH_SRT
     {
@@ -185,6 +201,14 @@ namespace Mist{
 
   bool OutHTTPTS::isRecording(){return config->getString("target").size();}
 
+  bool OutHTTPTS::onFinish(){
+    if(addFinalHeader){
+      addFinalHeader = false;
+      sendHeader();
+    }
+    return false;
+  }
+
   void OutHTTPTS::onHTTP(){
     std::string method = H.method;
     initialize();
@@ -207,87 +231,60 @@ namespace Mist{
     wantRequest = false;
   }
 
-  /// \brief Goes through all of the packets in a TS file in order to calculate the total duration
-  /// \param firstTime: is set to the firstTime of the TS file
-  float OutHTTPTS::calculateSegmentDuration(std::string filepath, uint64_t & firstTime){
-    firstTime = -1;
-    uint64_t lastTime = 0;
-    FILE *inFile;
-    TS::Packet packet;
-    DTSC::Packet headerPack;
-    TS::Stream tsStream;
-
-    inFile = fopen(filepath.c_str(), "r");
-    while (!feof(inFile)){
-      if (!packet.FromFile(inFile)){
-        break;
-      }
-      tsStream.parse(packet, 0);
-      while (tsStream.hasPacketOnEachTrack()){
-        tsStream.getEarliestPacket(headerPack);
-        lastTime = headerPack.getTime();
-        if (firstTime > lastTime){
-          firstTime = headerPack.getTime();
-        }
-        DONTEVEN_MSG("Found DTSC packet with timestamp %" PRIu64, lastTime);
-      }
-    }
-    fclose(inFile);
-    HIGH_MSG("Duration of TS file at location '%s' is " PRETTY_PRINT_MSTIME " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ")", filepath.c_str(), PRETTY_ARG_MSTIME(lastTime - firstTime), PRETTY_ARG_MSTIME(lastTime), PRETTY_ARG_MSTIME(firstTime));
-    return (lastTime - firstTime);
-  }
-
   void OutHTTPTS::sendHeader(){
-    bool writeTimestamp = true;
-    if (previousFile != ""){
+    double segmentDuration = double(lastPacketTime - previousStartTime) / 1000;
+    if (previousStartTime == 0xFFFFFFFFFFFFFFFFull){ durationSum += atoll(targetParams["split"].c_str()) * 1000; }
+    else { durationSum += lastPacketTime - previousStartTime; }
+
+    // Add the previous TS file to the playlist
+    if (prevTsFile != ""){
       std::ofstream outPlsFile;
-      // Calculate segment duration and round up to the nearest integer
-      uint64_t firstTime = 0;
-      float segmentDuration = (calculateSegmentDuration(previousFile, firstTime) / 1000);
+      HIGH_MSG("Duration of TS file at location '%s' is %f ms", prevTsFile.c_str(), segmentDuration);
       if (segmentDuration > config->getInteger("targetSegmentLength")){
         WARN_MSG("Segment duration exceeds target segment duration. This may cause playback stalls or other errors");
       }
-      // If the playlist does not exist, init it
-      FILE *fileHandle = fopen(playlistLocation.c_str(), "r");
-      if (!fileHandle || removeOldPlaylistFiles){
+      if (!plsConn){
+        static int tmpFd = open("/dev/null", O_RDWR);
+        plsConn.open(tmpFd);
+        Util::Procs::socketList.insert(tmpFd);
+        INFO_MSG("Connecting to playlist file '%s'", playlistLocation.c_str());
+        connectToFile(playlistLocation, !removeOldPlaylistFiles, &plsConn);
+      }
+
+      if (removeOldPlaylistFiles){
         INFO_MSG("Creating new playlist at '%s'", playlistLocation.c_str());
         removeOldPlaylistFiles = false;
-        outPlsFile.open(playlistLocation.c_str(), std::ofstream::trunc);
-        outPlsFile << "#EXTM3U\n" << "#EXT-X-VERSION:3\n" << "#EXT-X-PLAYLIST-TYPE:EVENT\n"
-          << "#EXT-X-TARGETDURATION:" << config->getInteger("targetSegmentLength") << "\n#EXT-X-MEDIA-SEQUENCE:0\n";
-        // Add current livestream timestamp
-        if (M.getLive()){
-          uint64_t unixMs = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS()) + firstTime;
-          outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << Util::getUTCStringMillis(unixMs) << std::endl;
-          time_t uSecs = unixMs/1000;
-          struct tm *tVal = gmtime(&uSecs);
-          char UTCTime[25];
-          snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3" PRIu64 "Z", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
-          
-          outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << UTCTime << std::endl;
-          writeTimestamp = false;
-        }
-      // Otherwise open it in append mode
-      } else {
-        fclose(fileHandle);
-        outPlsFile.open(playlistLocation.c_str(), std::ofstream::app);
+        playlistBuffer += "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-TARGETDURATION:" + \
+          JSON::Value(config->getInteger("targetSegmentLength")).asString() + "\n#EXT-X-MEDIA-SEQUENCE:0\n";
       }
       // Add current timestamp
-      if (M.getLive() && writeTimestamp){
+      if (M.getLive()){
         uint64_t unixMs = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS()) + firstTime;
-        outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << Util::getUTCStringMillis(unixMs) << std::endl;
-        time_t uSecs = unixMs/1000;
-        struct tm *tVal = gmtime(&uSecs);
-        char UTCTime[25];
-        snprintf(UTCTime, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%3" PRIu64 "Z", tVal->tm_year + 1900, tVal->tm_mon + 1, tVal->tm_mday, tVal->tm_hour, tVal->tm_min, tVal->tm_sec, unixMs%1000);
-        
-        outPlsFile << "#EXT-X-PROGRAM-DATE-TIME:" << UTCTime << std::endl;
+        playlistBuffer += std::string("#EXT-X-PROGRAM-DATE-TIME:") + Util::getUTCStringMillis(unixMs) + "\n";
       }
       INFO_MSG("Adding new segment of %.2f seconds to playlist '%s'", segmentDuration, playlistLocation.c_str());
+      // Remove the s3(+) prefix when adding the TS file to the playlist
+      if (prevTsFile.substr(0,2) == "s3"){ prevTsFile = prevTsFile.substr(2); }
+      if (prevTsFile.substr(0,1) == "+"){ prevTsFile = prevTsFile.substr(1); }
       // Append duration & TS filename to playlist file
-      outPlsFile << "#EXTINF:" << segmentDuration << ",\n" << prepend << previousFile.substr(previousFile.rfind("/") + 1) << "\n";
-      outPlsFile.close();
+      playlistBuffer += std::string("#EXTINF:") + JSON::Value(segmentDuration).asString() + ",\n" + prevTsFile + "\n";
+      plsConn.SendNow(playlistBuffer);
+      playlistBuffer = "";
     }
+
+    // Save the target we were pushing towards as the latest completed segment
+    prevTsFile = tsLocation;
+    // Set the start time of the current segment. We will know the end time once the next split point is reached
+    previousStartTime = lastPacketTime;
+    // Set the next filename we will push towards once the split point is reached
+    HTTP::URL target(getenv("MST_ORIG_TARGET"));
+    if (isUrlTarget){
+      tsLocation = target.link(std::string("./") + JSON::Value(durationSum).asString() + ".ts").getUrl();
+    }else{
+      tsLocation = target.link(std::string("./") + JSON::Value(durationSum).asString() + ".ts").getFilePath();
+    }
+    INFO_MSG("Setting next target TS file '%s'", tsLocation.c_str());
+    setenv("MST_ORIG_TARGET", tsLocation.c_str(), 1);
 
     TSOutput::sendHeader();
   }

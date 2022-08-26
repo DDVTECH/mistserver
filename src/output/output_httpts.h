@@ -20,14 +20,21 @@ namespace Mist{
     }
     virtual bool inlineRestartCapable() const{return true;}
     void sendHeader();
-    float calculateSegmentDuration(std::string filepath, uint64_t & firstTime);
+    bool onFinish();
     // Location of playlist file which we need to keep updated
     std::string playlistLocation;
-    std::string tsFilePath;
+    std::string playlistBuffer;
+    std::string tsLocation;
+    std::string prevTsFile;
     // Subfolder name (based on playlist name) which gets prepended to each entry in the playlist file
     std::string prepend;
     // Defaults to True. When exporting to .m3u8 & TS, it will overwrite the existing playlist file and remove existing .TS files
     bool removeOldPlaylistFiles;
+    uint64_t previousStartTime;
+    uint64_t durationSum;
+    bool addFinalHeader;
+    bool isUrlTarget;
+    Socket::Connection plsConn;
   };
 }// namespace Mist
 

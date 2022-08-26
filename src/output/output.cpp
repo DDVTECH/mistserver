@@ -108,8 +108,6 @@ namespace Mist{
     firstData = true;
     newUA = true;
     lastPushUpdate = 0;
-    previousFile = "";
-    currentFile = "";
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -1347,9 +1345,6 @@ namespace Mist{
                 if (newTarget.rfind('?') != std::string::npos){
                   newTarget.erase(newTarget.rfind('?'));
                 }
-                // Keep track of filenames written, so that they can be added to the playlist file
-                previousFile = currentFile;
-                currentFile = newTarget;
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
                 if (!connectToFile(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
@@ -1874,24 +1869,33 @@ namespace Mist{
     sentHeader = true;
   }
 
-  bool Output::connectToFile(std::string file, bool append){
-    int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
-    if (!Util::createPathFor(file)){
-      ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
-      return false;
-    }
-    int outFile = open(file.c_str(), mode, flags);
-    if (outFile < 0){
-      ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
-      return false;
+  bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
+    if (!conn) {conn = &myConn;}
+    int outFile = -1;
+    // If file starts with s3(+http(s))://, spawn livepeer-catalyst-uploader
+    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://" || file.substr(0,5) == "s3://"){
+      const char *cmd[] = {"livepeer-catalyst-uploader", (char*)file.c_str(), 0};
+      pid_t child = Util::Procs::startConverted(cmd, &outFile);
+      if (child == -1){
+        ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
+        return false;
+      }
+      Util::Procs::forget(child);
+    }else{
+      int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
+      if (!Util::createPathFor(file)){
+        ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
+        return false;
+      }
+      outFile = open(file.c_str(), mode, flags);
+      if (outFile < 0){
+        ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
+        return false;
+      }
     }
 
-    int r = dup2(outFile, myConn.getSocket());
-    if (r == -1){
-      ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
-      return false;
-    }
+    dup2(outFile, conn->getSocket());
     close(outFile);
     isRecordingToFile = true;
     realTime = 0;

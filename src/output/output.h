@@ -31,6 +31,8 @@ namespace Mist{
     /*LTS-START*/
     std::string reqUrl;
     /*LTS-END*/
+    std::string previousFile;
+    std::string currentFile;
     // non-virtual generic functions
     virtual int run();
     virtual void stats(bool force = false);
@@ -43,7 +45,7 @@ namespace Mist{
     uint64_t endTime();
     void setBlocking(bool blocking);
     bool selectDefaultTracks();
-    bool connectToFile(std::string file, bool append = false, Socket::Connection *conn = 0);
+    bool connectToFile(std::string file, bool append = false);
     static bool listenMode(){return true;}
     uint32_t currTrackCount() const;
     virtual bool isReadyForPlay();

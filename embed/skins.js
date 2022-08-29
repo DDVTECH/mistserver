@@ -1048,6 +1048,8 @@ MistSkins["default"] = {
       return button;
     },
     speaker: function(){
+
+      if (!this.player.api || !("muted" in this.player.api)) { return false; }
       
       var hasaudio = false;
       var tracks = this.info.meta.tracks;
@@ -1061,6 +1063,10 @@ MistSkins["default"] = {
       
       var video = this.video;
       //obey video states
+      if ((!MistVideo.player.api.volume) || (MistVideo.player.api.muted)) {
+        MistUtil.class.add(button,"off");
+      }
+
       MistUtil.event.addListener(video,"volumechange",function(){
         if ((MistVideo.player.api.volume) && (!MistVideo.player.api.muted)) {
           MistUtil.class.remove(button,"off");
@@ -1078,6 +1084,8 @@ MistSkins["default"] = {
       return button;
     },
     volume: function(options){
+
+      if (!this.player.api || !("volume" in this.player.api)) { return false; }
       
       var hasaudio = false;
       var tracks = this.info.meta.tracks;
@@ -1121,6 +1129,8 @@ MistSkins["default"] = {
       },button);
       
       //apply initial video state
+      button.set(MistVideo.player.api.muted ? 0 : (MistVideo.player.api.volume*100));
+      //apply stored volume
       var initevent = MistUtil.event.addListener(video,"loadedmetadata",function(){
         if (('localStorage' in window) && (localStorage != null) && ('mistVolume' in localStorage)) {
           MistVideo.player.api.volume = localStorage['mistVolume'];
@@ -1867,13 +1877,12 @@ MistSkins["default"] = {
               removeIcon();
             }
           },icon);
-          MistUtil.event.addListener(MistVideo.video,"progress",function(e){
-            if (("container" in MistVideo) && ("monitor" in MistVideo) && ("vars" in MistVideo.monitor) && ("score" in MistVideo.monitor.vars) && (MistVideo.monitor.vars.score > 0.99)) {
-              removeIcon();
-            }
-          },icon);
         }
-        
+        MistUtil.event.addListener(MistVideo.video,"progress",function(e){
+          if (("container" in MistVideo) && ("monitor" in MistVideo) && ("vars" in MistVideo.monitor) && ("score" in MistVideo.monitor.vars) && (MistVideo.monitor.vars.score > 0.99)) {
+            removeIcon();
+          }
+        },icon);
       }
       
       return icon;
@@ -2508,12 +2517,13 @@ MistSkins.dev = {
             }
           },
           "Dropped frames": function(){
-            if ((MistVideo.player.api) && ("getVideoPlaybackQuality" in MistVideo.player.api)) {
-              var r = MistVideo.player.api.getVideoPlaybackQuality();
-              if (r) {
-                if (r.droppedVideoFrames) {
-                  return MistUtil.format.number(r.droppedVideoFrames);
-                  /* show a graph: return {
+            if (MistVideo.player.api) {
+              if ("getVideoPlaybackQuality" in MistVideo.player.api) {
+                var r = MistVideo.player.api.getVideoPlaybackQuality();
+                if (r) {
+                  if (r.droppedVideoFrames) {
+                    return MistUtil.format.number(r.droppedVideoFrames);
+                    /* show a graph: return {
                     val: MistUtil.format.number(r.droppedVideoFrames),
                     x: (new Date()).getTime()*1e-3,
                     y: r.droppedVideoFrames,
@@ -2523,8 +2533,12 @@ MistSkins.dev = {
                       reverseGradient: true
                     }
                   };*/
+                  }
+                  return 0;
                 }
-                return 0;
+              }
+              if ("webkitDroppedFrameCount" in MistVideo.player.api) {
+                return MistVideo.player.api.webkitDroppedFrameCount;
               }
             }
           },
@@ -2587,6 +2601,21 @@ MistSkins.dev = {
             if (MistVideo.player.monitor && ("currentBps" in MistVideo.player.monitor)) {
               var out = MistUtil.format.bits(MistVideo.player.monitor.currentBps);
               return out ? out+"ps" : out;
+            }
+            if (MistVideo.player.api && "currentBps" in MistVideo.player.api) {
+              var out = MistUtil.format.bits(MistVideo.player.api.currentBps());
+              return out ? out+"ps" : out;
+            }
+
+          },
+          "Framerate in": function(){
+            if (MistVideo.player.api && "framerate_in" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.framerate_in());
+            }
+          },
+          "Framerate out": function(){
+            if (MistVideo.player.api && "framerate_out" in MistVideo.player.api) {
+              return MistUtil.format.number(MistVideo.player.api.framerate_out());
             }
           }
         };

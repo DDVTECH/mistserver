@@ -24,6 +24,7 @@ namespace aac{
     bool hasSync() const;
     char *getPayload();
     std::string toPrettyString() const;
+    std::string getInit() const;
     operator bool() const;
 
   private:

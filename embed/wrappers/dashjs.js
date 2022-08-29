@@ -18,6 +18,21 @@ mistplayers.dashjs = {
       MistVideo.log("This source ("+mimetype+") won't load if the page is run via file://");
       return false;
     }
+
+    var codecs = {};
+    for (var i in MistVideo.info.meta.tracks) {
+      if (MistVideo.info.meta.tracks[i].type != "meta") {
+        codecs[MistVideo.info.meta.tracks[i].codec] = 1;
+      }
+    }
+    codecs = MistUtil.object.keys(codecs);
+    //if there's a h265 track, remove it from the list of codecs
+    for (var i = codecs.length-1; i >= 0; i--) {
+      if (codecs[i].substr(0,4) == "HEVC") {
+        codecs.splice(i,1);
+      }
+    }
+    if (codecs.length < source.simul_tracks) { return false; } //if there's no longer enough playable tracks, skip this player
     
     return ("MediaSource" in window);
   },

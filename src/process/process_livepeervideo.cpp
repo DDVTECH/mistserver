@@ -159,11 +159,16 @@ namespace Mist{
           //Attempt JSON decode, check for text/timestamp fields
           JSON::Value tData = JSON::fromString(aacWs->data, aacWs->data.size());
           if (!tData.isMember("timestamp")){continue;}
+          size_t tid = 1;
+          if (tData.isMember("trackid")){
+            tid = tData["trackid"].asInt();
+            tData.removeMember("trackid");
+          }
           //Add track if needed
-          size_t idx = M.trackIDToIndex(1, getpid());
+          size_t idx = M.trackIDToIndex(tid, getpid());
           if (idx == INVALID_TRACK_ID){
             idx = meta.addTrack();
-            meta.setID(idx, 1);
+            meta.setID(idx, tid);
             meta.setType(idx, "meta");
             meta.setCodec(idx, "objects");
           }
@@ -171,7 +176,7 @@ namespace Mist{
           uint64_t time = tData["timestamp"].asInt();
           tData.removeMember("timestamp");
           std::string text = tData.toString();
-          thisPacket.genericFill(time, 0, 1, text.data(), text.size(), 0, true);
+          thisPacket.genericFill(time, 0, tid, text.data(), text.size(), 0, true);
           return;
         }
       }

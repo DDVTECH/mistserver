@@ -74,6 +74,19 @@ HTTP::URL::URL(const std::string &url){
       }
       if (path.substr(0, 2) == "./"){path.erase(0, 2);}
       if (path.substr(0, 3) == "../"){path.erase(0, 3);}
+      //RFC 2396 sec 5.2: check if URL ends with <name>/.. -> remove iff name != ..
+      if (path.length() == 2 && path == "..")
+        path = "";
+      if (path.length() > 2 && path.substr(path.length() - 2) == ".."){
+        // |<name>| == 1, so <name> != '..'
+        if (path.length() == 4){
+          path.erase(path.length() - 4, path.length());
+        }
+        else if (path.length() > 4 && path.substr(path.length() - 5) != "../.."){
+          size_t prevslash = path.rfind('/', path.length() - 4);
+          path.erase(prevslash + 1, path.length());
+        }
+      }
       path = Encodings::URL::decode(path);
     }
   }

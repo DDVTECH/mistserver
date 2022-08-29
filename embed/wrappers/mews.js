@@ -44,6 +44,10 @@ mistplayers.mews = {
     var codecs = {};
     for (var i in MistVideo.info.meta.tracks) {
       if (MistVideo.info.meta.tracks[i].type != "meta") {
+        if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
+          //the iPad claims to be able to play MP4/WS H265 tracks.. haha no.
+          continue;
+        }
         codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i].codec;
       }
     }

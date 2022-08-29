@@ -1032,6 +1032,7 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
       case MBEDTLS_ERR_SSL_WANT_WRITE: return 0; break;
       case MBEDTLS_ERR_SSL_WANT_READ: return 0; break;
       case EWOULDBLOCK: return 0; break;
+      case EINTR: return 0; break;
       default:
         Error = true;
         lastErr = strerror(errno);
@@ -1071,6 +1072,7 @@ unsigned int Socket::Connection::iwrite(const void *buffer, int len){
   if (r < 0){
     switch (errno){
     case EWOULDBLOCK: return 0; break;
+    case EINTR: return 0; break;
     default:
       Error = true;
       lastErr = strerror(errno);

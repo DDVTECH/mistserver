@@ -2787,6 +2787,14 @@ var UI = {
             },
             help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json."
           },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            pointer: {
+              main: s,
+              index: "trustedproxy"
+            }
+          },{
             type: "str",
             validate: ['streamname_with_wildcard_and_variables'],
             label: 'Fallback stream',
@@ -2796,56 +2804,60 @@ var UI = {
             },
             help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name."
           },
+
+
+
           $("<h3>").text("Sessions"),
+
           {
             type: 'bitmask',
             label: 'Bundle viewer sessions by',
             bitmask: [
               [8,"Stream name"],
               [4,"IP address"],
-              [2,"Session id"],
+              [2,"Token"],
               [1,"Protocol"]
             ],
             pointer: {
               main: s,
               index: 'sessionViewerMode'
             },
-            help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+            help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and token'
           },{
             type: 'bitmask',
             label: 'Bundle input sessions by',
             bitmask: [
               [8,"Stream name"],
               [4,"IP address"],
-              [2,"Session id"],
+              [2,"Token"],
               [1,"Protocol"]
             ],
             pointer: {
               main: s,
               index: 'sessionInputMode'
             },
-            help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+            help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, input IP and token'
           },{
             type: 'bitmask',
             label: 'Bundle output sessions by',
             bitmask: [
               [8,"Stream name"],
               [4,"IP address"],
-              [2,"Session id"],
+              [2,"Token"],
               [1,"Protocol"]
             ],
             pointer: {
               main: s,
               index: 'sessionOutputMode'
             },
-            help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, viewer IP and player id'
+            help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, output IP and token'
           },{
             type: 'bitmask',
             label: 'Bundle unspecified sessions by',
             bitmask: [
               [8,"Stream name"],
               [4,"IP address"],
-              [2,"Session id"],
+              [2,"Token"],
               [1,"Protocol"]
             ],
             pointer: {
@@ -2869,7 +2881,7 @@ var UI = {
             help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
           },{
             type: "bitmask",
-            label: "Communicate session id",
+            label: "Communicate session token",
             bitmask: [
               [8,"Write to cookie"],
               [4,"Write to URL parameter"],
@@ -2880,21 +2892,18 @@ var UI = {
               main: s,
               index: "sidMode"
             },
-            help: "Change the way the session identifier gets passed to and from MistServer.<br>Default: all"
-          },{
-            type: "inputlist",
-            label: "Trusted proxies",
-            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            pointer: {
-              main: s,
-              index: "trustedproxy"
-            }
+            help: "Change the way the session token gets passed to and from MistServer.<br>Default: all"
           },
+
+
+
           $('<h3>').text("Load balancer"),
           {
             type: "help",
             help: "If you're using MistServer's load balancer, the information below is passed to it so that it can make informed decisions."
-          },{
+          },
+
+          {
             type: "selectinput",
             label: "Server's bandwidth limit",
             selectinput: [
@@ -2964,7 +2973,7 @@ var UI = {
                 save.bandwidth = bandwidth;
                 
                 mist.send(function(){
-                  UI.navto('General');
+                  UI.navto('Overview');
                 },save)
               }
             }]

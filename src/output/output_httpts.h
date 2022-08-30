@@ -34,6 +34,7 @@ namespace Mist{
     uint64_t durationSum;
     bool addFinalHeader;
     bool isUrlTarget;
+    bool forceVodPlaylist;
     Socket::Connection plsConn;
   };
 }// namespace Mist

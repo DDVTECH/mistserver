@@ -19,6 +19,7 @@ namespace Mist{
     durationSum = 0;
     addFinalHeader = false;
     isUrlTarget = false;
+    forceVodPlaylist = false;
     playlistBuffer = "";
     HTTP::URL target(config->getString("target"));
 
@@ -65,6 +66,7 @@ namespace Mist{
     } else if (target.protocol == "s3+http" || target.protocol == "s3+https" || target.protocol == "s3"){
       addFinalHeader = true;
       isUrlTarget = true;
+      forceVodPlaylist = true;
       prepend = "";
       playlistLocation = target.getUrl();
       tsLocation = target.link("./0.ts").getUrl();
@@ -206,6 +208,13 @@ namespace Mist{
       addFinalHeader = false;
       sendHeader();
     }
+    if (plsConn){
+      if (forceVodPlaylist || !M.getLive()){
+        playlistBuffer += "#EXT-X-ENDLIST";
+        plsConn.SendNow(playlistBuffer);
+      }
+      plsConn.close();
+    }
     return false;
   }
 
@@ -254,11 +263,13 @@ namespace Mist{
       if (removeOldPlaylistFiles){
         INFO_MSG("Creating new playlist at '%s'", playlistLocation.c_str());
         removeOldPlaylistFiles = false;
-        playlistBuffer += "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:EVENT\n#EXT-X-TARGETDURATION:" + \
+        std::string type = "EVENT";
+        if (forceVodPlaylist || !M.getLive()){ type = "VOD";}
+        playlistBuffer += "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-PLAYLIST-TYPE:" + type + "\n#EXT-X-TARGETDURATION:" + \
           JSON::Value(config->getInteger("targetSegmentLength")).asString() + "\n#EXT-X-MEDIA-SEQUENCE:0\n";
       }
       // Add current timestamp
-      if (M.getLive()){
+      if (M.getLive() && !forceVodPlaylist){
         uint64_t unixMs = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS()) + firstTime;
         playlistBuffer += std::string("#EXT-X-PROGRAM-DATE-TIME:") + Util::getUTCStringMillis(unixMs) + "\n";
       }

@@ -1874,7 +1874,7 @@ namespace Mist{
     int outFile = -1;
     // If file starts with s3(+http(s))://, spawn livepeer-catalyst-uploader
     if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://" || file.substr(0,5) == "s3://"){
-      const char *cmd[] = {"livepeer-catalyst-uploader", (char*)file.c_str(), 0};
+      const char *cmd[] = {"livepeer-catalyst-uploader", "-t", "2592000s", (char*)file.c_str(), 0};
       pid_t child = Util::Procs::startConverted(cmd, &outFile);
       if (child == -1){
         ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");

@@ -114,6 +114,13 @@ namespace Mist{
       addFinalHeader = false;
       sendHeader();
     }
+    if (plsConn){
+      if (forceVodPlaylist || !M.getLive()){
+        playlistBuffer += "#EXT-X-ENDLIST";
+        plsConn.SendNow(playlistBuffer);
+      }
+      plsConn.close();
+    }
     return false;
   }
 

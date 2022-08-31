@@ -366,6 +366,12 @@ if(SRT_LIB)
   message(SRT-LIB-IS-XXX="${SRT_LIB}")
 endif()
 
+if(RIST_LIB)
+  find_path(RIST_HEADER_DIR "librist/librist.h")
+  include_directories(${RIST_HEADER_DIR})
+  message(RIST-LIB-IS-XXX="${RIST_LIB}")
+endif()
+
 ########################################
 # MistLib - Local Header Install       #
 ########################################
@@ -451,7 +457,7 @@ macro(makeInput inputName format)
     src/io.cpp
   )
   if (";${ARGN};" MATCHES ";with_rist;")
-    target_link_libraries(MistIn${inputName} rist cjson)
+    target_link_libraries(MistIn${inputName} ${RIST_LIB})
   endif()
 
   #Set compile definitions
@@ -534,7 +540,7 @@ macro(makeOutput outputName format)
     PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_${format}.h\";TS_BASECLASS=${tsBaseClass}"
   )
   if (";${ARGN};" MATCHES ";with_rist;")
-    target_link_libraries(MistOut${outputName} rist cjson)
+    target_link_libraries(MistOut${outputName} ${RIST_LIB})
   endif()
   target_link_libraries(MistOut${outputName} mist )
   install(

@@ -3232,6 +3232,7 @@ namespace DTSC{
       }
       res = i;
     }
+    BACKTRACE;
     DONTEVEN_MSG("Key number for time %" PRIu64 " on track %" PRIu32 " is %zu", time, idx, res);
     return res;
   }

@@ -20,6 +20,7 @@ namespace Mist{
     addFinalHeader = false;
     isUrlTarget = false;
     forceVodPlaylist = false;
+    writeFilenameOnly = false;
     playlistBuffer = "";
     HTTP::URL target(config->getString("target"));
 
@@ -67,6 +68,7 @@ namespace Mist{
       addFinalHeader = true;
       isUrlTarget = true;
       forceVodPlaylist = true;
+      writeFilenameOnly = true;
       prepend = "";
       playlistLocation = target.getUrl();
       tsLocation = target.link("./0.ts").getUrl();
@@ -274,9 +276,8 @@ namespace Mist{
         playlistBuffer += std::string("#EXT-X-PROGRAM-DATE-TIME:") + Util::getUTCStringMillis(unixMs) + "\n";
       }
       INFO_MSG("Adding new segment of %.2f seconds to playlist '%s'", segmentDuration, playlistLocation.c_str());
-      // Remove the s3(+) prefix when adding the TS file to the playlist
-      if (prevTsFile.substr(0,2) == "s3"){ prevTsFile = prevTsFile.substr(2); }
-      if (prevTsFile.substr(0,1) == "+"){ prevTsFile = prevTsFile.substr(1); }
+      // Strip path to the ts file if necessary
+      if (writeFilenameOnly){ prevTsFile = prevTsFile.substr(prevTsFile.rfind("/") + 1); }
       // Append duration & TS filename to playlist file
       playlistBuffer += std::string("#EXTINF:") + JSON::Value(segmentDuration).asString() + ",\n" + prevTsFile + "\n";
       plsConn.SendNow(playlistBuffer);

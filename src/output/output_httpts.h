@@ -35,6 +35,7 @@ namespace Mist{
     bool addFinalHeader;
     bool isUrlTarget;
     bool forceVodPlaylist;
+    bool writeFilenameOnly;
     Socket::Connection plsConn;
   };
 }// namespace Mist

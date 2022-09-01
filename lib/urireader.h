@@ -77,6 +77,7 @@ namespace HTTP{
     size_t bufPos; ///< Current read position in buffer
     int handle;    ///< Open file handle, if file-based.
     char *mapped;  ///< Memory-map of open file handle, if file-based.
+    HTTP::URL originalUrl;
     bool supportRangeRequest;
     Util::ResizeablePointer rPtr;
     Util::ResizeablePointer allData;

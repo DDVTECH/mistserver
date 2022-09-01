@@ -409,12 +409,12 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         }
         if (authorized){
           handleAPICommands(Request, Response);
-        }else{// unauthorized
-          Util::sleep(1000); // sleep a second to prevent bruteforcing
-          logins++;
         }
-        Controller::checkServerLimits(); /*LTS*/
       }// config mutex lock
+      if (!authorized) {// unauthorized
+        Util::sleep(1000); // sleep a second to prevent bruteforcing
+        logins++;
+      }
       // send the response, either normally or through JSONP callback.
       std::string jsonp = "";
       if (H.GetVar("callback") != ""){jsonp = H.GetVar("callback");}

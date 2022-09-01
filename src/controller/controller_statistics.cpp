@@ -50,7 +50,8 @@
 
 // Mapping of sessId -> session statistics
 std::map<std::string, Controller::statSession> sessions;
-std::map<Controller::uxIndex, Controller::uxInfo> experience; ///< Map of socket IDs to session info.
+std::map<Controller::uxIndex, Controller::uxInfo> experience; ///< Experience data
+std::map<Controller::uxIndex, uint64_t> expCount; ///< Viewer counts
 
 std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Holds prometheus stats for trigger executions
 bool Controller::killOnExit = KILL_ON_EXIT;
@@ -1036,11 +1037,29 @@ void Controller::statOnDisconnect(size_t id){
 }
 
 void Controller::uxOnActive(size_t id){
-  experience[uxIndex(playUX.getStream(id), playUX.getProto(id), playUX.getGeohash(id), playUX.getQuality(id))].add(playUX.getExperience(id));
+  uxIndex uI = uxIndex(playUX.getStream(id), playUX.getProto(id), playUX.getGeohash(id), playUX.getQuality(id));
+  experience[uI].add(playUX.getExperience(id));
+  //Only count every connection once
+  if ((playUX.getStatus(id) & COMM_STATUS_DONOTTRACK) != COMM_STATUS_DONOTTRACK){
+    playUX.setStatus(playUX.getStatus(id) | COMM_STATUS_DONOTTRACK, id);
+    expCount[uI]++;
+  }
 }
 void Controller::uxOnDisconnect(size_t id){}
 
-void Controller::statLeadOut(){}
+void Controller::statLeadOut(){
+  bool loop = true;
+  while (loop){
+    loop = false;
+    for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCount.begin(); it != expCount.end(); ++it){
+      if (!experience.count(it->first)){
+        expCount.erase(it);
+        loop = true;
+        break;
+      }
+    }
+  }
+}
 
 /// Returns true if this stream has at least one connected client.
 bool Controller::hasViewers(std::string streamName){
@@ -1819,11 +1838,16 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       response << "# HELP mist_playux_okay Count of people that have an okay viewer experience.\n";
       response << "# TYPE mist_playux_bad gauge\n";
       response << "# HELP mist_playux_bad Count of people that have a bad viewer experience.\n";
+      response << "# TYPE mist_playux_count counter\n";
+      response << "# HELP mist_playux_count Total people that had a viewer experience.\n";
       for (std::map<Controller::uxIndex, Controller::uxInfo>::iterator it = experience.begin();
            it != experience.end(); ++it){
         response << "mist_playux_perfect{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.great << "\n";
         response << "mist_playux_okay{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.good << "\n";
         response << "mist_playux_bad{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second.bad << "\n";
+      }
+      for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCount.begin(); it != expCount.end(); ++it){
+        response << "mist_playux_count{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second << "\n";
       }
     }
     H.Chunkify(response.str(), conn);

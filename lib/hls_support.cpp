@@ -386,7 +386,7 @@ namespace HLS{
     addPartialFragmentTags(result, M, fragData, trackData, keys);
 
     // do not add the last fragment media tag for the live streams
-    if (trackData.isLive && (fragData.currentFrag == fragData.lastFrag - 1)){return;}
+    if (trackData.isLive && (fragData.currentFrag >= fragData.lastFrag - 2)){return;}
 
     addFragmentTag(result, fragData, trackData);
   }

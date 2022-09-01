@@ -1424,7 +1424,7 @@ namespace Mist{
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
           if (dataLen != parts.getSize(partNo)){
-            INFO_MSG("Part size mismatch: %zu != %zu", dataLen, parts.getSize(partNo));
+            INFO_MSG("Part %zu (@%" PRIu64 ") size mismatch: %zu (actual) != %zu (expected)", partNo, thisTime, dataLen, parts.getSize(partNo));
           }
           ++partNo;
           HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisTime, idx, thisPacket.getInt("offset"));

@@ -134,6 +134,7 @@ namespace Mist{
   /// Expects character array with playlist URL as argument, sets the first byte of the pointer to zero when loaded.
   void playlistRunner(void *ptr){
     if (!ptr){return;}// abort if we received a null pointer - something is seriously wrong
+    Util::setStreamName(self->getStreamName());
     bool initOnly = false;
     if (((char *)ptr)[0] == ';'){initOnly = true;}
 
@@ -169,9 +170,8 @@ namespace Mist{
   Playlist::Playlist(const std::string &uriSrc){
     nextUTC = 0;
     id = 0; // to be set later
-    INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());
-    plsDL.dataTimeout = 15;
-    plsDL.retryCount = 8;
+    //If this is the copy constructor, just be silent.
+    if (uriSrc.size()){INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());}
     lastFileIndex = 0;
     waitTime = 2;
     playlistEnd = false;
@@ -180,8 +180,7 @@ namespace Mist{
     root = HTTP::URL(uriSrc);
     if (root.isLocalPath()){
       uri = root.getFilePath();
-    }
-    else{
+    }else{
       uri = root.getUrl();
     }
     memset(keyAES, 0, 16);
@@ -370,13 +369,17 @@ namespace Mist{
     std::ifstream fileSource;
 
     if (isUrl()){
-      if (!plsDL.get(uri) || !plsDL.isOk()){
-        FAIL_MSG("Could not download playlist '%s', aborting: %" PRIu32 " %s", uri.c_str(),
-                 plsDL.getStatusCode(), plsDL.getStatusText().c_str());
+      HTTP::URIReader plsDL;
+      plsDL.open(uri);
+      char * dataPtr;
+      size_t dataLen;
+      plsDL.readAll(dataPtr, dataLen);
+      if (!dataLen){
+        FAIL_MSG("Could not download playlist '%s', aborting.", uri.c_str());
         reloadNext = Util::bootSecs() + waitTime;
         return false;
       }
-      urlSource.str(plsDL.data());
+      urlSource.str(std::string(dataPtr, dataLen));
     }else{
       fileSource.open(uri.c_str());
       if (!fileSource.good()){
@@ -487,9 +490,7 @@ namespace Mist{
     }
 
     // VOD over HTTP needs to be processed as LIVE.
-    if (isUrl()){
-      playlistType = LIVE;
-    }else{
+    if (!isUrl()){
       fileSource.close();
     }
     // Set the global live/vod bool to live if this playlist looks like a live playlist
@@ -587,6 +588,12 @@ namespace Mist{
     capa["source_match"].append("https://*.m3u");
     capa["source_match"].append("https-hls://*");
     capa["source_match"].append("http-hls://*");
+    capa["source_match"].append("s3+http://*.m3u8");
+    capa["source_match"].append("s3+http://*.m3u");
+    capa["source_match"].append("s3+https://*.m3u8");
+    capa["source_match"].append("s3+https://*.m3u");
+    capa["source_match"].append("s3+https-hls://*");
+    capa["source_match"].append("s3+http-hls://*");
 
     // All URLs can be set to always-on mode.
     capa["always_match"] = capa["source_match"];
@@ -751,7 +758,7 @@ namespace Mist{
     }
     tsStream.clear();
     // set bootMsOffset in order to display the program time correctly in the player
-    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
+    if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}
     meta.setBootMsOffset(streamOffset);
     return true;
   }
@@ -842,7 +849,7 @@ namespace Mist{
     }
 
     // set bootMsOffset in order to display the program time correctly in the player
-    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
+    if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}
     meta.setBootMsOffset(streamOffset);
     if (streamIsLive || isLiveDVR){return true;}
 
@@ -1001,7 +1008,7 @@ namespace Mist{
           tsStream.getEarliestPacket(thisPacket);
           tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
           if (!tid){
-            INFO_MSG("Track %zu on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
+            INSANE_MSG("Track %zu on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
             continue;
           }
         }else{
@@ -1014,7 +1021,7 @@ namespace Mist{
         }
 
         uint64_t packetTime = getPacketTime(thisPacket.getTime(), tid, currentPlaylist, nUTC);
-        HIGH_MSG("Packet %" PRIu32 "@%" PRIu64 "ms -> %" PRIu64 "ms", tid, thisPacket.getTime(), packetTime);
+        INSANE_MSG("Packet %" PRIu32 "@%" PRIu64 "ms -> %" PRIu64 "ms", tid, thisPacket.getTime(), packetTime);
         // overwrite trackId on success
         Bit::htobl(thisPacket.getData() + 8, tid);
         Bit::htobll(thisPacket.getData() + 12, packetTime);
@@ -1283,6 +1290,8 @@ namespace Mist{
     // Convert custom http(s)-hls protocols into regular notation.
     if (playlistRootPath.protocol == "http-hls"){playlistRootPath.protocol = "http";}
     if (playlistRootPath.protocol == "https-hls"){playlistRootPath.protocol = "https";}
+    if (playlistRootPath.protocol == "s3+http-hls"){playlistRootPath.protocol = "s3+http";}
+    if (playlistRootPath.protocol == "s3+https-hls"){playlistRootPath.protocol = "s3+https";}
 
     std::istringstream urlSource;
     std::ifstream fileSource;
@@ -1290,14 +1299,19 @@ namespace Mist{
     bool isUrl = (playlistLocation.find("://") != std::string::npos);
     if (isUrl){
       INFO_MSG("Downloading main playlist file from '%s'", uri.c_str());
-      HTTP::Downloader plsDL;
-      plsDL.dataTimeout = 15;
-      plsDL.retryCount = 8;
-      if (!plsDL.get(playlistRootPath) || !plsDL.isOk()){
+      HTTP::URIReader plsDL;
+      if (!plsDL.open(playlistRootPath) || !plsDL){
+        FAIL_MSG("Could not open main playlist, aborting");
+        return false;
+      }
+      char * dataPtr;
+      size_t dataLen;
+      plsDL.readAll(dataPtr, dataLen);
+      if (!dataLen){
         FAIL_MSG("Could not download main playlist, aborting.");
         return false;
       }
-      urlSource.str(plsDL.data());
+      urlSource.str(std::string(dataPtr, dataLen));
     }else{
       // If we're not a URL and there is no / at the start, ensure we get the full absolute path.
       if (playlistLocation[0] != '/'){
@@ -1464,7 +1478,8 @@ namespace Mist{
       std::deque<playListEntries> &curList = listEntries[currentPlaylist];
       INSANE_MSG("Current playlist contains %li entries. Current index is %li in playlist %li", curList.size(), currentIndex, currentPlaylist);
       if (!curList.size()){
-        WARN_MSG("no entries found in playlist: %" PRIu64 "!", currentPlaylist);
+        INFO_MSG("Reached last entry in playlist %" PRIu64 "; waiting for more segments", currentPlaylist);
+        if (streamIsLive || isLiveDVR){Util::wait(500);}
         return false;
       }
       if (!streamIsLive || isLiveDVR){
@@ -1479,10 +1494,6 @@ namespace Mist{
       }else{
         // Live does not use the currentIndex, but simply takes the first segment
         // That segment is then removed from the playlist so we don't read it again - live streams can't seek anyway
-        if (!curList.size()){
-          INFO_MSG("Reached last entry");
-          return false;
-        }
         ntry = *curList.begin();
         curList.pop_front();
 

@@ -120,13 +120,10 @@ namespace HTTP{
   void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
 
   bool URIReader::open(const HTTP::URL &uri){
+    close();
     myURI = uri;
-    curPos = 0;
-    allData.truncate(0);
-    bufPos = 0;
 
     if (!myURI.protocol.size() || myURI.protocol == "file"){
-      close();
       if (!myURI.path.size() || myURI.path == "-"){
         downer.getSocket().open(-1, fileno(stdin));
         stateType = HTTP::Stream;
@@ -218,6 +215,7 @@ namespace HTTP{
         // Close the socket, and clean up the buffer
         downer.getSocket().close();
         downer.getSocket().Received().clear();
+        allData.truncate(0);
         if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
@@ -375,6 +373,10 @@ namespace HTTP{
   }
 
   void URIReader::close(){
+    //Wipe internal state
+    curPos = 0;
+    allData.truncate(0);
+    bufPos = 0;
     // Close downloader socket if open
     downer.getSocket().close();
     downer.getSocket().Received().clear();

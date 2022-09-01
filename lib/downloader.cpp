@@ -188,6 +188,9 @@ namespace HTTP{
             if (!progressCallback()){
               WARN_MSG("Download aborted by callback");
               H.headerOnly = false;
+              H.Clean();
+              getSocket().close();
+              getSocket().Received().clear();
               return false;
             }
           }
@@ -231,7 +234,9 @@ namespace HTTP{
             if (!progressCallback()){
               WARN_MSG("Download aborted by callback");
               H.headerOnly = false;
+              H.Clean();
               getSocket().close();
+              getSocket().Received().clear();
               return false;
             }
           }
@@ -245,7 +250,6 @@ namespace HTTP{
 
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
-        H.Clean();
         getSocket().close();
       }else{
         if (loop > 1){
@@ -253,8 +257,9 @@ namespace HTTP{
         }else{
           MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
         }
-        H.Clean();
       }
+      H.Clean();
+      getSocket().Received().clear();
       Util::sleep(100); // wait a bit before retrying
     }
     FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());

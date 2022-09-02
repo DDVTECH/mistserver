@@ -134,6 +134,7 @@ namespace Mist{
   /// Expects character array with playlist URL as argument, sets the first byte of the pointer to zero when loaded.
   void playlistRunner(void *ptr){
     if (!ptr){return;}// abort if we received a null pointer - something is seriously wrong
+    Util::setStreamName(self->getStreamName());
     bool initOnly = false;
     if (((char *)ptr)[0] == ';'){initOnly = true;}
 
@@ -169,7 +170,8 @@ namespace Mist{
   Playlist::Playlist(const std::string &uriSrc){
     nextUTC = 0;
     id = 0; // to be set later
-    INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());
+    //If this is the copy constructor, just be silent.
+    if (uriSrc.size()){INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());}
     lastFileIndex = 0;
     waitTime = 2;
     playlistEnd = false;
@@ -178,8 +180,7 @@ namespace Mist{
     root = HTTP::URL(uriSrc);
     if (root.isLocalPath()){
       uri = root.getFilePath();
-    }
-    else{
+    }else{
       uri = root.getUrl();
     }
     memset(keyAES, 0, 16);
@@ -469,7 +470,7 @@ namespace Mist{
       std::getline(input, filename);
 
       // check for already added segments
-      DONTEVEN_MSG("Current file has index #%" PRIu64 ", last index was #%" PRIu64 "", fileNo, lastFileIndex);
+      DONTEVEN_MSG("Current file has index #%zu, last index was #%zu", fileNo, lastFileIndex);
       if (fileNo >= lastFileIndex){
         cleanLine(filename);
         filename = root.link(filename).getUrl();
@@ -489,9 +490,7 @@ namespace Mist{
     }
 
     // VOD over HTTP needs to be processed as LIVE.
-    if (isUrl()){
-      playlistType = LIVE;
-    }else{
+    if (!isUrl()){
       fileSource.close();
     }
     // Set the global live/vod bool to live if this playlist looks like a live playlist
@@ -740,7 +739,7 @@ namespace Mist{
               uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
               // Call getPacketTime in order to set segment offset
               uint64_t packetTime = getPacketTime(headerPack.getTime(), tmpTrackId, pListIt->first, entryIt->mUTC);
-              VERYHIGH_MSG("Parsed earliest TS packet with id '%" PRIu64 "' @ '%" PRIu64 " ms' for TS segment with index '%u'", packetId, packetTime, entId - 1);
+              VERYHIGH_MSG("Parsed earliest TS packet with id '%lu' @ '%lu ms' for TS segment with index '%u'", packetId, packetTime, entId - 1);
               // Keep parsing until we have called getPacketID for each track
               tsStream.getEarliestPacket(headerPack);
             }
@@ -759,7 +758,7 @@ namespace Mist{
     }
     tsStream.clear();
     // set bootMsOffset in order to display the program time correctly in the player
-    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
+    if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}
     meta.setBootMsOffset(streamOffset);
     return true;
   }
@@ -809,7 +808,7 @@ namespace Mist{
               // keyframe data exists, so always add 19 bytes keyframedata.
               uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
               size_t packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-              VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
+              VERYHIGH_MSG("Adding packet (%zuB) at %zu with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
               meta.update(packetTime, packOffset, idx, dataLen, entId, headerPack.hasMember("keyframe"), packSendSize);
               tsStream.getEarliestPacket(headerPack);
             }
@@ -838,7 +837,7 @@ namespace Mist{
           // keyframe data exists, so always add 19 bytes keyframedata.
           long long packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
           long long packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-          VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %llu on track %zu", dataLen, packetTime, packOffset, idx);
+          VERYHIGH_MSG("Adding packet (%zuB) at %zu with an offset of %llu on track %zu", dataLen, packetTime, packOffset, idx);
           meta.update(packetTime, packOffset, idx, dataLen, entId, headerPack.hasMember("keyframe"), packSendSize);
           tsStream.getEarliestPacket(headerPack);
         }
@@ -850,7 +849,7 @@ namespace Mist{
     }
 
     // set bootMsOffset in order to display the program time correctly in the player
-    meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));
+    if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}
     meta.setBootMsOffset(streamOffset);
     if (streamIsLive || isLiveDVR){return true;}
 
@@ -885,7 +884,7 @@ namespace Mist{
     // Get the updated list of entries
     std::deque<playListEntries> &curList = listEntries[currentPlaylist];
     if (curList.size() <= segmentIndex){
-      FAIL_MSG("Tried to load segment with index '%" PRIu64 "', but the playlist only contains '%zu' entries!", segmentIndex, curList.size());
+      FAIL_MSG("Tried to load segment with index '%lu', but the playlist only contains '%zu' entries!", segmentIndex, curList.size());
       return false;
     }
     if (!segDowner.loadSegment(curList.at(segmentIndex))){
@@ -907,13 +906,13 @@ namespace Mist{
           if (!hasOffset && curList.at(segmentIndex).mUTC){
             hasOffset = true;
             DVRTimeOffsets[currentPlaylist] = (curList.at(segmentIndex).mUTC - zUTC) - packetTime;
-            MEDIUM_MSG("Setting current live segment time offset to '%" PRIu64 "'", DVRTimeOffsets[currentPlaylist]);
+            MEDIUM_MSG("Setting current live segment time offset to '%ld'", DVRTimeOffsets[currentPlaylist]);
             curList.at(segmentIndex).timeOffset = DVRTimeOffsets[currentPlaylist];
           }
           if (hasOffset || DVRTimeOffsets.count(currentPlaylist)){
             hasOffset = true;
             packetTime += DVRTimeOffsets[currentPlaylist];
-            HIGH_MSG("Adjusting current packet timestamp '%" PRIu64 "' -> '%" PRIu64 "'", headerPack.getTime(), packetTime);
+            HIGH_MSG("Adjusting current packet timestamp '%ld' -> '%ld'", headerPack.getTime(), packetTime);
           }
           size_t idx = M.trackIDToIndex(packetId, getpid());
           if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
@@ -924,7 +923,7 @@ namespace Mist{
           headerPack.getString("data", data, dataLen);
           // keyframe data exists, so always add 19 bytes keyframedata.
           uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
-          VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
+          VERYHIGH_MSG("Adding packet (%zuB) at %zu with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
           bufferLivePacket(packetTime, packOffset, idx, data, dataLen, segmentIndex + 1, headerPack.hasMember("keyframe"));
           tsStream.getEarliestPacket(headerPack);
         }
@@ -945,7 +944,7 @@ namespace Mist{
       uint64_t packetTime = headerPack.getTime();
       if (DVRTimeOffsets.count(currentPlaylist)){
         packetTime += DVRTimeOffsets[currentPlaylist];
-        VERYHIGH_MSG("Adjusting current packet timestamp '%" PRIu64 "' -> '%" PRIu64 "'", headerPack.getTime(), packetTime);
+        VERYHIGH_MSG("Adjusting current packet timestamp '%ld' -> '%ld'", headerPack.getTime(), packetTime);
       }
       size_t idx = M.trackIDToIndex(packetId, getpid());
       if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()){
@@ -956,7 +955,7 @@ namespace Mist{
       headerPack.getString("data", data, dataLen);
       // keyframe data exists, so always add 19 bytes keyframedata.
       uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
-      VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
+      VERYHIGH_MSG("Adding packet (%zuB) at %zu with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
       bufferLivePacket(packetTime, packOffset, idx, data, dataLen, segmentIndex + 1, headerPack.hasMember("keyframe"));
       tsStream.getEarliestPacket(headerPack);
     }
@@ -975,9 +974,9 @@ namespace Mist{
       pListIt->second.reload();
     }
 
-    HIGH_MSG("Current playlist has parsed %lu/%" PRIu64 " entries", listEntries[currentPlaylist].size(), parsedSegments[currentPlaylist]);
+    HIGH_MSG("Current playlist has parsed %lu/%lu entries", listEntries[currentPlaylist].size(), parsedSegments[currentPlaylist]);
     for(uint64_t entryIt = parsedSegments[currentPlaylist]; entryIt < listEntries[currentPlaylist].size(); entryIt++){
-      MEDIUM_MSG("Adding entry #%" PRIu64 " as live data", entryIt);
+      MEDIUM_MSG("Adding entry #%lu as live data", entryIt);
       if (parseSegmentAsLive(entryIt)){
         parsedSegments[currentPlaylist]++;
       }else{
@@ -1009,7 +1008,7 @@ namespace Mist{
           tsStream.getEarliestPacket(thisPacket);
           tid = getOriginalTrackId(currentPlaylist, thisPacket.getTrackId());
           if (!tid){
-            INFO_MSG("Track %zu on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
+            INSANE_MSG("Track %zu on PLS %" PRIu64 " -> %" PRIu32, thisPacket.getTrackId(), currentPlaylist, tid);
             continue;
           }
         }else{
@@ -1022,7 +1021,7 @@ namespace Mist{
         }
 
         uint64_t packetTime = getPacketTime(thisPacket.getTime(), tid, currentPlaylist, nUTC);
-        HIGH_MSG("Packet %" PRIu32 "@%" PRIu64 "ms -> %" PRIu64 "ms", tid, thisPacket.getTime(), packetTime);
+        INSANE_MSG("Packet %" PRIu32 "@%" PRIu64 "ms -> %" PRIu64 "ms", tid, thisPacket.getTime(), packetTime);
         // overwrite trackId on success
         Bit::htobl(thisPacket.getData() + 8, tid);
         Bit::htobll(thisPacket.getData() + 12, packetTime);
@@ -1098,10 +1097,10 @@ namespace Mist{
     DTSC::Keys keys(M.keys(idx));
     for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); i++){
       if (keys.getTime(i) > seekTime){
-        VERYHIGH_MSG("Found elapsed key with a time of %" PRIu64 " ms at playlist index %zu while seeking", keys.getTime(i), keys.getBpos(i)-1);
+        VERYHIGH_MSG("Found elapsed key with a time of %lu ms at playlist index %zu while seeking", keys.getTime(i), keys.getBpos(i)-1);
         break;
       }
-      VERYHIGH_MSG("Found valid key with a time of %" PRIu64 " ms at playlist index %zu while seeking", keys.getTime(i), keys.getBpos(i)-1);
+      VERYHIGH_MSG("Found valid key with a time of %lu ms at playlist index %zu while seeking", keys.getTime(i), keys.getBpos(i)-1);
       plistEntry = keys.getBpos(i);
     }
 
@@ -1130,7 +1129,7 @@ namespace Mist{
       segDowner.loadSegment(entry);
       // If we have an offset, load it
       if (entry.timeOffset){
-        HIGH_MSG("Setting time offset of this TS segment to '%" PRIu64 "'", entry.timeOffset);
+        HIGH_MSG("Setting time offset of this TS segment to '%ld'", entry.timeOffset);
         plsTimeOffset[currentPlaylist] = entry.timeOffset;
       }
     }
@@ -1151,7 +1150,7 @@ namespace Mist{
   /// \param nUTC: Defaults to 0. If larger than 0, sync the timestamp based on this value and zUTC
   /// \return the (modified) packetTime, used for meta.updates and buffering packets
   uint64_t inputHLS::getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC){
-    INSANE_MSG("Calculating adjusted packet time for track '%" PRIu64 "' on playlist '%" PRIu64 "' with current timestamp '%" PRIu64 "'. UTC timestamp is '%" PRIu64 "'", tid, currentPlaylist, packetTime, nUTC);
+    INSANE_MSG("Calculating adjusted packet time for track '%lu' on playlist '%lu' with current timestamp '%lu'. UTC timestamp is '%lu'", tid, currentPlaylist, packetTime, nUTC);
     uint64_t newTime = packetTime;
 
     // UTC based timestamp offsets
@@ -1171,7 +1170,7 @@ namespace Mist{
           newTime = 0;
           FAIL_MSG("Time offset is too negative causing an integer overflow. Setting current packet time to 0.");
         }else{
-          VERYHIGH_MSG("Adjusting timestamp %" PRIu64 " -> %" PRIu64 " (offset is %" PRIu64 ")", newTime, newTime + plsTimeOffset[currentPlaylist], plsTimeOffset[currentPlaylist]);
+          VERYHIGH_MSG("Adjusting timestamp %lu -> %lu (offset is %ld)", newTime, newTime + plsTimeOffset[currentPlaylist], plsTimeOffset[currentPlaylist]);
           newTime += plsTimeOffset[currentPlaylist];
         }
       }
@@ -1179,7 +1178,7 @@ namespace Mist{
     }else{
       // Apply offset if any was set
       if (plsTimeOffset.count(currentPlaylist)){
-        VERYHIGH_MSG("Adjusting timestamp %" PRIu64 " -> %" PRIu64 " (offset is %" PRIu64 ")", newTime, newTime + plsTimeOffset[currentPlaylist], plsTimeOffset[currentPlaylist]);
+        VERYHIGH_MSG("Adjusting timestamp %lu -> %lu (offset is %ld)", newTime, newTime + plsTimeOffset[currentPlaylist], plsTimeOffset[currentPlaylist]);
         newTime += plsTimeOffset[currentPlaylist];
       }
       if (plsLastTime.count(currentPlaylist)){
@@ -1267,7 +1266,7 @@ namespace Mist{
      for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
          pListIt != listEntries.end(); pListIt++){
       parsedSegments[pListIt->first] = pListIt->second.size();
-      INFO_MSG("Playlist %u already contains %" PRIu64 " VOD segments", pListIt->first, parsedSegments[pListIt->first]);
+      INFO_MSG("Playlist %u already contains %li VOD segments", pListIt->first, parsedSegments[pListIt->first]);
     }
   }
 
@@ -1477,9 +1476,10 @@ namespace Mist{
     {
       tthread::lock_guard<tthread::mutex> guard(entryMutex);
       std::deque<playListEntries> &curList = listEntries[currentPlaylist];
-      INSANE_MSG("Current playlist contains %li entries. Current index is %li in playlist %" PRIu64 "", curList.size(), currentIndex, currentPlaylist);
+      INSANE_MSG("Current playlist contains %li entries. Current index is %li in playlist %li", curList.size(), currentIndex, currentPlaylist);
       if (!curList.size()){
-        WARN_MSG("no entries found in playlist: %" PRIu64 "!", currentPlaylist);
+        INFO_MSG("Reached last entry in playlist %" PRIu64 "; waiting for more segments", currentPlaylist);
+        if (streamIsLive || isLiveDVR){Util::wait(500);}
         return false;
       }
       if (!streamIsLive || isLiveDVR){
@@ -1494,10 +1494,6 @@ namespace Mist{
       }else{
         // Live does not use the currentIndex, but simply takes the first segment
         // That segment is then removed from the playlist so we don't read it again - live streams can't seek anyway
-        if (!curList.size()){
-          INFO_MSG("Reached last entry");
-          return false;
-        }
         ntry = *curList.begin();
         curList.pop_front();
 

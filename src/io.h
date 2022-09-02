@@ -33,6 +33,7 @@ namespace Mist{
                           size_t packDataSize, uint64_t packBytePos, bool isKeyframe);
     void bufferLivePacket(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,
                           size_t packDataSize, uint64_t packBytePos, bool isKeyframe, DTSC::Meta & aMeta);
+    const std::string & getStreamName() const{return streamName;}
 
   protected:
     void updateTrackFromKeyframe(uint32_t packTrack, const char *packData, size_t packDataSize, DTSC::Meta & aMeta);

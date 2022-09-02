@@ -11,27 +11,6 @@
 
 namespace HTTP{
 
-  // When another protocol needs this, rename struct to HeaderOverride or similar
-  struct HTTPHeadThenGet {
-    bool continueOperation;
-    std::string date, headAuthorization, getAuthorization;
-
-    HTTPHeadThenGet() : continueOperation(false) {}
-
-    void prepareHeadHeaders(HTTP::Downloader& downloader) {
-      if(!continueOperation) return;
-      downloader.setHeader("Date", date);
-      downloader.setHeader("Authorization", headAuthorization);
-    }
-
-    void prepareGetHeaders(HTTP::Downloader& downloader) {
-      if(!continueOperation) return;
-      // .setHeader() overwrites existing header value
-      downloader.setHeader("Date", date);
-      downloader.setHeader("Authorization", getAuthorization);
-    }
-  };
-
 #ifndef NOSSL
   inline bool s3CalculateSignature(std::string& signature, const std::string method, const std::string date, const std::string& requestPath, const std::string& accessKey, const std::string& secret) {
     std::string toSign = method + "\n\n\n" + date + "\n" + requestPath;
@@ -53,35 +32,39 @@ namespace HTTP{
     signature = "AWS " + accessKey + ":" + base64encoded;
     return true;
   }
-  // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // Transform to: 
-  // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
-  // header Date: ${Util::getDateString(()}
-  // header Authorization: AWS ${url.user}:${signature}
-  inline HTTPHeadThenGet s3TransformToHttp(HTTP::URL& url) {
-    HTTPHeadThenGet result;
-    result.date = Util::getDateString();
-    // remove "s3+" prefix
-    url.protocol = url.protocol.erase(0, 3); 
-    // Use user and pass to create signature and remove from HTTP request
-    std::string accessKey(url.user), secret(url.pass);
-    url.user = "";
-    url.pass = "";
-    std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
-    if(url.args.size()) requestPath += "?" + url.args;
-    // Calculate Authorization data
-    if(!s3CalculateSignature(result.headAuthorization, "HEAD", result.date, requestPath, accessKey, secret)) {
-      result.continueOperation = false;
-      return result;
-    }
-    if(!s3CalculateSignature(result.getAuthorization, "GET", result.date, requestPath, accessKey, secret)) {
-      result.continueOperation = false;
-      return result;
-    }
-    result.continueOperation = true;
-    return result;
-  }
 #endif // ifndef NOSSL
+
+
+  inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer) {
+#ifndef NOSSL
+    // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+    // Transform to: 
+    // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
+    // header Date: ${Util::getDateString(()}
+    // header Authorization: AWS ${url.user}:${signature}
+    if (url.protocol.size() > 3 && url.protocol.substr(0, 3) == "s3+"){
+      std::string date = Util::getDateString();
+      HTTP::URL newUrl = url;
+      // remove "s3+" prefix
+      newUrl.protocol = newUrl.protocol.erase(0, 3); 
+      // Use user and pass to create signature and remove from HTTP request
+      std::string accessKey(url.user), secret(url.pass);
+      newUrl.user = "";
+      newUrl.pass = "";
+      std::string requestPath = "/" + Encodings::URL::encode(url.path, "/:=@[]#?&");
+      if(url.args.size()) requestPath += "?" + url.args;
+      std::string authLine;
+      // Calculate Authorization data
+      if(method.size() && s3CalculateSignature(authLine, method, date, requestPath, accessKey, secret)) {
+        downer.setHeader("Date", date);
+        downer.setHeader("Authorization", authLine);
+      }
+      return newUrl;
+    }
+#endif // ifndef NOSSL
+    return url;
+  }
+
 
   void URIReader::init(){
     handle = -1;
@@ -120,13 +103,11 @@ namespace HTTP{
   void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
 
   bool URIReader::open(const HTTP::URL &uri){
+    close();
     myURI = uri;
-    curPos = 0;
-    allData.truncate(0);
-    bufPos = 0;
+    originalUrl = myURI;
 
     if (!myURI.protocol.size() || myURI.protocol == "file"){
-      close();
       if (!myURI.path.size() || myURI.path == "-"){
         downer.getSocket().open(-1, fileno(stdin));
         stateType = HTTP::Stream;
@@ -173,8 +154,6 @@ namespace HTTP{
     }
 
     // prepare for s3 and http
-    HTTPHeadThenGet httpHeaderOverride;
-
 #ifndef NOSSL
     // In case of s3 URI we prepare HTTP request with AWS authorization and rely on HTTP logic below
     if (myURI.protocol == "s3+https" || myURI.protocol == "s3+http"){
@@ -195,10 +174,7 @@ namespace HTTP{
         }
         myURI.pass = envValue;
       }
-      // Transform s3 url to HTTP request:
-      httpHeaderOverride = s3TransformToHttp(myURI);
-      bool errorInSignatureCalculation = !httpHeaderOverride.continueOperation;
-      if(errorInSignatureCalculation) return false;
+      myURI = injectHeaders(originalUrl, "", downer);
       // Do not return, continue to HTTP case
     }
 #endif // ifndef NOSSL
@@ -209,13 +185,16 @@ namespace HTTP{
       downer.clearHeaders();
 
       // One set of headers specified for HEAD request
-      httpHeaderOverride.prepareHeadHeaders(downer);
+      injectHeaders(originalUrl, "HEAD", downer);
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
-      if (sidOverride.size()){downer.setHeader("Cookie", "sid=" + sidOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());
+        // Close the socket, and clean up the buffer
+        downer.getSocket().close();
+        downer.getSocket().Received().clear();
+        allData.truncate(0);
         if (!downer.isOk()){return false;}
         supportRangeRequest = false;
         totalSize = std::string::npos;
@@ -227,7 +206,7 @@ namespace HTTP{
       }
 
       // Other set of headers specified for GET request
-      httpHeaderOverride.prepareGetHeaders(downer);
+      injectHeaders(originalUrl, "GET", downer);
       // streaming mode when size is unknown
       if (!supportRangeRequest){
         MEDIUM_MSG("URI get without range request: %s, totalsize: %zu", myURI.getUrl().c_str(), totalSize);
@@ -246,30 +225,6 @@ namespace HTTP{
       }
       return true;
     }
-
-#ifdef WITH_SRT
-    if (myURI.protocol == "srt"){
-      std::map<std::string, std::string> arguments;
-      HTTP::parseVars(myURI.args, arguments); 
-      size_t connectCnt = 0;
-      do{
-          srtConn.connect(myURI.host, myURI.getPort(), "input", arguments);
-          if (!srtConn){Util::sleep(1000);}
-          ++connectCnt;
-        }while (!srtConn && connectCnt < 10);
-
-      stateType = SRT;
-      startPos = 0;
-      endPos = std::string::npos;
-      totalSize = std::string::npos;
-      if (!srtConn){
-        FAIL_MSG("Could not open '%s'", myURI.getUrl().c_str());
-        stateType = Closed;
-        return false;
-      }
-      return true;
-    }
-#endif
 
     FAIL_MSG("URI type not implemented: %s", myURI.getUrl().c_str());
     return false;
@@ -294,6 +249,7 @@ namespace HTTP{
     if (stateType == HTTP::HTTP && supportRangeRequest){
       downer.getSocket().close();
       downer.getSocket().Received().clear();
+      injectHeaders(originalUrl, "GET", downer);
       if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
         FAIL_MSG("Error making range request");
         return false;
@@ -355,22 +311,6 @@ namespace HTTP{
 
     }else if (stateType == HTTP::HTTP){
       downer.continueNonBlocking(cb);
-      if (curPos == downer.const_data().size()){
-        Util::sleep(50);
-      }
-      curPos = downer.const_data().size();
-
-#ifdef WITH_SRT    
-    }else if (stateType == SRT){
-      int s;
-      static int totaal = 0;
-      if((srtConn && ((s = srtConn.Recv()) >0))){
-        cb.dataCallback(srtConn.recvbuf, s);
-        totaal += s;
-      }else{
-        Util::sleep(50);
-      }
-#endif
     }else{// streaming mode
       int s;
       if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){
@@ -409,8 +349,14 @@ namespace HTTP{
   }
 
   void URIReader::close(){
+    //Wipe internal state
+    curPos = 0;
+    allData.truncate(0);
+    bufPos = 0;
     // Close downloader socket if open
     downer.getSocket().close();
+    downer.getSocket().Received().clear();
+    downer.getHTTP().Clean();
     // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);
@@ -422,9 +368,6 @@ namespace HTTP{
       ::close(handle);
       handle = -1;
     }
-#ifdef WITH_SRT
-    srtConn.close();
-#endif
   }
 
   void URIReader::onProgress(bool (*progressCallback)(uint8_t)){
@@ -460,14 +403,6 @@ namespace HTTP{
       }
       return false;
     }
-#ifdef WITH_SRT
-    else if(stateType == SRT){
-      if(!srtConn.connected()){
-        return true;
-      }
-      return false; //TODO 
-    }
-#endif
     return true;
   }
 

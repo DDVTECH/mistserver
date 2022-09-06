@@ -635,7 +635,7 @@ namespace Mist{
   void inputBuffer::checkProcesses(const JSON::Value &procs){
     allProcsRunning = true;
     if (!M.getValidTracks().size()){return;}
-    if (config->getString("input").find("INTERNAL_ONLY:dtsc") != std::string::npos){return;}
+    if (config->getString("input").find("INTERNAL_ONLY") != std::string::npos){return;}
     std::set<std::string> newProcs;
 
     // used for building args

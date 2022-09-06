@@ -197,9 +197,9 @@ namespace Mist{
     capa["optional"]["acceptable"]["select"][2u][0u] = 2;
     capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
 
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("MPEG2");
+    capa["codecs"][0u][0u].append("+HEVC");
+    capa["codecs"][0u][0u].append("+H264");
+    capa["codecs"][0u][0u].append("+MPEG2");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");

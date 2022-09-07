@@ -7,7 +7,6 @@
 #include "encode.h"
 #include "lib/shared_memory.h"
 #include "lib/util.h"
-#include "lib/urireader.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -816,66 +815,6 @@ namespace DTSC{
     return out.str();
   }
 
-  /// \return data field as string
-  /// \param dataSize the size of data returned in bytes
-  /// \param isKeyFrame is set to true if the packet has the 'isKeyFrame: 1' field
-  std::string Scan::getDataAsString(size_t & dataSize, bool & isKeyFrame) const{
-    switch (getType()){
-      case DTSC_STR:{
-        dataSize += Bit::btohl(p + 1);
-        return asString();
-      }
-      case DTSC_INT:{
-        // longlong = 8 bytes
-        dataSize += 8;
-        std::stringstream ret;
-        ret << asInt();
-        return ret.str();
-      }
-      case DTSC_OBJ:
-      case DTSC_CON:{
-        std::stringstream ret;
-        Scan tmpScan;
-        // Skip initial char
-        char *i = p + 1;
-        // object, scan contents
-        while (i[0] + i[1] != 0 && i < p + len){
-          // while not encountering 0x0000 (we assume 0x0000EE)
-          if (i + 2 >= p + len){
-            WARN_MSG("Walked out of object during dump of DTSC object");
-            return ret.str();
-          }
-          uint16_t strlen = Bit::btohs(i);
-          // Update counters
-          i += 2;
-          dataSize += strlen;
-          // Get next scan obj
-          tmpScan = Scan(i + strlen, len - (i - p));
-          // If the current packet contains a keyframe field, set it
-          if (std::string(i, strlen) == "keyframe"){
-            if (tmpScan.getDataAsString(dataSize, isKeyFrame) == "1"){
-              isKeyFrame = true;
-            }
-          }
-          // We only want to return the data field
-          else if (std::string(i, strlen) == "data"){
-            ret << tmpScan.getDataAsString(dataSize, isKeyFrame);
-          }
-          else{
-            INFO_MSG("Skipping DTSC packet variable '%s'", std::string(i, strlen).c_str());
-          }
-          i = skipDTSC(i + strlen, p + len);
-          if (!i){
-            WARN_MSG("Was not able to locate the next object during dump of DTSC object");
-            return ret.str();
-          }
-        }
-        return ret.str();
-      }
-      default: return "Error";
-    }
-  }
-
   std::string Scan::toPrettyString(size_t indent) const{
     switch (getType()){
     case DTSC_STR:{
@@ -976,17 +915,6 @@ namespace DTSC{
     reInit(_streamName, fileName);
   }
 
-  /// Initializes the stream based on an existing file which does not exist in shared memory
-  /// \param streamName: Name of the stream we want to assign to this Meta object
-  /// \param fileName: Path to an existing MstMeta file
-  Meta::Meta(const std::string &streamName, const std::string &filePath, bool master){
-    version = DTSH_VERSION;
-    streamMemBuf = 0;
-    isMemBuf = false;
-    isMaster = true;
-    reInitFromFile(streamName, filePath, master);
-  }
-
   void Meta::setMaster(bool _master){isMaster = _master;}
 
   bool Meta::getMaster() const{return isMaster;}
@@ -1001,20 +929,6 @@ namespace DTSC{
     }else{
       sBufShm(_streamName, DEFAULT_TRACK_COUNT, master);
     }
-    streamInit();
-  }
-
-  /// Initializes the stream based on an existing file which does not exist in shared memory
-  /// \param streamName: Name of the stream we want to assign to this Meta object
-  /// \param fileName: Path to an existing MstMeta file
-  void Meta::reInitFromFile(const std::string &streamName, const std::string &filePath, bool master){
-    HTTP::URIReader inFile(filePath);
-    size_t fileSize;
-    char *fileBuf;
-    inFile.readAll(fileBuf, fileSize);
-
-    clear();
-    sBufMem(fileSize, fileBuf, streamName);
     streamInit();
   }
 
@@ -1199,30 +1113,6 @@ namespace DTSC{
     isMemBuf = true;
     streamMemBuf = (char *)malloc(bufferSize);
     memset(streamMemBuf, 0, bufferSize);
-    stream = Util::RelAccX(streamMemBuf, false);
-  }
-
-  /// Initializes stream data by copying the contents of an existing MstMeta file
-  /// \param fileSize: Size of the incoming file
-  /// \param fileBuf: contents of the incoming file
-  /// \param _streamName: the streamName we want to assign to this Meta Object
-  /// \param trackCount: The amount of tracks we need to make space for
-  void Meta::sBufMem(size_t fileSize, char *fileBuf, const std::string &_streamName, size_t trackCount, bool master){
-    isMaster = master;
-    isMemBuf = true;
-    streamName = _streamName;
-
-    size_t bufferSize = META_META_OFFSET + META_TRACK_OFFSET + META_META_RECORDSIZE +
-                        (trackCount * META_TRACK_RECORDSIZE);
-    if (fileSize != bufferSize){
-      WARN_MSG("Local Meta page has size '%zu' while the expected buffer size is '%zu", fileSize, bufferSize);
-    }
-
-    char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, streamName.c_str());
-    
-    streamMemBuf = (char *)malloc(fileSize);
-    memcpy(streamMemBuf, fileBuf, fileSize);
     stream = Util::RelAccX(streamMemBuf, false);
   }
 
@@ -2987,8 +2877,7 @@ namespace DTSC{
     if (getMaxKeepAway()){res["maxkeepaway"] = getMaxKeepAway();}
     if (getLive()){
       res["live"] = 1u;
-    }
-    if (getVod()){
+    }else{
       res["vod"] = 1u;
     }
     res["version"] = DTSH_VERSION;

@@ -68,11 +68,11 @@ namespace IPC{
   ///\brief A class for managing shared files.
   class sharedFile{
   public:
-    sharedFile(const std::string &name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true, std::string folderLocation = "");
+    sharedFile(const std::string &name_ = "", uint64_t len_ = 0, bool master_ = false, bool autoBackoff = true);
     sharedFile(const sharedFile &rhs);
     ~sharedFile();
     operator bool() const;
-    void init(const std::string &name_, uint64_t len_, std::string folderLocation_ = "", bool master_ = false, bool autoBackoff = true);
+    void init(const std::string &name_, uint64_t len_, bool master_ = false, bool autoBackoff = true);
     void operator=(sharedFile &rhs);
     bool operator<(const sharedFile &rhs) const{return name < rhs.name;}
     void close();
@@ -88,8 +88,6 @@ namespace IPC{
     bool master;
     ///\brief A pointer to the payload of the file file
     char *mapped;
-    ///\brief Folder containing the current file
-    std::string folderLocation;
   };
 
 #if defined(__CYGWIN__) || defined(_WIN32)

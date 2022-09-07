@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <iomanip>
+#include <sstream>
 
 namespace h264{
 
@@ -479,7 +480,13 @@ namespace h264{
       log2MaxPicOrderCntLsbMinus4 = bs.getUExpGolomb();
       derived_maxPicOrderCntLsb = pow(2, log2MaxPicOrderCntLsbMinus4 + 4);
     }else if (picOrderCntType == 1){
-      WARN_MSG("picOrderCntType == 1 encountered, which has not-yet implemented parameters");
+      deltaPicOrderAlwaysZeroFlag = bs.get(1);
+      bs.getExpGolomb(); // offset_for_non_ref_pic
+      bs.getExpGolomb(); // offset_for_top_to_bottom_field
+      numRefFramesInPicOrderCntCycle = bs.getUExpGolomb();
+      for (size_t i = 0; i < numRefFramesInPicOrderCntCycle; i++){
+        bs.getExpGolomb(); // offset_for_ref_frame[i]
+      }
       return;
     }
     maxNumRefFrames = bs.getUExpGolomb();
@@ -974,7 +981,11 @@ namespace h264{
 
   codedSliceUnit::codedSliceUnit(const char *data, size_t len) : nalUnit(data, len){
     Utils::bitstream bs;
-    for (size_t i = 1; i < len; i++){
+    // We only want to parse a part of the header here. From standard it seems
+    // that maximum possible lenght will be less than 100 bits, so using 16
+    // bytes for safety
+    size_t l = len < 16 ? len : 16;
+    for (size_t i = 1; i < l; i++){
       if (i + 2 < len && (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
         // Yes, we increase i here
         bs.append(data + i, 2);
@@ -987,6 +998,54 @@ namespace h264{
     firstMbInSlice = bs.getUExpGolomb();
     sliceType = bs.getUExpGolomb();
     picParameterSetId = bs.getUExpGolomb();
+  }
+
+  codedSliceUnit::codedSliceUnit(const char *data, size_t len, const spsUnit &sps, const ppsUnit &pps)
+      : nalUnit(data, len){
+    Utils::bitstream bs;
+    // We only want to parse slice header here. Maximum possible length seems
+    // to be around 50 bytes, so using 64 bytes for safety
+    size_t l = len < 64 ? len : 64;
+    for (size_t i = 1; i < l; i++){
+      if (i + 2 < l && (memcmp(data + i, "\000\000\003", 3) == 0)){// Emulation prevention bytes
+        // Yes, we increase i here
+        bs.append(data + i, 2);
+        i += 2;
+      }else{
+        // No we don't increase i here
+        bs.append(data + i, 1);
+      }
+    }
+    firstMbInSlice = bs.getUExpGolomb();
+    sliceType = bs.getUExpGolomb();
+    picParameterSetId = bs.getUExpGolomb();
+
+    frameNum = bs.get(sps.log2MaxFrameNumMinus4 + 4);
+    if (!sps.frameMbsOnlyFlag){
+      fieldPicFlag = bs.get(1);
+      if (fieldPicFlag){bottomFieldFlag = bs.get(1);}
+    }
+
+    // IDR frames have idrPicId here
+    if (5 == getType()){idrPicId = bs.getUExpGolomb();}
+
+    picOrderCntLsb = deltaPicOrderCntBottom = 0;
+    if (0 == sps.picOrderCntType){
+      picOrderCntLsb = bs.get(sps.log2MaxPicOrderCntLsbMinus4 + 4);
+      if (pps.bottomFieldPicOrderInFramePresentFlag && !fieldPicFlag){
+        deltaPicOrderCntBottom = bs.getExpGolomb();
+      }
+    }
+
+    deltaPicOrderCnt[0] = deltaPicOrderCnt[1] = 0;
+    if ((1 == sps.picOrderCntType) && !sps.deltaPicOrderAlwaysZeroFlag){
+      deltaPicOrderCnt[0] = bs.getExpGolomb();
+      if (pps.bottomFieldPicOrderInFramePresentFlag && fieldPicFlag){
+        deltaPicOrderCnt[1] = bs.getExpGolomb();
+      }
+    }
+
+    if (pps.redundantPicCntPresentFlag){redundantPicCnt = bs.getUExpGolomb();}
   }
 
   void codedSliceUnit::setPPSNumber(size_t newNumber){

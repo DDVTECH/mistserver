@@ -14,20 +14,20 @@ RUN	apt update -yq \
 RUN	git clone https://github.com/cisco/libsrtp.git \
 	&& mkdir -p libsrtp/build \
 	&& cd libsrtp/build \
-	&& cmake -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
+	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
 	&& make -j$(nproc) install \
 	&& cd /src \
 	&& git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git \
 	&& cd mbedtls \
 	&& mkdir build \
 	&& cd build \
-	&& cmake -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
+	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
 	&& make -j$(nproc) install \
 	&& cd /src \
 	&& git clone https://github.com/Haivision/srt.git \
 	&& mkdir -p srt/build \
 	&& cd srt/build \
-	&& cmake .. -D CMAKE_INSTALL_PREFIX=/src/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false -D CMAKE_POSITION_INDEPENDENT_CODE=on \
+	&& cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false -D CMAKE_POSITION_INDEPENDENT_CODE=on \
 	&& make -j$(nproc) install
 
 ENV	LD_LIBRARY_PATH="/src/compiled/lib" \

@@ -12,22 +12,49 @@ mistplayers.hlsjs = {
       return false;
     }
 
-    var codecs = {};
-    for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].type != "meta") {
-        codecs[MistVideo.info.meta.tracks[i].codec] = 1;
-      }
-    }
-    codecs = MistUtil.object.keys(codecs);
-    //if there's a h265 track, remove it from the list of codecs
-    for (var i = codecs.length-1; i >= 0; i--) {
-      if (codecs[i].substr(0,4) == "HEVC") {
-        codecs.splice(i,1);
-      }
-    }
-    if (codecs.length < source.simul_tracks) { return false; } //if there's no longer enough playable tracks, skip this player
+    if (!("MediaSource" in window)) { return false; }
+    if (!MediaSource.isTypeSupported) { return true; } //we can't ask, but let's assume something will work
 
-    return true;
+    //check if both audio and video have at least one playable track
+    //gather track types and codec strings
+    var playabletracks = {};
+    var hassubtitles = false;
+    for (var i in MistVideo.info.meta.tracks) {
+      if (MistVideo.info.meta.tracks[i].type == "meta") {
+        if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
+        continue;
+      }
+      if (!(MistVideo.info.meta.tracks[i].type in playabletracks)) {
+        playabletracks[MistVideo.info.meta.tracks[i].type] = {};
+      }
+      playabletracks[MistVideo.info.meta.tracks[i].type][MistUtil.tracks.translateCodec(MistVideo.info.meta.tracks[i])] = 1;
+    }
+
+    var tracktypes = [];
+    for (var type in playabletracks) {
+      var playable = false;
+
+      for (var codec in playabletracks[type]) {
+        if (MediaSource.isTypeSupported("video/mp4;codecs=\""+codec+"\"")) {
+          playable = true;
+          break;
+        }
+      }
+      if (playable) {
+        tracktypes.push(type);
+      }
+    }
+    if (hassubtitles) {
+      //there is a subtitle track, check if there is a webvtt source
+      for (var i in MistVideo.info.source) {
+        if (MistVideo.info.source[i].type == "html5/text/vtt") {
+          tracktypes.push("subtitle");
+          break;
+        }
+      }
+    }
+    
+    return tracktypes.length ? tracktypes : false;
   },
   player: function(){},
   scriptsrc: function(host) { return host+"/hlsjs.js"; }
@@ -81,13 +108,13 @@ p.prototype.build = function (MistVideo,callback) {
     });
     MistVideo.player.hls.attachMedia(video);
     MistVideo.player.hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-      console.log("video and hls.js are now bound together !");
+      //console.log("video and hls.js are now bound together !");
       //hls.loadSource("https://cattop/mist/cmaf/live/v9.m3u8");
       //hls.loadSource("https://mira:4433/cmaf/live/v9.m3u8");
       MistVideo.player.hls.loadSource(url);
-      MistVideo.player.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+      /*MistVideo.player.hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
         console.log("manifest loaded, found " + data.levels.length + " quality level");
-      });
+      });*/
     });
   }
   

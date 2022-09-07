@@ -105,7 +105,7 @@ function MistVideo(streamName,options) {
   
   this.urlappend = function(url){
     if (this.options.urlappend) {
-      url += this.options.urlappend;
+      url = MistUtil.http.url.append(url,this.options.urlappend);
     }
     return url;
   }
@@ -235,6 +235,39 @@ function MistVideo(streamName,options) {
       return 0; //carry on!
     }
     
+    var best = {
+      score: 0,
+      source_index: null,
+      player: null
+    };
+    function calcScore(tracktypes) {
+      //player.isBrowserSupported returns either true or an array of track types that are in the source and that it can play in this browser.
+      //loop over the returned track types and calculate a score of how good this player+source combo is
+      if (tracktypes === true) { return 1.9; } //something will play, but the player doesn't tell us what. Hopefully video will work?
+
+      var scores = {
+        video: 2,
+        audio: 1,
+        subtitle: 0.5
+      };
+      var score = 0;
+      for (var i in tracktypes) {
+        score += scores[tracktypes[i]];
+      }
+      return score;
+    }
+    //calculate the best possible score for this stream, so that we can break the loop early
+    var hastracktypes = {};
+    for (var i in MistVideo.info.meta.tracks) {
+      if (MistVideo.info.meta.tracks[i].type == "meta") {
+        hastracktypes[MistVideo.info.meta.tracks[i].codec] = 1;
+      }
+      else {
+        hastracktypes[MistVideo.info.meta.tracks[i].type] = 1;
+      }
+    }
+    var maxscore = calcScore(MistUtil.object.keys(hastracktypes));
+
     outerloop:
     for (var n in variables[map.outer].list) {
       variables[map.outer].current = n;
@@ -255,17 +288,31 @@ function MistVideo(streamName,options) {
         
         if (player.isMimeSupported(source.type)) {
           //this player supports this mime
-          if (player.isBrowserSupported(source.type,source,MistVideo)) {
-            //this browser is supported
-            return {
-              player: p_shortname,
-              source: source,
-              source_index: variables.source.current
-            };
+          var tracktypes = player.isBrowserSupported(source.type,source,MistVideo);
+          if (tracktypes) {
+            var score = calcScore(tracktypes);
+            if (score > best.score) {              
+              if (!quiet) MistVideo.log("Found a "+(best.score ? "better" : "working")+" combo: "+player.name+" with "+source.url+" (Score: "+score+")");
+
+              best = {
+                score: score,
+                player: p_shortname,
+                source: source,
+                source_index: variables.source.current
+              };
+
+              if (best.score == maxscore) {
+                //this is the max possible score, no need to continue searching
+                return best;
+              }
+            }
           }
         }
-        if (!quiet) { MistVideo.log("Checking "+player.name+" with "+source.type+".. Nope."); }
       }
+    }
+
+    if (best.score) {
+      return best;
     }
     
     return false;
@@ -280,7 +327,7 @@ function MistVideo(streamName,options) {
     var player = mistplayers[result.player];
     var source = result.source;
     
-    MistVideo.log("Found a working combo: "+player.name+" with "+source.type+" @ "+source.url);
+    MistVideo.log("Selected: "+player.name+" with "+source.type+" @ "+source.url);
     MistVideo.playerName = result.player;
     source = MistUtil.object.extend({},source);
     source.index = result.source_index;
@@ -1004,7 +1051,7 @@ function MistVideo(streamName,options) {
   //switch to polling-mode if websockets are not supported
   
   function openWithGet() {
-    var url = MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js");
+    var url = MistUtil.http.url.addParam(MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1});
     MistVideo.log("Requesting stream info from "+url);
     MistUtil.http.get(url,function(d){
       if (MistVideo.destroyed) { return; }
@@ -1023,7 +1070,7 @@ function MistVideo(streamName,options) {
     function openSocket() {
       MistVideo.log("Opening stream status stream through websocket..");
       var url = MistVideo.options.host.replace(/^http/i,"ws");
-      url = MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js");
+      url = MistUtil.http.url.addParam(MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1});
       var socket;
       try {
         socket = new WebSocket(url);

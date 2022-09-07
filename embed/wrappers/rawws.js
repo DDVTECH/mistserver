@@ -19,7 +19,7 @@ mistplayers.rawws = {
     }
         
     for (var i in MistVideo.info.meta.tracks) {
-      if (MistVideo.info.meta.tracks[i].codec == "HEVC") { return true; }
+      if (MistVideo.info.meta.tracks[i].codec == "HEVC") { return ["video"]; }
     }
     
     return false;

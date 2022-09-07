@@ -42,14 +42,17 @@ mistplayers.mews = {
       
     }
     var codecs = {};
+    var playabletracks = {};
+    var hassubtitles = false;
     for (var i in MistVideo.info.meta.tracks) {
       if (MistVideo.info.meta.tracks[i].type != "meta") {
-        if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
+        /*if (MistVideo.info.meta.tracks[i].codec == "HEVC") {
           //the iPad claims to be able to play MP4/WS H265 tracks.. haha no.
           continue;
-        }
-        codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i].codec;
+        }*/
+        codecs[translateCodec(MistVideo.info.meta.tracks[i])] = MistVideo.info.meta.tracks[i];
       }
+      else if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
     }
     var container = mimetype.split("/")[2];
     function test(codecs) {
@@ -58,19 +61,25 @@ mistplayers.mews = {
     }
     source.supportedCodecs = [];
     for (var i in codecs) {
-      //i is the long name (like mp4a.40.2), codecs[i] is the short name (like AAC)
+      //i is the long name (like mp4a.40.2), codecs[i] is the track meta, codecs[i].codec is the short name (like AAC)
       var s = test(i);
       if (s) {
-        source.supportedCodecs.push(codecs[i]);
+        source.supportedCodecs.push(codecs[i].codec);
+        playabletracks[codecs[i].type] = 1;
       }
     }
-    if ((!MistVideo.options.forceType) && (!MistVideo.options.forcePlayer)) { //unless we force mews, skip this players if not both video and audio are supported
-      if (source.supportedCodecs.length < source.simul_tracks) {
-        MistVideo.log("Not enough playable tracks for this source");
-        return false;
+
+    if (hassubtitles) {
+      //there is a subtitle track, check if there is a webvtt source
+      for (var i in MistVideo.info.source) {
+        if (MistVideo.info.source[i].type == "html5/text/vtt") {
+          playabletracks.subtitle = 1;
+          break;
+        }
       }
     }
-    return source.supportedCodecs.length > 0;
+
+    return MistUtil.object.keys(playabletracks);
   },
   player: function(){}
 };

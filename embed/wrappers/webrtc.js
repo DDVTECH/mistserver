@@ -7,15 +7,60 @@ mistplayers.webrtc = {
   },
   isBrowserSupported: function (mimetype,source,MistVideo) {
     
-    if ((!("WebSocket" in window)) || (!("RTCPeerConnection" in window))) { return false; }
+    if ((!("WebSocket" in window)) || (!("RTCPeerConnection" in window) || (!("RTCRtpReceiver" in window)))) { return false; }
     
     //check for http/https mismatch
     if (location.protocol.replace(/^http/,"ws") != MistUtil.http.url.split(source.url.replace(/^http/,"ws")).protocol) {
       MistVideo.log("HTTP/HTTPS mismatch for this source");
       return false;
     }
+
+
+    //check if both audio and video have at least one playable track
+    //gather track types and codec strings
+    var playabletracks = {};
+    var hassubtitles = false;
+    for (var i in MistVideo.info.meta.tracks) {
+      if (MistVideo.info.meta.tracks[i].type == "meta") {
+        if (MistVideo.info.meta.tracks[i].codec == "subtitle") { hassubtitles = true; }
+        continue;
+      }
+      if (!(MistVideo.info.meta.tracks[i].type in playabletracks)) {
+        playabletracks[MistVideo.info.meta.tracks[i].type] = {};
+      }
+      playabletracks[MistVideo.info.meta.tracks[i].type][MistVideo.info.meta.tracks[i].codec] = 1;
+    }
+
+    var tracktypes = [];
+    for (var type in playabletracks) {
+      var playable = false;
+
+      for (var codec in playabletracks[type]) {
+        var supported = RTCRtpReceiver.getCapabilities(type).codecs;
+        for (var i in supported) {
+          if (supported[i].mimeType.toLowerCase() == (type+"/"+codec).toLowerCase()) {
+            playable = true;
+            break;
+          }
+        }
+      }
+      if (playable) {
+        tracktypes.push(type);
+      }
+    }
+    if (hassubtitles) {
+      //there is a subtitle track, check if there is a webvtt source
+      for (var i in MistVideo.info.source) {
+        if (MistVideo.info.source[i].type == "html5/text/vtt") {
+          tracktypes.push("subtitle");
+          break;
+        }
+      }
+    }
+
+    return tracktypes.length ? tracktypes : false;
     
-    return true;
+    //return true;
   },
   player: function(){}
 };

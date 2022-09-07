@@ -473,6 +473,30 @@ var MistUtil = {
         if (splitparams.length) { ret.push(splitparams.join("&")); }
         return ret.join("?");
       },
+      append: function(url,append){
+        var a = document.createElement("a");
+        a.href = url;
+        if (append[0] == "?") {
+          if (a.search == "") { 
+            a.search = append;
+          }
+          else {
+            a.search += "&"+append.slice(1);
+          }
+        }
+        else if (append[0] == "&") {
+          if (a.search == "") { 
+            a.search = "?"+append.slice(1);
+          }
+          else {
+            a.search += append;
+          }
+        }
+        else {
+          a.href += append;
+        }
+        return a.href;
+      },
       split: function(url){
         var a = document.createElement("a");
         a.href = url;
@@ -895,6 +919,28 @@ var MistUtil = {
       }
       
       return output;
+    },
+    translateCodec: function(track){
+    
+      function bin2hex(index) {
+        return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
+      }
+
+      switch (track.codec) {
+        case "AAC":
+          return "mp4a.40.2";
+        case "MP3":
+          return "mp3";
+          //return "mp4a.40.34";
+        case "AC3":
+          return "ec-3";
+        case "H264":
+          return "avc1."+bin2hex(1)+bin2hex(2)+bin2hex(3);
+        case "HEVC":
+          return "hev1."+bin2hex(1)+bin2hex(6)+bin2hex(7)+bin2hex(8)+bin2hex(9)+bin2hex(10)+bin2hex(11)+bin2hex(12);
+        default:
+          return track.codec.toLowerCase();
+      }
     }
   },
   isTouchDevice: function(){

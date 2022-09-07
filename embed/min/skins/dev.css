@@ -82,7 +82,7 @@ svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;trans
 svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right:.25em;vertical-align:top}
 .mist.largeplay,.mist.muted{position:absolute;opacity:.5}
 .mist.largeplay{top:50%;left:0;right:0;margin:auto;transform:translateY(-50%)}
-.mist.muted{top:0;right:0;margin:1em}
+.mist.muted{top:0;right:0;margin:1%;max-height:20%;width:auto}
 .mistvideo-secondaryVideo{z-index:1;position:absolute;right:0;top:0;width:50%;height:50%;max-width:fit-content;max-height:fit-content}
 .mistvideo-polling{display:inline-block;position:relative;width:25px;height:25px}
 .mistvideo-polling svg.icon.loading{z-index:0;opacity:1}

@@ -3373,6 +3373,12 @@ var UI = {
                   var $buttons = $('<td>').css('text-align','right').css('white-space','nowrap');
                   if ((!('ischild' in stream)) || (!stream.ischild)) {
                     $buttons.html(
+                      $('<button>').text('Nuke').click(function(){
+                        mist.send(function(){
+                          UI.navto('Streams');
+                        },{nuke_stream:$(this).closest('tr').data('index')});
+                      })
+                    ).append(
                       $('<button>').text('Settings').click(function(){
                         UI.navto('Edit',$(this).closest('tr').data('index'));
                       })

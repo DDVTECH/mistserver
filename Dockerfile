@@ -21,7 +21,7 @@ RUN	git clone https://github.com/cisco/libsrtp.git \
 	&& cd mbedtls \
 	&& mkdir build \
 	&& cd build \
-	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
+	&& cmake -D CMAKE_BUILD_TYPE=Release -D ENABLE_TESTING=no -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
 	&& make -j$(nproc) install \
 	&& cd /src \
 	&& git clone https://github.com/Haivision/srt.git \

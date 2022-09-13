@@ -75,8 +75,15 @@ namespace IPC{
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored
   /// otherwise \param value The initial value of the semaphore if O_CREAT is given in oflag,
   /// ignored otherwise
-  void semaphore::open(const char *name, int oflag, mode_t mode, unsigned int value, bool noWait){
+  void semaphore::open(const char *sname, int oflag, mode_t mode, unsigned int value, bool noWait){
     close();
+    char *name = (char*)sname;
+    if (strlen(sname) >= IPC_MAX_LEN) {
+      name = (char*)malloc(IPC_MAX_LEN + 1);
+      memcpy(name, sname, IPC_MAX_LEN);
+      name[IPC_MAX_LEN] = 0;
+    }
+    INFO_MSG("opening semaphore %s", name);
     int timer = 0;
     while (!(*this) && timer++ < 10){
 #if defined(__CYGWIN__) || defined(_WIN32)

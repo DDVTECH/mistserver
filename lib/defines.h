@@ -229,7 +229,7 @@ static inline void show_stackframe(){}
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name
 #define SEM_INPUT "/MstInpt%s"  //%s stream name
 #define SEM_TRACKLIST "/MstTRKS%s"  //%s stream name
-#define SEM_SESSION "MstSess%s"
+#define SEM_SESSION "/MstSess%s"
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SESS_BUNDLE_STREAMNAME_HOSTNAME_SESSIONID 14
 #define SESS_DEFAULT_STREAM_INFO_MODE 1
@@ -249,6 +249,12 @@ static inline void show_stackframe(){}
 #define SHM_SESSIONS "/MstSess"
 #define SHM_SESSIONS_ITEM 165     // 4 byte crc, 100b streamname, 20b connector, 40b host, 1b sync
 #define SHM_SESSIONS_SIZE 5248000 // 5MiB = almost 32k sessions
+
+#if defined(__APPLE__)
+#define IPC_MAX_LEN 30 // macos allows a maximum of 31, including terminating null
+#else
+#define IPC_MAX_LEN 250 // most other implementation a maximum of 251, including terminating null
+#endif
 
 #define SHM_STREAM_ENCRYPT "MstCRYP%s" //%s stream name
 

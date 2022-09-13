@@ -212,7 +212,7 @@ set(libHeaders
   lib/comms.h
   lib/config.h
   lib/defines.h
-  lib/dtls_srtp_handshake.h
+  # lib/dtls_srtp_handshake.h
   lib/dtsc.h
   lib/encryption.h
   lib/flv_tag.h
@@ -282,7 +282,7 @@ add_library (mist
   lib/comms.cpp
   lib/certificate.cpp
   lib/config.cpp
-  lib/dtls_srtp_handshake.cpp
+  # lib/dtls_srtp_handshake.cpp
   lib/dtsc.cpp
   lib/encryption.cpp
   lib/flv_tag.cpp
@@ -402,7 +402,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
-makeAnalyser(WebRTC webrtc) #LTS
+# makeAnalyser(WebRTC webrtc) #LTS
 
 #LTS_START
 ########################################
@@ -646,7 +646,7 @@ target_link_libraries(MistProcLivepeerVideo mist)
 
 if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS
-  makeOutput(WebRTC webrtc http)#LTS
+  # makeOutput(WebRTC webrtc http)#LTS
 endif()
 
 option(WITH_SANITY "Enable MistOutSanityCheck output for testing purposes")

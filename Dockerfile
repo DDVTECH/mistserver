@@ -17,7 +17,7 @@ RUN	git clone https://github.com/cisco/libsrtp.git \
 	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
 	&& make -j$(nproc) install \
 	&& cd /src \
-	&& git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git \
+	&& git clone -b v2.28.1 --depth=1 https://github.com/Mbed-TLS/mbedtls.git \
 	&& cd mbedtls \
 	&& mkdir build \
 	&& cd build \

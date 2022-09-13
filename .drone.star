@@ -180,7 +180,7 @@ def binaries_pipeline(context, platform):
         "set -e",
         'export CI_PATH="$(realpath ..)"',
         "git clone https://github.com/cisco/libsrtp.git $CI_PATH/libsrtp",
-        "git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git $CI_PATH/mbedtls",
+        "git clone -b v2.28.1 --depth=1 https://github.com/Mbed-TLS/mbedtls.git $CI_PATH/mbedtls",
         "git clone https://github.com/Haivision/srt.git $CI_PATH/srt",
         "mkdir -p $CI_PATH/libsrtp/build $CI_PATH/mbedtls/build $CI_PATH/srt/build $CI_PATH/compiled",
         "cd $CI_PATH/libsrtp/build/ && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$CI_PATH/compiled .. && make -j $(nproc) install",

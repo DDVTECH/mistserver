@@ -83,7 +83,6 @@ namespace IPC{
       memcpy(name, sname, IPC_MAX_LEN);
       name[IPC_MAX_LEN] = 0;
     }
-    INFO_MSG("opening semaphore %s", name);
     int timer = 0;
     while (!(*this) && timer++ < 10){
 #if defined(__CYGWIN__) || defined(_WIN32)

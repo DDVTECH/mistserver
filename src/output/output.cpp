@@ -2287,24 +2287,20 @@ namespace Mist{
     sentHeader = true;
   }
 
+  /// \brief Makes the generic writer available to output classes
+  /// \param file target URL or filepath
+  /// \param append whether to open this connection in truncate or append mode
+  /// \param conn connection which will be used to send data. Will use Output's internal myConn if not initialised
   bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
-    if (!conn){conn = &myConn;}
-    int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
-    if (!Util::createPathFor(file)){
-      ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
-      return false;
-    }
-    int outFile = open(file.c_str(), mode, flags);
-    if (outFile < 0){
-      ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
-      return false;
-    }
-    if (*conn){
+    int outFile = -1;
+    if (!conn) {conn = &myConn;}
+    bool isFileTarget = HTTP::URL(file).isLocalPath();
+    if (!Util::externalWriter(file, outFile, append)){return false;}
+    if (*conn && isFileTarget) {
       flock(conn->getSocket(), LOCK_UN | LOCK_NB);
     }
     // Lock the file in exclusive mode to ensure no other processes write to it
-    if(flock(outFile, LOCK_EX | LOCK_NB)){
+    if(isFileTarget && flock(outFile, LOCK_EX | LOCK_NB)){
       ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
       return false;
     }
@@ -2319,7 +2315,7 @@ namespace Mist{
 
     int r = dup2(outFile, conn->getSocket());
     if (r == -1){
-      ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
+      ERROR_MSG("Failed to create an alias for the socket %d -> %d using dup2: %s.", outFile, conn->getSocket(), strerror(errno));
       return false;
     }
     close(outFile);

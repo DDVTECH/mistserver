@@ -2,6 +2,7 @@
 # Testing binaries that are not unit tests, but intended for manual use
 
 logtest = executable('logtest', 'log.cpp', dependencies: libmist_dep)
+convertertest = executable('convertertest', 'converter.cpp', dependencies: libmist_dep)
 downloadertest = executable('downloadertest', 'downloader.cpp', dependencies: libmist_dep)
 urireadertest = executable('urireadertest', 'urireader.cpp', dependencies: libmist_dep)
 jsontest = executable('jsontest', 'json.cpp', dependencies: libmist_dep)

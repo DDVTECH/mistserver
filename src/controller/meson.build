@@ -3,6 +3,7 @@ executables += {
   'name': 'MistController', 
   'sources' : [
     files( 'controller.cpp',
+           'controller_external_writers.cpp',
            'controller_updater.cpp',
            'controller_streams.cpp',
            'controller_storage.cpp',

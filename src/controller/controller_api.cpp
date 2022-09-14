@@ -4,6 +4,7 @@
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
+#include "controller_external_writers.h"
 #include <dirent.h> //for browse API call
 #include <fstream>
 #include <mist/auth.h>
@@ -1202,6 +1203,13 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("variable_list")){Controller::listCustomVariables(Response["variable_list"]);}
   if (Request.isMember("variable_add")){Controller::addVariable(Request["variable_add"], Response["variable_list"]);}
   if (Request.isMember("variable_remove")){Controller::removeVariable(Request["variable_remove"], Response["variable_list"]);}
+
+  if (Request.isMember("external_writer_remove")){Controller::removeExternalWriter(Request["external_writer_remove"]);}
+  if (Request.isMember("external_writer_add")){Controller::addExternalWriter(Request["external_writer_add"]);}
+  if (Request.isMember("external_writer_remove") || Request.isMember("external_writer_add") || 
+      Request.isMember("external_writer_list")){
+    Controller::listExternalWriters(Response["external_writer_list"]);
+  }
 
   Controller::writeConfig();
   Controller::configChanged = false;

@@ -206,6 +206,10 @@ static inline void show_stackframe(){}
 
 #define CUSTOM_VARIABLES_INITSIZE 64 * 1024
 
+#define EXTWRITERS "MstExtWriters"
+
+#define EXTWRITERS_INITSIZE 1 * 1024 * 1024
+
 #define SEM_STATISTICS "/MstStat"
 #define SEM_USERS "/MstUser%s" //%s stream name
 

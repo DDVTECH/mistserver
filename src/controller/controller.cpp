@@ -2,6 +2,7 @@
 /// Contains all code for the controller executable.
 
 #include "controller_api.h"
+#include "controller_external_writers.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
 #include "controller_push.h"
@@ -585,6 +586,9 @@ int main_loop(int argc, char **argv){
   if (Controller::conf.getBool("update")){Controller::checkUpdates();}
 #endif
   /*LTS-END*/
+
+  // Init external writer config
+  Controller::externalWritersToShm();
 
   // start main loop
   while (Controller::conf.is_active){

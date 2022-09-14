@@ -465,7 +465,7 @@ namespace DTSC{
     void remap(const std::string &_streamName = "");
 
     uint64_t getSendLen(bool skipDynamic = false, std::set<size_t> selectedTracks = std::set<size_t>()) const;
-    void toFile(const std::string &fName) const;
+    void toFile(const std::string &uri) const;
     void send(Socket::Connection &conn, bool skypDynamic = false,
               std::set<size_t> selectedTracks = std::set<size_t>(), bool reID = false) const;
     void toJSON(JSON::Value &res, bool skipDynamic = true, bool tracksOnly = false) const;

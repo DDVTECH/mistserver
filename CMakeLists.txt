@@ -845,6 +845,7 @@ add_custom_command(OUTPUT generated/server.html.h
 # MistController - Build               #
 ########################################
 add_executable(MistController
+  src/controller/controller_external_writers.h
   src/controller/controller_limits.h
   src/controller/controller_uplink.h
   src/controller/controller_api.h
@@ -857,6 +858,7 @@ add_executable(MistController
   src/controller/controller_push.h
   src/controller/controller_variables.h
   src/controller/controller.cpp
+  src/controller/controller_external_writers.cpp
   src/controller/controller_updater.cpp
   src/controller/controller_streams.cpp
   src/controller/controller_storage.cpp
@@ -906,6 +908,9 @@ add_test(URLTest COMMAND urltest)
 add_executable(logtest test/log.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(logtest mist)
 add_test(LOGTest COMMAND logtest)
+add_executable(logconvertertest test/converter.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(logconvertertest mist)
+add_test(LOGConverterTest COMMAND logconvertertest)
 add_executable(downloadertest test/downloader.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(downloadertest mist)
 add_test(DownloaderTest COMMAND downloadertest)

@@ -8,11 +8,11 @@
 #include <iterator>
 #include <mist/auth.h>
 #include <mist/defines.h>
-#include <mist/downloader.h>
 #include <mist/encode.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/urireader.h>
 #include <sstream>
 #include <sys/wait.h>
 
@@ -587,6 +587,7 @@ namespace Mist{
     }
     // close file
     file.close();
+    // Export DTSH to a file or remote target
     outMeta.toFile(fileName + ".dtsh");
   }
 
@@ -1496,7 +1497,20 @@ namespace Mist{
         return true;
       }
     }
-    meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
+    // Try to read any existing DTSH file
+    std::string fileName = config->getString("input") + ".dtsh";
+    HIGH_MSG("Loading metadata for stream '%s' from file '%s'", streamName.c_str(), fileName.c_str());
+    char *scanBuf;
+    uint64_t fileSize;
+    HTTP::URIReader inFile(fileName);
+    if (!inFile){return false;}
+    inFile.readAll(scanBuf, fileSize);
+    inFile.close();
+    if (!fileSize){return false;}
+    DTSC::Packet pkt(scanBuf, fileSize, true);
+    HIGH_MSG("Retrieved header of %lu bytes", fileSize);
+    meta.reInit(streamName, pkt.getScan());
+
     if (meta.version != DTSH_VERSION){
       INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
       return false;

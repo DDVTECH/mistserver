@@ -52,6 +52,8 @@
 std::map<std::string, Controller::statSession> sessions;
 std::map<Controller::uxIndex, Controller::uxInfo> experience; ///< Experience data
 std::map<Controller::uxIndex, uint64_t> expCount; ///< Viewer counts
+std::map<Controller::uxIndex, uint64_t> expCountTen; ///< Viewer counts
+std::map<Controller::uxIndex, uint64_t> expCountEighty; ///< Viewer counts
 
 std::map<std::string, Controller::triggerLog> Controller::triggerStats; ///< Holds prometheus stats for trigger executions
 bool Controller::killOnExit = KILL_ON_EXIT;
@@ -1039,10 +1041,21 @@ void Controller::statOnDisconnect(size_t id){
 void Controller::uxOnActive(size_t id){
   uxIndex uI = uxIndex(playUX.getStream(id), playUX.getProto(id), playUX.getGeohash(id), playUX.getQuality(id));
   experience[uI].add(playUX.getExperience(id));
-  //Only count every connection once
-  if ((playUX.getStatus(id) & COMM_STATUS_DONOTTRACK) != COMM_STATUS_DONOTTRACK){
-    playUX.setStatus(playUX.getStatus(id) | COMM_STATUS_DONOTTRACK, id);
+  //Only count every connection once for the following:
+  //Connected at all
+  if ((playUX.getStatus(id) & 2) != 2){
+    playUX.setStatus(playUX.getStatus(id) | 2, id);
     expCount[uI]++;
+  }
+  //Connected 10+ percent (or seconds)
+  if (playUX.getPercWatch(id) >= 10 && (playUX.getStatus(id) & 4) != 4){
+    playUX.setStatus(playUX.getStatus(id) | 4, id);
+    expCountTen[uI]++;
+  }
+  //Connected 80+ percent (or seconds)
+  if (playUX.getPercWatch(id) >= 80 && (playUX.getStatus(id) & 8) != 8){
+    playUX.setStatus(playUX.getStatus(id) | 8, id);
+    expCountEighty[uI]++;
   }
 }
 void Controller::uxOnDisconnect(size_t id){}
@@ -1053,6 +1066,8 @@ void Controller::statLeadOut(){
     loop = false;
     for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCount.begin(); it != expCount.end(); ++it){
       if (!experience.count(it->first)){
+        expCountTen.erase(it->first);
+        expCountEighty.erase(it->first);
         expCount.erase(it);
         loop = true;
         break;
@@ -1848,6 +1863,12 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       }
       for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCount.begin(); it != expCount.end(); ++it){
         response << "mist_playux_count{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second << "\n";
+      }
+      for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCountTen.begin(); it != expCountTen.end(); ++it){
+        response << "mist_playux_count_10{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second << "\n";
+      }
+      for (std::map<Controller::uxIndex, uint64_t>::iterator it = expCountEighty.begin(); it != expCountEighty.end(); ++it){
+        response << "mist_playux_count_80{strm=\"" << it->first.stream << "\",prot=\"" << it->first.proto << "\",geo=\"" << it->first.geo << "\",qual=\"" << (int)it->first.qual << "\"}" << it->second << "\n";
       }
     }
     H.Chunkify(response.str(), conn);

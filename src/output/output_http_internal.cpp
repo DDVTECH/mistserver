@@ -1309,6 +1309,12 @@ namespace Mist{
                   pUX.setExperience(currScore);
                 }
                 pUX.setBadness(statErrors+statStalls+statWaits);
+                if (M && M.mainTrack() != INVALID_TRACK_ID){
+                  pUX.setPercWatch(std::min((size_t)((statPlaytime*100)/M.getDuration(M.mainTrack())), (size_t)100));
+                }else{
+                  //No known duration; fallback to playback duration in seconds because whelp
+                  pUX.setPercWatch(std::min(statPlaytime/1000, (size_t)100));
+                }
               }
               //current status related
               if (incData.isMember("videoHeight") && incData["videoHeight"].asInt()){

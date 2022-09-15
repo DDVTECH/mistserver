@@ -28,6 +28,7 @@ namespace Comms{
     funcdefs(getQuality, setQuality, uint8_t)
     funcdefs(getExperience, setExperience, uint8_t)
     funcdefs(getBadness, setBadness, uint32_t)
+    funcdefs(getPercWatch, setPercWatch, uint8_t)
 
   private:
     Util::FieldAccX stream;
@@ -36,5 +37,6 @@ namespace Comms{
     Util::FieldAccX quality;
     Util::FieldAccX experience;
     Util::FieldAccX badness;
+    Util::FieldAccX percwatch;
   };
 }// namespace Comms

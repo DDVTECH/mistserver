@@ -17,6 +17,7 @@ namespace Comms{
         setQuality(rhs.getQuality());
         setExperience(rhs.getExperience());
         setBadness(rhs.getBadness());
+        setPercWatch(rhs.getPercWatch());
       }
     }
   }
@@ -33,6 +34,7 @@ namespace Comms{
     dataAccX.addField("quality", RAX_16UINT);
     dataAccX.addField("experience", RAX_16UINT);
     dataAccX.addField("badness", RAX_16UINT);
+    dataAccX.addField("percwatch", RAX_16UINT);
   }
 
   void PlayerUX::nullFields(){
@@ -43,6 +45,7 @@ namespace Comms{
     setQuality(0);
     setExperience(0);
     setBadness(0);
+    setPercWatch(0);
   }
 
   void PlayerUX::fieldAccess(){
@@ -53,6 +56,7 @@ namespace Comms{
     quality = dataAccX.getFieldAccX("quality");
     experience = dataAccX.getFieldAccX("experience");
     badness = dataAccX.getFieldAccX("badness");
+    percwatch = dataAccX.getFieldAccX("percwatch");
   }
 
 #define funcimpl(getname, setname, type, field, accfunc, defret) \
@@ -70,5 +74,6 @@ namespace Comms{
   funcimpl(getQuality, setQuality, uint8_t, quality, uint, 0)
   funcimpl(getExperience, setExperience, uint8_t, experience, uint, 0)
   funcimpl(getBadness, setBadness, uint32_t, badness, uint, 0)
+  funcimpl(getPercWatch, setPercWatch, uint8_t, percwatch, uint, 0)
 
 }// namespace Comms

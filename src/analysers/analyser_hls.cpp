@@ -60,9 +60,13 @@ bool AnalyserHLS::readPlaylist(std::string source){
   char * data;
   size_t s;
   std::string pl = root.link(source).getUrl();
-  DONTEVEN_MSG("playlist open url: %s", pl.c_str());
+  INSANE_MSG("playlist open url: %s", pl.c_str());
   uri.open(pl);
   uri.readAll(data,s);
+  root = uri.getURI();
+  if (pl != root.getUrl()) {
+    INFO_MSG("Re-targeting root playlist: %s", root.getUrl().c_str());
+  }
   mediaDown += s;
   if (!s){return false;}
 

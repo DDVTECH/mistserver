@@ -351,9 +351,15 @@ namespace Mist{
     //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
 
+    uint64_t waitTracks = 0;
+    if (config->hasOption("waittracks")){
+      waitTracks = config->getInteger("waittracks");
+    }
+
     //live streams that are no push outputs (recordings), wait for stream to be ready
-    if (!isRecording() && M.getLive() && !isReadyForPlay()){
+    if (waitTracks || (!isRecording() && M.getLive() && !isReadyForPlay())){
       uint64_t waitUntil = Util::bootSecs() + 45;
+      if (waitTracks){waitUntil = Util::bootSecs() + waitTracks;}
       while (M.getLive() && !isReadyForPlay()){
         if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. IP: %s", getConnectedHost().c_str());

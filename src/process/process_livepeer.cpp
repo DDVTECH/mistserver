@@ -308,6 +308,14 @@ void sourceThread(void *){
     video_select = Mist::opt["source_track"].asStringRef();
   }
   conf.addOption("target", opt);
+  opt.null();
+  opt["arg"] = "integer";
+  opt["default"] = 0;
+  opt["help"] = "Max time to wait for tracks to show up";
+  conf.addOption("waittracks", opt);
+  if (Mist::opt.isMember("waittracks")){
+    conf.getOption("waittracks", true).append(Mist::opt["waittracks"].asInt());
+  }
   conf.getOption("streamname", true).append(Mist::opt["source"].c_str());
   conf.getOption("target", true).append("-?audio="+audio_select+"&video="+video_select);
   Mist::ProcessSource::init(&conf);
@@ -636,6 +644,11 @@ int main(int argc, char *argv[]){
     capa["optional"]["custom_url"]["help"] = "Alternative API URL path";
     capa["optional"]["custom_url"]["type"] = "string";
     capa["optional"]["custom_url"]["default"] = "https://livepeer.live/api";
+
+    capa["optional"]["waittracks"]["name"] = "Max track wait";
+    capa["optional"]["waittracks"]["help"] = "Max time to wait for tracks to appear, in seconds";
+    capa["optional"]["waittracks"]["type"] = "integer";
+    capa["optional"]["waittracks"]["default"] = 0;
 
 
     capa["required"]["target_profiles"]["name"] = "Profiles";

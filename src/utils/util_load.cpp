@@ -25,7 +25,7 @@ size_t weight_geo = 1000;
 size_t weight_bonus = 50;
 std::map<std::string, int32_t> blankTags;
 unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
-#define HOSTLOOP                                                                                   \
+#define HOSTLOOP                                                                             \
   unsigned long i = 0;                                                                             \
   i < hostsCounter;                                                                                \
   ++i
@@ -44,8 +44,668 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
                              "Requesting stop",   "Requesting clean"};
 #define HOSTNAMELEN 1024
 #define MAXHOSTS 1000
+#define LBNAMELEN 1024
+#define MAXLB 1000
 
-struct streamDetails{
+int configSync;
+
+
+loadBalancer[MAXLB] loadBalancers;
+
+/**
+ * class to encase the api
+ */
+class API {
+public:
+/**
+ * function to select the api function wanted
+ */
+  int handleRequest(Socket::Connection &conn){
+  HTTP::Parser H;
+  while (conn){
+    if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+      // Special commands
+      if (H.url.size() == 1){
+        if (localMode && !conn.isLocal()){
+          H.SetBody("Configuration only accessible from local interfaces");
+          H.setCORSHeaders();
+          H.SendResponse("403", "Forbidden", conn);
+          H.Clean();
+          continue;
+        }
+        std::string host = H.GetVar("host");
+        std::string viewers = H.GetVar("viewers");
+        std::string streamStats = H.GetVar("streamstats");
+        std::string stream = H.GetVar("stream");
+        std::string source = H.GetVar("source");
+        std::string ingest = H.GetVar("ingest");
+        std::string fback = H.GetVar("fallback");
+        std::string lstserver = H.GetVar("lstserver");
+        std::string addserver = H.GetVar("addserver");
+        std::string delserver = H.GetVar("delserver");
+        std::string weights = H.GetVar("weights");
+        std::string updateHosts = H.GetVar("updateHosts");
+        std::string removeHost = H.GetVar("removeHost");
+        std::string addViewer = H.GetVar("addViewer");
+        std::string changeConfigSync = H.getVar("configSync");
+        std::string addLoadBalancer = H.getVar("addloadbalancer");
+        std::string removeLoadBalancer = H.getVar("removeloadbalancer");
+        std::string resend = H.getVar("resend");
+        std::string getLBList = H.getVar("LBList");
+        H.Clean();
+        H.SetHeader("Content-Type", "text/plain");
+        
+        //return load balancer list
+        if(getLBList.size()){
+          getLoadBalancerList(conn, H);
+        }
+        //add load balancer to mesh
+        if(addLoadBalancer.size()){
+          addLB(conn, H);
+          
+        }
+        //remove load balancer from mesh
+        if(removeLoadBalancer.size()){
+          removeLB(conn, H);
+          
+        }
+        //change config sync setting
+        if(changeConfigSync.size()){
+          setConfigSync(conn, H);
+        }
+        //add viewer to host
+        if(addViewer.size()){
+          addViewer(conn, H);
+          
+        }
+        //remove foreign host
+        if(removeHost.size()){
+          removeHost(conn, H);
+                  
+        }
+        //receive host data
+        if(updateHosts.size()){
+          updateHost(conn, H);
+        }
+        // Get/set weights
+        if (weights.size()){
+          setWeights(conn, H);
+        }
+        // Get server list
+        if (lstserver.size()){
+          serverList(conn, H);
+        }
+        // Remove server from list
+        if (delserver.size()){
+          delServer(conn, H);
+        }
+        // Add server to list
+        if (addserver.size()){
+          addServer(conn, H);
+        }
+        // Request viewer count
+        if (viewers.size()){
+          getViewers(conn, H);
+        }
+        // Request full stream statistics
+        if (streamStats.size()){
+          streamStats(conn, H);
+          
+        }
+        if (stream.size()){
+          getStream(conn, H);
+        }
+        // Find source for given stream
+        if (source.size()){
+          source(conn, H);
+        }
+        // Find optimal ingest point
+        if (ingest.size()){
+          ingest(conn, H);
+        }
+        // Find host(s) status
+        if (!host.size()){
+          getAllHostStates(conn, H);
+        }else{
+          getHostState(conn, H);
+        }
+      }
+      stream(conn, H);  
+    }
+  }
+  conn.close();
+  return 0;
+}
+
+private:
+  /**
+  * returns load balancer list
+  */
+  void getLoadBalancerList(Socket::Connection conn, HTTP::Parser H){
+    H.SetBody(loadBalancers.ToString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return viewer counts of streams
+   */
+  void getViewers(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+        HOST(i).details->fillStreams(ret);
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return the best source of a stream
+   */
+  void source(Socket::Connection conn, HTTP::Parser H){
+    INFO_MSG("Finding source for stream %s", source.c_str());
+    std::string bestHost = "";
+    std::map<std::string, int32_t> tagAdjust;
+    if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
+    if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
+    double lat = 0;
+    double lon = 0;
+    if (H.GetVar("lat") != ""){
+      lat = atof(H.GetVar("lat").c_str());
+      H.SetVar("lat", "");
+    }
+    if (H.GetVar("lon") != ""){
+      lon = atof(H.GetVar("lon").c_str());
+      H.SetVar("lon", "");
+    }
+    if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+    if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+    uint64_t bestScore = 0;
+    for (HOSTLOOP){
+      HOSTCHECK;
+      if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
+        INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
+        continue;
+      }
+      uint64_t score = HOST(i).details->source(source, lat, lon, tagAdjust, 0);
+      if (score > bestScore){
+        bestHost = "dtsc://" + HOST(i).details->host;
+        bestScore = score;
+      }
+    }
+    if (bestScore == 0){
+      if (fback.size()){
+        bestHost = fback;
+      }else{
+        bestHost = fallback;
+      }
+      FAIL_MSG("No source for %s found!", source.c_str());
+    }else{
+      INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
+    }
+    H.SetBody(bestHost);
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * get view count of a stream
+   */
+  void getStream(Socket::Connection conn, HTTP::Parser H, std::string stream){
+    uint64_t count = 0;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      count += HOST(i).details->getViewers(stream);
+    }
+    H.SetBody(JSON::Value(count).asString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return server list
+   */
+  void serverList(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      ret[(std::string)hosts[i].name] = stateLookup[hosts[i].state];
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * remove server from ?
+   */
+  void delServer(Socket::Connection conn, HTTP::Parser H, std::string delserver){
+    JSON::Value ret;
+    tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+    ret = "Server not monitored - could not delete from monitored server list!";
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      if ((std::string)hosts[i].name == delserver){
+        cleanupHost(hosts[i]);
+        ret = stateLookup[hosts[i].state];
+      }
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * set and get weights
+   */
+  void setWeights(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    JSON::Value newVals = JSON::fromString(weights);
+    if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
+    if (newVals.isMember("ram")){weight_ram = newVals["ram"].asInt();}
+    if (newVals.isMember("bw")){weight_bw = newVals["bw"].asInt();}
+    if (newVals.isMember("geo")){weight_geo = newVals["geo"].asInt();}
+    if (newVals.isMember("bonus")){weight_bonus = newVals["bonus"].asInt();}
+    ret["cpu"] = weight_cpu;
+    ret["ram"] = weight_ram;
+    ret["bw"] = weight_bw;
+    ret["geo"] = weight_geo;
+    ret["bonus"] = weight_bonus;
+
+    if(configSync){
+      if(!resend.size() || resend == 1){
+        foreach(lb : loadBalancers){
+          //TODO call change config on lb
+        }
+      }else {
+        //TODO send message config sync is off
+      }
+    }
+
+    H.SetBody(ret.toString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    
+    continue;
+  }
+  
+  /**
+   * receive server updates and adds new foreign hosts if needed
+   */
+  void updateHost(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value newVals = JSON::fromString(updateHosts);
+    if(newVals.isMember("hostName")){
+      hostName = newVals["hostName"].asString();
+      int hostIndex = -1;
+      for(HOSTLOOP){
+        if(hostName == hosts[i].name){hostIndex = i;}
+      }
+      if(exists == -1){
+        initForeignHost(HOST(hostsCounter), hostName);
+        hostIndex = hostsCounter;
+        ++hostsCounter;
+      }
+      hosts[hostIndex].details.update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), 
+      newVals["scoreRate"].asInt(), newVals["outputs"].asMap(), newVals["conf_streams"].asSet(), newVals["streams"].asMap());            
+            
+    }
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return ingest point
+   */
+  void ingest(Socket::Connection conn, HTTP::Parser H){
+    double cpuUse = atof(ingest.c_str());
+    INFO_MSG("Finding ingest point for CPU usage %.2f", cpuUse);
+    std::string bestHost = "";
+    std::map<std::string, int32_t> tagAdjust;
+    if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
+    if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
+    double lat = 0;
+    double lon = 0;
+    if (H.GetVar("lat") != ""){
+      lat = atof(H.GetVar("lat").c_str());
+      H.SetVar("lat", "");
+    }
+    if (H.GetVar("lon") != ""){
+      lon = atof(H.GetVar("lon").c_str());
+      H.SetVar("lon", "");
+    }
+    if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+    if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+    uint64_t bestScore = 0;
+    for (HOSTLOOP){
+      HOSTCHECK;
+      uint64_t score = HOST(i).details->source("", tagAdjust, cpuUse * 10);
+      if (score > bestScore){
+        bestHost = HOST(i).details->host;
+        bestScore = score;
+      }
+    }
+    if (bestScore == 0){
+      if (fback.size()){
+        bestHost = fback;
+      }else{
+        bestHost = fallback;
+      }
+      FAIL_MSG("No ingest point found!");
+    }else{
+      INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
+    }
+    H.SetBody(bestHost);
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * create stream
+   */
+  void stream(Socket::Connection conn, HTTP::Parser H){
+    // Balance given stream
+      std::string stream = HTTP::URL(H.url).path;
+      std::string proto = H.GetVar("proto");
+      std::map<std::string, int32_t> tagAdjust;
+      if (H.GetVar("tag_adjust") != ""){
+        fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));
+        H.SetVar("tag_adjust", "");
+      }
+      if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
+      H.SetVar("proto", "");
+      double lat = 0;
+      double lon = 0;
+      if (H.GetVar("lat") != ""){
+        lat = atof(H.GetVar("lat").c_str());
+        H.SetVar("lat", "");
+      }
+      if (H.GetVar("lon") != ""){
+        lon = atof(H.GetVar("lon").c_str());
+        H.SetVar("lon", "");
+      }
+      if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+      if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+      std::string vars = H.allVars();
+      if (stream == "favicon.ico"){
+        H.Clean();
+        H.SendResponse("404", "No favicon", conn);
+        H.Clean();
+        continue;
+      }
+      INFO_MSG("Balancing stream %s", stream.c_str());
+      H.Clean();
+      H.SetHeader("Content-Type", "text/plain");
+      H.setCORSHeaders();
+      hostEntry *bestHost = 0;
+      uint64_t bestScore = 0;
+      for (HOSTLOOP){
+        HOSTCHECK;
+        uint64_t score = HOST(i).details->rate(stream, tagAdjust);
+        if (score > bestScore){
+          bestHost = &HOST(i);
+          bestScore = score;
+        }
+      }
+      if (!bestScore || !bestHost){
+        H.SetBody(fallback);
+        FAIL_MSG("All servers seem to be out of bandwidth!");
+      }else{
+        INFO_MSG("Winner: %s scores %" PRIu64, bestHost->details->host.c_str(), bestScore);
+        bestHost->details->addViewer(stream);
+        H.SetBody(bestHost->details->host);
+      }
+      if (proto != "" && bestHost && bestScore){
+        H.Clean();
+        H.setCORSHeaders();
+        H.SetHeader("Location", bestHost->details->getUrl(stream, proto) + vars);
+        H.SetBody(H.GetHeader("Location"));
+        H.SendResponse("307", "Redirecting", conn);
+        H.Clean();
+      }else{
+        H.SendResponse("200", "OK", conn);
+        H.Clean();
+      }
+    }// if HTTP request received
+  
+  /**
+   * return stream stats
+   */
+  void streamStats(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      HOST(i).details->fillStreamStats(streamStats, ret);
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * add server to be monitored
+   */
+  void addServer(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+    if (addserver.size() >= HOSTNAMELEN){
+      H.SetBody("Host length too long for monitoring");
+      H.setCORSHeaders();
+      H.SendResponse("200", "OK", conn);
+      H.Clean();
+      continue;
+    }
+    bool stop = false;
+    hostEntry *newEntry = 0;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      if ((std::string)hosts[i].name == addserver){
+        stop = true;
+        break;
+      }
+    }
+    if (stop){
+      ret = "Server already monitored - add request ignored";
+    }else{
+      for (HOSTLOOP){
+        if (hosts[i].state == STATE_OFF){
+          initHost(hosts[i], addserver);
+          newEntry = &(hosts[i]);
+          stop = true;
+          break;
+        }
+      }
+      if (!stop){
+        initHost(HOST(hostsCounter), addserver);
+        newEntry = &HOST(hostsCounter);
+        ++hostsCounter; // up the hosts counter
+      }
+      ret[addserver] = stateLookup[newEntry->state];
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * remove server from load balancer( both monitored and foreign )
+   */
+  void removeHost(Socket::Connection conn, HTTP::Parser H){
+    for(HOSTLOOP){
+      if(removeHost == hosts[i].name){
+        if(!hosts[i].thread){
+          cleanupHost(hosts[i]);
+        }
+        break;
+      }
+    }
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;  
+  }
+  
+  /**
+   * add viewer to stream on server
+   */
+  void addViewer(Socket::Connection conn, HTTP::Parser H){
+    for(HOSTLOOP){
+      if(hosts[i].name == addViewer){
+        //next line can cause infinate loop if LB ip is 
+        hosts[i].details.addViewer(stream);
+        break;
+      }
+    }
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * adjust config synchronisation 
+   */
+  void setConfigSync(Socket::Connection conn, HTTP::Parser H){
+    try{
+      configSync = (int) changeConfigSync;
+      //TODO send to other load balancers
+    }catch{
+      //TODO message argument error
+      H.SetBody("Configuration Syncronisation is turned off! ");
+    }
+          
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * remove load balancer from mesh
+   */
+  void removeLB(Socket::Connection conn, HTTP::Parser H){
+    if(false){//TODO remove all LB  if this ip
+      H.setCORSHeaders();
+      H.SendResponse("200", "OK", conn);
+      H.Clean();
+      continue;
+    }else {
+      foreach(lb : loadBalancer){
+        if(lb.getIP().match(removeLoadBalancer)) loadBalancers.remove(lb);
+      }
+    }
+    if(!resend.size() || resend ==1){
+      foreach(lb : loadBalancers){
+        //TODO this api call on lb
+      }
+    }
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * add load balancer to mesh
+   */
+  void addLB(Socket::Connection conn, HTTP::Parser H){
+    //check if load balancer is already in list
+    foreach(lb : loadBalancers){
+      if(lb.getIP().match(addLoadBalancer)){
+        if(!resend.size() || resend == 1){
+          //TODO send LBList to ip in addLoadBalancer
+        }
+        return;
+      }
+    }
+    if(!resend.size() || resend == 1){
+      foreach(lb : loadBalancers){
+        //TODO send to other load balancers
+      }
+      //TODO send LBList to ip in addLoadBalancer
+    }
+    loadBalancers.append(new loadBalancer(addLoadBalancer));          
+          
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return server data of a server
+   */
+  void getHostState(Socket::Connection conn, HTTP::Parser H, std::string host){
+    JSON::Value ret;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      if (HOST(i).details->host == host){
+        ret = stateLookup[hosts[i].state];
+        HOSTCHECK;
+        HOST(i).details->fillState(ret);
+        break;
+      }
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+  
+  /**
+   * return all server data
+   */
+  void getAllHostStates(Socket::Connection conn, HTTP::Parser H){
+    JSON::Value ret;
+    for (HOSTLOOP){
+      if (hosts[i].state == STATE_OFF){continue;}
+      ret[HOST(i).details->host] = stateLookup[hosts[i].state];
+      HOSTCHECK;
+      HOST(i).details->fillState(ret[HOST(i).details->host]);
+    }
+    H.SetBody(ret.toPrettyString());
+    H.setCORSHeaders();
+    H.SendResponse("200", "OK", conn);
+    H.Clean();
+    continue;
+  }
+}
+
+/**
+ * class to identify a load balancer
+ */
+class loadBalancer {
+  private:
+    std::string ip;
+  public:
+    loadBalancer(std::string &ip) : ip(ip) {}
+    getIP(){return ip;}
+}
+
+struct streamDetails {
   uint64_t total;
   uint32_t inputs;
   uint32_t bandwidth;
@@ -54,7 +714,7 @@ struct streamDetails{
   uint64_t bytesDown;
 };
 
-class outUrl{
+class outUrl {
 public:
   std::string pre, post;
   outUrl(){};
@@ -69,17 +729,17 @@ public:
   }
 };
 
-inline double toRad(double degree){
+inline double toRad(double degree) {
   return degree / 57.29577951308232087684;
 }
 
-double geoDist(double lat1, double long1, double lat2, double long2){
+double geoDist(double lat1, double long1, double lat2, double long2) {
   double dist;
   dist = sin(toRad(lat1)) * sin(toRad(lat2)) + cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
   return .31830988618379067153 * acos(dist);
 }
 
-int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj){
+int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
   if (!match.size()){return 0;}
   bool invert = false;
   bool haveOne = false;
@@ -101,7 +761,159 @@ int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & 
   return 0;
 }
 
+/** 
+ * this class is a host
+ * this load balancer does not need to monitor a server for this class 
+ */
 class hostDetails{
+  private:
+  tthread::mutex *hostMutex;
+  JSON::Value fillStateOut;
+  JSON::Value fillStreamsOut;
+  uint64_t scoreSource;
+  uint64_t scoreRate;
+  std::map<std::string, outUrl> outputs;
+  std::set<std::string> conf_streams;
+  std::map<std::string, struct streamDetails> streams;
+  std::set<std::string> tags;
+  uint64_t cpu;
+  char LB[LBNAMELEN];
+  double servLati, servLongi;
+  public:
+  std::string host;
+  hostDetails(char[LBNAMELEN] LB){
+    if(LB.size() > LBNAMELEN){EXIT_FAILURE;}
+    this.LB = LB;
+    hostMutex = 0;
+  }
+  ~hostDetails(){
+    if(hostMutex){
+      delete hostMutex;
+      hostMutex = 0;
+    }
+  }
+  /**
+   *  Fills out a by reference given JSON::Value with current state.
+   */
+  void fillState(JSON::Value &r){
+    r = fillStateOut;
+  }
+  /** 
+   * Fills out a by reference given JSON::Value with current streams viewer count.
+   */
+  void fillStreams(JSON::Value &r){
+    r = fillStreamsOut;
+  }
+  /**
+   * Fills out a by reference given JSON::Value with current stream statistics.
+   */ 
+  void fillStreamStats(const std::string &s,JSON::Value &r) {
+    if(!hostMutex){hostMutex = new tthread::mutex();}
+    tthread::lock_gaurd<tthread::mutex> guard(*hostMutex);
+    for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+      const std::string &n = jt->first;
+      if(s!= "*" && n!= s && n.substr(0,size()+1) != s+"+"){continue;}
+      if(!r.isMember(n)){
+        r[n].append(jt->second.total);
+        r[n].append(jt->second.bandwidth);
+        r[n].append(jt->second.bytesUp);
+        r[n].append(jt->second.bytesDown);
+      }else {
+        r[n][0u] = r[n][0u].asInt() + jt->second.total;
+        r[n][2u] = r[n][2u].asInt() + jt->second.bytesUp;
+        r[n][3u] = r[n][3u].asInt() + jt->second.bytesDown;
+      }
+    }
+  }
+  long long getViewers(const std::string &strm){
+    if(!hostMutex){hostMutex = new tthread::mutex();}
+    tthread::lock_gaurd<tthread::mutex> guard(*hostMutex);
+    if(!streams.count(strm)){return 0;}
+    return streams[strm].total;
+  }
+  uint64_t rate(std::string &s, double lati = 0, double longi = 0, const std::string &s, int32_t> &tagAdjust = blankTags){
+    if(conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
+      MUDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
+      return 0;
+    }
+    uint64_t score = scoreRate;
+    uint64_t geo_score = 0;
+    if(servLati && servLongi && lati && longi){//TODO add require config Sync
+      geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
+      score += geo_score;
+    }
+    int64_t adjustment = 0;
+    if (tagAdjust.size()){
+      for (std::map<std::string, int32_t>::const_iterator it = tagAdjust.begin(); it != tagAdjust.end(); ++it){
+        adjustment += applyAdjustment(tags, it->first, it->second);
+      }
+    }
+    if (adjustment >= 0 || -adjustment < score){
+      score += adjustment;
+    }else{
+      score = 0;
+    }
+    return score;
+  }
+  uint64_t source(const std::string &s, double lati = 0, double longi = 0, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu){
+
+    if(s.size() && (!streams.count(s) || !streams[s].iputs)){return 0;}
+
+    if (minCpu && cpu + minCpu >= 1000){return 0;}
+    uint64_t score = scoreSource;
+    int64_t adjustment = 0;
+    if (tagAdjust.size()){
+      for (std::map<std::string, int32_t>::const_iterator it = tagAdjust.begin(); it != tagAdjust.end(); ++it){
+        adjustment += applyAdjustment(tags, it->first, it->second);
+      }
+    }
+    if (adjustment >= 0 || -adjustment < score){
+      score += adjustment;
+    }else{
+      score = 0;
+    }
+    return score;
+  }
+  std::string getUrl(std::string 7s, std::string &proto){
+    if(!hostMutex) {hostMutex = new tthread::mutex();}
+    tthread::lock_guard<tthread::mutex> gaurd(*hostMutex);
+    if(!outputs.count(proto)){return "";}
+    const outUrl &o = outputs[proto];
+    return o.pre +o.post;
+  }
+  /**
+   * Sends update to original load balancer to add a viewer.
+   */
+  void virtual addViewer(std::string &s){
+    //TODO
+  }
+  /**
+   * Update precalculated host vars.
+   */
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, struct streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double double servLati, double servLongi){
+    if(hostMutex){hostMutex = new tthread::mutex();}
+    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+
+    this.fillStateOut = fillStateOut;
+    this.fillStreamsOut = fillStreamsOut;
+    this.scoreSource = scoreSource;
+    this.scoreRate = scoreRate;
+    this.outputs = outputs;
+    this.conf_streams = conf_streams;
+    this.streams = streams;
+    this.tags = tags;
+    this.cpu = cpu;
+
+  }
+  
+}
+
+
+/**
+ * Class to calculate all precalculated vars of its parent class.
+ * Requires a server to monitor.
+ */
+class hostDetailsCalc : public hostDetails {
 private:
   tthread::mutex *hostMutex;
   std::map<std::string, struct streamDetails> streams;
@@ -124,9 +936,9 @@ public:
   char binHost[16];
   uint64_t availBandwidth;
   JSON::Value geoDetails;
-  double servLati, servLongi;
   std::string servLoc;
-  hostDetails(){
+  double servLati, servLongi;
+  hostDetailsCalc(){
     hostMutex = 0;
     cpu = 1000;
     ramMax = 0;
@@ -142,7 +954,7 @@ public:
     servLongi = 0;
     availBandwidth = 128 * 1024 * 1024; // assume 1G connections
   }
-  ~hostDetails(){
+  ~hostDetailsCalc(){
     if (hostMutex){
       delete hostMutex;
       hostMutex = 0;
@@ -153,13 +965,6 @@ public:
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     addBandwidth += 1 * 1024 * 1024;
     addBandwidth *= 1.2;
-  }
-  /// Returns the count of viewers for a given stream s.
-  size_t count(std::string &s){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    if (streams.count(s)){return streams[s].total;}
-    return 0;
   }
   /// Fills out a by reference given JSON::Value with current state.
   void fillState(JSON::Value &r){
@@ -198,36 +1003,9 @@ public:
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
   }
-  /// Fills out a by reference given JSON::Value with current stream statistics.
-  void fillStreamStats(const std::string & s, JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin();
-         jt != streams.end(); ++jt){
-      const std::string & n = jt->first;
-      if (s != "*" && n != s && n.substr(0, s.size()+1) != s+"+"){continue;}
-      if (!r.isMember(n)){
-        r[n].append(jt->second.total);//viewers
-        r[n].append(jt->second.bandwidth);//bandwidth usage
-        r[n].append(jt->second.bytesUp);//total bytes up
-        r[n].append(jt->second.bytesDown);//total bytes down
-      }else{
-        r[n][0u] = r[n][0u].asInt() + jt->second.total;
-        r[n][2u] = r[n][2u].asInt() + jt->second.bytesUp;
-        r[n][3u] = r[n][3u].asInt() + jt->second.bytesDown;
-      }
-    }
-  }
-  /// Returns viewcount for the given stream
-  long long getViewers(const std::string &strm){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    if (!streams.count(strm)){return 0;}
-    return streams[strm].total;
-  }
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
-  uint64_t rate(std::string &s, double lati = 0, double longi = 0, const std::map<std::string, int32_t> &tagAdjust = blankTags){
+  uint64_t rate(){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
@@ -239,44 +1017,28 @@ public:
                addBandwidth, availBandwidth);
       return 0;
     }
-    if (conf_streams.size() && !conf_streams.count(s) &&
-        !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
-      MEDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
-      return 0;
-    }
+    
     // Calculate score
     uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
     uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
     uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
-    uint64_t geo_score = 0;
-    if (servLati && servLongi && lati && longi){
-      geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
-    }
-    uint64_t score = cpu_score + ram_score + bw_score + geo_score + (streams.count(s) ? weight_bonus : 0);
-    int64_t adjustment = 0;
-    if (tagAdjust.size()){
-      for (std::map<std::string, int32_t>::const_iterator it = tagAdjust.begin(); it != tagAdjust.end(); ++it){
-        adjustment += applyAdjustment(tags, it->first, it->second);
-      }
-    }
-    if (adjustment >= 0 || -adjustment < score){
-      score += adjustment;
-    }else{
-      score = 0;
-    }
+  
+    uint64_t score = cpu_score + ram_score + bw_score + (streams.count(s) ? weight_bonus : 0);
+    
     // Print info on host
     MEDIUM_MSG("%s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
-               " (max %" PRIu64 " MB/s), Geo %" PRIu64 ", tag adjustment %" PRId64 " -> %" PRIu64,
+               " (max %" PRIu64 " MB/s), tag adjustment %" PRId64 " -> %" PRIu64,
                host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
-               availBandwidth / 1024 / 1024, geo_score, adjustment, score);
+               availBandwidth / 1024 / 1024, adjustment, score);
     return score;
   }
   /// Scores this server as a source
   /// 0 means not possible, the higher the better.
-  uint64_t source(const std::string &s, double lati, double longi, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu){
+  uint64_t source(){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    if (s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
+    
+
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 1;
@@ -287,41 +1049,73 @@ public:
       return 1;
     }
     // Calculate score
-    if (minCpu && cpu + minCpu >= 1000){return 0;}
     uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
     uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
     uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
-    uint64_t geo_score = 0;
-    if (servLati && servLongi && lati && longi){
-      geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
-    }
-    uint64_t score = cpu_score + ram_score + bw_score + geo_score + 1;
-    int64_t adjustment = 0;
-    if (tagAdjust.size()){
-      for (std::map<std::string, int32_t>::const_iterator it = tagAdjust.begin(); it != tagAdjust.end(); ++it){
-        adjustment += applyAdjustment(tags, it->first, it->second);
-      }
-    }
-    if (adjustment >= 0 || -adjustment < score){
-      score += adjustment;
-    }else{
-      score = 0;
-    }
+
+    uint64_t score = cpu_score + ram_score + bw_score + 1;
+
+
+    
     // Print info on host
     MEDIUM_MSG("SOURCE %s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
-               " (max %" PRIu64 " MB/s), Geo %" PRIu64 ", tag adjustment %" PRId64 " -> %" PRIu64,
+               " (max %" PRIu64 " MB/s), tag adjustment %" PRId64 " -> %" PRIu64,
                host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
-               availBandwidth / 1024 / 1024, geo_score, adjustment, score);
+               availBandwidth / 1024 / 1024, adjustment, score);
     return score;
   }
-  std::string getUrl(std::string &s, std::string &proto){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    if (!outputs.count(proto)){return "";}
-    const outUrl &o = outputs[proto];
-    return o.pre + s + o.post;
+
+  /**
+   * calculate and update precalculated variables
+  */
+  void calc(){
+  
+    //calculated vars
+    JSON::Value fillStreamsOut;
+    fillStreams(fillStreamsOut);
+    JSON::Value fillStateOut;
+    fillState(fillStateOut);
+    uint64_t scoreSource = source();
+    uint64_t scoreRate = rate();
+
+    //update the local precalculated vars
+    this.update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi);
+    
+    //TODO: test send to other load balancers
+    //create json to send to other load balancers
+    JSON::Value j;
+    j["fillStaterOut"] = fillStateOut;
+    j["fillStreamOut"] = fillStreamOut;
+    j["scoreSource"] = scoreSource;
+    j["scoreRate"] = scoreRate;
+    j["outputs"] = outputs;
+    j["conf_streams"] = conf_streams;
+    j["streams"] = streams;
+    j["tags"] = tags;
+    j["cpu"] = cpu;
+    j["servLati"] = servLati;
+    j["servLongi"] = servLongi;
+
+    //TODO: what if load balancer crashed
+    //send to other load balancers
+    foreach(LB: loadBalancers){
+      HTTP::Parser H;
+      HTTP::URL url(LB.getIP()+ "/updateHost");
+      HTTP::Downloader DL;
+    
+      DL.post(url,j);
+      if(!DL.isOK()){
+        delete LB;
+      }
+      DL.getSocket().close();
+    }
   }
-  void addViewer(std::string &s){
+  
+  /**
+   * add the viewer to this host
+   * updates all precalculated host vars
+   */
+  void override addViewer(std::string &s){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
@@ -338,7 +1132,11 @@ public:
     if (toAdd < 64 * 1024){toAdd = 64 * 1024;}// minimum of 0.5 mbps
     if (toAdd > 1024 * 1024){toAdd = 1024 * 1024;}// maximum of 8 mbps
     addBandwidth += toAdd;
+    calc();
   }
+  /**
+   * update vars from server
+   */
   void update(JSON::Value &d){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
@@ -430,7 +1228,9 @@ public:
       jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
     addBandwidth *= 0.75;
+    calc();//update preclaculated host vars
   }
+  
 };
 
 /// Fixed-size struct for holding a host's name and details pointer
@@ -441,12 +1241,13 @@ struct hostEntry{
   tthread::thread *thread; /// thread pointer
 };
 
+
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
 
 void initHost(hostEntry &H, const std::string &N);
 void cleanupHost(hostEntry &H);
 
-///Fills the given map with the given JSON string of tag adjustments
+/// Fills the given map with the given JSON string of tag adjustments
 void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & adjust){
   JSON::Value adj = JSON::fromString(adjust);
   jsonForEach(adj, t){
@@ -454,345 +1255,6 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
   }
 }
 
-int handleRequest(Socket::Connection &conn){
-  HTTP::Parser H;
-  while (conn){
-    if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
-      // Special commands
-      if (H.url.size() == 1){
-        if (localMode && !conn.isLocal()){
-          H.SetBody("Configuration only accessible from local interfaces");
-          H.setCORSHeaders();
-          H.SendResponse("403", "Forbidden", conn);
-          H.Clean();
-          continue;
-        }
-        std::string host = H.GetVar("host");
-        std::string viewers = H.GetVar("viewers");
-        std::string streamStats = H.GetVar("streamstats");
-        std::string stream = H.GetVar("stream");
-        std::string source = H.GetVar("source");
-        std::string ingest = H.GetVar("ingest");
-        std::string fback = H.GetVar("fallback");
-        std::string lstserver = H.GetVar("lstserver");
-        std::string addserver = H.GetVar("addserver");
-        std::string delserver = H.GetVar("delserver");
-        std::string weights = H.GetVar("weights");
-        H.Clean();
-        H.SetHeader("Content-Type", "text/plain");
-        JSON::Value ret;
-        // Get/set weights
-        if (weights.size()){
-          JSON::Value newVals = JSON::fromString(weights);
-          if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
-          if (newVals.isMember("ram")){weight_ram = newVals["ram"].asInt();}
-          if (newVals.isMember("bw")){weight_bw = newVals["bw"].asInt();}
-          if (newVals.isMember("geo")){weight_geo = newVals["geo"].asInt();}
-          if (newVals.isMember("bonus")){weight_bonus = newVals["bonus"].asInt();}
-          ret["cpu"] = weight_cpu;
-          ret["ram"] = weight_ram;
-          ret["bw"] = weight_bw;
-          ret["geo"] = weight_geo;
-          ret["bonus"] = weight_bonus;
-          H.SetBody(ret.toString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Get server list
-        if (lstserver.size()){
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            ret[(std::string)hosts[i].name] = stateLookup[hosts[i].state];
-          }
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Remove server from list
-        if (delserver.size()){
-          tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
-          ret = "Server not monitored - could not delete from monitored server list!";
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            if ((std::string)hosts[i].name == delserver){
-              cleanupHost(hosts[i]);
-              ret = stateLookup[hosts[i].state];
-            }
-          }
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Add server to list
-        if (addserver.size()){
-          tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
-          if (addserver.size() >= HOSTNAMELEN){
-            H.SetBody("Host length too long for monitoring");
-            H.setCORSHeaders();
-            H.SendResponse("200", "OK", conn);
-            H.Clean();
-            continue;
-          }
-          bool stop = false;
-          hostEntry *newEntry = 0;
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            if ((std::string)hosts[i].name == addserver){
-              stop = true;
-              break;
-            }
-          }
-          if (stop){
-            ret = "Server already monitored - add request ignored";
-          }else{
-            for (HOSTLOOP){
-              if (hosts[i].state == STATE_OFF){
-                initHost(hosts[i], addserver);
-                newEntry = &(hosts[i]);
-                stop = true;
-                break;
-              }
-            }
-            if (!stop){
-              initHost(HOST(hostsCounter), addserver);
-              newEntry = &HOST(hostsCounter);
-              ++hostsCounter; // up the hosts counter
-            }
-            ret[addserver] = stateLookup[newEntry->state];
-          }
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Request viewer count
-        if (viewers.size()){
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            HOST(i).details->fillStreams(ret);
-          }
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Request full stream statistics
-        if (streamStats.size()){
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            HOST(i).details->fillStreamStats(streamStats, ret);
-          }
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        if (stream.size()){
-          uint64_t count = 0;
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            count += HOST(i).details->getViewers(stream);
-          }
-          H.SetBody(JSON::Value(count).asString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Find source for given stream
-        if (source.size()){
-          INFO_MSG("Finding source for stream %s", source.c_str());
-          std::string bestHost = "";
-          std::map<std::string, int32_t> tagAdjust;
-          if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
-          if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
-          double lat = 0;
-          double lon = 0;
-          if (H.GetVar("lat") != ""){
-            lat = atof(H.GetVar("lat").c_str());
-            H.SetVar("lat", "");
-          }
-          if (H.GetVar("lon") != ""){
-            lon = atof(H.GetVar("lon").c_str());
-            H.SetVar("lon", "");
-          }
-          if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-          if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
-          uint64_t bestScore = 0;
-          for (HOSTLOOP){
-            HOSTCHECK;
-            if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
-              INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
-              continue;
-            }
-            uint64_t score = HOST(i).details->source(source, lat, lon, tagAdjust, 0);
-            if (score > bestScore){
-              bestHost = "dtsc://" + HOST(i).details->host;
-              bestScore = score;
-            }
-          }
-          if (bestScore == 0){
-            if (fback.size()){
-              bestHost = fback;
-            }else{
-              bestHost = fallback;
-            }
-            FAIL_MSG("No source for %s found!", source.c_str());
-          }else{
-            INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
-          }
-          H.SetBody(bestHost);
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Find optimal ingest point
-        if (ingest.size()){
-          double cpuUse = atof(ingest.c_str());
-          INFO_MSG("Finding ingest point for CPU usage %.2f", cpuUse);
-          std::string bestHost = "";
-          std::map<std::string, int32_t> tagAdjust;
-          if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
-          if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
-          double lat = 0;
-          double lon = 0;
-          if (H.GetVar("lat") != ""){
-            lat = atof(H.GetVar("lat").c_str());
-            H.SetVar("lat", "");
-          }
-          if (H.GetVar("lon") != ""){
-            lon = atof(H.GetVar("lon").c_str());
-            H.SetVar("lon", "");
-          }
-          if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-          if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
-          uint64_t bestScore = 0;
-          for (HOSTLOOP){
-            HOSTCHECK;
-            uint64_t score = HOST(i).details->source("", lat, lon, tagAdjust, cpuUse * 10);
-            if (score > bestScore){
-              bestHost = HOST(i).details->host;
-              bestScore = score;
-            }
-          }
-          if (bestScore == 0){
-            if (fback.size()){
-              bestHost = fback;
-            }else{
-              bestHost = fallback;
-            }
-            FAIL_MSG("No ingest point found!");
-          }else{
-            INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
-          }
-          H.SetBody(bestHost);
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-          continue;
-        }
-        // Find host(s) status
-        if (!host.size()){
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            ret[HOST(i).details->host] = stateLookup[hosts[i].state];
-            HOSTCHECK;
-            HOST(i).details->fillState(ret[HOST(i).details->host]);
-          }
-        }else{
-          for (HOSTLOOP){
-            if (hosts[i].state == STATE_OFF){continue;}
-            if (HOST(i).details->host == host){
-              ret = stateLookup[hosts[i].state];
-              HOSTCHECK;
-              HOST(i).details->fillState(ret);
-              break;
-            }
-          }
-        }
-        H.SetBody(ret.toPrettyString());
-        H.setCORSHeaders();
-        H.SendResponse("200", "OK", conn);
-        H.Clean();
-        continue;
-      }
-      // Balance given stream
-      std::string stream = HTTP::URL(H.url).path;
-      std::string proto = H.GetVar("proto");
-      std::map<std::string, int32_t> tagAdjust;
-      if (H.GetVar("tag_adjust") != ""){
-        fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));
-        H.SetVar("tag_adjust", "");
-      }
-      if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
-      H.SetVar("proto", "");
-      double lat = 0;
-      double lon = 0;
-      if (H.GetVar("lat") != ""){
-        lat = atof(H.GetVar("lat").c_str());
-        H.SetVar("lat", "");
-      }
-      if (H.GetVar("lon") != ""){
-        lon = atof(H.GetVar("lon").c_str());
-        H.SetVar("lon", "");
-      }
-      if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-      if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
-      std::string vars = H.allVars();
-      if (stream == "favicon.ico"){
-        H.Clean();
-        H.SendResponse("404", "No favicon", conn);
-        H.Clean();
-        continue;
-      }
-      INFO_MSG("Balancing stream %s", stream.c_str());
-      H.Clean();
-      H.SetHeader("Content-Type", "text/plain");
-      H.setCORSHeaders();
-      hostEntry *bestHost = 0;
-      uint64_t bestScore = 0;
-      for (HOSTLOOP){
-        HOSTCHECK;
-        uint64_t score = HOST(i).details->rate(stream, lat, lon, tagAdjust);
-        if (score > bestScore){
-          bestHost = &HOST(i);
-          bestScore = score;
-        }
-      }
-      if (!bestScore || !bestHost){
-        H.SetBody(fallback);
-        FAIL_MSG("All servers seem to be out of bandwidth!");
-      }else{
-        INFO_MSG("Winner: %s scores %" PRIu64, bestHost->details->host.c_str(), bestScore);
-        bestHost->details->addViewer(stream);
-        H.SetBody(bestHost->details->host);
-      }
-      if (proto != "" && bestHost && bestScore){
-        H.Clean();
-        H.setCORSHeaders();
-        H.SetHeader("Location", bestHost->details->getUrl(stream, proto) + vars);
-        H.SetBody(H.GetHeader("Location"));
-        H.SendResponse("307", "Redirecting", conn);
-        H.Clean();
-      }else{
-        H.SendResponse("200", "OK", conn);
-        H.Clean();
-      }
-    }// if HTTP request received
-  }
-  conn.close();
-  return 0;
-}
 
 void handleServer(void *hostEntryPointer){
   hostEntry *entry = (hostEntry *)hostEntryPointer;
@@ -964,7 +1426,7 @@ int main(int argc, char **argv){
   }
   WARN_MSG("Load balancer activating. Balancing between %lu nodes.", hostsCounter);
 
-  conf.serveThreadedSocket(handleRequest);
+  conf.serveThreadedSocket(API.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");
   }else{
@@ -984,11 +1446,26 @@ void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
   H.state = STATE_BOOT;
-  H.details = new hostDetails();
+  H.details = new hostDetailsCalc();
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = new tthread::thread(handleServer, (void *)&H);
   INFO_MSG("Starting monitoring %s", H.name);
+}
+
+/**
+ * SETUP foreign host
+ */
+void initForeignHost(hostEntry &H, const std::string &N, const std::string &LB){
+  // Cancel if this host has no name or load balancer set
+  if (!N.size() || !LB.size()){return;}
+  H.state = STATE_ONLINE;
+  H.details = new hostDetails(LB);
+  H.LB = LB;
+  memset(H.name, 0, HOSTNAMELEN);
+  memcpy(H.name, N.data(), N.size());
+  H.thread = 0;
+  INFO_MSG("Created foreign server %s", H.name);
 }
 
 void cleanupHost(hostEntry &H){
@@ -996,10 +1473,12 @@ void cleanupHost(hostEntry &H){
   if (!H.name[0]){return;}
   H.state = STATE_GODOWN;
   INFO_MSG("Stopping monitoring %s", H.name);
-  // Clean up thread
-  H.thread->join();
-  delete H.thread;
-  H.thread = 0;
+  if(H.thread){
+    // Clean up thread
+    H.thread->join();
+    delete H.thread;
+    H.thread = 0;
+  }
   // Clean up details
   delete H.details;
   H.details = 0;

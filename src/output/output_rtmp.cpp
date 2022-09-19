@@ -1599,7 +1599,7 @@ namespace Mist{
     while (next.Parse(inputBuffer)){
 
       // send ACK if we received a whole window
-      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size) || Util::bootSecs() > lastAck+15){
+      if ((RTMPStream::rec_cnt - RTMPStream::rec_window_at > RTMPStream::rec_window_size / 4) || Util::bootSecs() > lastAck+15){
         lastAck = Util::bootSecs();
         RTMPStream::rec_window_at = RTMPStream::rec_cnt;
         myConn.SendNow(RTMPStream::SendCTL(3, RTMPStream::rec_cnt)); // send ack (msg 3)

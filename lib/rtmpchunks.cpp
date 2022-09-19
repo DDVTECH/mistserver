@@ -475,6 +475,11 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
     }
     lastrecv[cs_id] = *this;
     RTMPStream::rec_cnt += i + real_len;
+    if (RTMPStream::rec_cnt >= 0xf0000000){
+      INFO_MSG("Resetting receive window due to impending rollover");
+      RTMPStream::rec_cnt -= 0xf0000000;
+      RTMPStream::rec_window_at = 0;
+    }
     if (len_left == 0){
       return true;
     }else{

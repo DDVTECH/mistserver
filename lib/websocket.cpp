@@ -8,6 +8,7 @@
 #include "mbedtls/sha1.h"
 #endif
 
+#if SSL
 // Takes the data from a Sec-WebSocket-Key header, and returns the corresponding data for a Sec-WebSocket-Accept header
 static std::string calculateKeyAccept(std::string client_key){
   client_key += "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -18,6 +19,7 @@ static std::string calculateKeyAccept(std::string client_key){
   mbedtls_sha1_finish(&ctx, outdata);
   return Encodings::Base64::encode(std::string((const char *)outdata, 20));
 }
+#endif
 
 namespace HTTP{
 

@@ -83,7 +83,9 @@ namespace Mist{
     Comms::Users users;
     size_t connectedUsers;
 
+#if SSL
     Encryption::AES aesCipher;
+#endif
 
     IPC::sharedPage streamStatus;
 

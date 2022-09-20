@@ -49,6 +49,14 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
 
 int configSync;
 
+struct streamDetails {
+  uint64_t total;
+  uint32_t inputs;
+  uint32_t bandwidth;
+  uint64_t prevTotal;
+  uint64_t bytesUp;
+  uint64_t bytesDown;
+};
 
 /**
  * class to identify a load balancer
@@ -59,14 +67,76 @@ class LoadBalancer {
   public:
   LoadBalancer(std::string &ip) : ip(ip) {}
   std::string getName() const {return ip;}
-  bool operator < (const LoadBalancer &other) const {return this.getName() < other.getName();}
-  bool operator > (const LoadBalancer &other) const {return this.getName() > other.getName();}
-  bool operator == (const LoadBalancer &other) const {return this.getName() == other.getName();}
-  bool operator == (const std::string &other) const {return this.getName().compare(other);}
+  bool operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
+  bool operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
+  bool operator == (const LoadBalancer &other) const {return this->getName() == other.getName();}
+  bool operator == (const std::string &other) const {return this->getName().compare(other);}
 };
 
 std::set<LoadBalancer> loadBalancers = {};
 
+class outUrl {
+public:
+  std::string pre, post;
+  outUrl(){};
+  outUrl(const std::string &u, const std::string &host){
+    std::string tmp = u;
+    if (u.find("HOST") != std::string::npos){
+      tmp = u.substr(0, u.find("HOST")) + host + u.substr(u.find("HOST") + 4);
+    }
+    size_t dolsign = tmp.find('$');
+    pre = tmp.substr(0, dolsign);
+    if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
+  }
+};
+
+void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
+  std::string out = "\"" + key + "\": [";  
+  for(std::set<std::string>::iterator it = s.begin(); it != s.end(); ++it){
+      if(it != s.begin()){
+        out += ", ";
+      }
+      out += "\"" + *it + "\"";
+  }
+  out += "]";
+  j[key] = out;
+}
+
+void convertMapToJson(JSON::Value j, std::map *s, std::string key){
+  //TODO
+}
+
+int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
+  if (!match.size()){return 0;}
+  bool invert = false;
+  bool haveOne = false;
+  size_t prevPos = 0;
+  if (match[0] == '-'){
+    invert = true;
+    prevPos = 1;
+  }
+  //Check if any matches inside tags
+  size_t currPos = match.find(',', prevPos);
+  while (currPos != std::string::npos){
+    if (tags.count(match.substr(prevPos, currPos-prevPos))){haveOne = true;}
+    prevPos = currPos + 1;
+    currPos = match.find(',', prevPos);
+  }
+  if (tags.count(match.substr(prevPos))){haveOne = true;}
+  //If we have any match, apply adj, unless we're doing an inverted search, then return adj on zero matches
+  if (haveOne == !invert){return adj;}
+  return 0;
+}
+
+inline double toRad(double degree) {
+  return degree / 57.29577951308232087684;
+}
+
+double geoDist(double lat1, double long1, double lat2, double long2) {
+  double dist;
+  dist = sin(toRad(lat1)) * sin(toRad(lat2)) + cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
+  return .31830988618379067153 * acos(dist);
+}
 
 /** 
  * this class is a host
@@ -212,9 +282,15 @@ class hostDetails{
     this->cpu = cpu;
 
   }
+  /**
+   * allow for json inputs instead of sets and maps for update function
+   */
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi){  
+    //TODO convert maps and sets
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, struct streamDetails> streams, std::set<std::string> tags, cpu, servLati, servLongi);
+  }
   
 };
-
 
 /**
  * Class to calculate all precalculated vars of its parent class.
@@ -384,9 +460,9 @@ public:
     j["scoreRate"] = scoreRate;
 
     convertMapToJson(j, &outputs, "outputs");
-    convertSetToJson(j, &conf_streams, "conf_streams");
+    convertSetToJson(j, conf_streams, "conf_streams");
     convertMapToJson(j, &streams, "streams");
-    convertSetToJson(j, &tags, "tags");
+    convertSetToJson(j, tags, "tags");
     
     j["cpu"] = cpu;
     j["servLati"] = servLati;
@@ -531,7 +607,6 @@ public:
   
 };
 
-
 /// Fixed-size struct for holding a host's name and details pointer
 struct hostEntry{
   uint8_t state; // 0 = off, 1 = booting, 2 = running, 3 = requesting shutdown, 4 = requesting clean
@@ -541,6 +616,61 @@ struct hostEntry{
 };
 
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
+
+void handleServer(void *hostEntryPointer){
+  hostEntry *entry = (hostEntry *)hostEntryPointer;
+  JSON::Value bandwidth = 128 * 1024 * 1024u; // assume 1G connection
+  HTTP::URL url(entry->name);
+  if (!url.protocol.size()){url.protocol = "http";}
+  if (!url.port.size()){url.port = "4242";}
+  if (url.path.size()){
+    bandwidth = url.path;
+    bandwidth = bandwidth.asInt() * 1024 * 1024;
+    url.path.clear();
+  }
+  url.path = passphrase + ".json";
+
+  INFO_MSG("Monitoring %s", url.getUrl().c_str());
+  static_cast<hostDetailsCalc*>(entry->details)->availBandwidth = bandwidth.asInt();
+  static_cast<hostDetailsCalc*>(entry->details)->host = url.host;
+  entry->state = STATE_BOOT;
+  bool down = true;
+
+  HTTP::Downloader DL;
+
+  while (cfg->is_active && (entry->state != STATE_GODOWN)){
+    if (DL.get(url) && DL.isOk()){
+      JSON::Value servData = JSON::fromString(DL.data());
+      if (!servData){
+        FAIL_MSG("Can't decode server %s load information", url.host.c_str());
+        static_cast<hostDetailsCalc*>(entry->details)->badNess();
+        DL.getSocket().close();
+        down = true;
+        entry->state = STATE_ERROR;
+      }else{
+        if (down){
+          std::string ipStr;
+          Socket::hostBytesToStr(DL.getSocket().getBinHost().data(), 16, ipStr);
+          WARN_MSG("Connection established with %s (%s)", url.host.c_str(), ipStr.c_str());
+          memcpy(static_cast<hostDetailsCalc*>(entry->details)->binHost, DL.getSocket().getBinHost().data(), 16);
+          entry->state = STATE_ONLINE;
+          down = false;
+        }
+        static_cast<hostDetailsCalc*>(entry->details)->update(servData);
+      }
+    }else{
+      FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
+      static_cast<hostDetailsCalc*>(entry->details)->badNess();
+      DL.getSocket().close();
+      down = true;
+      entry->state = STATE_ERROR;
+    }
+    Util::wait(5000);
+  }
+  WARN_MSG("Monitoring thread for %s stopping", url.host.c_str());
+  DL.getSocket().close();
+  entry->state = STATE_REQCLEAN;
+}
 
 void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
@@ -592,7 +722,6 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     tags[t.key()] = t->asInt();
   }
 }
-
 
 /**
  * class to encase the api
@@ -783,7 +912,7 @@ private:
         INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
         continue;
       }
-      uint64_t score = HOST(i).details->source(source, tagAdjust, 0,lat, lon,);
+      uint64_t score = HOST(i).details->source(source, tagAdjust, 0,lat, lon);
       if (score > bestScore){
         bestHost = "dtsc://" + HOST(i).details->host;
         bestScore = score;
@@ -906,9 +1035,7 @@ private:
         hostIndex = hostsCounter;
         ++hostsCounter;
       }
-      hosts[hostIndex].details.update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), 
-      newVals["scoreRate"].asInt(), newVals["outputs"].asMap(), newVals["conf_streams"].asSet(), newVals["streams"].asMap());            
-            
+      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble());   
     }
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
@@ -1228,135 +1355,6 @@ private:
 };
 
 API api;
-
-struct streamDetails {
-  uint64_t total;
-  uint32_t inputs;
-  uint32_t bandwidth;
-  uint64_t prevTotal;
-  uint64_t bytesUp;
-  uint64_t bytesDown;
-};
-
-class outUrl {
-public:
-  std::string pre, post;
-  outUrl(){};
-  outUrl(const std::string &u, const std::string &host){
-    std::string tmp = u;
-    if (u.find("HOST") != std::string::npos){
-      tmp = u.substr(0, u.find("HOST")) + host + u.substr(u.find("HOST") + 4);
-    }
-    size_t dolsign = tmp.find('$');
-    pre = tmp.substr(0, dolsign);
-    if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
-  }
-};
-
-inline double toRad(double degree) {
-  return degree / 57.29577951308232087684;
-}
-
-double geoDist(double lat1, double long1, double lat2, double long2) {
-  double dist;
-  dist = sin(toRad(lat1)) * sin(toRad(lat2)) + cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
-  return .31830988618379067153 * acos(dist);
-}
-
-int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
-  if (!match.size()){return 0;}
-  bool invert = false;
-  bool haveOne = false;
-  size_t prevPos = 0;
-  if (match[0] == '-'){
-    invert = true;
-    prevPos = 1;
-  }
-  //Check if any matches inside tags
-  size_t currPos = match.find(',', prevPos);
-  while (currPos != std::string::npos){
-    if (tags.count(match.substr(prevPos, currPos-prevPos))){haveOne = true;}
-    prevPos = currPos + 1;
-    currPos = match.find(',', prevPos);
-  }
-  if (tags.count(match.substr(prevPos))){haveOne = true;}
-  //If we have any match, apply adj, unless we're doing an inverted search, then return adj on zero matches
-  if (haveOne == !invert){return adj;}
-  return 0;
-}
-
-void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
-  std::string out = "\"" + key + "\": [";  
-  for(std::set<std::string>::iterator it = s.begin(); it != s.end(); ++it){
-      if(it != s.begin()){
-        out += ", ";
-      }
-      out += "\"" + *it + "\"";
-  }
-  out += "]";
-  j[key] = out;
-}
-
-void convertMapToJson(JSON::Value j, std::map *s, std::string key){
-  //TODO
-}
-
-
-void handleServer(void *hostEntryPointer){
-  hostEntry *entry = (hostEntry *)hostEntryPointer;
-  JSON::Value bandwidth = 128 * 1024 * 1024u; // assume 1G connection
-  HTTP::URL url(entry->name);
-  if (!url.protocol.size()){url.protocol = "http";}
-  if (!url.port.size()){url.port = "4242";}
-  if (url.path.size()){
-    bandwidth = url.path;
-    bandwidth = bandwidth.asInt() * 1024 * 1024;
-    url.path.clear();
-  }
-  url.path = passphrase + ".json";
-
-  INFO_MSG("Monitoring %s", url.getUrl().c_str());
-  static_cast<hostDetailsCalc*>(entry->details)->availBandwidth = bandwidth.asInt();
-  static_cast<hostDetailsCalc*>(entry->details)->host = url.host;
-  entry->state = STATE_BOOT;
-  bool down = true;
-
-  HTTP::Downloader DL;
-
-  while (cfg->is_active && (entry->state != STATE_GODOWN)){
-    if (DL.get(url) && DL.isOk()){
-      JSON::Value servData = JSON::fromString(DL.data());
-      if (!servData){
-        FAIL_MSG("Can't decode server %s load information", url.host.c_str());
-        static_cast<hostDetailsCalc*>(entry->details)->badNess();
-        DL.getSocket().close();
-        down = true;
-        entry->state = STATE_ERROR;
-      }else{
-        if (down){
-          std::string ipStr;
-          Socket::hostBytesToStr(DL.getSocket().getBinHost().data(), 16, ipStr);
-          WARN_MSG("Connection established with %s (%s)", url.host.c_str(), ipStr.c_str());
-          memcpy(static_cast<hostDetailsCalc*>(entry->details)->binHost, DL.getSocket().getBinHost().data(), 16);
-          entry->state = STATE_ONLINE;
-          down = false;
-        }
-        static_cast<hostDetailsCalc*>(entry->details)->update(servData);
-      }
-    }else{
-      FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
-      static_cast<hostDetailsCalc*>(entry->details)->badNess();
-      DL.getSocket().close();
-      down = true;
-      entry->state = STATE_ERROR;
-    }
-    Util::wait(5000);
-  }
-  WARN_MSG("Monitoring thread for %s stopping", url.host.c_str());
-  DL.getSocket().close();
-  entry->state = STATE_REQCLEAN;
-}
-
 
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();

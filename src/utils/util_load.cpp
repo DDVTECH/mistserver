@@ -33,6 +33,12 @@ unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesse
 #define HOSTCHECK                                                                                  \
   if (hosts[i].state != STATE_ONLINE){continue;}
 
+
+#define CONFSTREAMSKEY "conf_streams"
+#define TAGSKEY "tags"
+#define STREAMSKEY "streams"
+#define OUTPUTSKEY "outputs"
+
 #define STATE_OFF 0
 #define STATE_BOOT 1
 #define STATE_ERROR 2
@@ -82,7 +88,7 @@ class LoadBalancer {
   bool operator == (const std::string &other) const {return this->getName().compare(other);}
 };
 
-std::set<LoadBalancer> loadBalancers = {};
+std::set<LoadBalancer> loadBalancers;
 
 class outUrl : public Data {
 public:
@@ -124,6 +130,12 @@ void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string 
   }
   out += "]";
   j[key] = out;
+}
+
+std::set<std::string> convertJsonToSet(JSON::Value j){
+  std::set<std::string> s;
+  //TODO convert JSON to Set
+  return s;
 }
 
 int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
@@ -171,7 +183,7 @@ class hostDetails{
   uint64_t scoreRate;
   std::map<std::string, outUrl> outputs;
   std::set<std::string> conf_streams;
-  std::map<std::string, struct streamDetails> streams;
+  std::map<std::string, streamDetails> streams;
   std::set<std::string> tags;
   uint64_t cpu;
   std::string LB;
@@ -207,7 +219,7 @@ class hostDetails{
   void fillStreamStats(const std::string &s,JSON::Value &r) {
     if(!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+    for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
       const std::string &n = jt->first;
       if(s!= "*" && n!= s && n.substr(0,s.size()+1) != s+"+"){continue;}
       if(!r.isMember(n)){
@@ -287,7 +299,7 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, struct streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi){
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi){
     if(hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
 
@@ -307,7 +319,12 @@ class hostDetails{
    */
   void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi){  
     //TODO convert maps and sets
-    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, struct streamDetails> streams, std::set<std::string> tags, cpu, servLati, servLongi);
+    std::map<std::string, outUrl> out;
+    std::map<std::string, streamDetails> s;
+    for(int i = 0; i < streams.size(); i++){
+      s.insert(streams[STREAMSKEY][i]);
+    }
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi);
   }
   
 };
@@ -319,7 +336,7 @@ class hostDetails{
 class hostDetailsCalc : public hostDetails {
 private:
   tthread::mutex *hostMutex;
-  std::map<std::string, struct streamDetails> streams;
+  std::map<std::string, streamDetails> streams;
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
   std::map<std::string, outUrl> outputs;
@@ -401,7 +418,7 @@ public:
   void fillStreams(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    for (std::map<std::string, struct streamDetails>::iterator jt = streams.begin();
+    for (std::map<std::string, streamDetails>::iterator jt = streams.begin();
          jt != streams.end(); ++jt){
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
@@ -479,10 +496,10 @@ public:
     j["scoreSource"] = scoreSource;
     j["scoreRate"] = scoreRate;
 
-    convertMapToJson(j, outputs, "outputs");
-    convertSetToJson(j, conf_streams, "conf_streams");
-    convertMapToJson(j, streams, "streams");
-    convertSetToJson(j, tags, "tags");
+    convertMapToJson(j, outputs, OUTPUTSKEY);
+    convertSetToJson(j, conf_streams, CONFSTREAMSKEY);
+    convertMapToJson(j, streams, STREAMSKEY);
+    convertSetToJson(j, tags, TAGSKEY);
     
     j["cpu"] = cpu;
     j["servLati"] = servLati;
@@ -583,7 +600,7 @@ public:
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
         }
-        struct streamDetails &strm = streams[it.key()];
+        streamDetails &strm = streams[it.key()];
         strm.total = (*it)["curr"][0u].asInt();
         strm.inputs = (*it)["curr"][1u].asInt();
         strm.bytesUp = (*it)["bw"][0u].asInt();
@@ -602,7 +619,7 @@ public:
       }
       if (streams.size()){
         std::set<std::string> eraseList;
-        for (std::map<std::string, struct streamDetails>::iterator it = streams.begin();
+        for (std::map<std::string, streamDetails>::iterator it = streams.begin();
              it != streams.end(); ++it){
           if (!d["streams"].isMember(it->first)){eraseList.insert(it->first);}
         }
@@ -1026,7 +1043,7 @@ private:
 
     if(configSync){
       if(!resend.size() || atoi(resend.c_str()) == 1){
-        for(int i = 0; i < loadBalancers.size(); i++){
+        for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
           //TODO call change config on lb
         }
       }else {
@@ -1277,7 +1294,10 @@ private:
   void static setConfigSync(Socket::Connection conn, HTTP::Parser H, const std::string changeConfigSync){
     try{
       configSync = atoi(changeConfigSync.c_str());
-      //TODO send to other load balancers
+      
+      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+        //TODO send to other load balancers
+      }
     }catch() {
       //TODO message argument error
       H.SetBody("Configuration Syncronisation is turned off! ");
@@ -1324,7 +1344,7 @@ private:
     }
     
     if(!resend.size() || atoi(resend.c_str()) == 1){
-      for(int i = 0; i < loadBalancers.size(); i++){
+      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         //TODO send to other load balancers
       }
       //TODO send LBList to ip in addLoadBalancer
@@ -1481,6 +1501,7 @@ int main(int argc, char **argv){
   conf.activate();
 
   api = API();
+  loadBalancers = std::set<LoadBalancer>();
 
   std::map<std::string, tthread::thread *> threads;
   jsonForEach(nodes, it){

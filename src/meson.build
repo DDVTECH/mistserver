@@ -1,0 +1,19 @@
+io_cpp = files('io.cpp')
+
+subdir('analysers')
+subdir('utils')
+subdir('input')
+subdir('output')
+subdir('process')
+subdir('controller')
+
+executables += {
+    'name': 'relaccxsampler',
+    'sources': [
+        files('relaccxsampler.cpp'),
+        header_tgts,
+     ],
+    'link': libmist,
+    'deps': [],
+    'defines': [],
+}

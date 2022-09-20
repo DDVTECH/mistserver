@@ -1,0 +1,7 @@
+subdir('analysers')
+subdir('utils')
+subdir('input')
+subdir('output')
+subdir('process')
+subdir('controller')
+relaccxsampler = executable('relaccxsampler', 'relaccxsampler.cpp', header_tgts, include_directories: incroot, link_with: libmist, install: true)

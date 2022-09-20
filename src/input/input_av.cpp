@@ -21,9 +21,16 @@ namespace Mist{
     capa["source_file"] = "$source";
     capa["priority"] = 1;
     capa["codecs"].null();
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
-    AVCodec *cInfo = 0;
+#endif
+    const AVCodec *cInfo = 0;
+#if (LIBAVCODEC_VERSION_MAJOR < 59)
     while ((cInfo = av_codec_next(cInfo)) != 0){
+#else
+    void *i = 0;
+    while ((cInfo = av_codec_iterate(&i))) {
+#endif
       if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"]["video"].append(cInfo->name);}
       if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"]["audio"].append(cInfo->name);}
       if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"]["subtitle"].append(cInfo->name);}
@@ -57,7 +64,9 @@ namespace Mist{
     // make sure all av inputs are registered properly, just in case
     // the constructor already does this, but under windows it doesn't remember that it has.
     // Very sad, that. We may need to get windows some medication for it.
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
+#endif
 
     // close any already open files
     if (pFormatCtx){
@@ -86,8 +95,11 @@ namespace Mist{
   }
 
   bool inputAV::readHeader(){
-    for (unsigned int i = 0; i < pFormatCtx->nb_streams;){
-      AVStream *strm = pFormatCtx->streams[i++];
+    if (!meta || (needsLock() && isSingular())){
+      meta.reInit(isSingular() ? streamName : "");
+    }
+    for (unsigned int i = 0; i < pFormatCtx->nb_streams;++i){
+      AVStream *strm = pFormatCtx->streams[i];
       size_t idx = meta.addTrack();
       meta.setID(idx, i);
       switch (strm->codecpar->codec_id){
@@ -162,10 +174,6 @@ namespace Mist{
       size_t idx = meta.trackIDToIndex(packet.stream_index);
       if (idx == INVALID_TRACK_ID){continue;}
       if (wantIdx != INVALID_TRACK_ID && idx != wantIdx){continue;}
-      if (!userSelect.count(idx)){
-        HIGH_MSG("Track %u not selected", packet.stream_index);
-        continue;
-      }
       AVStream *strm = pFormatCtx->streams[packet.stream_index];
       long long packTime = (packet.dts * 1000 * strm->time_base.num / strm->time_base.den);
       long long packOffset = 0;
@@ -179,7 +187,7 @@ namespace Mist{
       }
       thisTime = packTime;
       thisIdx = idx;
-      thisPacket.genericFill(packTime, packOffset, thisIdx,
+      thisPacket.genericFill(packTime, packOffset, packet.stream_index,
                              (const char *)packet.data, packet.size, 0, isKey);
       av_packet_unref(&packet);
       return; // success!

@@ -490,9 +490,9 @@ public:
 
     //TODO: what if load balancer crashed
     //TODO send to other load balancers
-    for(const LoadBalancer lb: loadBalancers){
+    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       HTTP::Parser H;
-      HTTP::URL url(lb.getName()+ "/updateHost");
+      HTTP::URL url((*it).getName()+ "/updateHost");
       HTTP::Downloader DL;
     
       /*DL.post(url,j);
@@ -1026,7 +1026,7 @@ private:
 
     if(configSync){
       if(!resend.size() || atoi(resend.c_str()) == 1){
-        for(const LoadBalancer lb : loadBalancers){
+        for(int i = 0; i < loadBalancers.size(); i++){
           //TODO call change config on lb
         }
       }else {
@@ -1301,7 +1301,7 @@ private:
       
     
     if(!resend.size() || atoi(resend.c_str()) ==1){
-      for(const LoadBalancer &lb : loadBalancers){
+      for(int i = 0; i < loadBalancers.size(); i++){
         //TODO this api call on lb
       }
     }
@@ -1324,7 +1324,7 @@ private:
     }
     
     if(!resend.size() || atoi(resend.c_str()) == 1){
-      for(const LoadBalancer &lb : loadBalancers){
+      for(int i = 0; i < loadBalancers.size(); i++){
         //TODO send to other load balancers
       }
       //TODO send LBList to ip in addLoadBalancer

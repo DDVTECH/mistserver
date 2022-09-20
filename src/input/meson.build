@@ -1,0 +1,86 @@
+inputs = [
+    {'name' : 'HLS', 'format' : 'hls'},
+    {'name' : 'DTSC', 'format' : 'dtsc'},
+    {'name' : 'MP3', 'format' : 'mp3'},
+    {'name' : 'FLV', 'format' : 'flv'},
+    {'name' : 'OGG', 'format' : 'ogg'},
+    {'name' : 'Buffer', 'format' : 'buffer'},
+    {'name' : 'H264', 'format' : 'h264'},
+    {'name' : 'EBML', 'format' : 'ebml'},
+    {'name' : 'ISMV', 'format' : 'ismv'},
+    {'name' : 'MP4', 'format' : 'mp4'},
+    {'name' : 'TS', 'format' : 'ts'},
+    {'name' : 'Folder', 'format' : 'folder'},
+    {'name' : 'Playlist', 'format' : 'playlist'},
+    {'name' : 'Balancer', 'format' : 'balancer'},
+    {'name' : 'RTSP', 'format' : 'rtsp'},
+    {'name' : 'SRT', 'format' : 'srt'},
+    {'name' : 'SDP', 'format' : 'sdp'},
+    {'name' : 'AAC', 'format' : 'aac'},
+]
+
+#Referenced by process targets
+input_ebml_cpp = files('input_ebml.cpp')
+input_cpp = files('input.cpp')
+
+if have_librist
+  inputs += {'name' : 'TSRIST', 'format' : 'tsrist', 'extra' : 'with_rist'}
+endif
+
+if have_srt
+  inputs += {'name' : 'TSSRT', 'format' : 'tssrt', 'extra' : 'with_srt'}
+endif
+
+av_libs = []
+
+if get_option('WITH_AV')
+  inputs += {'name' : 'AV', 'format' : 'av'}
+  av_libs = [
+    dependency('libavformat'),
+    dependency('libavcodec'),
+    dependency('libavutil'),
+  ]
+endif
+
+inputs_tgts = []
+
+foreach input : inputs
+  link_libs = [libmist]
+  deps = []
+
+  if input.has_key('extra')
+    if input.get('extra').contains('with_rist')
+      deps += librist
+    endif
+    if input.get('extra').contains('with_srt')
+      link_libs += libmist_srt
+      deps += libsrt
+    endif
+  endif
+  if input.get('name').contains('AV')
+    deps += av_libs
+  endif
+  if input.get('name').contains('HLS')
+    deps += ssl_deps
+  endif
+
+  executables += {
+    'name' : 'MistIn'+input.get('name'),
+    'sources' : [
+      files(
+        'mist_in.cpp',
+        'input.cpp',
+        'input_'+input.get('format')+'.cpp',
+      ),
+      io_cpp,
+      header_tgts
+    ],
+    'link' : link_libs,
+    'deps' : deps,
+    'inc': [],
+    'defines': [
+      string_opt.format('INPUTTYPE', 'input_'+input.get('format')+'.h')
+    ]
+  }
+endforeach
+

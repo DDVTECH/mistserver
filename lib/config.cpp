@@ -309,10 +309,6 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
     case 'h':
     case '?': printHelp(std::cout);
     case 'v': std::cout << "Version: " PACKAGE_VERSION ", release " RELEASE << std::endl;
-#ifdef NOCRASHCHECK
-      std::cout << "- Flag: No crash check. Will not attempt to detect and kill crashed processes."
-                << std::endl;
-#endif
 #ifndef SHM_ENABLED
       std::cout << "- Flag: Shared memory disabled. Will use shared files in stead of shared "
                    "memory as IPC method."
@@ -331,7 +327,7 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
       }
 #endif
 #ifndef SSL
-      std::cout << "- Flag: SSL support disabled. HTTPS/RTMPS are unavailable." << std::endl;
+      std::cout << "- Flag: SSL support disabled. HTTPS/RTMPS/WebRTC/WebSockets are either unavailable or may not function fully." << std::endl;
 #endif
 /*LTS-START*/
 #ifndef UPDATER
@@ -342,11 +338,6 @@ bool Util::Config::parseArgs(int &argc, char **&argv){
 #ifdef NOAUTH
       std::cout << "- Flag: No authentication. API calls do not require logging in with a valid "
                    "account first. Make sure access to API port isn't public!"
-                << std::endl;
-#endif
-#ifdef KILLONEXIT
-      std::cout << "- Flag: Kill on exit. All binaries will forcibly shut down all their children "
-                   "on exit. Rolling restart support is disabled."
                 << std::endl;
 #endif
 #ifdef STATS_DELAY

@@ -78,12 +78,6 @@ if (FILLER_DATA AND SHARED_SECRET AND SUPER_SECRET)
 add_definitions(-DFILLER_DATA="${FILLER_DATA}" -DSHARED_SECRET="${SHARED_SECRET}" -DSUPER_SECRET="${SUPER_SECRET}")#LTS
 endif()
 
-option(GEOIP "Enable GeoIP capabilities (deprecated)")
-if (GEOIP)
-  add_definitions(-DGEOIP=1)
-  message("GeoIP is turned ON")
-endif()
-
 option(NOSSL "Disable SSL/TLS support")
 if (NOT NOSSL)
   add_definitions(-DSSL=1)
@@ -104,19 +98,9 @@ if (NOT NOUPDATE)
   add_definitions(-DUPDATER=1)
 endif()
 
-option(PERPETUAL "Disable the licensing system")
-if (NOT PERPETUAL)
-  add_definitions(-DLICENSING=1)
-endif()
-
 option(NOAUTH "Disable API authentication entirely (insecure!)")
 if (NOAUTH)
   add_definitions(-DNOAUTH=1)
-endif()
-
-option(KILLONEXIT "Kill all processes on exit, ensuring nothing is running anymore (disables rolling restart/update support)")
-if (KILLONEXIT)
-  add_definitions(-DKILLONEXIT=true)
 endif()
 
 if (DEFINED UDP_API_HOST )
@@ -138,11 +122,6 @@ endif()
 option(WITH_THREADNAMES "Enable fancy names for threads (not supported on all platforms)")
 if (WITH_THREADNAMES)
   add_definitions(-DWITH_THREADNAMES=1)
-endif()
-
-option(NOCRASHCHECK "Disables the crash check in the controller stats and input userpages. Prevents killing processes that are stalled/stuck.")
-if (NOCRASHCHECK)
-  add_definitions(-DNOCRASHCHECK=1)
 endif()
 
 if (DEFINED STATS_DELAY)
@@ -690,6 +669,8 @@ install(
 ########################################
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
+  set(DOXY_LAYOUT "${SOURCE_DIR}/DoxygenLayout.xml")
+  set(INPUT_DIRS "${SOURCE_DIR}/src ${SOURCE_DIR}/lib")
   configure_file(${SOURCE_DIR}/Doxyfile.in ${BINARY_DIR}/Doxyfile @ONLY)
   add_custom_target( docs
     ${DOXYGEN_EXECUTABLE} ${BINARY_DIR}/Doxyfile
@@ -730,17 +711,6 @@ else()
     message(FATAL_ERROR "Cross compiling and no usable sourcery binary found - please supply it")
   endif()
 endif()
-
-########################################
-# RelAccX Sampler                      #
-########################################
-  add_executable(RelAccXSampler
-    src/relaccxsampler.cpp
-    ${BINARY_DIR}/mist/.headers
-  )
-  target_link_libraries(RelAccXSampler
-    mist 
-  )
 
 ########################################
 # Embed Code                           #

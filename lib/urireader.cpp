@@ -11,7 +11,7 @@
 
 namespace HTTP{
 
-#ifndef NOSSL
+#ifdef SSL
   inline bool s3CalculateSignature(std::string& signature, const std::string method, const std::string date, const std::string& requestPath, const std::string& accessKey, const std::string& secret) {
     std::string toSign = method + "\n\n\n" + date + "\n" + requestPath;
     unsigned char signatureBytes[MBEDTLS_MD_MAX_SIZE];
@@ -32,11 +32,11 @@ namespace HTTP{
     signature = "AWS " + accessKey + ":" + base64encoded;
     return true;
   }
-#endif // ifndef NOSSL
+#endif // ifdef SSL
 
 
   inline HTTP::URL injectHeaders(const HTTP::URL& url, const std::string & method, HTTP::Downloader & downer) {
-#ifndef NOSSL
+#ifdef SSL
     // Input url == s3+https://s3_key:secret@storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
     // Transform to: 
     // url=https://storage.googleapis.com/alexk-dms-upload-test/testvideo.ts
@@ -61,7 +61,7 @@ namespace HTTP{
       }
       return newUrl;
     }
-#endif // ifndef NOSSL
+#endif // ifdef SSL
     return url;
   }
 
@@ -154,7 +154,7 @@ namespace HTTP{
     }
 
     // prepare for s3 and http
-#ifndef NOSSL
+#ifdef SSL
     // In case of s3 URI we prepare HTTP request with AWS authorization and rely on HTTP logic below
     if (myURI.protocol == "s3+https" || myURI.protocol == "s3+http"){
       // Check fallback to global credentials in env vars
@@ -177,7 +177,7 @@ namespace HTTP{
       myURI = injectHeaders(originalUrl, "", downer);
       // Do not return, continue to HTTP case
     }
-#endif // ifndef NOSSL
+#endif // ifdef SSL
 
     // HTTP, stream or regular download?
     if (myURI.protocol == "http" || myURI.protocol == "https"){

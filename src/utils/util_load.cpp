@@ -58,7 +58,7 @@ class LoadBalancer {
   std::string ip;
   public:
   LoadBalancer(std::string &ip) : ip(ip) {}
-  std::string getName(){return ip;}
+  std::string getName() const {return ip;}
   bool operator < (const LoadBalancer &other) const {return this.getName() < other.getName();}
   bool operator > (const LoadBalancer &other) const {return this.getName() > other.getName();}
   bool operator == (const LoadBalancer &other) const {return this.getName() == other.getName();}
@@ -626,7 +626,7 @@ public:
         std::string addserver = H.GetVar("addserver");
         std::string delserver = H.GetVar("delserver");
         std::string weights = H.GetVar("weights");
-        std::string updateHost = H.GetVar("updateHosts");
+        std::string hostUpdate = H.GetVar("updateHosts");
         std::string hostToRemove = H.GetVar("removeHost");
         std::string viewer = H.GetVar("addViewer");
         std::string changeConfigSync = H.GetVar("configSync");
@@ -666,8 +666,8 @@ public:
                   
         }
         //receive host data
-        else if(updateHosts.size()){
-          updateHost(conn, H);
+        else if(hostUpdate.size()){
+          updateHost(conn, H, JSON::fromString(hostUpdate));
         }
         // Get/set weights
         else if (weights.size()){
@@ -699,11 +699,11 @@ public:
         }
         // Find source for given stream
         else if (source.size()){
-          getSource(conn, H, source);
+          getSource(conn, H, source, fback);
         }
         // Find optimal ingest point
         else if (ingest.size()){
-          getIngest(conn, H, ingest);
+          getIngest(conn, H, ingest, fback);
         }
         // Find host(s) status
         else if (!host.size()){
@@ -726,7 +726,15 @@ private:
   * returns load balancer list
   */
   void static getLoadBalancerList(Socket::Connection conn, HTTP::Parser H){
-    H.SetBody(loadBalancers.ToString());
+    std::string out = "\"lblist\": [";  
+    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      if(it != loadBalancers.begin()){
+        out += ", ";
+      }
+      out += "\"" + (*it).getName() + "\"";
+    }
+    out += "]";
+    H.SetBody(out);
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
     H.Clean();
@@ -750,7 +758,7 @@ private:
   /**
    * return the best source of a stream
    */
-  void static getSource(Socket::Connection conn, HTTP::Parser H, const std::string source){
+  void static getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback){
     INFO_MSG("Finding source for stream %s", source.c_str());
     std::string bestHost = "";
     std::map<std::string, int32_t> tagAdjust;
@@ -886,8 +894,7 @@ private:
   /**
    * receive server updates and adds new foreign hosts if needed
    */
-  void static updateHost(Socket::Connection conn, HTTP::Parser H){
-    JSON::Value newVals = JSON::fromString(updateHost);
+  void static updateHost(Socket::Connection conn, HTTP::Parser H, JSON::Value newVals){
     if(newVals.isMember("hostName")){
       std::string hostName = newVals["hostName"].asString();
       int hostIndex = -1;
@@ -911,7 +918,7 @@ private:
   /**
    * return ingest point
    */
-  void static getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest){
+  void static getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback){
     double cpuUse = atoi(ingest.c_str());
     INFO_MSG("Finding ingest point for CPU usage %.2f", cpuUse);
     std::string bestHost = "";
@@ -1104,7 +1111,7 @@ private:
   /**
    * add viewer to stream on server
    */
-  void static addViewer(Socket::Connection conn, HTTP::Parser H, const std::string stream, const std::string addViewer){
+  void static addViewer(Socket::Connection conn, HTTP::Parser H, std::string stream, const std::string addViewer){
     for(HOSTLOOP){
       if(hosts[i].name == addViewer){
         //next line can cause infinate loop if LB ip is 

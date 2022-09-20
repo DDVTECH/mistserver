@@ -1361,17 +1361,24 @@ namespace Mist{
                 encryption = M.getEncryption(idx);
                 std::string encryptionKey =
                     Encodings::Hex::decode(encryption.substr(encryption.find(":") + 1));
+#if SSL//FIXME!!!
                 aesCipher.setEncryptKey(encryptionKey.c_str());
+#endif
               }
               if (encryption.substr(0, encryption.find('/')) == "CTR128"){
+#if SSL
                 DTSC::Packet encPacket = aesCipher.encryptPacketCTR(
                     M, thisPacket, M.getIvec(idx) + M.getPartIndex(thisTime, idx), idx);
                 thisPacket = encPacket;
+#endif
+
               }else if (encryption.substr(0, encryption.find('/')) == "CBC128"){
                 char ivec[] ={0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
                 Bit::htobll(ivec + 8, M.getIvec(idx) + M.getPartIndex(thisTime, idx));
+#if SSL
                 DTSC::Packet encPacket = aesCipher.encryptPacketCBC(M, thisPacket, ivec, idx);
                 thisPacket = encPacket;
+#endif
               }
             }else{
               thisPacket = DTSC::Packet(thisPacket, idx);

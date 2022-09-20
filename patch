@@ -1,0 +1,300 @@
+diff --git a/lib/rtp.cpp b/lib/rtp.cpp
+index dd525165..6e248403 100644
+--- a/lib/rtp.cpp
++++ b/lib/rtp.cpp
+@@ -8,6 +8,7 @@
+ #include "sdp.h"
+ #include "timing.h"
+ #include <arpa/inet.h>
++#include <cstdint>
+ 
+ namespace RTP{
+   double Packet::startRTCP = 0;
+@@ -768,6 +769,7 @@ namespace RTP{
+   /// Automatically sorts them, waiting when packets come in slow or not at all.
+   /// Calls the callback with packets in sorted order, whenever it becomes possible to do so.
+   void Sorter::addPacket(const Packet &pack){
++    uint64_t now = Util::bootMS();
+     uint16_t pSNo = pack.getSequence();
+     if (first){
+       rtpWSeq = pSNo;
+@@ -796,6 +798,22 @@ namespace RTP{
+     //Update wanted counter if we passed it (1 of 2)
+     if ((int16_t)(rtpWSeq - rtpSeq) < 0){rtpWSeq = rtpSeq;}
+     // packet is somewhat early - ask for packet after PACKET_REORDER_WAIT packets
++    if (pSNo != rtpWSeq) {
++      uint16_t missingCount = pSNo - rtpWSeq;
++      uint64_t timeDifPerPack = (now - lastGoodInputMs) / missingCount;
++      uint64_t nextInput = lastGoodInputMs + timeDifPerPack;
++      while (rtpWSeq != pSNo) {
++        wantedSeqs.insert(rtpWSeq);
++        missing[rtpWSeq] = Missing();
++        missing[rtpWSeq].attempts = 0;
++        missing[rtpWSeq].finalDeadline = nextInput + BUFFERTIME;
++        missing[rtpWSeq].nextNack = nextInput + RTT;
++        rtpWSeq++;
++        nextInput += timeDifPerPack;
++      }
++      if (now < nextInput)
++        now = nextInput;
++    }
+     while ((int16_t)(rtpWSeq - pSNo) < -(int)PACKET_REORDER_WAIT){
+       //Only wanted if we don't already have it
+       if (!packBuffer.count(rtpWSeq)){
+@@ -805,12 +823,16 @@ namespace RTP{
+     }
+     // send any buffered packets we may have
+     uint16_t prertpSeq = rtpSeq;
+-    while (packBuffer.count(rtpSeq)){
+-      outPacket(packTrack, packBuffer[rtpSeq]);
+-      packBuffer.erase(rtpSeq);
+-      ++rtpSeq;
+-      ++packTotal;
+-      ++packCurrent;
++    while (bufferedPackSeqs.size() > 0) {
++      uint16_t outSeq = bufferedPackSeqs.begin()->second;
++      uint64_t inputTime = bufferedPackSeqs.begin()->first;
++      if ((inputTime + BUFFERTIME) < now)
++        break;
++      const Packet &outP = packBuffer[outSeq];
++      outPacket(packTrack, outP);
++      rtpSeq = outSeq;
++      bufferedPackSeqs.erase(bufferedPackSeqs.begin());
++      packBuffer.erase(outSeq);
+     }
+     if (prertpSeq != rtpSeq){
+       INFO_MSG("Sent packets %" PRIu16 "-%" PRIu16 ", now %zu in buffer", prertpSeq, rtpSeq, packBuffer.size());
+@@ -819,6 +841,17 @@ namespace RTP{
+     if ((int16_t)(rtpSeq - pSNo) < 0){
+       VERYHIGH_MSG("Buffering early packet #%u->%u", rtpSeq, pack.getSequence());
+       packBuffer[pack.getSequence()] = pack;
++      if (wantedSeqs.count(pSNo) >0) {
++        const Missing &m = missing[pSNo];
++        now = m.finalDeadline;
++        missing.erase(pSNo);
++        wantedSeqs.erase(pSNo);
++      } else {
++        if (now < lastGoodInputMs)
++          now = lastGoodInputMs+1;
++        lastGoodInputMs = now;
++      }
++      bufferedPackSeqs.insert(std::pair<uint64_t, uint16_t>(now, pSNo));
+     }
+     // packet is late
+     if ((int16_t)(rtpSeq - pSNo) > 0){
+diff --git a/lib/rtp.h b/lib/rtp.h
+index 2a277438..efb8e733 100644
+--- a/lib/rtp.h
++++ b/lib/rtp.h
+@@ -8,6 +8,7 @@
+ #include "socket.h"
+ #include "util.h"
+ #include <algorithm>
++#include <cstdint>
+ #include <cstdio>
+ #include <deque>
+ #include <iomanip>
+@@ -127,6 +128,16 @@ namespace RTP{
+     std::string toString() const;
+   };
+ 
++#define BUFFERTIME 500 //FIXME
++#define RTT 10 // FIXME
++
++  class Missing{
++  public:
++    uint64_t nextNack;
++    uint64_t finalDeadline;
++    uint16_t attempts;
++  };
++
+   /// Sorts RTP packets, outputting them through a callback in correct order.
+   /// Also keeps track of statistics, which it expects to be read/reset externally (for now).
+   /// Optionally can be inherited from with the outPacket function overridden to not use a callback.
+@@ -146,11 +157,14 @@ namespace RTP{
+     bool preBuffer;
+     int32_t lostTotal, lostCurrent;
+     uint32_t packTotal, packCurrent;
++    uint64_t lastGoodInputMs;
+     std::set<uint16_t> wantedSeqs;
++    std::map<uint16_t, Missing> missing;
+     uint32_t lastNTP; ///< Middle 32 bits of last Sender Report NTP timestamp
+     uint64_t lastBootMS; ///< bootMS time of last Sender Report
+   private:
+     uint64_t packTrack;
++    std::set<std::pair<uint64_t, uint16_t> > bufferedPackSeqs;
+     std::map<uint16_t, Packet> packBuffer;
+     std::map<uint16_t, Packet> packetHistory;
+     void (*callback)(const uint64_t track, const Packet &p);
+diff --git a/lib/socket.cpp b/lib/socket.cpp
+index 22f5e32b..8f59e4f6 100644
+--- a/lib/socket.cpp
++++ b/lib/socket.cpp
+@@ -2047,6 +2047,10 @@ bool Socket::UDPConnection::Receive(){
+   return (r > 0);
+ }
+ 
++void Socket::UDPConnection::SetDCSP(Socket::DCSP dcsp){
++  setsockopt(sock, IPPROTO_IP, IP_TOS, static_cast<void *>(&dcsp), sizeof(dcsp));
++}
++
+ int Socket::UDPConnection::getSock(){
+   return sock;
+ }
+diff --git a/lib/socket.h b/lib/socket.h
+index a85fbf39..55c9f505 100644
+--- a/lib/socket.h
++++ b/lib/socket.h
+@@ -191,6 +191,13 @@ namespace Socket{
+     int getSocket();   ///< Returns internal socket number.
+   };
+ 
++  enum DCSP {
++    AF21 = 18 <<2,
++    AF31 = 26 <<2,
++    AF41 = 34 <<2,
++    CS5  = 40 <<2,
++  };
++
+   class UDPConnection{
+   private:
+     int sock;                   ///< Internally saved socket number.
+@@ -224,5 +231,6 @@ namespace Socket{
+     void SendNow(const char *data);
+     void SendNow(const char *data, size_t len);
+     void setSocketFamily(int AF_TYPE);
++    void SetDCSP(DCSP dcsp);
+   };
+ }// namespace Socket
+diff --git a/src/input/input_webrtc.cpp b/src/input/input_webrtc.cpp
+index 2ba1b24e..74e4a25d 100644
+--- a/src/input/input_webrtc.cpp
++++ b/src/input/input_webrtc.cpp
+@@ -1,4 +1,7 @@
+ #include "input_webrtc.h"
++#include "lib/defines.h"
++#include "lib/rtp.h"
++#include <cstdint>
+ #include <ifaddrs.h> // ifaddr, listing ip addresses.
+ #include <mist/procs.h>
+ #include <mist/sdp.h>
+@@ -507,6 +510,8 @@ bool InputWebRTC::parseAnswer(const std::string &ans){
+       bindAddr = config->getString("pubhost");
+     }
+     sdpAnswer.setCandidate(bindAddr, udpPort);
++
++    udp.SetDCSP(Socket::DCSP::CS5);
+     return true;
+   }
+ 
+@@ -732,13 +737,51 @@ bool InputWebRTC::parseAnswer(const std::string &ans){
+         rtcTrack.sorter.addPacket(unprotPack);
+       }
+ 
+-      //Send NACKs for packets that we still need
+-      while (rtcTrack.sorter.wantedSeqs.size()){
+-        uint16_t sNum = *(rtcTrack.sorter.wantedSeqs.begin());
+-        stats_nacknum++;
+-        totalRetrans++;
+-        sendRTCPFeedbackNACK(rtcTrack, sNum);
+-        rtcTrack.sorter.wantedSeqs.erase(sNum);
++      if (rtcTrack.sorter.wantedSeqs.size() > 0) {
++        std::set<uint16_t>::iterator it;
++        std::set<uint16_t> reqSeq;
++        for (it = rtcTrack.sorter.wantedSeqs.begin(); it != rtcTrack.sorter.wantedSeqs.end(); ++it) {
++          uint16_t sNo = *it;
++          if (!rtcTrack.sorter.missing.count(sNo)) {
++            FAIL_MSG("Sequence number in missing set, but no missing buf found");
++            --it;//Decrement iterator so we don't run into undefined behavior
++            rtcTrack.sorter.wantedSeqs.erase(sNo);
++            continue;
++          }
++          RTP::Missing &m = rtcTrack.sorter.missing[sNo];
++          if (lastRecv > m.finalDeadline) {
++            rtcTrack.sorter.missing.erase(sNo);
++            --it;//Decrement iterator so we don't run into undefined behavior
++            rtcTrack.sorter.wantedSeqs.erase(sNo);
++            continue;
++          }
++          if (lastRecv < m.nextNack)
++            continue;
++
++          //Bitmask is full / sequence number would exceed, send it
++          if (reqSeq.size() > 0 && (((uint16_t)(*(reqSeq.begin()) - sNo) > 17) || reqSeq.size() == 17)) {
++            uint16_t bitmask = 0;
++            std::set<uint16_t>::iterator iit = ++reqSeq.begin();
++            uint16_t start = *(reqSeq.begin());
++            for (;iit != reqSeq.end(); ++it) {
++              bitmask |= 1UL << (uint16_t)(*it - start);
++            }
++            sendRTCPFeedbackNACK(rtcTrack, start, bitmask);
++            reqSeq.clear();
++          }
++          reqSeq.insert(sNo);
++          m.nextNack += RTT;
++        }
++
++        //Send any remaining items still in the set
++        uint16_t bitmask = 0;
++        std::set<uint16_t>::iterator iit = ++reqSeq.begin();
++        uint16_t start = *(reqSeq.begin());
++        for (;iit != reqSeq.end(); ++it) {
++          bitmask |= 1UL << (uint16_t)(*it - start);
++        }
++        sendRTCPFeedbackNACK(rtcTrack, start, bitmask);
++        reqSeq.clear();
+       }
+ 
+     }else{
+@@ -937,7 +980,7 @@ bool InputWebRTC::parseAnswer(const std::string &ans){
+   // describes the use of the `BLP` field; when more successive
+   // sequence numbers are lost it makes sense to implement this
+   // too.
+-  void InputWebRTC::sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack, uint16_t lostSequenceNumber){
++  void InputWebRTC::sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack, uint16_t lostSequenceNumber, uint16_t bitmask){
+     VERYHIGH_MSG("Requesting missing sequence number %u", lostSequenceNumber);
+ 
+     std::vector<uint8_t> buffer;
+@@ -955,8 +998,8 @@ bool InputWebRTC::parseAnswer(const std::string &ans){
+     buffer.push_back((rtcTrack.SSRC) & 0xFF);           // ssrc of receiver
+     buffer.push_back((lostSequenceNumber >> 8) & 0xFF); // PID: missing sequence number
+     buffer.push_back((lostSequenceNumber)&0xFF);        // PID: missing sequence number
+-    buffer.push_back(0x00); // BLP: Bitmask of following losses. (not implemented atm).
+-    buffer.push_back(0x00); // BLP: Bitmask of following losses. (not implemented atm).
++    buffer.push_back((bitmask >> 8) & 0xFF); // BLP: Bitmask of following losses.
++    buffer.push_back(bitmask & 0xFF); // BLP: Bitmask of following losses.
+ 
+     // protect.
+     int buffer_size_in_bytes = (int)buffer.size();
+diff --git a/src/input/input_webrtc.h b/src/input/input_webrtc.h
+index 167e7af7..782952c8 100644
+--- a/src/input/input_webrtc.h
++++ b/src/input/input_webrtc.h
+@@ -100,7 +100,7 @@ namespace Mist{
+                                      const SDP::MediaFormat &formatAnswer, WebRTCTrack &result);
+     void sendRTCPFeedbackRR(WebRTCTrack &rtcTrack);
+     void sendRTCPFeedbackNACK(const WebRTCTrack &rtcTrack,
+-                              uint16_t missingSequenceNumber); ///< Notify sender that we're missing a sequence number.
++                              uint16_t missingSequenceNumber, uint16_t bitmask = 0); ///< Notify sender that we're missing a sequence number.
+     void sendSPSPPS(size_t dtscIdx,
+                     WebRTCTrack &rtcTrack); ///< When we're streaming H264 to e.g. the browser we
+                                             ///< inject the PPS and SPS nals.
+diff --git a/src/output/output_webrtc.cpp b/src/output/output_webrtc.cpp
+index f57d50c3..cb585164 100644
+--- a/src/output/output_webrtc.cpp
++++ b/src/output/output_webrtc.cpp
+@@ -1,4 +1,5 @@
+ #include "output_webrtc.h"
++#include "mist/socket.h"
+ #include <ifaddrs.h> // ifaddr, listing ip addresses.
+ #include <mist/procs.h>
+ #include <mist/sdp.h>
+@@ -1000,6 +1001,8 @@ namespace Mist{
+       bindAddr = config->getString("pubhost");
+     }
+     sdpAnswer.setCandidate(bindAddr, udpPort);
++
++    udp.SetDCSP(Socket::DCSP::AF41);
+     return true;
+   }
+ 

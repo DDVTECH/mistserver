@@ -49,13 +49,22 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
 
 int configSync;
 
-struct streamDetails {
+class Data {
+public:
+  std::string virtual stringify();
+};
+
+class streamDetails : public Data {
+public:
   uint64_t total;
   uint32_t inputs;
   uint32_t bandwidth;
   uint64_t prevTotal;
   uint64_t bytesUp;
   uint64_t bytesDown;
+  std::string stringify(){
+    return "\"streamDetails\": [\"total\": " << total <<  ", \"inputs\": " << inputs << ", \"bandwidth\": " << bandwidth << ", \"prevTotal\": " << prevTotal << ", \"bytesUp\": " << bytesUp << ", \"bytesDown\": " << bytesDown << "]";
+  }
 };
 
 /**
@@ -75,7 +84,7 @@ class LoadBalancer {
 
 std::set<LoadBalancer> loadBalancers = {};
 
-class outUrl {
+class outUrl : public Data {
 public:
   std::string pre, post;
   outUrl(){};
@@ -87,6 +96,9 @@ public:
     size_t dolsign = tmp.find('$');
     pre = tmp.substr(0, dolsign);
     if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
+  }
+  std::string stringify(){
+    return "\"outUrl\": [\"pre\": " + pre + ", \"post\": " + post + "]";
   }
 };
 
@@ -102,8 +114,16 @@ void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
   j[key] = out;
 }
 
-void convertMapToJson(JSON::Value j, std::map *s, std::string key){
-  //TODO
+void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string key){
+  std::string out = "\"" + key + "\": [";  
+  for(std::map<std::string, Data>::iterator it = s.begin(); it != s.end(); ++it){
+      if(it != s.begin()){
+        out += ", ";
+      }
+      out += "\"" + (*it).first + "\": " + (*it).second.stringify();
+  }
+  out += "]";
+  j[key] = out;
 }
 
 int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
@@ -459,9 +479,9 @@ public:
     j["scoreSource"] = scoreSource;
     j["scoreRate"] = scoreRate;
 
-    convertMapToJson(j, &outputs, "outputs");
+    convertMapToJson(j, outputs, "outputs");
     convertSetToJson(j, conf_streams, "conf_streams");
-    convertMapToJson(j, &streams, "streams");
+    convertMapToJson(j, streams, "streams");
     convertSetToJson(j, tags, "tags");
     
     j["cpu"] = cpu;
@@ -469,7 +489,7 @@ public:
     j["servLongi"] = servLongi;
 
     //TODO: what if load balancer crashed
-    //send to other load balancers
+    //TODO send to other load balancers
     for(const LoadBalancer lb: loadBalancers){
       HTTP::Parser H;
       HTTP::URL url(lb.getName()+ "/updateHost");
@@ -488,7 +508,7 @@ public:
    * add the viewer to this host
    * updates all precalculated host vars
    */
-  void addViewer(std::string &s) override {
+  void addViewer(std::string &s){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     uint64_t toAdd = 0;

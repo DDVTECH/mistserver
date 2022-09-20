@@ -23,9 +23,16 @@ namespace Mist{
     capa["codecs"][0u][0u].null();
     capa["codecs"][0u][1u].null();
     capa["codecs"][0u][2u].null();
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
-    AVCodec *cInfo = 0;
+#endif
+    const AVCodec *cInfo = 0;
+#if (LIBAVCODEC_VERSION_MAJOR < 59)
     while ((cInfo = av_codec_next(cInfo)) != 0){
+#else
+    void *i = 0;
+    while ((cInfo = av_codec_iterate(&i))) {
+#endif
       if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"][0u][0u].append(cInfo->name);}
       if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"][0u][1u].append(cInfo->name);}
       if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"][0u][3u].append(cInfo->name);}
@@ -59,7 +66,9 @@ namespace Mist{
     // make sure all av inputs are registered properly, just in case
     // the constructor already does this, but under windows it doesn't remember that it has.
     // Very sad, that. We may need to get windows some medication for it.
+#if (LIBAVFORMAT_VERSION_MAJOR < 59)
     av_register_all();
+#endif
 
     // close any already open files
     if (pFormatCtx){

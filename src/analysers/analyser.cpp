@@ -10,6 +10,7 @@ Analyser::Analyser(Util::Config &conf){
   validate = conf.getBool("validate");
   detail = conf.getInteger("detail");
   timeOut = conf.getInteger("timeout") *1000;
+  leeway = conf.getInteger("leeway");
   mediaTime = 0;
   upTime = Util::bootMS();
   isActive = &conf.is_active;
@@ -104,7 +105,7 @@ int Analyser::run(Util::Config &conf){
           Util::sleep(sleepMs);
         }
         //Stop analysing when too far behind real-time speed
-        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + 7500){
+        if ((finTime - firstMediaBootTime) > (mediaTime - firstMediaTime) + leeway){
           stopReason("fell too far behind");
           FAIL_MSG("Media time %" PRIu64 " ms behind!", (finTime - firstMediaBootTime) - (mediaTime - firstMediaTime));
           return 4;
@@ -152,5 +153,12 @@ void Analyser::init(Util::Config &conf){
   opt["default"] = 2;
   opt["help"] = "Detail level for analysis (0 = none, 2 = default, 10 = max)";
   conf.addOption("detail", opt);
+
+  opt["long"] = "leeway";
+  opt["short"] = "L";
+  opt["arg"] = "num";
+  opt["default"] = 7500;
+  opt["help"] = "How far behind live playback will we allow before failing, in milliseconds";
+  conf.addOption("leeway", opt);
   opt.null();
 }

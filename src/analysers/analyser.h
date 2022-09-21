@@ -42,6 +42,7 @@ protected:
   uint64_t firstMediaTime;
   uint64_t firstMediaBootTime;
   uint32_t measureInterval; ///< Milliseconds between taking measurements
+  uint32_t leeway; ///< Milliseconds to allow playback behind live point
   bool *isActive;     ///< Pointer to is_active bool from config
   HTTP::URIReader uri;
   std::string reasonForStop;

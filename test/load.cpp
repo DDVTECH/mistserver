@@ -48,7 +48,7 @@ public:
 };
 
 /// Starts a process to view the given URL.
-Process newViewer(int time, HTTP::URL url, const std::string &protocol){
+Process newViewer(int time, HTTP::URL url, const std::string &protocol, int leeway){
   std::deque<std::string> args;
 
   args.push_back(Util::getMyPath() + "MistAnalyser" + protocol);
@@ -56,6 +56,8 @@ Process newViewer(int time, HTTP::URL url, const std::string &protocol){
   args.push_back("-T");
   args.push_back(JSON::Value((uint64_t)time).asString());
   args.push_back("-V");
+  args.push_back("-L");
+  args.push_back(JSON::Value((uint32_t)leeway).asString());
 
   if(url.protocol == "srt"){
     args.push_back("-A");
@@ -190,6 +192,15 @@ int main(int argc, char *argv[]){
   config.addOption("outputdir", option);
   option.null();
 
+  option.null();
+  option["long"] = "leeway";
+  option["short"] = "L";
+  option["arg"] = "integer";
+  option["default"] = 7500;
+  option["help"] = "How far behind live playback will we allow before failing, in milliseconds";
+  config.addOption("leeway", option);
+  option.null();
+
   if (!config.parseArgs(argc, argv)){
     config.printHelp(std::cout);
     return 0;
@@ -198,6 +209,7 @@ int main(int argc, char *argv[]){
 
   int total_time = config.getInteger("timelimit"); // time to run in seconds
   int total = config.getInteger("connections");    // total connections
+  int leeway = config.getInteger("leeway");
   HTTP::URL url(config.getString("url"));
   jsonUrl = config.getString("prometheus"); // URL for prometheus JSON output
 
@@ -240,7 +252,7 @@ int main(int argc, char *argv[]){
 
   uint64_t delay = config.getInteger("delay");
   for(int i = 0; i < total; i++){
-    processes.push_back(newViewer(total_time, url, protocol));
+    processes.push_back(newViewer(total_time, url, protocol, leeway));
     if (delay){Util::sleep(delay);}
   }
 

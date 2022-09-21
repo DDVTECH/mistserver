@@ -94,7 +94,13 @@ class LoadBalancer {
   private:
   std::string ip;
   public:
-  LoadBalancer(std::string &ip) : ip(ip) {}
+  LoadBalancer(std::string ip) {
+    if(!ip.size()){
+      delete this;
+    }else {
+      this->ip = ip;
+    }
+  }
   std::string getName() const {return ip;}
   bool operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
   bool operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
@@ -206,12 +212,12 @@ class hostDetails{
   std::map<std::string, streamDetails> streams;
   std::set<std::string> tags;
   uint64_t cpu;
-  std::string LB;
+  std::set<LoadBalancer> LB;
   double servLati, servLongi;
   public:
   std::string binHost;
   std::string host;
-  hostDetails(std::string LB){
+  hostDetails(std::set<LoadBalancer> LB){
     if(LB.size() > LBNAMELEN){EXIT_FAILURE;}
     this->LB = LB;
     hostMutex = 0;
@@ -381,7 +387,7 @@ public:
   JSON::Value geoDetails;
   std::string servLoc;
   double servLati, servLongi;
-  hostDetailsCalc() : hostDetails(""){
+  hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
     hostMutex = 0;
     cpu = 1000;
     ramMax = 0;
@@ -748,11 +754,27 @@ void initHost(hostEntry &H, const std::string &N){
 /**
  * Setup foreign host
  */
-void initForeignHost(hostEntry &H, const std::string &N, const std::string &LB){
+void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::string> &LB){
   // Cancel if this host has no name or load balancer set
-  if (!N.size() || !LB.size()){return;}
+  if (!N.size()){return;}
   H.state = STATE_ONLINE;
-  H.details = new hostDetails(LB);
+  std::set<LoadBalancer> LBList;
+  //add LB to LBList if in mesh only
+  for(std::set<std::string>::iterator it = LB.begin(); it != LB.end(); ++it){
+    std::set<LoadBalancer>::iterator i = loadBalancers.begin();
+    while(i != loadBalancers.end()){
+      if((*i).getName() == (*it)){//check if LB is  mesh
+        LBList.insert(LoadBalancer((*it)));
+        break;
+      }else if((*i).getName() > (*it)){//check if past LB in search
+        break;
+      }else {//go to next in mesh list
+        i++;
+      }
+    }
+    
+  }
+  H.details = new hostDetails(LBList);
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = 0;
@@ -1088,7 +1110,8 @@ private:
         if(hostName == hosts[i].name){hostIndex = i;}
       }
       if(hostIndex == -1){
-        initForeignHost(HOST(hostsCounter), hostName, newVals["LB"].asString());
+
+        initForeignHost(HOST(hostsCounter), hostName, convertJsonToSet(newVals["LB"]));
         hostIndex = hostsCounter;
         ++hostsCounter;
       }

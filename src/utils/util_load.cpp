@@ -57,7 +57,7 @@ int configSync;
 
 class Data {
 public:
-  std::string virtual stringify();
+  std::string virtual stringify() = 0;
 };
 
 class streamDetails : public Data {
@@ -69,7 +69,19 @@ public:
   uint64_t bytesUp;
   uint64_t bytesDown;
   std::string stringify(){
-    return "\"streamDetails\": [\"total\": " << total <<  ", \"inputs\": " << inputs << ", \"bandwidth\": " << bandwidth << ", \"prevTotal\": " << prevTotal << ", \"bytesUp\": " << bytesUp << ", \"bytesDown\": " << bytesDown << "]";
+    std::ostringstream out;
+    out << "\"streamDetails\": [\"total\": " << total <<  ", \"inputs\": " << inputs << ", \"bandwidth\": " << bandwidth << ", \"prevTotal\": " << prevTotal << ", \"bytesUp\": " << bytesUp << ", \"bytesDown\": " << bytesDown << "]";
+    return out.str();
+  }
+  streamDetails* destringify(JSON::Value j){
+    streamDetails* out = new streamDetails();
+    out->total = j["total"].asInt();
+    out->inputs = j["inputs"].asInt();
+    out->bandwidth = j["bandwidth"].asInt();
+    out->prevTotal = j["prevTotal"].asInt();
+    out->bytesUp = j["bytesUp"].asInt();
+    out->bytesDown = j["bytesDown"].asInt();
+    return out;
   }
 };
 
@@ -106,6 +118,12 @@ public:
   std::string stringify(){
     return "\"outUrl\": [\"pre\": " + pre + ", \"post\": " + post + "]";
   }
+  outUrl* destringify(JSON::Value j){
+    outUrl* r;
+    r->pre = j["pre"].asString();
+    r->post = j["post"].asString();
+    return r;
+  }
 };
 
 void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
@@ -120,13 +138,13 @@ void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
   j[key] = out;
 }
 
-void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string key){
+void convertMapToJson(JSON::Value j, std::map<std::string, Data*> s, std::string key){
   std::string out = "\"" + key + "\": [";  
-  for(std::map<std::string, Data>::iterator it = s.begin(); it != s.end(); ++it){
+  for(std::map<std::string, Data*>::iterator it = s.begin(); it != s.end(); ++it){
       if(it != s.begin()){
         out += ", ";
       }
-      out += "\"" + (*it).first + "\": " + (*it).second.stringify();
+      out += "\"" + (*it).first + "\": " + (*it).second->stringify();
   }
   out += "]";
   j[key] = out;
@@ -181,14 +199,15 @@ class hostDetails{
   JSON::Value fillStreamsOut;
   uint64_t scoreSource;
   uint64_t scoreRate;
-  std::map<std::string, outUrl> outputs;
+  std::map<std::string, Data*> outputs;
   std::set<std::string> conf_streams;
-  std::map<std::string, streamDetails> streams;
+  std::map<std::string, Data*> streams;
   std::set<std::string> tags;
   uint64_t cpu;
   std::string LB;
   double servLati, servLongi;
   public:
+  std::string binHost;
   std::string host;
   hostDetails(std::string LB){
     if(LB.size() > LBNAMELEN){EXIT_FAILURE;}
@@ -219,18 +238,18 @@ class hostDetails{
   void fillStreamStats(const std::string &s,JSON::Value &r) {
     if(!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+    for (std::map<std::string, Data*>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
       const std::string &n = jt->first;
       if(s!= "*" && n!= s && n.substr(0,s.size()+1) != s+"+"){continue;}
       if(!r.isMember(n)){
-        r[n].append(jt->second.total);
-        r[n].append(jt->second.bandwidth);
-        r[n].append(jt->second.bytesUp);
-        r[n].append(jt->second.bytesDown);
+        r[n].append(static_cast<streamDetails*>(jt->second)->total);
+        r[n].append(static_cast<streamDetails*>(jt->second)->bandwidth);
+        r[n].append(static_cast<streamDetails*>(jt->second)->bytesUp);
+        r[n].append(static_cast<streamDetails*>(jt->second)->bytesDown);
       }else {
-        r[n][0u] = r[n][0u].asInt() + jt->second.total;
-        r[n][2u] = r[n][2u].asInt() + jt->second.bytesUp;
-        r[n][3u] = r[n][3u].asInt() + jt->second.bytesDown;
+        r[n][0u] = r[n][0u].asInt() + static_cast<streamDetails*>(jt->second)->total;
+        r[n][2u] = r[n][2u].asInt() + static_cast<streamDetails*>(jt->second)->bytesUp;
+        r[n][3u] = r[n][3u].asInt() + static_cast<streamDetails*>(jt->second)->bytesDown;
       }
     }
   }
@@ -238,7 +257,7 @@ class hostDetails{
     if(!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     if(!streams.count(strm)){return 0;}
-    return streams[strm].total;
+    return static_cast<streamDetails*>(streams[strm])->total;
   }
   uint64_t rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust = blankTags, double lati = 0, double longi = 0){
     if(conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
@@ -266,7 +285,7 @@ class hostDetails{
   }
   uint64_t source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
 
-    if(s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
+    if(s.size() && (!streams.count(s) || !static_cast<streamDetails*>(streams[s])->inputs)){return 0;}
 
     if (minCpu && cpu + minCpu >= 1000){return 0;}
     uint64_t score = scoreSource;
@@ -287,8 +306,8 @@ class hostDetails{
     if(!hostMutex) {hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> gaurd(*hostMutex);
     if(!outputs.count(proto)){return "";}
-    const outUrl &o = outputs[proto];
-    return o.pre + s + o.post;
+    const outUrl* o = static_cast<outUrl*>(outputs[proto]);
+    return o->pre + s + o->post;
   }
   /**
    * Sends update to original load balancer to add a viewer.
@@ -299,7 +318,7 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi){
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, Data*> outputs, std::set<std::string> conf_streams, std::map<std::string, Data*> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, std::string binHost){
     if(hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
 
@@ -312,19 +331,21 @@ class hostDetails{
     this->streams = streams;
     this->tags = tags;
     this->cpu = cpu;
+    this->binHost = binHost;
 
   }
   /**
    * allow for json inputs instead of sets and maps for update function
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi){  
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, std::string binHost){  
     //TODO convert maps and sets
-    std::map<std::string, outUrl> out;
-    std::map<std::string, streamDetails> s;
+    std::map<std::string, Data*> out;
+    std::map<std::string, Data*> s;
+    streamDetails x;
     for(int i = 0; i < streams.size(); i++){
-      s.insert(streams[STREAMSKEY][i]);
+      s.insert(std::pair<std::string, Data*>(streams[STREAMSKEY][i]["key"], static_cast<Data*>(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
-    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi);
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost);
   }
   
 };
@@ -336,10 +357,10 @@ class hostDetails{
 class hostDetailsCalc : public hostDetails {
 private:
   tthread::mutex *hostMutex;
-  std::map<std::string, streamDetails> streams;
+  std::map<std::string, Data*> streams;
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
-  std::map<std::string, outUrl> outputs;
+  std::map<std::string, Data*> outputs;
   uint64_t cpu;
   uint64_t ramMax;
   uint64_t ramCurr;
@@ -418,9 +439,9 @@ public:
   void fillStreams(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
-    for (std::map<std::string, streamDetails>::iterator jt = streams.begin();
+    for (std::map<std::string, Data*>::iterator jt = streams.begin();
          jt != streams.end(); ++jt){
-      r[jt->first] = r[jt->first].asInt() + jt->second.total;
+      r[jt->first] = r[jt->first].asInt() + static_cast<streamDetails*>(jt->second)->total;
     }
   }
   /// Scores a potential new connection to this server
@@ -486,7 +507,7 @@ public:
     uint64_t scoreRate = rate();
 
     //update the local precalculated vars
-    static_cast<hostDetails*>(this)->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi);
+    static_cast<hostDetails*>(this)->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi, binHost);
     
     //TODO: test send to other load balancers
     //create json to send to other load balancers
@@ -530,7 +551,7 @@ public:
     tthread::lock_guard<tthread::mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
     if (streams.count(s)){
-      toAdd = streams[s].bandwidth;
+      toAdd = static_cast<streamDetails*>(streams[s])->bandwidth;
     }else{
       if (total){
         toAdd = (upSpeed + downSpeed) / total;
@@ -600,26 +621,26 @@ public:
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
         }
-        streamDetails &strm = streams[it.key()];
-        strm.total = (*it)["curr"][0u].asInt();
-        strm.inputs = (*it)["curr"][1u].asInt();
-        strm.bytesUp = (*it)["bw"][0u].asInt();
-        strm.bytesDown = (*it)["bw"][1u].asInt();
-        uint64_t currTotal = strm.bytesUp + strm.bytesDown;
+        streamDetails* strm = static_cast<streamDetails*>(streams[it.key()]);
+        strm->total = (*it)["curr"][0u].asInt();
+        strm->inputs = (*it)["curr"][1u].asInt();
+        strm->bytesUp = (*it)["bw"][0u].asInt();
+        strm->bytesDown = (*it)["bw"][1u].asInt();
+        uint64_t currTotal = strm->bytesUp + strm->bytesDown;
         if (timeDiff && count){
-          strm.bandwidth = ((currTotal - strm.prevTotal) / timeDiff) / count;
+          strm->bandwidth = ((currTotal - strm->prevTotal) / timeDiff) / count;
         }else{
           if (total){
-            strm.bandwidth = (upSpeed + downSpeed) / total;
+            strm->bandwidth = (upSpeed + downSpeed) / total;
           }else{
-            strm.bandwidth = (upSpeed + downSpeed) + 100000;
+            strm->bandwidth = (upSpeed + downSpeed) + 100000;
           }
         }
-        strm.prevTotal = currTotal;
+        strm->prevTotal = currTotal;
       }
       if (streams.size()){
         std::set<std::string> eraseList;
-        for (std::map<std::string, streamDetails>::iterator it = streams.begin();
+        for (std::map<std::string, Data*>::iterator it = streams.begin();
              it != streams.end(); ++it){
           if (!d["streams"].isMember(it->first)){eraseList.insert(it->first);}
         }
@@ -636,7 +657,7 @@ public:
     }
     outputs.clear();
     if (d.isMember("outputs") && d["outputs"].size()){
-      jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
+      jsonForEach(d["outputs"], op){outputs[op.key()] = static_cast<Data*>(new outUrl(op->asStringRef(), host));}
     }
     addBandwidth *= 0.75;
     calc();//update preclaculated host vars
@@ -1072,7 +1093,7 @@ private:
         hostIndex = hostsCounter;
         ++hostsCounter;
       }
-      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble());   
+      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString());   
     }
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
@@ -1089,18 +1110,6 @@ private:
     std::map<std::string, int32_t> tagAdjust;
     if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
     if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
-    double lat = 0;
-    double lon = 0;
-    if (H.GetVar("lat") != ""){
-      lat = atof(H.GetVar("lat").c_str());
-      H.SetVar("lat", "");
-    }
-    if (H.GetVar("lon") != ""){
-      lon = atof(H.GetVar("lon").c_str());
-      H.SetVar("lon", "");
-    }
-    if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-    if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
     uint64_t bestScore = 0;
     for (HOSTLOOP){
       HOSTCHECK;
@@ -1140,18 +1149,6 @@ private:
       }
       if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
       H.SetVar("proto", "");
-      double lat = 0;
-      double lon = 0;
-      if (H.GetVar("lat") != ""){
-        lat = atof(H.GetVar("lat").c_str());
-        H.SetVar("lat", "");
-      }
-      if (H.GetVar("lon") != ""){
-        lon = atof(H.GetVar("lon").c_str());
-        H.SetVar("lon", "");
-      }
-      if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-      if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
       std::string vars = H.allVars();
       if (stream == "favicon.ico"){
         H.Clean();
@@ -1298,7 +1295,7 @@ private:
       for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         //TODO send to other load balancers
       }
-    }catch() {
+    }catch(std::exception const&) {
       //TODO message argument error
       H.SetBody("Configuration Syncronisation is turned off! ");
     }

@@ -562,7 +562,7 @@ namespace Mist{
     }
 
     if (!keepGoing()){
-      INFO_MSG("Aborting page load due to shutdown");
+      INFO_MSG("Aborting page load due to shutdown: %s", Util::exitReason);
       return;
     }
 

@@ -53,7 +53,7 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
 #define LBNAMELEN 1024
 #define MAXLB 1000
 
-int configSync;
+
 
 class Data {
 public:
@@ -820,7 +820,6 @@ public:
         std::string hostUpdate = H.GetVar("updateHosts");
         std::string hostToRemove = H.GetVar("removeHost");
         std::string viewer = H.GetVar("addViewer");
-        std::string changeConfigSync = H.GetVar("configSync");
         std::string addLoadBalancer = H.GetVar("addloadbalancer");
         std::string removeLoadBalancer = H.GetVar("removeloadbalancer");
         std::string resend = H.GetVar("resend");
@@ -841,10 +840,6 @@ public:
         else if(removeLoadBalancer.size()){
           removeLB(conn, H, removeLoadBalancer, resend);
           
-        }
-        //change config sync setting
-        else if(changeConfigSync.size()){
-          setConfigSync(conn, H, changeConfigSync);
         }
         //add viewer to host
         else if(viewer.size()){
@@ -1066,15 +1061,15 @@ private:
     ret["geo"] = weight_geo;
     ret["bonus"] = weight_bonus;
 
-    if(configSync){
-      if(!resend.size() || atoi(resend.c_str()) == 1){
-        for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-          //TODO call change config on lb
-        }
-      }else {
-        //TODO send message config sync is off
+    
+    if(!resend.size() || atoi(resend.c_str()) == 1){
+      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+        //TODO call change config on lb
       }
+    }else {
+      //TODO send message config sync is off
     }
+    
 
     H.SetBody(ret.toString());
     H.setCORSHeaders();
@@ -1284,26 +1279,6 @@ private:
         break;
       }
     }
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
-  }
-  
-  /**
-   * adjust config synchronisation 
-   */
-  void static setConfigSync(Socket::Connection conn, HTTP::Parser H, const std::string changeConfigSync){
-    try{
-      configSync = atoi(changeConfigSync.c_str());
-      
-      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        //TODO send to other load balancers
-      }
-    }catch(std::exception const&) {
-      //TODO message argument error
-      H.SetBody("Configuration Syncronisation is turned off! ");
-    }
-          
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
     H.Clean();

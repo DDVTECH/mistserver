@@ -161,6 +161,9 @@ void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string 
 std::set<std::string> convertJsonToSet(JSON::Value j){
   std::set<std::string> s;
   //TODO convert JSON to Set
+  jsonForEach(j,i){
+    s.insert(i->asString());
+  }
   return s;
 }
 
@@ -274,7 +277,7 @@ class hostDetails{
     }
     uint64_t score = scoreRate + (streams.count(s) ? weight_bonus : 0);
     uint64_t geo_score = 0;
-    if(servLati && servLongi && lati && longi){//TODO add require config Sync
+    if(servLati && servLongi && lati && longi){
       geo_score = weight_geo - weight_geo * geoDist(servLati, servLongi, lati, longi);
       score += geo_score;
     }
@@ -1093,8 +1096,6 @@ private:
       for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         //TODO call change config on lb
       }
-    }else {
-      //TODO send message config sync is off
     }
     
 

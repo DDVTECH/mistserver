@@ -327,7 +327,7 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost){
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
     if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
 
@@ -341,13 +341,14 @@ class hostDetails{
     this->tags = tags;
     this->cpu = cpu;
     *(this->binHost) = *binHost;
+    this->host = host;
     
 
   }
   /**
    * allow for json inputs instead of sets and maps for update function
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost){  
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
     //TODO convert maps and sets
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
@@ -355,7 +356,7 @@ class hostDetails{
     for(int i = 0; i < streams.size(); i++){
       s.insert(std::pair<std::string, streamDetails>(streams[STREAMSKEY][i]["key"], *(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
-    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost);
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host);
   }
   
 };
@@ -516,7 +517,7 @@ public:
     uint64_t scoreRate = rate();
     
     //update the local precalculated vars
-    static_cast<hostDetails*>(this)->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi, binHost);
+    static_cast<hostDetails*>(this)->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi, binHost, host);
     //TODO: test send to other load balancers
     //create json to send to other load balancers
     JSON::Value j;
@@ -579,7 +580,6 @@ public:
    * update vars from server
    */
   void update(JSON::Value &d){
-    WARN_MSG("%s", d.asString().c_str());
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
@@ -671,7 +671,6 @@ public:
       jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
     addBandwidth *= 0.75;
-    WARN_MSG("%" PRIu64, cpu);
     calc();//update preclaculated host vars
   }
   
@@ -997,7 +996,7 @@ private:
         INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
         continue;
       }
-      uint64_t score = HOST(i).details->source(source, tagAdjust, 0,lat, lon);
+      uint64_t score = HOST(i).details->source(source, tagAdjust, 0, lat, lon);
       if (score > bestScore){
         bestHost = "dtsc://" + HOST(i).details->host;
         bestScore = score;
@@ -1121,7 +1120,7 @@ private:
         hostIndex = hostsCounter;
         ++hostsCounter;
       }
-      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStreamsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString().c_str());   
+      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStreamsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString().c_str(), newVals["host"].asString());   
     }
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
@@ -1138,10 +1137,23 @@ private:
     std::map<std::string, int32_t> tagAdjust;
     if (H.GetVar("tag_adjust") != ""){fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));}
     if (H.hasHeader("X-Tag-Adjust")){fillTagAdjust(tagAdjust, H.GetHeader("X-Tag-Adjust"));}
+    double lat = 0;
+    double lon = 0;
+    if(H.GetVar("lat") != ""){
+      lat = atof(H.GetVar("lat").c_str());
+      H.SetVar("lat", "");
+    }
+    if(H.GetVar("lon") != ""){
+      lon = atof(H.GetVar("lon").c_str());
+      H.SetVar("lon", "");
+    }
+    if(H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
+    if(H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+
     uint64_t bestScore = 0;
     for (HOSTLOOP){
       HOSTCHECK;
-      uint64_t score = HOST(i).details->source("", tagAdjust, cpuUse * 10);
+      uint64_t score = HOST(i).details->source("", tagAdjust, cpuUse * 10, lat, lon);
       if (score > bestScore){
         bestHost = HOST(i).details->host;
         bestScore = score;

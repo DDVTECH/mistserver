@@ -202,7 +202,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
  */
 class hostDetails{
   private:
-  tthread::mutex *hostMutex;
+  tthread::recursive_mutex *hostMutexf;
   JSON::Value fillStateOut;
   JSON::Value fillStreamsOut;
   uint64_t scoreSource;
@@ -211,21 +211,21 @@ class hostDetails{
   std::set<std::string> conf_streams;
   std::map<std::string, streamDetails> streams;
   std::set<std::string> tags;
-  uint64_t cpu;
+  
   std::set<LoadBalancer> LB;
   double servLati, servLongi;
   public:
-  std::string binHost;
+  uint64_t cpu;
+  char binHost[16];
   std::string host;
   hostDetails(std::set<LoadBalancer> LB){
-    if(LB.size() > LBNAMELEN){EXIT_FAILURE;}
     this->LB = LB;
-    hostMutex = 0;
+    hostMutexf = 0;
   }
   virtual ~hostDetails(){
-    if(hostMutex){
-      delete hostMutex;
-      hostMutex = 0;
+    if(hostMutexf){
+      delete hostMutexf;
+      hostMutexf = 0;
     }
   }
   /**
@@ -244,8 +244,8 @@ class hostDetails{
    * Fills out a by reference given JSON::Value with current stream statistics.
    */ 
   void fillStreamStats(const std::string &s,JSON::Value &r) {
-    if(!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
       const std::string &n = jt->first;
       if(s!= "*" && n!= s && n.substr(0,s.size()+1) != s+"+"){continue;}
@@ -262,8 +262,8 @@ class hostDetails{
     }
   }
   long long getViewers(const std::string &strm){
-    if(!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(!streams.count(strm)){return 0;}
     return streams[strm].total;
   }
@@ -292,7 +292,8 @@ class hostDetails{
     return score;
   }
   uint64_t source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
-
+    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
 
     if (minCpu && cpu + minCpu >= 1000){return 0;}
@@ -311,8 +312,8 @@ class hostDetails{
     return score;
   }
   std::string getUrl(std::string &s, std::string &proto){
-    if(!hostMutex) {hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> gaurd(*hostMutex);
+    if(!hostMutexf) {hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> gaurd(*hostMutexf);
     if(!outputs.count(proto)){return "";}
     const outUrl o = outputs[proto];
     return o.pre + s + o.post;
@@ -326,9 +327,9 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, std::string binHost){
-    if(hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost){
+    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
 
     this->fillStateOut = fillStateOut;
     this->fillStreamsOut = fillStreamsOut;
@@ -339,13 +340,14 @@ class hostDetails{
     this->streams = streams;
     this->tags = tags;
     this->cpu = cpu;
-    this->binHost = binHost;
+    *(this->binHost) = *binHost;
+    
 
   }
   /**
    * allow for json inputs instead of sets and maps for update function
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, std::string binHost){  
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost){  
     //TODO convert maps and sets
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
@@ -364,7 +366,7 @@ class hostDetails{
  */
 class hostDetailsCalc : public hostDetails {
 private:
-  tthread::mutex *hostMutex;
+  tthread::recursive_mutex *hostMutex;
   std::map<std::string, streamDetails> streams;
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
@@ -410,15 +412,15 @@ public:
     }
   }
   void badNess(){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     addBandwidth += 1 * 1024 * 1024;
     addBandwidth *= 1.2;
   }
   /// Fills out a by reference given JSON::Value with current state.
   void fillState(JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     r["cpu"] = (uint64_t)(cpu / 10);
     if (ramMax){r["ram"] = (uint64_t)((ramCurr * 100) / ramMax);}
     r["up"] = upSpeed;
@@ -445,8 +447,9 @@ public:
   }
   /// Fills out a by reference given JSON::Value with current streams viewer count.
   void fillStreams(JSON::Value &r){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
+
     for (std::map<std::string, streamDetails>::iterator jt = streams.begin();
          jt != streams.end(); ++jt){
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
@@ -455,8 +458,8 @@ public:
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
   uint64_t rate(){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 0;
@@ -479,10 +482,9 @@ public:
   /// Scores this server as a source
   /// 0 means not possible, the higher the better.
   uint64_t source(){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     
-
     if (!ramMax || !availBandwidth){
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 1;
@@ -505,7 +507,6 @@ public:
    * calculate and update precalculated variables
   */
   void calc(){
-  
     //calculated vars
     JSON::Value fillStreamsOut;
     fillStreams(fillStreamsOut);
@@ -513,10 +514,9 @@ public:
     fillState(fillStateOut);
     uint64_t scoreSource = source();
     uint64_t scoreRate = rate();
-
+    
     //update the local precalculated vars
     static_cast<hostDetails*>(this)->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi, binHost);
-    
     //TODO: test send to other load balancers
     //create json to send to other load balancers
     JSON::Value j;
@@ -556,8 +556,8 @@ public:
    * updates all precalculated host vars
    */
   void addViewer(std::string &s){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
     if (streams.count(s)){
       toAdd = streams[s].bandwidth;
@@ -579,8 +579,9 @@ public:
    * update vars from server
    */
   void update(JSON::Value &d){
-    if (!hostMutex){hostMutex = new tthread::mutex();}
-    tthread::lock_guard<tthread::mutex> guard(*hostMutex);
+    WARN_MSG("%s", d.asString().c_str());
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
     if (d.isMember("bwlimit") && d["bwlimit"].asInt()){availBandwidth = d["bwlimit"].asInt();}
     if (d.isMember("loc")){
@@ -670,8 +671,10 @@ public:
       jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
     addBandwidth *= 0.75;
+    WARN_MSG("%" PRIu64, cpu);
     calc();//update preclaculated host vars
   }
+  
   
 };
 
@@ -720,7 +723,7 @@ void handleServer(void *hostEntryPointer){
           std::string ipStr;
           Socket::hostBytesToStr(DL.getSocket().getBinHost().data(), 16, ipStr);
           WARN_MSG("Connection established with %s (%s)", url.host.c_str(), ipStr.c_str());
-          memcpy(static_cast<hostDetailsCalc*>(entry->details)->binHost, DL.getSocket().getBinHost().data(), 16);
+          memcpy(((hostDetailsCalc*)(entry->details))->binHost, DL.getSocket().getBinHost().data(), 16);
           entry->state = STATE_ONLINE;
           down = false;
         }
@@ -745,6 +748,7 @@ void initHost(hostEntry &H, const std::string &N){
   if (!N.size()){return;}
   H.state = STATE_BOOT;
   H.details = new hostDetailsCalc();
+  //(*(hostDetailsCalc*)&H.details).calc();
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = new tthread::thread(handleServer, (void *)&H);
@@ -985,9 +989,11 @@ private:
     if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
     if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
     uint64_t bestScore = 0;
+    
     for (HOSTLOOP){
       HOSTCHECK;
-      if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){//TODO what is this doing?
+      //WARN_MSG("Cpu %" PRIu64 " i: %lu binhost %s",hosts[i].details->cpu, i, hosts[i].details->binHost.c_str());
+      if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
         INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
         continue;
       }
@@ -1115,7 +1121,7 @@ private:
         hostIndex = hostsCounter;
         ++hostsCounter;
       }
-      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStramsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString());   
+      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStreamsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString().c_str());   
     }
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);

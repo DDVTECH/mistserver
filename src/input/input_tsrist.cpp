@@ -48,6 +48,7 @@ int cb_stats(void *arg, const struct rist_stats *stats_container){
   pktReceived += sObj["received"].asInt();
   pktLost += sObj["lost"].asInt();
   pktRetransmitted += sObj["retries"].asInt();
+  rist_stats_free(stats_container);
   return 0;
 }
 

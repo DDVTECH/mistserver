@@ -39,6 +39,7 @@ namespace Mist{
     JSON::Value & sObj = stats["sender-stats"]["peer"]["stats"];
     pktSent += sObj["sent"].asInt();
     pktRetransmitted += sObj["retransmitted"].asInt();
+    rist_stats_free(stats_container);
     return 0;
   }
 
@@ -79,7 +80,18 @@ namespace Mist{
     pushOut = false;
     // Push output configuration
     if (config->getString("target").size()){
-      target = HTTP::URL(config->getString("target"));
+      std::string ristURL = config->getString("target").c_str();
+      //If there are two ?, grab everything after the last first
+      if (ristURL.rfind('?') != std::string::npos && ristURL.find('?') != ristURL.rfind('?')){
+        std::string extraParams = ristURL.substr(ristURL.rfind('?')+1);
+        std::map<std::string, std::string> arguments;
+        HTTP::parseVars(extraParams, arguments);
+        for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
+          targetParams[it->first] = it->second;
+        }
+        ristURL.erase(ristURL.rfind('?'));
+      }
+      target = HTTP::URL(ristURL);
       if (target.protocol != "rist"){
         FAIL_MSG("Target %s must begin with rist://, aborting", target.getUrl().c_str());
         onFail("Invalid RIST target: doesn't start with rist://", true);
@@ -96,11 +108,6 @@ namespace Mist{
         return;
       }
       pushOut = true;
-      std::map<std::string, std::string> arguments;
-      HTTP::parseVars(target.args, arguments);
-      for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
-        targetParams[it->first] = it->second;
-      }
 
       rist_profile profile = RIST_PROFILE_MAIN;
       if (targetParams.count("profile")){
@@ -111,8 +118,9 @@ namespace Mist{
         onFail("Failed to create sender context");
         return;
       }
+      INFO_MSG("Letting libRIST parse URL: %s", ristURL.c_str());
       struct rist_peer_config *peer_config_link = 0;
-      if (rist_parse_address2(config->getString("target").c_str(), &peer_config_link)){
+      if (rist_parse_address2(ristURL.c_str(), &peer_config_link)){
         onFail("Failed to parse target URL: %s", config->getString("target").c_str());
         return;
       }

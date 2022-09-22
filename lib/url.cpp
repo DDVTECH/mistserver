@@ -206,8 +206,9 @@ std::string HTTP::URL::getUrl() const{
     ret += host;
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
-  ret += "/";
-  ret += getEncodedPath();
+  if (protocol != "rist"){
+    ret += "/" + getEncodedPath();
+  }
   if (args.size()){ret += "?" + args;}
   if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&");}
   return ret;

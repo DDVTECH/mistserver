@@ -5,9 +5,11 @@
 #include <mist/config.h>
 #include <mist/defines.h>
 #include <mist/downloader.h>
+#include <mist/websocket.h>
 #include <mist/timing.h>
 #include <mist/tinythread.h>
 #include <mist/util.h>
+#include <mist/encryption.h>
 #include <set>
 #include <stdint.h>
 #include <string>
@@ -92,20 +94,61 @@ public:
  */
 class LoadBalancer {
   private:
+  tthread::recursive_mutex *LoadMutex;
   std::string ip;
+  HTTP::Websocket* ws;
+
   public:
   LoadBalancer(std::string ip) {
-    if(!ip.size()){
-      delete this;
-    }else {
-      this->ip = ip;
+    this->ip = ip;
+    LoadMutex = 0;
+    HTTP::URL url(ip);
+    std::map<std::string, std::string>* headers = new std::map<std::string, std::string>();
+    Socket::Connection conn;
+    ws = new HTTP::Websocket(conn, url, headers);
+    
+  }
+  LoadBalancer(Socket::Connection conn, HTTP::Parser &h){
+    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
+    ws = new HTTP::Websocket(conn, h);
+    
+  }
+  virtual ~LoadBalancer(){
+    if(LoadMutex){
+      delete LoadMutex;
+      LoadMutex = 0;
     }
   }
+  std::string receive(){
+    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
+    std::string ret;
+    if(ws->readLoop()){
+      ret = ws->data;
+    }
+    //TODO implement: Dencryption::AES();
+    return ret;
+  }
+
   std::string getName() const {return ip;}
   bool operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
   bool operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
   bool operator == (const LoadBalancer &other) const {return this->getName() == other.getName();}
   bool operator == (const std::string &other) const {return this->getName().compare(other);}
+  
+  void send(JSON::Value j){
+    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
+    //TODO implement: Encryption::AES();
+    ws->sendFrame(j.asString());
+  }
+  
+  void monitor(){
+    std::string data = receive();
+    
+  }
+
 };
 
 std::set<LoadBalancer> loadBalancers;
@@ -160,7 +203,6 @@ void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string 
 
 std::set<std::string> convertJsonToSet(JSON::Value j){
   std::set<std::string> s;
-  //TODO convert JSON to Set
   jsonForEach(j,i){
     s.insert(i->asString());
   }
@@ -857,63 +899,118 @@ public:
         
         //return load balancer list
         if(getLBList.size()){
-          getLoadBalancerList(conn, H);
+          std::string out = getLoadBalancerList();
+          H.SetBody(out);
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         //add load balancer to mesh
         else if(addLoadBalancer.size()){
-          addLB(conn, H, addLoadBalancer, resend);
+          addLB(addLoadBalancer, resend);
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
           
         }
         //remove load balancer from mesh
         else if(removeLoadBalancer.size()){
-          removeLB(conn, H, removeLoadBalancer, resend);
+          removeLB(removeLoadBalancer, resend);
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
           
         }
         //add viewer to host
         else if(viewer.size()){
-          addViewer(conn, H, stream, viewer);
+          addViewer(stream, viewer);
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
           
         }
         //remove foreign host
         else if(hostToRemove.size()){
-          removeHost(conn, H, hostToRemove);
+          removeHost(hostToRemove);
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
                   
         }
         //receive host data
         else if(hostUpdate.size()){
-          updateHost(conn, H, JSON::fromString(hostUpdate));
+          updateHost(JSON::fromString(hostUpdate));
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Get/set weights
         else if (weights.size()){
-          setWeights(conn, H, weights, resend);
+          JSON::Value ret = setWeights(weights, resend);
+          H.SetBody(ret.toString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Get server list
         else if (lstserver.size()){
-          serverList(conn, H);
+          JSON::Value ret = serverList();
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Remove server from list
         else if (delserver.size()){
-          delServer(conn, H, delserver);
+          JSON::Value ret = delServer(delserver);
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Add server to list
         else if (addserver.size()){
-          addServer(conn, H, addserver);
+          JSON::Value* ret;
+          addServer(ret, addserver);
+          if(ret == NULL){
+            H.SetBody("Host length too long for monitoring");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }else {
+            H.SetBody(ret->toPrettyString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
         }
         // Request viewer count
         else if (viewers.size()){
-          getViewers(conn, H);
+          JSON::Value ret = getViewers();
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Request full stream statistics
         else if (streamStats.size()){
-          getStreamStats(conn, H, streamStats);
-          
+          JSON::Value ret = (streamStats);
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();   
         }
         else if (stream.size()){
-          getStream(conn, H, stream);
+          uint64_t count = getStream(stream);
+          H.SetBody(JSON::Value(count).asString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
         // Find source for given stream
         else if (source.size()){
           getSource(conn, H, source, fback);
+          
         }
         // Find optimal ingest point
         else if (ingest.size()){
@@ -921,9 +1018,17 @@ public:
         }
         // Find host(s) status
         else if (!host.size()){
-          getAllHostStates(conn, H);
+          JSON::Value ret = getAllHostStates();
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }else{
-          getHostState(conn, H, host);
+          JSON::Value ret = getHostState(host);
+          H.SetBody(ret.toPrettyString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
         }
       }
       else {
@@ -935,11 +1040,10 @@ public:
   return 0;
 }
 
-private:
   /**
   * returns load balancer list
   */
-  void static getLoadBalancerList(Socket::Connection conn, HTTP::Parser H){
+  std::string static getLoadBalancerList(){
     std::string out = "\"lblist\": [";  
     for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       if(it != loadBalancers.begin()){
@@ -948,25 +1052,19 @@ private:
       out += "\"" + (*it).getName() + "\"";
     }
     out += "]";
-    H.SetBody(out);
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return out;
   }
   
   /**
    * return viewer counts of streams
    */
-  void static getViewers(Socket::Connection conn, HTTP::Parser H){
+  JSON::Value static getViewers(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
         HOST(i).details->fillStreams(ret);
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
   }
   
   /**
@@ -1018,46 +1116,37 @@ private:
     H.SetBody(bestHost);
     H.setCORSHeaders();
     H.SendResponse("200", "OK", conn);
-    H.Clean();
-    
+    H.Clean();    
   }
   
   /**
    * get view count of a stream
    */
-  void static getStream(Socket::Connection conn, HTTP::Parser H, const std::string stream){
+  uint64_t static getStream(const std::string stream){
     uint64_t count = 0;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
       count += HOST(i).details->getViewers(stream);
     }
-    H.SetBody(JSON::Value(count).asString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
-    
+    return count;   
   }
   
   /**
    * return server list
    */
-  void static serverList(Socket::Connection conn, HTTP::Parser H){
+  JSON::Value static serverList(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
       ret[(std::string)hosts[i].name] = stateLookup[hosts[i].state];
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
-    
+    return ret;    
   }
   
   /**
    * remove server from ?
    */
-  void static delServer(Socket::Connection conn, HTTP::Parser H, const std::string delserver){
+  JSON::Value static delServer(const std::string delserver){
     JSON::Value ret;
     tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
     ret = "Server not monitored - could not delete from monitored server list!";
@@ -1068,16 +1157,14 @@ private:
         ret = stateLookup[hosts[i].state];
       }
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
+    
   }
   
   /**
    * set and get weights
    */
-  void static setWeights(Socket::Connection conn, HTTP::Parser H, const std::string weights, const std::string resend){
+  JSON::Value static setWeights(const std::string weights, const std::string resend){
     JSON::Value ret;
     JSON::Value newVals = JSON::fromString(weights);
     if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
@@ -1097,18 +1184,13 @@ private:
         //TODO call change config on lb
       }
     }
-    
-
-    H.SetBody(ret.toString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
   }
   
   /**
    * receive server updates and adds new foreign hosts if needed
    */
-  void static updateHost(Socket::Connection conn, HTTP::Parser H, JSON::Value newVals){
+  void static updateHost(JSON::Value newVals){
     if(newVals.isMember("hostName")){
       std::string hostName = newVals["hostName"].asString();
       int hostIndex = -1;
@@ -1123,9 +1205,6 @@ private:
       }
       hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStreamsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString().c_str(), newVals["host"].asString());   
     }
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
   }
   
   /**
@@ -1235,29 +1314,21 @@ private:
   /**
    * return stream stats
    */
-  void static getStreamStats(Socket::Connection conn, HTTP::Parser H, const std::string streamStats){
+  JSON::Value static getStreamStats(const std::string streamStats){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
       HOST(i).details->fillStreamStats(streamStats, ret);
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
   }
   
   /**
    * add server to be monitored
    */
-  void static addServer(Socket::Connection conn, HTTP::Parser H, const std::string addserver){
-    JSON::Value ret;
+  void static addServer(JSON::Value ret, const std::string addserver){
     tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
     if (addserver.size() >= HOSTNAMELEN){
-      H.SetBody("Host length too long for monitoring");
-      H.setCORSHeaders();
-      H.SendResponse("200", "OK", conn);
-      H.Clean();
       return;
     }
     bool stop = false;
@@ -1287,16 +1358,13 @@ private:
       }
       ret[addserver] = stateLookup[newEntry->state];
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return;
   }
   
   /**
    * remove server from load balancer( both monitored and foreign )
    */
-  void static removeHost(Socket::Connection conn, HTTP::Parser H, const std::string removeHost){
+  void static removeHost(const std::string removeHost){
     for(HOSTLOOP){
       if(removeHost == hosts[i].name){
         if(!hosts[i].thread){
@@ -1305,15 +1373,12 @@ private:
         break;
       }
     }
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
   }
   
   /**
    * add viewer to stream on server
    */
-  void static addViewer(Socket::Connection conn, HTTP::Parser H, std::string stream, const std::string addViewer){
+  void static addViewer(std::string stream, const std::string addViewer){
     for(HOSTLOOP){
       if(hosts[i].name == addViewer){
         //next line can cause infinate loop if LB ip is 
@@ -1321,19 +1386,14 @@ private:
         break;
       }
     }
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
   }
   
   /**
    * remove load balancer from mesh
    */
-  void static removeLB(Socket::Connection conn, HTTP::Parser H, std::string removeLoadBalancer, const std::string resend){
+  void static removeLB(std::string removeLoadBalancer, const std::string resend){
     if(false){//TODO remove all LB  if this ip
-      H.setCORSHeaders();
-      H.SendResponse("200", "OK", conn);
-      H.Clean();
+      
       return;
     }else loadBalancers.erase(removeLoadBalancer);
       
@@ -1343,15 +1403,12 @@ private:
         //TODO this api call on lb
       }
     }
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
   }
   
   /**
    * add load balancer to mesh
    */
-  void static addLB(Socket::Connection conn, HTTP::Parser H, std::string addLoadBalancer, const std::string resend){
+  void static addLB(std::string addLoadBalancer, const std::string resend){
     //check if load balancer is already in list
     
     if(!loadBalancers.count(addLoadBalancer)){
@@ -1368,16 +1425,12 @@ private:
       //TODO send LBList to ip in addLoadBalancer
     }
     loadBalancers.insert(addLoadBalancer);          
-          
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
   }
   
   /**
    * return server data of a server
    */
-  void static getHostState(Socket::Connection conn, HTTP::Parser H, const std::string host){
+  JSON::Value static getHostState(const std::string host){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1388,16 +1441,13 @@ private:
         break;
       }
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
   }
   
   /**
    * return all server data
    */
-  void static getAllHostStates(Socket::Connection conn, HTTP::Parser H){
+  JSON::Value static getAllHostStates(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1405,10 +1455,7 @@ private:
       HOSTCHECK;
       HOST(i).details->fillState(ret[HOST(i).details->host]);
     }
-    H.SetBody(ret.toPrettyString());
-    H.setCORSHeaders();
-    H.SendResponse("200", "OK", conn);
-    H.Clean();
+    return ret;
   }
 };
 

@@ -34,6 +34,7 @@
 #include <stdarg.h> // for va_list
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 bool Util::Config::is_active = false;
@@ -784,7 +785,14 @@ void Util::getMyExec(std::deque<std::string> &execs){
   do{
     errno = 0;
     if ((dp = readdir(d))){
-      if (strncmp(dp->d_name, "Mist", 4) == 0){execs.push_back(dp->d_name);}
+      if (dp->d_type != DT_DIR && strncmp(dp->d_name, "Mist", 4) == 0){
+        if (dp->d_type != DT_REG) {
+          struct stat st = {};
+          stat(dp->d_name, &st);
+          if (!S_ISREG(st.st_mode))
+            continue;
+        }
+        execs.push_back(dp->d_name);}
     }
   }while (dp != NULL);
   closedir(d);

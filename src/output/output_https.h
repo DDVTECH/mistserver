@@ -1,6 +1,9 @@
 #pragma once
 #include "output.h"
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_MAJOR == 2
 #include <mbedtls/certs.h>
+#endif
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #if !HAVE_UPSTREAM_MBEDTLS_SRTP
@@ -33,6 +36,7 @@ namespace Mist{
     static mbedtls_ssl_config sslConf;
     static mbedtls_x509_crt srvcert;
     static mbedtls_pk_context pkey;
+  
   };
 }// namespace Mist
 

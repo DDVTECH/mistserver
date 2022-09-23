@@ -13,7 +13,16 @@
 /* ----------------------------------------- */
 
 #if HAVE_UPSTREAM_MBEDTLS_SRTP
-int DTLSSRTPHandshake::dtlsExtractKeyData( void *p_expkey,
+#if MBEDTLS_VERSION_MAJOR > 2
+void DTLSSRTPHandshake::dtlsExtractKeyData( void *user,
+                              mbedtls_ssl_key_export_type type,
+                              const unsigned char *ms,
+                              size_t,
+                              const unsigned char client_random[32],
+                              const unsigned char server_random[32],
+                              mbedtls_tls_prf_types tls_prf_type )
+#else
+int DTLSSRTPHandshake::dtlsExtractKeyData( void *user,
                               const unsigned char *ms,
                               const unsigned char *,
                               size_t,
@@ -22,13 +31,16 @@ int DTLSSRTPHandshake::dtlsExtractKeyData( void *p_expkey,
                               const unsigned char client_random[32],
                               const unsigned char server_random[32],
                               mbedtls_tls_prf_types tls_prf_type )
+#endif
 {
-  DTLSSRTPHandshake *handshake = static_cast<DTLSSRTPHandshake *>(p_expkey);
+  DTLSSRTPHandshake *handshake = static_cast<DTLSSRTPHandshake *>(user);
   memcpy(handshake->master_secret, ms, sizeof(handshake->master_secret));
   memcpy(handshake->randbytes, client_random, 32);
   memcpy(handshake->randbytes + 32, server_random, 32);
   handshake->tls_prf_type = tls_prf_type;
+#if MBEDTLS_VERSION_MAJOR == 2
   return 0;
+#endif
 }
 //It breaks if not defined outside of the function
 static mbedtls_ssl_srtp_profile srtp_profiles[] ={MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80,
@@ -129,7 +141,7 @@ int DTLSSRTPHandshake::init(mbedtls_x509_crt *certificate, mbedtls_pk_context *p
     goto error;
   }
 
-#if HAVE_UPSTREAM_MBEDTLS_SRTP
+#if HAVE_UPSTREAM_MBEDTLS_SRTP && MBEDTLS_VERSION_MAJOR == 2
   mbedtls_ssl_conf_export_keys_ext_cb( &ssl_conf, dtlsExtractKeyData, this);
 #endif
 
@@ -159,6 +171,10 @@ int DTLSSRTPHandshake::init(mbedtls_x509_crt *certificate, mbedtls_pk_context *p
     r = -70;
     goto error;
   }
+
+#if MBEDTLS_VERSION_MAJOR > 2
+   mbedtls_ssl_set_export_keys_cb(&ssl_ctx, dtlsExtractKeyData, this);
+#endif
 
   /* set bio handlers */
   mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, on_mbedtls_wants_to_write, on_mbedtls_wants_to_read, NULL);
@@ -223,7 +239,11 @@ int DTLSSRTPHandshake::parse(const uint8_t *data, size_t nbytes){
     return -2;
   }
 
+#if MBEDTLS_VERSION_MAJOR > 2
+  if (mbedtls_ssl_is_handshake_over(&ssl_ctx)) {
+#else
   if (MBEDTLS_SSL_HANDSHAKE_OVER == ssl_ctx.state){
+#endif
     ERROR_MSG("Already finished the handshake.");
     return -3;
   }
@@ -314,7 +334,6 @@ int DTLSSRTPHandshake::extractKeyingMaterial(){
 #else
   uint8_t keying_material[MBEDTLS_TLS_SRTP_MAX_MKI_LENGTH] ={};
   mbedtls_dtls_srtp_info info = {};
-  info.chosen_dtls_srtp_profile = 999;
   mbedtls_ssl_get_dtls_srtp_negotiation_result(&ssl_ctx, &info);
 #endif
   /* @todo following code is for server mode only */
@@ -340,7 +359,12 @@ int DTLSSRTPHandshake::extractKeyingMaterial(){
     ERROR_MSG("mbedtls_ssl_tls_prf failed to create keying_material");
     return -6;
   }
-  switch (info.chosen_dtls_srtp_profile){
+#if MBEDTLS_VERSION_MAJOR > 2
+  mbedtls_ssl_srtp_profile chosen_profile = info.private_chosen_dtls_srtp_profile;
+#else
+  mbedtls_ssl_srtp_profile chosen_profile = info.chosen_dtls_srtp_profile;
+#endif
+  switch (chosen_profile){
   case MBEDTLS_TLS_SRTP_AES128_CM_HMAC_SHA1_80:{
     cipher = "SRTP_AES128_CM_SHA1_80";
     break;
@@ -354,7 +378,7 @@ int DTLSSRTPHandshake::extractKeyingMaterial(){
     return -6;
   }
   default:{
-    ERROR_MSG("Unhandled SRTP profile: %hu, cannot extract keying material.", info.chosen_dtls_srtp_profile);
+    ERROR_MSG("Unhandled SRTP profile: %hu, cannot extract keying material.", chosen_profile);
     return -6;
   }
   }

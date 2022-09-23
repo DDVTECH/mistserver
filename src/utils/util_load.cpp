@@ -119,6 +119,7 @@ class LoadBalancer {
       delete LoadMutex;
       LoadMutex = 0;
     }
+    delete ws;
   }
   std::string receive(){
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}

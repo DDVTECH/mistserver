@@ -545,8 +545,14 @@ int main(int argc, char *argv[]){
     opt["long"] = "json";
     opt["short"] = "j";
     opt["help"] = "Output connector info in JSON format, then exit.";
-    opt["value"].append(0);
+    opt["value"].append(false);
     config.addOption("json", opt);
+    opt.null();
+    opt["long"] = "kickoff";
+    opt["short"] = "K";
+    opt["help"] = "Kick off source if not already active";
+    opt["value"].append(false);
+    config.addOption("kickoff", opt);
   }
 
   capa["codecs"][0u][0u].append("H264");
@@ -766,8 +772,30 @@ int main(int argc, char *argv[]){
     Util::setStreamName(Mist::opt["source"].asString() + "→" + streamName);
   }
 
+
+  const std::string & srcStrm = Mist::opt["source"].asStringRef();
+  if (config.getBool("kickoff")){
+    if (!Util::startInput(srcStrm, "")){
+      FAIL_MSG("Could not connector and/or start source stream!");
+      return 1;
+    }
+    uint8_t streamStat = Util::getStreamStatus(srcStrm);
+    size_t sleeps = 0;
+    while (++sleeps < 2400 && streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY){
+      if (sleeps >= 16 && (sleeps % 4) == 0){
+        INFO_MSG("Waiting for stream to boot... (" PRETTY_PRINT_TIME " / " PRETTY_PRINT_TIME ")", PRETTY_ARG_TIME(sleeps/4), PRETTY_ARG_TIME(2400/4));
+      }
+      Util::sleep(250);
+      streamStat = Util::getStreamStatus(srcStrm);
+    }
+    if (streamStat != STRMSTAT_READY){
+      FAIL_MSG("Stream not available!");
+      return 1;
+    }
+  }
+
   //connect to source metadata
-  DTSC::Meta M(Mist::opt["source"].asStringRef(), false);
+  DTSC::Meta M(srcStrm, false);
 
   //find source video track
   std::map<std::string, std::string> targetParams;
@@ -780,10 +808,18 @@ int main(int argc, char *argv[]){
   if (Mist::opt.isMember("source_track") && Mist::opt["source_track"].isString() && Mist::opt["source_track"]){
     targetParams["video"] = Mist::opt["source_track"].asStringRef();
   }
-  std::set<size_t> vidTrack = Util::wouldSelect(M, targetParams, sourceCapa);
-  size_t sourceIdx = *(vidTrack.begin());
-  if (!M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
-    FAIL_MSG("Source track does not have a valid width and height");
+  size_t sourceIdx = INVALID_TRACK_ID;
+  size_t sleeps = 0;
+  while (++sleeps < 60 && (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx))){
+    M.reloadReplacedPagesIfNeeded();
+    std::set<size_t> vidTrack = Util::wouldSelect(M, targetParams, sourceCapa);
+    sourceIdx = vidTrack.size() ? (*(vidTrack.begin())) : INVALID_TRACK_ID;
+    if (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
+      Util::sleep(250);
+    }
+  }
+  if (sourceIdx == INVALID_TRACK_ID || !M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)){
+    FAIL_MSG("No valid source track!");
     return 1;
   }
 

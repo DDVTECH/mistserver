@@ -2887,6 +2887,13 @@ namespace DTSC{
 
   /// Sends the current Meta object through a socket in DTSH format
   void Meta::send(Socket::Connection &conn, bool skipDynamic, std::set<size_t> selectedTracks, bool reID) const{
+    std::string lVars;
+    size_t lVarSize = 0;
+    if (inputLocalVars.size()){
+      lVars = inputLocalVars.toString();
+      lVarSize = 2 + 14 + 5 + lVars.size();
+    }
+
     conn.SendNow(DTSC::Magic_Header, 4);
     conn.SendNow(c32(getSendLen(skipDynamic, selectedTracks) - 8), 4);
     conn.SendNow("\340", 1);
@@ -2897,6 +2904,11 @@ namespace DTSC{
     if (getLive()){
       conn.SendNow("\000\010unixzero\001", 11);
       conn.SendNow(c64(Util::unixMS() - Util::bootMS() + getBootMsOffset()), 8);
+    }
+    if (lVarSize){
+      conn.SendNow("\000\016inputLocalVars\002", 17);
+      conn.SendNow(c32(lVars.size()), 4);
+      conn.SendNow(lVars.data(), lVars.size());
     }
     conn.SendNow("\000\006tracks\340", 9);
     for (std::set<size_t>::const_iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
@@ -2923,7 +2935,7 @@ namespace DTSC{
           conn.SendNow(c32(fragments.getInt("duration", i + fragBegin)), 4);
           conn.SendNow(std::string(1, (char)fragments.getInt("keys", i + fragBegin)));
 
-          conn.SendNow(c32(fragments.getInt("firstkey", i + fragBegin)), 4);
+          conn.SendNow(c32(fragments.getInt("firstkey", i + fragBegin) + 1), 4);
           conn.SendNow(c32(fragments.getInt("size", i + fragBegin)), 4);
         }
 
@@ -2932,7 +2944,7 @@ namespace DTSC{
         for (size_t i = 0; i < keyCount; i++){
           conn.SendNow(c64(keys.getInt("bpos", i + fragBegin)), 8);
           conn.SendNow(c24(keys.getInt("duration", i + keyBegin)), 3);
-          conn.SendNow(c32(keys.getInt("number", i + keyBegin)), 4);
+          conn.SendNow(c32(keys.getInt("number", i + keyBegin) + 1), 4);
           conn.SendNow(c16(keys.getInt("parts", i + keyBegin)), 2);
           conn.SendNow(c64(keys.getInt("time", i + keyBegin)), 8);
         }

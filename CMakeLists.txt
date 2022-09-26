@@ -9,7 +9,7 @@ if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++98")
 
 SET(SOURCE_DIR ${PROJECT_SOURCE_DIR})
 SET(BINARY_DIR ${PROJECT_BINARY_DIR})

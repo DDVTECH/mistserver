@@ -159,7 +159,7 @@ namespace Util{
     std::string s;
     for (int i = 0; i < len; ++i)
     {
-      s.push_back(alphanum[rand() % (sizeof(alphanum) - 1)]);
+      s.push_back(alphanum[arc4random() % (sizeof(alphanum) - 1)]);
     }
 
     return s;

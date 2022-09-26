@@ -12,8 +12,6 @@
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);
-  std::random_device rd;
-  srand(rd());
   JSON::Value opt;
   opt["long"] = "reconstruct";
   opt["short"] = "R";

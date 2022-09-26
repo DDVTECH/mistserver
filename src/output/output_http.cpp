@@ -231,6 +231,7 @@ namespace Mist{
         //Prepare switch
         disconnect();
         streamName = H.GetVar("stream");
+        sid.clear();
 
         if (handler != capa["name"].asStringRef()){
           reConnector(handler);
@@ -279,6 +280,10 @@ namespace Mist{
           realTime = 0;
         }
       }
+
+      // Reset the session id
+      sid.clear();
+
       // Read the session id
       if (sidMode & 0x01){
         // Get session ID from the request url

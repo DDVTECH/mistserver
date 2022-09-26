@@ -8,7 +8,6 @@
 #include <mist/timing.h>
 #include <string.h>
 #include <mist/checksum.h>
-#include <random>
 
 void AnalyserHLS::init(Util::Config &conf){
   Analyser::init(conf);
@@ -33,6 +32,7 @@ void AnalyserHLS::stop(){
 }
 
 AnalyserHLS::AnalyserHLS(Util::Config &conf) : Analyser(conf){
+  srand(Util::mix(clock(), time(0), getpid()));
   if (conf.getString("reconstruct") != ""){
     reconstruct.open(conf.getString("reconstruct").c_str());
     if (reconstruct.good()){

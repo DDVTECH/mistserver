@@ -23,7 +23,7 @@ Analyser::Analyser(Util::Config &conf){
 ///Opens the filename. Supports stdin and plain files.
 bool Analyser::open(const std::string & filename){
   uri.userAgentOverride = APPIDENT " - Load Tester " + JSON::Value(getpid()).asString();
-  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString();
+  std::string sidAsString = uri.userAgentOverride + JSON::Value(getpid()).asString() + Util::generateRandomString(16);
   uri.sidOverride = JSON::Value(checksum::crc32(0, sidAsString.data(), sidAsString.size())).asString();
   uri.open(filename);
   return true;

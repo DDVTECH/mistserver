@@ -188,6 +188,7 @@ namespace HTTP{
       injectHeaders(originalUrl, "HEAD", downer);
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
+      if (sidOverride.size()){downer.setHeader("Cookie", "sid=" + sidOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
         FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
                  downer.getStatusCode(), downer.getStatusText().c_str());

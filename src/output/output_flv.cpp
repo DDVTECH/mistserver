@@ -31,7 +31,7 @@ namespace Mist{
     capa["methods"][0u]["hrn"] = "FLV progressive";
     capa["methods"][0u]["priority"] = 5;
     capa["methods"][0u]["player_url"] = "/oldflashplayer.swf";
-    capa["push_urls"].append("/*.flv");
+    capa["push_urls"].append("*.flv");
 
     JSON::Value opt;
     opt["arg"] = "string";

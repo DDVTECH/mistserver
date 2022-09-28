@@ -436,7 +436,7 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
   return pid;
 }
 
-pid_t Util::Procs::startConverted(const char *const *argv, int *fdin){
+pid_t Util::Procs::startConverted(const char *const *argv, int *fdin, std::string triggerPayload){
   pid_t pid;
   int pipein[2];
   setHandler();
@@ -479,7 +479,7 @@ pid_t Util::Procs::startConverted(const char *const *argv, int *fdin){
     }
     dup2(ch_stdin, 0);
     close(ch_stdin);
-    convertLogs(argv[0]);
+    convertLogs(argv[0], triggerPayload);
     execvp(argv[0], (char *const *)argv);
     /*LTS-START*/
     char *trggr = getenv("MIST_TRIGGER");

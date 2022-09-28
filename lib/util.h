@@ -63,8 +63,8 @@ namespace Util{
   void logParser(int in, int out, bool colored,
                  void callback(const std::string &, const std::string &, const std::string &, uint64_t, bool) = 0);
   void redirectLogsIfNeeded();
-  void convertLogs(const char *progName);
-  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid);
+  void convertLogs(const char *progName, std::string triggerPayload = "");
+  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid, std::string triggerPayload = "");
 
   /// Holds type, size and offset for RelAccX class internal data fields.
   class RelAccXFieldData{

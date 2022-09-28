@@ -209,6 +209,8 @@ namespace Mist{
     cfg->addConnectorOptions(8889, capa);
     config = cfg;
     capa["push_urls"].append("srt://*");
+
+    config->addStandardPushCapabilities(capa);
     JSON::Value & pp = capa["push_parameters"];
 
     pp["mode"]["name"] = "Mode";

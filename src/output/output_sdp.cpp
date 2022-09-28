@@ -119,6 +119,7 @@ namespace Mist{
     capa["methods"][0u]["url_rel"] = "/$.sdp";
     capa["methods"][0u]["priority"] = 11;
 
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.sdp");
 
     JSON::Value opt;

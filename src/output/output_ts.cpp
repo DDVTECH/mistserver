@@ -183,6 +183,7 @@ namespace Mist{
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8888, capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("tsudp://*");
     capa["push_urls"].append("tsrtp://*");
     capa["push_urls"].append("tstcp://*");

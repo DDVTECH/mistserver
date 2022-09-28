@@ -79,6 +79,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/video/mpeg";
     capa["methods"][0u]["hrn"] = "TS HTTP progressive";
     capa["methods"][0u]["priority"] = 1;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.ts");
     capa["push_urls"].append("ts-exec:*");
 

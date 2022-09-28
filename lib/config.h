@@ -49,6 +49,7 @@ namespace Util{
     int servePlainSocket(int (*callback)(Socket::Connection &S));
     void addOptionsFromCapabilities(const JSON::Value &capabilities);
     void addBasicConnectorOptions(JSON::Value &capabilities);
+    void addStandardPushCapabilities(JSON::Value &capabilities);
     void addConnectorOptions(int port, JSON::Value &capabilities);
   };
 

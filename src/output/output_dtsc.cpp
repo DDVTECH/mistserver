@@ -96,6 +96,7 @@ namespace Mist{
     capa["desc"] = "Real time streaming over DTSC (proprietary protocol for efficient inter-server streaming)";
     capa["deps"] = "";
     capa["codecs"][0u][0u].append("+*");
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("dtsc://*");
     capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
 

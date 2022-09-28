@@ -107,6 +107,7 @@ namespace Mist{
     capa["methods"][0u]["type"] = "html5/image/jpeg";
     capa["methods"][0u]["hrn"] = "JPEG";
     capa["methods"][0u]["priority"] = 0;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.jpg");
 
     capa["optional"]["cachedir"]["name"] = "Cache directory";

@@ -203,6 +203,7 @@ namespace Mist{
     capa["optional"]["chunkpath"]["short"] = "e";
     capa["optional"]["chunkpath"]["default"] = "";
 
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("cmaf://*");
     capa["push_urls"].append("cmafs://*");
 

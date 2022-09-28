@@ -726,6 +726,129 @@ void Util::Config::addBasicConnectorOptions(JSON::Value &capabilities){
   addOption("json", option);
 }
 
+void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
+  //Set up fast access to the push_parameters
+  JSON::Value & pp = cap["push_parameters"];
+
+  pp["audio"]["name"] = "Audio track(s)";
+  pp["audio"]["help"] = "Override which audio tracks of the stream should be selected";
+  pp["audio"]["type"] = "string";
+  pp["audio"]["validate"][0u] = "track_selector";
+
+  pp["video"]["name"] = "Video track(s)";
+  pp["video"]["help"] = "Override which video tracks of the stream should be selected";
+  pp["video"]["type"] = "string";
+  pp["video"]["validate"][0u] = "track_selector";
+
+  pp["subtitle"]["name"] = "Subtitle track(s)";
+  pp["subtitle"]["help"] = "Override which subtitle tracks of the stream should be selected";
+  pp["subtitle"]["type"] = "string";
+  pp["subtitle"]["validate"].append("track_selector");
+
+  pp["rate"]["name"] = "Playback rate";
+  pp["rate"]["help"] = "Multiplier for the playback speed rate, or 0 to not limit";
+  pp["rate"]["type"] = "int";
+  pp["rate"]["default"] = "1";
+
+  pp["realtime"]["name"] = "Don't speed up output";
+  pp["realtime"]["help"] = "If set to any value, removes the rate override to unlimited normally applied to push outputs";
+  pp["realtime"]["type"] = "bool";
+  pp["realtime"]["format"] = "set_or_unset";
+
+  pp["unmask"]["name"] = "Unmask tracks";
+  pp["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
+  pp["unmask"]["type"] = "bool";
+  pp["unmask"]["format"] = "set_or_unset";
+
+  pp["waittrackcount"]["name"] = "Wait for GOP count";
+  pp["waittrackcount"]["help"] = "Before starting, wait until this number of GOPs is available in the main selected track";
+  pp["waittrackcount"]["type"] = "int";
+  pp["waittrackcount"]["default"] = 2;
+
+  pp["maxwaittrackms"]["name"] = "Max buffer duration for GOP count wait";
+  pp["maxwaittrackms"]["help"] = "When waiting for GOPs on the main track, give up when this much data is available in the main track buffer";
+  pp["maxwaittrackms"]["type"] = "int";
+  pp["maxwaittrackms"]["default"] = "5s, or 120s when using a non-default GOP count";
+  pp["maxwaittrackms"]["unit"] = "ms";
+
+  pp["append"]["name"] = "Append to file";
+  pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
+  pp["append"]["type"] = "bool";
+  pp["append"]["format"] = "set_or_unset";
+
+  pp["pushdelay"]["name"] = "Push delay";
+  pp["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
+  pp["pushdelay"]["type"] = "int";
+  pp["pushdelay"]["unit"] = "s";
+  pp["pushdelay"]["disable"].append("realtime");
+  pp["pushdelay"]["disable"].append("start");
+
+  pp["split"]["name"] = "Split interval";
+  pp["split"]["help"] = "Performs a gapless restart of the recording every this may seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable";
+  pp["split"]["type"] = "int";
+  pp["split"]["unit"] = "s";
+
+  pp["duration"]["name"] = "Duration of push";
+  pp["duration"]["help"] = "How much media time to push, in seconds. Internally overrides \"recstop\"";
+  pp["duration"]["type"] = "int";
+  pp["duration"]["unit"] = "s";
+  pp["duration"]["disable"].append("recstop");
+  pp["duration"]["disable"].append("stop");
+
+  pp["stop"]["name"] = "Media timestamp to stop at";
+  pp["stop"]["help"] = "What internal media timestamp to stop at";
+  pp["stop"]["type"] = "int";
+  pp["stop"]["unit"] = "s";
+  pp["stop"]["prot_only"] = true;
+
+  pp["start"]["name"] = "Media timestamp to start from";
+  pp["start"]["help"] = "What internal media timestamp to start from";
+  pp["start"]["type"] = "int";
+  pp["start"]["unit"] = "s";
+  pp["start"]["prot_only"] = true;
+
+  pp["stopunix"]["name"] = "Unix timestamp to stop at";
+  pp["stopunix"]["help"] = "What unix timestamp to stop at";
+  pp["stopunix"]["type"] = "unixtime";
+  pp["stopunix"]["unit"] = "s";
+  pp["stopunix"]["prot_only"] = true;
+  pp["stopunix"]["disable"].append("stop");
+
+  pp["startunix"]["name"] = "Unix timestamp to start from";
+  pp["startunix"]["help"] = "What unix timestamp to start from";
+  pp["startunix"]["type"] = "unixtime";
+  pp["startunix"]["unit"] = "s";
+  pp["startunix"]["prot_only"] = true;
+  pp["startunix"]["disable"].append("start");
+
+  pp["recstop"]["name"] = "Media timestamp to stop at";
+  pp["recstop"]["help"] = "What internal media timestamp to stop at";
+  pp["recstop"]["type"] = "int";
+  pp["recstop"]["unit"] = "s";
+  pp["recstop"]["file_only"] = true;
+
+  pp["recstart"]["name"] = "Media timestamp to start from";
+  pp["recstart"]["help"] = "What internal media timestamp to start from";
+  pp["recstart"]["type"] = "int";
+  pp["recstart"]["unit"] = "s";
+  pp["recstart"]["file_only"] = true;
+
+  pp["recstopunix"]["name"] = "Unix timestamp to stop at";
+  pp["recstopunix"]["help"] = "What unix timestamp to stop at";
+  pp["recstopunix"]["type"] = "unixtime";
+  pp["recstopunix"]["unit"] = "s";
+  pp["recstopunix"]["file_only"] = true;
+  pp["recstopunix"]["disable"].append("recstop");
+
+  pp["recstartunix"]["name"] = "Unix timestamp to start from";
+  pp["recstartunix"]["help"] = "What unix timestamp to start from";
+  pp["recstartunix"]["type"] = "unixtime";
+  pp["recstartunix"]["unit"] = "s";
+  pp["recstartunix"]["file_only"] = true;
+  pp["recstartunix"]["disable"].append("recstart");
+
+}
+
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath(){
   char mypath[500];

@@ -100,6 +100,7 @@ namespace Mist{
     capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
     capa["push_urls"].append("mkv-exec:*");

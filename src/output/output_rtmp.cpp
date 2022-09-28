@@ -251,6 +251,7 @@ namespace Mist{
     capa["optional"]["maxkbps"]["type"] = "uint";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rtmp://*");
     capa["push_urls"].append("rtmps://*");
 

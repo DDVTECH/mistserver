@@ -232,6 +232,7 @@ namespace Mist{
 
     cfg->addBasicConnectorOptions(capa);
     config = cfg;
+    config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rist://*");
                                    //
     JSON::Value & pp = capa["push_parameters"];

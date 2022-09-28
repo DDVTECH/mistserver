@@ -701,63 +701,61 @@ namespace Mist{
   }
 
   bool inputHLS::readExistingHeader(){
-    if (!Input::readExistingHeader()){return false;}
-    if (!M.inputLocalVars.isMember("version") || M.inputLocalVars["version"].asInt() < 2){
+    if (!Input::readExistingHeader()){
+      INFO_MSG("Could not read existing header, regenerating");
+      return false;
+    }
+    if (!M.inputLocalVars.isMember("version") || M.inputLocalVars["version"].asInt() < 3){
       INFO_MSG("Header needs update, regenerating");
       return false;
     }
-    // Vars for parsing TS packets
-    TS::Packet packet;
-    bool hasPacket;
-
-    // Set internal variables based on existing header file
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
-    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end(); pListIt++){
-      tsStream.clear();
-      uint32_t entId = 0;
-      // For each entry in the playlist, we need to parse the earliest packet in order to set the segment offset
-      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
-           entryIt != pListIt->second.end(); entryIt++){
-        tsStream.partialClear();
-
-        if (!segDowner.loadSegment(*entryIt)){
-          FAIL_MSG("Failed to load segment - skipping to next");
-          continue;
-        }
-        // Flag to allow getPacketTime to set the offset
-        entId++;
-        allowRemap = true;
-        while (!segDowner.atEnd()){
-          hasPacket = tsStream.hasPacketOnEachTrack() || (segDowner.atEnd() && tsStream.hasPacket());
-          if (hasPacket){
-            DTSC::Packet headerPack;
-            tsStream.getEarliestPacket(headerPack);
-            while (headerPack){
-              size_t tmpTrackId = headerPack.getTrackId();
-              // Call getPacketID in order to set pidmapping
-              uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
-              // Call getPacketTime in order to set segment offset
-              uint64_t packetTime = getPacketTime(headerPack.getTime(), tmpTrackId, pListIt->first, entryIt->mUTC);
-              VERYHIGH_MSG("Parsed earliest TS packet with id '%lu' @ '%lu ms' for TS segment with index '%u'", packetId, packetTime, entId - 1);
-              // Keep parsing until we have called getPacketID for each track
-              tsStream.getEarliestPacket(headerPack);
-            }
-          // If we do not have a packet on each track, read the next TS packet
-          }else if (segDowner.readNext()){
-            packet.FromPointer(segDowner.packetPtr);
-            tsStream.parse(packet, entId);
-          }
-        }
-        // Finally save the offset as part of the TS segment. This is required for bufferframe
-        // to work correctly, since not every segment might have an UTC timestamp tag
-        std::deque<playListEntries> &curList = listEntries[pListIt->first];
-        VERYHIGH_MSG("Saving offset of '%" PRId64 "' to current TS segment", plsTimeOffset[pListIt->first]);
-        curList.at(entId-1).timeOffset = plsTimeOffset[pListIt->first];
-      }
+    // Check if the DTSH file contains all expected data
+    if (!M.inputLocalVars.isMember("streamoffset")){
+      INFO_MSG("Header needs update as it contains no streamoffset, regenerating");
+      return false;
     }
-    tsStream.clear();
-    // set bootMsOffset in order to display the program time correctly in the player
+    if (!M.inputLocalVars.isMember("playlistEntries")){
+      INFO_MSG("Header needs update as it contains no playlist entries, regenerating");
+      return false;
+    }
+    if (!M.inputLocalVars.isMember("pidMappingR")){
+      INFO_MSG("Header needs update as it contains no packet id mappings, regenerating");
+      return false;
+    }
+    // Recover playlist entries
+    tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    jsonForEachConst(M.inputLocalVars["playlistEntries"], i){
+      std::deque<playListEntries> newList;
+      jsonForEachConst(*i, j){
+        const JSON::Value & thisEntry = *j;
+        playListEntries newEntry;
+        newEntry.filename = thisEntry[0u].asString();
+        newEntry.bytePos = thisEntry[1u].asInt();
+        newEntry.mUTC = thisEntry[2u].asInt();
+        newEntry.duration = thisEntry[3u].asDouble();
+        newEntry.timestamp = thisEntry[4u].asInt();
+        newEntry.timeOffset = thisEntry[5u].asInt();
+        newEntry.wait = thisEntry[6u].asInt();
+        if (thisEntry[7u].asString().size() && thisEntry[8u].asString().size()){
+          memcpy(newEntry.ivec, thisEntry[7u].asString().data(), 16);
+          memcpy(newEntry.keyAES, thisEntry[8u].asString().data(), 16);
+        }else{
+          memset(newEntry.ivec, 0, 16);
+          memset(newEntry.keyAES, 0, 16);
+        }
+        newList.push_back(newEntry);
+      }
+      listEntries[JSON::Value(i.key()).asInt()] = newList;
+    }
+    // Recover pidMappings
+    jsonForEachConst(M.inputLocalVars["pidMappingR"], i){
+      uint64_t key = JSON::Value(i.key()).asInt();
+      uint64_t val = i->asInt();
+      pidMappingR[key] = val;
+      pidMapping[val] = key;
+    }
+    // Set bootMsOffset in order to display the program time correctly in the player
+    streamOffset = M.inputLocalVars["streamoffset"].asInt();
     if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}
     meta.setBootMsOffset(streamOffset);
     return true;
@@ -765,6 +763,7 @@ namespace Mist{
 
   bool inputHLS::readHeader(){
     if (streamIsLive && !isLiveDVR){return true;}
+    if (readExistingHeader()){return true;}
     // to analyse and extract data
     TS::Packet packet; 
     char *data;
@@ -843,8 +842,13 @@ namespace Mist{
         }
         // Finally save the offset as part of the TS segment. This is required for bufferframe
         // to work correctly, since not every segment might have an UTC timestamp tag
-        std::deque<playListEntries> &curList = listEntries[pListIt->first];
-        curList.at(entId-1).timeOffset = plsTimeOffset[pListIt->first];
+        if (plsTimeOffset.count(pListIt->first)){
+          std::deque<playListEntries> &curList = listEntries[pListIt->first];
+          curList.at(entId-1).timeOffset = plsTimeOffset[pListIt->first];
+        }else{
+          std::deque<playListEntries> &curList = listEntries[pListIt->first];
+          curList.at(entId-1).timeOffset = 0;
+        }
       }
     }
 
@@ -854,7 +858,39 @@ namespace Mist{
     if (streamIsLive || isLiveDVR){return true;}
 
     // Set local vars used for parsing existing headers
-    meta.inputLocalVars["version"] = 2;
+    meta.inputLocalVars["version"] = 3;
+
+    // Write playlist entry info
+    JSON::Value allEntries;
+    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
+         pListIt != listEntries.end(); pListIt++){
+      JSON::Value thisPlaylist;
+      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
+         entryIt != pListIt->second.end(); entryIt++){
+        JSON::Value thisEntries;
+        thisEntries.append(entryIt->filename);
+        thisEntries.append(entryIt->bytePos);
+        thisEntries.append(entryIt->mUTC);
+        thisEntries.append(entryIt->duration);
+        thisEntries.append(entryIt->timestamp);
+        thisEntries.append(entryIt->timeOffset);
+        thisEntries.append(entryIt->wait);
+        thisEntries.append(entryIt->ivec);
+        thisEntries.append(entryIt->keyAES);
+        thisPlaylist.append(thisEntries);
+      }
+      allEntries[JSON::Value(pListIt->first).asString()] = thisPlaylist;
+    }
+    meta.inputLocalVars["playlistEntries"] = allEntries;
+    meta.inputLocalVars["streamoffset"] = streamOffset;
+
+    // Write packet ID mappings
+    JSON::Value thisMappingsR;
+    for (std::map<size_t, uint64_t>::iterator pidIt = pidMappingR.begin();
+         pidIt != pidMappingR.end(); pidIt++){
+      thisMappingsR[JSON::Value(pidIt->first).asString()] = pidIt->second;
+    }
+    meta.inputLocalVars["pidMappingR"] = thisMappingsR;
 
     INFO_MSG("write header file...");
     M.toFile((config->getString("input") + ".dtsh").c_str());

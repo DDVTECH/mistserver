@@ -32,6 +32,18 @@ namespace Mist{
     uint64_t wait;
     char ivec[16];
     char keyAES[16];
+    playListEntries(){
+      bytePos = 0;
+      mUTC = 0;
+      duration = 0;
+      timestamp = 0;
+      timeOffset = 0;
+      wait = 0;
+      for (size_t i = 0; i < 16; ++i){
+        ivec[i] = 0;
+        keyAES[i] = 0;
+      }
+    }
   };
 
   /// Keeps the segment entry list by playlist ID

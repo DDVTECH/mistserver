@@ -49,6 +49,7 @@ std::string streamDetails::stringify(){
   out << "\"streamDetails\": [\"total\": " << total <<  ", \"inputs\": " << inputs << ", \"bandwidth\": " << bandwidth << ", \"prevTotal\": " << prevTotal << ", \"bytesUp\": " << bytesUp << ", \"bytesDown\": " << bytesDown << "]";
   return out.str();
 }
+
 streamDetails* streamDetails::destringify(JSON::Value j){
     streamDetails* out = new streamDetails();
     out->total = j["total"].asInt();
@@ -69,12 +70,14 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     ws = new HTTP::Websocket(conn, url, headers);
     
   }
+
   LoadBalancer::LoadBalancer(Socket::Connection conn, HTTP::Parser &h){
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
     ws = new HTTP::Websocket(conn, h);
     
   }
+
   LoadBalancer::~LoadBalancer(){
     if(LoadMutex){
       delete LoadMutex;
@@ -82,6 +85,7 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     }
     delete ws;
   }
+
   std::string LoadBalancer::receive(){
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
@@ -99,7 +103,7 @@ streamDetails* streamDetails::destringify(JSON::Value j){
   bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName() == other.getName();}
   bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
   
-  void LoadBalancer::send(JSON::Value j){
+  void const LoadBalancer::send(JSON::Value j){
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
     //TODO implement: Encryption::AES();
@@ -139,14 +143,16 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
 
+
+
 std::string outUrl::stringify(){
   return "\"outUrl\": [\"pre\": " + pre + ", \"post\": " + post + "]";
 }
 
-outUrl* outUrl::destringify(JSON::Value j){
-  outUrl* r;
-  r->pre = j["pre"].asString();
-  r->post = j["post"].asString();
+outUrl outUrl::destringify(JSON::Value j){
+  outUrl r;
+  r.pre = j["pre"].asString();
+  r.post = j["post"].asString();
   return r;
 }
 
@@ -310,8 +316,8 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     return score;
   }
   std::string hostDetails::getUrl(std::string &s, std::string &proto){
-    if(!hostMutexf) {hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> gaurd(*hostMutexf);
+    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(!outputs.count(proto)){return "";}
     const outUrl o = outputs[proto];
     return o.pre + s + o.post;
@@ -347,17 +353,17 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
    * allow for json inputs instead of sets and maps for update function
    */
   void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
-    //TODO convert maps and sets
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
     streamDetails x;
+    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     for(int i = 0; i < streams.size(); i++){
       s.insert(std::pair<std::string, streamDetails>(streams[STREAMSKEY][i]["key"], *(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
     update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host);
   }
   
-
 
   hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
     hostMutex = 0;
@@ -486,7 +492,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     uint64_t scoreRate = rate();
     
     //update the local precalculated vars
-    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, streams, tags, cpu, servLati, servLongi, binHost, host);
+    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, (std::map<std::string, streamDetails>(streams)), tags, cpu, servLati, servLongi, binHost, host);
     //TODO: test send to other load balancers
     //create json to send to other load balancers
     JSON::Value j;
@@ -506,18 +512,8 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     j["servLongi"] = servLongi;
 
     //TODO: what if load balancer crashed
-    //TODO send to other load balancers
     for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      HTTP::Parser H;
-      HTTP::URL url((*it).getName()+ "/updateHost");
-      HTTP::Downloader DL;
-    
-      /*DL.post(url,j);
-      if(!DL.isOK()){
-        loadBalancer.remove(lb);
-      }
-      */
-      DL.getSocket().close();
+      //(*it).send(j);
     }
   }
   
@@ -600,7 +596,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
         }
-        streamDetails strm = streams[it.key()];
+        streamDetails &strm = streams[it.key()];
 
         strm.total = (*it)["curr"][0u].asInt();
         strm.inputs = (*it)["curr"][1u].asInt();
@@ -878,15 +874,15 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
         }
         // Add server to list
         else if (addserver.size()){
-          JSON::Value* ret;
+          JSON::Value ret;
           addServer(ret, addserver);
-          if(ret == NULL){
+          if(ret.isNull()){
             H.SetBody("Host length too long for monitoring");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }else {
-            H.SetBody(ret->toPrettyString());
+            H.SetBody(ret.toPrettyString());
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();

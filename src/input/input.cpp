@@ -587,7 +587,25 @@ namespace Mist{
     }
     // close file
     file.close();
-    outMeta.toFile(fileName + ".dtsh");
+    Socket::Connection outFile;
+    int tmpFd = open("/dev/null", O_RDWR);
+    outFile.open(tmpFd);
+    Util::Procs::socketList.insert(tmpFd);
+    genericWriter(config->getString("input") + ".dtsh", &outFile, false);
+    if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
+  }
+
+  /// \brief Makes the generic writer available to input classes
+  /// \param file target URL or filepath
+  /// \param conn connection which will be used to send data. Must be initialised
+  /// \param append whether to open this connection in truncate or append mode
+  bool Input::genericWriter(std::string file, Socket::Connection *conn, bool append){
+    int outFile = -1;
+    if (!conn) {return false;}
+    if (!Util::genericWriter(file, outFile, append)){return false;}
+    dup2(outFile, conn->getSocket());
+    close(outFile);
+    return true;
   }
 
   /// Checks in the server configuration if this stream is set to always on or not.

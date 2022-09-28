@@ -1402,7 +1402,8 @@ namespace Mist{
           streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
       Triggers::doTrigger("CONN_CLOSE", payload, streamName);
     }
-    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName) &&
+            config->getString("target").substr(0, 7) != "ipfs://"){
       uint64_t rightNow = Util::epoch();
       std::stringstream payl;
       payl << streamName << '\n';
@@ -1881,7 +1882,29 @@ namespace Mist{
         return false;
       }
       Util::Procs::forget(child);
-    }else{
+    } else if (file.substr(0,7) == "ipfs://") {
+        // Create RECORDING_END trigger payload to be invoked once IPFS CID is known
+        std::stringstream payl;
+        payl << streamName << '\n';
+        payl << "IPFS_CID" << '\n';
+        payl << capa["name"].asStringRef() << '\n';
+        // Can't fill these fields without knowing when the trigger will be fired
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        payl << 0 << '\n';
+        const char *cmd[] = {"livepeer-catalyst-uploader", "-t", "2592000s", (char*)file.c_str(), 0};
+        pid_t child = Util::Procs::startConverted(cmd, &outFile, payl.str());
+        if (child == -1){
+          ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
+          return false;
+        }
+        Util::Procs::forget(child);
+    }
+    else{
       int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
       int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
       if (!Util::createPathFor(file)){

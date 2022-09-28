@@ -17,6 +17,7 @@
 #endif
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <mist/triggers.h>
 
 #define RAXHDR_FIELDOFFSET p[1]
 #define RAX_REQDFIELDS_LEN 36
@@ -315,7 +316,7 @@ namespace Util{
     }
   }
 
-  void convertLogs(const char *progName){
+  void convertLogs(const char *progName, std::string triggerPayload){
     int pipeErr[2];
     int pipeOut[2];
     pid_t thisPid = getpid();
@@ -342,7 +343,7 @@ namespace Util{
         sigaction(SIGHUP, &new_action, NULL);
         sigaction(SIGTERM, &new_action, NULL);
         sigaction(SIGPIPE, &new_action, NULL);
-        Util::logConverter(pipeErr[0], pipeOut[0], STDERR_FILENO, progName, thisPid);
+        Util::logConverter(pipeErr[0], pipeOut[0], STDERR_FILENO, progName, thisPid, triggerPayload);
         exit(0);
       }
       Util::Procs::fork_complete();
@@ -359,7 +360,7 @@ namespace Util{
     }
   }
 
-  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid){
+  void logConverter(int inErr, int inOut, int out, const char *progName, pid_t pid, std::string triggerPayload){
     Socket::Connection errStream(-1, inErr);
     Socket::Connection outStream(-1, inOut);
     errStream.setBlocking(false);
@@ -379,6 +380,17 @@ namespace Util{
           while (line.find('\r') != std::string::npos){line.erase(line.find('\r'));}
           while (line.find('\n') != std::string::npos){line.erase(line.find('\n'));}
           dprintf(out, "INFO|%s|%d||%s|%s\n", progName, pid, Util::streamName, line.c_str());
+          if (!strcmp(progName, "livepeer-catalyst-uploader") && !triggerPayload.empty()) {
+            // output is one-line JSON with URL
+            const JSON::Value &value = JSON::fromString(line);
+            // insert received IPFS CID
+            unsigned long cid_pos = triggerPayload.find("IPFS_CID");
+            if (cid_pos != std::string::npos) {
+              triggerPayload.replace(cid_pos, 8, value["uri"].asString());
+              // invoke RECORDING_END trigger
+              Triggers::doTrigger("RECORDING_END", triggerPayload, streamName);
+            }
+          }
           line.clear();
         }      
       }else{Util::sleep(25);}

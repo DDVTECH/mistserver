@@ -884,19 +884,6 @@ namespace Mist{
       thisMappingsR.append(pidIt->second);
     }
     meta.inputLocalVars["pidMappingR"] = thisMappingsR;
-    // Write segment offsets to metadata
-    JSON::Value thisOffsets;
-    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end(); pListIt++){
-      JSON::Value thisList;
-      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
-         entryIt != pListIt->second.end(); entryIt++){
-        thisList.append(entryIt->timeOffset);
-      }
-      thisOffsets.append(thisList);
-    }
-    meta.inputLocalVars["offsets"] = thisOffsets;
-    meta.inputLocalVars["streamoffset"] = streamOffset;
 
     INFO_MSG("write header file...");
     Socket::Connection outFile;

@@ -1866,7 +1866,7 @@ namespace Mist{
 
   /// \brief Makes the generic writer available to output classes
   /// \param file target URL or filepath
-  /// \param conn connection which will be used to send data. Must be initialised
+  /// \param conn connection which will be used to send data. Will use Output's internal myConn if not initialised
   /// \param append whether to open this connection in truncate or append mode
   bool Output::genericWriter(std::string file, bool append, Socket::Connection *conn){
     int outFile = -1;

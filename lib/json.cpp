@@ -1175,7 +1175,7 @@ std::string JSON::Value::toPrettyString(size_t indentation, bool omitBinaryStrin
     break;
   }
   case STRING:{
-    if (!omitBinaryStrings) {
+    if (omitBinaryStrings) {
       for (uint8_t i = 0; i < 201 && i < strVal.size(); ++i) {
         if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 200) {
           return "\"" + JSON::Value((int64_t) strVal.size()).asString() + " bytes of data\"";

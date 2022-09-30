@@ -252,7 +252,7 @@ namespace Controller{
         if (cs->isString() && tmp.isMember(cs.key())){
           JSON::Value tmpConf = JSON::fromFile(cs->asStringRef());
           tmpConf[cs.key()] = tmp[cs.key()];
-          if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toString())){
+          if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toPrettyString(4))){
             ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
             std::cout << "**config." << cs.key() <<"**" << std::endl;
             std::cout << tmp[cs.key()].toString() << std::endl;
@@ -262,7 +262,7 @@ namespace Controller{
         }
       }
     }
-    if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toString())){
+    if (!Controller::WriteFile(Controller::conf.getString("configFile"), tmp.toPrettyString(4))){
       ERROR_MSG("Error writing config to %s", Controller::conf.getString("configFile").c_str());
       std::cout << "**Config**" << std::endl;
       std::cout << tmp.toString() << std::endl;

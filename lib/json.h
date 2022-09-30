@@ -96,7 +96,7 @@ namespace JSON{
     void netPrepare();
     std::string &toNetPacked();
     std::string toString() const;
-    std::string toPrettyString(size_t indent = 0) const;
+    std::string toPrettyString(size_t indent = 0, bool omitBinaryStrings = true) const;
     void append(const Value &rhs);
     Value & append();
     void prepend(const Value &rhs);

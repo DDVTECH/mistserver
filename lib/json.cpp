@@ -1149,8 +1149,9 @@ std::string JSON::Value::toString() const{
 }
 
 /// Converts this JSON::Value to valid JSON notation and returns it.
-/// Makes an attempt at pretty-printing.
-std::string JSON::Value::toPrettyString(size_t indentation) const{
+/// Makes an attempt at pretty-printing. Removes long string values and string values with non-printable or non-latin chars by default.
+/// Controlled by omitBinaryStrings parameter.
+std::string JSON::Value::toPrettyString(size_t indentation, bool omitBinaryStrings) const{
   switch (myType){
   case INTEGER:{
     std::stringstream st;
@@ -1174,9 +1175,11 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     break;
   }
   case STRING:{
-    for (uint8_t i = 0; i < 201 && i < strVal.size(); ++i){
-      if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 200){
-        return "\"" + JSON::Value((int64_t)strVal.size()).asString() + " bytes of data\"";
+    if (!omitBinaryStrings) {
+      for (uint8_t i = 0; i < 201 && i < strVal.size(); ++i) {
+        if (strVal[i] < 32 || strVal[i] > 126 || strVal.size() > 200) {
+          return "\"" + JSON::Value((int64_t) strVal.size()).asString() + " bytes of data\"";
+        }
       }
     }
     return JSON::string_escape(strVal);
@@ -1186,7 +1189,7 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
     if (arrVal.size() > 0){
       std::string tmp = "[\n" + std::string(indentation + 2, ' ');
       jsonForEachConst(*this, i){
-        tmp += i->toPrettyString(indentation + 2);
+        tmp += i->toPrettyString(indentation + 2, omitBinaryStrings);
         if (i.num() + 1 != arrVal.size()){tmp += ", ";}
       }
       tmp += "\n" + std::string(indentation, ' ') + "]";
@@ -1204,7 +1207,7 @@ std::string JSON::Value::toPrettyString(size_t indentation) const{
       jsonForEachConst(*this, i){
         tmp2 += (shortMode ? std::string("") : std::string(indentation + 2, ' ')) +
                 JSON::string_escape(i.key()) + ":";
-        tmp2 += i->toPrettyString(indentation + 2);
+        tmp2 += i->toPrettyString(indentation + 2, omitBinaryStrings);
         if (i.num() + 1 != objVal.size()){tmp2 += "," + std::string((shortMode ? " " : "\n"));}
       }
       tmp2 += (shortMode ? std::string("") : "\n" + std::string(indentation, ' ')) + "}";

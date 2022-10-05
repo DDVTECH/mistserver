@@ -249,6 +249,7 @@ var UI = {
   menu: [
     {
       Overview: {},
+      General: {},
       Protocols: {},
       Streams: {
         hiddenmenu: {
@@ -257,12 +258,8 @@ var UI = {
           Embed: {}
         }
       },
-      Push: {
-        LTSonly: true
-      },
-      'Triggers': {
-        LTSonly: false
-      },
+      Push: {},
+      Triggers: {},
       Logs: {},
       Statistics: {},
       'Server Stats': {}
@@ -299,9 +296,6 @@ var UI = {
       );
       for (var k in button.classes) {
         $button.addClass(button.classes[k]);
-      }
-      if ('LTSonly' in button) {
-        $button.addClass('LTSonly');
       }
       if ('link' in button) {
         $button.attr('href',button.link).attr('target','_blank');
@@ -598,7 +592,7 @@ var UI = {
           $field = $('<div>').addClass('radioselect');
           for (var i in e.radioselect) {
             var $radio = $('<input>').attr('type','radio').val(e.radioselect[i][0]).attr('name',e.label);
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+            if (e.readonly) {
               $radio.prop('disabled',true);
             }
             var $label = $('<label>').append(
@@ -612,7 +606,7 @@ var UI = {
                 $(this).parent().find('input[type=radio]:enabled').prop('checked','true');
               });
               $label.append($select);
-              if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+              if (e.readonly) {
                 $select.prop('disabled',true);
               }
               for (var j in e.radioselect[i][2]) {
@@ -659,10 +653,6 @@ var UI = {
           $field.append($select);
           $select.data("input",false);
           
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            $select.prop('disabled',true);
-          }
-          
           for (var i in e.selectinput) {
             var $option = $("<option>");
             $select.append($option);
@@ -699,7 +689,7 @@ var UI = {
           $field = $('<div>').addClass('inputlist');
           var newitem = function(){
             var $part = $("<input>").attr("type","text").addClass("listitem");
-            if ((('LTSonly' in e) && (!mist.data.LTS)) || (e.readonly)) {
+            if (e.readonly) {
               $part.prop('disabled',true);
             }
             var keyup = function(e){
@@ -832,7 +822,7 @@ var UI = {
           $c.append($itemsettings);
           break;
         }
-        case "json":
+        case "json": {
           $field = $("<textarea>").on('keydown',function(e){
             e.stopPropagation();
           }).on('keyup change',function(e){
@@ -855,6 +845,23 @@ var UI = {
             e.validate = [f];
           }
           break;
+        }
+        case "bitmask": {
+          $field = $("<div>").addClass("bitmask");
+          for (var i in e.bitmask) {
+            $field.append(
+              $("<label>").append(
+                $("<input>").attr("type","checkbox").attr("name","bitmask_"+("pointer" in e ? e.pointer.index : "")).attr("value",e.bitmask[i][0]).addClass("field")
+              ).append(
+                $("<span>").text(e.bitmask[i][1])
+              )
+            );
+          }
+
+          //when the main label is clicked, do nothing (instead of toggeling the first checkbox)
+          $e.attr("for","none");
+          break;
+        }
         default:
           $field = $('<input>').attr('type','text');
       }
@@ -940,10 +947,6 @@ var UI = {
       }
       if ('rows' in e) {
         $field.attr('rows',e.rows);
-      }
-      if (('LTSonly' in e) && (!mist.data.LTS)) {
-        $fc.addClass('LTSonly');
-        $field.prop('disabled',true);
       }
       if ("dependent" in e) {
         for (var i in e.dependent) {
@@ -1128,10 +1131,6 @@ var UI = {
             }
             subUI.field.trigger('change');
           });
-          if (('LTSonly' in e) && (!mist.data.LTS)) {
-            subUI.blackwhite.prop('disabled',true);
-            subUI.prototype.prop('disabled',true);
-          }
           subUI.values.append(subUI.prototype.clone(true));
           $fc.data('subUI',subUI).addClass('limit_list').append(subUI.blackwhite).append(subUI.values);
           break;
@@ -2393,34 +2392,10 @@ var UI = {
         var $protocols_on = $('<span>');
         var $protocols_off = $('<span>');
         
-        var s = {
-          serverid: mist.data.config.serverid,
-          debug: mist.data.config.debug,
-          accesslog: mist.data.config.accesslog,
-          prometheus: mist.data.config.prometheus,
-          defaultStream: mist.data.config.defaultStream,
-          trustedproxy: mist.data.config.trustedproxy,
-          location: "location" in mist.data.config ? mist.data.config.location : {}
-        };
-        var b = {};
-        if ("bandwidth" in mist.data) {
-          b = mist.data.bandwidth;
-          if (b == null) { b = {}; }
-          if (!b.limit) {
-            b.limit = "";
-          }
-        }
-        var $bitunit = $("<select>").html(
-          $("<option>").val(1).text("bytes/s")
-        ).append(
-          $("<option>").val(1024).text("KiB/s")
-        ).append(
-          $("<option>").val(1048576).text("MiB/s")
-        ).append(
-          $("<option>").val(1073741824).text("GiB/s")
-        );
         var host = parseURL(mist.user.host);
         host = host.protocol+host.host+host.port;
+
+        var s = {};
         
         $main.append(UI.buildUI([
           {
@@ -2436,8 +2411,7 @@ var UI = {
           },{
             type: 'span',
             label: 'Version check',
-            value: $versioncheck,
-            LTSonly: true
+            value: $versioncheck
           },{
             type: 'span',
             label: 'Server time',
@@ -2445,13 +2419,11 @@ var UI = {
           },{
             type: 'span',
             label: 'Licensed to',
-            value: ("license" in mist.data.config ? mist.data.config.license.user : ""),
-            LTSonly: true
+            value: ("license" in mist.data.config ? mist.data.config.license.user : "")
           },{
             type: 'span',
             label: 'Active licenses',
-            value: $activeproducts,
-            LTSonly: true
+            value: $activeproducts
           },{
             type: 'span',
             label: 'Configured streams',
@@ -2476,156 +2448,26 @@ var UI = {
             type: 'span',
             label: 'Recent problems',
             value: $errors
-          },$('<br>'),{
-            type: 'str',
-            label: 'Human readable name',
-            pointer: {
-              main: s,
-              index: 'serverid'
-            },
-            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
-          },{
-            type: 'debug',
-            label: 'Debug level',
-            pointer: {
-              main: s,
-              index: 'debug'
-            },
-            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
-          },{
-            type: "selectinput",
-            label: "Access log",
-            selectinput: [
-              ["","Do not track"],
-              ["LOG","Log to MistServer log"],
-              [{
-                type:"str",
-                label:"Path",
-                LTSonly: true
-              },"Log to file"]
-            ],
-            pointer: {
-              main: s,
-              index: "accesslog"
-            },
-            help: "Enable access logs.",
-            LTSonly: true
-          },{
-            type: "selectinput",
-            label: "Prometheus stats output",
-            selectinput: [
-              ["","Disabled"],
-              [{
-                type: "str",
-                label:"Passphrase",
-                LTSonly: true
-              },"Enabled"]
-            ],
-            pointer: {
-              main: s,
-              index: "prometheus"
-            },
-            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
-            LTSonly: true
-          },{
-            type: "inputlist",
-            label: "Trusted proxies",
-            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            LTSonly: true,
-            pointer: {
-              main: s,
-              index: "trustedproxy"
-            }
-          },{
-            type: "selectinput",
-            label: "Load balancer bandwidth limit",
-            selectinput: [
-              ["","Default (1 gbps)"],
-              [{
-                label: "Custom",
-                type: "int",
-                min: 0,
-                unit: $bitunit
-              },"Custom"]
-            ],
-            pointer: {
-              main: b,
-              index: "limit"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. This is the amount of traffic this server is willing to handle.",
-            LTSonly: true
-          },{
-            type: "inputlist",
-            label: "Load balancer bandwidth exceptions",
-            pointer: {
-              main: b,
-              index: "exceptions"
-            },
-            help: "This setting only applies when MistServer is combined with a load balancer. Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server latitude",
-            pointer: {
-              main: s.location,
-              index: "lat"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "int",
-            step: 0.00000001,
-            label: "Server longitude",
-            pointer: {
-              main: s.location,
-              index: "lon"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them.",
-            LTSonly: true
-          },{
-            type: "str",
-            label: "Server location name",
-            pointer: {
-              main: s.location,
-              index: "name"
-            },
-            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location.",
-            LTSonly: true
-          },{
-            type: "str",
-            validate: ['streamname_with_wildcard_and_variables'],
-            label: 'Fallback stream',
-            pointer: {
-              main: s,
-              index: "defaultStream"
-            },
-            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
-            LTSonly: true
+          },
+          $("<br>"),
+          $("<h3>").text("Write config now"),
+          {
+            type: "help",
+            help: "Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box."
           },{
             type: 'checkbox',
             label: 'Force configurations save',
             pointer: {
               main: s,
               index: 'save'
-            },
-            help: 'Tick the box in order to force an immediate save to the config.json MistServer uses to save your settings. Saving will otherwise happen upon closing MistServer. Don\'t forget to press save after ticking the box.'
+            }            
           },{
             type: 'buttons',
             buttons: [{
               type: 'save',
               label: 'Save',
               'function': function(){
-                var save = {config: s};
-                
-                var bandwidth = {};
-                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
-                bandwidth.exceptions = b.exceptions;
-                if (bandwidth.exceptions === null) {
-                  bandwidth.exceptions = [];
-                }
-                
-                save.bandwidth = bandwidth;
+                var save = {};
                 
                 if (s.save) {
                   save.save = s.save;
@@ -2857,6 +2699,289 @@ var UI = {
         UI.interval.set(updateViewers,30e3);
         
         break;
+      case 'General': {
+
+        var s = {
+          serverid: mist.data.config.serverid,
+          debug: mist.data.config.debug,
+          accesslog: mist.data.config.accesslog,
+          prometheus: mist.data.config.prometheus,
+          sessionViewerMode: mist.data.config.sessionViewerMode,
+          sessionInputMode: mist.data.config.sessionInputMode,
+          sessionOutputMode: mist.data.config.sessionOutputMode,
+          sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
+          tknMode: mist.data.config.tknMode,
+          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
+          defaultStream: mist.data.config.defaultStream,
+          trustedproxy: mist.data.config.trustedproxy,
+          location: "location" in mist.data.config ? mist.data.config.location : {}
+        };
+        var b = {};
+        if ("bandwidth" in mist.data) {
+          b = mist.data.bandwidth;
+          if (b == null) { b = {}; }
+          if (!b.limit) {
+            b.limit = "";
+          }
+        }
+        var $bitunit = $("<select>").html(
+          $("<option>").val(1).text("bytes/s")
+        ).append(
+          $("<option>").val(1024).text("KiB/s")
+        ).append(
+          $("<option>").val(1048576).text("MiB/s")
+        ).append(
+          $("<option>").val(1073741824).text("GiB/s")
+        );
+
+
+        $main.html(UI.buildUI([
+          $("<h2>").text("General settings"),{
+            type: "help",
+            help: "These are settings that apply to your MistServer instance in general."
+          },{
+            type: 'str',
+            label: 'Human readable name',
+            pointer: {
+              main: s,
+              index: 'serverid'
+            },
+            help: 'You can name your MistServer here for personal use. You\'ll still need to set host name within your network yourself.'
+          },{
+            type: 'debug',
+            label: 'Debug level',
+            pointer: {
+              main: s,
+              index: 'debug'
+            },
+            help: 'You can set the amount of debug information MistServer saves in the log. A full reboot of MistServer is required before some components of MistServer can post debug information.'
+          },{
+            type: "selectinput",
+            label: "Access log",
+            selectinput: [
+              ["","Do not track"],
+              ["LOG","Log to MistServer log"],
+              [{
+                type:"str",
+                label:"Path"
+              },"Log to file"]
+            ],
+            pointer: {
+              main: s,
+              index: "accesslog"
+            },
+            help: "Enable access logs."
+          },{
+            type: "selectinput",
+            label: "Prometheus stats output",
+            selectinput: [
+              ["","Disabled"],
+              [{
+                type: "str",
+                label:"Passphrase"
+              },"Enabled"]
+            ],
+            pointer: {
+              main: s,
+              index: "prometheus"
+            },
+            help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json."
+          },{
+            type: "inputlist",
+            label: "Trusted proxies",
+            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
+            pointer: {
+              main: s,
+              index: "trustedproxy"
+            }
+          },{
+            type: "str",
+            validate: ['streamname_with_wildcard_and_variables'],
+            label: 'Fallback stream',
+            pointer: {
+              main: s,
+              index: "defaultStream"
+            },
+            help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name."
+          },
+
+
+
+          $("<h3>").text("Sessions"),
+
+          {
+            type: 'bitmask',
+            label: 'Bundle viewer sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionViewerMode'
+            },
+            help: 'Change the way viewer connections are bundled into sessions.<br>Default: stream name, viewer IP and token'
+          },{
+            type: 'bitmask',
+            label: 'Bundle input sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionInputMode'
+            },
+            help: 'Change the way input connections are bundled into sessions.<br>Default: stream name, input IP, token and protocol'
+          },{
+            type: 'bitmask',
+            label: 'Bundle output sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionOutputMode'
+            },
+            help: 'Change the way output connections are bundled into sessions.<br>Default: stream name, output IP, token and protocol'
+          },{
+            type: 'bitmask',
+            label: 'Bundle unspecified sessions by',
+            bitmask: [
+              [8,"Stream name"],
+              [4,"IP address"],
+              [2,"Token"],
+              [1,"Protocol"]
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionUnspecifiedMode'
+            },
+            help: 'Change the way unspecified connections are bundled into sessions.<br>Default: none'
+          },{
+            type: 'select',
+            label: 'Treat HTTP-only sessions as',
+            select: [
+              [1, 'A viewer session'],
+              [2, 'An output session: skip executing the USER_NEW and USER_END triggers'],
+              [4, 'A separate \'unspecified\' session: skip executing the USER_NEW and USER_END triggers'],
+              [3, 'Do not start a session: skip executing the USER_NEW and USER_END triggers and do not count for statistics']
+            ],
+            pointer: {
+              main: s,
+              index: 'sessionStreamInfoMode'
+            },
+            help: 'Change the way the stream info connection gets treated.<br>Default: as a viewer session'
+          },{
+            type: "bitmask",
+            label: "Communicate session token",
+            bitmask: [
+              [8,"Write to cookie"],
+              [4,"Write to URL parameter"],
+              [2,"Read from cookie"],
+              [1,"Read from URL parameter"]
+            ],
+            pointer: {
+              main: s,
+              index: "tknMode"
+            },
+            help: "Change the way the session token gets passed to and from MistServer, which can be set as a cookie or URL parameter named `tkn`. Reading the session token as a URL parameter takes precedence over reading from the cookie.<br>Default: all"
+          },
+
+
+
+          $('<h3>').text("Load balancer"),
+          {
+            type: "help",
+            help: "If you're using MistServer's load balancer, the information below is passed to it so that it can make informed decisions."
+          },
+
+          {
+            type: "selectinput",
+            label: "Server's bandwidth limit",
+            selectinput: [
+              ["","Default (1 gbps)"],
+              [{
+                label: "Custom",
+                type: "int",
+                min: 0,
+                unit: $bitunit
+              },"Custom"]
+            ],
+            pointer: {
+              main: b,
+              index: "limit"
+            },
+            help: "This is the amount of traffic this server is willing to handle."
+          },{
+            type: "inputlist",
+            label: "Bandwidth exceptions",
+            pointer: {
+              main: b,
+              index: "exceptions"
+            },
+            help: "Data sent to the hosts and subnets listed here will not count towards reported bandwidth usage.<br>Examples:<ul><li>192.168.0.0/16</li><li>localhost</li><li>10.0.0.0/8</li><li>fe80::/16</li></ul>"
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server latitude",
+            pointer: {
+              main: s.location,
+              index: "lat"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+          },{
+            type: "int",
+            step: 0.00000001,
+            label: "Server longitude",
+            pointer: {
+              main: s.location,
+              index: "lon"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. When this is set, the balancer can send users to a server close to them."
+          },{
+            type: "str",
+            label: "Server location name",
+            pointer: {
+              main: s.location,
+              index: "name"
+            },
+            help: "This setting is only useful when MistServer is combined with a load balancer. This will be displayed as the server's location."
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s};
+                
+                var bandwidth = {};
+                bandwidth.limit = (b.limit ? $bitunit.val() * b.limit : 0);
+                bandwidth.exceptions = b.exceptions;
+                if (bandwidth.exceptions === null) {
+                  bandwidth.exceptions = [];
+                }
+                save.bandwidth = bandwidth;
+                
+                mist.send(function(){
+                  UI.navto('Overview');
+                },save)
+              }
+            }]
+          }
+
+        ]));
+        break;
+      }
       case 'Protocols':
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
@@ -3832,7 +3957,7 @@ var UI = {
                         Linux/MacOS:&nbsp;/PATH/<br>\
                         Windows:&nbsp;/cygdrive/DRIVE/PATH/\
                       </td>\
-                      <td class=LTSonly>\
+                      <td>\
                         A folder stream makes all the recognised files in the selected folder available as a stream.\
                       </td>\
                     </tr>\
@@ -3851,12 +3976,12 @@ var UI = {
                     <tr>\
                       <th>RTSP</th>\
                       <td>push://(IP)(@PASSWORD)</td>\
-                      <td class=LTSonly>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
+                      <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
                     </tr>\
                     <tr>\
                       <th>TS</th>\
                       <td>tsudp://(IP):PORT(/INTERFACE)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         IP is the IP address used to listen for this stream, multi-cast IP range is: 224.0.0.0 - 239.255.255.255. If IP is not set all addresses will listened to.<br>\
                         PORT is the port you reserve for this stream on the chosen IP.<br>\
                         INTERFACE is the interface used, if left all interfaces will be used.\
@@ -3877,19 +4002,19 @@ var UI = {
                     <tr>\
                       <th>HLS</th>\
                       <td>http://URL/TO/STREAM.m3u8</td>\
-                      <td class=LTSonly>The URL where the HLS stream is available to MistServer.</td>\
+                      <td>The URL where the HLS stream is available to MistServer.</td>\
                     </tr>\
                     <tr>\
                       <th>RTSP</th>\
                       <td>rtsp://(USER:PASSWORD@)IP(:PORT)(/path)</td>\
-                      <td class=LTSonly>\
+                      <td>\
                         USER:PASSWORD is the account used if authorization is required.<br>\
                         IP is the IP address used to pull this stream from.<br>\
                         PORT is the port used to connect through.<br>\
                         PATH is the path to be used to identify the correct stream.\
                       </td>\
                     </tr>\
-                  </table>").replace(/LTSonly/g,(mist.data.LTS ? "\"\"" : "LTSonly"))
+                  </table>")
         ,
             'function': function(){
               var source = $(this).val();
@@ -3993,7 +4118,6 @@ var UI = {
             label: 'Stop sessions',
             type: 'checkbox',
             help: 'When saving these stream settings, kill this stream\'s current connections.',
-            LTSonly: true,
             pointer: {
               main: saveas,
               index: 'stop_sessions'
@@ -5287,8 +5411,7 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'wait'
-                },
-                LTSonly: 1
+                }
               },{
                 label: 'Maximum retries',
                 unit: '/s',
@@ -5299,8 +5422,7 @@ var UI = {
                 pointer: {
                   main: push_settings,
                   index: 'maxspeed'
-                },
-                LTSonly: 1
+                }
               },{
                 type: 'buttons',
                 buttons: [{
@@ -5556,8 +5678,7 @@ var UI = {
                 "break": false
               };
             }],
-            datalist: allthestreams,
-            LTSonly: 1
+            datalist: allthestreams
           },{
             label: 'Target',
             type: 'str',
@@ -5622,8 +5743,7 @@ var UI = {
                 optional: mist.data.capabilities.connectors[match].push_parameters
               };
               $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
-            },
-            LTSonly: 1
+            }
           },$additional_params];
           
           
@@ -5909,7 +6029,6 @@ var UI = {
           help: 'For what event this trigger should activate.',
           type: 'select',
           select: triggerSelect,
-          LTSonly: true,
           validate: ['required'],
           'function': function(){
             var v = $(this).getval();
@@ -5992,8 +6111,7 @@ var UI = {
           },
           help: 'For triggers that can apply to specific streams, this value decides what streams they are triggered for. (none checked = always triggered)',
           type: 'checklist',
-          checklist: Object.keys(mist.data.streams),
-          LTSonly: true
+          checklist: Object.keys(mist.data.streams)
         },$('<br>'),{
           label: 'Handler (URL or executable)',
           help: 'This can be either an HTTP URL or a full path to an executable.',
@@ -6002,8 +6120,7 @@ var UI = {
             index: 'url'
           },
           validate: ['required'],
-          type: 'str',
-          LTSonly: true
+          type: 'str'
         },{
           label: 'Blocking',
           type: 'checkbox',
@@ -6011,8 +6128,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'async'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Parameters',
           type: 'str',
@@ -6020,8 +6136,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'params'
-          },
-          LTSonly: true
+          }
         },{
           label: 'Default response',
           type: 'str',
@@ -6030,8 +6145,7 @@ var UI = {
           pointer: {
             main: saveas,
             index: 'default'
-          },
-          LTSonly: true
+          }
         },{
           type: 'buttons',
           buttons: [
@@ -6730,8 +6844,6 @@ var mist = {
             UI.elements.connection.user_and_host.text(mist.user.name+' @ '+mist.user.host);
             UI.elements.connection.msg.removeClass('red').text('Last communication with the server at '+UI.format.time((new Date).getTime()/1000));
             
-            //if this is LTS, get rid of the banner on menu buttons
-            if (d.LTS) { UI.elements.menu.find('.LTSonly').removeClass('LTSonly'); }
             
             if (d.log) {
               var lastlog = d.log[d.log.length-1];
@@ -7181,6 +7293,15 @@ $.fn.getval = function(){
           val = null;
         }
         break;
+      case "bitmask": {
+        val = 0;
+        $(this).find("input").each(function(){
+          if ($(this).prop("checked")) {
+            val += Number($(this).val());
+          }
+        });
+        break;
+      }
     }
   }
   return val;
@@ -7327,6 +7448,21 @@ $.fn.setval = function(val){
         break;
       case "json": {
         $(this).val(val === null ? "" : JSON.stringify(val,null,2));
+        break;
+      }
+      case "bitmask": {
+        var map = $(this).data("opts").bitmask;
+        var $inputs = $(this).find("input");
+        for (var i in map) {
+          $el = $inputs.eq(i);
+          if ((val & map[i][0]) == map[i][0]) {
+            $el.attr("checked","checked");
+          }
+          else {
+            $el.removeAttr("checked");
+          }
+        }
+        break;
       }
     }
   }

@@ -279,6 +279,21 @@ main > button {
   width: 1.5em;
   flex-grow: 0;
 }
+.input_container .field_container .field.bitmask {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+  padding: 0;
+  margin-bottom: 0.5em;
+}
+.input_container .field_container .field.bitmask > label {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  margin-right: -0.25em;
+}
+.input_container .field_container .field.bitmask > label > input { margin: 0; }
+.input_container .field_container .field.bitmask > label > span { margin: 0 0.25em; }
 textarea {
   font-size: 0.8em;
 }
@@ -348,6 +363,20 @@ select option[value=""] {
 .err_balloon {
   display: block;
   z-index: 0;
+}
+.input_container label.active { position: relative; }
+.input_container label.active:after {
+  content: "";
+  display: block;
+  position: absolute;
+  z-index: -1;
+  top: -0.25em;
+  left: -0.25em;
+  width: 55.5em;
+  bottom: -0.25em;
+  background: linear-gradient(to right,#9ec2da,transparent 55em);
+  opacity: 0.3;
+  filter: blur(0.1em);
 }
 .input_container label.active .ih_balloon,
 .input_container > .help_container .ih_balloon {
@@ -577,6 +606,7 @@ table.valigntop th {
 }
 .input_container .field_container .field.inputlist > * {
   width: 100%;
+  box-sizing: border-box;
 }
 .input_container .field_container .field.checkcontainer {
   font-size: 0.8em;

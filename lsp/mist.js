@@ -474,6 +474,10 @@ var UI = {
                   
                   //save
                   pointer.main[pointer.index] = val;
+
+                  var fn = $(this).data('opts')['postSave'];
+                  if (fn) { fn.call(this); }
+                  
                 });
                 
                 var fn = $(this).data('opts')['function'];
@@ -688,22 +692,35 @@ var UI = {
         case "inputlist":
           $field = $('<div>').addClass('inputlist');
           var newitem = function(){
-            var $part = $("<input>").attr("type","text").addClass("listitem");
-            if (e.readonly) {
-              $part.prop('disabled',true);
+            var $part;
+            if ("input" in e) {
+              $part = UI.buildUI([e.input]).find(".field_container");
             }
+            else {
+              var o = Object.assign({},e);
+              o.type = "str";
+              $part = UI.buildUI([o]).find(".field_container");
+            }
+            $part.addClass("listitem");
+
             var keyup = function(e){
               if ($(this).is(":last-child")) {
-                if ($(this).val() != "") {
-                  $(this).after($part.clone().keyup(keyup).val(""));
+                if ($(this).find(".field").getval() != "") {
+                  var $clone = $part.clone().keyup(keyup);
+                  $clone.find(".field").setval("");
+                  $(this).after($clone);
                 }
                 else if (e.which == 8) { //backspace
-                  $(this).prev().focus();
+                  $(this).prev().find(".field").focus();
                 }
               }
               else {
-                if ($(this).val() == "") {
-                  $(this).next().focus();
+                if ($(this).find(".field").getval() == "") {
+                  var $f = $(this).prev();
+                  if (!$f.length) {
+                    $f = $(this).next();
+                  }
+                  $f.find(".field").focus();
                   $(this).remove();
                 }
               }
@@ -890,6 +907,11 @@ var UI = {
       if ('unit' in e) {
         $fc.append(
           $('<span>').addClass('unit').html(e.unit)
+        );
+      }
+      if ('prefix' in e) {
+        $fc.prepend(
+          $('<span>').addClass('unit').html(e.prefix)
         );
       }
       if ('readonly' in e) {
@@ -1153,7 +1175,7 @@ var UI = {
           }
         }
       }
-      if ((($field.getval() == "") || ($field.getval() == null)) && ('value' in e)) {
+      if ((($field.getval() == "") || ($field.getval() == null) || !("pointer" in e)) && ('value' in e)) {
         $field.setval(e.value);
       }
       if ('datalist' in e) {
@@ -1341,9 +1363,21 @@ var UI = {
                 };
                 break;
               }
+              case 'track_selector_parameter': {
+                //the value passed to audio= or video=,
+                //so something like 1, maxbps or eng
+                //leave default for now
+                f = function(){};
+                break;
+
+              }
               case 'track_selector': {
                 //something like "audio=1&video=eng"
-                //keep at default for now..
+                //leave default for now
+
+                f = function(){};
+                break;
+
               }
               default:
                 f = function(){};
@@ -3130,6 +3164,7 @@ var UI = {
               type: "str",
               maxlength: 31,
               label: "Variable name",
+              prefix: "$",
               help: "What should the variable be called? A dollar sign will automatically be prepended.",
               pointer: {
                 main: saveas,
@@ -5549,6 +5584,28 @@ var UI = {
             var $target = $('<span>');
             var $logs = $("<span>");
             if ((type == "Automatic") && (push.length >= 4)) {
+
+              function printPrettyComparison(a,b,c){
+                var str = "";
+                str += "$"+a+" ";
+                switch (Number(b)) {
+                  case 0:  { str += "is true";  break; }
+                  case 1:  { str += "is false"; break; }
+                  case 2:  { str += "== "+c; break; }
+                  case 3:  { str += "!= "+c; break; }
+                  case 10: { str += "> (numerical) " +c; break; }
+                  case 11: { str += ">= (numerical) "+c; break; }
+                  case 12: { str += "< (numerical) " +c; break; }
+                  case 13: { str += "<= (numerical) "+c; break; }
+                  case 20: { str += "> (lexical) " +c; break; }
+                  case 21: { str += ">= (lexical) "+c; break; }
+                  case 22: { str += "< (lexical) " +c; break; }
+                  case 23: { str += "<= (lexical) "+c; break; }
+                  default: { str += "comparison operator unknown"; break; }
+                }
+                return str;
+              }
+
               $target.append(
                 $('<span>').text(push[2])
               );
@@ -5562,6 +5619,17 @@ var UI = {
                   $('<span>').text(", complete on "+(new Date(push[4]*1e3)).toLocaleString())
                 );
               }
+              if ((push.length >= 8) && (push[5])) {
+                $target.append(
+                  $('<span>').text(", starts if "+printPrettyComparison(push[5],push[6],push[7]))
+                );
+              }
+              if ((push.length >= 11) && (push[8])) {
+                $target.append(
+                  $('<span>').text(", stops if "+printPrettyComparison(push[8],push[9],push[10]))
+                );
+              }
+
             }
             else if ((push.length >= 4) && (push[2] != push[3])) {
               $target.append(
@@ -5706,7 +5774,7 @@ var UI = {
           }
           
           $c.append(
-            $('<h3>').text('Automatic pushes')
+            $('<h3>').text('Automatic push settings')
           ).append(
             UI.buildUI([
               {
@@ -5715,7 +5783,7 @@ var UI = {
                 type: 'int',
                 min: 0,
                 help: 'How long the delay should be before MistServer retries an automatic push.<br>If set to 0, it does not retry.',
-                'default': 0,
+                'default': 3,
                 pointer: {
                   main: push_settings,
                   index: 'wait'
@@ -5746,6 +5814,8 @@ var UI = {
                 }]
               }
             ])
+          ).append(
+            $('<h3>').text('Automatic push settings')
           ).append(
             $('<button>').text('Add an automatic push').click(function(){
               UI.navto('Start Push','auto');
@@ -5887,11 +5957,11 @@ var UI = {
         break;
       case 'Start Push':
         
-        if (!('capabilities' in mist.data)) {
+        if (!('capabilities' in mist.data) || !('variable_list' in mist.data)) {
           $main.append('Loading Mist capabilities..');
           mist.send(function(){
             UI.navto('Start Push',other);
-          },{capabilities:1});
+          },{capabilities:1,variable_list:true});
           return;
         }
         
@@ -5924,9 +5994,9 @@ var UI = {
             $main.find('h2').text('Add automatic push');
           }
           
-          //FOR NOW, ASSUME PROTOCOL SETTINGS BUILDSETTINGS ARE USED
           
           var saveas = {params:{}};
+          var params = []; //will contain all target url params as an array
           if ((other == "auto") && (typeof edit != "undefined")) {
             saveas = {
               "stream": edit[0],
@@ -5945,22 +6015,163 @@ var UI = {
               }
             }
             
-            /*
-            if (edit.length >= 3) { saveas.scheduletime = edit[2]; }
-            if (edit.length >= 4) { saveas.completetime = edit[3]; }
-            if (saveas.target.indexOf("recstartunix=") > -1) {
-              
-              //retrieve recstartunix param value
-              var t = saveas.target.split("recstartunix=")[1];
-              saveas.recstartunix = t.split("&")[0];
-              
-              //remove param from target
-              saveas.target = saveas.target.replace("recstartunix="+saveas.recstartunix,"").replace("?&","?").replace("&&","&");
-              if (saveas.target[saveas.target.length-1] == "?") { saveas.target = saveas.target.slice(0,-1); }
-              
-            }*/
+            if (edit.length >= 3) { saveas.scheduletime = edit[2] != 0 ? edit[2] : null; }
+            if (edit.length >= 4) { saveas.completetime = edit[3] != 0 ? edit[3] : null; }
+            if (edit.length >= 5) { saveas.startVariableName     = edit[4] != '' ? edit[4] : null; }
+            if (edit.length >= 6) { saveas.startVariableOperator = edit[5] != '' ? edit[5] : null; }
+            if (edit.length >= 7) { saveas.startVariableValue    = edit[6] != '' ? edit[6] : null; }
+            if (edit.length >= 8) { saveas.endVariableName       = edit[7] != '' ? edit[7] : null; }
+            if (edit.length >= 9) { saveas.endVariableOperator   = edit[8] != '' ? edit[8] : null; }
+            if (edit.length >= 10){ saveas.endVariableValue      = edit[9] != '' ? edit[9] : null; }
+
           }
           var $additional_params = $("<div>").css("margin","1em 0");
+          var $autopush = $("<div>");
+          var push_parameters;
+          if (other == "auto") {
+            $autopush.css("margin","1em 0").html(UI.buildUI([{
+              label: "This push should be active",
+              help: "When 'based on server time' is selected, a start and/or end timestamp can be configured. When it's 'based on a variable', the push will be activated while the specified variable matches the specified value.",
+              type: "select",
+              select: [["time","Based on server time"],["variable","Based on a variable"]],
+              value: (saveas.startVariableName || saveas.endVariableName ? "variable" : "time"),
+              classes: ["activewhen"],
+              "function": function(){
+                var $varbased = $autopush.find(".varbased").closest(".UIelement");
+                var $timebased = $autopush.find(".timebased").closest(".UIelement");
+
+                if ($(this).getval() == "time") {
+                  $varbased.hide();
+                  $timebased.css("display","");
+                }
+                else {
+                  $timebased.hide();
+                  $varbased.css("display","");
+                  $autopush.find("[name=\"startVariableOperator\"]").trigger("change");
+                  $autopush.find("[name=\"endVariableOperator\"]").trigger("change");
+                }
+              }
+            },
+            $("<br>"),
+            $("<span>").addClass("UIelement").append(
+              $("<h3>").text("Start the push").addClass("varbased")
+            ),{
+              classes: ["varbased"],
+              label: "Use this variable",
+              type: "str",
+              help: "This variable should be used to determine if this push should be started.",
+              prefix: "$",
+              datalist: Object.keys(mist.data.variable_list || []),
+              pointer: { main: saveas, index: "startVariableName" }
+            },{
+              classes: ["varbased"],
+              label: "Comparison operator",
+              type: "select",
+              select: [
+                [0,"is true"],
+                [1,"is false"],
+                [2,"=="],
+                [3,"!="],
+                [10,">  (numerical)"],
+                [11,">= (numerical)"],
+                [12,"<  (numerical)"],
+                [13,"<= (numerical)"],
+                [20,">  (lexical)"],
+                [21,">= (lexical)"],
+                [22,"<  (lexical)"],
+                [23,"<= (lexical)"]
+              ],
+              value: 2,
+              css: {display:"none"},
+              help: "How would you like to compare this variable?",
+              pointer: { main: saveas, index: "startVariableOperator" },
+              "function": function(){
+                var $varvalue = $autopush.find("[name=\"startVariableValue\"]").closest(".UIelement");
+                if (Number($(this).getval()) < 2) {
+                  $varvalue.hide();
+                }
+                else {
+                  $varvalue.css("display","");
+                }
+              }
+            },{
+              classes: ["varbased"],
+              label: "Variable value",
+              type: "str",
+              help: "The variable will be compared with this value to determine if this push should be started.<br>You can also enter another variable here!",
+              datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
+              pointer: { main: saveas, index: "startVariableValue" }
+            },
+              $("<span>").addClass("UIelement").append(
+              $("<h3>").text("Stop the push").addClass("varbased")
+            ),{
+              classes: ["varbased"],
+              label: "Use this variable",
+              type: "str",
+              help: "This variable should be used to determine if this push should be stopped.<br>You can leave this field blank if you do not want to have a stop condition. (You can always stop the push manually)",
+              prefix: "$",
+              datalist: Object.keys(mist.data.variable_list || []),
+              pointer: { main: saveas, index: "endVariableName" }
+            },{
+              classes: ["varbased"],
+              label: "Comparison operator",
+              type: "select",
+              select: [
+                [0,"is true"],
+                [1,"is false"],
+                [2,"=="],
+                [3,"!="],
+                [10,">  (numerical)"],
+                [11,">= (numerical)"],
+                [12,"<  (numerical)"],
+                [13,"<= (numerical)"],
+                [20,">  (lexical)"],
+                [21,">= (lexical)"],
+                [22,"<  (lexical)"],
+                [23,"<= (lexical)"]
+              ],
+              value: 2,
+              help: "How would you like to compare this variable?",
+              pointer: { main: saveas, index: "endVariableOperator" },
+              "function": function(){
+                var $varvalue = $autopush.find("[name=\"endVariableValue\"]").closest(".UIelement");
+                if (Number($(this).getval()) < 2) {
+                  $varvalue.hide();
+                }
+                else {
+                  $varvalue.css("display","");
+                }
+              }
+            },{
+              classes: ["varbased"],
+              label: "Variable value",
+              type: "str",
+              help: "The variable will be compared with this value to determine if this push should be stopped.<br>You can also enter another variable here!",
+              datalist: Object.values(mist.data.variable_list || []).map(function(a){return typeof a == "string" ? a : a[3]}).concat(Object.keys(mist.data.variable_list || []).map(function(a){ return "$"+a; })),
+              pointer: { main: saveas, index: "endVariableValue" }
+            },{
+              classes: ["timebased"],
+              type: "unix",
+              label: "Start time",
+              min: 0,
+              help: "The time where the push will become active. The default is to start immediately.",
+              pointer: {
+                main: saveas,
+                index: "scheduletime"
+              }
+            },{
+              classes: ["timebased"],
+              type: "unix",
+              label: "End time",
+              min: 0,
+              help: "The time where the push will stop. Defaults to never stop automatically.<br>Only makes sense for live streams.",
+              pointer: {
+                main: saveas,
+                index: "completetime"
+              }
+            }],saveas));
+            $autopush.find(".activewhen").trigger("change");
+          }
           var build = [{
             label: 'Stream name',
             type: 'str',
@@ -6003,13 +6214,6 @@ var UI = {
                     <li>$minute - inserts the minute timestamp the stream was received</li>\
                     <li>$seconds - inserts the seconds timestamp when the stream was received</li>\
                     <li>$datetime - inserts $year.$month.$day.$hour.$minute.$seconds timestamp when the stream was received</li>\
-                  </ul>\
-                  Valid URL parameters:\
-                  <ul>\
-                    <li>recstart=123 - media timestamp in milisseconds where the push should start</li>\
-                    <li>recstop=456 - media timestamp in miliseconds where the push should stop</li>\
-                    <li>recstartunix=150000000 - unix time in seconds where the push should start. This will override the recstart parameter.</li>\
-                    <li>recstopunix=150000000 - unix time in seconds where the push should stop. This will override the recstop parameter.</li>\
                   </ul>',
             pointer: {
               main: saveas,
@@ -6029,9 +6233,10 @@ var UI = {
             "function": function(){
               //find what kind of target this is
               var match = false;
+              var val = $(this).getval();
               for (connector in connector2target_match) {
                 for (var i in connector2target_match[connector]) {
-                  if (mist.inputMatch(connector2target_match[connector][i],$(this).getval())) {
+                  if (mist.inputMatch(connector2target_match[connector][i],val)) {
                     match = connector;
                     break;
                   }
@@ -6046,13 +6251,55 @@ var UI = {
                 return;
               }
               $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly));
+              push_parameters = {};
+              //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
+              for (var i in mist.data.capabilities.connectors[match].push_parameters) {
+                var param = mist.data.capabilities.connectors[match].push_parameters[i];
+                if (param.prot_only && String().match && (val.match(/.+\:\/\/.+/) === null)) { continue; }
+                if (param.file_only && (val[0] != "/")) { continue; }
+                push_parameters[i] = param;
+              }
+
               var capa = {
                 desc: mist.data.capabilities.connectors[match].desc,
-                optional: mist.data.capabilities.connectors[match].push_parameters
+                optional: push_parameters,
+                sort: "sort"
               };
-              $additional_params.append(UI.buildUI(mist.convertBuildOptions(capa,saveas.params)));
+              var capaform = mist.convertBuildOptions(capa,saveas.params);
+
+              //find left over url params that are not covered by this connector's capabilities
+              var custom_params = [];
+              for (var i in params) {
+                var p = params[i].split("=");
+                var name = p[0];
+                if (!(name in push_parameters)) {
+                  custom_params.push(name+(p.length > 1 ? "="+p.slice(1).join("=") : ""));
+                }
+              }
+              
+              capaform.push($("<br>"));
+              capaform.push({
+                type: "inputlist",
+                label: "Custom url parameters",
+                value: custom_params,
+                classes: ["custom_url_parameters"],
+                input: {
+                  type: "str",
+                  placeholder: "name=value",
+                  prefix: ""
+                },
+                help: "Any custom url parameters not covered by the parameters configurable above.",
+                pointer: {
+                  main: saveas,
+                  index: "custom_url_params"
+                }
+              });
+
+              $additional_params.append(UI.buildUI(capaform)); 
             }
-          },$additional_params];
+          },
+          $autopush,
+          $additional_params];
           
           
           
@@ -6101,22 +6348,49 @@ var UI = {
             },{
               type: 'save',
               label: 'Save',
+              preSave: function(){
+                //is executed before the variables are saved
+                
+                //clean the object of old settings that may not be part of the current form 
+                delete saveas.startVariableName;
+                delete saveas.startVariableOperator;
+                delete saveas.startVariableValue;
+                delete saveas.endVariableName;
+                delete saveas.endVariableOperator;
+                delete saveas.endVariableValue;
+                delete saveas.completetime;
+                delete saveas.scheduletime;
+              },
               'function': function(){
                 var params = saveas.params;
                 for (var i in params) {
                   if (params[i] === null) {
+                    //remove any params that are set to null
+                    delete params[i];
+                  }
+                  else if (!(i in push_parameters)) {
+                    //remove any params that are not supported by this protocol (they will have been duplicatec to saveas.custom_url_parameters if the user wanted to keep them)
                     delete params[i];
                   }
                 }
-                /*if (saveas.recstartunix) {
-                  //append recstartunix to target
-                  params["recstartunix"] = "recstartunix="+saveas.recstartunix;
+                if (saveas.startVariableName || saveas.endVariableName) {
+                  saveas.scheduletime = 0;
+                  saveas.completetime = 0;
                 }
-                else if (saveas.scheduletime) {
-                  params["recstartunix"] = "recstartunix="+saveas.scheduletime;
+                if (saveas.startVariableName === null) {
+                  delete saveas.startVariableName;
+                  delete saveas.startVariableOperator;
+                  delete saveas.startVariableValue;
                 }
-                delete saveas.recstartunix;*/
-                if (Object.keys(params).length) {
+                if (saveas.endVariableName === null) {
+                  delete saveas.endVariableName;
+                  delete saveas.endVariableOperator;
+                  delete saveas.endVariableValue;
+                }
+                if (saveas.scheduletime) {
+                  params["recstartunix"] = saveas.scheduletime;
+                }
+                if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
                   var append = "?";
                   var curparams = saveas.target.split("?");
                   if (curparams.length > 1) {
@@ -6128,15 +6402,20 @@ var UI = {
                       if (key in params) { delete params[key]; }
                     }
                   }
-                  if (Object.keys(params).length) {
+                  if (Object.keys(params).length || (saveas.custom_url_params && saveas.custom_url_params.length)) {
                     var str = [];
                     for (var i in params) {
                       str.push(i+"="+params[i]);
+                    }
+                    for (var i in saveas.custom_url_params) {
+                      str.push(saveas.custom_url_params[i]);
                     }
                     append += str.join("&");
                     saveas.target += append;
                   }
                 }
+                delete saveas.params; //these are now part of the target url and we don't need them seperately
+                delete saveas.custom_url_params;
                 
                 var obj = {};
                 obj[(other == 'auto' ? 'push_auto_add' : 'push_start')] = saveas;
@@ -7135,7 +7414,7 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth']; //streams was already copied above
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];
@@ -7397,11 +7676,6 @@ var mist = {
             if ("max" in ele) { obj.max = ele.max; }
             if ("min" in ele) { obj.min = Math.max(obj.min,ele.min); }
             break;
-          case 'json':
-          case 'debug':
-          case 'inputlist':
-            obj.type = ele.type;
-            break;
           case 'radioselect':
             obj.type = 'radioselect';
             obj.radioselect = ele.radioselect;
@@ -7422,13 +7696,36 @@ var mist = {
             obj.sublist = mist.convertBuildOptions(ele,obj.saveas);
             break;
           }
-          case 'str':
+          case 'bool': {
+            obj.type = 'checkbox';
+            break;
+          }
+          case 'unixtime': {
+            obj.type = 'unix';
+            break;
+          }
           default:
             obj.type = 'str';
         }
       }
       else {
         obj.type = "checkbox";
+      }
+      if ("format" in ele) {
+        switch (ele.format) {
+          case "set_or_unset": {
+            //whatever is set as 'postSave' will be called by the save button after validation and after the value has been saved to whatever is set as the pointer
+            obj['postSave'] = function(){
+              //if the value evaluates to false, remove it from the parent object
+              var pointer = $(this).data('pointer');
+              if (!pointer.main[pointer.index]) {
+                delete pointer.main[pointer.index];
+              }
+            };
+
+            break;
+          }
+        }
       }
       if ("influences" in ele) {
         obj["function"] = function(){
@@ -7455,6 +7752,24 @@ var mist = {
           });
         };
       }
+      else if ("disable" in ele) {
+        obj["function"] = function(){
+          var $cont = $(this).closest(".input_container");
+          var val = $(this).getval();
+          for (var i = 0; i < ele.disable.length; i++) {
+            var dependent = ele.disable[i];
+            var $dependency = $cont.find(".field[name=\""+dependent+"\"]").closest(".UIelement");
+            if ($dependency.length) {
+              if (val == "") {
+                $dependency[0].style.display = "";
+              }
+              else {
+                $dependency.hide();
+              }
+            }
+          }
+        };
+      } 
       if ("dependent" in ele) {
         obj.dependent = ele.dependent;
       }
@@ -7463,6 +7778,12 @@ var mist = {
       }
       if ("validate" in ele) {
         obj.validate = obj.validate.concat(ele.validate);
+        if (ele.validate.indexOf("track_selector_parameter") > -1) {
+          obj.help = "<div>"+ele.help+"</div>"+"<p>Track selector parameters consist of a string value which may be any of the following:</p> <ul><li><code>selector,selector</code>: Selects the union of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,!selector</code>: Selects the difference of the given selectors. Specifically, all tracks part of the first selector that are not part of the second selector. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,selector</code>: Selects the intersection of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>none</code> or <code>-1</code>: Selects no tracks of this type.</li> <li><code>all</code> or <code>*</code>: Selects all tracks of this type.</li> <li>Any positive integer: Select this specific track ID. Does not apply if the given track ID does not exist or is of the wrong type. <strong>Does</strong> apply if the given track ID is incompatible with the currently active protocol or container format.</li> <li>ISO 639-1/639-3 language code: Select all tracks marked as the given language. Case insensitive.</li> <li>Codec string (e.g. <code>h264</code>): Select all tracks of the given codec. Case insensitive.</li> <li><code>highbps</code>, <code>maxbps</code> or <code>bestbps</code>: Select the track of this type with the highest bit rate.</li> <li><code>lowbps</code>, <code>minbps</code> or <code>worstbps</code>: Select the track of this type with the lowest bit rate.</li> <li><code>Xbps</code> or <code>Xkbps</code> or <code>Xmbps</code>: Select the single of this type which has a bit rate closest to the given number X. This number is in bits, not bytes.</li> <li><code>&gt;Xbps</code> or <code>&gt;Xkbps</code> or <code>&gt;Xmbps</code>: Select all tracks of this type which have a bit rate greater than the given number X. This number is in bits, not bytes.</li> <li><code>&lt;Xbps</code> or <code>&lt;Xkbps</code> or <code>&lt;Xmbps</code>: Select all tracks of this type which have a bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>max&lt;Xbps</code> or <code>max&lt;Xkbps</code> or <code>max&lt;Xmbps</code>: Select the one track of this type which has the highest bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>highres</code>, <code>maxres</code> or <code>bestres</code>: Select the track of this type with the highest pixel surface area. Only applied when the track type is video.</li> <li><code>lowres</code>, <code>minres</code> or <code>worstres</code>: Select the track of this type with the lowest pixel surface area. Only applied when the track type is video.</li> <li><code>XxY</code>: Select all tracks of this type with the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>~XxY</code>: Select the single track of this type closest to the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>&gt;XxY</code>: Select all tracks of this type with a pixel surface area greater than X by Y pixels. Only applied when the track type is video.</li> <li><code>&lt;XxY</code>: Select all tracks of this type with a pixel surface area less than X by Y pixels. Only applied when the track type is video.</li> <li><code>720p</code>, <code>1080p</code>, <code>1440p</code>, <code>2k</code>, <code>4k</code>, <code>5k</code>, or <code>8k</code>: Select all tracks of this type with the given pixel surface area. Only applied when the track type is video.</li> <li><code>surround</code>, <code>mono</code>, <code>stereo</code>, <code>Xch</code>: Select all tracks of this type with the given channel count. The 'Xch' variant can use any positive integer for 'X'. Only applied when the track type is audio.</li></ul>";
+        }
+        if (ele.validate.indexOf("track_selector") > -1) {
+          obj.help = "<div>"+ele.help+"</div>"+"<p>A track selector is at least one track type (audio, video or subtitle) combined with a track selector parameter. For example: <code>audio=none&video=maxres</code>.<p>Track selector parameters consist of a string value which may be any of the following:</p> <ul><li><code>selector,selector</code>: Selects the union of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,!selector</code>: Selects the difference of the given selectors. Specifically, all tracks part of the first selector that are not part of the second selector. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>selector,selector</code>: Selects the intersection of the given selectors. Any number of comma-separated selector combinations may be used, they are evaluated one by one from left to right.</li> <li><code>none</code> or <code>-1</code>: Selects no tracks of this type.</li> <li><code>all</code> or <code>*</code>: Selects all tracks of this type.</li> <li>Any positive integer: Select this specific track ID. Does not apply if the given track ID does not exist or is of the wrong type. <strong>Does</strong> apply if the given track ID is incompatible with the currently active protocol or container format.</li> <li>ISO 639-1/639-3 language code: Select all tracks marked as the given language. Case insensitive.</li> <li>Codec string (e.g. <code>h264</code>): Select all tracks of the given codec. Case insensitive.</li> <li><code>highbps</code>, <code>maxbps</code> or <code>bestbps</code>: Select the track of this type with the highest bit rate.</li> <li><code>lowbps</code>, <code>minbps</code> or <code>worstbps</code>: Select the track of this type with the lowest bit rate.</li> <li><code>Xbps</code> or <code>Xkbps</code> or <code>Xmbps</code>: Select the single of this type which has a bit rate closest to the given number X. This number is in bits, not bytes.</li> <li><code>&gt;Xbps</code> or <code>&gt;Xkbps</code> or <code>&gt;Xmbps</code>: Select all tracks of this type which have a bit rate greater than the given number X. This number is in bits, not bytes.</li> <li><code>&lt;Xbps</code> or <code>&lt;Xkbps</code> or <code>&lt;Xmbps</code>: Select all tracks of this type which have a bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>max&lt;Xbps</code> or <code>max&lt;Xkbps</code> or <code>max&lt;Xmbps</code>: Select the one track of this type which has the highest bit rate less than the given number X. This number is in bits, not bytes.</li> <li><code>highres</code>, <code>maxres</code> or <code>bestres</code>: Select the track of this type with the highest pixel surface area. Only applied when the track type is video.</li> <li><code>lowres</code>, <code>minres</code> or <code>worstres</code>: Select the track of this type with the lowest pixel surface area. Only applied when the track type is video.</li> <li><code>XxY</code>: Select all tracks of this type with the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>~XxY</code>: Select the single track of this type closest to the given pixel surface area in X by Y pixels. Only applied when the track type is video.</li> <li><code>&gt;XxY</code>: Select all tracks of this type with a pixel surface area greater than X by Y pixels. Only applied when the track type is video.</li> <li><code>&lt;XxY</code>: Select all tracks of this type with a pixel surface area less than X by Y pixels. Only applied when the track type is video.</li> <li><code>720p</code>, <code>1080p</code>, <code>1440p</code>, <code>2k</code>, <code>4k</code>, <code>5k</code>, or <code>8k</code>: Select all tracks of this type with the given pixel surface area. Only applied when the track type is video.</li> <li><code>surround</code>, <code>mono</code>, <code>stereo</code>, <code>Xch</code>: Select all tracks of this type with the given channel count. The 'Xch' variant can use any positive integer for 'X'. Only applied when the track type is audio.</li></ul>";
+        }
       }
       
       return obj;
@@ -7584,9 +7905,9 @@ $.fn.getval = function(){
         break;
       case "inputlist":
         val = [];
-        $(this).children().each(function(){
-          if ($(this).val() != "") {
-            val.push($(this).val());
+        $(this).find(".field").each(function(){
+          if ($(this).getval() != "") {
+            val.push($(this).getval());
           }
         });
         break;
@@ -7655,7 +7976,7 @@ $.fn.setval = function(val){
         }
         break;
       case "unix":
-        if (typeof val != "undefined") {
+        if ((typeof val != "undefined") && (val != "") && (val !== null)) {
           var datetime = new Date(Math.round(val) * 1e3);
           datetime.setMinutes(datetime.getMinutes() - datetime.getTimezoneOffset()); //correct for the browser being a pain and converting to UTC
           datetime = datetime.toISOString();
@@ -7691,9 +8012,9 @@ $.fn.setval = function(val){
       case "inputlist":
         if (typeof val == "string") { val = [val]; }
         for (var i in val) {
-          $(this).append(
-            $(this).data("newitem")().val(val[i])
-          );
+          var $newitem = $(this).data("newitem")();
+          $newitem.find(".field").setval(val[i]);
+          $(this).append($newitem);
         }
         $(this).append($(this).children().first()); //put empty input last
         break;

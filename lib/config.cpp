@@ -734,47 +734,56 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["audio"]["help"] = "Override which audio tracks of the stream should be selected";
   pp["audio"]["type"] = "string";
   pp["audio"]["validate"][0u] = "track_selector";
+  pp["audio"]["sort"] = "aa";
 
   pp["video"]["name"] = "Video track(s)";
   pp["video"]["help"] = "Override which video tracks of the stream should be selected";
   pp["video"]["type"] = "string";
   pp["video"]["validate"][0u] = "track_selector";
+  pp["video"]["sort"] = "ab";
 
   pp["subtitle"]["name"] = "Subtitle track(s)";
   pp["subtitle"]["help"] = "Override which subtitle tracks of the stream should be selected";
   pp["subtitle"]["type"] = "string";
   pp["subtitle"]["validate"].append("track_selector");
+  pp["subtitle"]["sort"] = "ac";
 
   pp["rate"]["name"] = "Playback rate";
   pp["rate"]["help"] = "Multiplier for the playback speed rate, or 0 to not limit";
   pp["rate"]["type"] = "int";
   pp["rate"]["default"] = "1";
+  pp["rate"]["sort"] = "ba";
 
   pp["realtime"]["name"] = "Don't speed up output";
   pp["realtime"]["help"] = "If set to any value, removes the rate override to unlimited normally applied to push outputs";
   pp["realtime"]["type"] = "bool";
   pp["realtime"]["format"] = "set_or_unset";
+  pp["realtime"]["sort"] = "bb";
 
   pp["unmask"]["name"] = "Unmask tracks";
   pp["unmask"]["help"] = "If set to any value, removes any applied track masking before selecting tracks, acting as if no mask was applied at all";
   pp["unmask"]["type"] = "bool";
   pp["unmask"]["format"] = "set_or_unset";
+  pp["unmask"]["sort"] = "bc";
 
   pp["waittrackcount"]["name"] = "Wait for GOP count";
   pp["waittrackcount"]["help"] = "Before starting, wait until this number of GOPs is available in the main selected track";
   pp["waittrackcount"]["type"] = "int";
   pp["waittrackcount"]["default"] = 2;
+  pp["waittrackcount"]["sort"] = "bd";
 
   pp["maxwaittrackms"]["name"] = "Max buffer duration for GOP count wait";
   pp["maxwaittrackms"]["help"] = "When waiting for GOPs on the main track, give up when this much data is available in the main track buffer";
   pp["maxwaittrackms"]["type"] = "int";
   pp["maxwaittrackms"]["default"] = "5s, or 120s when using a non-default GOP count";
   pp["maxwaittrackms"]["unit"] = "ms";
+  pp["maxwaittrackms"]["sort"] = "be";
 
   pp["append"]["name"] = "Append to file";
   pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
   pp["append"]["type"] = "bool";
   pp["append"]["format"] = "set_or_unset";
+  pp["append"]["sort"] = "bf";
 
   pp["pushdelay"]["name"] = "Push delay";
   pp["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
@@ -782,11 +791,13 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["pushdelay"]["unit"] = "s";
   pp["pushdelay"]["disable"].append("realtime");
   pp["pushdelay"]["disable"].append("start");
+  pp["pushdelay"]["sort"] = "bg";
 
   pp["split"]["name"] = "Split interval";
   pp["split"]["help"] = "Performs a gapless restart of the recording every this may seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable";
   pp["split"]["type"] = "int";
   pp["split"]["unit"] = "s";
+  pp["split"]["sort"] = "bh";
 
   pp["duration"]["name"] = "Duration of push";
   pp["duration"]["help"] = "How much media time to push, in seconds. Internally overrides \"recstop\"";
@@ -794,18 +805,21 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["duration"]["unit"] = "s";
   pp["duration"]["disable"].append("recstop");
   pp["duration"]["disable"].append("stop");
+  pp["duration"]["sort"] = "bi";
 
   pp["stop"]["name"] = "Media timestamp to stop at";
   pp["stop"]["help"] = "What internal media timestamp to stop at";
   pp["stop"]["type"] = "int";
   pp["stop"]["unit"] = "s";
   pp["stop"]["prot_only"] = true;
+  pp["stop"]["sort"] = "bk";
 
   pp["start"]["name"] = "Media timestamp to start from";
   pp["start"]["help"] = "What internal media timestamp to start from";
   pp["start"]["type"] = "int";
   pp["start"]["unit"] = "s";
   pp["start"]["prot_only"] = true;
+  pp["start"]["sort"] = "bl";
 
   pp["stopunix"]["name"] = "Unix timestamp to stop at";
   pp["stopunix"]["help"] = "What unix timestamp to stop at";
@@ -813,6 +827,7 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["stopunix"]["unit"] = "s";
   pp["stopunix"]["prot_only"] = true;
   pp["stopunix"]["disable"].append("stop");
+  pp["stopunix"]["sort"] = "bm";
 
   pp["startunix"]["name"] = "Unix timestamp to start from";
   pp["startunix"]["help"] = "What unix timestamp to start from";
@@ -820,18 +835,21 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["startunix"]["unit"] = "s";
   pp["startunix"]["prot_only"] = true;
   pp["startunix"]["disable"].append("start");
+  pp["startunix"]["sort"] = "bn";
 
   pp["recstop"]["name"] = "Media timestamp to stop at";
   pp["recstop"]["help"] = "What internal media timestamp to stop at";
   pp["recstop"]["type"] = "int";
   pp["recstop"]["unit"] = "s";
   pp["recstop"]["file_only"] = true;
+  pp["recstop"]["sort"] = "bo";
 
   pp["recstart"]["name"] = "Media timestamp to start from";
   pp["recstart"]["help"] = "What internal media timestamp to start from";
   pp["recstart"]["type"] = "int";
   pp["recstart"]["unit"] = "s";
   pp["recstart"]["file_only"] = true;
+  pp["recstart"]["sort"] = "bp";
 
   pp["recstopunix"]["name"] = "Unix timestamp to stop at";
   pp["recstopunix"]["help"] = "What unix timestamp to stop at";
@@ -839,6 +857,7 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["recstopunix"]["unit"] = "s";
   pp["recstopunix"]["file_only"] = true;
   pp["recstopunix"]["disable"].append("recstop");
+  pp["recstopunix"]["sort"] = "bq";
 
   pp["recstartunix"]["name"] = "Unix timestamp to start from";
   pp["recstartunix"]["help"] = "What unix timestamp to start from";
@@ -846,6 +865,7 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["recstartunix"]["unit"] = "s";
   pp["recstartunix"]["file_only"] = true;
   pp["recstartunix"]["disable"].append("recstart");
+  pp["recstartunix"]["sort"] = "br";
 
 }
 

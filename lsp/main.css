@@ -654,29 +654,6 @@ input[type=radio] {
   display: none;
 }
 
-.LTSonly {
-  overflow: hidden;
-  position: relative;
-  outline: 1px solid rgba(0,0,0,0.2);
-}
-td.LTSonly { outline: none; }
-.LTSonly:after {
-  content: 'Pro';
-  font-size: 0.8em;
-  text-align: center;
-  white-space: nowrap;
-  position: absolute;
-  right: -3em;
-  top: 0.2em;
-  width: 8em;
-  transform: rotate(25deg);
-  height: 1.5em;
-  box-shadow: -0.2em 0.2em 0.5em rgba(0,0,0,0.2);
-  outline: 1px solid rgba(0,0,0,0.2);
-  color: rgba(255,255,255,0.8);
-  background-image: linear-gradient(to top,rgb(71, 184, 93),rgb(63, 139, 78));
-  text-shadow: -0.2em 0.2em 0.5em rgba(0,0,0,0.2);
-}
 [disabled] {
   opacity: 0.75;
 }
@@ -979,6 +956,18 @@ button.return:before {
 }
 .mistvideo-column {
   flex-direction: column;
+}
+.UIelement .inputlist .field_container {
+ margin-bottom: 0.2em; 
+}
+.UIelement.custom_url_parameters .field_container .field_container .unit:before {
+  content: "&";
+  width: 0.8em;
+  display: block;
+  text-align: center;
+}
+.UIelement.custom_url_parameters .field_container .field_container:first-child .unit:before {
+  content: "?";
 }
   
 @font-face {

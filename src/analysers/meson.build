@@ -11,6 +11,7 @@ analysers = [
     {'name': 'HLS', 'format': 'hls'},
     {'name': 'RIFF', 'format': 'riff'},
     {'name': 'RTSP', 'format': 'rtsp'},
+    {'name': 'FLAC', 'format': 'flac'},
 ]
 
 foreach analyser : analysers

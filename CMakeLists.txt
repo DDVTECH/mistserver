@@ -386,6 +386,7 @@ makeAnalyser(H264 h264) #LTS
 makeAnalyser(HLS hls) #LTS
 makeAnalyser(RIFF riff) #LTS
 makeAnalyser(RTSP rtsp) #LTS
+makeAnalyser(FLAC flac)
 
 #LTS_START
 ########################################
@@ -462,6 +463,8 @@ makeInput(HLS hls)
 makeInput(DTSC dtsc)
 makeInput(MP3 mp3)
 makeInput(FLV flv)
+makeInput(FLAC flac)
+
 option(WITH_AV "Build a generic libav-based input (not distributable!)")
 if (WITH_AV)
   makeInput(AV av)
@@ -574,6 +577,7 @@ makeOutput(EBML ebml)
 makeOutput(RTSP rtsp)#LTS
 makeOutput(WAV wav)#LTS
 makeOutput(SDP sdp             http)
+makeOutput(FLAC flac           http)
 
 add_executable(MistSession
   ${BINARY_DIR}/mist/.headers

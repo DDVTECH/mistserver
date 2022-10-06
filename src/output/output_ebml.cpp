@@ -67,6 +67,7 @@ namespace Mist{
     capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][0u].append("AV1");
     capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"][0u][1u].append("FLAC");
     capa["codecs"][0u][1u].append("vorbis");
     capa["codecs"][0u][1u].append("opus");
     capa["codecs"][0u][1u].append("PCM");
@@ -194,6 +195,7 @@ namespace Mist{
     if (codec == "PCM"){return "A_PCM/INT/BIG";}
     if (codec == "MP2"){return "A_MPEG/L2";}
     if (codec == "MP3"){return "A_MPEG/L3";}
+    if (codec == "FLAC"){return "A_FLAC";}
     if (codec == "AC3"){return "A_AC3";}
     if (codec == "ALAW"){return "A_MS/ACM";}
     if (codec == "ULAW"){return "A_MS/ACM";}

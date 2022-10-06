@@ -6,6 +6,7 @@ outputs = [
     {'name' : 'HTTPMinimalServer', 'format' : 'http_minimalserver', 'extra': ['http']},
     {'name' : 'MP4',               'format' : 'mp4',                'extra': ['http']},
     {'name' : 'AAC',               'format' : 'aac',                'extra': ['http']},
+    {'name' : 'FLAC',              'format' : 'flac',               'extra': ['http']},
     {'name' : 'MP3',               'format' : 'mp3',                'extra': ['http']},
     {'name' : 'H264',              'format' : 'h264',               'extra': ['http']},
     {'name' : 'HDS',               'format' : 'hds',                'extra': ['http']},

@@ -17,6 +17,7 @@ inputs = [
     {'name' : 'SRT', 'format' : 'srt'},
     {'name' : 'SDP', 'format' : 'sdp'},
     {'name' : 'AAC', 'format' : 'aac'},
+    {'name' : 'FLAC', 'format' : 'flac'},
 ]
 
 #Referenced by process targets

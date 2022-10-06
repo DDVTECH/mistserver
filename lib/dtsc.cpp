@@ -1851,9 +1851,13 @@ namespace DTSC{
     setInit(trackIdx, init.data(), init.size());
   }
 
-  /// Sets the given track's init data.setvod
+  /// Sets the given track's init data.
   void Meta::setInit(size_t trackIdx, const char *init, size_t initLen){
     DTSC::Track &t = tracks.at(trackIdx);
+    if (initLen > t.trackInitField.size){
+      FAIL_MSG("Attempting to store %zu bytes of init data, but we only have room for %" PRIu32 " bytes!", initLen, t.trackInitField.size);
+      initLen = t.trackInitField.size;
+    }
     char *_init = t.track.getPointer(t.trackInitField);
     Bit::htobs(_init, initLen);
     memcpy(_init + 2, init, initLen);

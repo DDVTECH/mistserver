@@ -169,13 +169,13 @@ namespace Mist{
     capa["source_match"].append("mp4:*");
     capa["source_file"] = "$source";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("H263");
-    capa["codecs"][0u][0u].append("VP6");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("H263");
+    capa["codecs"]["video"].append("VP6");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP3");
     readPos = 0;
   }
 

@@ -10,7 +10,7 @@ namespace Mist{
     capa["source_match"].append("/*.srt");
     capa["source_match"].append("/*.vtt");
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("subtitle");
+    capa["codecs"]["subtitle"].append("subtitle");
   }
 
   bool InputSrt::preRun(){

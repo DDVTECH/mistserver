@@ -129,9 +129,6 @@ namespace Mist{
         "live media data. The push://[host][@password] style source allows all enabled protocols "
         "that support push input to accept a push into MistServer, where you can accept incoming "
         "streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
-    capa["codecs"][0u][0u].append("*");
-    capa["codecs"][0u][1u].append("*");
-    capa["codecs"][0u][2u].append("*");
     bufferTime = 50000;
     cutTime = 0;
     segmentSize = 1900;

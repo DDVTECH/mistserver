@@ -16,8 +16,8 @@ namespace Mist{
     capa["desc"] = "This input allows you to stream ISMV Video on Demand files.";
     capa["source_match"] = "/*.ismv";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["audio"].append("AAC");
 
     inFile = 0;
   }

@@ -592,10 +592,10 @@ namespace Mist{
     capa["always_match"] = capa["source_match"];
 
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP3");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP3");
 
     inFile = NULL;
   }

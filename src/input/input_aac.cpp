@@ -65,7 +65,7 @@ namespace Mist{
     capa["source_match"] = "/*.aac";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
-    capa["codecs"][0u][1u].append("AAC");
+    capa["codecs"]["audio"].append("AAC");
     thisTime = 0;
     // init filePos at 1, else a 15 bit mismatch in expected frame size occurs
     // dtsc.ccp +- line 215

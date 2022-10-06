@@ -19,7 +19,7 @@ namespace Mist{
     capa["source_match"] = "/*.mp3";
     capa["source_file"] = "$source";
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("MP3");
+    capa["codecs"]["audio"].append("MP3");
     timestamp = 0;
   }
 

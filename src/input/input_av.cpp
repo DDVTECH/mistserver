@@ -20,15 +20,13 @@ namespace Mist{
     capa["source_match"] = "/*";
     capa["source_file"] = "$source";
     capa["priority"] = 1;
-    capa["codecs"][0u][0u].null();
-    capa["codecs"][0u][1u].null();
-    capa["codecs"][0u][2u].null();
+    capa["codecs"].null();
     av_register_all();
     AVCodec *cInfo = 0;
     while ((cInfo = av_codec_next(cInfo)) != 0){
-      if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"][0u][0u].append(cInfo->name);}
-      if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"][0u][1u].append(cInfo->name);}
-      if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"][0u][3u].append(cInfo->name);}
+      if (cInfo->type == AVMEDIA_TYPE_VIDEO){capa["codecs"]["video"].append(cInfo->name);}
+      if (cInfo->type == AVMEDIA_TYPE_AUDIO){capa["codecs"]["audio"].append(cInfo->name);}
+      if (cInfo->type == AVMEDIA_TYPE_SUBTITLE){capa["codecs"]["subtitle"].append(cInfo->name);}
     }
   }
 

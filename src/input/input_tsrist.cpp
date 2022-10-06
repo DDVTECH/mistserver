@@ -92,15 +92,15 @@ namespace Mist{
     // These can/may be set to always-on mode
     capa["always_match"].append("rist://*");
     capa["priority"] = 9;
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("HEVC");
-    capa["codecs"][0u][0u].append("MPEG2");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("AC3");
-    capa["codecs"][0u][1u].append("MP2");
-    capa["codecs"][0u][1u].append("opus");
-    capa["codecs"][1u][0u].append("rawts");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("HEVC");
+    capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("MP2");
+    capa["codecs"]["audio"].append("opus");
+    capa["codecs"]["passthrough"].append("rawts");
 
     JSON::Value option;
     option["arg"] = "integer";

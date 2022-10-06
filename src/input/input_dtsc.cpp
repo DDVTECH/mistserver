@@ -23,13 +23,13 @@ namespace Mist{
     capa["source_match"].append("dtsc://*");
     capa["always_match"].append("dtsc://*"); // can be said to always-on mode
     capa["source_file"] = "$source";
-    capa["codecs"][0u][0u].append("H264");
-    capa["codecs"][0u][0u].append("H263");
-    capa["codecs"][0u][0u].append("VP6");
-    capa["codecs"][0u][0u].append("theora");
-    capa["codecs"][0u][1u].append("AAC");
-    capa["codecs"][0u][1u].append("MP3");
-    capa["codecs"][0u][1u].append("vorbis");
+    capa["codecs"]["video"].append("H264");
+    capa["codecs"]["video"].append("H263");
+    capa["codecs"]["video"].append("VP6");
+    capa["codecs"]["video"].append("theora");
+    capa["codecs"]["audio"].append("AAC");
+    capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("vorbis");
 
     JSON::Value option;
     option["arg"] = "integer";

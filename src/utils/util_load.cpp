@@ -27,6 +27,8 @@ size_t weight_geo = 1000;
 size_t weight_bonus = 50;
 std::string password;
 
+
+#define SALTSIZE 10
 unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
 #define HOSTLOOP                                                                             \
   unsigned long i = 0;                                                                             \
@@ -790,6 +792,14 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
   }
 }
 
+std::string generateSalt(){
+  std::string alphbet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+  std::string out = "";
+  for(int i = 0; i < SALTSIZE; i++){
+    out += alphbet[rand()%alphbet.size()];
+  }
+  return out;
+}
 
 /**
  * function to select the api function wanted
@@ -835,8 +845,7 @@ int API::handleRequest(Socket::Connection &conn){
           std::string pass = Secure::sha256(passHash+auth);
           conn.SendNow(pass);
           //send own challenge
-          //TODO generate salt
-          std::string salt = "2fdjb54hgdv";
+          std::string salt = generateSalt();
           if(!conn.connected()){
             continue;
           }
@@ -1152,8 +1161,8 @@ void API::addLB(std::string addLoadBalancer, int port, const std::string resend)
     }
     Socket::Connection conn(addLoadBalancer, port, false, false);
     HTTP::Parser H;
-    //TODO generate salt
-    std::string salt = "fdhbdsjd35gfs";
+    //send challenge
+    std::string salt = generateSalt();
     conn.SendNow(salt);
     //check responce
     Socket::Buffer result = conn.Received();

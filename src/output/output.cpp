@@ -1400,7 +1400,8 @@ namespace Mist{
           streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
       Triggers::doTrigger("CONN_CLOSE", payload, streamName);
     }
-    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName) &&
+            config->getString("target").substr(0, 7) != "ipfs://"){
       uint64_t rightNow = Util::epoch();
       std::stringstream payl;
       payl << streamName << '\n';

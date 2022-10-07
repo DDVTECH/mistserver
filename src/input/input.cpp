@@ -1497,7 +1497,7 @@ namespace Mist{
     std::string fileName = config->getString("input") + ".dtsh";
     HIGH_MSG("Refreshing metadata for stream '%s'. Trying to reinit from file '%s'", streamName.c_str(), fileName.c_str());
     char *scanBuf;
-    uint64_t fileSize;
+    size_t fileSize;
     HTTP::URIReader inFile(fileName);
     if (!inFile){return false;}
     inFile.readAll(scanBuf, fileSize);
@@ -1505,7 +1505,7 @@ namespace Mist{
     if (!fileSize){return false;}
     size_t offset = 8;
     if (!memcmp(scanBuf, "DTP2", 4)){offset = 20;}
-    HIGH_MSG("Recovered header of %lu bytes", fileSize);
+    HIGH_MSG("Recovered header of %zu bytes", fileSize);
     DTSC::Scan src(scanBuf + offset, fileSize - offset);
     meta.reInit(streamName, src);
 

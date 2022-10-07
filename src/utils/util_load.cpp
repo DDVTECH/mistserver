@@ -1,5 +1,3 @@
-#include "util_load.h"
-
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
@@ -11,6 +9,9 @@
 #include <mist/util.h>
 #include <mist/encryption.h>
 #include <set>
+#include "util_load.h"
+#include <mist//encryption.h>
+#include <mist//auth.h>
 
 
 Util::Config *cfg = 0;
@@ -24,6 +25,7 @@ size_t weight_ram = 500;
 size_t weight_bw = 1000;
 size_t weight_geo = 1000;
 size_t weight_bonus = 50;
+std::string password;
 
 unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
 #define HOSTLOOP                                                                             \
@@ -38,6 +40,8 @@ unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesse
 API api;
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
 std::set<LoadBalancer> loadBalancers;
+std::string passHash;
+
 
 
 std::string Data::stringify() {
@@ -61,24 +65,23 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     return out;
   }
 
-  LoadBalancer::LoadBalancer(std::string ip) {
+LoadBalancer::LoadBalancer(std::string ip) {
     this->ip = ip;
     LoadMutex = 0;
     HTTP::URL url(ip);
     std::map<std::string, std::string>* headers = new std::map<std::string, std::string>();
-    Socket::Connection conn;
     ws = new HTTP::Websocket(conn, url, headers);
-    
+    Go_Down = false;
   }
 
-  LoadBalancer::LoadBalancer(Socket::Connection conn, HTTP::Parser &h){
-    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
+LoadBalancer::LoadBalancer(Socket::Connection conn, HTTP::Parser &h){
+    LoadMutex = 0;
+    conn = conn;
     ws = new HTTP::Websocket(conn, h);
-    
+    Go_Down = false;
   }
 
-  LoadBalancer::~LoadBalancer(){
+LoadBalancer::~LoadBalancer(){
     if(LoadMutex){
       delete LoadMutex;
       LoadMutex = 0;
@@ -86,34 +89,37 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     delete ws;
   }
 
-  std::string LoadBalancer::receive(){
+std::string LoadBalancer::receive() const {
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
     std::string ret;
     if(ws->readLoop()){
       ret = ws->data;
     }
-    //TODO implement: Dencryption::AES();
     return ret;
   }
 
-  std::string LoadBalancer::getName() const {return ip;}
-  bool LoadBalancer::operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
-  bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
-  bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName() == other.getName();}
-  bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
+std::string LoadBalancer::getName() const {return ip;}
+bool LoadBalancer::operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
+bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
+bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName().compare(other.getName());}
+bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
   
-  void const LoadBalancer::send(JSON::Value j){
+void LoadBalancer::send(std::string ret) const {
     if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
-    //TODO implement: Encryption::AES();
-    ws->sendFrame(j.asString());
+    ws->sendFrame(ret);
   }
   
-  void LoadBalancer::monitor(){
+void LoadBalancer::monitor() const {
+  while(!Go_Down){
+    if(!conn.connected()){
+      Go_Down = true;
+      continue;
+    }
     JSON::Value newVals = JSON::fromString(receive());
     if(newVals.isMember("addLoadBalancer")) {
-      api.addLB(newVals["aadLoadBalancer"], newVals["resend"]);
+      api.addLB(newVals["aadLoadBalancer"], newVals["port"], newVals["resend"]);
     }else if(newVals.isMember("removeLoadBalancer")) {
       api.removeLB(newVals["removeLoadBalancer"], newVals["resend"]);
     }else if(newVals.isMember("removeHost")) {
@@ -127,8 +133,18 @@ streamDetails* streamDetails::destringify(JSON::Value j){
       api.delServer(newVals["delServer"]);
     }else if(newVals.isMember("weights")) {
       api.setWeights(newVals["weights"], newVals["resend"]);
+    }else if(newVals.isMember("addviewer")){
+      //find host
+      for(HOSTLOOP){
+        if(newVals["host"].asString().compare(hosts[i].details->host)){
+          //call add viewer function
+          std::string stream = newVals["addviewer"].asString();
+          hosts[i].details->addViewer(stream);
+        }
+      }
     }
   }
+}
 
 
 outUrl::outUrl(){};
@@ -142,8 +158,6 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   pre = tmp.substr(0, dolsign);
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
-
-
 
 std::string outUrl::stringify(){
   return "\"outUrl\": [\"pre\": " + pre + ", \"post\": " + post + "]";
@@ -222,32 +236,32 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 }
 
 
-  hostDetails::hostDetails(std::set<LoadBalancer> LB){
+hostDetails::hostDetails(std::set<LoadBalancer> LB){
     this->LB = LB;
     hostMutexf = 0;
   }
-  hostDetails::~hostDetails(){
+hostDetails::~hostDetails(){
     if(hostMutexf){
       delete hostMutexf;
       hostMutexf = 0;
     }
   }
-  /**
+/**
    *  Fills out a by reference given JSON::Value with current state.
    */
-  void hostDetails::fillState(JSON::Value &r){
+void hostDetails::fillState(JSON::Value &r){
     r = fillStateOut;
   }
-  /** 
+/** 
    * Fills out a by reference given JSON::Value with current streams viewer count.
    */
-  void hostDetails::fillStreams(JSON::Value &r){
+void hostDetails::fillStreams(JSON::Value &r){
     r = fillStreamsOut;
   }
-  /**
+/**
    * Fills out a by reference given JSON::Value with current stream statistics.
    */ 
-  void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
+void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
     if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
@@ -265,13 +279,13 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
       }
     }
   }
-  long long hostDetails::getViewers(const std::string &strm){
+long long hostDetails::getViewers(const std::string &strm){
     if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(!streams.count(strm)){return 0;}
     return streams[strm].total;
   }
-  uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust = blankTags, double lati = 0, double longi = 0){
+uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust = blankTags, double lati = 0, double longi = 0){
     if(conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
       MEDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
       return 0;
@@ -295,7 +309,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     }
     return score;
   }
-  uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
+uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
     if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
@@ -315,23 +329,28 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     }
     return score;
   }
-  std::string hostDetails::getUrl(std::string &s, std::string &proto){
+std::string hostDetails::getUrl(std::string &s, std::string &proto){
     if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
     if(!outputs.count(proto)){return "";}
     const outUrl o = outputs[proto];
     return o.pre + s + o.post;
   }
-  /**
+/**
    * Sends update to original load balancer to add a viewer.
    */
-  void hostDetails::addViewer(std::string &s){
-    //TODO
+void hostDetails::addViewer(std::string &s){
+    JSON::Value j;
+    j["addViewer"] = s;
+    j["host"] = host;
+    for(std::set<LoadBalancer>::iterator it = LB.begin(); it != LB.end(); it++){
+      (*it).send(j.asString());
+    }
   }
-  /**
+/**
    * Update precalculated host vars.
    */
-  void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
     if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
 
@@ -349,10 +368,10 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     
 
   }
-  /**
+/**
    * allow for json inputs instead of sets and maps for update function
    */
-  void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
     streamDetails x;
@@ -365,7 +384,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
   }
   
 
-  hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
+hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
     hostMutex = 0;
     cpu = 1000;
     ramMax = 0;
@@ -381,20 +400,20 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     servLongi = 0;
     availBandwidth = 128 * 1024 * 1024; // assume 1G connections
   }
-  hostDetailsCalc::~hostDetailsCalc(){
+hostDetailsCalc::~hostDetailsCalc(){
     if (hostMutex){
       delete hostMutex;
       hostMutex = 0;
     }
   }
-  void hostDetailsCalc::badNess(){
+void hostDetailsCalc::badNess(){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     addBandwidth += 1 * 1024 * 1024;
     addBandwidth *= 1.2;
   }
-  /// Fills out a by reference given JSON::Value with current state.
-  void hostDetailsCalc::fillState(JSON::Value &r){
+/// Fills out a by reference given JSON::Value with current state.
+void hostDetailsCalc::fillState(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     r["cpu"] = (uint64_t)(cpu / 10);
@@ -421,8 +440,8 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
       r["score"]["bw"] = (uint64_t)(weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
     }
   }
-  /// Fills out a by reference given JSON::Value with current streams viewer count.
-  void hostDetailsCalc::fillStreams(JSON::Value &r){
+/// Fills out a by reference given JSON::Value with current streams viewer count.
+void hostDetailsCalc::fillStreams(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
@@ -431,9 +450,9 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
   }
-  /// Scores a potential new connection to this server
+/// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
-  uint64_t hostDetailsCalc::rate(){
+uint64_t hostDetailsCalc::rate(){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
@@ -455,9 +474,9 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     
     return score;
   }
-  /// Scores this server as a source
+/// Scores this server as a source
   /// 0 means not possible, the higher the better.
-  uint64_t hostDetailsCalc::source(){
+uint64_t hostDetailsCalc::source(){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     
@@ -479,10 +498,10 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     return score;
   }
 
-  /**
+/**
    * calculate and update precalculated variables
   */
-  void hostDetailsCalc::calc(){
+void hostDetailsCalc::calc(){
     //calculated vars
     JSON::Value fillStreamsOut;
     fillStreams(fillStreamsOut);
@@ -493,7 +512,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     
     //update the local precalculated vars
     ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, (std::map<std::string, streamDetails>(streams)), tags, cpu, servLati, servLongi, binHost, host);
-    //TODO: test send to other load balancers
+
     //create json to send to other load balancers
     JSON::Value j;
     j["fillStaterOut"] = fillStateOut;
@@ -501,7 +520,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     j["scoreSource"] = scoreSource;
     j["scoreRate"] = scoreRate;
     
-    //streamDetails &strm = *(streamDetails*)&(streams[it.key()]);
+    
     convertMapToJson(j, *(std::map<std::string,Data>*)&outputs, OUTPUTSKEY);
     convertSetToJson(j, conf_streams, CONFSTREAMSKEY);
     convertMapToJson(j, *(std::map<std::string,Data>*)&streams, STREAMSKEY);
@@ -513,15 +532,15 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 
     //TODO: what if load balancer crashed
     for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      //(*it).send(j);
+      (*it).send(j.asString());
     }
   }
   
-  /**
+/**
    * add the viewer to this host
    * updates all precalculated host vars
    */
-  void hostDetailsCalc::addViewer(std::string &s){
+void hostDetailsCalc::addViewer(std::string &s){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
@@ -541,10 +560,10 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
     calc();
   }
 
-  /**
+/**
    * update vars from server
    */
-  void hostDetailsCalc::update(JSON::Value &d){
+void hostDetailsCalc::update(JSON::Value &d){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     cpu = d["cpu"].asInt();
@@ -596,6 +615,13 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
         }
+        
+        WARN_MSG("count : %s", it.key().c_str());
+        if(!streams.count(it.key())){
+          //streamDetails streams;
+          //streams.insert(std::pair<std::string, streamDetails>(it.key(),streamDetails()));
+        }
+        
         streamDetails &strm = streams[it.key()];
 
         strm.total = (*it)["curr"][0u].asInt();
@@ -714,6 +740,7 @@ void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::str
   // Cancel if this host has no name or load balancer set
   if (!N.size()){return;}
   H.state = STATE_ONLINE;
+  //H.details = new hostDetails(LB);
   std::set<LoadBalancer> LBList;
   //add LB to LBList if in mesh only
   for(std::set<std::string>::iterator it = LB.begin(); it != LB.end(); ++it){
@@ -767,7 +794,7 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
 /**
  * function to select the api function wanted
  */
-  int API::handleRequest(Socket::Connection &conn){
+int API::handleRequest(Socket::Connection &conn){
   HTTP::Parser H;
   while (conn){
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
@@ -798,11 +825,36 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
         std::string removeLoadBalancer = H.GetVar("removeloadbalancer");
         std::string resend = H.GetVar("resend");
         std::string getLBList = H.GetVar("LBList");
+        std::string auth = H.GetVar("auth");
+        std::string port = H.GetVar("port");
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         
+        if(auth.size()){
+          //send response to challenge
+          std::string pass = Secure::sha256(passHash+auth);
+          conn.SendNow(pass);
+          //send own challenge
+          //TODO generate salt
+          std::string salt = "2fdjb54hgdv";
+          if(!conn.connected()){
+            continue;
+          }
+          conn.SendNow(salt);
+          //check responce
+          Socket::Buffer result = conn.Received();
+          if(Secure::sha256(passHash+salt).compare(result.get())){
+            //not equal
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }else{
+            //auth successful
+            loadBalancers.insert(LoadBalancer(conn.getHost()));
+          }
+        }
         //return load balancer list
-        if(getLBList.size()){
+        else if(getLBList.size()){
           std::string out = getLoadBalancerList();
           H.SetBody(out);
           H.setCORSHeaders();
@@ -811,7 +863,7 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
         }
         //add load balancer to mesh
         else if(addLoadBalancer.size()){
-          addLB(addLoadBalancer, resend);
+          addLB(addLoadBalancer, atoi(port.c_str()), resend);
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -944,10 +996,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
   return 0;
 }
 
-  /**
+/**
    * set and get weights
    */
-  JSON::Value API::setWeights(const std::string weights, const std::string resend){
+JSON::Value API::setWeights(const std::string weights, const std::string resend){
     JSON::Value ret;
     JSON::Value newVals = JSON::fromString(weights);
     if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
@@ -963,17 +1015,20 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
 
     
     if(!resend.size() || atoi(resend.c_str()) == 1){
+      JSON::Value j;
+      j["weights"] = newVals;
+      j["resend"] = false;
       for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        //TODO call change config on lb
+        (*it).send(j.asString());
       }
     }
     return ret;
   }
   
-  /**
+/**
    * remove server from ?
    */
-  JSON::Value API::delServer(const std::string delserver){
+JSON::Value API::delServer(const std::string delserver){
     JSON::Value ret;
     tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
     ret = "Server not monitored - could not delete from monitored server list!";
@@ -988,10 +1043,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     
   }
 
-  /**
+/**
    * receive server updates and adds new foreign hosts if needed
    */
-  void API::updateHost(JSON::Value newVals){
+void API::updateHost(JSON::Value newVals){
     if(newVals.isMember("hostName")){
       std::string hostName = newVals["hostName"].asString();
       int hostIndex = -1;
@@ -1008,10 +1063,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     }
   }
   
-  /**
+/**
    * add server to be monitored
    */
-  void API::addServer(JSON::Value ret, const std::string addserver){
+void API::addServer(JSON::Value ret, const std::string addserver){
     tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
     if (addserver.size() >= HOSTNAMELEN){
       return;
@@ -1046,10 +1101,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return;
   }
    
-  /**
+/**
    * remove server from load balancer( both monitored and foreign )
    */
-  void API::removeHost(const std::string removeHost){
+void API::removeHost(const std::string removeHost){
     for(HOSTLOOP){
       if(removeHost == hosts[i].name){
         if(!hosts[i].thread){
@@ -1060,49 +1115,66 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     }
   }
    
-  /**
+/**
    * remove load balancer from mesh
    */
-  void API::removeLB(std::string removeLoadBalancer, const std::string resend){
-    if(false){//TODO remove all LB  if this ip
-      
-      return;
-    }else loadBalancers.erase(removeLoadBalancer);
-      
+void API::removeLB(std::string removeLoadBalancer, const std::string resend){
+  //remove load balancer
+  loadBalancers.erase(removeLoadBalancer);
     
-    if(!resend.size() || atoi(resend.c_str()) ==1){
-      for(int i = 0; i < loadBalancers.size(); i++){
-        //TODO this api call on lb
-      }
+  //notify other load balancers
+  if(!resend.size() || atoi(resend.c_str()) ==1){
+    JSON::Value j;
+    j["removeloadbalancer"] = removeLoadBalancer;
+    j["resend"] = false;
+    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it!=loadBalancers.end(); it++){
+      (*it).send(j.asString());
     }
   }
-  
-  /**
+}
+
+/**
    * add load balancer to mesh
    */
-  void API::addLB(std::string addLoadBalancer, const std::string resend){
+void API::addLB(std::string addLoadBalancer, int port, const std::string resend){
     //check if load balancer is already in list
-    
     if(!loadBalancers.count(addLoadBalancer)){
-      if(!resend.size() || atoi(resend.c_str()) == 1){
-        //TODO send LBList to ip in addLoadBalancer
-      }
       return;
     }
     
     if(!resend.size() || atoi(resend.c_str()) == 1){
+      JSON::Value j;
+      j["addloadbalancer"] = addLoadBalancer;
+      j["resend"] = false;
       for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        //TODO send to other load balancers
-      }
-      //TODO send LBList to ip in addLoadBalancer
+        (*it).send(j.asString());
+      } 
     }
-    loadBalancers.insert(addLoadBalancer);          
+    Socket::Connection conn(addLoadBalancer, port, false, false);
+    HTTP::Parser H;
+    //TODO generate salt
+    std::string salt = "fdhbdsjd35gfs";
+    conn.SendNow(salt);
+    //check responce
+    Socket::Buffer result = conn.Received();
+    if(Secure::sha256(passHash+salt).compare(result.get())){
+      //unautherized
+      conn.close();
+      return;
+    }
+    //send response to challenge
+    Socket::Buffer auth = conn.Received();
+    std::string pass = Secure::sha256(passHash+auth.get());
+    conn.SendNow(pass);
+    if(conn.connected()){
+      loadBalancers.insert(LoadBalancer(conn, H));
+    }          
   }
 
-  /**
+/**
   * returns load balancer list
   */
-  std::string API::getLoadBalancerList(){
+std::string API::getLoadBalancerList(){
     std::string out = "\"lblist\": [";  
     for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       if(it != loadBalancers.begin()){
@@ -1114,10 +1186,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return out;
   }
   
-  /**
+/**
    * return viewer counts of streams
    */
-  JSON::Value API::getViewers(){
+JSON::Value API::getViewers(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1126,10 +1198,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return ret;
   }
   
-  /**
+/**
    * return the best source of a stream
    */
-  void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback){
+void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback){
     INFO_MSG("Finding source for stream %s", source.c_str());
     std::string bestHost = "";
     std::map<std::string, int32_t> tagAdjust;
@@ -1178,10 +1250,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     H.Clean();    
   }
   
-  /**
+/**
    * get view count of a stream
    */
-  uint64_t API::getStream(const std::string stream){
+uint64_t API::getStream(const std::string stream){
     uint64_t count = 0;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1190,10 +1262,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return count;   
   }
   
-  /**
+/**
    * return server list
    */
-  JSON::Value API::serverList(){
+JSON::Value API::serverList(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1202,10 +1274,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return ret;    
   }
  
-  /**
+/**
    * return ingest point
    */
-  void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback){
+void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback){
     double cpuUse = atoi(ingest.c_str());
     INFO_MSG("Finding ingest point for CPU usage %.2f", cpuUse);
     std::string bestHost = "";
@@ -1250,10 +1322,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     H.Clean();
   }
   
-  /**
+/**
    * create stream
    */
-  void API::stream(Socket::Connection conn, HTTP::Parser H){
+void API::stream(Socket::Connection conn, HTTP::Parser H){
     // Balance given stream
       std::string stream = HTTP::URL(H.url).path;
       std::string proto = H.GetVar("proto");
@@ -1306,10 +1378,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
       }
     }// if HTTP request received
   
-  /**
+/**
    * return stream stats
    */
-  JSON::Value API::getStreamStats(const std::string streamStats){
+JSON::Value API::getStreamStats(const std::string streamStats){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1318,10 +1390,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return ret;
   }
  
-  /**
+/**
    * add viewer to stream on server
    */
-  void API::addViewer(std::string stream, const std::string addViewer){
+void API::addViewer(std::string stream, const std::string addViewer){
     for(HOSTLOOP){
       if(hosts[i].name == addViewer){
         //next line can cause infinate loop if LB ip is 
@@ -1331,10 +1403,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     }
   }
 
-  /**
+/**
    * return server data of a server
    */
-  JSON::Value API::getHostState(const std::string host){
+JSON::Value API::getHostState(const std::string host){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1348,10 +1420,10 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     return ret;
   }
   
-  /**
+/**
    * return all server data
    */
-  JSON::Value API::getAllHostStates(){
+JSON::Value API::getAllHostStates(){
     JSON::Value ret;
     for (HOSTLOOP){
       if (hosts[i].state == STATE_OFF){continue;}
@@ -1361,7 +1433,6 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
     }
     return ret;
   }
-
 
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();
@@ -1438,6 +1509,13 @@ int main(int argc, char **argv){
   opt["value"].append(weight_geo);
   conf.addOption("geo", opt);
 
+  opt["arg"] = "string";
+  opt["short"] = "A";
+  opt["long"] = "auth";
+  opt["help"] = "load balancer authentication key";
+  opt["value"][0u] = "default";
+  conf.addOption("auth", opt);
+
   opt["arg"] = "integer";
   opt["short"] = "X";
   opt["long"] = "extra";
@@ -1454,6 +1532,7 @@ int main(int argc, char **argv){
   conf.parseArgs(argc, argv);
 
   passphrase = conf.getOption("passphrase").asStringRef();
+  password = conf.getString("auth");
   weight_ram = conf.getInteger("ram");
   weight_cpu = conf.getInteger("cpu");
   weight_bw = conf.getInteger("bw");
@@ -1468,6 +1547,7 @@ int main(int argc, char **argv){
 
   api = API();
   loadBalancers = std::set<LoadBalancer>();
+  passHash = Secure::sha256(password);
 
   std::map<std::string, tthread::thread *> threads;
   jsonForEach(nodes, it){
@@ -1487,6 +1567,9 @@ int main(int argc, char **argv){
     WARN_MSG("Load balancer shutting down; socket problem");
   }
   conf.is_active = false;
+  for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+    (*it).Go_Down = true;
+  }
 
   // Join all threads
   for (HOSTLOOP){

@@ -64,7 +64,7 @@ namespace Mist{
         conn.close();
         return;
       }
-      if (connectToFile(config->getString("target"))){
+      if (genericWriter(config->getString("target"))){
         parseData = true;
         wantRequest = false;
         INFO_MSG("Recording %s to %s in EBML format", streamName.c_str(),

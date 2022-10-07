@@ -413,7 +413,13 @@ namespace Mist{
     }
 
     fseek(inFile, 0, SEEK_SET);
-    meta.toFile(config->getString("input") + ".dtsh");
+    // Export DTSH to file
+    Socket::Connection outFile;
+    int tmpFd = open("/dev/null", O_RDWR);
+    outFile.open(tmpFd);
+    Util::Procs::socketList.insert(tmpFd);
+    genericWriter(config->getString("input") + ".dtsh", &outFile, false);
+    if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
     return true;
   }
 

@@ -7,6 +7,7 @@
 #include "procs.h"
 #include "timing.h"
 #include "util.h"
+#include "url.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
 #include <iostream>
@@ -166,6 +167,35 @@ namespace Util{
     return s;
   }
 
+  /// \brief Connects the given file descriptor to a file or uploader binary
+  /// \param file target URL or filepath
+  /// \param outFile file descriptor which will be used to send data
+  /// \param append whether to open this connection in truncate or append mode
+  bool genericWriter(std::string file, int &outFile, bool append){
+    // If file starts with s3(+http(s))://, spawn livepeer-catalyst-uploader
+    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://" || file.substr(0,5) == "s3://"){
+      const char *cmd[] = {"livepeer-catalyst-uploader", "-t", "2592000s", (char*)file.c_str(), 0};
+      pid_t child = Util::Procs::startConverted(cmd, &outFile);
+      if (child == -1){
+        ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
+        return false;
+      }
+      Util::Procs::forget(child);
+    }else{
+      int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
+      if (!Util::createPathFor(file)){
+        ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
+        return false;
+      }
+      outFile = open(file.c_str(), mode, flags);
+      if (outFile < 0){
+        ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
+        return false;
+      }
+    }
+    return true;
+  }
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
   //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.

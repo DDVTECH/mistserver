@@ -15,6 +15,8 @@ namespace Util{
   void stringToLower(std::string &val);
   void replace(std::string &str, const std::string &from, const std::string &to);
   std::string generateRandomString(const int len);
+  void splitString(std::string &val, char delim, std::deque<std::string> &result);
+  bool genericWriter(std::string file, int &outFile, bool append = false);
 
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait);
 

@@ -463,14 +463,15 @@ namespace Mist{
       }
     }
 
-    // outputting dtsh file
     std::string inUrl = config->getString("input");
     if (inUrl.size() > 4 && inUrl.substr(0, 4) == "mp4:"){inUrl.erase(0, 4);}
-    if (inUrl != "-" && HTTP::URL(inUrl).isLocalPath()){
-      M.toFile(inUrl + ".dtsh");
-    }else{
-      INFO_MSG("Skipping header write, as the source is not a local file");
-    }
+    // Export DTSH to file
+    Socket::Connection outFile;
+    int tmpFd = open("/dev/null", O_RDWR);
+    outFile.open(tmpFd);
+    Util::Procs::socketList.insert(tmpFd);
+    genericWriter(inUrl + ".dtsh", &outFile, false);
+    if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
     bps = 0;
     std::set<size_t> tracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){bps += M.getBps(*it);}

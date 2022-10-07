@@ -8,11 +8,11 @@
 #include <iterator>
 #include <mist/auth.h>
 #include <mist/defines.h>
-#include <mist/downloader.h>
 #include <mist/encode.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/urireader.h>
 #include <sstream>
 #include <sys/wait.h>
 
@@ -593,7 +593,25 @@ namespace Mist{
     }
     // close file
     file.close();
-    outMeta.toFile(fileName + ".dtsh");
+    Socket::Connection outFile;
+    int tmpFd = open("/dev/null", O_RDWR);
+    outFile.open(tmpFd);
+    Util::Procs::socketList.insert(tmpFd);
+    genericWriter(config->getString("input") + ".dtsh", &outFile, false);
+    if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
+  }
+
+  /// \brief Makes the generic writer available to input classes
+  /// \param file target URL or filepath
+  /// \param conn connection which will be used to send data. Must be initialised
+  /// \param append whether to open this connection in truncate or append mode
+  bool Input::genericWriter(std::string file, Socket::Connection *conn, bool append){
+    int outFile = -1;
+    if (!conn) {return false;}
+    if (!Util::genericWriter(file, outFile, append)){return false;}
+    dup2(outFile, conn->getSocket());
+    close(outFile);
+    return true;
   }
 
   // Logs the current exit reason and returns a 0 or 1 depending on whether
@@ -1528,7 +1546,22 @@ namespace Mist{
         return true;
       }
     }
-    meta.reInit(config->getString("streamname"), config->getString("input") + ".dtsh");
+    // Try to read any existing DTSH file
+    std::string fileName = config->getString("input") + ".dtsh";
+    HIGH_MSG("Refreshing metadata for stream '%s'. Trying to reinit from file '%s'", streamName.c_str(), fileName.c_str());
+    char *scanBuf;
+    size_t fileSize;
+    HTTP::URIReader inFile(fileName);
+    if (!inFile){return false;}
+    inFile.readAll(scanBuf, fileSize);
+    inFile.close();
+    if (!fileSize){return false;}
+    size_t offset = 8;
+    if (!memcmp(scanBuf, "DTP2", 4)){offset = 20;}
+    HIGH_MSG("Recovered header of %zu bytes", fileSize);
+    DTSC::Scan src(scanBuf + offset, fileSize - offset);
+    meta.reInit(streamName, src);
+
     if (meta.version != DTSH_VERSION){
       INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
       return false;

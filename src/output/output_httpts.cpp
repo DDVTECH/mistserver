@@ -259,7 +259,7 @@ namespace Mist{
         plsConn.open(tmpFd);
         Util::Procs::socketList.insert(tmpFd);
         INFO_MSG("Connecting to playlist file '%s'", playlistLocation.c_str());
-        connectToFile(playlistLocation, !removeOldPlaylistFiles, &plsConn);
+        genericWriter(playlistLocation, !removeOldPlaylistFiles, &plsConn);
       }
 
       if (removeOldPlaylistFiles){

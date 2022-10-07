@@ -107,7 +107,13 @@ namespace Mist{
       FLV::Parse_Error = false;
       ERROR_MSG("Stopping at FLV parse error @%" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
     }
-    M.toFile(config->getString("input") + ".dtsh");
+    // Export DTSH to file
+    Socket::Connection outFile;
+    int tmpFd = open("/dev/null", O_RDWR);
+    outFile.open(tmpFd);
+    Util::Procs::socketList.insert(tmpFd);
+    genericWriter(config->getString("input") + ".dtsh", &outFile, false);
+    if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
     Util::fseek(inFile, 13, SEEK_SET);
     return true;
   }

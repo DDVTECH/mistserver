@@ -45,7 +45,7 @@ namespace Mist{
       if (config->getString("target") == "-"){
         INFO_MSG("Outputting %s to stdout in JPG format", streamName.c_str());
       }else{
-        if (!connectToFile(config->getString("target"))){
+        if (!genericWriter(config->getString("target"))){
           myConn.close();
           return;
         }

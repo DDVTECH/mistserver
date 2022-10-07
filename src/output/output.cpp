@@ -1238,7 +1238,7 @@ namespace Mist{
         INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
                  capa["name"].asString().c_str());
       }else{
-        if (!connectToFile(config->getString("target"), targetParams.count("append"))){
+        if (!genericWriter(config->getString("target"), targetParams.count("append"))){
           onFail("Could not connect to the target for recording", true);
           return 3;
         }
@@ -1346,7 +1346,7 @@ namespace Mist{
                   newTarget.erase(newTarget.rfind('?'));
                 }
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
-                if (!connectToFile(newTarget)){
+                if (!genericWriter(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
                   Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
                   onFinish();
@@ -1870,55 +1870,19 @@ namespace Mist{
     sentHeader = true;
   }
 
-  bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
-    if (!conn) {conn = &myConn;}
+  /// \brief Makes the generic writer available to output classes
+  /// \param file target URL or filepath
+  /// \param conn connection which will be used to send data. Will use Output's internal myConn if not initialised
+  /// \param append whether to open this connection in truncate or append mode
+  bool Output::genericWriter(std::string file, bool append, Socket::Connection *conn){
     int outFile = -1;
-    // If file starts with s3(+http(s))://, spawn livepeer-catalyst-uploader
-    if (file.substr(0,10) == "s3+http://" || file.substr(0,11) == "s3+https://" || file.substr(0,5) == "s3://"){
-      const char *cmd[] = {"livepeer-catalyst-uploader", "-t", "2592000s", (char*)file.c_str(), 0};
-      pid_t child = Util::Procs::startConverted(cmd, &outFile);
-      if (child == -1){
-        ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
-        return false;
-      }
-      Util::Procs::forget(child);
-    } else if (file.substr(0,7) == "ipfs://") {
-        // Create RECORDING_END trigger payload to be invoked once IPFS CID is known
-        std::stringstream payl;
-        payl << streamName << '\n';
-        payl << "IPFS_CID" << '\n';
-        payl << capa["name"].asStringRef() << '\n';
-        // Can't fill these fields without knowing when the trigger will be fired
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        payl << 0 << '\n';
-        const char *cmd[] = {"livepeer-catalyst-uploader", "-t", "2592000s", (char*)file.c_str(), 0};
-        pid_t child = Util::Procs::startConverted(cmd, &outFile, payl.str());
-        if (child == -1){
-          ERROR_MSG("livepeer-catalyst-uploader process did not start, aborting");
-          return false;
-        }
-        Util::Procs::forget(child);
+    if (!conn) {conn = &myConn;}
+    if (!Util::genericWriter(file, outFile, append)){return false;}
+    int r = dup2(outFile, conn->getSocket());
+    if (r == -1){
+      ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
+      return false;
     }
-    else{
-      int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-      int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
-      if (!Util::createPathFor(file)){
-        ERROR_MSG("Cannot not create file %s: could not create parent folder", file.c_str());
-        return false;
-      }
-      outFile = open(file.c_str(), mode, flags);
-      if (outFile < 0){
-        ERROR_MSG("Failed to open file %s, error: %s", file.c_str(), strerror(errno));
-        return false;
-      }
-    }
-
-    dup2(outFile, conn->getSocket());
     close(outFile);
     isRecordingToFile = true;
     realTime = 0;

@@ -72,6 +72,7 @@ namespace Mist{
     virtual void connStats(Comms::Connections & statComm);
     virtual void parseHeader();
     bool bufferFrame(size_t track, uint32_t keyNum);
+    bool genericWriter(std::string file, Socket::Connection *conn, bool append = false);
     bool exitAndLogReason();
 
     uint64_t activityCounter;

@@ -237,6 +237,9 @@ namespace Mist{
                 S.S.initializeMetadata(meta, thisPacket.getTrackId(), trackId);
                 thisIdx = M.trackIDToIndex(trackId, getpid());
                 meta.setSourceTrack(thisIdx, sourceIndex);
+                if (M.getType(thisIdx) == "audio"){
+                  meta.validateTrack(thisIdx, 0);
+                }
               }
             }
             if (S.byteOffset >= S.data.size() && !S.S.hasPacket()){

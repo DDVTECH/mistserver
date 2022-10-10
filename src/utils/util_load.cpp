@@ -13,6 +13,23 @@
 #include <mist//encryption.h>
 #include <mist//auth.h>
 
+#include <mist/websocket.h>
+#include <mist/tinythread.h>
+#include <string>
+
+
+
+
+#define CONFSTREAMSKEY "conf_streams"
+#define TAGSKEY "tags"
+#define STREAMSKEY "streams"
+#define OUTPUTSKEY "outputs"
+
+#define STATE_OFF 0
+#define STATE_BOOT 1
+#define STATE_ERROR 2
+#define STATE_O
+
 
 Util::Config *cfg = 0;
 std::string passphrase;
@@ -240,12 +257,12 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 
 hostDetails::hostDetails(std::set<LoadBalancer> LB){
     this->LB = LB;
-    hostMutexf = 0;
+    hostMutex = 0;
   }
 hostDetails::~hostDetails(){
-    if(hostMutexf){
-      delete hostMutexf;
-      hostMutexf = 0;
+    if(hostMutex){
+      delete hostMutex;
+      hostMutex = 0;
     }
   }
 /**
@@ -264,8 +281,8 @@ void hostDetails::fillStreams(JSON::Value &r){
    * Fills out a by reference given JSON::Value with current stream statistics.
    */ 
 void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
-    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
       const std::string &n = jt->first;
       if(s!= "*" && n!= s && n.substr(0,s.size()+1) != s+"+"){continue;}
@@ -282,8 +299,8 @@ void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
     }
   }
 long long hostDetails::getViewers(const std::string &strm){
-    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if(!streams.count(strm)){return 0;}
     return streams[strm].total;
   }
@@ -312,8 +329,8 @@ uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t> 
     return score;
   }
 uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
-    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if(s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
 
     if (minCpu && cpu + minCpu >= 1000){return 0;}
@@ -332,8 +349,8 @@ uint64_t hostDetails::source(const std::string &s, const std::map<std::string, i
     return score;
   }
 std::string hostDetails::getUrl(std::string &s, std::string &proto){
-    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if(!outputs.count(proto)){return "";}
     const outUrl o = outputs[proto];
     return o.pre + s + o.post;
@@ -353,8 +370,8 @@ void hostDetails::addViewer(std::string &s){
    * Update precalculated host vars.
    */
 void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
-    if(!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
     this->fillStateOut = fillStateOut;
     this->fillStreamsOut = fillStreamsOut;
@@ -371,14 +388,27 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
 
   }
 /**
+   * Update precalculated host vars without protected vars
+   */
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate){
+    if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
+
+    this->fillStateOut = fillStateOut;
+    this->fillStreamsOut = fillStreamsOut;
+    this->scoreSource = scoreSource;
+    this->scoreRate = scoreRate;
+  }
+
+/**
    * allow for json inputs instead of sets and maps for update function
    */
 void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
     streamDetails x;
-    if (!hostMutexf){hostMutexf = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutexf);
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     for(int i = 0; i < streams.size(); i++){
       s.insert(std::pair<std::string, streamDetails>(streams[STREAMSKEY][i]["key"], *(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
@@ -400,7 +430,8 @@ hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
     addBandwidth = 0;
     servLati = 0;
     servLongi = 0;
-    availBandwidth = 128 * 1024 * 1024; // assume 1G connections
+    availBandwidth = 128 * 1024 * 1024; // assume 1G connection
+    
   }
 hostDetailsCalc::~hostDetailsCalc(){
     if (hostMutex){
@@ -447,8 +478,7 @@ void hostDetailsCalc::fillStreams(JSON::Value &r){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
-    for (std::map<std::string, streamDetails>::iterator jt = streams.begin();
-         jt != streams.end(); ++jt){
+    for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
   }
@@ -511,9 +541,10 @@ void hostDetailsCalc::calc(){
     fillState(fillStateOut);
     uint64_t scoreSource = source();
     uint64_t scoreRate = rate();
-    
-    //update the local precalculated vars
-    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, outputs, conf_streams, (std::map<std::string, streamDetails>(streams)), tags, cpu, servLati, servLongi, binHost, host);
+
+    //update the local precalculated varsnclude <mist/config.h>
+
+    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate);
 
     //create json to send to other load balancers
     JSON::Value j;
@@ -617,12 +648,7 @@ void hostDetailsCalc::update(JSON::Value &d){
           if (streams.count(it.key())){streams.erase(it.key());}
           continue;
         }
-        
-        WARN_MSG("count : %s", it.key().c_str());
-        if(!streams.count(it.key())){
-          //streamDetails streams;
-          //streams.insert(std::pair<std::string, streamDetails>(it.key(),streamDetails()));
-        }
+
         
         streamDetails &strm = streams[it.key()];
 
@@ -682,8 +708,8 @@ void handleServer(void *hostEntryPointer){
   url.path = passphrase + ".json";
 
   INFO_MSG("Monitoring %s", url.getUrl().c_str());
-  ((hostDetailsCalc*)&(entry->details))->availBandwidth = bandwidth.asInt();
-  ((hostDetailsCalc*)&(entry->details))->host = url.host;
+  ((hostDetailsCalc*)(entry->details))->availBandwidth = bandwidth.asInt();
+  ((hostDetailsCalc*)(entry->details))->host = url.host;
   entry->state = STATE_BOOT;
   bool down = true;
 
@@ -694,7 +720,7 @@ void handleServer(void *hostEntryPointer){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){
         FAIL_MSG("Can't decode server %s load information", url.host.c_str());
-        ((hostDetailsCalc*)&(entry->details))->badNess();
+        ((hostDetailsCalc*)(entry->details))->badNess();
         DL.getSocket().close();
         down = true;
         entry->state = STATE_ERROR;
@@ -707,11 +733,11 @@ void handleServer(void *hostEntryPointer){
           entry->state = STATE_ONLINE;
           down = false;
         }
-        ((hostDetailsCalc*)&(entry->details))->update(servData);
+        ((hostDetailsCalc*)(entry->details))->update(servData);
       }
     }else{
       FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
-      ((hostDetailsCalc*)&(entry->details))->badNess();
+      ((hostDetailsCalc*)(entry->details))->badNess();
       DL.getSocket().close();
       down = true;
       entry->state = STATE_ERROR;
@@ -727,8 +753,7 @@ void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
   H.state = STATE_BOOT;
-  H.details = new hostDetailsCalc();
-  //(*(hostDetailsCalc*)&H.details).calc();
+  H.details = (hostDetails*)new hostDetailsCalc();
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = new tthread::thread(handleServer, (void *)&H);

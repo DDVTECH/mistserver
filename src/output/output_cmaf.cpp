@@ -93,6 +93,7 @@ namespace Mist{
 
       INFO_MSG("About to push stream %s out. Host: %s, port: %" PRIu32 ", location: %s",
                streamName.c_str(), pushUrl.host.c_str(), pushUrl.getPort(), pushUrl.path.c_str());
+      myConn.setHost(pushUrl.host);
       initialize();
       initialSeek();
       startPushOut();

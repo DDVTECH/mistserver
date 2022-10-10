@@ -208,6 +208,7 @@ namespace Socket{
       if (outgoing_port){setupAdapter("", outgoing_port);}
 
       sockaddr_in sa = createInetAddr(_host, _port);
+      memcpy(&remoteaddr, &sa, sizeof(sockaddr_in));
       sockaddr *psa = (sockaddr *)&sa;
 
       HIGH_MSG("Going to connect sock %d", sock);

@@ -85,6 +85,7 @@ namespace Mist{
         }
       }
       pushSock.SetDestination(target.host, target.getPort());
+      myConn.setHost(target.host);
       pushing = false;
     }else{
       //No push target? Check if this is a push input or pull output by waiting for data for 5s

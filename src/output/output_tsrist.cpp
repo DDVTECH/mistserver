@@ -130,6 +130,7 @@ namespace Mist{
         onFail("Failed to start RIST connection");
         return;
       }
+      myConn.setHost(target.host);
       wantRequest = false;
       parseData = true;
       initialize();

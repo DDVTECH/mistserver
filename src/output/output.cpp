@@ -218,10 +218,9 @@ namespace Mist{
 
   std::string Output::getConnectedBinHost(){
     if (!prevHost.size()){
-      if (myConn && myConn.getPureSocket() != -1){
-        prevHost = myConn.getBinHost();
-      }
-      if (!prevHost.size()){prevHost.assign("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);}
+      MEDIUM_MSG("Setting prevHost to %s", getConnectedHost().c_str());
+      prevHost = myConn.getBinHost();
+      if (!prevHost.size()){prevHost.assign("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
     }
     return prevHost;
   }

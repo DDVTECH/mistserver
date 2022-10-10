@@ -54,6 +54,7 @@ namespace Mist{
       }
       INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
                pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+      myConn.setHost(pushUrl.host);
       initialize();
       initialSeek();
       startPushOut("");

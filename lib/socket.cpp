@@ -1207,7 +1207,7 @@ std::string Socket::Connection::getBinHost(){
 }
 
 /// Sets hostname for connection manually.
-/// Overwrites the detected host, thus possibily making it incorrect.
+/// Overwrites the detected host, thus possibly making it incorrect.
 void Socket::Connection::setHost(std::string host){
   remotehost = host;
   struct addrinfo *result, hints;

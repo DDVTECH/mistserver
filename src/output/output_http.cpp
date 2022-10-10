@@ -279,6 +279,9 @@ namespace Mist{
           realTime = 0;
         }
       }
+
+      tkn.clear();
+
       // Read the session token
       if (Comms::tknMode & 0x01){
         // Get session token from the request url

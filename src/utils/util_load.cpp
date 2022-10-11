@@ -84,21 +84,10 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     return out;
   }
 
-LoadBalancer::LoadBalancer(std::string ip) {
-    this->ip = ip;
+LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name) : ws(ws), name(name) {
     LoadMutex = 0;
-    HTTP::URL url(ip);
-    std::map<std::string, std::string>* headers = new std::map<std::string, std::string>();
-    ws = new HTTP::Websocket(conn, url, headers);
     Go_Down = false;
-  }
-
-LoadBalancer::LoadBalancer(Socket::Connection conn, HTTP::Parser &h){
-    LoadMutex = 0;
-    conn = conn;
-    ws = new HTTP::Websocket(conn, h);
-    Go_Down = false;
-  }
+}
 
 LoadBalancer::~LoadBalancer(){
     if(LoadMutex){
@@ -118,7 +107,7 @@ std::string LoadBalancer::receive() const {
     return ret;
   }
 
-std::string LoadBalancer::getName() const {return ip;}
+std::string LoadBalancer::getName() const {return name;}
 bool LoadBalancer::operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
 bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
 bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName().compare(other.getName());}
@@ -132,13 +121,11 @@ void LoadBalancer::send(std::string ret) const {
   
 void LoadBalancer::monitor() const {
   while(!Go_Down){
-    if(!conn.connected()){
-      Go_Down = true;
-      continue;
-    }
     JSON::Value newVals = JSON::fromString(receive());
-    if(newVals.isMember("addLoadBalancer")) {
-      api.addLB(newVals["aadLoadBalancer"], newVals["port"], newVals["resend"]);
+    if(newVals.isMember("auth")){
+      //TODO
+    }else if(newVals.isMember("addLoadBalancer")) {
+      api.addLB(newVals["aadLoadBalancer"], newVals["resend"]);
     }else if(newVals.isMember("removeLoadBalancer")) {
       api.removeLB(newVals["removeLoadBalancer"], newVals["resend"]);
     }else if(newVals.isMember("removeHost")) {
@@ -774,7 +761,7 @@ void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::str
     std::set<LoadBalancer>::iterator i = loadBalancers.begin();
     while(i != loadBalancers.end()){
       if((*i).getName() == (*it)){//check if LB is  mesh
-        LBList.insert(LoadBalancer((*it)));
+        LBList.insert(*i);
         break;
       }else if((*i).getName() > (*it)){//check if past LB in search
         break;
@@ -820,19 +807,80 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
 std::string generateSalt(){
   std::string alphbet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
   std::string out = "";
+  srand(time(0));
   for(int i = 0; i < SALTSIZE; i++){
     out += alphbet[rand()%alphbet.size()];
   }
   return out;
 }
 
+void onWebsocketFrame(HTTP::Websocket* webSock, std::string name){
+  if(webSock->readFrame()){}
+    std::string frame(webSock->data);
+    if(frame.compare("auth")){
+      WARN_MSG("auth")
+      //send response to challenge
+      webSock->readFrame();
+      std::string auth(webSock->data);
+      std::string pass = Secure::sha256(passHash+auth);
+      WARN_MSG("pass:  %s", pass.c_str())
+      webSock->sendFrame(pass);
+
+      //send own challenge
+      std::string salt = generateSalt();
+      WARN_MSG("salt: %s", salt.c_str());
+      webSock->sendFrame(salt);
+
+      //check responce
+      webSock->readFrame();
+      std::string result(webSock->data);
+      if(!Secure::sha256(passHash+salt).compare(result)){
+        //not equal
+      }else{
+        //auth successful
+        webSock->sendFrame("OK");
+        loadBalancers.insert(LoadBalancer(webSock, name));
+      }
+    }
+  }
+
+
 /**
  * function to select the api function wanted
  */
 int API::handleRequest(Socket::Connection &conn){
   HTTP::Parser H;
+  HTTP::Websocket* webSock = 0;
+  WARN_MSG("coon: %s", conn.getHost().c_str());
   while (conn){
+    // Handle websockets
+    if (webSock){
+      if (webSock->readFrame()){
+        onWebsocketFrame(webSock, conn.getHost());
+        continue;
+      }
+      else{Util::sleep(100);}
+      continue;
+    }
+
     if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+      //output/ouput_http.cpp
+
+      // Handle upgrade to websocket if the output supports it
+      std::string upgradeHeader = H.GetHeader("Upgrade");
+      Util::stringToLower(upgradeHeader);
+      if (upgradeHeader == "websocket"){
+        INFO_MSG("Switching to Websocket mode");
+        conn.setBlocking(false);
+        webSock = new HTTP::Websocket(conn, H);
+        if (!(*webSock)){
+          delete webSock;
+          webSock = 0;
+          continue;
+        }
+        H.Clean();
+        continue;
+      }
       // Special commands
       if (H.url.size() == 1){
         if (localMode && !conn.isLocal()){
@@ -860,35 +908,12 @@ int API::handleRequest(Socket::Connection &conn){
         std::string removeLoadBalancer = H.GetVar("removeloadbalancer");
         std::string resend = H.GetVar("resend");
         std::string getLBList = H.GetVar("LBList");
-        std::string auth = H.GetVar("auth");
-        std::string port = H.GetVar("port");
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         
-        if(auth.size()){
-          //send response to challenge
-          std::string pass = Secure::sha256(passHash+auth);
-          conn.SendNow(pass);
-          //send own challenge
-          std::string salt = generateSalt();
-          if(!conn.connected()){
-            continue;
-          }
-          conn.SendNow(salt);
-          //check responce
-          Socket::Buffer result = conn.Received();
-          if(Secure::sha256(passHash+salt).compare(result.get())){
-            //not equal
-            H.setCORSHeaders();
-            H.SendResponse("200", "OK", conn);
-            H.Clean();
-          }else{
-            //auth successful
-            loadBalancers.insert(LoadBalancer(conn.getHost()));
-          }
-        }
+        
         //return load balancer list
-        else if(getLBList.size()){
+        if(getLBList.size()){
           std::string out = getLoadBalancerList();
           H.SetBody(out);
           H.setCORSHeaders();
@@ -897,7 +922,7 @@ int API::handleRequest(Socket::Connection &conn){
         }
         //add load balancer to mesh
         else if(addLoadBalancer.size()){
-          addLB(addLoadBalancer, atoi(port.c_str()), resend);
+          addLB(addLoadBalancer, resend);
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -1154,7 +1179,11 @@ void API::removeHost(const std::string removeHost){
    */
 void API::removeLB(std::string removeLoadBalancer, const std::string resend){
   //remove load balancer
-  loadBalancers.erase(removeLoadBalancer);
+  for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+    if((*it).getName().compare(removeLoadBalancer)){
+      loadBalancers.erase(it);
+    }
+  }
     
   //notify other load balancers
   if(!resend.size() || atoi(resend.c_str()) ==1){
@@ -1170,39 +1199,49 @@ void API::removeLB(std::string removeLoadBalancer, const std::string resend){
 /**
    * add load balancer to mesh
    */
-void API::addLB(std::string addLoadBalancer, int port, const std::string resend){
-    //check if load balancer is already in list
-    if(!loadBalancers.count(addLoadBalancer)){
-      return;
-    }
-    
+void API::addLB(std::string addLoadBalancer, const std::string resend){
+    //send to other load balancers
     if(!resend.size() || atoi(resend.c_str()) == 1){
       JSON::Value j;
       j["addloadbalancer"] = addLoadBalancer;
       j["resend"] = false;
       for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         (*it).send(j.asString());
-      } 
+      }
     }
-    Socket::Connection conn(addLoadBalancer, port, false, false);
-    HTTP::Parser H;
+
+    Socket::Connection conn(addLoadBalancer.substr(0,addLoadBalancer.find(":")), atoi(addLoadBalancer.substr(addLoadBalancer.find(":")+1).c_str()), false, false);
+    HTTP::URL url("ws://"+addLoadBalancer);
+    HTTP::Websocket* ws = new HTTP::Websocket(conn, url);
+    
     //send challenge
     std::string salt = generateSalt();
-    conn.SendNow(salt);
+    ws->sendFrame("auth");
+    ws->sendFrame(salt);
+    WARN_MSG("SALT : %s", salt.c_str());
+
     //check responce
-    Socket::Buffer result = conn.Received();
-    if(Secure::sha256(passHash+salt).compare(result.get())){
+    ws->readFrame();
+    std::string result(ws->data);
+    WARN_MSG("return : %s", result.c_str());
+  
+    if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
-      conn.close();
+      WARN_MSG("unautherised : %s : %s", result.c_str(),Secure::sha256(passHash+salt).c_str());
       return;
     }
     //send response to challenge
-    Socket::Buffer auth = conn.Received();
-    std::string pass = Secure::sha256(passHash+auth.get());
-    conn.SendNow(pass);
-    if(conn.connected()){
-      loadBalancers.insert(LoadBalancer(conn, H));
-    }          
+    ws->readFrame();
+    std::string auth(ws->data);
+    std::string pass = Secure::sha256(passHash+auth);
+    ws->sendFrame(pass);
+    
+    result = ws->data;
+    
+    if(result == "OK"){
+      INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer.c_str());
+      loadBalancers.insert(LoadBalancer(ws, addLoadBalancer));
+    }
   }
 
 /**

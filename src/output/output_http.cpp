@@ -218,6 +218,34 @@ namespace Mist{
         return;
       }
 
+      tkn.clear();
+      // Read the session token
+      if (Comms::tknMode & 0x01){
+        // Get session token from the request url
+        if (H.GetVar("tkn") != ""){
+          tkn = H.GetVar("tkn");
+        } else if (H.GetVar("sid") != ""){
+          tkn = H.GetVar("sid");
+        } else if (H.GetVar("sessId") != ""){
+          tkn = H.GetVar("sessId");
+        }
+      }
+      if ((Comms::tknMode & 0x02) && !tkn.size()){
+        // Get session token from the request cookie
+        std::map<std::string, std::string> storage;
+        const std::string koekjes = H.GetHeader("Cookie");
+        HTTP::parseVars(koekjes, storage, "; ");
+        if (storage.count("tkn")){
+          tkn = storage.at("tkn");
+        }
+      }
+      // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
+      if (!tkn.size() && Comms::tknMode > 3){
+        const std::string newTkn = UA + JSON::Value(getpid()).asString();
+        tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
+        HIGH_MSG("Generated tkn '%s'", tkn.c_str());
+      }
+
       //Check if we need to change binary and/or reconnect
       if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getTkn() != tkn))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
@@ -270,32 +298,7 @@ namespace Mist{
           realTime = 0;
         }
       }
-      // Read the session token
-      if (Comms::tknMode & 0x01){
-        // Get session token from the request url
-        if (H.GetVar("tkn") != ""){
-          tkn = H.GetVar("tkn");
-        } else if (H.GetVar("sid") != ""){
-          tkn = H.GetVar("sid");
-        } else if (H.GetVar("sessId") != ""){
-          tkn = H.GetVar("sessId");
-        }
-      }
-      if ((Comms::tknMode & 0x02) && !tkn.size()){
-        // Get session token from the request cookie
-        std::map<std::string, std::string> storage;
-        const std::string koekjes = H.GetHeader("Cookie");
-        HTTP::parseVars(koekjes, storage, "; ");
-        if (storage.count("tkn")){
-          tkn = storage.at("tkn");
-        }
-      }
-      // Generate a session token if it is being sent as a cookie or url parameter and we couldn't read one
-      if (!tkn.size() && Comms::tknMode > 3){
-        const std::string newTkn = UA + JSON::Value(getpid()).asString();
-        tkn = JSON::Value(checksum::crc32(0, newTkn.data(), newTkn.size())).asString();
-        HIGH_MSG("Generated tkn '%s'", tkn.c_str());
-      }
+
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
       Util::stringToLower(upgradeHeader);

@@ -785,7 +785,7 @@ std::string generateSalt(){
 }
 
 
-LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB, bool auth){
+LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
   std::string frame(webSock->data, webSock->data.size());
   if(!frame.substr(0, frame.find(":")).compare("auth")){
     //send response to challenge
@@ -806,10 +806,9 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
       LB = new LoadBalancer(webSock, name);
       loadBalancers.insert(LB);
       INFO_MSG("Load balancer added");
-      auth = true;
     }else{
       INFO_MSG("unautherized load balancer");
-      auth = false;
+      LB = 0;
     }
   }
   if(!frame.compare("close")){
@@ -817,7 +816,7 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
     loadBalancers.erase(LB);
     webSock->getSocket().close();
   }
-  if(auth && !frame.substr(0, 1).compare("{")){
+  if(LB && !frame.substr(0, 1).compare("{")){
     JSON::Value newVals = JSON::fromString(frame);
     if(newVals.isMember("addloadbalancer")) {
       new tthread::thread(api.addLB,(void*)&(newVals["addloadbalancer"]));
@@ -858,16 +857,13 @@ int API::handleRequest(Socket::Connection &conn){
  */
 int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, LoadBalancer* LB = 0){
   HTTP::Parser H;
-  bool auth = false;
   while (conn){
     // Handle websockets
     if (webSock){
       if (webSock->readFrame()){
-        LB = onWebsocketFrame(webSock, conn.getHost(), LB, auth);
-        //continue;
+        LB = onWebsocketFrame(webSock, conn.getHost(), LB);
       }
       else{Util::sleep(100);}
-      //continue;
     }else if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");

@@ -800,7 +800,6 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
     }
   }
   if(!frame.compare("close")){
-    WARN_MSG("close")
     LB->Go_Down = true;
     loadBalancers.erase(LB);
     webSock->getSocket().close();
@@ -1047,20 +1046,20 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
     }
   }
-  WARN_MSG("closing LB:%p", LB);
+  //check if this is a load balancer conncetion
   if(LB){
-    if(!LB->Go_Down){
+    if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       std::string lbName = LB->getName();
       loadBalancers.erase(LB);
       WARN_MSG("closing LB:%p", LB);
       delete LB;
       new tthread::thread(addLB,(void*)&lbName);
-    }else{
+    }else{//shutdown load balancer
       LB->Go_Down = true;
       loadBalancers.erase(LB);
       delete LB;
-      WARN_MSG("shuting Down connection");
+      INFO_MSG("shuting Down connection");
     }
   }
   conn.close();

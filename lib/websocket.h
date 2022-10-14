@@ -17,6 +17,7 @@ namespace HTTP{
     void sendFrameHead(unsigned int len, unsigned int frameType = 1);
     void sendFrameData(const char *data, unsigned int len);
     void sendFrame(const std::string &data);
+    Socket::Connection& getSocket(){return C;}
     Util::ResizeablePointer data;
     uint8_t frameType;
 

@@ -10,8 +10,8 @@
 #include <mist/encryption.h>
 #include <set>
 #include "util_load.h"
-#include <mist//encryption.h>
-#include <mist//auth.h>
+#include <mist/encryption.h>
+#include <mist/auth.h>
 
 #include <mist/websocket.h>
 #include <mist/tinythread.h>
@@ -58,9 +58,8 @@ unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesse
 
 API api;
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
-std::set<LoadBalancer> loadBalancers;
+std::set<LoadBalancer*> loadBalancers;
 std::string passHash;
-
 
 
 std::string Data::stringify() {
@@ -90,22 +89,14 @@ LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name) : ws(ws), name
 }
 
 LoadBalancer::~LoadBalancer(){
-    if(LoadMutex){
-      delete LoadMutex;
-      LoadMutex = 0;
-    }
-    delete ws;
+  if(LoadMutex){
+    delete LoadMutex;
+    LoadMutex = 0;
   }
-
-std::string LoadBalancer::receive() const {
-    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
-    std::string ret;
-    if(ws->readLoop()){
-      ret = ws->data;
-    }
-    return ret;
-  }
+  //ws->getSocket().close();
+  delete ws;
+  ws = 0;
+}
 
 std::string LoadBalancer::getName() const {return name;}
 bool LoadBalancer::operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
@@ -113,43 +104,11 @@ bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->ge
 bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName().compare(other.getName());}
 bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
   
-void LoadBalancer::send(std::string ret) const {
-    if(!LoadMutex){LoadMutex = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*LoadMutex);
-    ws->sendFrame(ret);
-  }
-  
-void LoadBalancer::monitor() const {
-  while(!Go_Down){
-    JSON::Value newVals = JSON::fromString(receive());
-    if(newVals.isMember("auth")){
-      //TODO
-    }else if(newVals.isMember("addLoadBalancer")) {
-      api.addLB(newVals["aadLoadBalancer"], newVals["resend"]);
-    }else if(newVals.isMember("removeLoadBalancer")) {
-      api.removeLB(newVals["removeLoadBalancer"], newVals["resend"]);
-    }else if(newVals.isMember("removeHost")) {
-      api.removeHost(newVals["removeHost"]);
-    }else if(newVals.isMember("addserver")) {
-      JSON::Value ret;
-      api.addServer(ret, newVals["addserver"]);
-    }else if(newVals.isMember("updateHost")) {
-      api.updateHost(newVals["updateHost"]);
-    }else if(newVals.isMember("delServer")) {
-      api.delServer(newVals["delServer"]);
-    }else if(newVals.isMember("weights")) {
-      api.setWeights(newVals["weights"], newVals["resend"]);
-    }else if(newVals.isMember("addviewer")){
-      //find host
-      for(HOSTLOOP){
-        if(newVals["host"].asString().compare(hosts[i].details->host)){
-          //call add viewer function
-          std::string stream = newVals["addviewer"].asString();
-          hosts[i].details->addViewer(stream);
-        }
-      }
+void LoadBalancer::send(std::string ret) const {//TODO remove comments
+    //WARN_MSG("sending : %s", ret.c_str());
+    if(!Go_Down){
+      ws->sendFrame(ret);
     }
-  }
 }
 
 
@@ -242,7 +201,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 }
 
 
-hostDetails::hostDetails(std::set<LoadBalancer> LB){
+hostDetails::hostDetails(std::set<LoadBalancer*> LB){
     this->LB = LB;
     hostMutex = 0;
   }
@@ -345,14 +304,16 @@ std::string hostDetails::getUrl(std::string &s, std::string &proto){
 /**
    * Sends update to original load balancer to add a viewer.
    */
-void hostDetails::addViewer(std::string &s){
+void hostDetails::addViewer(std::string &s, bool resend){
+  if(resend){
     JSON::Value j;
     j["addViewer"] = s;
     j["host"] = host;
-    for(std::set<LoadBalancer>::iterator it = LB.begin(); it != LB.end(); it++){
-      (*it).send(j.asString());
+    for(std::set<LoadBalancer*>::iterator it = LB.begin(); it != LB.end(); it++){
+      (*it)->send(j.asString());
     }
   }
+}
 /**
    * Update precalculated host vars.
    */
@@ -403,7 +364,7 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
   }
   
 
-hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer>()){
+hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer*>()){
     hostMutex = 0;
     cpu = 1000;
     ramMax = 0;
@@ -535,24 +496,23 @@ void hostDetailsCalc::calc(){
 
     //create json to send to other load balancers
     JSON::Value j;
-    j["fillStaterOut"] = fillStateOut;
-    j["fillStreamsOut"] = fillStreamsOut;
-    j["scoreSource"] = scoreSource;
-    j["scoreRate"] = scoreRate;
+    j["updateHost"]["fillStaterOut"] = fillStateOut;
+    j["updateHost"]["fillStreamsOut"] = fillStreamsOut;
+    j["updateHost"]["scoreSource"] = scoreSource;
+    j["updateHost"]["scoreRate"] = scoreRate;
     
     
-    convertMapToJson(j, *(std::map<std::string,Data>*)&outputs, OUTPUTSKEY);
-    convertSetToJson(j, conf_streams, CONFSTREAMSKEY);
-    convertMapToJson(j, *(std::map<std::string,Data>*)&streams, STREAMSKEY);
-    convertSetToJson(j, tags, TAGSKEY);
+    convertMapToJson(j["updateHost"], *(std::map<std::string,Data>*)&outputs, OUTPUTSKEY);
+    convertSetToJson(j["updateHost"], conf_streams, CONFSTREAMSKEY);
+    convertMapToJson(j["updateHost"], *(std::map<std::string,Data>*)&streams, STREAMSKEY);
+    convertSetToJson(j["updateHost"], tags, TAGSKEY);
     
-    j["cpu"] = cpu;
-    j["servLati"] = servLati;
-    j["servLongi"] = servLongi;
+    j["updateHost"]["cpu"] = cpu;
+    j["updateHost"]["servLati"] = servLati;
+    j["updateHost"]["servLongi"] = servLongi;
 
-    //TODO: what if load balancer crashed
-    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      (*it).send(j.asString());
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      (*it)->send(j.asString());
     }
   }
   
@@ -560,7 +520,7 @@ void hostDetailsCalc::calc(){
    * add the viewer to this host
    * updates all precalculated host vars
    */
-void hostDetailsCalc::addViewer(std::string &s){
+void hostDetailsCalc::addViewer(std::string &s, bool resend){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
@@ -754,16 +714,15 @@ void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::str
   // Cancel if this host has no name or load balancer set
   if (!N.size()){return;}
   H.state = STATE_ONLINE;
-  //H.details = new hostDetails(LB);
-  std::set<LoadBalancer> LBList;
+  std::set<LoadBalancer*> LBList;
   //add LB to LBList if in mesh only
   for(std::set<std::string>::iterator it = LB.begin(); it != LB.end(); ++it){
-    std::set<LoadBalancer>::iterator i = loadBalancers.begin();
+    std::set<LoadBalancer*>::iterator i = loadBalancers.begin();
     while(i != loadBalancers.end()){
-      if((*i).getName() == (*it)){//check if LB is  mesh
+      if((*i)->getName() == (*it)){//check if LB is  mesh
         LBList.insert(*i);
         break;
-      }else if((*i).getName() > (*it)){//check if past LB in search
+      }else if((*i)->getName() > (*it)){//check if past LB in search
         break;
       }else {//go to next in mesh list
         i++;
@@ -814,58 +773,90 @@ std::string generateSalt(){
   return out;
 }
 
-void onWebsocketFrame(HTTP::Websocket* webSock, std::string name){
-  if(webSock->readFrame()){}
-    std::string frame(webSock->data);
-    if(frame.compare("auth")){
-      WARN_MSG("auth")
-      //send response to challenge
-      webSock->readFrame();
-      std::string auth(webSock->data);
-      std::string pass = Secure::sha256(passHash+auth);
-      WARN_MSG("pass:  %s", pass.c_str())
-      webSock->sendFrame(pass);
 
-      //send own challenge
-      std::string salt = generateSalt();
-      WARN_MSG("salt: %s", salt.c_str());
-      webSock->sendFrame(salt);
+LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
+  std::string frame(webSock->data, webSock->data.size());
+  if(!frame.substr(0, frame.find(":")).compare("auth")){
+    //send response to challenge
+    std::string auth = frame.substr(frame.find(":")+1);
+    std::string pass = Secure::sha256(passHash+auth);
+    webSock->sendFrame(pass);
 
-      //check responce
-      webSock->readFrame();
-      std::string result(webSock->data);
-      if(!Secure::sha256(passHash+salt).compare(result)){
-        //not equal
-      }else{
-        //auth successful
-        webSock->sendFrame("OK");
-        loadBalancers.insert(LoadBalancer(webSock, name));
+    //send own challenge
+    std::string salt = generateSalt();
+    webSock->sendFrame(salt);
+  }
+  if(!frame.substr(0, frame.find(":")).compare("salt")){
+    //check responce
+    std::string salt = frame.substr(frame.find(":")+1, frame.find(";")-frame.find(":")-1);
+    if(!Secure::sha256(passHash+salt).compare(frame.substr(frame.find(";")+1, frame.size()))){
+      //auth successful
+      webSock->sendFrame("OK");
+      LB = new LoadBalancer(webSock, name);
+      loadBalancers.insert(LB);
+      INFO_MSG("Load balancer added");
+    }else{
+      INFO_MSG("unautherized load balancer");
+    }
+  }
+  if(!frame.compare("close")){
+    WARN_MSG("close")
+    LB->Go_Down = true;
+    loadBalancers.erase(LB);
+    webSock->getSocket().close();
+  }
+  
+  if(!frame.substr(0, 1).compare("{")){
+    JSON::Value newVals = JSON::fromString(frame);
+    if(newVals.isMember("addloadbalancer")) {
+      new tthread::thread(api.addLB,(void*)&(newVals["addloadbalancer"]));
+    }else if(newVals.isMember("removeloadbalancer")) {
+      api.removeLB(newVals["removeloadbalancer"], newVals["resend"]);
+    }else if(newVals.isMember("removeHost")) {
+      api.removeHost(newVals["removeHost"]);
+    }else if(newVals.isMember("addserver")) {
+      JSON::Value ret;
+      api.addServer(ret, newVals["addserver"]);
+    }else if(newVals.isMember("updateHost")) {
+      api.updateHost(newVals["updateHost"]);
+    }else if(newVals.isMember("delServer")) {
+      api.delServer(newVals["delServer"]);
+    }else if(newVals.isMember("weights")) {
+      api.setWeights(newVals["weights"], newVals["resend"]);
+    }else if(newVals.isMember("addviewer")){
+      //find host
+      for(HOSTLOOP){
+        if(newVals["host"].asString().compare(hosts[i].details->host)){
+          //call add viewer function
+          std::string stream = newVals["addviewer"].asString();
+          hosts[i].details->addViewer(stream,false);
+        }
       }
     }
   }
+  return LB;
+}
 
+
+int API::handleRequest(Socket::Connection &conn){
+  return handleRequests(conn,0,0);
+}
 
 /**
  * function to select the api function wanted
  */
-int API::handleRequest(Socket::Connection &conn){
+int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, LoadBalancer* LB = 0){
   HTTP::Parser H;
-  HTTP::Websocket* webSock = 0;
-  WARN_MSG("coon: %s", conn.getHost().c_str());
   while (conn){
     // Handle websockets
     if (webSock){
       if (webSock->readFrame()){
-        onWebsocketFrame(webSock, conn.getHost());
-        continue;
+        LB = onWebsocketFrame(webSock, conn.getHost(), LB);
+        //continue;
       }
       else{Util::sleep(100);}
-      continue;
-    }
-
-    if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
-      //output/ouput_http.cpp
-
+      //continue;
+    }else if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
       Util::stringToLower(upgradeHeader);
@@ -922,15 +913,17 @@ int API::handleRequest(Socket::Connection &conn){
         }
         //add load balancer to mesh
         else if(addLoadBalancer.size()){
-          addLB(addLoadBalancer, resend);
+          new tthread::thread(addLB,(void*)&addLoadBalancer);
+          H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
-          
+
         }
         //remove load balancer from mesh
         else if(removeLoadBalancer.size()){
           removeLB(removeLoadBalancer, resend);
+          H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -939,6 +932,7 @@ int API::handleRequest(Socket::Connection &conn){
         //add viewer to host
         else if(viewer.size()){
           addViewer(stream, viewer);
+          H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -947,6 +941,7 @@ int API::handleRequest(Socket::Connection &conn){
         //remove foreign host
         else if(hostToRemove.size()){
           removeHost(hostToRemove);
+          H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -955,6 +950,7 @@ int API::handleRequest(Socket::Connection &conn){
         //receive host data
         else if(hostUpdate.size()){
           updateHost(JSON::fromString(hostUpdate));
+          H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
@@ -1051,6 +1047,22 @@ int API::handleRequest(Socket::Connection &conn){
       }
     }
   }
+  WARN_MSG("closing LB:%p", LB);
+  if(LB){
+    if(!LB->Go_Down){
+      WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
+      std::string lbName = LB->getName();
+      loadBalancers.erase(LB);
+      WARN_MSG("closing LB:%p", LB);
+      delete LB;
+      new tthread::thread(addLB,(void*)&lbName);
+    }else{
+      LB->Go_Down = true;
+      loadBalancers.erase(LB);
+      delete LB;
+      WARN_MSG("shuting Down connection");
+    }
+  }
   conn.close();
   return 0;
 }
@@ -1077,8 +1089,8 @@ JSON::Value API::setWeights(const std::string weights, const std::string resend)
       JSON::Value j;
       j["weights"] = newVals;
       j["resend"] = false;
-      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        (*it).send(j.asString());
+      for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+        (*it)->send(j.asString());
       }
     }
     return ret;
@@ -1106,6 +1118,7 @@ JSON::Value API::delServer(const std::string delserver){
    * receive server updates and adds new foreign hosts if needed
    */
 void API::updateHost(JSON::Value newVals){
+  
     if(newVals.isMember("hostName")){
       std::string hostName = newVals["hostName"].asString();
       int hostIndex = -1;
@@ -1113,7 +1126,7 @@ void API::updateHost(JSON::Value newVals){
         if(hostName == hosts[i].name){hostIndex = i;}
       }
       if(hostIndex == -1){
-
+        WARN_MSG("create new foreign host")
         initForeignHost(HOST(hostsCounter), hostName, convertJsonToSet(newVals["LB"]));
         hostIndex = hostsCounter;
         ++hostsCounter;
@@ -1178,20 +1191,27 @@ void API::removeHost(const std::string removeHost){
    * remove load balancer from mesh
    */
 void API::removeLB(std::string removeLoadBalancer, const std::string resend){
+  JSON::Value j;
+  j["removeloadbalancer"] = removeLoadBalancer;
+  j["resend"] = false;  
+
   //remove load balancer
-  for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-    if((*it).getName().compare(removeLoadBalancer)){
+  std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
+  while( it != loadBalancers.end()){
+    if(!(*it)->getName().compare(removeLoadBalancer)){
+      INFO_MSG("removeing load balancer: %s", removeLoadBalancer.c_str());
+      (*it)->send("close");
+      (*it)->Go_Down = true;
       loadBalancers.erase(it);
+      it = loadBalancers.end();
+    }else{
+      it++;
     }
   }
-    
-  //notify other load balancers
+  //notify the last load balancers
   if(!resend.size() || atoi(resend.c_str()) ==1){
-    JSON::Value j;
-    j["removeloadbalancer"] = removeLoadBalancer;
-    j["resend"] = false;
-    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it!=loadBalancers.end(); it++){
-      (*it).send(j.asString());
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
     }
   }
 }
@@ -1199,49 +1219,74 @@ void API::removeLB(std::string removeLoadBalancer, const std::string resend){
 /**
    * add load balancer to mesh
    */
-void API::addLB(std::string addLoadBalancer, const std::string resend){
+void API::addLB(void* p){
+    std::string* addLoadBalancer = (std::string*)p;
     //send to other load balancers
-    if(!resend.size() || atoi(resend.c_str()) == 1){
       JSON::Value j;
       j["addloadbalancer"] = addLoadBalancer;
-      j["resend"] = false;
-      for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        (*it).send(j.asString());
+      for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+        (*it)->send(j.asString());
       }
-    }
+    
 
-    Socket::Connection conn(addLoadBalancer.substr(0,addLoadBalancer.find(":")), atoi(addLoadBalancer.substr(addLoadBalancer.find(":")+1).c_str()), false, false);
-    HTTP::URL url("ws://"+addLoadBalancer);
+    Socket::Connection conn(addLoadBalancer->substr(0,addLoadBalancer->find(":")), atoi(addLoadBalancer->substr(addLoadBalancer->find(":")+1).c_str()), false, false);
+    HTTP::URL url("ws://"+(*addLoadBalancer));
     HTTP::Websocket* ws = new HTTP::Websocket(conn, url);
     
     //send challenge
     std::string salt = generateSalt();
-    ws->sendFrame("auth");
-    ws->sendFrame(salt);
-    WARN_MSG("SALT : %s", salt.c_str());
+    ws->sendFrame("auth:" + salt);
 
     //check responce
-    ws->readFrame();
-    std::string result(ws->data);
-    WARN_MSG("return : %s", result.c_str());
+    int reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        return;
+      }
+      sleep(1);
+    }
+    std::string result(ws->data, ws->data.size());
   
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
-      WARN_MSG("unautherised : %s : %s", result.c_str(),Secure::sha256(passHash+salt).c_str());
+      WARN_MSG("unautherised");
       return;
     }
     //send response to challenge
-    ws->readFrame();
-    std::string auth(ws->data);
-    std::string pass = Secure::sha256(passHash+auth);
-    ws->sendFrame(pass);
-    
-    result = ws->data;
-    
-    if(result == "OK"){
-      INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer.c_str());
-      loadBalancers.insert(LoadBalancer(ws, addLoadBalancer));
+    reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        return;
+      }
+      sleep(1);
     }
+    std::string auth(ws->data, ws->data.size());
+    std::string pass = Secure::sha256(passHash+auth);
+    ws->sendFrame("salt:"+salt+";"+pass);
+
+    reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        return;
+      }
+      sleep(1);
+    }
+    std::string check(ws->data, ws->data.size());
+
+    if(check == "OK"){
+      INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer->c_str());
+      LoadBalancer* LB = new LoadBalancer(ws, *addLoadBalancer);
+      loadBalancers.insert(LB);
+      //start monitoring
+      handleRequests(conn,ws,LB);
+    }
+    return;
   }
 
 /**
@@ -1249,11 +1294,11 @@ void API::addLB(std::string addLoadBalancer, const std::string resend){
   */
 std::string API::getLoadBalancerList(){
     std::string out = "\"lblist\": [";  
-    for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       if(it != loadBalancers.begin()){
         out += ", ";
       }
-      out += "\"" + (*it).getName() + "\"";
+      out += "\"" + (*it)->getName() + "\"";
     }
     out += "]";
     return out;
@@ -1296,7 +1341,6 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
     
     for (HOSTLOOP){
       HOSTCHECK;
-      //WARN_MSG("Cpu %" PRIu64 " i: %lu binhost %s",hosts[i].details->cpu, i, hosts[i].details->binHost.c_str());
       if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
         INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
         continue;
@@ -1435,7 +1479,7 @@ void API::stream(Socket::Connection conn, HTTP::Parser H){
         FAIL_MSG("All servers seem to be out of bandwidth!");
       }else{
         INFO_MSG("Winner: %s scores %" PRIu64, bestHost->details->host.c_str(), bestScore);
-        bestHost->details->addViewer(stream);
+        bestHost->details->addViewer(stream, true);
         H.SetBody(bestHost->details->host);
       }
       if (proto != "" && bestHost && bestScore){
@@ -1470,7 +1514,7 @@ void API::addViewer(std::string stream, const std::string addViewer){
     for(HOSTLOOP){
       if(hosts[i].name == addViewer){
         //next line can cause infinate loop if LB ip is 
-        hosts[i].details->addViewer(stream);
+        hosts[i].details->addViewer(stream, true);
         break;
       }
     }
@@ -1619,7 +1663,7 @@ int main(int argc, char **argv){
   conf.activate();
 
   api = API();
-  loadBalancers = std::set<LoadBalancer>();
+  loadBalancers = std::set<LoadBalancer*>();
   passHash = Secure::sha256(password);
 
   std::map<std::string, tthread::thread *> threads;
@@ -1632,7 +1676,6 @@ int main(int argc, char **argv){
     ++hostsCounter; // up the hosts counter
   }
   WARN_MSG("Load balancer activating. Balancing between %lu nodes.", hostsCounter);
-
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");
@@ -1640,9 +1683,7 @@ int main(int argc, char **argv){
     WARN_MSG("Load balancer shutting down; socket problem");
   }
   conf.is_active = false;
-  for(std::set<LoadBalancer>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-    (*it).Go_Down = true;
-  }
+  
 
   // Join all threads
   for (HOSTLOOP){
@@ -1650,4 +1691,11 @@ int main(int argc, char **argv){
     HOST(i).state = STATE_GODOWN;
   }
   for (HOSTLOOP){cleanupHost(HOST(i));}
+  std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); 
+  while(loadBalancers.size()){
+    (*it)->send("close");
+    (*it)->Go_Down = true;
+    loadBalancers.erase(it);
+    it = loadBalancers.begin(); 
+  }
 }

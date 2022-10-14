@@ -62,14 +62,15 @@ std::set<LoadBalancer*> loadBalancers;
 std::string passHash;
 
 
-std::string Data::stringify() {
-  return std::string();
-}
-
-std::string streamDetails::stringify(){
-  std::ostringstream out;
-  out << "\"streamDetails\": [\"total\": " << total <<  ", \"inputs\": " << inputs << ", \"bandwidth\": " << bandwidth << ", \"prevTotal\": " << prevTotal << ", \"bytesUp\": " << bytesUp << ", \"bytesDown\": " << bytesDown << "]";
-  return out.str();
+JSON::Value streamDetails::stringify(){
+  JSON::Value out;
+  out["total"] = total;
+  out["inputs"] = inputs;
+  out["bandwidth"] = bandwidth;
+  out["prevTotal"] = prevTotal;
+  out["bytesUp"] = bytesUp;
+  out["bytesDown"] = bytesDown;
+  return out;
 }
 
 streamDetails* streamDetails::destringify(JSON::Value j){
@@ -104,8 +105,7 @@ bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->ge
 bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName().compare(other.getName());}
 bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
   
-void LoadBalancer::send(std::string ret) const {//TODO remove comments
-    //WARN_MSG("sending : %s", ret.c_str());
+void LoadBalancer::send(std::string ret) const {
     if(!Go_Down){
       ws->sendFrame(ret);
     }
@@ -124,8 +124,11 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
 
-std::string outUrl::stringify(){
-  return "\"outUrl\": [\"pre\": " + pre + ", \"post\": " + post + "]";
+JSON::Value outUrl::stringify(){
+  JSON::Value j;
+  j["pre"] = pre;
+  j["post"] = post;
+  return j;
 }
 
 outUrl outUrl::destringify(JSON::Value j){
@@ -136,28 +139,32 @@ outUrl outUrl::destringify(JSON::Value j){
 }
 
 
-void convertSetToJson(JSON::Value j, std::set<std::string> s, std::string key){
-  std::string out = "\"" + key + "\": [";  
+std::string convertSetToJson(std::set<std::string> s){
+  std::string out = "[";  
   for(std::set<std::string>::iterator it = s.begin(); it != s.end(); ++it){
       if(it != s.begin()){
         out += ", ";
       }
-      out += "\"" + *it + "\"";
+      out += *it;
   }
   out += "]";
-  j[key] = out;
+  return out;
 }
 
-void convertMapToJson(JSON::Value j, std::map<std::string, Data> s, std::string key){
-  std::string out = "\"" + key + "\": [";  
-  for(std::map<std::string, Data>::iterator it = s.begin(); it != s.end(); ++it){
-      if(it != s.begin()){
-        out += ", ";
-      }
-      out += "\"" + (*it).first + "\": " + (*it).second.stringify();
+JSON::Value convertMapToJson(std::map<std::string, outUrl> s){
+  JSON::Value out;  
+  for(std::map<std::string, outUrl>::iterator it = s.begin(); it != s.end(); ++it){
+      out[(*it).first] = (*it).second.stringify();
   }
-  out += "]";
-  j[key] = out;
+  return out;
+}
+
+JSON::Value convertMapToJson(std::map<std::string, streamDetails> s){
+  JSON::Value out;  
+  for(std::map<std::string, streamDetails>::iterator it = s.begin(); it != s.end(); ++it){
+      out[(*it).first] = (*it).second.stringify();
+  }
+  return out;
 }
 
 std::set<std::string> convertJsonToSet(JSON::Value j){
@@ -201,8 +208,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 }
 
 
-hostDetails::hostDetails(std::set<LoadBalancer*> LB){
-    this->LB = LB;
+hostDetails::hostDetails(std::set<LoadBalancer*> LB, char* name) : LB(LB), name(name){
     hostMutex = 0;
   }
 hostDetails::~hostDetails(){
@@ -364,7 +370,7 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
   }
   
 
-hostDetailsCalc::hostDetailsCalc() : hostDetails(std::set<LoadBalancer*>()){
+hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(std::set<LoadBalancer*>(), name){
     hostMutex = 0;
     cpu = 1000;
     ramMax = 0;
@@ -496,23 +502,28 @@ void hostDetailsCalc::calc(){
 
     //create json to send to other load balancers
     JSON::Value j;
-    j["updateHost"]["fillStaterOut"] = fillStateOut;
-    j["updateHost"]["fillStreamsOut"] = fillStreamsOut;
-    j["updateHost"]["scoreSource"] = scoreSource;
-    j["updateHost"]["scoreRate"] = scoreRate;
+    j["fillStaterOut"] = fillStateOut;
+    j["fillStreamsOut"] = fillStreamsOut;
+    j["scoreSource"] = scoreSource;
+    j["scoreRate"] = scoreRate;
     
     
-    convertMapToJson(j["updateHost"], *(std::map<std::string,Data>*)&outputs, OUTPUTSKEY);
-    convertSetToJson(j["updateHost"], conf_streams, CONFSTREAMSKEY);
-    convertMapToJson(j["updateHost"], *(std::map<std::string,Data>*)&streams, STREAMSKEY);
-    convertSetToJson(j["updateHost"], tags, TAGSKEY);
+    j[OUTPUTSKEY] = convertMapToJson(outputs);
+    j[CONFSTREAMSKEY] = convertSetToJson(conf_streams);
+    j[STREAMSKEY] = convertMapToJson(streams);
+    j[TAGSKEY] = convertSetToJson(tags);
     
-    j["updateHost"]["cpu"] = cpu;
-    j["updateHost"]["servLati"] = servLati;
-    j["updateHost"]["servLongi"] = servLongi;
+    j["cpu"] = cpu;
+    j["servLati"] = servLati;
+    j["servLongi"] = servLongi;
+    j["hostName"] = name;
 
+    JSON::Value out;
+    out["updateHost"] = j;
+
+    //send to other load balancers
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      (*it)->send(j.asString());
+      (*it)->send(out.asString());
     }
   }
   
@@ -700,7 +711,7 @@ void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
   H.state = STATE_BOOT;
-  H.details = (hostDetails*)new hostDetailsCalc();
+  H.details = (hostDetails*)new hostDetailsCalc(H.name);
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = new tthread::thread(handleServer, (void *)&H);
@@ -730,7 +741,7 @@ void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::str
     }
     
   }
-  H.details = new hostDetails(LBList);
+  H.details = new hostDetails(LBList, H.name);
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = 0;
@@ -1121,11 +1132,13 @@ void API::updateHost(JSON::Value newVals){
     if(newVals.isMember("hostName")){
       std::string hostName = newVals["hostName"].asString();
       int hostIndex = -1;
-      for(HOSTLOOP){
+      int i = 0;
+      while(i < hostsCounter && i != -1){
         if(hostName == hosts[i].name){hostIndex = i;}
+        i++;
       }
       if(hostIndex == -1){
-        WARN_MSG("create new foreign host")
+        INFO_MSG("create new foreign host")
         initForeignHost(HOST(hostsCounter), hostName, convertJsonToSet(newVals["LB"]));
         hostIndex = hostsCounter;
         ++hostsCounter;

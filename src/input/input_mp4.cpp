@@ -106,13 +106,19 @@ namespace Mist{
 
   inputMP4::inputMP4(Util::Config *cfg) : Input(cfg){
     capa["name"] = "MP4";
-    capa["desc"] = "This input allows streaming of MP4 files as Video on Demand.";
+    capa["desc"] = "This input allows streaming of MP4 or MOV files as Video on Demand.";
     capa["source_match"].append("/*.mp4");
     capa["source_match"].append("http://*.mp4");
     capa["source_match"].append("https://*.mp4");
     capa["source_match"].append("s3+http://*.mp4");
     capa["source_match"].append("s3+https://*.mp4");
     capa["source_match"].append("mp4:*");
+    capa["source_match"].append("/*.mov");
+    capa["source_match"].append("http://*.mov");
+    capa["source_match"].append("https://*.mov");
+    capa["source_match"].append("s3+http://*.mov");
+    capa["source_match"].append("s3+https://*.mov");
+    capa["source_match"].append("mov:*");
     capa["source_file"] = "$source";
     capa["priority"] = 9;
     capa["codecs"]["video"].append("HEVC");

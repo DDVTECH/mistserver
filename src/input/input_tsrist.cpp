@@ -11,7 +11,6 @@
 #include <mist/flv_tag.h>
 #include <mist/http_parser.h>
 #include <mist/mp4_generic.h>
-#include <mist/socket_srt.h>
 #include <mist/stream.h>
 #include <mist/timing.h>
 #include <mist/ts_packet.h>

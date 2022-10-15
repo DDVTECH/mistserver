@@ -1060,9 +1060,36 @@ namespace Mist{
       overrides["resume"] = "1";
     }
     if (isSingular()){
-      if (!config->getBool("realtime") && Util::streamAlive(streamName)){
-        WARN_MSG("Stream already online, cancelling");
-        return;
+      if (!config->getBool("realtime")) {
+        uint8_t streamStatus = Util::getStreamStatus(streamName);
+        MEDIUM_MSG("Current status for %s buffer is %u", streamName.c_str(), streamStatus);
+        if (streamStatus == STRMSTAT_READY) {
+          meta.reInit(streamName, false);
+          if (meta) {
+            std::set<size_t> vTracks = M.getValidTracks(true);
+            INFO_MSG("Stream already active (%zu valid tracks) - check if it's not shutting down...", vTracks.size());
+            uint64_t oneTime = 0;
+            uint64_t twoTime = 0;
+            for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it) {
+              if (M.getLastms(*it) > oneTime) { oneTime = M.getLastms(*it); }
+            }
+            Util::wait(2000);
+            for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it) {
+              if (M.getLastms(*it) > twoTime) { twoTime = M.getLastms(*it); }
+            }
+            if (twoTime <= oneTime + 500) {
+              INFO_MSG("Waiting for stream buffer shutdown (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
+              while (streamStatus != STRMSTAT_OFF && config->is_active) {
+                Util::wait(250);
+                streamStatus = Util::getStreamStatus(streamName);
+              }
+            }
+          }
+        }
+        if (Util::streamAlive(streamName)) {
+          WARN_MSG("Stream already online, cancelling");
+          return;
+        }
       }
       overrides["singular"] = "";
       if (!Util::startInput(streamName, "push://INTERNAL_ONLY:" + config->getString("input"), true,

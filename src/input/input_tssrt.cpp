@@ -229,7 +229,7 @@ namespace Mist{
               meta.setType(rawIdx, "meta");
               meta.setCodec(rawIdx, "rawts");
               meta.setID(rawIdx, 1);
-              userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+              userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
             }
             uint64_t packetTime = Util::bootMS();
             thisPacket.genericFill(packetTime, 0, 1, rawBuffer, rawBuffer.size(), 0, 0);

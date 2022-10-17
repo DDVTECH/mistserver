@@ -586,7 +586,7 @@ namespace Mist{
                     meta.setType(rawIdx, "meta");
                     meta.setCodec(rawIdx, "rawts");
                     meta.setID(rawIdx, 1);
-                    userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+                    userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
                   }
                   uint64_t packetTime = Util::bootMS();
                   uint64_t packetLen = (liveReadBuffer.size() / 188) * 188;
@@ -632,7 +632,7 @@ namespace Mist{
                 meta.setType(rawIdx, "meta");
                 meta.setCodec(rawIdx, "rawts");
                 meta.setID(rawIdx, 1);
-                userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_SOURCE);
+                userSelect[rawIdx].reload(streamName, rawIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
               }
               uint64_t packetTime = Util::bootMS();
               thisPacket.genericFill(packetTime, 0, 1, liveReadBuffer, liveReadBuffer.size(), 0, 0);

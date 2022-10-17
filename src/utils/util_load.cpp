@@ -154,9 +154,7 @@ void loadFile(bool resend = false){
     }
     file.close();
   }
-  while(data.find('\n') < data.size()){
-    data.erase(data.find('\n'));
-  }
+  
   //change config vars
   JSON::Value j = JSON::fromString(data);
   fallback = j["fallback"].asString();
@@ -167,7 +165,6 @@ void loadFile(bool resend = false){
   weight_geo = j["weight_geo"].asInt();
   weight_bonus = j["weight_bonus"].asInt();
   passHash = j["passHash"].asString();
-  WARN_MSG("load: %s", j.asString().c_str());
 }
 
 

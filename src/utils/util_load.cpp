@@ -1786,6 +1786,12 @@ int main(int argc, char **argv){
   opt["help"] = "Control only from local interfaces, request balance from all";
   conf.addOption("localmode", opt);
 
+  opt.null();
+  opt["short"] = "l";
+  opt["long"] = "load";
+  opt["help"] = "load config settings from file";
+  conf.addOption("load", opt);
+
   conf.parseArgs(argc, argv);
 
   passphrase = conf.getOption("passphrase").asStringRef();
@@ -1797,14 +1803,21 @@ int main(int argc, char **argv){
   weight_bonus = conf.getInteger("extra");
   fallback = conf.getString("fallback");
   localMode = conf.getBool("localmode");
+  bool load = conf.getBool("load");
+
   INFO_MSG("Local control only mode is %s", localMode ? "on" : "off");
+
+  if(load){
+    loadFile();
+  }else{
+    passHash = Secure::sha256(password);
+  }
 
   JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();
 
   api = API();
   loadBalancers = std::set<LoadBalancer*>();
-  passHash = Secure::sha256(password);
   time(&prevSaveTime);
 
   std::map<std::string, tthread::thread *> threads;

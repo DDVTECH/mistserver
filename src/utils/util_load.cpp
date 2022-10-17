@@ -100,7 +100,6 @@ void saveFile(bool resend = false){
     j["weight_bonus"] = weight_bonus;
     j["passHash"] = passHash;
 
-  
     file << j.asString().c_str();
     file.flush();
     file.close();

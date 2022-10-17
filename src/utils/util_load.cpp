@@ -16,6 +16,7 @@
 #include <mist/websocket.h>
 #include <mist/tinythread.h>
 #include <string>
+#include <ctime>
 
 
 
@@ -36,6 +37,7 @@ std::string passphrase;
 std::string fallback;
 bool localMode = false;
 tthread::mutex globalMutex;
+tthread::mutex fileMutex;
 std::map<std::string, int32_t> blankTags;
 size_t weight_cpu = 500;
 size_t weight_ram = 500;
@@ -60,6 +62,113 @@ API api;
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
 std::set<LoadBalancer*> loadBalancers;
 std::string passHash;
+std::string const fileloc  = "config.txt";
+#define TIMEINTERVAL 5 //time after config in minutes
+
+std::time_t prevSaveTime;
+std::time_t now;
+std::time_t prevConfigChange;
+
+tthread::thread* saveTimer;
+
+
+
+
+
+
+void saveFile(bool resend = false){
+  //send command to other load balancers
+  if(resend){
+    JSON::Value j;
+    j["save"] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+  }
+  tthread::lock_guard<tthread::mutex> guard(fileMutex);
+  std::ofstream file(fileloc.c_str());
+  
+
+  if(file.is_open()){
+    JSON::Value j;
+    j["fallback"] = fallback;
+    j["localmode"] = localMode;
+    j["weight_cpu"] = weight_cpu;
+    j["weight_ram"] = weight_ram;
+    j["weight_bw"] = weight_bw;
+    j["weight_geo"] = weight_geo;
+    j["weight_bonus"] = weight_bonus;
+    j["passHash"] = passHash;
+
+  
+    file << j.asString().c_str();
+    file.flush();
+    file.close();
+    time(&prevSaveTime);
+    INFO_MSG("config saved");
+  }else {
+    INFO_MSG("save failed");
+  }
+}
+
+static void saveTimeCheck(void*){
+  if(prevConfigChange < prevSaveTime){
+    WARN_MSG("manual save1")
+    return;
+  }
+  time(&now);
+  double timeDiff = difftime(now,prevConfigChange);
+  while(timeDiff < 60*TIMEINTERVAL){
+    //check for manual save
+    if(prevConfigChange < prevSaveTime){
+      return;
+    }
+    //TODO sleep thread for 600 - timeDiff
+    sleep(1000);
+    time(&now);
+    timeDiff = difftime(now,prevConfigChange);
+  }
+  saveFile();
+
+}
+
+void loadFile(bool resend = false){
+  WARN_MSG("Loading")
+  //send command to other load balancers
+  if(resend){
+    JSON::Value j;
+    j["load"] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+  }
+
+  tthread::lock_guard<tthread::mutex> guard(fileMutex);
+  std::ifstream file(fileloc.c_str());
+  std::string data;
+  std::string line;
+  //read file
+  if(file.is_open()){
+    while(getline(file,line)){
+      data.append(line);
+    }
+    file.close();
+  }
+  while(data.find('\n') < data.size()){
+    data.erase(data.find('\n'));
+  }
+  //change config vars
+  JSON::Value j = JSON::fromString(data);
+  fallback = j["fallback"].asString();
+  localMode = j["localmode"].asBool();
+  weight_cpu = j["weight_cpu"].asInt();
+  weight_ram = j["weight_ram"].asInt();
+  weight_bw = j["weight_bw"].asInt();
+  weight_geo = j["weight_geo"].asInt();
+  weight_bonus = j["weight_bonus"].asInt();
+  passHash = j["passHash"].asString();
+  WARN_MSG("load: %s", j.asString().c_str());
+}
 
 
 JSON::Value streamDetails::stringify(){
@@ -842,6 +951,10 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
           hosts[i].details->addViewer(stream,false);
         }
       }
+    }else if(newVals.isMember("save")){
+      saveFile();
+    }else if(newVals.isMember("load")){
+      loadFile();
     }
   }
   return LB;
@@ -907,12 +1020,30 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         std::string removeLoadBalancer = H.GetVar("removeloadbalancer");
         std::string resend = H.GetVar("resend");
         std::string getLBList = H.GetVar("LBList");
+        std::string save = H.GetVar("save");
+        std::string load = H.GetVar("load");
+
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         
         
+        if(save.size()){
+          saveFile(true);
+          H.SetBody("OK");
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+        }
+        //load
+        else if(load.size()){
+          loadFile(true);
+          H.SetBody("OK");
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+        }
         //return load balancer list
-        if(getLBList.size()){
+        else if(getLBList.size()){
           std::string out = getLoadBalancerList();
           H.SetBody(out);
           H.setCORSHeaders();
@@ -1101,6 +1232,9 @@ JSON::Value API::setWeights(const std::string weights, const std::string resend)
         (*it)->send(j.asString());
       }
     }
+    //start save timer
+    time(&prevConfigChange);
+    saveTimer = new tthread::thread(saveTimeCheck,NULL);
     return ret;
   }
   
@@ -1675,6 +1809,7 @@ int main(int argc, char **argv){
   api = API();
   loadBalancers = std::set<LoadBalancer*>();
   passHash = Secure::sha256(password);
+  time(&prevSaveTime);
 
   std::map<std::string, tthread::thread *> threads;
   jsonForEach(nodes, it){
@@ -1693,7 +1828,7 @@ int main(int argc, char **argv){
     WARN_MSG("Load balancer shutting down; socket problem");
   }
   conf.is_active = false;
-  
+  saveFile();
 
   // Join all threads
   for (HOSTLOOP){

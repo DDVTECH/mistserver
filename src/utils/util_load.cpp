@@ -890,6 +890,28 @@ std::string generateSalt(){
 }
 
 
+/**
+ * \return s until first \param delimiter or end of string as a string
+*/
+std::string delimiterParser::next() {
+  //get next delimiter
+  int index = s.find(delimiter);
+  if(index == -1) index = s.size(); //prevent index from being negative
+  std::string ret;
+  ret = s.substr(0, index);
+  //remove next output from s
+  s.erase(0, index + delimiter.size());
+
+  return ret;
+}
+
+/**
+ * \return s until first \param delimiter or end of string as an Int
+*/
+int delimiterParser::nextInt() {
+  return atoi(this->next().c_str());
+}
+
 LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
   std::string frame(webSock->data, webSock->data.size());
   if(!frame.substr(0, frame.find(":")).compare("auth")){
@@ -937,7 +959,7 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
     }else if(newVals.isMember("delServer")) {
       api.delServer(newVals["delServer"]);
     }else if(newVals.isMember("weights")) {
-      api.setWeights(newVals["weights"], newVals["resend"]);
+      api.setWeights(newVals["weights"]);
     }else if(newVals.isMember("addviewer")){
       //find host
       for(HOSTLOOP){
@@ -974,6 +996,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
       else{Util::sleep(100);}
     }else if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
+
+
+
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
       Util::stringToLower(upgradeHeader);
@@ -989,57 +1014,47 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.Clean();
         continue;
       }
-      // Special commands
-      if (H.url.size() == 1){
-        if (localMode && !conn.isLocal()){
-          H.SetBody("Configuration only accessible from local interfaces");
-          H.setCORSHeaders();
-          H.SendResponse("403", "Forbidden", conn);
-          H.Clean();
-          continue;
-        }
-        std::string host = H.GetVar("host");
-        std::string viewers = H.GetVar("viewers");
-        std::string streamStats = H.GetVar("streamstats");
-        std::string stream = H.GetVar("stream");
-        std::string source = H.GetVar("source");
-        std::string ingest = H.GetVar("ingest");
-        std::string fback = H.GetVar("fallback");
-        std::string lstserver = H.GetVar("lstserver");
-        std::string addserver = H.GetVar("addserver");
-        std::string delserver = H.GetVar("delserver");
-        std::string weights = H.GetVar("weights");
-        std::string hostUpdate = H.GetVar("updateHosts");
-        std::string hostToRemove = H.GetVar("removeHost");
-        std::string viewer = H.GetVar("addViewer");
-        std::string addLoadBalancer = H.GetVar("addloadbalancer");
-        std::string removeLoadBalancer = H.GetVar("removeloadbalancer");
-        std::string resend = H.GetVar("resend");
-        std::string getLBList = H.GetVar("LBList");
-        std::string save = H.GetVar("save");
-        std::string load = H.GetVar("load");
+      //handle non-websocket connections
+      delimiterParser path((std::string)HTTP::URL(H.url).path,"/");
+      std::string api = path.next();
 
+      if(!api.compare("stream")){
+        stream(conn, H, path.next(), path.next());
+      }
+
+
+      //check authentication
+      if (localMode && !conn.isLocal()){
+        H.SetBody("Configuration only accessible from local interfaces");
+        H.setCORSHeaders();
+        H.SendResponse("403", "Forbidden", conn);
         H.Clean();
-        H.SetHeader("Content-Type", "text/plain");
+        continue;
+      }
+      
+        
+
+      H.Clean();
+      H.SetHeader("Content-Type", "text/plain");
         
         
-        if(save.size()){
+      if(!api.compare("save")){
           saveFile(true);
           H.SetBody("OK");
           H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
+          H.SendResponse("204", "OK", conn);
           H.Clean();
         }
         //load
-        else if(load.size()){
+        else if(!api.compare("load")){
           loadFile(true);
           H.SetBody("OK");
           H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
+          H.SendResponse("204", "OK", conn);
           H.Clean();
         }
         //return load balancer list
-        else if(getLBList.size()){
+        else if(!api.compare("LBList")){
           std::string out = getLoadBalancerList();
           H.SetBody(out);
           H.setCORSHeaders();
@@ -1047,8 +1062,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         //add load balancer to mesh
-        else if(addLoadBalancer.size()){
-          new tthread::thread(addLB,(void*)&addLoadBalancer);
+        else if(!api.compare("addloadbalancer")){
+          std::string loadbalancer = path.next();
+          new tthread::thread(addLB,(void*)&loadbalancer);
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1056,8 +1072,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
 
         }
         //remove load balancer from mesh
-        else if(removeLoadBalancer.size()){
-          removeLB(removeLoadBalancer, resend);
+        else if(!api.compare("removeloadbalancer")){
+          std::string loadbalancer = path.next();
+          removeLB(loadbalancer, path.next());
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1065,41 +1082,33 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           
         }
         //add viewer to host
-        else if(viewer.size()){
-          addViewer(stream, viewer);
+        else if(!api.compare("addviewer")){
+          addViewer(path.next(), path.next());
           H.SetBody("OK");
           H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
+          H.SendResponse("204", "OK", conn);
           H.Clean();
           
         }
         //remove foreign host
-        else if(hostToRemove.size()){
-          removeHost(hostToRemove);
+        else if(!api.compare("removeHost")){
+          removeHost(path.next());
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
                   
         }
-        //receive host data
-        else if(hostUpdate.size()){
-          updateHost(JSON::fromString(hostUpdate));
-          H.SetBody("OK");
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-        }
         // Get/set weights
-        else if (weights.size()){
-          JSON::Value ret = setWeights(weights, resend);
+        else if (!api.compare("weights")){
+          JSON::Value ret = setWeights(path);
           H.SetBody(ret.toString());
           H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
+          H.SendResponse("204", "OK", conn);
           H.Clean();
         }
         // Get server list
-        else if (lstserver.size()){
+        else if (!api.compare("lstserver")){
           JSON::Value ret = serverList();
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
@@ -1107,31 +1116,31 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         // Remove server from list
-        else if (delserver.size()){
-          JSON::Value ret = delServer(delserver);
+        else if (!api.compare("delserver")){
+          JSON::Value ret = delServer(path.next());
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
         }
         // Add server to list
-        else if (addserver.size()){
+        else if (!api.compare("addserver")){
           JSON::Value ret;
-          addServer(ret, addserver);
+          addServer(ret, path.next());
           if(ret.isNull()){
             H.SetBody("Host length too long for monitoring");
             H.setCORSHeaders();
-            H.SendResponse("200", "OK", conn);
+            H.SendResponse("201", "OK", conn);
             H.Clean();
           }else {
             H.SetBody(ret.toPrettyString());
             H.setCORSHeaders();
-            H.SendResponse("200", "OK", conn);
+            H.SendResponse("201", "OK", conn);
             H.Clean();
           }
         }
         // Request viewer count
-        else if (viewers.size()){
+        else if (!api.compare("viewers")){
           JSON::Value ret = getViewers();
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
@@ -1139,48 +1148,51 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         // Request full stream statistics
-        else if (streamStats.size()){
-          JSON::Value ret = (streamStats);
+        else if (!api.compare("streamstats")){
+          JSON::Value ret = getStreamStats(path.next());
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();   
         }
-        else if (stream.size()){
-          uint64_t count = getStream(stream);
+        else if (!api.compare("getstream")){
+          uint64_t count = getStream(path.next());
           H.SetBody(JSON::Value(count).asString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
         }
         // Find source for given stream
-        else if (source.size()){
-          getSource(conn, H, source, fback);
+        else if (!api.compare("source")){
+          std::string source = path.next();
+          getSource(conn, H, source, path.next());
           
         }
         // Find optimal ingest point
-        else if (ingest.size()){
-          getIngest(conn, H, ingest, fback);
+        else if (!api.compare("ingest")){
+          std::string ingest = path.next();
+          getIngest(conn, H, ingest, path.next());
         }
         // Find host(s) status
-        else if (!host.size()){
-          JSON::Value ret = getAllHostStates();
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
-        }else{
-          JSON::Value ret = getHostState(host);
-          H.SetBody(ret.toPrettyString());
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
+        else if (!api.compare("host")){
+          std::string host = path.next();
+          if(!host.size()){
+            JSON::Value ret = getAllHostStates();
+            H.SetBody(ret.toPrettyString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }else{
+            JSON::Value ret = getHostState(host);
+            H.SetBody(ret.toPrettyString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
         }
-      }
-      else {
-        stream(conn, H);  
-      }
+      
     }
+    
   }
   //check if this is a load balancer conncetion
   if(LB){
@@ -1205,24 +1217,46 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
 /**
    * set and get weights
    */
-JSON::Value API::setWeights(const std::string weights, const std::string resend){
+JSON::Value API::setWeights(delimiterParser path){
     JSON::Value ret;
-    JSON::Value newVals = JSON::fromString(weights);
-    if (newVals.isMember("cpu")){weight_cpu = newVals["cpu"].asInt();}
-    if (newVals.isMember("ram")){weight_ram = newVals["ram"].asInt();}
-    if (newVals.isMember("bw")){weight_bw = newVals["bw"].asInt();}
-    if (newVals.isMember("geo")){weight_geo = newVals["geo"].asInt();}
-    if (newVals.isMember("bonus")){weight_bonus = newVals["bonus"].asInt();}
+    std::string newVals = path.next();
+    bool changed = false;
+    if (!newVals.compare("cpu")){
+      weight_cpu = path.nextInt();
+      newVals = path.next();
+      changed = true;
+    }
+    if (!newVals.compare("ram")){
+      weight_ram = path.nextInt();
+      newVals = path.next();
+      changed = true;
+    }
+    if (!newVals.compare("bw")){
+      weight_bw = path.nextInt();
+      newVals = path.next();
+      changed = true;
+    }
+    if (!newVals.compare("geo")){
+      weight_geo = path.nextInt();
+      newVals = path.next();
+      changed = true;
+    }
+    if (!newVals.compare("bonus")){
+      weight_bonus = path.nextInt();
+      newVals = path.next();
+      changed = true;
+    }
+
+    //create json for sending
     ret["cpu"] = weight_cpu;
     ret["ram"] = weight_ram;
     ret["bw"] = weight_bw;
     ret["geo"] = weight_geo;
     ret["bonus"] = weight_bonus;
 
-    
-    if(!resend.size() || atoi(resend.c_str()) == 1){
+    if(changed && (!newVals.size() || atoi(newVals.c_str()) == 1)){
       JSON::Value j;
-      j["weights"] = newVals;
+      j["weights"] = ret;
       j["resend"] = false;
       for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         (*it)->send(j.asString());
@@ -1230,10 +1264,36 @@ JSON::Value API::setWeights(const std::string weights, const std::string resend)
     }
     //start save timer
     time(&prevConfigChange);
-    saveTimer = new tthread::thread(saveTimeCheck,NULL);
+    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
     return ret;
   }
-  
+
+/**
+   * set weights for websockets
+   */
+void API::setWeights(const JSON::Value newVals){
+    if (!newVals.isMember("cpu")){
+      weight_cpu = newVals["cpu"].asInt();
+    }
+    if (!newVals.isMember("ram")){
+      weight_ram = newVals["ram"].asInt();
+
+    }
+    if (!newVals.isMember("bw")){
+      weight_bw = newVals["bw"].asInt();
+    }
+    if (!newVals.isMember("geo")){
+      weight_geo = newVals["geo"].asInt();
+    }
+    if (!newVals.isMember("bonus")){
+      weight_bonus = newVals["bonus"].asInt();
+    }
+    //start save timer
+    time(&prevConfigChange);
+    if(saveTimer != 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  }
+
+
 /**
    * remove server from ?
    */
@@ -1582,10 +1642,8 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
 /**
    * create stream
    */
-void API::stream(Socket::Connection conn, HTTP::Parser H){
+void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream){
     // Balance given stream
-      std::string stream = HTTP::URL(H.url).path;
-      std::string proto = H.GetVar("proto");
       std::map<std::string, int32_t> tagAdjust;
       if (H.GetVar("tag_adjust") != ""){
         fillTagAdjust(tagAdjust, H.GetVar("tag_adjust"));

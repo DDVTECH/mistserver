@@ -128,7 +128,7 @@ static void saveTimeCheck(void*){
     timeDiff = difftime(now,prevConfigChange);
   }
   saveFile();
-
+  saveTimer = 0;
 }
 
 void loadFile(bool resend = false){
@@ -1876,6 +1876,8 @@ int main(int argc, char **argv){
 
   api = API();
   loadBalancers = std::set<LoadBalancer*>();
+  //setup saving
+  saveTimer = 0;
   time(&prevSaveTime);
 
   std::map<std::string, tthread::thread *> threads;

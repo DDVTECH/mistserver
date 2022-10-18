@@ -1104,7 +1104,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           JSON::Value ret = setWeights(path);
           H.SetBody(ret.toString());
           H.setCORSHeaders();
-          H.SendResponse("204", "OK", conn);
+          H.SendResponse("200", "OK", conn);
           H.Clean();
         }
         // Get server list
@@ -1290,7 +1290,7 @@ void API::setWeights(const JSON::Value newVals){
     }
     //start save timer
     time(&prevConfigChange);
-    if(saveTimer != 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
   }
 
 

@@ -1262,9 +1262,11 @@ JSON::Value API::setWeights(delimiterParser path){
         (*it)->send(j.asString());
       }
     }
-    //start save timer
-    time(&prevConfigChange);
-    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+    if(changed){
+      //start save timer
+      time(&prevConfigChange);
+      if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+    }
     return ret;
   }
 

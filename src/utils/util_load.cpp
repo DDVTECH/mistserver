@@ -1030,7 +1030,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
   
       
-      WARN_MSG("http? %s", H.protocol.c_str());
       //check authentication
       if (localMode && !conn.isLocal()){
         H.SetBody("Configuration only accessible from local interfaces");
@@ -1043,12 +1042,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       
         
 
-      H.Clean();
-      H.SetHeader("Content-Type", "text/plain");
-      WARN_MSG("request /%s/ /%s/", H.method.c_str(), api.c_str());
       if(!H.method.compare("PUT")){
         if(!api.compare("save")){
           saveFile(true);
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("204", "OK", conn);
@@ -1057,6 +1055,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         //load
         else if(!api.compare("load")){
           loadFile(true);
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("204", "OK", conn);
@@ -1067,6 +1067,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         else if(!api.compare("addloadbalancer")){
           std::string loadbalancer = path.next();
           new tthread::thread(addLB,(void*)&loadbalancer);
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1075,6 +1077,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Get/set weights
         else if (!api.compare("weights")){
           JSON::Value ret = setWeights(path);
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1084,6 +1088,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         else if (!api.compare("addserver")){
           JSON::Value ret;
           addServer(ret, path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           if(ret.isNull()){
             H.SetBody("Host length too long for monitoring");
             H.setCORSHeaders();
@@ -1098,8 +1104,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         }
       }else if(!H.method.compare("GET")){
         if(!api.compare("LBList")){
-          WARN_MSG("LBList");
           std::string out = getLoadBalancerList();
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(out);
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1108,6 +1115,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Get server list
         else if (!api.compare("lstserver")){
           JSON::Value ret = serverList();
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1116,6 +1125,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Request viewer count
         else if (!api.compare("viewers")){
           JSON::Value ret = getViewers();
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1124,14 +1135,18 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Request full stream statistics
         else if (!api.compare("streamstats")){
           JSON::Value ret = getStreamStats(path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();   
         }
-        //get stream data
+        //get stream viewer count
         else if (!api.compare("stream")){
           uint64_t count = getStream(path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(JSON::Value(count).asString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1152,23 +1167,29 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           std::string host = path.next();
           if(!host.size()){
             JSON::Value ret = getAllHostStates();
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
             H.SetBody(ret.toPrettyString());
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }else{
             JSON::Value ret = getHostState(host);
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
             H.SetBody(ret.toPrettyString());
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
         }
-      }else if(!H.method.compare("DEL")){
+      }else if(!H.method.compare("DELETE")){
         //remove load balancer from mesh
-        if(!api.compare("removeloadbalancer")){
+        if(!api.compare("loadbalancer")){
           std::string loadbalancer = path.next();
           removeLB(loadbalancer, path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1177,6 +1198,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         //remove foreign host
         else if(!api.compare("removeHost")){
           removeHost(path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1186,6 +1209,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Remove server from list
         else if (!api.compare("delserver")){
           JSON::Value ret = delServer(path.next());
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -1522,6 +1547,8 @@ JSON::Value API::getViewers(){
    * return the best source of a stream
    */
 void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback){
+    H.Clean();
+    H.SetHeader("Content-Type", "text/plain");
     INFO_MSG("Finding source for stream %s", source.c_str());
     std::string bestHost = "";
     std::map<std::string, int32_t> tagAdjust;
@@ -1597,6 +1624,8 @@ JSON::Value API::serverList(){
    * return ingest point
    */
 void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback){
+    H.Clean();
+    H.SetHeader("Content-Type", "text/plain");
     double cpuUse = atoi(ingest.c_str());
     INFO_MSG("Finding ingest point for CPU usage %.2f", cpuUse);
     std::string bestHost = "";
@@ -1645,6 +1674,8 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
    * create stream
    */
 void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream){
+    H.Clean();
+    H.SetHeader("Content-Type", "text/plain");
     // Balance given stream
       std::map<std::string, int32_t> tagAdjust;
       if (H.GetVar("tag_adjust") != ""){

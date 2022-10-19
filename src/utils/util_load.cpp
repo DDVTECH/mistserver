@@ -912,6 +912,11 @@ int delimiterParser::nextInt() {
   return atoi(this->next().c_str());
 }
 
+
+/**
+ * handle websockets only used for other load balancers 
+ * \return loadbalancer corisponding to this socket
+*/
 LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
   std::string frame(webSock->data, webSock->data.size());
   if(!frame.substr(0, frame.find(":")).compare("auth")){
@@ -978,9 +983,11 @@ LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadB
   return LB;
 }
 
-
+/**
+ * allow connection threads to be made to call API::handleRequests
+*/
 int API::handleRequest(Socket::Connection &conn){
-  return handleRequests(conn,0,0);
+  return handleRequests(conn, 0, 0);
 }
 
 /**
@@ -1021,7 +1028,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       if(H.method.compare("PUT") && !api.compare("stream")){
         stream(conn, H, path.next(), path.next());
       }
-
+  
+      
+      WARN_MSG("http? %s", H.protocol.c_str());
       //check authentication
       if (localMode && !conn.isLocal()){
         H.SetBody("Configuration only accessible from local interfaces");
@@ -1030,13 +1039,14 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.Clean();
         continue;
       }
+     
       
         
 
       H.Clean();
       H.SetHeader("Content-Type", "text/plain");
-        
-      if(H.method.compare("PUT")){
+      WARN_MSG("request /%s/ /%s/", H.method.c_str(), api.c_str());
+      if(!H.method.compare("PUT")){
         if(!api.compare("save")){
           saveFile(true);
           H.SetBody("OK");
@@ -1086,8 +1096,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.Clean();
           }
         }
-      }else if(H.method.compare("GET")){
+      }else if(!H.method.compare("GET")){
         if(!api.compare("LBList")){
+          WARN_MSG("LBList");
           std::string out = getLoadBalancerList();
           H.SetBody(out);
           H.setCORSHeaders();
@@ -1153,7 +1164,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.Clean();
           }
         }
-      }else if(H.method.compare("DEL")){
+      }else if(!H.method.compare("DEL")){
         //remove load balancer from mesh
         if(!api.compare("removeloadbalancer")){
           std::string loadbalancer = path.next();

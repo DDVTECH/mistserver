@@ -28,9 +28,28 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
 #define MAXLB 1000
 
 
+class delimiterParser{
+  private:
+  std::string s;
+  std::string delimiter;
 
+  public:
+  delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
+  std::string next();
+  int nextInt();
+};
 
+class IpPolicy{
+  private:
+  std::string ip;
+  std::set<std::string> andp;
 
+  std::string getNextFrame(delimiterParser pol);
+
+  public:
+  IpPolicy(std::string policy);
+  bool match(std::string ip);
+};
 
 class streamDetails {
 public:
@@ -223,16 +242,7 @@ struct hostEntry{
   tthread::thread *thread; /// thread pointer
 };
 
-class delimiterParser{
-  private:
-  std::string s;
-  std::string delimiter;
 
-  public:
-  delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
-  std::string next();
-  int nextInt();
-};
 
 
 /**

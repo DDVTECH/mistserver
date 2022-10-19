@@ -12,7 +12,7 @@
 #include "util_load.h"
 #include <mist/encryption.h>
 #include <mist/auth.h>
-
+#include <mist/encode.h>
 #include <mist/websocket.h>
 #include <mist/tinythread.h>
 #include <string>
@@ -61,18 +61,20 @@ unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesse
 API api;
 hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
 std::set<LoadBalancer*> loadBalancers;
+
+//authentication storage
+std::map<std::string,std::string> userAuth;
+std::set<std::string> bearerTokens;
 std::string passHash;
+std::set<IpPolicy*> whitelist;
+
+//file save and loading vars
 std::string const fileloc  = "config.txt";
 #define TIMEINTERVAL 5 //time after config in minutes
-
 std::time_t prevSaveTime;
 std::time_t now;
 std::time_t prevConfigChange;
-
 tthread::thread* saveTimer;
-
-
-
 
 
 
@@ -164,6 +166,70 @@ void loadFile(bool resend = false){
   weight_geo = j["weight_geo"].asInt();
   weight_bonus = j["weight_bonus"].asInt();
   passHash = j["passHash"].asString();
+}
+
+IpPolicy::IpPolicy(std::string policy){
+  Util::stringToLower(policy);
+  //remove <space>
+  while(policy.find(" ") != -1){
+    policy.erase(policy.find(" "));
+  }
+  //create policy
+  delimiterParser o(policy, "+");
+  std::string p = o.next();
+  delimiterParser a(p, "&");
+  std::string line = a.next();
+  while(line.compare("")){
+    andp.insert(line);
+    line = a.next();
+  }
+  whitelist.insert(this);
+  p = o.next();
+  while(p.size()){
+    new IpPolicy(p);
+  }
+}
+
+std::string IpPolicy::getNextFrame(delimiterParser pol){
+  std::string ret = pol.next();
+  while(ret.size()<4){
+    ret.insert(0,"0");
+  }
+  return ret;
+}
+
+bool IpPolicy::match(std::string ip){
+  Util::stringToLower(ip);
+  for(std::set<std::string>::iterator it = andp.begin(); it != andp.end(); it++){
+    int mask = atoi((*it).substr((*it).find('/')+1,(*it).size()).c_str());
+    delimiterParser pol((*it), ":");
+    delimiterParser test(ip, ":");
+    //check if set of 4 numbers match
+    for(int i = 0; i == mask/16; i++){    
+      if(getNextFrame(pol).compare(getNextFrame(test))) return false;
+    }
+    //check if matched policy
+    int bits = mask % 16;
+    if(bits > 0){
+      std::string polLine = getNextFrame(pol);
+      std::string testLine = getNextFrame(test);
+      //check single numbers
+      int divbits = bits/4;
+      for(int i = 0; i < divbits; i++){
+        if(polLine.at(i) != testLine.at(i)) return false;
+      }
+      if(bits%4 > 0){
+        int polVal = polLine.at(divbits);
+        if (polVal >60) polVal -= 51;
+        if (polVal >= 30 && polVal < 40) polVal -= 30;
+        int testVal = testLine.at(divbits);
+        if (testVal >60) testVal -= 51;
+        if (testVal >= 30 && testVal < 40) testVal -= 30;
+        if(polVal != testVal) return false;
+      }
+    }
+  }
+  return true;
 }
 
 
@@ -1000,12 +1066,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
     if (webSock){
       if (webSock->readFrame()){
         LB = onWebsocketFrame(webSock, conn.getHost(), LB);
+        continue;
       }
-      else{Util::sleep(100);}
+      else{Util::sleep(100); continue;}
     }else if ((conn.spool() || conn.Received().size()) && H.Read(conn)){
-
-
-
       // Handle upgrade to websocket if the output supports it
       std::string upgradeHeader = H.GetHeader("Upgrade");
       Util::stringToLower(upgradeHeader);
@@ -1029,13 +1093,63 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         stream(conn, H, path.next(), path.next());
       }
   
-      
-      //check authentication
-      if (localMode && !conn.isLocal()){
-        H.SetBody("Configuration only accessible from local interfaces");
+
+      //Authentication
+      std::string creds = H.GetHeader("Authorization");
+      //auth with username and password
+      if(!creds.substr(0,5).compare("Basic")){
+        delimiterParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())),":");
+        //check if user exists
+        std::map<std::string, std::string>::iterator user = userAuth.find(cred.next());
+        //check password
+        if(user == userAuth.end() || ((*user).second).compare(cred.next())) {
+          H.SetBody("invalid credentials");
+          H.setCORSHeaders();
+          H.SendResponse("403", "Forbidden", conn);
+          H.Clean();
+          conn.close();
+          continue;
+        }
+      }
+      //auth with bearer token
+      else if(!creds.substr(0,7).compare("Bearer ")){
+        if(!bearerTokens.count(creds.substr(7,creds.size()))){
+          H.SetBody("invalid token");
+          H.setCORSHeaders();
+          H.SendResponse("403", "Forbidden", conn);
+          H.Clean();
+          conn.close();
+          continue;
+        }
+      }
+      //whitelist ipv6
+      else if(conn.getHost().size()){
+        WARN_MSG("%s",conn.getHost().c_str());
+        bool found = false;
+        std::set<IpPolicy*>::iterator it = whitelist.begin();
+        while( it != whitelist.end()){
+          if((*it)->match(conn.getHost())){
+            found = true;
+            break;
+          }
+          it++;
+        }
+        if(!found){
+          H.SetBody("not in whitelist");
+          H.setCORSHeaders();
+          H.SendResponse("403", "Forbidden", conn);
+          H.Clean();
+          conn.close();
+          continue;
+        }
+      }
+      //block other auth forms including none
+      else{
+        H.SetBody("no credentials given");
         H.setCORSHeaders();
         H.SendResponse("403", "Forbidden", conn);
         H.Clean();
+        conn.close();
         continue;
       }
      
@@ -1912,6 +2026,11 @@ int main(int argc, char **argv){
   //setup saving
   saveTimer = 0;
   time(&prevSaveTime);
+  //api login
+  userAuth.insert(std::pair<std::string, std::string>("admin","default"));
+  bearerTokens.insert("test1233");
+  if(localMode) whitelist.insert(new IpPolicy("::1/128"));
+  
 
   std::map<std::string, tthread::thread *> threads;
   jsonForEach(nodes, it){

@@ -2816,7 +2816,7 @@ namespace DTSC{
         for (size_t i = 0; i < keyCount; i++){
           conn.SendNow(c64(keys.getInt("bpos", i + fragBegin)), 8);
           conn.SendNow(c24(keys.getInt("duration", i + keyBegin)), 3);
-          conn.SendNow(c32(keys.getInt("number", i + keyBegin) + 1), 4);
+          conn.SendNow(c32(keys.getInt("number", i + keyBegin)), 4);
           conn.SendNow(c16(keys.getInt("parts", i + keyBegin)), 2);
           conn.SendNow(c64(keys.getInt("time", i + keyBegin)), 8);
         }

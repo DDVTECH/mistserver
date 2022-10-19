@@ -724,12 +724,11 @@ namespace Mist{
     }
     // Recover playlist entries
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
-    for(uint64_t plsIdx = 0; plsIdx < M.inputLocalVars["playlistEntries"].size(); plsIdx++){
-      JSON::Value thisPlaylist = M.inputLocalVars["playlistEntries"][plsIdx];
+    jsonForEachConst(M.inputLocalVars["playlistEntries"], i){
       std::deque<playListEntries> newList;
-      for(uint64_t entIdx = 0; entIdx < thisPlaylist.size(); entIdx++){
+      jsonForEachConst(*i, j){
+        const JSON::Value & thisEntry = *j;
         playListEntries newEntry;
-        JSON::Value thisEntry = thisPlaylist[entIdx];
         newEntry.filename = thisEntry[0u].asString();
         newEntry.bytePos = thisEntry[1u].asInt();
         newEntry.mUTC = thisEntry[2u].asInt();
@@ -737,19 +736,23 @@ namespace Mist{
         newEntry.timestamp = thisEntry[4u].asInt();
         newEntry.timeOffset = thisEntry[5u].asInt();
         newEntry.wait = thisEntry[6u].asInt();
-        memcpy(newEntry.ivec, thisEntry[7u].asString().data(), 16);
-        memcpy(newEntry.keyAES, thisEntry[8u].asString().data(), 16);
+        if (thisEntry[7u].asString().size() && thisEntry[8u].asString().size()){
+          memcpy(newEntry.ivec, thisEntry[7u].asString().data(), 16);
+          memcpy(newEntry.keyAES, thisEntry[8u].asString().data(), 16);
+        }else{
+          memset(newEntry.ivec, 0, 16);
+          memset(newEntry.keyAES, 0, 16);
+        }
         newList.push_back(newEntry);
       }
-      listEntries[plsIdx] = newList;
+      listEntries[JSON::Value(i.key()).asInt()] = newList;
     }
     // Recover pidMappings
-    pidCounter = 1;
-    for(uint64_t pidIdx = 0; pidIdx < M.inputLocalVars["pidMappingR"].size(); pidIdx++){
-      JSON::Value thisMappings = M.inputLocalVars["pidMappingR"][pidIdx];
-      pidMappingR[pidCounter] = thisMappings.asInt();
-      pidMapping[thisMappings.asInt()] = pidCounter;
-      pidCounter++;
+    jsonForEachConst(M.inputLocalVars["pidMappingR"], i){
+      uint64_t key = JSON::Value(i.key()).asInt();
+      uint64_t val = i->asInt();
+      pidMappingR[key] = val;
+      pidMapping[val] = key;
     }
     // Set bootMsOffset in order to display the program time correctly in the player
     streamOffset = M.inputLocalVars["streamoffset"].asInt();
@@ -871,17 +874,16 @@ namespace Mist{
         thisEntries.append(entryIt->keyAES);
         thisPlaylist.append(thisEntries);
       }
-      allEntries.append(thisPlaylist);
+      allEntries[JSON::Value(pListIt->first).asString()] = thisPlaylist;
     }
     meta.inputLocalVars["playlistEntries"] = allEntries;
     meta.inputLocalVars["streamoffset"] = streamOffset;
 
     // Write packet ID mappings
-    JSON::Value thisMappings;
     JSON::Value thisMappingsR;
     for (std::map<uint64_t, uint64_t>::iterator pidIt = pidMappingR.begin();
          pidIt != pidMappingR.end(); pidIt++){
-      thisMappingsR.append(pidIt->second);
+      thisMappingsR[JSON::Value(pidIt->first).asString()] = pidIt->second;
     }
     meta.inputLocalVars["pidMappingR"] = thisMappingsR;
 

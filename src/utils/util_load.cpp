@@ -1216,6 +1216,41 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.Clean();
           }
         }
+        //auth
+        else if(!api.compare("auth")){
+          api = path.next();
+          // add bearer token
+          else if (!api.compare("bearer")){
+            bearerTokens.insert(path.next());
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(ret.toString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          // add user acount
+          else if (!api.compare("user")){
+            std::string userName = path.next();
+            userAuth.insert(std::pair(userName,path.next()));
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(ret.toString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          // add whitelist policy
+          else if (!api.compare("whitelist")){
+            bearerTokens.insert(path.next());
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(ret.toString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+        }
       }else if(!H.method.compare("GET")){
         if(!api.compare("LBList")){
           std::string out = getLoadBalancerList();
@@ -1329,6 +1364,31 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+        }
+        //auth
+        else if(!api.compare("auth")){
+          api = path.next();
+          // del bearer token
+          else if (!api.compare("bearer")){
+            bearerTokens.erase(path.next());
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(ret.toString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          // del user acount
+          else if (!api.compare("user")){
+            userAuth.erase(path.next());
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(ret.toString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          
         }
       }
     }
@@ -2029,6 +2089,7 @@ int main(int argc, char **argv){
   //api login
   userAuth.insert(std::pair<std::string, std::string>("admin","default"));
   bearerTokens.insert("test1233");
+  //add localhost to whitelist
   if(localMode) whitelist.insert(new IpPolicy("::1/128"));
   
 

@@ -41,7 +41,6 @@ class delimiterParser{
 
 class IpPolicy{
   private:
-  std::string ip;
   std::set<std::string> andp;
 
   std::string getNextFrame(delimiterParser pol);

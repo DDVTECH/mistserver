@@ -513,7 +513,7 @@ namespace Mist{
         return 0;
       }
       timer = Util::bootMS() - timer;
-      INFO_MSG("Read header in %" PRIu64 "ms (%zu tracks)", timer, M.trackCount());
+      INFO_MSG("Read header in %" PRIu64 "ms (%zu tracks)", timer, M?M.trackCount():(size_t)0);
     }
     if (config->getBool("headeronly")){return 0;}
     if (M && M.getVod()){

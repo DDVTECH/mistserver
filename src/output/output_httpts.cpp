@@ -75,7 +75,6 @@ namespace Mist{
       INFO_MSG("Uploading to S3 using dms-uploader with URL '%s'", playlistLocation.c_str());
       setenv("MST_ORIG_TARGET", tsLocation.c_str(), 1);
       INFO_MSG("Playlist location will be '%s'. TS location will be '%s'", playlistLocation.c_str(), tsLocation.c_str());
-      config->getOption("target", true).append(tsLocation);
       std::stringstream ss;
       ss << config->getInteger("targetSegmentLength");
       targetParams["split"] = ss.str();

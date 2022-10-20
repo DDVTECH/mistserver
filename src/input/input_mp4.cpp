@@ -464,7 +464,6 @@ namespace Mist{
     }
 
     std::string inUrl = config->getString("input");
-    if (inUrl.size() > 4 && inUrl.substr(0, 4) == "mp4:"){inUrl.erase(0, 4);}
     // Export DTSH to file
     Socket::Connection outFile;
     int tmpFd = open("/dev/null", O_RDWR);

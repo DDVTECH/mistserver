@@ -186,6 +186,11 @@ namespace Mist{
   }
 
   bool inputMP4::checkArguments(){
+    std::string inUrl = config->getString("input");
+    if (inUrl.size() > 4 && inUrl.substr(0, 4) == "mp4:"){
+      inUrl.erase(0, 4);
+      config->getOption("input", true).append(inUrl);
+    }
     if (config->getString("input") == "-"){
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
@@ -208,7 +213,6 @@ namespace Mist{
   bool inputMP4::preRun(){
     // open File
     std::string inUrl = config->getString("input");
-    if (inUrl.size() > 4 && inUrl.substr(0, 4) == "mp4:"){inUrl.erase(0, 4);}
     inFile.open(inUrl);
     if (!inFile){return false;}
     if (!inFile.isSeekable()){
@@ -483,7 +487,6 @@ namespace Mist{
     }
 
     std::string inUrl = config->getString("input");
-    if (inUrl.size() > 4 && inUrl.substr(0, 4) == "mp4:"){inUrl.erase(0, 4);}
     // Export DTSH to file
     Socket::Connection outFile;
     int tmpFd = open("/dev/null", O_RDWR);

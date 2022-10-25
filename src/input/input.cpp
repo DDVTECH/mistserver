@@ -883,7 +883,7 @@ namespace Mist{
         userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
-      if (Util::bootSecs() - statTimer > 1){
+      if (false && Util::bootSecs() - statTimer > 1){
         // Connect to stats for INPUT detection
         if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
         if (statComm){

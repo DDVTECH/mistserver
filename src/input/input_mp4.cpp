@@ -268,6 +268,13 @@ namespace Mist{
       }
     }
 
+    if (!hasMoov){
+      FAIL_MSG("No MOOV box found in source file; aborting!");
+      if (!inFile){FAIL_MSG("URIReader for source file was disconnected!");}
+      return false;
+    }
+
+
     // See whether a separate header file exists.
     if (readExistingHeader()){
       bps = 0;
@@ -278,11 +285,6 @@ namespace Mist{
     INFO_MSG("Not read existing header");
 
     meta.reInit(isSingular() ? streamName : "");
-    if (!hasMoov){
-      FAIL_MSG("No MOOV box found; aborting header creation!");
-      return false;
-    }
-
     tNumber = 0;
     // Create header file from MP4 data
     MP4::Box moovBox(readBuffer, false);

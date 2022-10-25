@@ -278,6 +278,12 @@ namespace Mist{
       }
     }
 
+    if (!hasMoov){
+      FAIL_MSG("No MOOV box found in source file; aborting!");
+      if (!inFile){FAIL_MSG("URIReader for source file was disconnected!");}
+      return false;
+    }
+
     // See whether a separate header file exists.
     if (readExistingHeader()){
       bps = 0;

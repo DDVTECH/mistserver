@@ -214,6 +214,12 @@ namespace Mist{
     // open File
     std::string inUrl = config->getString("input");
     inFile.open(inUrl);
+    size_t inFileSize = inFile.getSize();
+    if (inFileSize != std::string::npos) {
+      INFO_MSG("inFile size: %zu", inFileSize);
+    } else {
+      INFO_MSG("inFile is unknown!");
+    }
     if (!inFile){return false;}
     if (!inFile.isSeekable()){
       FAIL_MSG("MP4 input only supports seekable data sources, for now, and this source is not seekable: %s", config->getString("input").c_str());
@@ -233,6 +239,11 @@ namespace Mist{
     readBuffer.truncate(0);
     readPos = 0;
 
+    INFO_MSG("inFile is seekable: %d", inFile.isSeekable());
+    INFO_MSG("inFile is EOF: %d", inFile.isEOF());	
+    INFO_MSG("inFile getPos: %"PRIu64"", inFile.getPos());
+    INFO_MSG("inFile getSize: %zu", inFile.getSize());
+
     // first we get the necessary header parts
     size_t tNumber = 0;
     activityCounter = Util::bootSecs();
@@ -248,6 +259,7 @@ namespace Mist{
       std::string boxType = std::string(readBuffer+4, 4);
       uint64_t boxSize = MP4::calcBoxSize(readBuffer);
       if (boxType == "moov"){
+        INFO_MSG("Detected MOOV box");
         while (readBuffer.size() < boxSize && inFile && keepRunning()){inFile.readSome(boxSize-readBuffer.size(), *this);}
         if (readBuffer.size() < boxSize){
           FAIL_MSG("Could not read entire MOOV box into memory");

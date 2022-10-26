@@ -293,7 +293,7 @@ JSON::Value streamDetails::stringify() const{
   out[STREAMDETAILSBANDWIDTH] = bandwidth;
   out[STREAMDETAILSPREVTOTAL] = prevTotal;
   out[STREAMDETAILSBYTESUP] = bytesUp;
-  out[STREAMDETAILSBYTESDOWN = bytesDown;
+  out[STREAMDETAILSBYTESDOWN] = bytesDown;
   return out;
 }
 

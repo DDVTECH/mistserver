@@ -353,6 +353,7 @@ namespace HTTP{
   }
 
   void URIReader::close(){
+    INFO_MSG("Closing URL: %s", myURI.getUrl().c_str())
     //Wipe internal state
     curPos = 0;
     allData.truncate(0);

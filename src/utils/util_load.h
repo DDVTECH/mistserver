@@ -8,11 +8,6 @@
 
 
 
-#define CONFSTREAMSKEY "conf_streams"
-#define TAGSKEY "tags"
-#define STREAMSKEY "streams"
-#define OUTPUTSKEY "outputs"
-
 #define STATE_OFF 0
 #define STATE_BOOT 1
 #define STATE_ERROR 2
@@ -23,11 +18,11 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
                              "Monitored (error)", "Monitored (online)",
                              "Requesting stop",   "Requesting clean"};
 #define HOSTNAMELEN 1024
-#define MAXHOSTS 1000
-#define LBNAMELEN 1024
-#define MAXLB 1000
 
 
+/**
+ * class to parse a string with a delimiter
+*/
 class delimiterParser{
   private:
   std::string s;
@@ -39,17 +34,23 @@ class delimiterParser{
   int nextInt();
 };
 
+/**
+ * implements an ip policy
+*/
 class IpPolicy{
   private:
-  std::set<std::string> andp;
-
-  std::string getNextFrame(delimiterParser pol);
+  std::string getNextFrame(delimiterParser pol) const;
 
   public:
+  std::string andp;
   IpPolicy(std::string policy);
-  bool match(std::string ip);
+  bool match(std::string ip) const;
+  bool equals(std::string) const;
 };
 
+/**
+ * class to keep track of stream data
+*/
 class streamDetails {
 public:
   uint64_t total;
@@ -60,11 +61,14 @@ public:
   uint64_t bytesDown;
   streamDetails(){};
   streamDetails(uint64_t total, uint32_t inputs, uint32_t bandwidth, uint64_t prevTotal, uint64_t bytesUp, uint64_t bytesDown) : total(total), inputs(inputs), bandwidth(bandwidth), prevTotal(prevTotal), bytesUp(bytesUp), bytesDown(bytesDown){};
-  JSON::Value stringify();
-  streamDetails* destringify(JSON::Value j);
+  JSON::Value stringify() const;
+  static streamDetails*  destringify(JSON::Value j);
 };
 
-
+/**
+ * class to handle communication with other load balancers
+ * connection needs to be authenticated beforehand
+*/
 class LoadBalancer {
   private:
   tthread::recursive_mutex mutable *LoadMutex;
@@ -88,18 +92,21 @@ class LoadBalancer {
 
 };
 
+/**
+ * class to store the url of a stream
+*/
 class outUrl {
 public:
   std::string pre, post;
   outUrl();;
   outUrl(const std::string &u, const std::string &host);
-  JSON::Value stringify();
-  outUrl destringify(JSON::Value j);
+  JSON::Value stringify() const;
+  static outUrl destringify(JSON::Value j);
 };
 
 
 /** 
- * this class is a host
+ * this class is a server not necessarilly monitored by this load balancer
  * this load balancer does not need to monitor a server for this class 
  */
 class hostDetails{
@@ -109,12 +116,12 @@ class hostDetails{
   uint64_t scoreSource;
   uint64_t scoreRate;
   
-  std::set<LoadBalancer*> LB;
+  
   
   
   protected:
   std::map<std::string, streamDetails> streams;
-  tthread::recursive_mutex *hostMutex;
+  tthread::recursive_mutex mutable *hostMutex;
   uint64_t cpu;
   std::map<std::string, outUrl> outputs;
   std::set<std::string> conf_streams;
@@ -122,6 +129,7 @@ class hostDetails{
   char* name;
 
   public:
+  std::set<LoadBalancer*> LB;
   char binHost[16];
   std::string host;
   double servLati, servLongi;
@@ -132,25 +140,25 @@ class hostDetails{
   /**
    *  Fills out a by reference given JSON::Value with current state.
    */
-  void fillState(JSON::Value &r);
+  void fillState(JSON::Value &r) const;
   
   /** 
    * Fills out a by reference given JSON::Value with current streams viewer count.
    */
-  void fillStreams(JSON::Value &r);
+  void fillStreams(JSON::Value &r) const;
 
   /**
    * Fills out a by reference given JSON::Value with current stream statistics.
    */ 
-  void fillStreamStats(const std::string &s,JSON::Value &r);
+  void fillStreamStats(const std::string &s,JSON::Value &r) const;
 
-  long long getViewers(const std::string &strm);
+  long long getViewers(const std::string &strm) const;
 
-  uint64_t rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust, double lati, double longi);
+  uint64_t rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust, double lati, double longi) const;
 
-  uint64_t source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati, double longi);
+  uint64_t source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati, double longi) const;
   
-  std::string getUrl(std::string &s, std::string &proto);
+  std::string getUrl(std::string &s, std::string &proto) const;
   
   /**
    * Sends update to original load balancer to add a viewer.
@@ -175,8 +183,8 @@ class hostDetails{
 };
 
 /**
- * Class to calculate all precalculated vars of its parent class.
- * Requires a server to monitor.
+ * Class to calculate all precalculated vars of its parent class
+ * Monitored hostDetails class
  */
 class hostDetailsCalc : public hostDetails {
   private:
@@ -201,18 +209,18 @@ class hostDetailsCalc : public hostDetails {
   void badNess();
 
   /// Fills out a by reference given JSON::Value with current state.
-  void fillState(JSON::Value &r);
+  void fillState(JSON::Value &r) const;
 
   /// Fills out a by reference given JSON::Value with current streams viewer count.
-  void fillStreams(JSON::Value &r);
+  void fillStreams(JSON::Value &r) const;
 
   /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
-  uint64_t rate();
+  uint64_t rate() const;
 
   /// Scores this server as a source
   /// 0 means not possible, the higher the better.
-  uint64_t source();
+  uint64_t source() const;
 
   /**
    * calculate and update precalculated variables
@@ -242,110 +250,118 @@ struct hostEntry{
 };
 
 
-
-
 /**
- * class to encase the api
+ * class to handle incoming requests
  */
 class API {
 public:
   /**
    * function to select the api function wanted
    */
-  int static handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock, LoadBalancer* LB);
-  int static handleRequest(Socket::Connection &conn);
-  
+  static int handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock, LoadBalancer* LB);
+  static int handleRequest(Socket::Connection &conn);//for starting threads
+
   /**
    * set and get weights
    */
-  JSON::Value static setWeights(delimiterParser path);
-  void static setWeights(const JSON::Value weights);
+  static JSON::Value setWeights(delimiterParser path);
+  static void setWeights(const JSON::Value weights);
   /**
    * remove server from ?
    */
-  JSON::Value static delServer(const std::string delserver);
+  static JSON::Value delServer(const std::string delserver);
 
   /**
    * receive server updates and adds new foreign hosts if needed
    */
-  void static updateHost(JSON::Value newVals);
+  static void updateHost(const JSON::Value newVals);
   
   /**
    * add server to be monitored
    */
-  void static addServer(JSON::Value ret, const std::string addserver);
+  static void addServer(JSON::Value ret, const std::string addserver);
    
   /**
    * remove server from load balancer( both monitored and foreign )
    */
-  void static removeHost(const std::string removeHost);
+  static void removeHost(const std::string removeHost, const std::string host);
    
   /**
    * remove load balancer from mesh
    */
-  void static removeLB(std::string removeLoadBalancer, const std::string resend);
+  static void removeLB(const std::string removeLoadBalancer, const std::string resend);
   
   /**
    * add load balancer to mesh
    */
-  void static addLB(void* p);
+  static void addLB(void* p);
   
 
 
 
 private:
   /**
+   * handle websockets only used for other load balancers 
+   * \return loadbalancer corisponding to this socket
+  */
+  static LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB);
+
+  /**
   * returns load balancer list
   */
-  std::string static getLoadBalancerList();
+  static std::string getLoadBalancerList();
   
   /**
    * return viewer counts of streams
    */
-  JSON::Value static getViewers();
+  static JSON::Value getViewers();
   
   /**
    * return the best source of a stream
    */
-  void static getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback);
+  static void getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback);
   
   /**
    * get view count of a stream
    */
-  uint64_t static getStream(const std::string stream);
+  static uint64_t getStream(const std::string stream);
   
   /**
    * return server list
    */
-  JSON::Value static serverList();
+  static JSON::Value serverList();
  
   /**
    * return ingest point
    */
-  void static getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback);
+  static void getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback);
   
   /**
    * create stream
    */
-  void static stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream);
+  static void stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream);
   
   /**
    * return stream stats
    */
-  JSON::Value static getStreamStats(const std::string streamStats);
+  static JSON::Value getStreamStats(const std::string streamStats);
  
   /**
    * add viewer to stream on server
    */
-  void static addViewer(std::string stream, const std::string addViewer);
+  static void addViewer(const std::string stream, const std::string addViewer);
 
   /**
    * return server data of a server
    */
-  JSON::Value static getHostState(const std::string host);
+  static JSON::Value getHostState(const std::string host);
   
   /**
    * return all server data
    */
-  JSON::Value static getAllHostStates();
+  static JSON::Value getAllHostStates();
+
+  
+
+
 };

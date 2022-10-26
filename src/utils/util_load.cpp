@@ -17,25 +17,58 @@
 #include <mist/tinythread.h>
 #include <string>
 #include <ctime>
+#include <unistd.h>
 
 
+//transmision json names
+std::string const CONFSTREAMSKEY = "conf_streams";
+std::string const TAGSKEY = "tags";
+std::string const STREAMSKEY = "streams";
+std::string const OUTPUTSKEY = "outputs";
+std::string const FILLSTATEOUT = "fillStateOut";
+std::string const FILLSTREAMSOUT = "fillStreamsOut";
+std::string const SCORESOURCE = "scoreSource";
+std::string const SCORERATE = "scoreRate";
+std::string const CPUKEY = "cpu";
+std::string const SERVLATIKEY = "servLati";
+std::string const SERVLONGIKEY = "servLongi";
+std::string const HOSTNAMEKEY = "hostName";
+std::string const RAMKEY = "ram";
+std::string const BWKEY = "bw";
+std::string const GEOKEY = "geo";
+std::string const BONUSKEY = "bonus";
+std::string const SAVEKEY = "save";
+std::string const LOADKEY = "load";
 
+//const api names set multiple times
+std::string const ADDLOADBALANCER = "addloadbalancer";
+std::string const REMOVELOADBALANCER = "removeloadbalancer";
+std::string const RESEND = "resend";
+std::string const REMOVEHOST = "removehost";
+std::string const UPDATEHOST = "updatehost";
+std::string const WEIGHTS = "weights";
+std::string const ADDVIEWER = "addviewer";
 
-#define CONFSTREAMSKEY "conf_streams"
-#define TAGSKEY "tags"
-#define STREAMSKEY "streams"
-#define OUTPUTSKEY "outputs"
-
-#define STATE_OFF 0
-#define STATE_BOOT 1
-#define STATE_ERROR 2
-#define STATE_O
+//config file name
+std::string const CONFIGFALLBACK = "fallback";
+std::string const CONFIGC = "weight_cpu";
+std::string const CONFIGR = "weight_ram";
+std::string const CONFIGBW = "weight_bw";
+std::string const CONFIGWG = "weight_geo";
+std::string const CONFIGWB = "weight_bonus";
+std::string const CONFIGPASS = "passHash";
+std::string const CONFIGSPASS = "passphrase";
+std::string const CONFIGPORT = "port";
+std::string const CONFIGINTERFACE = "interface";
+std::string const CONFIGWHITELIST = "whitelist";
+std::string const CONFIGBEARER = "bearer_tokens";
+std::string const CONFIGUSERS = "user_auth";
+std::string const CONFIGSERVERS = "server_list";
 
 
 Util::Config *cfg = 0;
 std::string passphrase;
 std::string fallback;
-bool localMode = false;
 tthread::mutex globalMutex;
 tthread::mutex fileMutex;
 std::map<std::string, int32_t> blankTags;
@@ -44,153 +77,62 @@ size_t weight_ram = 500;
 size_t weight_bw = 1000;
 size_t weight_geo = 1000;
 size_t weight_bonus = 50;
-std::string password;
-
-
-#define SALTSIZE 10
-unsigned long hostsCounter = 0; // This is a pointer to guarantee atomic accesses.
-#define HOSTLOOP                                                                             \
-  unsigned long i = 0;                                                                             \
-  i < hostsCounter;                                                                                \
-  ++i
-#define HOST(no) (hosts[no])
-#define HOSTCHECK                                                                                  \
-  if (hosts[i].state != STATE_ONLINE){continue;}
 
 
 API api;
-hostEntry hosts[MAXHOSTS]; /// Fixed-size array holding all hosts
-std::set<LoadBalancer*> loadBalancers;
+std::set<hostEntry*> hosts; ///array holding all hosts
+std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the mesh
 
 //authentication storage
 std::map<std::string,std::string> userAuth;
 std::set<std::string> bearerTokens;
 std::string passHash;
 std::set<IpPolicy*> whitelist;
+std::map<std::string, std::time_t> activeSalts;
+#define SALTSIZE 10
 
 //file save and loading vars
 std::string const fileloc  = "config.txt";
-#define TIMEINTERVAL 5 //time after config in minutes
+#define SAVETIMEINTERVAL 5 //time to save after config change in minutes
 std::time_t prevSaveTime;
 std::time_t now;
 std::time_t prevConfigChange;
 tthread::thread* saveTimer;
 
 
-
-void saveFile(bool resend = false){
-  //send command to other load balancers
-  if(resend){
-    JSON::Value j;
-    j["save"] = true;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-      (*it)->send(j.asString());
-    }
-  }
-  tthread::lock_guard<tthread::mutex> guard(fileMutex);
-  std::ofstream file(fileloc.c_str());
-  
-
-  if(file.is_open()){
-    JSON::Value j;
-    j["fallback"] = fallback;
-    j["localmode"] = localMode;
-    j["weight_cpu"] = weight_cpu;
-    j["weight_ram"] = weight_ram;
-    j["weight_bw"] = weight_bw;
-    j["weight_geo"] = weight_geo;
-    j["weight_bonus"] = weight_bonus;
-    j["passHash"] = passHash;
-
-    file << j.asString().c_str();
-    file.flush();
-    file.close();
-    time(&prevSaveTime);
-    INFO_MSG("config saved");
-  }else {
-    INFO_MSG("save failed");
-  }
-}
-
-static void saveTimeCheck(void*){
-  if(prevConfigChange < prevSaveTime){
-    WARN_MSG("manual save1")
-    return;
-  }
-  time(&now);
-  double timeDiff = difftime(now,prevConfigChange);
-  while(timeDiff < 60*TIMEINTERVAL){
-    //check for manual save
-    if(prevConfigChange < prevSaveTime){
-      return;
-    }
-    //TODO sleep thread for 600 - timeDiff
-    sleep(1000);
-    time(&now);
-    timeDiff = difftime(now,prevConfigChange);
-  }
-  saveFile();
-  saveTimer = 0;
-}
-
-void loadFile(bool resend = false){
-  WARN_MSG("Loading")
-  //send command to other load balancers
-  if(resend){
-    JSON::Value j;
-    j["load"] = true;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-      (*it)->send(j.asString());
-    }
-  }
-
-  tthread::lock_guard<tthread::mutex> guard(fileMutex);
-  std::ifstream file(fileloc.c_str());
-  std::string data;
-  std::string line;
-  //read file
-  if(file.is_open()){
-    while(getline(file,line)){
-      data.append(line);
-    }
-    file.close();
-  }
-  
-  //change config vars
-  JSON::Value j = JSON::fromString(data);
-  fallback = j["fallback"].asString();
-  localMode = j["localmode"].asBool();
-  weight_cpu = j["weight_cpu"].asInt();
-  weight_ram = j["weight_ram"].asInt();
-  weight_bw = j["weight_bw"].asInt();
-  weight_geo = j["weight_geo"].asInt();
-  weight_bonus = j["weight_bonus"].asInt();
-  passHash = j["passHash"].asString();
-}
-
+/**
+ * constructor of ip policy (ipv4 & ipv6)
+*/
 IpPolicy::IpPolicy(std::string policy){
   Util::stringToLower(policy);
   //remove <space>
   while(policy.find(" ") != -1){
     policy.erase(policy.find(" "));
   }
+  while(policy.find(".") != -1){//convert ipv4 to ipv6 format for handleing
+    policy.replace(policy.find("."),1,":");
+  }
   //create policy
   delimiterParser o(policy, "+");
   std::string p = o.next();
-  delimiterParser a(p, "&");
-  std::string line = a.next();
-  while(line.compare("")){
-    andp.insert(line);
-    line = a.next();
+  bool invalid = false;
+  int mask = atoi(p.substr(p.find('/')+1,p.size()).c_str());
+  if(mask > 0 && mask <= 128) {//check if poilcy invalid if so skip policy
+    andp = p;
+  }else {
+    invalid = true;
   }
-  whitelist.insert(this);
   p = o.next();
   while(p.size()){
-    new IpPolicy(p);
+    whitelist.insert(new IpPolicy(p));
   }
+  if(invalid){delete this;}
 }
 
-std::string IpPolicy::getNextFrame(delimiterParser pol){
+/**
+ * helper function to get next ip num set
+*/
+std::string IpPolicy::getNextFrame(delimiterParser pol) const{
   std::string ret = pol.next();
   while(ret.size()<4){
     ret.insert(0,"0");
@@ -198,26 +140,112 @@ std::string IpPolicy::getNextFrame(delimiterParser pol){
   return ret;
 }
 
-bool IpPolicy::match(std::string ip){
+/**
+ * \returns true if \param ip contains a ip that is allowed by this ip policy
+*/
+bool IpPolicy::match(std::string ip) const{
   Util::stringToLower(ip);
-  for(std::set<std::string>::iterator it = andp.begin(); it != andp.end(); it++){
-    int mask = atoi((*it).substr((*it).find('/')+1,(*it).size()).c_str());
-    delimiterParser pol((*it), ":");
-    delimiterParser test(ip, ":");
-    //check if set of 4 numbers match
-    for(int i = 0; i == mask/16; i++){    
-      if(getNextFrame(pol).compare(getNextFrame(test))) return false;
+  //get mask of policy as int
+  int mask = atoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
+
+  delimiterParser pol(andp, ":");
+  delimiterParser test(ip, ":");
+
+  //check if set of 4 numbers match
+  for(int i = 0; i == mask/16; i++){    
+    if(getNextFrame(pol).compare(getNextFrame(test))) return false;
+  }
+
+  //check if matched policy
+  int bits = mask % 16;
+  if(bits > 0){
+    std::string polLine = getNextFrame(pol);
+    std::string testLine = getNextFrame(test);
+    //check single numbers
+    int divbits = bits/4;
+    for(int i = 0; i < divbits; i++){
+      if(polLine.at(i) != testLine.at(i)) return false;
     }
+    //check bits of single number
+    if(bits%4 > 0){
+      int polVal = polLine.at(divbits);
+      if (polVal >60) polVal -= 51;
+      if (polVal >= 30 && polVal < 40) polVal -= 30;
+      int testVal = testLine.at(divbits);
+      if (testVal >60) testVal -= 51;
+      if (testVal >= 30 && testVal < 40) testVal -= 30;
+      //calc masked values of address
+      //first bit
+      int numpol = polVal/8;
+      int numtest = testVal/8;
+
+      if(bits >= 2){//second bit
+        numpol += polVal/4;
+        numtest += polVal/4;
+      }
+      if(bits >= 3){//third bit
+        numpol += polVal/2;
+        numtest += testVal/2;
+      }
+      if(numpol != numtest) return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * \returns true if ip Policy \param ip is equivilent to this object
+*/
+bool IpPolicy::equals(std::string ip) const{
+  Util::stringToLower(ip);
+  //remove <space>
+  while(ip.find(" ") != -1){
+    ip.erase(ip.find(" "));
+  }
+  while(ip.find(".") != -1){//convert ipv4 to ipv6 format for handleing
+    ip.replace(ip.find("."),1,":");
+  }
+  
+
+  delimiterParser o(ip, "+");
+  std::string p = o.next();
+
+  int maskpol = atoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
+  while(p.compare("")){
+    //get mask of policy as int
+    
+    int maskline = atoi(p.substr(p.find('/')+1,p.size()).c_str());
+    if(maskpol != maskline){continue;}
+
+    delimiterParser pol(andp, ":");
+    delimiterParser test(p, ":");
+
+    bool match = true;
+    //check if set of 4 numbers match
+    for(int i = 0; i == maskpol/16; i++){    
+      if(getNextFrame(pol).compare(getNextFrame(test))) {
+        match = false;
+        break;
+      }
+    }
+    if (!match) continue; 
+
     //check if matched policy
-    int bits = mask % 16;
+    int bits = maskpol % 16;
     if(bits > 0){
       std::string polLine = getNextFrame(pol);
       std::string testLine = getNextFrame(test);
       //check single numbers
       int divbits = bits/4;
       for(int i = 0; i < divbits; i++){
-        if(polLine.at(i) != testLine.at(i)) return false;
+        if(polLine.at(i) != testLine.at(i)) {
+          match = false;
+          break;
+        }
       }
+      if (!match) continue; 
+      //check bits of single number
       if(bits%4 > 0){
         int polVal = polLine.at(divbits);
         if (polVal >60) polVal -= 51;
@@ -225,15 +253,32 @@ bool IpPolicy::match(std::string ip){
         int testVal = testLine.at(divbits);
         if (testVal >60) testVal -= 51;
         if (testVal >= 30 && testVal < 40) testVal -= 30;
-        if(polVal != testVal) return false;
+        //calc masked values of address1
+        //first bit
+        int numpol = polVal/8;
+        int numtest = testVal/8;
+
+        if(bits >= 2){//second bit
+          numpol += polVal/4;
+          numtest += polVal/4;
+        }
+        if(bits >= 3){//third bit
+          numpol += polVal/2;
+          numtest += testVal/2;
+        }
+        if(numpol != numtest) continue;
+        else return true;
       }
     }
+    p = o.next();
   }
-  return true;
+  return false;
 }
 
-
-JSON::Value streamDetails::stringify(){
+/**
+ * \returns this object as a string
+*/
+JSON::Value streamDetails::stringify() const{
   JSON::Value out;
   out["total"] = total;
   out["inputs"] = inputs;
@@ -244,6 +289,9 @@ JSON::Value streamDetails::stringify(){
   return out;
 }
 
+/**
+ * \returns \param j as a streamDetails object
+*/
 streamDetails* streamDetails::destringify(JSON::Value j){
     streamDetails* out = new streamDetails();
     out->total = j["total"].asInt();
@@ -255,10 +303,11 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     return out;
   }
 
-LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name) : ws(ws), name(name) {
-    LoadMutex = 0;
-    Go_Down = false;
-}
+
+/**
+ * construct an object to represent an other load balancer
+*/
+LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name) : LoadMutex(0), ws(ws), name(name), Go_Down(false) {}
 
 LoadBalancer::~LoadBalancer(){
   if(LoadMutex){
@@ -270,12 +319,32 @@ LoadBalancer::~LoadBalancer(){
   ws = 0;
 }
 
+/**
+ * \return the address of this load balancer
+*/
 std::string LoadBalancer::getName() const {return name;}
+
+/**
+ * allows for ordering of load balancers
+*/
 bool LoadBalancer::operator < (const LoadBalancer &other) const {return this->getName() < other.getName();}
+/**
+ * allows for ordering of load balancers
+*/
 bool LoadBalancer::operator > (const LoadBalancer &other) const {return this->getName() > other.getName();}
+/**
+ * \returns true if \param other is equivelent to this load balancer
+*/
 bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->getName().compare(other.getName());}
+/**
+ * \returns true only if \param other is the ip of this load balancer
+*/
 bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
-  
+
+
+/**
+ * send \param ret to the load balancer represented by this object
+*/
 void LoadBalancer::send(std::string ret) const {
     if(!Go_Down){
       ws->sendFrame(ret);
@@ -284,6 +353,7 @@ void LoadBalancer::send(std::string ret) const {
 
 
 outUrl::outUrl(){};
+
 
 outUrl::outUrl(const std::string &u, const std::string &host){
   std::string tmp = u;
@@ -295,13 +365,19 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
 
-JSON::Value outUrl::stringify(){
+/**
+ * turn outUrl into string
+*/
+JSON::Value outUrl::stringify() const{
   JSON::Value j;
   j["pre"] = pre;
   j["post"] = post;
   return j;
 }
 
+/**
+ * turn json \param j into outUrl
+*/
 outUrl outUrl::destringify(JSON::Value j){
   outUrl r;
   r.pre = j["pre"].asString();
@@ -309,7 +385,24 @@ outUrl outUrl::destringify(JSON::Value j){
   return r;
 }
 
+/**
+ * convert ipPolicy set \param s to json
+*/
+std::string convertSetToJson(std::set<IpPolicy*> s){
+  std::string out = "[";  
+  for(std::set<IpPolicy*>::iterator it = s.begin(); it != s.end(); ++it){
+      if(it != s.begin()){
+        out += ", ";
+      }
+      out += (*it)->andp;
+  }
+  out += "]";
+  return out;
+}
 
+/**
+ * convert set \param s to json
+*/
 std::string convertSetToJson(std::set<std::string> s){
   std::string out = "[";  
   for(std::set<std::string>::iterator it = s.begin(); it != s.end(); ++it){
@@ -322,22 +415,32 @@ std::string convertSetToJson(std::set<std::string> s){
   return out;
 }
 
-JSON::Value convertMapToJson(std::map<std::string, outUrl> s){
+/**
+ * convert maps<string, object> \param s to json where the object has a stringify function
+*/
+template<typename data>
+JSON::Value convertMapToJson(std::map<std::string, data> s){
   JSON::Value out;  
-  for(std::map<std::string, outUrl>::iterator it = s.begin(); it != s.end(); ++it){
+  for(typename std::map<std::string, data>::iterator it = s.begin(); it != s.end(); ++it){
       out[(*it).first] = (*it).second.stringify();
   }
   return out;
 }
 
-JSON::Value convertMapToJson(std::map<std::string, streamDetails> s){
+/**
+ * convert a map<string, string> \param s to a json
+*/
+JSON::Value convertMapToJson(std::map<std::string, std::string> s){
   JSON::Value out;  
-  for(std::map<std::string, streamDetails>::iterator it = s.begin(); it != s.end(); ++it){
-      out[(*it).first] = (*it).second.stringify();
+  for(typename std::map<std::string, std::string>::iterator it = s.begin(); it != s.end(); ++it){
+      out[(*it).first] = (*it).second;
   }
   return out;
 }
 
+/**
+ * convert a json \param j to a set<string>
+*/
 std::set<std::string> convertJsonToSet(JSON::Value j){
   std::set<std::string> s;
   jsonForEach(j,i){
@@ -345,6 +448,29 @@ std::set<std::string> convertJsonToSet(JSON::Value j){
   }
   return s;
 }
+
+/**
+ * convert json \param j to IpPolicy set
+*/
+std::set<IpPolicy*>* convertJsonToIpPolicylist(JSON::Value j){
+  std::set<IpPolicy*>* s = new std::set<IpPolicy*>();
+  jsonForEach(j,i){
+    s->insert(new IpPolicy(j));
+  }
+  return s;
+}
+
+/**
+ * convert json \param j to map<string, string>
+*/
+std::map<std::string, std::string> convertJsonToMap(JSON::Value j){
+  std::map<std::string, std::string> m;
+  for(int i = 0; i < j.size(); i++){
+    m.insert(std::pair<std::string, std::string>(j[i], j[i].asString()));
+  }
+  return m;
+}
+
 
 int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
   if (!match.size()){return 0;}
@@ -379,8 +505,8 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
 }
 
 
-hostDetails::hostDetails(std::set<LoadBalancer*> LB, char* name) : LB(LB), name(name){
-    hostMutex = 0;
+hostDetails::hostDetails(std::set<LoadBalancer*> LB, char* name) : hostMutex(0), name(name), LB(LB) {
+    
   }
 hostDetails::~hostDetails(){
     if(hostMutex){
@@ -391,22 +517,22 @@ hostDetails::~hostDetails(){
 /**
    *  Fills out a by reference given JSON::Value with current state.
    */
-void hostDetails::fillState(JSON::Value &r){
+void hostDetails::fillState(JSON::Value &r) const{
     r = fillStateOut;
   }
 /** 
    * Fills out a by reference given JSON::Value with current streams viewer count.
    */
-void hostDetails::fillStreams(JSON::Value &r){
+void hostDetails::fillStreams(JSON::Value &r) const{
     r = fillStreamsOut;
   }
 /**
    * Fills out a by reference given JSON::Value with current stream statistics.
    */ 
-void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
+void hostDetails::fillStreamStats(const std::string &s, JSON::Value &r) const{
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
-    for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+    for (std::map<std::string, streamDetails>::const_iterator jt = streams.begin(); jt != streams.end(); ++jt){
       const std::string &n = jt->first;
       if(s!= "*" && n!= s && n.substr(0,s.size()+1) != s+"+"){continue;}
       if(!r.isMember(n)){
@@ -421,13 +547,20 @@ void hostDetails::fillStreamStats(const std::string &s,JSON::Value &r) {
       }
     }
   }
-long long hostDetails::getViewers(const std::string &strm){
+/**
+ * get viewers of stream \param strm
+*/
+long long hostDetails::getViewers(const std::string &strm) const{
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if(!streams.count(strm)){return 0;}
-    return streams[strm].total;
+    return streams.at(strm).total;
   }
-uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust = blankTags, double lati = 0, double longi = 0){
+/**
+ * Scores a potential new connection to this server
+ * 0 means not possible, the higher the better.
+*/
+uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t>  &tagAdjust = blankTags, double lati = 0, double longi = 0) const{
     if(conf_streams.size() && !conf_streams.count(s) && !conf_streams.count(s.substr(0, s.find_first_of("+ ")))){
       MEDIUM_MSG("Stream %s not available from %s", s.c_str(), host.c_str());
       return 0;
@@ -451,10 +584,18 @@ uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t> 
     }
     return score;
   }
-uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0){
+/**
+ * Scores this server as a source
+ * 0 means not possible, the higher the better.
+*/
+uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0) const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
-    if(s.size() && (!streams.count(s) || !streams[s].inputs)){return 0;}
+    try{
+      if(s.size() && (!streams.count(s) || !streams.at(s).inputs)){return 0;}
+    }catch (std::out_of_range const&){
+      return 0;
+    }
 
     if (minCpu && cpu + minCpu >= 1000){return 0;}
     uint64_t score = scoreSource;
@@ -471,18 +612,26 @@ uint64_t hostDetails::source(const std::string &s, const std::map<std::string, i
     }
     return score;
   }
-std::string hostDetails::getUrl(std::string &s, std::string &proto){
+/**
+ * give url of the server for a protocol, \param proto, and stream, \param s
+*/
+std::string hostDetails::getUrl(std::string &s, std::string &proto) const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if(!outputs.count(proto)){return "";}
-    const outUrl o = outputs[proto];
-    return o.pre + s + o.post;
+    outUrl o;
+    try{
+      const outUrl o = outputs.at(proto);
+      return o.pre + s + o.post;
+    }catch (std::out_of_range const&){
+      return NULL;
+    }
   }
 /**
-   * Sends update to original load balancer to add a viewer.
-   */
-void hostDetails::addViewer(std::string &s, bool resend){
-  if(resend){
+ * Sends update to original load balancer to add a viewer.
+*/
+void hostDetails::addViewer(std::string &s, bool RESEND){
+  if(RESEND){
     JSON::Value j;
     j["addViewer"] = s;
     j["host"] = host;
@@ -492,8 +641,8 @@ void hostDetails::addViewer(std::string &s, bool resend){
   }
 }
 /**
-   * Update precalculated host vars.
-   */
+ * Update precalculated host vars.
+*/
 void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
@@ -540,23 +689,14 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host);
   }
   
-
-hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(std::set<LoadBalancer*>(), name){
-    hostMutex = 0;
+/**
+ * constructor of monitored server
+*/
+hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(std::set<LoadBalancer*>(), name), ramMax(0),ramCurr(0), upSpeed(0), 
+  downSpeed(0), total(0), upPrev(0), downPrev(0), prevTime(0), addBandwidth(0), availBandwidth(128 * 1024 * 1024) {
     cpu = 1000;
-    ramMax = 0;
-    ramCurr = 0;
-    upSpeed = 0;
-    downSpeed = 0;
-    upPrev = 0;
-    downPrev = 0;
-    prevTime = 0;
-    total = 0;
-    addBandwidth = 0;
     servLati = 0;
     servLongi = 0;
-    availBandwidth = 128 * 1024 * 1024; // assume 1G connection
-    
   }
 hostDetailsCalc::~hostDetailsCalc(){
     if (hostMutex){
@@ -571,7 +711,7 @@ void hostDetailsCalc::badNess(){
     addBandwidth *= 1.2;
   }
 /// Fills out a by reference given JSON::Value with current state.
-void hostDetailsCalc::fillState(JSON::Value &r){
+void hostDetailsCalc::fillState(JSON::Value &r) const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     r["cpu"] = (uint64_t)(cpu / 10);
@@ -589,7 +729,7 @@ void hostDetailsCalc::fillState(JSON::Value &r){
     }
     if (tags.size()){
       for (std::set<std::string>::iterator it = tags.begin(); it != tags.end(); ++it){
-        r["tags"].append(*it);
+        r[TAGSKEY].append(*it);
       }
     }
     if (ramMax && availBandwidth){
@@ -599,17 +739,17 @@ void hostDetailsCalc::fillState(JSON::Value &r){
     }
   }
 /// Fills out a by reference given JSON::Value with current streams viewer count.
-void hostDetailsCalc::fillStreams(JSON::Value &r){
+void hostDetailsCalc::fillStreams(JSON::Value &r) const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
-    for (std::map<std::string, streamDetails>::iterator jt = streams.begin(); jt != streams.end(); ++jt){
+    for (std::map<std::string, streamDetails>::const_iterator jt = streams.begin(); jt != streams.end(); ++jt){
       r[jt->first] = r[jt->first].asInt() + jt->second.total;
     }
   }
 /// Scores a potential new connection to this server
   /// 0 means not possible, the higher the better.
-uint64_t hostDetailsCalc::rate(){
+uint64_t hostDetailsCalc::rate() const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     if (!ramMax || !availBandwidth){
@@ -633,7 +773,7 @@ uint64_t hostDetailsCalc::rate(){
   }
 /// Scores this server as a source
   /// 0 means not possible, the higher the better.
-uint64_t hostDetailsCalc::source(){
+uint64_t hostDetailsCalc::source() const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     
@@ -673,10 +813,10 @@ void hostDetailsCalc::calc(){
 
     //create json to send to other load balancers
     JSON::Value j;
-    j["fillStaterOut"] = fillStateOut;
-    j["fillStreamsOut"] = fillStreamsOut;
-    j["scoreSource"] = scoreSource;
-    j["scoreRate"] = scoreRate;
+    j[FILLSTATEOUT] = fillStateOut;
+    j[FILLSTREAMSOUT] = fillStreamsOut;
+    j[SCORESOURCE] = scoreSource;
+    j[SCORERATE] = scoreRate;
     
     
     j[OUTPUTSKEY] = convertMapToJson(outputs);
@@ -684,10 +824,10 @@ void hostDetailsCalc::calc(){
     j[STREAMSKEY] = convertMapToJson(streams);
     j[TAGSKEY] = convertSetToJson(tags);
     
-    j["cpu"] = cpu;
-    j["servLati"] = servLati;
-    j["servLongi"] = servLongi;
-    j["hostName"] = name;
+    j[CPUKEY] = cpu;
+    j[SERVLATIKEY] = servLati;
+    j[SERVLONGIKEY] = servLongi;
+    j[HOSTNAMEKEY] = name;
 
     JSON::Value out;
     out["updateHost"] = j;
@@ -702,7 +842,7 @@ void hostDetailsCalc::calc(){
    * add the viewer to this host
    * updates all precalculated host vars
    */
-void hostDetailsCalc::addViewer(std::string &s, bool resend){
+void hostDetailsCalc::addViewer(std::string &s, bool RESEND){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
     uint64_t toAdd = 0;
@@ -739,9 +879,9 @@ void hostDetailsCalc::update(JSON::Value &d){
     int64_t nRamCur = d["mem_used"].asInt();
     int64_t nShmMax = d["shm_total"].asInt();
     int64_t nShmCur = d["shm_used"].asInt();
-    if (d.isMember("tags") && d["tags"].isArray()){
+    if (d.isMember(TAGSKEY) && d[TAGSKEY].isArray()){
       std::set<std::string> newTags;
-      jsonForEach(d["tags"], tag){
+      jsonForEach(d[TAGSKEY], tag){
         std::string t = tag->asString();
         if (t.size()){newTags.insert(t);}
       }
@@ -770,8 +910,8 @@ void hostDetailsCalc::update(JSON::Value &d){
     upPrev = currUp;
     downPrev = currDown;
 
-    if (d.isMember("streams") && d["streams"].size()){
-      jsonForEach(d["streams"], it){
+    if (d.isMember(STREAMSKEY) && d[STREAMSKEY].size()){
+      jsonForEach(d[STREAMSKEY], it){
         uint64_t count = (*it)["curr"][0u].asInt() + (*it)["curr"][1u].asInt() + (*it)["curr"][2u].asInt();
         if (!count){
           if (streams.count(it.key())){streams.erase(it.key());}
@@ -801,7 +941,7 @@ void hostDetailsCalc::update(JSON::Value &d){
         std::set<std::string> eraseList;
         for (std::map<std::string, streamDetails>::iterator it = streams.begin();
              it != streams.end(); ++it){
-          if (!d["streams"].isMember(it->first)){eraseList.insert(it->first);}
+          if (!d[STREAMSKEY].isMember(it->first)){eraseList.insert(it->first);}
         }
         for (std::set<std::string>::iterator it = eraseList.begin(); it != eraseList.end(); ++it){
           streams.erase(*it);
@@ -811,18 +951,21 @@ void hostDetailsCalc::update(JSON::Value &d){
       streams.clear();
     }
     conf_streams.clear();
-    if (d.isMember("conf_streams") && d["conf_streams"].size()){
-      jsonForEach(d["conf_streams"], it){conf_streams.insert(it->asStringRef());}
+    if (d.isMember(CONFSTREAMSKEY) && d[CONFSTREAMSKEY].size()){
+      jsonForEach(d[CONFSTREAMSKEY], it){conf_streams.insert(it->asStringRef());}
     }
     outputs.clear();
-    if (d.isMember("outputs") && d["outputs"].size()){
-      jsonForEach(d["outputs"], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
+    if (d.isMember(OUTPUTSKEY) && d[OUTPUTSKEY].size()){
+      jsonForEach(d[OUTPUTSKEY], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
     addBandwidth *= 0.75;
     calc();//update preclaculated host vars
   }
   
-
+/**
+ * monitor server 
+ * \param hostEntryPointer a hostEntry with hostDetailsCalc on details field
+*/
 void handleServer(void *hostEntryPointer){
   hostEntry *entry = (hostEntry *)hostEntryPointer;
   JSON::Value bandwidth = 128 * 1024 * 1024u; // assume 1G connection
@@ -876,8 +1019,20 @@ void handleServer(void *hostEntryPointer){
   WARN_MSG("Monitoring thread for %s stopping", url.host.c_str());
   DL.getSocket().close();
   entry->state = STATE_REQCLEAN;
+  if(entry->state != STATE_ONLINE){//notify other load balancers server is unreachable
+    JSON::Value j;
+    j["removeHost"] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j);
+    }
+  }
 }
 
+/**
+ * setup new server for monitoring (with hostDetailsCalc class)
+ * \param N gives server name
+ * \param H is the host entry being setup
+*/
 void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
@@ -890,35 +1045,43 @@ void initHost(hostEntry &H, const std::string &N){
 }
 
 /**
- * Setup foreign host
+ * Setup foreign host (with hostDetails class)
+ * \param LB identifies the load balancer creating this foreign host
+ * \param N gives server name
  */
-void initForeignHost(hostEntry &H, const std::string &N, const std::set<std::string> &LB){
+void initForeignHost(const std::string &N, const std::string LB){
+  
   // Cancel if this host has no name or load balancer set
   if (!N.size()){return;}
-  H.state = STATE_ONLINE;
   std::set<LoadBalancer*> LBList;
-  //add LB to LBList if in mesh only
-  for(std::set<std::string>::iterator it = LB.begin(); it != LB.end(); ++it){
+  //add if load balancer in mesh
+  
     std::set<LoadBalancer*>::iterator i = loadBalancers.begin();
     while(i != loadBalancers.end()){
-      if((*i)->getName() == (*it)){//check if LB is  mesh
+      if((*i)->getName() == LB){//check if LB is  mesh
         LBList.insert(*i);
         break;
-      }else if((*i)->getName() > (*it)){//check if past LB in search
+      }else if((*i)->getName() > LB){//check if past LB in search
         break;
       }else {//go to next in mesh list
         i++;
       }
     }
-    
-  }
-  H.details = new hostDetails(LBList, H.name);
-  memset(H.name, 0, HOSTNAMELEN);
-  memcpy(H.name, N.data(), N.size());
-  H.thread = 0;
-  INFO_MSG("Created foreign server %s", H.name);
+  //check LB 
+  if(LBList.empty()){return;}
+  hostEntry* H = new hostEntry();
+  hosts.insert(H);
+  H->state = STATE_ONLINE;
+  H->details = new hostDetails(LBList, H->name);
+  memset(H->name, 0, HOSTNAMELEN);
+  memcpy(H->name, N.data(), N.size());
+  H->thread = 0;
+  INFO_MSG("Created foreign server %s", H->name);
 }
 
+/**
+ * remove monitored server or foreign server at \param H
+*/
 void cleanupHost(hostEntry &H){
   // Cancel if this host has no name set
   if (!H.name[0]){return;}
@@ -937,6 +1100,151 @@ void cleanupHost(hostEntry &H){
   H.state = STATE_OFF;
 }
 
+/**
+ * save config vars to config file
+ * \param RESEND allows for command to be sent to other load balacners
+*/
+void saveFile(bool RESEND = false){
+  //send command to other load balancers
+  if(RESEND){
+    JSON::Value j;
+    j[SAVEKEY] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+  }
+  tthread::lock_guard<tthread::mutex> guard(fileMutex);
+  std::ofstream file(fileloc.c_str());
+  
+
+  if(file.is_open()){
+    JSON::Value j;
+    j[CONFIGFALLBACK] = fallback;
+    j[CONFIGC] = weight_cpu;
+    j[CONFIGR] = weight_ram;
+    j[CONFIGBW] = weight_bw;
+    j[CONFIGWG] = weight_geo;
+    j[CONFIGWB] = weight_bonus;
+    j[CONFIGPASS] = passHash;
+    j[CONFIGSPASS] = passphrase;
+    j[CONFIGPORT] = cfg->getString("port");
+    j[CONFIGINTERFACE] = cfg->getString("interface");
+    j[CONFIGWHITELIST] = convertSetToJson(whitelist);
+    j[CONFIGBEARER] = convertSetToJson(bearerTokens);
+    j[CONFIGUSERS] = convertMapToJson(userAuth);
+    //serverlist 
+    std::set<std::string> servers;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if((*it)->thread != 0){
+        servers.insert((*it)->name);
+      }
+    }
+    j[CONFIGSERVERS] = convertSetToJson(servers);
+
+    file << j.asString().c_str();
+    file.flush();
+    file.close();
+    time(&prevSaveTime);
+    INFO_MSG("config saved");
+  }else {
+    INFO_MSG("save failed");
+  }
+}
+
+/**
+ * timer to check if enough time passed since last config change to save to the config file
+*/
+static void saveTimeCheck(void*){
+  if(prevConfigChange < prevSaveTime){
+    WARN_MSG("manual save1")
+    return;
+  }
+  time(&now);
+  double timeDiff = difftime(now,prevConfigChange);
+  while(timeDiff < 60*SAVETIMEINTERVAL){
+    //check for manual save
+    if(prevConfigChange < prevSaveTime){
+      return;
+    }
+    //sleep thread for 600 - timeDiff
+    sleep(60*SAVETIMEINTERVAL - timeDiff);
+    time(&now);
+    timeDiff = difftime(now,prevConfigChange);
+  }
+  saveFile();
+  saveTimer = 0;
+}
+
+/**
+ * load config vars from config file 
+ * \param RESEND allows for command to be sent sent to other load balancers
+*/
+void loadFile(bool RESEND = false){
+  //send command to other load balancers
+  if(RESEND){
+    JSON::Value j;
+    j[LOADKEY] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+  }
+
+  tthread::lock_guard<tthread::mutex> guard(fileMutex);
+  std::ifstream file(fileloc.c_str());
+  std::string data;
+  std::string line;
+  //read file
+  if(file.is_open()){
+    while(getline(file,line)){
+      data.append(line);
+    }
+    file.close();
+  }
+  
+  //change config vars
+  JSON::Value j = JSON::fromString(data);
+  fallback = j[CONFIGFALLBACK].asString();
+  weight_cpu = j[CONFIGC].asInt();
+  weight_ram = j[CONFIGR].asInt();
+  weight_bw = j[CONFIGBW].asInt();
+  weight_geo = j[CONFIGWG].asInt();
+  weight_bonus = j[CONFIGWB].asInt();
+  passHash = j[CONFIGPASS].asString();
+  passphrase = j[CONFIGSPASS].asStringRef();
+  cfg->addOption("port", j[CONFIGPORT].asString());
+  cfg->addOption("interface", j[CONFIGINTERFACE].asString());
+  bearerTokens = convertJsonToSet(j[CONFIGBEARER]);
+  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST]);
+  whitelist = *tmp;
+  userAuth = convertJsonToMap(j[CONFIGUSERS]);
+
+  //serverlist 
+  //remove monitored servers
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if((*it)->thread != 0){//check if monitoring
+      cleanupHost(*(*it));
+    }
+  }
+  //add new servers
+  for(int i = 0; i < j[CONFIGSERVERS].size(); i++){
+    hostEntry* e = new hostEntry();
+    initHost(*e,j[CONFIGSERVERS][i]);
+  }
+  //add command line servers
+  JSON::Value &nodes = cfg->getOption("server", true);
+  jsonForEach(nodes, it){
+    if (it->asStringRef().size() > 199){
+      FAIL_MSG("Host length too long for monitoring, skipped: %s", it->asStringRef().c_str());
+      continue;
+    }
+    hostEntry* newHost = new hostEntry();
+    initHost(*newHost, it->asStringRef());
+    hosts.insert(newHost);
+  }
+  INFO_MSG("loaded config");
+}
+
+
 /// Fills the given map with the given JSON string of tag adjustments
 void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & adjust){
   JSON::Value adj = JSON::fromString(adjust);
@@ -945,13 +1253,19 @@ void fillTagAdjust(std::map<std::string, int32_t> & tags, const std::string & ad
   }
 }
 
+/**
+ * generate random string using time and process id
+*/
 std::string generateSalt(){
   std::string alphbet("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
-  std::string out = "";
-  srand(time(0));
+  std::string out;
+  out.reserve(SALTSIZE);
   for(int i = 0; i < SALTSIZE; i++){
     out += alphbet[rand()%alphbet.size()];
   }
+  std::time_t t;
+  time(&t);
+  activeSalts.insert(std::pair<std::string, std::time_t>(out,t));
   return out;
 }
 
@@ -978,76 +1292,6 @@ int delimiterParser::nextInt() {
   return atoi(this->next().c_str());
 }
 
-
-/**
- * handle websockets only used for other load balancers 
- * \return loadbalancer corisponding to this socket
-*/
-LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
-  std::string frame(webSock->data, webSock->data.size());
-  if(!frame.substr(0, frame.find(":")).compare("auth")){
-    //send response to challenge
-    std::string auth = frame.substr(frame.find(":")+1);
-    std::string pass = Secure::sha256(passHash+auth);
-    webSock->sendFrame(pass);
-
-    //send own challenge
-    std::string salt = generateSalt();
-    webSock->sendFrame(salt);
-  }
-  if(!frame.substr(0, frame.find(":")).compare("salt")){
-    //check responce
-    std::string salt = frame.substr(frame.find(":")+1, frame.find(";")-frame.find(":")-1);
-    if(!Secure::sha256(passHash+salt).compare(frame.substr(frame.find(";")+1, frame.size()))){
-      //auth successful
-      webSock->sendFrame("OK");
-      LB = new LoadBalancer(webSock, name);
-      loadBalancers.insert(LB);
-      INFO_MSG("Load balancer added");
-    }else{
-      INFO_MSG("unautherized load balancer");
-      LB = 0;
-    }
-  }
-  if(!frame.compare("close")){
-    LB->Go_Down = true;
-    loadBalancers.erase(LB);
-    webSock->getSocket().close();
-  }
-  if(LB && !frame.substr(0, 1).compare("{")){
-    JSON::Value newVals = JSON::fromString(frame);
-    if(newVals.isMember("addloadbalancer")) {
-      new tthread::thread(api.addLB,(void*)&(newVals["addloadbalancer"]));
-    }else if(newVals.isMember("removeloadbalancer")) {
-      api.removeLB(newVals["removeloadbalancer"], newVals["resend"]);
-    }else if(newVals.isMember("removeHost")) {
-      api.removeHost(newVals["removeHost"]);
-    }else if(newVals.isMember("addserver")) {
-      JSON::Value ret;
-      api.addServer(ret, newVals["addserver"]);
-    }else if(newVals.isMember("updateHost")) {
-      api.updateHost(newVals["updateHost"]);
-    }else if(newVals.isMember("delServer")) {
-      api.delServer(newVals["delServer"]);
-    }else if(newVals.isMember("weights")) {
-      api.setWeights(newVals["weights"]);
-    }else if(newVals.isMember("addviewer")){
-      //find host
-      for(HOSTLOOP){
-        if(newVals["host"].asString().compare(hosts[i].details->host)){
-          //call add viewer function
-          std::string stream = newVals["addviewer"].asString();
-          hosts[i].details->addViewer(stream,false);
-        }
-      }
-    }else if(newVals.isMember("save")){
-      saveFile();
-    }else if(newVals.isMember("load")){
-      loadFile();
-    }
-  }
-  return LB;
-}
 
 /**
  * allow connection threads to be made to call API::handleRequests
@@ -1122,9 +1366,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           continue;
         }
       }
-      //whitelist ipv6
+      //whitelist ipv6 & ipv4
       else if(conn.getHost().size()){
-        WARN_MSG("%s",conn.getHost().c_str());
         bool found = false;
         std::set<IpPolicy*>::iterator it = whitelist.begin();
         while( it != whitelist.end()){
@@ -1152,10 +1395,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         conn.close();
         continue;
       }
-     
-      
-        
 
+     //API METHODS     
       if(!H.method.compare("PUT")){
         if(!api.compare("save")){
           saveFile(true);
@@ -1178,7 +1419,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         }
         //return load balancer list
         //add load balancer to mesh
-        else if(!api.compare("addloadbalancer")){
+        else if(!api.compare("loadbalancers")){
           std::string loadbalancer = path.next();
           new tthread::thread(addLB,(void*)&loadbalancer);
           H.Clean();
@@ -1199,7 +1440,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         // Add server to list
-        else if (!api.compare("addserver")){
+        else if (!api.compare("server")){
           JSON::Value ret;
           addServer(ret, path.next());
           H.Clean();
@@ -1220,11 +1461,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         else if(!api.compare("auth")){
           api = path.next();
           // add bearer token
-          else if (!api.compare("bearer")){
+          if (!api.compare("bearer")){
             bearerTokens.insert(path.next());
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
-            H.SetBody(ret.toString());
+            H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
@@ -1232,27 +1473,28 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           // add user acount
           else if (!api.compare("user")){
             std::string userName = path.next();
-            userAuth.insert(std::pair(userName,path.next()));
+            userAuth.insert(std::pair<std::string, std::string>(userName,path.next()));
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
-            H.SetBody(ret.toString());
+            H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
           // add whitelist policy
           else if (!api.compare("whitelist")){
-            bearerTokens.insert(path.next());
+            IpPolicy* tmp = new IpPolicy(H.body);
+            if(tmp != NULL) whitelist.insert(tmp);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
-            H.SetBody(ret.toString());
+            H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
         }
       }else if(!H.method.compare("GET")){
-        if(!api.compare("LBList")){
+        if(!api.compare("loadbalancers")){
           std::string out = getLoadBalancerList();
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
@@ -1262,7 +1504,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }        
         // Get server list
-        else if (!api.compare("lstserver")){
+        else if (!api.compare("servers")){
           JSON::Value ret = serverList();
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
@@ -1331,10 +1573,42 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
+        }else if(!api.compare("auth")){
+          api = path.next();
+          // add bearer token
+          if (!api.compare("bearer")){
+            JSON::Value j = convertSetToJson(bearerTokens);
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(j.asString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          // add user acount
+          else if (!api.compare("user")){
+            JSON::Value j = convertMapToJson(userAuth);
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(j.asString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+          // add whitelist policy
+          else if (!api.compare("whitelist")){
+            JSON::Value j = convertSetToJson(whitelist);
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody(j.asString());
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
         }
       }else if(!H.method.compare("DELETE")){
         //remove load balancer from mesh
-        if(!api.compare("loadbalancer")){
+        if(!api.compare("loadbalancers")){
           std::string loadbalancer = path.next();
           removeLB(loadbalancer, path.next());
           H.Clean();
@@ -1345,8 +1619,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         //remove foreign host
-        else if(!api.compare("removeHost")){
-          removeHost(path.next());
+        else if(!api.compare("host")){
+          removeHost(path.next(), conn.getHost());
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody("OK");
@@ -1356,24 +1630,36 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
                   
         }
         // Remove server from list
-        else if (!api.compare("delserver")){
-          JSON::Value ret = delServer(path.next());
+        else if (!api.compare("server")){
+          std::string s = path.next();
+          JSON::Value &nodes = cfg->getOption("server", true);
+          jsonForEach(nodes, it){
+            if(!s.compare((*it).asStringRef())){
+              JSON::Value ret = delServer(s);
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody(ret.toPrettyString());
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
-          H.SetBody(ret.toPrettyString());
+          H.SetBody("not able to remove this server");
           H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
+          H.SendResponse("200", "not possible to remove that server", conn);
           H.Clean();
         }
         //auth
         else if(!api.compare("auth")){
           api = path.next();
           // del bearer token
-          else if (!api.compare("bearer")){
+          if (!api.compare("bearer")){
             bearerTokens.erase(path.next());
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
-            H.SetBody(ret.toString());
+            H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
@@ -1383,17 +1669,32 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             userAuth.erase(path.next());
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
-            H.SetBody(ret.toString());
+            H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
-          
+          // del whitelist policy
+          else if (!api.compare("whitelist")){
+            std::set<IpPolicy*>::iterator it = whitelist.begin();
+            while(it != whitelist.end()){
+              if((*it)->equals(H.body)){
+                whitelist.erase(it);
+                it = whitelist.begin();
+              }else it++;
+            }
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("OK");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
         }
       }
     }
   }
-  //check if this is a load balancer conncetion
+  //check if this is a load balancer connection
   if(LB){
     if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
@@ -1411,6 +1712,86 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
   }
   conn.close();
   return 0;
+}
+
+/**
+ * handle websockets only used for other load balancers 
+ * \return loadbalancer corisponding to this socket
+*/
+LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB){
+  std::string frame(webSock->data, webSock->data.size());
+  if(!frame.substr(0, frame.find(":")).compare("auth")){
+    //send response to challenge
+    std::string auth = frame.substr(frame.find(":")+1);
+    std::string pass = Secure::sha256(passHash+auth);
+    webSock->sendFrame(pass);
+
+    //send own challenge
+    std::string salt = generateSalt();
+    webSock->sendFrame(salt);
+  }
+  if(!frame.substr(0, frame.find(":")).compare("salt")){
+    //check responce
+    std::string salt = frame.substr(frame.find(":")+1, frame.find(";")-frame.find(":")-1);
+    std::map<std::string, time_t>::iterator saltIndex = activeSalts.find(salt);
+
+    if(saltIndex == activeSalts.end()){
+      webSock->sendFrame("noAuth");
+      webSock->getSocket().close();
+      WARN_MSG("no salt")
+      return LB;
+    }
+
+    if(!Secure::sha256(passHash+salt).compare(frame.substr(frame.find(";")+1, frame.size()))){
+      //auth successful
+      webSock->sendFrame("OK");
+      LB = new LoadBalancer(webSock, name);
+      loadBalancers.insert(LB);
+      INFO_MSG("Load balancer added");
+    }else{
+      webSock->sendFrame("noAuth");
+      INFO_MSG("unautherized load balancer");
+      LB = 0;
+    }
+  }
+  //close bad auth
+  if(!frame.substr(0, frame.find(":")).compare("noAuth")){
+    webSock->getSocket().close();
+  }
+  //close authenticated load balancer
+  if(!frame.compare("close")){
+    LB->Go_Down = true;
+    loadBalancers.erase(LB);
+    webSock->getSocket().close();
+  }
+  if(LB && !frame.substr(0, 1).compare("{")){
+    JSON::Value newVals = JSON::fromString(frame);
+    if(newVals.isMember(ADDLOADBALANCER)) {
+      new tthread::thread(api.addLB,(void*)&(newVals[ADDLOADBALANCER]));
+    }else if(newVals.isMember(REMOVELOADBALANCER)) {
+      api.removeLB(newVals[REMOVELOADBALANCER], newVals[RESEND]);
+    }else if(newVals.isMember(REMOVEHOST)) {
+      api.removeHost(newVals[REMOVEHOST], webSock->getSocket().getHost());
+    }else if(newVals.isMember(UPDATEHOST)) {
+      api.updateHost(newVals[UPDATEHOST]);
+    }else if(newVals.isMember(WEIGHTS)) {
+      api.setWeights(newVals[WEIGHTS]);
+    }else if(newVals.isMember(ADDVIEWER)){
+      //find host
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        if(newVals["host"].asString().compare((*it)->details->host)){
+          //call add viewer function
+          std::string stream = newVals[ADDVIEWER].asString();
+          (*it)->details->addViewer(stream,false);
+        }
+      }
+    }else if(newVals.isMember(SAVEKEY)){
+      saveFile();
+    }else if(newVals.isMember(LOADKEY)){
+      loadFile();
+    }
+  }
+  return LB;
 }
 
 /**
@@ -1455,8 +1836,8 @@ JSON::Value API::setWeights(delimiterParser path){
 
     if(changed && (!newVals.size() || atoi(newVals.c_str()) == 1)){
       JSON::Value j;
-      j["weights"] = ret;
-      j["resend"] = false;
+      j[WEIGHTS] = ret;
+      j[RESEND] = false;
       for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         (*it)->send(j.asString());
       }
@@ -1473,27 +1854,26 @@ JSON::Value API::setWeights(delimiterParser path){
    * set weights for websockets
    */
 void API::setWeights(const JSON::Value newVals){
-    if (!newVals.isMember("cpu")){
-      weight_cpu = newVals["cpu"].asInt();
+    if (!newVals.isMember(CPUKEY)){
+      weight_cpu = newVals[CPUKEY].asInt();
     }
-    if (!newVals.isMember("ram")){
-      weight_ram = newVals["ram"].asInt();
+    if (!newVals.isMember(RAMKEY)){
+      weight_ram = newVals[RAMKEY].asInt();
 
     }
-    if (!newVals.isMember("bw")){
-      weight_bw = newVals["bw"].asInt();
+    if (!newVals.isMember(BWKEY)){
+      weight_bw = newVals[BWKEY].asInt();
     }
-    if (!newVals.isMember("geo")){
-      weight_geo = newVals["geo"].asInt();
+    if (!newVals.isMember(GEOKEY)){
+      weight_geo = newVals[GEOKEY].asInt();
     }
-    if (!newVals.isMember("bonus")){
-      weight_bonus = newVals["bonus"].asInt();
+    if (!newVals.isMember(BONUSKEY)){
+      weight_bonus = newVals[BONUSKEY].asInt();
     }
     //start save timer
     time(&prevConfigChange);
     if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
   }
-
 
 /**
    * remove server from ?
@@ -1502,11 +1882,11 @@ JSON::Value API::delServer(const std::string delserver){
     JSON::Value ret;
     tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
     ret = "Server not monitored - could not delete from monitored server list!";
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      if ((std::string)hosts[i].name == delserver){
-        cleanupHost(hosts[i]);
-        ret = stateLookup[hosts[i].state];
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      if ((std::string)(*it)->name == delserver){
+        cleanupHost(**it);
+        ret = stateLookup[(*it)->state];
       }
     }
     return ret;
@@ -1518,21 +1898,18 @@ JSON::Value API::delServer(const std::string delserver){
    */
 void API::updateHost(JSON::Value newVals){
   
-    if(newVals.isMember("hostName")){
-      std::string hostName = newVals["hostName"].asString();
-      int hostIndex = -1;
-      int i = 0;
-      while(i < hostsCounter && i != -1){
-        if(hostName == hosts[i].name){hostIndex = i;}
+    if(newVals.isMember(HOSTNAMEKEY)){
+      std::string hostName = newVals[HOSTNAMEKEY].asString();
+      std::set<hostEntry*>::iterator i = hosts.begin();
+      while(i != hosts.end()){
+        if(hostName == (*i)->name) break;
         i++;
       }
-      if(hostIndex == -1){
+      if(i == hosts.end()){
         INFO_MSG("create new foreign host")
-        initForeignHost(HOST(hostsCounter), hostName, convertJsonToSet(newVals["LB"]));
-        hostIndex = hostsCounter;
-        ++hostsCounter;
+        initForeignHost(hostName, newVals["LB"].asString());
       }
-      hosts[hostIndex].details->update(newVals["fillStateOut"], newVals["fillStreamsOut"], newVals["scoreSource"].asInt(), newVals["scoreRate"].asInt(), newVals["outputs"], newVals["conf_streams"], newVals["streams"], newVals["tags"], newVals["cpu"].asInt(), newVals["servLati"].asDouble(), newVals["servLongi"].asDouble(), newVals["binHost"].asString().c_str(), newVals["host"].asString());   
+      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals["binHost"].asString().c_str(), newVals["host"].asString());   
     }
   }
   
@@ -1546,9 +1923,9 @@ void API::addServer(JSON::Value ret, const std::string addserver){
     }
     bool stop = false;
     hostEntry *newEntry = 0;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      if ((std::string)hosts[i].name == addserver){
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      if ((std::string)(*it)->name == addserver){
         stop = true;
         break;
       }
@@ -1556,18 +1933,18 @@ void API::addServer(JSON::Value ret, const std::string addserver){
     if (stop){
       ret = "Server already monitored - add request ignored";
     }else{
-      for (HOSTLOOP){
-        if (hosts[i].state == STATE_OFF){
-          initHost(hosts[i], addserver);
-          newEntry = &(hosts[i]);
+      for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        if ((*it)->state == STATE_OFF){
+          initHost(**it, addserver);
+          newEntry = *it;
           stop = true;
           break;
         }
       }
       if (!stop){
-        initHost(HOST(hostsCounter), addserver);
-        newEntry = &HOST(hostsCounter);
-        ++hostsCounter; // up the hosts counter
+        newEntry = new hostEntry();
+        initHost(*newEntry, addserver);
+        hosts.insert(newEntry);
       }
       ret[addserver] = stateLookup[newEntry->state];
     }
@@ -1577,11 +1954,17 @@ void API::addServer(JSON::Value ret, const std::string addserver){
 /**
    * remove server from load balancer( both monitored and foreign )
    */
-void API::removeHost(const std::string removeHost){
-    for(HOSTLOOP){
-      if(removeHost == hosts[i].name){
-        if(!hosts[i].thread){
-          cleanupHost(hosts[i]);
+void API::removeHost(const std::string removeHost, std::string host){
+    for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
+      if(removeHost == (*i)->name){
+        for(std::set<LoadBalancer*>::iterator it = (*i)->details->LB.begin(); it != (*i)->details->LB.end(); it++){
+          if(!(*it)->getName().compare(host)){
+            (*i)->details->LB.erase(it);
+          }
+        }
+        //clean up host if foreign and not being supplied
+        if((*i)->details->LB.empty() && !(*i)->thread){
+            cleanupHost(**i);
         }
         break;
       }
@@ -1591,10 +1974,10 @@ void API::removeHost(const std::string removeHost){
 /**
    * remove load balancer from mesh
    */
-void API::removeLB(std::string removeLoadBalancer, const std::string resend){
+void API::removeLB(std::string removeLoadBalancer, const std::string RESEND){
   JSON::Value j;
-  j["removeloadbalancer"] = removeLoadBalancer;
-  j["resend"] = false;  
+  j[REMOVELOADBALANCER] = removeLoadBalancer;
+  j[RESEND] = false;  
 
   //remove load balancer
   std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
@@ -1610,7 +1993,7 @@ void API::removeLB(std::string removeLoadBalancer, const std::string resend){
     }
   }
   //notify the last load balancers
-  if(!resend.size() || atoi(resend.c_str()) ==1){
+  if(!RESEND.size() || atoi(RESEND.c_str()) ==1){
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
       (*it)->send(j.asString());
     }
@@ -1653,6 +2036,7 @@ void API::addLB(void* p){
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
       WARN_MSG("unautherised");
+      ws->sendFrame("noAuth");
       return;
     }
     //send response to challenge
@@ -1667,7 +2051,7 @@ void API::addLB(void* p){
     }
     std::string auth(ws->data, ws->data.size());
     std::string pass = Secure::sha256(passHash+auth);
-    ws->sendFrame("salt:"+salt+";"+pass);
+    ws->sendFrame("salt:"+auth+";"+pass);
 
     reset = 0;
     while(!ws->readFrame()){
@@ -1679,13 +2063,14 @@ void API::addLB(void* p){
       sleep(1);
     }
     std::string check(ws->data, ws->data.size());
-
     if(check == "OK"){
       INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer->c_str());
       LoadBalancer* LB = new LoadBalancer(ws, *addLoadBalancer);
       loadBalancers.insert(LB);
       //start monitoring
       handleRequests(conn,ws,LB);
+    }else if(check == "noAuth"){
+      addLB(addLoadBalancer);
     }
     return;
   }
@@ -1710,9 +2095,9 @@ std::string API::getLoadBalancerList(){
    */
 JSON::Value API::getViewers(){
     JSON::Value ret;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-        HOST(i).details->fillStreams(ret);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+        (*it)->details->fillStreams(ret);
     }
     return ret;
   }
@@ -1742,15 +2127,15 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
     if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
     uint64_t bestScore = 0;
     
-    for (HOSTLOOP){
-      HOSTCHECK;
-      if (Socket::matchIPv6Addr(std::string(HOST(i).details->binHost, 16), conn.getBinHost(), 0)){
-        INFO_MSG("Ignoring same-host entry %s", HOST(i).details->host.data());
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state != STATE_ONLINE){continue;}
+      if (Socket::matchIPv6Addr(std::string((*it)->details->binHost, 16), conn.getBinHost(), 0)){
+        INFO_MSG("Ignoring same-host entry %s", (*it)->details->host.data());
         continue;
       }
-      uint64_t score = HOST(i).details->source(source, tagAdjust, 0, lat, lon);
+      uint64_t score = (*it)->details->source(source, tagAdjust, 0, lat, lon);
       if (score > bestScore){
-        bestHost = "dtsc://" + HOST(i).details->host;
+        bestHost = "dtsc://" + (*it)->details->host;
         bestScore = score;
       }
     }
@@ -1775,9 +2160,9 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
    */
 uint64_t API::getStream(const std::string stream){
     uint64_t count = 0;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      count += HOST(i).details->getViewers(stream);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      count += (*it)->details->getViewers(stream);
     }
     return count;   
   }
@@ -1787,9 +2172,9 @@ uint64_t API::getStream(const std::string stream){
    */
 JSON::Value API::serverList(){
     JSON::Value ret;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      ret[(std::string)hosts[i].name] = stateLookup[hosts[i].state];
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      ret[(std::string)(*it)->name] = stateLookup[(*it)->state];
     }
     return ret;    
   }
@@ -1820,11 +2205,11 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
     if(H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
 
     uint64_t bestScore = 0;
-    for (HOSTLOOP){
-      HOSTCHECK;
-      uint64_t score = HOST(i).details->source("", tagAdjust, cpuUse * 10, lat, lon);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state != STATE_ONLINE){continue;}
+      uint64_t score = (*it)->details->source("", tagAdjust, cpuUse * 10, lat, lon);
       if (score > bestScore){
-        bestHost = HOST(i).details->host;
+        bestHost = (*it)->details->host;
         bestScore = score;
       }
     }
@@ -1871,11 +2256,11 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
       H.setCORSHeaders();
       hostEntry *bestHost = 0;
       uint64_t bestScore = 0;
-      for (HOSTLOOP){
-        HOSTCHECK;
-        uint64_t score = HOST(i).details->rate(stream, tagAdjust);
+      for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        if ((*it)->state != STATE_ONLINE){continue;}
+        uint64_t score = (*it)->details->rate(stream, tagAdjust);
         if (score > bestScore){
-          bestHost = &HOST(i);
+          bestHost = *it;
           bestScore = score;
         }
       }
@@ -1905,9 +2290,9 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
    */
 JSON::Value API::getStreamStats(const std::string streamStats){
     JSON::Value ret;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      HOST(i).details->fillStreamStats(streamStats, ret);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      (*it)->details->fillStreamStats(streamStats, ret);
     }
     return ret;
   }
@@ -1916,10 +2301,10 @@ JSON::Value API::getStreamStats(const std::string streamStats){
    * add viewer to stream on server
    */
 void API::addViewer(std::string stream, const std::string addViewer){
-    for(HOSTLOOP){
-      if(hosts[i].name == addViewer){
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if((*it)->name == addViewer){
         //next line can cause infinate loop if LB ip is 
-        hosts[i].details->addViewer(stream, true);
+        (*it)->details->addViewer(stream, true);
         break;
       }
     }
@@ -1930,12 +2315,12 @@ void API::addViewer(std::string stream, const std::string addViewer){
    */
 JSON::Value API::getHostState(const std::string host){
     JSON::Value ret;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      if (HOST(i).details->host == host){
-        ret = stateLookup[hosts[i].state];
-        HOSTCHECK;
-        HOST(i).details->fillState(ret);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      if ((*it)->details->host == host){
+        ret = stateLookup[(*it)->state];
+        if ((*it)->state != STATE_ONLINE){continue;}
+        (*it)->details->fillState(ret);
         break;
       }
     }
@@ -1947,18 +2332,18 @@ JSON::Value API::getHostState(const std::string host){
    */
 JSON::Value API::getAllHostStates(){
     JSON::Value ret;
-    for (HOSTLOOP){
-      if (hosts[i].state == STATE_OFF){continue;}
-      ret[HOST(i).details->host] = stateLookup[hosts[i].state];
-      HOSTCHECK;
-      HOST(i).details->fillState(ret[HOST(i).details->host]);
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      ret[(*it)->details->host] = stateLookup[(*it)->state];
+      if ((*it)->state != STATE_ONLINE){continue;}
+      (*it)->details->fillState(ret[(*it)->details->host]);
     }
     return ret;
   }
 
+
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();
-  memset(hosts, 0, sizeof(hostEntry)*MAXHOSTS); // zero-fill the hosts list
   Util::Config conf(argv[0]);
   cfg = &conf;
   JSON::Value opt;
@@ -2052,13 +2437,14 @@ int main(int argc, char **argv){
   conf.addOption("localmode", opt);
 
   opt.null();
-  opt["short"] = "l";
-  opt["long"] = "load";
+  opt["short"] = "c";
+  opt["long"] = "config";
   opt["help"] = "load config settings from file";
   conf.addOption("load", opt);
 
   conf.parseArgs(argc, argv);
 
+  std::string password = "default";//set default password for load balancer communication
   passphrase = conf.getOption("passphrase").asStringRef();
   password = conf.getString("auth");
   weight_ram = conf.getInteger("ram");
@@ -2067,10 +2453,7 @@ int main(int argc, char **argv){
   weight_geo = conf.getInteger("geo");
   weight_bonus = conf.getInteger("extra");
   fallback = conf.getString("fallback");
-  localMode = conf.getBool("localmode");
   bool load = conf.getBool("load");
-
-  INFO_MSG("Local control only mode is %s", localMode ? "on" : "off");
 
   if(load){
     loadFile();
@@ -2087,10 +2470,15 @@ int main(int argc, char **argv){
   saveTimer = 0;
   time(&prevSaveTime);
   //api login
+  
+  srand(time(0)+getpid());//setup random num generator
   userAuth.insert(std::pair<std::string, std::string>("admin","default"));
   bearerTokens.insert("test1233");
   //add localhost to whitelist
-  if(localMode) whitelist.insert(new IpPolicy("::1/128"));
+  if(conf.getBool("localmode")) {
+    whitelist.insert(new IpPolicy("::1/128"));
+    whitelist.insert(new IpPolicy("127.0.0.1"));
+  }
   
 
   std::map<std::string, tthread::thread *> threads;
@@ -2099,10 +2487,11 @@ int main(int argc, char **argv){
       FAIL_MSG("Host length too long for monitoring, skipped: %s", it->asStringRef().c_str());
       continue;
     }
-    initHost(HOST(hostsCounter), it->asStringRef());
-    ++hostsCounter; // up the hosts counter
+    hostEntry* newHost = new hostEntry();
+    initHost(*newHost, it->asStringRef());
+    hosts.insert(newHost);
   }
-  WARN_MSG("Load balancer activating. Balancing between %lu nodes.", hostsCounter);
+  WARN_MSG("Load balancer activating. Balancing between %d nodes.", nodes.size());
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");
@@ -2113,11 +2502,11 @@ int main(int argc, char **argv){
   saveFile();
 
   // Join all threads
-  for (HOSTLOOP){
-    if (!HOST(i).name[0]){continue;}
-    HOST(i).state = STATE_GODOWN;
+  for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if (!(*it)->name[0]){continue;}
+    (*it)->state = STATE_GODOWN;
   }
-  for (HOSTLOOP){cleanupHost(HOST(i));}
+  for (std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){cleanupHost(**i);}
   std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); 
   while(loadBalancers.size()){
     (*it)->send("close");

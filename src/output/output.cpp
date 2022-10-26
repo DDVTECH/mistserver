@@ -1954,6 +1954,52 @@ namespace Mist{
         return false;
       }
 
+      //No page open? Let's try to (re)open it...
+        if (!currentPage.count(nxt.tid) || !curPage.count(nxt.tid) || !curPage[nxt.tid].mapped){
+          loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
+          if (!curPage[nxt.tid].mapped || curPage[nxt.tid].mapped[0] != 'D'){
+            //Page load failure; logic copied from further down for now - probably turn into a function later
+            //In non-sync mode, shuffle the just-tried packet to the end of queue and retry
+            if (!buffer.getSyncMode()){
+              buffer.moveFirstToEnd();
+              continue;
+            }
+            // in sync mode, after ~25 seconds, give up and drop the track.
+            if (++emptyCount >= dataWaitTimeout){
+              dropTrack(nxt.tid, "NP: data wait timeout");
+              return false;
+            }
+            //every ~1 second, check if the stream is not offline
+            if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+              Util::logExitReason("Stream source shut down");
+              thisPacket.null();
+              return true;
+            }
+            //every ~16 seconds, reconnect to metadata
+            if (emptyCount % 1600 == 0){
+              INFO_MSG("Reconnecting to input; track %zu key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
+              reconnect();
+              if (!meta){
+                onFail("Could not connect to stream data", true);
+                thisPacket.null();
+                return true;
+              }
+              // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
+              if (!meta){
+                Util::logExitReason("Attempted reconnect to source failed");
+                onFail("Could not connect to stream data", true);
+                thisPacket.null();
+                return true;
+              }
+              return false;//no sleep after reconnect
+            }
+            
+            //Fine! We didn't want a packet, anyway. Let's try again later.
+            playbackSleep(10);
+            return false;
+          }
+        }
+
       // if we're going to read past the end of the data page, load the next page
       // this only happens for VoD
       if (nxt.offset >= curPage[nxt.tid].len ||

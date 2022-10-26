@@ -238,7 +238,7 @@ namespace Mist{
                 thisIdx = M.trackIDToIndex(trackId, getpid());
                 meta.setSourceTrack(thisIdx, sourceIndex);
                 if (M.getType(thisIdx) == "audio"){
-                  meta.validateTrack(thisIdx, 0);
+                  meta.validateTrack(thisIdx, TRACK_VALID_INT_PROCESS);
                 }
               }
             }

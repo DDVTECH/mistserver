@@ -49,7 +49,7 @@ std::string const UPDATEHOST = "updatehost";
 std::string const WEIGHTS = "weights";
 std::string const ADDVIEWER = "addviewer";
 
-//config file name
+//config file names
 std::string const CONFIGFALLBACK = "fallback";
 std::string const CONFIGC = "weight_cpu";
 std::string const CONFIGR = "weight_ram";
@@ -64,6 +64,14 @@ std::string const CONFIGWHITELIST = "whitelist";
 std::string const CONFIGBEARER = "bearer_tokens";
 std::string const CONFIGUSERS = "user_auth";
 std::string const CONFIGSERVERS = "server_list";
+
+//streamdetails names
+std::string const STREAMDETAILSTOTAL = "total";
+std::string const STREAMDETAILSINPUTS = "inputs";
+std::string const STREAMDETAILSBANDWIDTH = "bandwidth";
+std::string const STREAMDETAILSPREVTOTAL = "prevTotal";
+std::string const STREAMDETAILSBYTESUP = "bytesUp";
+std::string const STREAMDETAILSBYTESDOWN = "bytesDown";
 
 
 Util::Config *cfg = 0;
@@ -280,26 +288,27 @@ bool IpPolicy::equals(std::string ip) const{
 */
 JSON::Value streamDetails::stringify() const{
   JSON::Value out;
-  out["total"] = total;
-  out["inputs"] = inputs;
-  out["bandwidth"] = bandwidth;
-  out["prevTotal"] = prevTotal;
-  out["bytesUp"] = bytesUp;
-  out["bytesDown"] = bytesDown;
+  out[STREAMDETAILSTOTAL] = total;
+  out[STREAMDETAILSINPUTS] = inputs;
+  out[STREAMDETAILSBANDWIDTH] = bandwidth;
+  out[STREAMDETAILSPREVTOTAL] = prevTotal;
+  out[STREAMDETAILSBYTESUP] = bytesUp;
+  out[STREAMDETAILSBYTESDOWN = bytesDown;
   return out;
 }
+
 
 /**
  * \returns \param j as a streamDetails object
 */
 streamDetails* streamDetails::destringify(JSON::Value j){
     streamDetails* out = new streamDetails();
-    out->total = j["total"].asInt();
-    out->inputs = j["inputs"].asInt();
-    out->bandwidth = j["bandwidth"].asInt();
-    out->prevTotal = j["prevTotal"].asInt();
-    out->bytesUp = j["bytesUp"].asInt();
-    out->bytesDown = j["bytesDown"].asInt();
+    out->total = j[STREAMDETAILSTOTAL].asInt();
+    out->inputs = j[STREAMDETAILSINPUTS].asInt();
+    out->bandwidth = j[STREAMDETAILSBANDWIDTH].asInt();
+    out->prevTotal = j[STREAMDETAILSPREVTOTAL].asInt();
+    out->bytesUp = j[STREAMDETAILSBYTESUP].asInt();
+    out->bytesDown = j[STREAMDETAILSBYTESDOWN].asInt();
     return out;
   }
 
@@ -346,7 +355,7 @@ bool LoadBalancer::operator == (const std::string &other) const {return this->ge
  * send \param ret to the load balancer represented by this object
 */
 void LoadBalancer::send(std::string ret) const {
-    if(!Go_Down){
+    if(!Go_Down){//prevent sending when shuting down
       ws->sendFrame(ret);
     }
 }
@@ -365,13 +374,16 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
 
+std::string const OUTURLPRE = "pre";
+std::string const OUTURLPOST = "post";
+
 /**
  * turn outUrl into string
 */
 JSON::Value outUrl::stringify() const{
   JSON::Value j;
-  j["pre"] = pre;
-  j["post"] = post;
+  j[OUTURLPRE] = pre;
+  j[OUTURLPOST] = post;
   return j;
 }
 
@@ -1440,7 +1452,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         // Add server to list
-        else if (!api.compare("server")){
+        else if (!api.compare("servers")){
           JSON::Value ret;
           addServer(ret, path.next());
           H.Clean();
@@ -1630,7 +1642,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
                   
         }
         // Remove server from list
-        else if (!api.compare("server")){
+        else if (!api.compare("servers")){
           std::string s = path.next();
           JSON::Value &nodes = cfg->getOption("server", true);
           jsonForEach(nodes, it){

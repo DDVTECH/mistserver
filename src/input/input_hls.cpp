@@ -886,7 +886,7 @@ namespace Mist{
 
     // Write packet ID mappings
     JSON::Value thisMappingsR;
-    for (std::map<size_t, uint64_t>::iterator pidIt = pidMappingR.begin();
+    for (std::map<uint64_t, uint64_t>::iterator pidIt = pidMappingR.begin();
          pidIt != pidMappingR.end(); pidIt++){
       thisMappingsR[JSON::Value(pidIt->first).asString()] = pidIt->second;
     }

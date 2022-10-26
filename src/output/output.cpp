@@ -1752,7 +1752,7 @@ namespace Mist{
         JSON::Value & pData = pStat["push_status_update"]["status"];
         pData["mediatime"] = currentTime();
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-          pData["tracks"].append(it->first);
+          pData["tracks"].append((uint64_t)it->first);
         }
         pData["bytes"] = statComm.getUp();
         uint64_t pktCntNow = statComm.getPacketCount();

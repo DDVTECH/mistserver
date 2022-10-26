@@ -163,7 +163,7 @@ namespace Mist{
     inFile.readSome(aacData, bytesRead, frameSize - 6);
     if (bytesRead < frameSize - 6){
       WARN_MSG("Not enough bytes left in buffer.");
-      WARN_MSG("Wanted %li bytes but read %li bytes...", frameSize - 6, bytesRead);
+      WARN_MSG("Wanted %" PRIu64 " bytes but read %zu bytes...", frameSize - 6, bytesRead);
     }
     for (int i = 0; i < (frameSize - 6); i++){
       aacFrame[i+6] = aacData[i];
@@ -241,7 +241,7 @@ namespace Mist{
     inFile.readSome(aacData, bytesRead, 6);
     if (bytesRead < 6){
       WARN_MSG("Not enough bytes left in buffer to extract a new ADTS frame");   
-      WARN_MSG("Wanted %i bytes but read %li bytes...", 6, bytesRead);
+      WARN_MSG("Wanted 6 bytes but read %zu bytes...", bytesRead);
       WARN_MSG("Header contains bytes: %x %x %x %x %x %x", aacData[0]
       , aacData[1], aacData[2], aacData[3], aacData[4], aacData[5]);
       return;
@@ -252,7 +252,7 @@ namespace Mist{
       if (aacData[0] == 0x41 && aacData[1] == 0x50 && aacData[2] == 0x45 && 
       aacData[3] == 0x54 && aacData[4] == 0x41 && aacData[5] == 0x47){
         inFile.readAll(aacData, bytesRead);
-        INFO_MSG("Throwing out %li bytes of metadata...", bytesRead);
+        INFO_MSG("Throwing out %zu bytes of metadata...", bytesRead);
         return;
       }
       WARN_MSG("Invalid sync word at start of header");
@@ -270,7 +270,7 @@ namespace Mist{
     inFile.readSome(aacData, bytesRead, frameSize - 6);
     if (bytesRead < frameSize - 6){
       WARN_MSG("Not enough bytes left in buffer.");
-      WARN_MSG("Wanted %li bytes but read %li bytes...", frameSize - 6, bytesRead);
+      WARN_MSG("Wanted %" PRIu64 " bytes but read %zu bytes...", frameSize - 6, bytesRead);
       disregardAmount = frameSize - 6 - bytesRead;
     }
     for (int i = 0; i < (frameSize - 6); i++){
@@ -282,10 +282,10 @@ namespace Mist{
     if (!adtsPack){
       WARN_MSG("Could not parse ADTS package!");
       WARN_MSG("Current frame info:");
-      WARN_MSG("Current frame pos: %li", filePos);
-      WARN_MSG("Next frame pos: %li", nextFramePos);
-      WARN_MSG("Frame size expected: %li", frameSize);
-      WARN_MSG("Bytes read: %li", bytesRead);
+      WARN_MSG("Current frame pos: %zu", filePos);
+      WARN_MSG("Next frame pos: %zu", nextFramePos);
+      WARN_MSG("Frame size expected: %" PRIu64, frameSize);
+      WARN_MSG("Bytes read: %zu", bytesRead);
       WARN_MSG("ADTS getAACProfile: %li", adtsPack.getAACProfile());
       WARN_MSG("ADTS getFrequencyIndex: %li", adtsPack.getFrequencyIndex());
       WARN_MSG("ADTS getFrequency: %li", adtsPack.getFrequency());
@@ -326,8 +326,8 @@ namespace Mist{
     // We minus the filePos by one, since we init it 1 higher
     inFile.seek(keys.getBpos(keyIdx)-1);
     thisTime = keys.getTime(keyIdx);
-    DONTEVEN_MSG("inputAAC wants to seek to timestamp %li on track %li", seekTime, idx);
-    DONTEVEN_MSG("inputAAC seeked to timestamp %f with bytePos %li", thisTime, keys.getBpos(keyIdx)-1);
+    DONTEVEN_MSG("inputAAC wants to seek to timestamp %" PRIu64 " on track %zu", seekTime, idx);
+    DONTEVEN_MSG("inputAAC seeked to timestamp %" PRIu64 " with bytePos %zu", thisTime, keys.getBpos(keyIdx)-1);
   }
 }// namespace Mist
 

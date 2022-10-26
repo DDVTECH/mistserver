@@ -401,7 +401,7 @@ namespace Mist{
         if (longest_key > shrtest_key*2){
           JSON::Value prep;
           prep["cmd"] = "check_key_duration";
-          prep["id"] = thisPacket.getTrackId();
+          prep["id"] = (uint64_t)thisPacket.getTrackId();
           prep["duration"] = longest_key;
           srcConn.SendNow("DTCM");
           char sSize[4] ={0, 0, 0, 0};

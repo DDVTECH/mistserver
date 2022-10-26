@@ -26,6 +26,7 @@ namespace Util{
     virtual void dataCallback(const char *ptr, size_t size){
       INFO_MSG("default callback, size: %zu", size);
     }
+    virtual ~DataCallback(){};
   };
 
   extern Util::DataCallback defaultDataCallback;

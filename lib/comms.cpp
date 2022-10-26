@@ -407,7 +407,7 @@ namespace Comms{
       setConnector(protocol);
       setHost(ip);
       setStream(streamName);
-      VERYHIGH_MSG("Reloading connection. Claimed record %lu", index);
+      VERYHIGH_MSG("Reloading connection. Claimed record %" PRIu64, index);
     }
   }
 

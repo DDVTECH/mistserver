@@ -561,7 +561,7 @@ namespace Mist{
       }
       static JSON::Value thisPack;
       thisPack.null();
-      thisPack["trackid"] = curPart.trackID;
+      thisPack["trackid"] = (uint64_t)curPart.trackID;
       thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
       thisPack["data"] = std::string(readBuffer + (curPart.bpos-readPos) + 2, txtLen);
       thisPack["time"] = curPart.time;

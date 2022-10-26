@@ -644,10 +644,8 @@ namespace Mist{
     DTSC::Parts parts(M.parts(mainTrack));
     uint64_t seekPos = keys.getBpos(0);
     // Replay the parts of the previous keyframe, so the timestaps match up
-    uint64_t partCount = 0;
     for (size_t i = 0; i < keys.getEndValid(); i++){
       if (keys.getTime(i) > seekTime){break;}
-      partCount += keys.getParts(i);
       DONTEVEN_MSG("Seeking to %" PRIu64 ", found %" PRIu64 "...", seekTime, keys.getTime(i));
       seekPos = keys.getBpos(i);
     }

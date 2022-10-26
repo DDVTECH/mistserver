@@ -46,7 +46,7 @@ namespace Mist{
       thisPacket.getString("data", dPtr, dLen);
       jPack["data"] = JSON::fromString(dPtr, dLen);
       jPack["time"] = thisPacket.getTime();
-      jPack["track"] = thisIdx;
+      jPack["track"] = (uint64_t)thisIdx;
     }else{
       jPack = thisPacket.toJSON();
     }

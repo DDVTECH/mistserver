@@ -1403,7 +1403,7 @@ namespace Mist{
       r["type"] = "info";
       r["data"]["msg"] = "Sending header";
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        r["data"]["tracks"].append(it->first);
+        r["data"]["tracks"].append((uint64_t)it->first);
       }
       webSock->sendFrame(r.toString());
 
@@ -1620,7 +1620,7 @@ namespace Mist{
         continue;
       }
       r["data"]["codecs"].append(codec);
-      r["data"]["tracks"].append(it->first);
+      r["data"]["tracks"].append((uint64_t)it->first);
       ++it;
     }
     webSock->sendFrame(r.toString());
@@ -1731,7 +1731,7 @@ namespace Mist{
     }
     uint64_t jitter = 0;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      r["data"]["tracks"].append(it->first);
+      r["data"]["tracks"].append((uint64_t)it->first);
       if (jitter < M.getMinKeepAway(it->first)){jitter = M.getMinKeepAway(it->first);}
     }
     r["data"]["jitter"] = jitter;

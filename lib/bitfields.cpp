@@ -40,7 +40,6 @@ void Bit::setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits, 
   pointer += (offsetBits + dataBits) >> 3;
   // The offset is now guaranteed less than a whole byte.
   offsetBits = (offsetBits + dataBits) & 0x07;
-  unsigned long long retVal = 0;
   // Now we set the remaining bytes
   while (dataBits){
     // Calculate how many bits we're setting in this byte
@@ -49,7 +48,6 @@ void Bit::setMSB(char *pointer, unsigned int offsetBits, unsigned int dataBits, 
     // If that is too much, we use the remainder instead
     if (curBits > dataBits){curBits = dataBits;}
     // Set the current pointer position at the correct offset, increasing the pointer by one
-    retVal |= ((int)(*(pointer++)) << offsetBits) >> (8 - curBits);
     *pointer = (((*pointer) << offsetBits) >> offsetBits) | ((value & 0xFF) << (8 - offsetBits));
     --pointer;
     // Finally, shift the current value by the amount of bits we're adding

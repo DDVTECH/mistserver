@@ -60,7 +60,6 @@ namespace Mist{
 
     std::map<size_t, uint64_t> duration;
 
-    uint64_t currOffset;
     uint64_t lastBytePos = 0;
     uint64_t curBytePos = ftell(inFile);
     // parse fragments form here
@@ -70,7 +69,6 @@ namespace Mist{
 
     while (readMoofSkipMdat(tId, trunSamples) && !feof(inFile)){
       if (!duration.count(tId)){duration[tId] = 0;}
-      currOffset = 8;
       for (std::vector<MP4::trunSampleInformation>::iterator it = trunSamples.begin();
            it != trunSamples.end(); it++){
         bool first = (it == trunSamples.begin());
@@ -86,7 +84,6 @@ namespace Mist{
 
         meta.update(duration[tId] / 10000, offsetConv, tId, it->sampleSize, lastBytePos, first);
         duration[tId] += it->sampleDuration;
-        currOffset += it->sampleSize;
       }
       curBytePos = ftell(inFile);
     }

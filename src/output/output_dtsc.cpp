@@ -209,7 +209,7 @@ namespace Mist{
             if (kDur > longest_key){longest_key = kDur;}
           }
           if (dur > longest_key*1.2){
-            onFail("Key duration mismatch; disconnecting "+myConn.getHost()+" to recover ("+JSON::Value(longest_key).asString()+" -> "+JSON::Value(dur).asString()+")", true);
+            onFail("Key duration mismatch; disconnecting "+myConn.getHost()+" to recover ("+JSON::Value(longest_key).asString()+" -> "+JSON::Value((uint64_t)dur).asString()+")", true);
             return;
           }else{
             sendOk("Key duration matches upstream");

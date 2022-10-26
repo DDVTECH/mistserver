@@ -1626,6 +1626,7 @@ void Socket::UDPConnection::checkRecvBuf(){
     setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
     slen = sizeof(recvbuf);
     getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifdef __linux__
 #ifndef __CYGWIN__
     if (recvbuf < 1024*1024){
       recvbuf = 1024*1024;
@@ -1634,11 +1635,13 @@ void Socket::UDPConnection::checkRecvBuf(){
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
     }
 #endif
+#endif
     if (recvbuf < 200*1024){
       recvbuf = 200*1024;
       setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, sizeof(recvbuf));
       slen = sizeof(recvbuf);
       getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
+#ifdef __linux__
 #ifndef __CYGWIN__
       if (recvbuf < 200*1024){
         recvbuf = 200*1024;
@@ -1646,6 +1649,7 @@ void Socket::UDPConnection::checkRecvBuf(){
         slen = sizeof(recvbuf);
         getsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void*)&recvbuf, &slen);
       }
+#endif
 #endif
     }
     if (recvbuf < 200*1024){

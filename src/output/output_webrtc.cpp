@@ -552,7 +552,7 @@ namespace Mist{
       commandResult["begin"] = startTime();
       commandResult["end"] = endTime();
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
+        commandResult["tracks"].append((uint64_t)it->first);
       }
       webSock->sendFrame(commandResult.toString());
       return;
@@ -567,7 +567,7 @@ namespace Mist{
       commandResult["begin"] = startTime();
       commandResult["end"] = endTime();
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
+        commandResult["tracks"].append((uint64_t)it->first);
       }
       webSock->sendFrame(commandResult.toString());
       return;
@@ -710,7 +710,7 @@ namespace Mist{
       commandResult["begin"] = startTime();
       commandResult["end"] = endTime();
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append(it->first);
+        commandResult["tracks"].append((uint64_t)it->first);
       }
       webSock->sendFrame(commandResult.toString());
     }else if (isPushing()){

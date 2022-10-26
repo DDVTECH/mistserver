@@ -2836,8 +2836,8 @@ namespace DTSC{
 
       trackJSON["codec"] = getCodec(*it);
       trackJSON["type"] = type;
-      trackJSON["idx"] = *it;
-      trackJSON["trackid"] = getID(*it);
+      trackJSON["idx"] = (uint64_t)*it;
+      trackJSON["trackid"] = (uint64_t)getID(*it);
       trackJSON["init"] = getInit(*it);
       trackJSON["firstms"] = getFirstms(*it);
       trackJSON["lastms"] = getLastms(*it);
@@ -3288,7 +3288,7 @@ namespace DTSC{
         if (trackValid(srcTrk)){
           track["source"] = getTrackIdentifier(srcTrk);
         }else{
-          track["source"] = "Invalid track " + JSON::Value(srcTrk).asString();
+          track["source"] = "Invalid track " + JSON::Value((uint64_t)srcTrk).asString();
         }
       }else{
         if (jitter < minKeep){jitter = minKeep;}

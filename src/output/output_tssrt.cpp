@@ -131,7 +131,7 @@ namespace Mist{
     pp[param]["name"] = name;
     pp[param]["help"] = help;
     pp[param]["type"] = "int";
-    pp[param]["default"] = def;
+    pp[param]["default"] = (uint64_t)def;
   }
 
   static void addStrOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, const std::string & def = ""){

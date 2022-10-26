@@ -622,7 +622,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   // Abort if not available
   if (!inputs){
     FAIL_MSG("Capabilities not available, aborting! Is MistController running?");
-    return false;
+    return JSON::Value();
   }
 
   // check in curConf for <naam>-priority/source_match
@@ -863,7 +863,7 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 
   //Literal track ID, does not check against trackList
   size_t idx = JSON::Value(trackVal).asInt();
-  if (trackVal == JSON::Value(idx).asString()){
+  if (trackVal == JSON::Value((uint64_t)idx).asString()){
     if (!M.trackValid(idx)){
       WARN_MSG("Track %zu does not exist in stream, cannot select", idx);
       return result;

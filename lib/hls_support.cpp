@@ -114,7 +114,7 @@ namespace HLS{
 
       uint64_t lastFragmentDur = getLastFragDur(M, userSelect, trackData, hlsMsnNr, fragments, keys);
       std::ldiv_t res = std::ldiv(lastFragmentDur, partDurationMaxMs);
-      DEBUG_MSG(5, "req MSN %" PRIu64 " fin MSN %zu, req Part %" PRIu64 " fin Part %zu", hlsMsnNr,
+      DEBUG_MSG(5, "req MSN %" PRIu64 " fin MSN %zu, req Part %" PRIu64 " fin Part %ld", hlsMsnNr,
                 (fragments.getEndValid() - 2), hlsPartNr, res.quot);
 
       // BPR Time limit = 3x Target Duration (per HLS spec)
@@ -300,13 +300,7 @@ namespace HLS{
   /// Appends result with prependStr and timestamp calculated from current time in ms
   void addDateTimeTag(std::stringstream &result, const std::string &prependStr,
                       const uint64_t unixMs){
-    time_t uSecs = unixMs / 1000;
-    struct tm *ptm = gmtime(&uSecs);
-    char dt_iso_8601[25];
-    snprintf(dt_iso_8601, 25, "%.4d-%.2d-%.2dT%.2d:%.2d:%.2d.%.3dZ", ptm->tm_year + 1900,
-             ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,
-             (int)(unixMs % 1000));
-    result << prependStr << dt_iso_8601 << "\r\n";
+    result << prependStr << Util::getUTCStringMillis(unixMs) << "\r\n";
   }
 
   /// Add segment tag to LLHLS playlist

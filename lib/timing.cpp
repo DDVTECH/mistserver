@@ -11,8 +11,6 @@
 #if defined(__APPLE__) || defined(__MACH__)
 #include <mach/clock.h>
 #include <mach/mach.h>
-#define CLOCK_REALTIME CALENDAR_CLOCK
-#define CLOCK_MONOTONIC SYSTEM_CLOCK
 void clock_gettime(int ign, struct timespec *ts){
   clock_serv_t cclock;
   mach_timespec_t mts;

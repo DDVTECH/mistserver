@@ -99,7 +99,7 @@ namespace Mist{
     }
 
     reader.readAll(buffer, bytesRead);
-    HIGH_MSG("Downloaded SDP file (%lu B)", bytesRead);
+    HIGH_MSG("Downloaded SDP file (%zu B)", bytesRead);
 
     // Save old buffer in order to identify changes
     oldBuffer = strdup(buffer);
@@ -157,7 +157,7 @@ namespace Mist{
     // Re-read SDP file
     reader.readAll(buffer, bytesRead);
     // Re-init SPD state iff contents have changed
-    INFO_MSG("Downloaded SDP file (%lu B)", bytesRead);
+    INFO_MSG("Downloaded SDP file (%zu B)", bytesRead);
     if (bytesRead != 0){
       if (!compareStrings(oldBuffer, buffer)){
         INFO_MSG("SDP contents have changed. Reparsing SDP file");
@@ -302,7 +302,7 @@ namespace Mist{
     pkt.getString("data", pktData, pktDataLen);
     size_t idx = M.trackIDToIndex(pkt.getTrackId(), getpid());
 
-    HIGH_MSG("Buffering new pkt for track %zu->%zu at offset %zu and time %zu", pkt.getTrackId(), idx, packetOffset, pkt.getTime());
+    HIGH_MSG("Buffering new pkt for track %zu->%zu at offset %" PRId64 " and time %" PRIu64, pkt.getTrackId(), idx, packetOffset, pkt.getTime());
 
     if (idx == INVALID_TRACK_ID){
       INFO_MSG("Invalid index for track number %zu", pkt.getTrackId());

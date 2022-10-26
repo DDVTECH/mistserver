@@ -1355,7 +1355,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
         }else if (j->asStringRef() == "tracks"){
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
           if (M){
-            F = M.getValidTracks().size();
+            F = (uint64_t)M.getValidTracks().size();
           }
         }else if (j->asStringRef() == "status"){
           uint8_t ss = Util::getStreamStatus(it->first);

@@ -74,7 +74,7 @@ int main(int argc, char **argv){
   // Scoping to clear up metadata and track providers
   {
     char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, Util::streamName);
+    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, argv[1]);
     IPC::sharedPage streamPage(pageName, 0, false, false);
     if (streamPage.mapped){
       streamPage.master = true;
@@ -99,7 +99,7 @@ int main(int argc, char **argv){
                   for (uint64_t j = pages.getDeleted(); j < pages.getEndPos(); j++){
                     char thisPageName[NAME_BUFFER_SIZE];
                     snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA,
-                             Util::streamName, i, (uint32_t)pages.getInt("firstkey", j));
+                             argv[1], i, (uint32_t)pages.getInt("firstkey", j));
                     IPC::sharedPage p(thisPageName, 0);
                     p.master = true;
                   }

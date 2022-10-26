@@ -1273,7 +1273,7 @@ namespace RTP{
             WARN_MSG("Ignoring invalid PPS packet! (%" PRIu32 "b)", len-4);
             return;
           }
-          HIGH_MSG("Updated PPS with ID %li from RTP data", PPS.picParameterSetId);
+          HIGH_MSG("Updated PPS with ID %" PRIu64 " from RTP data", PPS.picParameterSetId);
           ppsData[PPS.picParameterSetId].assign(buffer + 4, len - 4);
         }
       }

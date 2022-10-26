@@ -773,7 +773,7 @@ namespace Mist{
         std::set<size_t> validTracks = M.getValidTracks();
         for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
           if (M.getType(*it) == "video"){
-            trackSources += "      <video src='" + streamName + "?track=" + JSON::Value(*it).asString() +
+            trackSources += "      <video src='" + streamName + "?track=" + JSON::Value((uint64_t)*it).asString() +
                             "' height='" + JSON::Value(M.getHeight(*it)).asString() +
                             "' system-bitrate='" + JSON::Value(M.getBps(*it)).asString() +
                             "' width='" + JSON::Value(M.getWidth(*it)).asString() + "' />\n";

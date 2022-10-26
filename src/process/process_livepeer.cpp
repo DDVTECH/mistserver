@@ -131,7 +131,7 @@ namespace Mist{
         if (pData["source_tracks"].size() != userSelect.size()){
           pData["source_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["source_tracks"].append(it->first);
+            pData["source_tracks"].append((uint64_t)it->first);
           }
         }
       }
@@ -193,7 +193,7 @@ namespace Mist{
         if (pData["sink_tracks"].size() != userSelect.size()){
           pData["sink_tracks"].null();
           for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            pData["sink_tracks"].append(it->first);
+            pData["sink_tracks"].append((uint64_t)it->first);
           }
         }
       }

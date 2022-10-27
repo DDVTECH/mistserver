@@ -247,7 +247,7 @@ namespace Mist{
     // first we get the necessary header parts
     size_t tNumber = 0;
     activityCounter = Util::bootSecs();
-    while (inFile && keepRunning()){
+    while ((readBuffer.size() >= 16 || inFile) && keepRunning()){
       //Read box header if needed
       while (readBuffer.size() < 16 && inFile && keepRunning()){inFile.readSome(16, *this);}
       //Failed? Abort.

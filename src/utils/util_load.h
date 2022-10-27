@@ -74,13 +74,15 @@ class LoadBalancer {
   tthread::recursive_mutex mutable *LoadMutex;
   HTTP::Websocket* ws;
   std::string name;
-  tthread::thread* t;
+  std::string ident;
+  //tthread::thread* t;
   
   public:
   bool mutable Go_Down;
-  LoadBalancer(HTTP::Websocket* ws, std::string name);
+  LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident);
   virtual ~LoadBalancer();
 
+  std::string getIdent() const;
   std::string getName() const;
   bool operator < (const LoadBalancer &other) const;
   bool operator > (const LoadBalancer &other) const;
@@ -129,12 +131,11 @@ class hostDetails{
   char* name;
 
   public:
-  std::set<LoadBalancer*> LB;
   char binHost[16];
   std::string host;
   double servLati, servLongi;
 
-  hostDetails(std::set<LoadBalancer*> LB, char* name);
+  hostDetails(char* name);
   virtual ~hostDetails();
 
   /**
@@ -269,7 +270,7 @@ public:
   /**
    * remove server from ?
    */
-  static JSON::Value delServer(const std::string delserver);
+  static JSON::Value delServer(const std::string delserver, bool resend);
 
   /**
    * receive server updates and adds new foreign hosts if needed
@@ -279,13 +280,8 @@ public:
   /**
    * add server to be monitored
    */
-  static void addServer(JSON::Value ret, const std::string addserver);
-   
-  /**
-   * remove server from load balancer( both monitored and foreign )
-   */
-  static void removeHost(const std::string removeHost, const std::string host);
-   
+  static void addServer(std::string& ret, const std::string addserver, bool resend);
+  
   /**
    * remove load balancer from mesh
    */

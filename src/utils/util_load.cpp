@@ -2618,8 +2618,6 @@ int main(int argc, char **argv){
   }
 
   
-
-  JSON::Value &nodes = conf.getOption("server", true);
   conf.activate();
 
   api = API();
@@ -2648,17 +2646,9 @@ int main(int argc, char **argv){
   }
 
   std::map<std::string, tthread::thread *> threads;
-  jsonForEach(nodes, it){
-    if (it->asStringRef().size() > 199){
-      FAIL_MSG("Host length too long for monitoring, skipped: %s", it->asStringRef().c_str());
-      continue;
-    }
-    hostEntry* newHost = new hostEntry();
-    initNewHost(*newHost, it->asStringRef());
-    hosts.insert(newHost);
-  }
+  
   checkServerMonitors();
-  WARN_MSG("Load balancer activating. Balancing between %d nodes.", nodes.size());
+  
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");

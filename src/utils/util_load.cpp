@@ -40,7 +40,7 @@ std::string const BONUSKEY = "bonus";
 std::string const SAVEKEY = "save";
 std::string const LOADKEY = "load";
 std::string const IDENTIFIERKEY = "LB";
-std::string const LOADBALANCERKEY = "loadbalancers";
+
 
 //const api names set multiple times
 std::string const ADDLOADBALANCER = "addloadbalancer";
@@ -69,6 +69,7 @@ std::string const CONFIGWHITELIST = "whitelist";
 std::string const CONFIGBEARER = "bearer_tokens";
 std::string const CONFIGUSERS = "user_auth";
 std::string const CONFIGSERVERS = "server_list";
+std::string const CONFIGLOADBALANCER = "loadbalancers";
 
 //streamdetails names
 std::string const STREAMDETAILSTOTAL = "total";
@@ -411,31 +412,24 @@ outUrl outUrl::destringify(JSON::Value j){
 /**
  * convert ipPolicy set \param s to json
 */
-std::string convertSetToJson(std::set<IpPolicy*> s){
-  std::string out = "[";  
+JSON::Value convertSetToJson(std::set<IpPolicy*> s){
+  JSON::Value out;  
   for(std::set<IpPolicy*>::iterator it = s.begin(); it != s.end(); ++it){
-      if(it != s.begin()){
-        out += ", ";
-      }
-      out += (*it)->andp;
+      out.append((*it)->andp);
   }
-  out += "]";
   return out;
 }
 
 /**
  * convert set \param s to json
 */
-std::string convertSetToJson(std::set<std::string> s){
-  std::string out = "[";  
+JSON::Value convertSetToJson(std::set<std::string> s){
+  JSON::Value tmp;
+
   for(std::set<std::string>::iterator it = s.begin(); it != s.end(); ++it){
-      if(it != s.begin()){
-        out += ", ";
-      }
-      out += *it;
+      tmp.append(*it);
   }
-  out += "]";
-  return out;
+  return tmp;
 }
 
 /**
@@ -466,9 +460,9 @@ JSON::Value convertMapToJson(std::map<std::string, std::string> s){
 */
 std::set<std::string> convertJsonToSet(JSON::Value j){
   std::set<std::string> s;
-  jsonForEach(j,i){
-    s.insert(i->asString());
-  }
+  jsonForEach(j, it){
+    s.insert(it->asString());
+  } 
   return s;
 }
 
@@ -478,7 +472,7 @@ std::set<std::string> convertJsonToSet(JSON::Value j){
 std::set<IpPolicy*>* convertJsonToIpPolicylist(JSON::Value j){
   std::set<IpPolicy*>* s = new std::set<IpPolicy*>();
   jsonForEach(j,i){
-    s->insert(new IpPolicy(j));
+    s->insert(new IpPolicy((*i).asString()));
   }
   return s;
 }
@@ -488,8 +482,8 @@ std::set<IpPolicy*>* convertJsonToIpPolicylist(JSON::Value j){
 */
 std::map<std::string, std::string> convertJsonToMap(JSON::Value j){
   std::map<std::string, std::string> m;
-  for(int i = 0; i < j.size(); i++){
-    m.insert(std::pair<std::string, std::string>(j[i], j[i].asString()));
+  jsonForEach(j,i){
+    m.insert(std::pair<std::string, std::string>(i.key(),(*i).asString()));
   }
   return m;
 }
@@ -1265,8 +1259,6 @@ void saveFile(bool RESEND = false){
     j[CONFIGWB] = weight_bonus;
     j[CONFIGPASS] = passHash;
     j[CONFIGSPASS] = passphrase;
-    j[CONFIGPORT] = cfg->getString("port");
-    j[CONFIGINTERFACE] = cfg->getString("interface");
     j[CONFIGWHITELIST] = convertSetToJson(whitelist);
     j[CONFIGBEARER] = convertSetToJson(bearerTokens);
     j[CONFIGUSERS] = convertMapToJson(userAuth);
@@ -1280,10 +1272,11 @@ void saveFile(bool RESEND = false){
     j[CONFIGSERVERS] = convertSetToJson(servers);
     //loadbalancer list
     std::set<std::string> lb;
+    lb.insert(myName);
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
       lb.insert((*it)->getName());
     }
-    j[LOADBALANCERKEY] = convertSetToJson(lb);
+    j[CONFIGLOADBALANCER] = convertSetToJson(lb);
 
 
     file << j.asString().c_str();
@@ -1333,7 +1326,7 @@ void loadFile(bool RESEND = false){
       (*it)->send(j.asString());
     }
   }
-
+  
   tthread::lock_guard<tthread::mutex> guard(fileMutex);
   std::ifstream file(fileloc.c_str());
   std::string data;
@@ -1343,8 +1336,8 @@ void loadFile(bool RESEND = false){
     while(getline(file,line)){
       data.append(line);
     }
-    file.close();
-  }
+    
+  
   
   //change config vars
   JSON::Value j = JSON::fromString(data);
@@ -1356,27 +1349,41 @@ void loadFile(bool RESEND = false){
   weight_bonus = j[CONFIGWB].asInt();
   passHash = j[CONFIGPASS].asString();
   passphrase = j[CONFIGSPASS].asStringRef();
-  cfg->addOption("port", j[CONFIGPORT].asString());
-  cfg->addOption("interface", j[CONFIGINTERFACE].asString());
-  bearerTokens = convertJsonToSet(j[CONFIGBEARER]);
-  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST]);
+  bearerTokens = convertJsonToSet(j[CONFIGBEARER]);//TODO
+  //load whitelist
+  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST].asString());//TODO
   whitelist = *tmp;
-  userAuth = convertJsonToMap(j[CONFIGUSERS]);
+  userAuth = convertJsonToMap(j[CONFIGUSERS]);//TODO
 
   //serverlist 
   //remove monitored servers
-  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    if((*it)->thread != 0){//check if monitoring
-      cleanupHost(*(*it));
-    }
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){//TODO
+    api.delServer((*it)->name, true);
   }
   //add new servers
   for(int i = 0; i < j[CONFIGSERVERS].size(); i++){
-    hostEntry* e = new hostEntry();
-    initNewHost(*e,j[CONFIGSERVERS][i]);
+    std::string ret;
+    api.addServer(ret,j[CONFIGSERVERS][i], true);
   }
+  WARN_MSG("servers added")
+  //remove load balancers
+  std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); //TODO
+  while(loadBalancers.size()){
+    (*it)->send("close");
+    (*it)->Go_Down = true;
+    loadBalancers.erase(it);
+    it = loadBalancers.begin(); 
+  }
+  //add new load balancers
+  jsonForEach(j[CONFIGLOADBALANCER],i){
+    if(!(*i).asString().compare(myName)) continue;
+    new tthread::thread(api.addLB,(void*)&((*i).asStringRef()));
+  }
+
+  file.close();
   INFO_MSG("loaded config");
   checkServerMonitors();
+  }else WARN_MSG("cant load")
 }
 
 
@@ -1554,7 +1561,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           // add user acount
           else if (!api.compare("user")){
             std::string userName = path.next();
-            userAuth.insert(std::pair<std::string, std::string>(userName,path.next()));
+            userAuth[userName] = path.next();
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
@@ -2565,7 +2572,6 @@ int main(int argc, char **argv){
   opt["short"] = "A";
   opt["long"] = "auth";
   opt["help"] = "load balancer authentication key";
-  opt["value"][0u] = "default";
   conf.addOption("auth", opt);
 
   opt["arg"] = "integer";
@@ -2591,7 +2597,6 @@ int main(int argc, char **argv){
   opt["short"] = "H";
   opt["long"] = "host";
   opt["help"] = "Host name and port where this load balancer can be reached";
-  opt["value"][0u] = "default";
   conf.addOption("myName", opt);
 
 
@@ -2612,8 +2617,7 @@ int main(int argc, char **argv){
   myName = conf.getString("myName");
 
   if(myName.find(":") == -1){
-    FAIL_MSG("invalid hostname. It needs a port");
-    return 0;
+    myName.append(":"+conf.getBool("port"));
   }
 
   

@@ -1199,24 +1199,25 @@ void checkServerMonitors(){
     std::set<hostEntry*>::iterator it = hosts.begin();
     while(it != hosts.end()){
       std::set<std::string> idents = hostNeedsMonitoring(*(*it));
-      int changed = 0;
+      bool changed = false;
       for(std::set<std::string>::iterator i = idents.begin(); i != idents.end(); i++){
         if(!(*i).compare(identifier) && (*it)->thread == 0){//check monitored
           WARN_MSG("true")
           std::string name = ((*it)->name);
           cleanupHost(**it);
+          delete *it;
           hostEntry* e = new hostEntry();
           initHost(*e, name);
           hosts.insert(e);
 
           //reset itterator
           it = hosts.begin();
-          changed = 1;
+          changed = false;
           break;
         }
         else if((*i).compare(identifier) && (*it)->thread == 0 && (*it)->details != 0){//check not monitored
           continue;
-        }else{
+        }else if(i == idents.end()){
           //delete old host
           std::string name ((*it)->name);
           
@@ -1233,8 +1234,6 @@ void checkServerMonitors(){
       }
       if(!changed){
         it++;
-      }else if(changed == 2){
-
       }
     }
 }
@@ -2648,7 +2647,7 @@ int main(int argc, char **argv){
   std::map<std::string, tthread::thread *> threads;
   
   checkServerMonitors();
-  
+
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");

@@ -123,6 +123,25 @@ std::time_t prevConfigChange;
 tthread::thread* saveTimer;
 
 
+int stoi(std::string s, int base = 10){
+  Util::stringToLower(s);
+  int ret = 0;
+  for(int i = 0; i < s.size(); i++){
+    ret = ret * i * base;
+    int ascii  = int(s[i]);
+    if(ascii<58 && ascii>= 48){
+      ascii = ascii-48;
+    }else if(ascii >= 97 && ascii < 123){
+      ascii = ascii - 87;
+    }else throw std::invalid_argument("");
+    if(ascii > base){
+      throw std::out_of_range("");
+    }
+    ret += ascii;
+  }
+  return ret;
+}
+
 /**
  * constructor of ip policy (ipv4 & ipv6)
 */
@@ -132,24 +151,77 @@ IpPolicy::IpPolicy(std::string policy){
   while(policy.find(" ") != -1){
     policy.erase(policy.find(" "));
   }
-  while(policy.find(".") != -1){//convert ipv4 to ipv6 format for handleing
-    policy.replace(policy.find("."),1,":");
-  }
+
+  
+  bool invalid = false;
   //create policy
   delimiterParser o(policy, "+");
   std::string p = o.next();
-  bool invalid = false;
-  int mask = atoi(p.substr(p.find('/')+1,p.size()).c_str());
-  if(mask > 0 && mask <= 128) {//check if poilcy invalid if so skip policy
-    andp = p;
-  }else {
-    invalid = true;
+
+  //identify ipv6 state 1, ipv4 state 2, or dns state 3
+  if(p.find(":") != std::string::npos) state = 1;
+  else if(p.find("/") == std::string::npos) state = 3;
+  else {
+    int count = 0;
+    for(int i = 0; i < p.size(); i++){
+      if(p.at(i) == '.') count++;
+    }
+    if(count != 3){
+      invalid = true;
+    }else{
+      state = 2;
+    }
+  }
+
+  //check validity
+  if(state == 1 || state == 2){
+    try{
+      int mask = stoi(p.substr(p.find('/')+1,p.size()).c_str());
+  
+      int base;
+      int max;
+      delimiterParser ip;
+      if(state == 1){
+        ip = delimiterParser(p.substr(0,p.find('/')),":");
+        base = 16;
+        max = 0xFFFF;
+      }else if(state == 2){
+        ip = delimiterParser(p,".");
+        base = 10;
+        max = 255;
+      }
+      int num;
+      for(int i = 0; i < 4; i++){
+        num = ip.nextInt(base);
+        if(num < 0 || num > max){
+          invalid = true;
+          break;
+        }
+      }
+  
+      if(mask > 0 && mask <= 128 && state == 1) {//check if mask invalid if so skip policy
+        andp = p;
+      }else if(mask > 0 && mask <= 24 && state == 2){
+        andp = p;
+      }else if(state == 3){
+        andp = p;
+      }else {
+        invalid = true;
+      }
+    }catch(std::invalid_argument &e){invalid = true;}
+    catch(std::out_of_range &e){invalid = true;}
+  }else if(state == 3){
+    char illeals[17] = ",~:!@#$%^&(){}'\"";
+    for(int i = 0; i < 17; i++){
+      if(p.find(illeals[i]) != std::string::npos) invalid = true;
+    }
   }
   p = o.next();
   while(p.size()){
     whitelist.insert(new IpPolicy(p));
   }
   if(invalid){delete this;}
+  else whitelist.insert(this);
 }
 
 /**
@@ -168,19 +240,35 @@ std::string IpPolicy::getNextFrame(delimiterParser pol) const{
 */
 bool IpPolicy::match(std::string ip) const{
   Util::stringToLower(ip);
+  if(state == 3){
+    if(!andp.compare(ip)) return true;
+    //TODO reslove dns name
+    return false;
+  }
+  
   //get mask of policy as int
-  int mask = atoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
+  int mask = stoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
 
-  delimiterParser pol(andp, ":");
-  delimiterParser test(ip, ":");
+  delimiterParser pol;
+  delimiterParser test;
+  int framesize;
+  if(state == 1){//ipv6
+    pol = delimiterParser(andp, ":");
+    test = delimiterParser(ip, ":");
+    framesize = 16;
+  }else{//ipv4
+    pol = delimiterParser(andp, ".");
+    test = delimiterParser(ip, ".");
+    framesize = 8;
+  }
 
   //check if set of 4 numbers match
-  for(int i = 0; i == mask/16; i++){    
+  for(int i = 0; i == mask/framesize; i++){    
     if(getNextFrame(pol).compare(getNextFrame(test))) return false;
   }
 
   //check if matched policy
-  int bits = mask % 16;
+  int bits = mask % framesize;
   if(bits > 0){
     std::string polLine = getNextFrame(pol);
     std::string testLine = getNextFrame(test);
@@ -192,10 +280,10 @@ bool IpPolicy::match(std::string ip) const{
     //check bits of single number
     if(bits%4 > 0){
       int polVal = polLine.at(divbits);
-      if (polVal >60) polVal -= 51;
+      if (polVal > 60) polVal -= 51;
       if (polVal >= 30 && polVal < 40) polVal -= 30;
       int testVal = testLine.at(divbits);
-      if (testVal >60) testVal -= 51;
+      if (testVal > 60) testVal -= 51;
       if (testVal >= 30 && testVal < 40) testVal -= 30;
       //calc masked values of address
       //first bit
@@ -222,31 +310,40 @@ bool IpPolicy::match(std::string ip) const{
 */
 bool IpPolicy::equals(std::string ip) const{
   Util::stringToLower(ip);
-  //remove <space>
-  while(ip.find(" ") != -1){
-    ip.erase(ip.find(" "));
+
+  if(state == 3){
+    return !andp.compare(ip);
   }
-  while(ip.find(".") != -1){//convert ipv4 to ipv6 format for handleing
-    ip.replace(ip.find("."),1,":");
-  }
-  
+  try{
 
   delimiterParser o(ip, "+");
   std::string p = o.next();
 
-  int maskpol = atoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
+  int maskpol = stoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
   while(p.compare("")){
     //get mask of policy as int
     
-    int maskline = atoi(p.substr(p.find('/')+1,p.size()).c_str());
+    int maskline = stoi(p.substr(p.find('/')+1,p.size()).c_str());
     if(maskpol != maskline){continue;}
 
-    delimiterParser pol(andp, ":");
-    delimiterParser test(p, ":");
+    delimiterParser pol;
+    delimiterParser test;
+    int framesize;
+    if(state == 1){//ipv6
+      pol = delimiterParser(andp, ":");
+      test = delimiterParser(ip, ":");
+      framesize = 16;
+    }else{//ipv4
+      pol = delimiterParser(andp, ".");
+      test = delimiterParser(ip, ".");
+      framesize = 8;
+    }
+
+  
 
     bool match = true;
     //check if set of 4 numbers match
-    for(int i = 0; i == maskpol/16; i++){    
+    for(int i = 0; i == maskpol/framesize; i++){    
       if(getNextFrame(pol).compare(getNextFrame(test))) {
         match = false;
         break;
@@ -255,7 +352,7 @@ bool IpPolicy::equals(std::string ip) const{
     if (!match) continue; 
 
     //check if matched policy
-    int bits = maskpol % 16;
+    int bits = maskpol % framesize;
     if(bits > 0){
       std::string polLine = getNextFrame(pol);
       std::string testLine = getNextFrame(test);
@@ -295,6 +392,8 @@ bool IpPolicy::equals(std::string ip) const{
     }
     p = o.next();
   }
+  }catch(std::out_of_range &e){return false;}
+  catch(std::invalid_argument &e){return false;}
   return false;
 }
 
@@ -1159,8 +1258,8 @@ std::string delimiterParser::next() {
 /**
  * \return s until first \param delimiter or end of string as an Int
 */
-int delimiterParser::nextInt() {
-  return atoi(this->next().c_str());
+int delimiterParser::nextInt(int base = 10) {
+  return stoi(this->next().c_str(), base);
 }
 
 
@@ -1927,30 +2026,29 @@ JSON::Value API::setWeights(delimiterParser path){
     JSON::Value ret;
     std::string newVals = path.next();
     bool changed = false;
-    if (!newVals.compare("cpu")){
-      weight_cpu = path.nextInt();
+    while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
+      try{
+        int num = path.nextInt();
+        changed = true;
+        if (!newVals.compare("cpu")){
+          weight_cpu = num;
+        }
+        else if (!newVals.compare("ram")){
+          weight_ram = num;
+        }
+        else if (!newVals.compare("bw")){
+          weight_bw = num;
+        }
+        else if (!newVals.compare("geo")){
+          weight_geo = num;
+        }
+        else if (!newVals.compare("bonus")){
+          weight_bonus = num;
+        }
+      }catch(std::invalid_argument &e){
+        INFO_MSG("invalid INPUT");
+      }
       newVals = path.next();
-      changed = true;
-    }
-    if (!newVals.compare("ram")){
-      weight_ram = path.nextInt();
-      newVals = path.next();
-      changed = true;
-    }
-    if (!newVals.compare("bw")){
-      weight_bw = path.nextInt();
-      newVals = path.next();
-      changed = true;
-    }
-    if (!newVals.compare("geo")){
-      weight_geo = path.nextInt();
-      newVals = path.next();
-      changed = true;
-    }
-    if (!newVals.compare("bonus")){
-      weight_bonus = path.nextInt();
-      newVals = path.next();
-      changed = true;
     }
 
     //create json for sending

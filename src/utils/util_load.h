@@ -29,9 +29,10 @@ class delimiterParser{
   std::string delimiter;
 
   public:
+  delimiterParser(){};
   delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
   std::string next();
-  int nextInt();
+  int nextInt(int base);
 };
 
 /**
@@ -40,6 +41,7 @@ class delimiterParser{
 class IpPolicy{
   private:
   std::string getNextFrame(delimiterParser pol) const;
+  int state;//ipv6: 1 ipv4: 2 DNS: 3
 
   public:
   std::string andp;

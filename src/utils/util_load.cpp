@@ -1272,9 +1272,11 @@ void saveFile(bool RESEND = false){
     j[CONFIGSERVERS] = convertSetToJson(servers);
     //loadbalancer list
     std::set<std::string> lb;
+    WARN_MSG("/%s/",myName.c_str())
     lb.insert(myName);
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
       lb.insert((*it)->getName());
+      WARN_MSG("/%s/",(*it)->getName().c_str())
     }
     j[CONFIGLOADBALANCER] = convertSetToJson(lb);
 
@@ -1349,11 +1351,11 @@ void loadFile(bool RESEND = false){
   weight_bonus = j[CONFIGWB].asInt();
   passHash = j[CONFIGPASS].asString();
   passphrase = j[CONFIGSPASS].asStringRef();
-  bearerTokens = convertJsonToSet(j[CONFIGBEARER]);//TODO
+  bearerTokens = convertJsonToSet(j[CONFIGBEARER]);
   //load whitelist
-  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST].asString());//TODO
+  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST]);
   whitelist = *tmp;
-  userAuth = convertJsonToMap(j[CONFIGUSERS]);//TODO
+  userAuth = convertJsonToMap(j[CONFIGUSERS]);
 
   //serverlist 
   //remove monitored servers
@@ -1854,7 +1856,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
     if(!Secure::sha256(passHash+salt).compare(frame.substr(frame.find(";")+1, frame.find(" ")-frame.find(";")-1))){
       //auth successful
       webSock->sendFrame("OK");
-      LB = new LoadBalancer(webSock, frame.substr(frame.find(" "), frame.size()), frame.substr(frame.find(" "), frame.size()));
+      LB = new LoadBalancer(webSock, frame.substr(frame.find(" ")+1, frame.size()), frame.substr(frame.find(" "), frame.size()));
       loadBalancers.insert(LB);
       INFO_MSG("Load balancer added");
       checkServerMonitors();
@@ -2214,9 +2216,6 @@ void API::addLB(void* p){
       LoadBalancer* LB = new LoadBalancer(ws, *addLoadBalancer, ident);
       loadBalancers.insert(LB);
       identifiers.insert(ident);
-      checkServerMonitors();
-      //start monitoring
-      handleRequests(conn,ws,LB); 
       
       JSON::Value j;
       j[RESEND] = false;
@@ -2226,6 +2225,9 @@ void API::addLB(void* p){
       }
       
       checkServerMonitors();
+
+      //start monitoring
+      handleRequests(conn,ws,LB); 
     }else if(check == "noAuth"){
       addLB(addLoadBalancer);
     }
@@ -2616,8 +2618,9 @@ int main(int argc, char **argv){
   bool load = conf.getBool("load");
   myName = conf.getString("myName");
 
-  if(myName.find(":") == -1){
-    myName.append(":"+conf.getBool("port"));
+  if(myName.find(":") == std::string::npos){
+    myName.append(":"+conf.getString("port"));
+    WARN_MSG("hsd %s", myName.c_str())
   }
 
   

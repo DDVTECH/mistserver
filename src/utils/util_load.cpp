@@ -1672,6 +1672,16 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.SendResponse("200", "OK", conn);
             H.Clean();
           }
+        // Get weights
+        }else if (!api.compare("weights")){
+          JSON::Value ret = setWeights(delimiterParser("",""));
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
+          H.SetBody(ret.toString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+        
         }else if(!api.compare("auth")){
           api = path.next();
           // add bearer token

@@ -35,20 +35,6 @@ class delimiterParser{
   int nextInt(int base);
 };
 
-/**
- * implements an ip policy
-*/
-class IpPolicy{
-  private:
-  std::string getNextFrame(delimiterParser pol) const;
-  int state;//ipv6: 1 ipv4: 2 DNS: 3
-
-  public:
-  std::string andp;
-  IpPolicy(std::string policy);
-  bool match(std::string ip) const;
-  bool equals(std::string) const;
-};
 
 /**
  * class to keep track of stream data

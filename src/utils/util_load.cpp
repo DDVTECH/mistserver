@@ -107,7 +107,7 @@ std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the
 std::map<std::string,std::string> userAuth;
 std::set<std::string> bearerTokens;
 std::string passHash;
-std::set<IpPolicy*> whitelist;
+std::set<std::string> whitelist;
 std::map<std::string, std::time_t> activeSalts;
 std::string identifier;
 std::set<std::string> identifiers;
@@ -142,260 +142,6 @@ int stoi(std::string s, int base = 10){
   return ret;
 }
 
-/**
- * constructor of ip policy (ipv4 & ipv6)
-*/
-IpPolicy::IpPolicy(std::string policy){
-  Util::stringToLower(policy);
-  //remove <space>
-  while(policy.find(" ") != -1){
-    policy.erase(policy.find(" "));
-  }
-
-  
-  bool invalid = false;
-  //create policy
-  delimiterParser o(policy, "+");
-  std::string p = o.next();
-
-  //identify ipv6 state 1, ipv4 state 2, or dns state 3
-  if(p.find(":") != std::string::npos) state = 1;
-  else if(p.find("/") == std::string::npos) state = 3;
-  else {
-    int count = 0;
-    for(int i = 0; i < p.size(); i++){
-      if(p.at(i) == '.') count++;
-    }
-    if(count != 3){
-      invalid = true;
-    }else{
-      state = 2;
-    }
-  }
-
-  //check validity
-  if(state == 1 || state == 2){
-    try{
-      int mask = stoi(p.substr(p.find('/')+1,p.size()).c_str());
-  
-      int base;
-      int max;
-      delimiterParser ip;
-      if(state == 1){
-        ip = delimiterParser(p.substr(0,p.find('/')),":");
-        base = 16;
-        max = 0xFFFF;
-      }else if(state == 2){
-        ip = delimiterParser(p,".");
-        base = 10;
-        max = 255;
-      }
-      int num;
-      for(int i = 0; i < 4; i++){
-        num = ip.nextInt(base);
-        if(num < 0 || num > max){
-          invalid = true;
-          break;
-        }
-      }
-  
-      if(mask > 0 && mask <= 128 && state == 1) {//check if mask invalid if so skip policy
-        andp = p;
-      }else if(mask > 0 && mask <= 24 && state == 2){
-        andp = p;
-      }else if(state == 3){
-        andp = p;
-      }else {
-        invalid = true;
-      }
-    }catch(std::invalid_argument &e){invalid = true;}
-    catch(std::out_of_range &e){invalid = true;}
-  }else if(state == 3){
-    char illeals[17] = ",~:!@#$%^&(){}'\"";
-    for(int i = 0; i < 17; i++){
-      if(p.find(illeals[i]) != std::string::npos) invalid = true;
-    }
-  }
-  p = o.next();
-  while(p.size()){
-    whitelist.insert(new IpPolicy(p));
-  }
-  if(invalid){delete this;}
-  else whitelist.insert(this);
-}
-
-/**
- * helper function to get next ip num set
-*/
-std::string IpPolicy::getNextFrame(delimiterParser pol) const{
-  std::string ret = pol.next();
-  while(ret.size()<4){
-    ret.insert(0,"0");
-  }
-  return ret;
-}
-
-/**
- * \returns true if \param ip contains a ip that is allowed by this ip policy
-*/
-bool IpPolicy::match(std::string ip) const{
-  Util::stringToLower(ip);
-  if(state == 3){
-    if(!andp.compare(ip)) return true;
-    //TODO reslove dns name
-    return false;
-  }
-  
-  //get mask of policy as int
-  int mask = stoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
-
-  delimiterParser pol;
-  delimiterParser test;
-  int framesize;
-  if(state == 1){//ipv6
-    pol = delimiterParser(andp, ":");
-    test = delimiterParser(ip, ":");
-    framesize = 16;
-  }else{//ipv4
-    pol = delimiterParser(andp, ".");
-    test = delimiterParser(ip, ".");
-    framesize = 8;
-  }
-
-  //check if set of 4 numbers match
-  for(int i = 0; i == mask/framesize; i++){    
-    if(getNextFrame(pol).compare(getNextFrame(test))) return false;
-  }
-
-  //check if matched policy
-  int bits = mask % framesize;
-  if(bits > 0){
-    std::string polLine = getNextFrame(pol);
-    std::string testLine = getNextFrame(test);
-    //check single numbers
-    int divbits = bits/4;
-    for(int i = 0; i < divbits; i++){
-      if(polLine.at(i) != testLine.at(i)) return false;
-    }
-    //check bits of single number
-    if(bits%4 > 0){
-      int polVal = polLine.at(divbits);
-      if (polVal > 60) polVal -= 51;
-      if (polVal >= 30 && polVal < 40) polVal -= 30;
-      int testVal = testLine.at(divbits);
-      if (testVal > 60) testVal -= 51;
-      if (testVal >= 30 && testVal < 40) testVal -= 30;
-      //calc masked values of address
-      //first bit
-      int numpol = polVal/8;
-      int numtest = testVal/8;
-
-      if(bits >= 2){//second bit
-        numpol += polVal/4;
-        numtest += polVal/4;
-      }
-      if(bits >= 3){//third bit
-        numpol += polVal/2;
-        numtest += testVal/2;
-      }
-      if(numpol != numtest) return false;
-    }
-  }
-  
-  return true;
-}
-
-/**
- * \returns true if ip Policy \param ip is equivilent to this object
-*/
-bool IpPolicy::equals(std::string ip) const{
-  Util::stringToLower(ip);
-
-  if(state == 3){
-    return !andp.compare(ip);
-  }
-  try{
-
-  delimiterParser o(ip, "+");
-  std::string p = o.next();
-
-  int maskpol = stoi(andp.substr(andp.find('/')+1,andp.size()).c_str());
-  while(p.compare("")){
-    //get mask of policy as int
-    
-    int maskline = stoi(p.substr(p.find('/')+1,p.size()).c_str());
-    if(maskpol != maskline){continue;}
-
-    delimiterParser pol;
-    delimiterParser test;
-    int framesize;
-    if(state == 1){//ipv6
-      pol = delimiterParser(andp, ":");
-      test = delimiterParser(ip, ":");
-      framesize = 16;
-    }else{//ipv4
-      pol = delimiterParser(andp, ".");
-      test = delimiterParser(ip, ".");
-      framesize = 8;
-    }
-
-  
-
-    bool match = true;
-    //check if set of 4 numbers match
-    for(int i = 0; i == maskpol/framesize; i++){    
-      if(getNextFrame(pol).compare(getNextFrame(test))) {
-        match = false;
-        break;
-      }
-    }
-    if (!match) continue; 
-
-    //check if matched policy
-    int bits = maskpol % framesize;
-    if(bits > 0){
-      std::string polLine = getNextFrame(pol);
-      std::string testLine = getNextFrame(test);
-      //check single numbers
-      int divbits = bits/4;
-      for(int i = 0; i < divbits; i++){
-        if(polLine.at(i) != testLine.at(i)) {
-          match = false;
-          break;
-        }
-      }
-      if (!match) continue; 
-      //check bits of single number
-      if(bits%4 > 0){
-        int polVal = polLine.at(divbits);
-        if (polVal >60) polVal -= 51;
-        if (polVal >= 30 && polVal < 40) polVal -= 30;
-        int testVal = testLine.at(divbits);
-        if (testVal >60) testVal -= 51;
-        if (testVal >= 30 && testVal < 40) testVal -= 30;
-        //calc masked values of address1
-        //first bit
-        int numpol = polVal/8;
-        int numtest = testVal/8;
-
-        if(bits >= 2){//second bit
-          numpol += polVal/4;
-          numtest += polVal/4;
-        }
-        if(bits >= 3){//third bit
-          numpol += polVal/2;
-          numtest += testVal/2;
-        }
-        if(numpol != numtest) continue;
-        else return true;
-      }
-    }
-    p = o.next();
-  }
-  }catch(std::out_of_range &e){return false;}
-  catch(std::invalid_argument &e){return false;}
-  return false;
-}
 
 /**
  * \returns this object as a string
@@ -509,17 +255,6 @@ outUrl outUrl::destringify(JSON::Value j){
 }
 
 /**
- * convert ipPolicy set \param s to json
-*/
-JSON::Value convertSetToJson(std::set<IpPolicy*> s){
-  JSON::Value out;  
-  for(std::set<IpPolicy*>::iterator it = s.begin(); it != s.end(); ++it){
-      out.append((*it)->andp);
-  }
-  return out;
-}
-
-/**
  * convert set \param s to json
 */
 JSON::Value convertSetToJson(std::set<std::string> s){
@@ -565,16 +300,6 @@ std::set<std::string> convertJsonToSet(JSON::Value j){
   return s;
 }
 
-/**
- * convert json \param j to IpPolicy set
-*/
-std::set<IpPolicy*>* convertJsonToIpPolicylist(JSON::Value j){
-  std::set<IpPolicy*>* s = new std::set<IpPolicy*>();
-  jsonForEach(j,i){
-    s->insert(new IpPolicy((*i).asString()));
-  }
-  return s;
-}
 
 /**
  * convert json \param j to map<string, string>
@@ -1452,8 +1177,8 @@ void loadFile(bool RESEND = false){
   passphrase = j[CONFIGSPASS].asStringRef();
   bearerTokens = convertJsonToSet(j[CONFIGBEARER]);
   //load whitelist
-  std::set<IpPolicy*>* tmp = convertJsonToIpPolicylist(j[CONFIGWHITELIST]);
-  whitelist = *tmp;
+  whitelist = convertJsonToSet(j[CONFIGWHITELIST]);
+  
   userAuth = convertJsonToMap(j[CONFIGUSERS]);
 
   //serverlist 
@@ -1564,9 +1289,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       //whitelist ipv6 & ipv4
       else if(conn.getHost().size()){
         bool found = false;
-        std::set<IpPolicy*>::iterator it = whitelist.begin();
+        std::set<std::string>::iterator it = whitelist.begin();
         while( it != whitelist.end()){
-          if((*it)->match(conn.getHost())){
+          if(Socket::isBinAddress(conn.getBinHost(), *it)){
             found = true;
             break;
           }
@@ -1672,8 +1397,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
           // add whitelist policy
           else if (!api.compare("whitelist")){
-            IpPolicy* tmp = new IpPolicy(H.body);
-            if(tmp != NULL) whitelist.insert(tmp);
+            whitelist.insert(H.body);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
@@ -1874,9 +1598,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
           // del whitelist policy
           else if (!api.compare("whitelist")){
-            std::set<IpPolicy*>::iterator it = whitelist.begin();
+            std::set<std::string>::iterator it = whitelist.begin();
             while(it != whitelist.end()){
-              if((*it)->equals(H.body)){
+              if(!(*it).compare(H.body)){
                 whitelist.erase(it);
                 it = whitelist.begin();
               }else it++;
@@ -2745,8 +2469,8 @@ int main(int argc, char **argv){
   bearerTokens.insert("test1233");
   //add localhost to whitelist
   if(conf.getBool("localmode")) {
-    whitelist.insert(new IpPolicy("::1/128"));
-    whitelist.insert(new IpPolicy("127.0.0.1/24"));
+    whitelist.insert("::1/128");
+    whitelist.insert("127.0.0.1/24");
   }
 
   identifier = generateSalt();

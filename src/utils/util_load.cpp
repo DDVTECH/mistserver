@@ -1015,12 +1015,13 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   }
   for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
     if(H.name == (*i)) break;
-    num = num%identifiers.size();
+    num++;
   }
   //find indexes
+  int trigger = hostnames.size()/identifiers.size();
   std::set<int> indexs;
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
-    indexs.insert(num+j % identifiers.size());
+    indexs.insert(num/trigger+j % identifiers.size());
   }
   //find identifiers
   std::set<std::string> ret;

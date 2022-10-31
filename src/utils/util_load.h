@@ -106,9 +106,7 @@ class hostDetails{
   JSON::Value fillStreamsOut;
   uint64_t scoreSource;
   uint64_t scoreRate;
-  
-  
-  
+  uint64_t toAddB;  
   
   protected:
   std::map<std::string, streamDetails> streams;
@@ -118,14 +116,18 @@ class hostDetails{
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
   char* name;
-
+  
   public:
+  uint64_t prevAddBandwidth;
+  uint64_t addBandwidth;
   char binHost[16];
   std::string host;
   double servLati, servLongi;
 
   hostDetails(char* name);
   virtual ~hostDetails();
+
+  uint64_t getAddBandwidth();
 
   /**
    *  Fills out a by reference given JSON::Value with current state.
@@ -158,17 +160,17 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd);
   
     /**
    * Update precalculated host vars without protected vars
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, uint64_t toAdd);
   
   /**
    * allow for json inputs instead of sets and maps for update function
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd);
   
 };
 
@@ -186,7 +188,7 @@ class hostDetailsCalc : public hostDetails {
   uint64_t upPrev;
   uint64_t downPrev;
   uint64_t prevTime;
-  uint64_t addBandwidth;
+
 
   public:
   uint64_t availBandwidth;
@@ -216,12 +218,6 @@ class hostDetailsCalc : public hostDetails {
    * calculate and update precalculated variables
   */
   void calc();
-  
-  /**
-   * add the viewer to this host
-   * updates all precalculated host vars
-   */
-  void addViewer(std::string &s, bool resend);
 
   /**
    * update vars from server

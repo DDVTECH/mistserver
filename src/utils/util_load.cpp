@@ -40,6 +40,7 @@ std::string const BONUSKEY = "bonus";
 std::string const SAVEKEY = "save";
 std::string const LOADKEY = "load";
 std::string const IDENTIFIERKEY = "LB";
+std::string const TOADD = "toadd";
 
 
 //const api names set multiple times
@@ -122,6 +123,25 @@ std::time_t prevSaveTime;
 std::time_t now;
 std::time_t prevConfigChange;
 tthread::thread* saveTimer;
+
+
+
+/**
+ * timer to send the add viewer data
+*/
+static void timerAddViewer(void*){
+  while(cfg->is_active){
+    JSON::Value j;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      std::string name = (*it)->name;
+      j[ADDVIEWER][name] = (*it)->details->getAddBandwidth();
+    }
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it !=loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+    sleep(100);
+  }
+}
 
 
 int stoi(std::string s, int base = 10){
@@ -351,7 +371,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
  * \param LB contains the load balancer that created this object null if this load balancer
  * \param name is the name of the server
 */
-hostDetails::hostDetails(char* name) : hostMutex(0), name(name) {}
+hostDetails::hostDetails(char* name) : hostMutex(0), name(name), addBandwidth(0) {}
 
 hostDetails::~hostDetails(){
     if(hostMutex){
@@ -359,6 +379,15 @@ hostDetails::~hostDetails(){
       hostMutex = 0;
     }
   }
+
+uint64_t hostDetails::getAddBandwidth(){
+  uint64_t ret = addBandwidth;
+  prevAddBandwidth += addBandwidth;
+  addBandwidth = 0; 
+  return ret;
+}
+
+
 /**
    *  Fills out a by reference given JSON::Value with current state.
    */
@@ -473,22 +502,25 @@ std::string hostDetails::getUrl(std::string &s, std::string &proto) const{
     }
   }
 /**
- * Sends update to original load balancer to add a viewer.
-*/
+   * add the viewer to this host
+   * updates all precalculated host vars
+   */
 void hostDetails::addViewer(std::string &s, bool RESEND){
-  if(RESEND){
-    JSON::Value j;
-    j[ADDVIEWER] = s;
-    j[HOST] = host;
-    //for(std::set<LoadBalancer*>::iterator it = LB.begin(); it != LB.end(); it++){
-    //  (*it)->send(j.asString());
-    //}
+    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
+    uint64_t toAdd = toAddB;
+    if (streams.count(s)){
+      toAdd = streams[s].bandwidth;
+    }
+    // ensure reasonable limits of bandwidth guesses
+    if (toAdd < 64 * 1024){toAdd = 64 * 1024;}// minimum of 0.5 mbps
+    if (toAdd > 1024 * 1024){toAdd = 1024 * 1024;}// maximum of 8 mbps
+    addBandwidth += toAdd;
   }
-}
 /**
  * Update precalculated host vars.
 */
-void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd){
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
@@ -503,13 +535,14 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     this->cpu = cpu;
     *(this->binHost) = *binHost;
     this->host = host;
+    this->toAddB = toAdd;
     
 
   }
 /**
    * Update precalculated host vars without protected vars
    */
-void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate){
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, uint64_t toAdd){
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
@@ -517,12 +550,13 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     this->fillStreamsOut = fillStreamsOut;
     this->scoreSource = scoreSource;
     this->scoreRate = scoreRate;
+    toAddB = toAdd;
   }
 
 /**
    * allow for json inputs instead of sets and maps for update function
    */
-void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host){  
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd){  
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
     streamDetails x;
@@ -531,14 +565,14 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     for(int i = 0; i < streams.size(); i++){
       s.insert(std::pair<std::string, streamDetails>(streams[STREAMSKEY][i]["key"], *(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
-    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host);
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host, toAdd);
   }
   
 /**
  * constructor of server monitored by this load balancer
 */
 hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(name), ramMax(0),ramCurr(0), upSpeed(0), 
-  downSpeed(0), total(0), upPrev(0), downPrev(0), prevTime(0), addBandwidth(0), availBandwidth(128 * 1024 * 1024) {
+  downSpeed(0), total(0), upPrev(0), downPrev(0), prevTime(0), availBandwidth(128 * 1024 * 1024) {
     cpu = 1000;
     servLati = 0;
     servLongi = 0;
@@ -562,7 +596,7 @@ void hostDetailsCalc::fillState(JSON::Value &r) const{
     r["cpu"] = (uint64_t)(cpu / 10);
     if (ramMax){r["ram"] = (uint64_t)((ramCurr * 100) / ramMax);}
     r["up"] = upSpeed;
-    r["up_add"] = addBandwidth;
+    r["up_add"] = addBandwidth + prevAddBandwidth;
     r["down"] = downSpeed;
     r["streams"] = streams.size();
     r["viewers"] = total;
@@ -580,7 +614,7 @@ void hostDetailsCalc::fillState(JSON::Value &r) const{
     if (ramMax && availBandwidth){
       r["score"]["cpu"] = (uint64_t)(weight_cpu - (cpu * weight_cpu) / 1000);
       r["score"]["ram"] = (uint64_t)(weight_ram - ((ramCurr * weight_ram) / ramMax));
-      r["score"]["bw"] = (uint64_t)(weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+      r["score"]["bw"] = (uint64_t)(weight_bw - (((upSpeed + addBandwidth + prevAddBandwidth) * weight_bw) / availBandwidth));
     }
   }
 /// Fills out a by reference given JSON::Value with current streams viewer count.
@@ -601,16 +635,16 @@ uint64_t hostDetailsCalc::rate() const{
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 0;
     }
-    if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
+    if (upSpeed >= availBandwidth || (upSpeed + addBandwidth + prevAddBandwidth) >= availBandwidth){
       INFO_MSG("Host %s over bandwidth: %" PRIu64 "+%" PRIu64 " >= %" PRIu64, host.c_str(), upSpeed,
-               addBandwidth, availBandwidth);
+               addBandwidth + prevAddBandwidth, availBandwidth);
       return 0;
     }
     
     // Calculate score
     uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
     uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
-    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth +prevAddBandwidth) * weight_bw) / availBandwidth));
   
     uint64_t score = cpu_score + ram_score + bw_score;
     
@@ -626,15 +660,15 @@ uint64_t hostDetailsCalc::source() const{
       WARN_MSG("Host %s invalid: RAM %" PRIu64 ", BW %" PRIu64, host.c_str(), ramMax, availBandwidth);
       return 1;
     }
-    if (upSpeed >= availBandwidth || (upSpeed + addBandwidth) >= availBandwidth){
+    if (upSpeed >= availBandwidth || (upSpeed + addBandwidth + addBandwidth) >= availBandwidth){
       INFO_MSG("Host %s over bandwidth: %" PRIu64 "+%" PRIu64 " >= %" PRIu64, host.c_str(), upSpeed,
-               addBandwidth, availBandwidth);
+               addBandwidth + prevAddBandwidth, availBandwidth);
       return 1;
     }
     // Calculate score
     uint64_t cpu_score = (weight_cpu - (cpu * weight_cpu) / 1000);
     uint64_t ram_score = (weight_ram - ((ramCurr * weight_ram) / ramMax));
-    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth) * weight_bw) / availBandwidth));
+    uint64_t bw_score = (weight_bw - (((upSpeed + addBandwidth + prevAddBandwidth) * weight_bw) / availBandwidth));
 
     uint64_t score = cpu_score + ram_score + bw_score + 1;
     return score;
@@ -651,10 +685,16 @@ void hostDetailsCalc::calc(){
     fillState(fillStateOut);
     uint64_t scoreSource = source();
     uint64_t scoreRate = rate();
+    uint64_t toadd;
+    if (total){
+      toadd = (upSpeed + downSpeed) / total;
+    }else{
+      toadd = 131072; // assume 1mbps
+    }
 
     //update the local precalculated varsnclude <mist/config.h>
 
-    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate);
+    ((hostDetails*)(this))->update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, toadd);
 
     //create json to send to other load balancers
     JSON::Value j;
@@ -675,6 +715,9 @@ void hostDetailsCalc::calc(){
     j[HOSTNAMEKEY] = name;
     j[IDENTIFIERKEY] = identifier;
 
+    j[TOADD] = toadd;
+    
+
     JSON::Value out;
     out["updateHost"] = j;
 
@@ -684,29 +727,6 @@ void hostDetailsCalc::calc(){
     }
   }
   
-/**
-   * add the viewer to this host
-   * updates all precalculated host vars
-   */
-void hostDetailsCalc::addViewer(std::string &s, bool RESEND){//TODO reimplement
-    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
-    uint64_t toAdd = 0;
-    if (streams.count(s)){
-      toAdd = streams[s].bandwidth;
-    }else{
-      if (total){
-        toAdd = (upSpeed + downSpeed) / total;
-      }else{
-        toAdd = 131072; // assume 1mbps
-      }
-    }
-    // ensure reasonable limits of bandwidth guesses
-    if (toAdd < 64 * 1024){toAdd = 64 * 1024;}// minimum of 0.5 mbps
-    if (toAdd > 1024 * 1024){toAdd = 1024 * 1024;}// maximum of 8 mbps
-    addBandwidth += toAdd;
-    calc();
-  }
 
 /**olicy
    * update vars from server
@@ -804,7 +824,7 @@ void hostDetailsCalc::update(JSON::Value &d){
     if (d.isMember(OUTPUTSKEY) && d[OUTPUTSKEY].size()){
       jsonForEach(d[OUTPUTSKEY], op){outputs[op.key()] = outUrl(op->asStringRef(), host);}
     }
-    addBandwidth *= 0.75;
+    prevAddBandwidth = 0.75*(prevAddBandwidth);
     calc();//update preclaculated host vars
   }
   
@@ -1215,7 +1235,6 @@ void loadFile(bool RESEND = false){
   checkServerMonitors();
   }else WARN_MSG("cant load")
 }
-
 
 /**
  * allow connection threads to be made to call API::handleRequests
@@ -1737,8 +1756,14 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
         if(newVals[HOST].asString().compare((*it)->details->host)){
           //call add viewer function
-          std::string stream = newVals[ADDVIEWER].asString();
-          (*it)->details->addViewer(stream,false);
+          jsonForEach(newVals[ADDVIEWER], i){
+            for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+              if(!i.key().compare((*it)->name)) {
+                (*it)->details->prevAddBandwidth += i.num();
+                continue;
+              }
+            }
+          }
         }
       }
     }else if(newVals.isMember(SAVEKEY)){
@@ -1875,7 +1900,7 @@ void API::updateHost(JSON::Value newVals){
       if(i == hosts.end()){
         INFO_MSG("unknown host update failed")
       }
-      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals["binHost"].asString().c_str(), newVals[HOST].asString());   
+      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals["binHost"].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt());   
   }
   
 /**
@@ -2609,6 +2634,7 @@ int main(int argc, char **argv){
   
   checkServerMonitors();
 
+  new tthread::thread(timerAddViewer, NULL);
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");

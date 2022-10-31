@@ -1406,6 +1406,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
           // add user acount
           else if (!api.compare("user")){
@@ -1417,6 +1420,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
           // add whitelist policy
           else if (!api.compare("whitelist")){
@@ -1427,6 +1433,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
         }
         //handle none api
@@ -1608,6 +1617,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
           // del user acount
           else if (!api.compare("user")){
@@ -1618,6 +1630,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
           // del whitelist policy
           else if (!api.compare("whitelist")){
@@ -1634,6 +1649,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            //start save timer
+            time(&prevConfigChange);
+            if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
           }
         }
         //handle none api
@@ -1881,7 +1899,9 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
     }
 
     checkServerMonitors();
-  
+    //start save timer
+    time(&prevConfigChange);
+    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
     return ret;
     
   }
@@ -1948,6 +1968,9 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
       }
       ret = "server starting";
     }
+    //start save timer
+    time(&prevConfigChange);
+    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
     return;
   }
 
@@ -1980,6 +2003,9 @@ void API::removeLB(std::string removeLoadBalancer, const std::string RESEND){
     }
   }
   checkServerMonitors();
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 }
 
 /**
@@ -2091,7 +2117,9 @@ void API::addLB(void* p){
       JSON::Value z;
       z[GETSERVERS] = true;
       LB->send(z.asString());
-
+      //start save timer
+      time(&prevConfigChange);
+      if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
       //start monitoring
       handleRequests(conn,ws,LB); 
     }else if(check == "noAuth"){

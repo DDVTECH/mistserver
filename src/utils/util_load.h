@@ -66,6 +66,7 @@ class LoadBalancer {
   //tthread::thread* t;
   
   public:
+  bool mutable state;
   bool mutable Go_Down;
   LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident);
   virtual ~LoadBalancer();
@@ -280,6 +281,10 @@ public:
    */
   static void addLB(void* p);
   
+  /**
+   * reconnect to load balancer
+  */
+  static void reconnectLB(void* p);
 
 
 

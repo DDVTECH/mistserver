@@ -53,6 +53,7 @@ std::string const ADDVIEWER = "addviewer";
 std::string const HOST = "host";
 std::string const ADDSERVER = "addserver";
 std::string const REMOVESERVER = "removeServer";
+std::string const GETSERVERS = "getservers";
 
 //config file names
 std::string const CONFIGFALLBACK = "fallback";
@@ -101,7 +102,7 @@ size_t weight_bonus = 50;
 API api;
 std::set<hostEntry*> hosts; ///array holding all hosts
 std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the mesh
-#define SERVERMONITORLIMIT 2
+#define SERVERMONITORLIMIT 1
 
 //authentication storage
 std::map<std::string,std::string> userAuth;
@@ -216,7 +217,7 @@ bool LoadBalancer::operator == (const std::string &other) const {return this->ge
  * send \param ret to the load balancer represented by this object
 */
 void LoadBalancer::send(std::string ret) const {
-    if(!Go_Down){//prevent sending when shuting down
+    if(!Go_Down && state){//prevent sending when shuting down
       ws->sendFrame(ret);
     }
 }
@@ -707,7 +708,7 @@ void hostDetailsCalc::addViewer(std::string &s, bool RESEND){//TODO reimplement
     calc();
   }
 
-/**
+/**olicy
    * update vars from server
    */
 void hostDetailsCalc::update(JSON::Value &d){
@@ -864,19 +865,12 @@ void handleServer(void *hostEntryPointer){
   WARN_MSG("Monitoring thread for %s stopping", url.host.c_str());
   DL.getSocket().close();
   entry->state = STATE_REQCLEAN;
-  if(entry->state != STATE_ONLINE){//notify other load balancers server is unreachable
-    JSON::Value j;
-    j["removeHost"] = true;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-      (*it)->send(j);
-    }
-  }
 }
 
 void initNewHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
-  H.state = STATE_BOOT;
+  H.state = STATE_OFF;
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = 0;
@@ -925,6 +919,9 @@ void initForeignHost(const std::string &N){
 void cleanupHost(hostEntry &H){
   // Cancel if this host has no name set
   if (!H.name[0]){return;}
+  if(H.state == STATE_BOOT){
+    while(H.state != STATE_ONLINE){}
+  }
   H.state = STATE_GODOWN;
   INFO_MSG("Stopping monitoring %s", H.name);
   if(H.thread){
@@ -987,11 +984,17 @@ int delimiterParser::nextInt(int base = 10) {
   return stoi(this->next().c_str(), base);
 }
 
-
+/**
+ * \returns the identifiers of the load balancers that need to monitor the server in \param H
+*/
 std::set<std::string> hostNeedsMonitoring(hostEntry H){
   int num = 0;//find start position
+  std::set<std::string> hostnames;
   for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
-    if(H.name == (*i)->name) break;
+    hostnames.insert((*i)->name);
+  }
+  for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
+    if(H.name == (*i)) break;
     num = num%identifiers.size();
   }
   //find indexes
@@ -1011,6 +1014,9 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   return ret;
 }
 
+/**
+ * changes host to correct monitor state
+*/
 void checkServerMonitors(){
   INFO_MSG("recalibrating server monitoring")
   //check for monitoring changes
@@ -1019,23 +1025,24 @@ void checkServerMonitors(){
       std::set<std::string> idents = hostNeedsMonitoring(*(*it));
       bool changed = false;
       for(std::set<std::string>::iterator i = idents.begin(); i != idents.end(); i++){
-        if(!(*i).compare(identifier) && (*it)->thread == 0){//check monitored
-          WARN_MSG("true")
+        if((!(*i).compare(identifier)) && (*it)->thread == 0){//check monitored
           std::string name = ((*it)->name);
+          //delete old host
           cleanupHost(**it);
           delete *it;
+          //create new host
           hostEntry* e = new hostEntry();
           initHost(*e, name);
           hosts.insert(e);
 
           //reset itterator
           it = hosts.begin();
-          changed = false;
+          changed = true;
           break;
         }
         else if((*i).compare(identifier) && (*it)->thread == 0 && (*it)->details != 0){//check not monitored
           continue;
-        }else if(i == idents.end()){
+        }else if ((i) == idents.end()){
           //delete old host
           std::string name ((*it)->name);
           
@@ -1096,11 +1103,9 @@ void saveFile(bool RESEND = false){
     j[CONFIGSERVERS] = convertSetToJson(servers);
     //loadbalancer list
     std::set<std::string> lb;
-    WARN_MSG("/%s/",myName.c_str())
     lb.insert(myName);
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
       lb.insert((*it)->getName());
-      WARN_MSG("/%s/",(*it)->getName().c_str())
     }
     j[CONFIGLOADBALANCER] = convertSetToJson(lb);
 
@@ -1183,7 +1188,7 @@ void loadFile(bool RESEND = false){
 
   //serverlist 
   //remove monitored servers
-  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){//TODO
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
     api.delServer((*it)->name, true);
   }
   //add new servers
@@ -1191,9 +1196,8 @@ void loadFile(bool RESEND = false){
     std::string ret;
     api.addServer(ret,j[CONFIGSERVERS][i], true);
   }
-  WARN_MSG("servers added")
   //remove load balancers
-  std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); //TODO
+  std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
   while(loadBalancers.size()){
     (*it)->send("close");
     (*it)->Go_Down = true;
@@ -1638,12 +1642,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
   if(LB){
     if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
-      std::string lbName = LB->getName();
-      identifiers.erase(LB->getIdent());
-      loadBalancers.erase(LB);
-      WARN_MSG("closing LB:%p", LB);
-      delete LB;
-      new tthread::thread(addLB,(void*)&lbName);
+      LB->state = false;
+      new tthread::thread(reconnectLB, (void*)&LB);
     }else{//shutdown load balancer
       LB->Go_Down = true;
       loadBalancers.erase(LB);
@@ -1725,6 +1725,13 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       api.addServer(ret,newVals[ADDSERVER], false);
     }else if(newVals.isMember(REMOVESERVER)){
       api.delServer(newVals[REMOVESERVER].asString(), false);
+    }else if(newVals.isMember(GETSERVERS)){
+      JSON::Value j;
+      j[RESEND] = false;
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+        j[ADDSERVER] = (*it)->name;
+        webSock->sendFrame(j.asString());
+      }
     }else if(newVals.isMember(ADDVIEWER)){
       //find host
       for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -1918,7 +1925,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     }
     return;
   }
-   
+
 /**
    * remove load balancer from mesh
    */
@@ -2056,7 +2063,9 @@ void API::addLB(void* p){
         LB->send(j.asString());
       }
       
-      checkServerMonitors();
+      JSON::Value z;
+      z[GETSERVERS] = true;
+      LB->send(z.asString());
 
       //start monitoring
       handleRequests(conn,ws,LB); 
@@ -2065,6 +2074,120 @@ void API::addLB(void* p){
     }
     return;
   }
+
+/**
+ * reconnect to load balancer
+*/
+void API::reconnectLB(void* p) {
+  LoadBalancer* LB = (LoadBalancer*)p;
+  identifiers.erase(LB->getIdent());
+  std::string addLoadBalancer = LB->getName();
+
+    Socket::Connection conn(addLoadBalancer.substr(0,addLoadBalancer.find(":")), atoi(addLoadBalancer.substr(addLoadBalancer.find(":")+1).c_str()), false, false);
+    
+    HTTP::URL url("ws://"+(addLoadBalancer));
+    HTTP::Websocket* ws = new HTTP::Websocket(conn, url);
+    
+
+    ws->sendFrame("ident");
+
+    //check responce
+    int reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        reconnectLB(p);
+        return;
+      }
+      sleep(1);
+    }
+
+    std::string ident(ws->data, ws->data.size());
+
+    for (std::set<std::string>::iterator i = identifiers.begin(); i != identifiers.end(); i++){
+      if(!(*i).compare(ident)){
+        ws->sendFrame("noAuth");
+        conn.close();
+        WARN_MSG("load balancer already connected");
+        return;
+      }
+    }
+
+    //send challenge
+    std::string salt = generateSalt();
+    ws->sendFrame("auth:" + salt);
+
+    //check responce
+    reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        reconnectLB(p);
+        return;
+      }
+      sleep(1);
+    }
+    std::string result(ws->data, ws->data.size());
+    
+    if(Secure::sha256(passHash+salt).compare(result)){
+      //unautherized
+      WARN_MSG("unautherised");
+      ws->sendFrame("noAuth");
+      return;
+    }
+    //send response to challenge
+    reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        reconnectLB(p);
+        return;
+      }
+      sleep(1);
+    }
+    std::string auth(ws->data, ws->data.size());
+    std::string pass = Secure::sha256(passHash+auth);
+
+    ws->sendFrame("salt:"+auth+";"+pass+" "+myName);
+
+    reset = 0;
+    while(!ws->readFrame()){
+      reset++;
+      if(reset >= 20){
+        WARN_MSG("auth failed: connection timeout");
+        reconnectLB(p);
+        return;
+      }
+      sleep(1);
+    }
+    std::string check(ws->data, ws->data.size());
+    if(check == "OK"){
+      INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer.c_str());
+      LoadBalancer* LB = new LoadBalancer(ws, addLoadBalancer, ident);
+      loadBalancers.insert(LB);
+      identifiers.insert(ident);
+      
+      JSON::Value j;
+      j[RESEND] = false;
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+        j[ADDSERVER] = (*it)->name;
+        LB->send(j.asString());
+      }
+
+      JSON::Value z;
+      z[GETSERVERS] = true;
+      LB->send(z.asString());
+
+      //start monitoring
+      handleRequests(conn,ws,LB); 
+    }else {
+      reconnectLB(p);
+    }
+    return;
+}
 
 /**
   * returns load balancer list
@@ -2452,7 +2575,6 @@ int main(int argc, char **argv){
 
   if(myName.find(":") == std::string::npos){
     myName.append(":"+conf.getString("port"));
-    WARN_MSG("hsd %s", myName.c_str())
   }
 
   

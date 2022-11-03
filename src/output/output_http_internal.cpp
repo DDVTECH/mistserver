@@ -8,6 +8,8 @@
 #include <mist/url.h>
 #include <mist/websocket.h>
 #include <sys/stat.h>
+#include "redirectManager.h"
+
 
 namespace Mist{
   /// Helper function to find the protocol entry for a given port number
@@ -433,6 +435,12 @@ namespace Mist{
     if (origStreamName.size() && origStreamName != streamName){
       json_resp["redirected"].append(origStreamName);
       json_resp["redirected"].append(streamName);
+    }
+    redirectManager manager;
+    std::string* redirect = manager.checkForRedirect();
+    if(redirect){
+      //send redirect request to player
+      json_resp["redirectpls"] = redirect;
     }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     if (streamStatus != STRMSTAT_READY){

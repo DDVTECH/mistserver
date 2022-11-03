@@ -41,7 +41,11 @@ std::string const SAVEKEY = "save";
 std::string const LOADKEY = "load";
 std::string const IDENTIFIERKEY = "LB";
 std::string const TOADD = "toadd";
-
+std::string const CURRBANDWIDTHKEY = "currBandwidth";
+std::string const AVAILBANDWIDTHKEY = "availBandwidth";
+std::string const CURRRAMKEY = "currram";
+std::string const RAMMAXKEY = "ramMax";
+std::string const BINHOSTKEY = "binhost";
 
 //const api names set multiple times
 std::string const ADDLOADBALANCER = "addloadbalancer";
@@ -86,6 +90,24 @@ std::string const OUTURLPRE = "pre";
 std::string const OUTURLPOST = "post";
 
 
+//balancing
+int MINSTANDBY = 1;
+int MAXSTANDBY = 1;
+double CAPPACITYTRIGGERCPUDEC = 0.01; //percentage om cpu te verminderen
+double CAPPACITYTRIGGERBWDEC = 0.01; //percentage om bandwidth te verminderen
+double CAPPACITYTRIGGERRAMDEC = 0.01; //percentage om ram te verminderen
+double CAPPACITYTRIGGERCPU = 0.9; //max capacity trigger for balancing cpu
+double CAPPACITYTRIGGERBW = 0.9;  //max capacity trigger for balancing bandwidth
+double CAPPACITYTRIGGERRAM = 0.9; //max capacity trigger for balancing ram
+double HIGHCAPPACITYTRIGGERCPU = 0.8; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+double HIGHCAPPACITYTRIGGERBW = 0.8;  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+double HIGHCAPPACITYTRIGGERRAM = 0.8; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+double LOWCAPPACITYTRIGGERCPU = 0.3; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+double LOWCAPPACITYTRIGGERBW = 0.3;  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+double LOWCAPPACITYTRIGGERRAM = 0.3; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+int BALANCINGINTERVAL = 1000;
+
+
 Util::Config *cfg = 0;
 std::string passphrase;
 std::string fallback;
@@ -106,7 +128,7 @@ std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the
 #define SERVERMONITORLIMIT 1
 
 //authentication storage
-std::map<std::string,std::string> userAuth;
+std::map<std::string,std::pair<std::string, std::string> > userAuth;//key: (passhash, salt)
 std::set<std::string> bearerTokens;
 std::string passHash;
 std::set<std::string> whitelist;
@@ -311,6 +333,19 @@ JSON::Value convertMapToJson(std::map<std::string, std::string> s){
 }
 
 /**
+ * convert a map<string, string> \param s to a json
+*/
+JSON::Value convertMapToJson(std::map<std::string, std::pair<std::string, std::string> > s){
+  JSON::Value out;  
+  for(typename std::map<std::string,std::pair<std::string, std::string> >::iterator it = s.begin(); it != s.end(); ++it){
+      out[(*it).first].append((*it).second.first);
+      out[(*it).first].append((*it).second.second);
+
+  }
+  return out;
+}
+
+/**
  * convert a json \param j to a set<string>
 */
 std::set<std::string> convertJsonToSet(JSON::Value j){
@@ -332,6 +367,22 @@ std::map<std::string, std::string> convertJsonToMap(JSON::Value j){
   }
   return m;
 }
+
+/**
+ * convert json \param j to map<string, string>
+*/
+std::map<std::string, std::pair<std::string, std::string> > convertJsonToMapPair(JSON::Value j){
+  std::map<std::string, std::pair<std::string, std::string> > m;
+  jsonForEach(j,i){
+    JSON::Iter z(*i);
+    std::string first = (*z).asString();
+    ++z;
+    std::string second = (*z).asString();
+    m.insert(std::make_pair (i.key(),std::make_pair(first, second)));
+  }
+  return m;
+}
+
 
 
 int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
@@ -371,7 +422,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
  * \param LB contains the load balancer that created this object null if this load balancer
  * \param name is the name of the server
 */
-hostDetails::hostDetails(char* name) : hostMutex(0), name(name), addBandwidth(0) {}
+hostDetails::hostDetails(char* name) : hostMutex(0), name(name), ramCurr(0), ramMax(0), availBandwidth(128 * 1024 * 1024), addBandwidth(0) {}
 
 hostDetails::~hostDetails(){
     if(hostMutex){
@@ -520,7 +571,7 @@ void hostDetails::addViewer(std::string &s, bool RESEND){
 /**
  * Update precalculated host vars.
 */
-void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd){
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd, uint64_t currBandwidth, uint64_t availBandwidth, uint64_t currRam, uint64_t ramMax){
     if(!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
 
@@ -556,7 +607,7 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
 /**
    * allow for json inputs instead of sets and maps for update function
    */
-void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd){  
+void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd, uint64_t currBandwidth, uint64_t availBandwidth, uint64_t currRam, uint64_t ramMax){  
     std::map<std::string, outUrl> out;
     std::map<std::string, streamDetails> s;
     streamDetails x;
@@ -565,14 +616,14 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     for(int i = 0; i < streams.size(); i++){
       s.insert(std::pair<std::string, streamDetails>(streams[STREAMSKEY][i]["key"], *(x.destringify(streams[STREAMSKEY][i]["streamDetails"]))));
     }
-    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host, toAdd);
+    update(fillStateOut, fillStreamsOut, scoreSource, scoreRate, out, convertJsonToSet(conf_streams), s, convertJsonToSet(tags), cpu, servLati, servLongi, binHost, host, toAdd, currBandwidth, availBandwidth, currRam, ramMax);
   }
   
 /**
  * constructor of server monitored by this load balancer
 */
-hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(name), ramMax(0),ramCurr(0), upSpeed(0), 
-  downSpeed(0), total(0), upPrev(0), downPrev(0), prevTime(0), availBandwidth(128 * 1024 * 1024) {
+hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(name), total(0), upPrev(0), downPrev(0), prevTime(0), upSpeed(0), 
+  downSpeed(0) {
     cpu = 1000;
     servLati = 0;
     servLongi = 0;
@@ -702,6 +753,7 @@ void hostDetailsCalc::calc(){
     j[FILLSTREAMSOUT] = fillStreamsOut;
     j[SCORESOURCE] = scoreSource;
     j[SCORERATE] = scoreRate;
+    j[BINHOSTKEY] = binHost;
     
     
     j[OUTPUTSKEY] = convertMapToJson(outputs);
@@ -714,6 +766,11 @@ void hostDetailsCalc::calc(){
     j[SERVLONGIKEY] = servLongi;
     j[HOSTNAMEKEY] = name;
     j[IDENTIFIERKEY] = identifier;
+
+    j[CURRBANDWIDTHKEY] = upSpeed + downSpeed;
+    j[AVAILBANDWIDTHKEY] = availBandwidth;
+    j[CURRRAMKEY] = ramCurr;
+    j[RAMMAXKEY] = ramMax;
 
     j[TOADD] = toadd;
     
@@ -728,7 +785,7 @@ void hostDetailsCalc::calc(){
   }
   
 
-/**olicy
+/**
    * update vars from server
    */
 void hostDetailsCalc::update(JSON::Value &d){
@@ -827,7 +884,136 @@ void hostDetailsCalc::update(JSON::Value &d){
     prevAddBandwidth = 0.75*(prevAddBandwidth);
     calc();//update preclaculated host vars
   }
+
+
+
+bool checkShouldBalance(){
+  int num = 0;//find start position
+  std::set<std::string> hostnames;
+  for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
+    hostnames.insert((*i)->name);
+  }
+  //find indexes
+  int trigger = hostnames.size()/identifiers.size();
+  int index;
+  index = num/trigger % identifiers.size();
   
+  //find identifiers
+  std::set<std::string>::iterator it = identifiers.begin();
+  std::advance(it,index);
+  
+  return !(*it).compare(identifier);
+}
+
+/**
+ * redirects traffic away
+*/
+bool redirectServer(hostEntry* H){
+  JSON::Value j;
+  if(H->details->getRamMax() * CAPPACITYTRIGGERRAM > H->details->getRamCurr()) j["redirect"]["ram"] = CAPPACITYTRIGGERRAMDEC * H->details->getRamCurr();
+  if(CAPPACITYTRIGGERCPU * 1000 < H->details->getCpu()) j["redirect"]["cpu"] = CAPPACITYTRIGGERCPUDEC * H->details->getCpu();
+  if(CAPPACITYTRIGGERBW * H->details->getAvailBandwidth() < H->details->getCurrBandwidth()) j["redirect"]["bandwidth"] = CAPPACITYTRIGGERBWDEC * H->details->getCurrBandwidth();
+
+
+  std::map<int,hostEntry*> lbw;
+  //find host with lowest bw server
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if(CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < ((*it)->details->getCurrBandwidth())){
+      lbw.insert(std::pair<uint64_t, hostEntry*>((*it)->details->getCurrBandwidth(), *it));
+    }
+  }
+  if(!lbw.size()) return false;
+  std::map<int, hostEntry*>::iterator i = lbw.begin();
+  int balancableCpu = CAPPACITYTRIGGERCPU * 1000 -100;
+  int balancableRam = CAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - 0.1 * (*i).second->details->getRamMax();
+  while(i != lbw.end()){
+    if((*i).second->details->getCpu() < balancableCpu && (*i).second->details->getRamCurr() < balancableRam){
+      //TODO send redirect message
+      return true;
+    }
+    i++;
+    balancableRam = CAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - 0.1 * (*i).second->details->getRamMax();
+  }
+  return false;
+}
+
+void extraServer(){
+  int counter = 0;
+  bool found = false;
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if(!found && (*it)->state == STATE_ONLINE) {
+      (*it)->state = STATE_ACTIVE;
+      found = true;
+    }else if((*it)->state == STATE_ACTIVE) counter++;
+  }
+  if(counter < MINSTANDBY) WARN_MSG("Server cappacity runing low!");
+}
+
+void reduceServer(hostEntry* H){
+  H->state = STATE_ONLINE;
+  int counter = 0;
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if((*it)->state == STATE_ONLINE) counter++;
+  }
+  if(counter > MAXSTANDBY){
+    WARN_MSG("A lot of free server cappacity! %d free servers", counter);
+  }
+}
+
+static void checkNeedRedirect(void*){
+  while(cfg->is_active){
+    if(checkShouldBalance()){
+      //check if redirect is needed
+      bool balancing = false;
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        if((*it)->state == STATE_ONLINE) continue;
+        if((*it)->details->getRamMax() * CAPPACITYTRIGGERRAM > (*it)->details->getRamCurr() || 
+          CAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu() ||
+          CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){     
+          balancing = redirectServer(*it);
+        }
+      }
+
+      if(!balancing){//dont trigger when still balancing
+        //check if reaching capacity
+        std::set<hostEntry*> highCapacity;
+        std::set<hostEntry*> lowCapacity;
+        for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+          if((*it)->state == STATE_ONLINE) continue;
+          if(HIGHCAPPACITYTRIGGERCPU * 1000< (*it)->details->getCpu()){
+            highCapacity.insert(*it);
+          }
+          if(HIGHCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() < (*it)->details->getRamCurr()){
+            highCapacity.insert(*it);
+          }
+          if(HIGHCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){
+            highCapacity.insert(*it);
+          }
+          if(LOWCAPPACITYTRIGGERCPU * 1000 > (*it)->details->getCpu()){
+            lowCapacity.insert(*it);
+          }
+          if(LOWCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() > (*it)->details->getRamCurr()){
+            lowCapacity.insert(*it);
+          }
+          if(LOWCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() > (*it)->details->getCurrBandwidth()){
+            lowCapacity.insert(*it);
+          }
+        }
+        //check if too much capacity
+        if(lowCapacity.size() > 1){
+          reduceServer(*lowCapacity.begin());
+        }
+        //check if too little capacity
+        if(lowCapacity.size() == 0 && highCapacity.size() == hosts.size()){
+          extraServer();
+        }
+      }
+    }
+    sleep(BALANCINGINTERVAL);
+  }
+}
+
+
 /**
  * monitor server 
  * \param hostEntryPointer a hostEntry with hostDetailsCalc on details field
@@ -846,7 +1032,7 @@ void handleServer(void *hostEntryPointer){
   url.path = passphrase + ".json";
 
   INFO_MSG("Monitoring %s", url.getUrl().c_str());
-  ((hostDetailsCalc*)(entry->details))->availBandwidth = bandwidth.asInt();
+  entry->details->availBandwidth = bandwidth.asInt();
   ((hostDetailsCalc*)(entry->details))->host = url.host;
   entry->state = STATE_BOOT;
   bool down = true;
@@ -995,6 +1181,10 @@ std::string delimiterParser::next() {
   s.erase(0, index + delimiter.size());
 
   return ret;
+}
+
+double delimiterParser::nextDouble(){
+  return atof(this->next().c_str());
 }
 
 /**
@@ -1205,7 +1395,7 @@ void loadFile(bool RESEND = false){
   //load whitelist
   whitelist = convertJsonToSet(j[CONFIGWHITELIST]);
   
-  userAuth = convertJsonToMap(j[CONFIGUSERS]);
+  userAuth = convertJsonToMapPair(j[CONFIGUSERS]);
 
   //serverlist 
   //remove monitored servers
@@ -1278,7 +1468,15 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       std::string api = path.next();
      
       if(H.method.compare("PUT") && !api.compare("stream")){
-        stream(conn, H, path.next(), path.next());
+        stream(conn, H, path.next(), path.next(), true);
+      }
+      if(H.method.compare("GET") && !api.compare("salt")){//request your salt
+        H.Clean();
+        H.SetHeader("Content-Type", "text/plain");
+        H.SetBody(userAuth.at(path.next()).second);
+        H.setCORSHeaders();
+        H.SendResponse("200", "OK", conn);
+        H.Clean();
       }
   
 
@@ -1288,9 +1486,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       if(!creds.substr(0,5).compare("Basic")){
         delimiterParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())),":");
         //check if user exists
-        std::map<std::string, std::string>::iterator user = userAuth.find(cred.next());
+        std::map<std::string, std::pair<std::string, std::string> >::iterator user = userAuth.find(cred.next());
         //check password
-        if(user == userAuth.end() || ((*user).second).compare(cred.next())) {
+        if(user == userAuth.end() || ((*user).second.first).compare(Secure::sha256(cred.next()+(*user).second.second))) {
           H.SetBody("invalid credentials");
           H.setCORSHeaders();
           H.SendResponse("403", "Forbidden", conn);
@@ -1395,6 +1593,349 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("200", "OK", conn);
           H.Clean();
         }
+        else if(!api.compare("balancing")){
+          api = path.next();
+          if(!api.compare("minstandby")){
+            int newVal = path.nextInt();
+            if(newVal > MAXSTANDBY){
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid value");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }else {
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("new minstandby value: %d", newVal);
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("maxstandby")){
+            int newVal = path.nextInt();
+            if(newVal < MINSTANDBY){
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid value");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }else {
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("new maxstandby value: %d", newVal);
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("decrement")){
+            api = path.next();
+            if(!api.compare("cpu")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERCPUDEC = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new balancing decrement cpu: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("ram")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERRAMDEC = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new balancing decrement ram: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("bandwidth")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERBWDEC = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new balancing decrement bandwidth: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            //handle none api
+            else{
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("maxtrigger")){
+            api = path.next();
+            if(!api.compare("cpu")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERCPU = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new max cappacity trigger cpu: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("ram")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERRAM = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new max cappacity trigger ram: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("bandwidth")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= 1){
+                CAPPACITYTRIGGERBW = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new max cappacity trigger bandwidth: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            //handle none api
+            else{
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("hightrigger")){
+            api = path.next();
+            if(!api.compare("cpu")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+                HIGHCAPPACITYTRIGGERCPU = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new high cappacity trigger cpu: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("ram")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+                HIGHCAPPACITYTRIGGERRAM = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new high cappacity trigger ram: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("bandwidth")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+                HIGHCAPPACITYTRIGGERBW = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new high cappacity trigger bandwidth: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            //handle none api
+            else{
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("lowTrigger")){
+            api = path.next();
+            if(!api.compare("cpu")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+                LOWCAPPACITYTRIGGERCPU = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new low cappacity trigger cpu: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("ram")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+                LOWCAPPACITYTRIGGERRAM = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new low cappacity trigger ram: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            else if(!api.compare("bandwidth")){
+              double newVal = path.nextDouble();
+              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+                LOWCAPPACITYTRIGGERBW = newVal;
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("new low cappacity trigger bandwidth: %d", newVal);
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }else{
+                H.Clean();
+                H.SetHeader("Content-Type", "text/plain");
+                H.SetBody("invalid");
+                H.setCORSHeaders();
+                H.SendResponse("200", "OK", conn);
+                H.Clean();
+              }
+            }
+            //handle none api
+            else{
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          else if(!api.compare("interval")){
+            int newVal = path.nextInt();
+            if(newVal >= 0){
+              BALANCINGINTERVAL = newVal;
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("new balancing interval value: %d", newVal);
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }else{
+              H.Clean();
+              H.SetHeader("Content-Type", "text/plain");
+              H.SetBody("invalid");
+              H.setCORSHeaders();
+              H.SendResponse("200", "OK", conn);
+              H.Clean();
+            }
+          }
+          //handle none api
+          else{
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("invalid");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }
+        }
         //auth
         else if(!api.compare("auth")){
           api = path.next();
@@ -1414,7 +1955,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           // add user acount
           else if (!api.compare("user")){
             std::string userName = path.next();
-            userAuth[userName] = path.next();
+            std::string salt = generateSalt();
+            userAuth[userName] = std::pair<std::string, std::string>(Secure::sha256(path.next()+salt), salt);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
@@ -1501,12 +2043,12 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         // Find source for given stream
         else if (!api.compare("source")){
           std::string source = path.next();
-          getSource(conn, H, source, path.next());
+          getSource(conn, H, source, path.next(), true);
         }
         // Find optimal ingest point
         else if (!api.compare("ingest")){
           std::string ingest = path.next();
-          getIngest(conn, H, ingest, path.next());
+          getIngest(conn, H, ingest, path.next(), true);
         }
         // Find host(s) status
         else if (!api.compare("host")){
@@ -1538,7 +2080,32 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("200", "OK", conn);
           H.Clean();
         
-        }else if(!api.compare("auth")){
+        }
+        else if(!api.compare("balancing")){
+          JSON::Value ret;
+          ret["balancing Interval"] = BALANCINGINTERVAL;
+          ret["minStandby"] = MINSTANDBY;
+          ret["maxStandby"] = MAXSTANDBY;
+          ret["HIGHCAPPACITYTRIGGERBW"] = HIGHCAPPACITYTRIGGERBW;
+          ret["HIGHCAPPACITYTRIGGERCPU"] = HIGHCAPPACITYTRIGGERCPU;
+          ret["HIGHCAPPACITYTRIGGERRAM"] = HIGHCAPPACITYTRIGGERRAM;
+          ret["LOWCAPPACITYTRIGGERBW"] = LOWCAPPACITYTRIGGERBW;
+          ret["LOWCAPPACITYTRIGGERCPU"] = LOWCAPPACITYTRIGGERCPU;
+          ret["LOWCAPPACITYTRIGGERRAM"] = LOWCAPPACITYTRIGGERRAM;
+          ret["CAPPACITYTRIGGERBW"] = CAPPACITYTRIGGERBW;
+          ret["CAPPACITYTRIGGERCPU"] = CAPPACITYTRIGGERCPU;
+          ret["CAPPACITYTRIGGERRAM"] = CAPPACITYTRIGGERRAM;
+          ret["CAPPACITYTRIGGERCPUDEC"] = CAPPACITYTRIGGERCPUDEC;
+          ret["CAPPACITYTRIGGERBWDEC"] = CAPPACITYTRIGGERBWDEC;
+          ret["CAPPACITYTRIGGERRAMDEC"] = CAPPACITYTRIGGERRAMDEC;
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
+          H.SetBody(ret.toString());
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+        }
+        else if(!api.compare("auth")){
           api = path.next();
           // add bearer token
           if (!api.compare("bearer")){
@@ -1921,7 +2488,7 @@ void API::updateHost(JSON::Value newVals){
       if(i == hosts.end()){
         INFO_MSG("unknown host update failed")
       }
-      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals["binHost"].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt());   
+      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals[BINHOSTKEY].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt(), newVals[CURRBANDWIDTHKEY].asInt(), newVals[AVAILBANDWIDTHKEY].asInt(), newVals[CURRRAMKEY].asInt(), newVals[RAMMAXKEY].asInt());   
   }
   
 /**
@@ -2273,7 +2840,7 @@ JSON::Value API::getViewers(){
 /**
    * return the best source of a stream
    */
-void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback){
+void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback, bool repeat = true){
     H.Clean();
     H.SetHeader("Content-Type", "text/plain");
     INFO_MSG("Finding source for stream %s", source.c_str());
@@ -2308,6 +2875,10 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
       }
     }
     if (bestScore == 0){
+      if(repeat){
+        extraServer();
+        getSource(conn, H, source, fback, false);
+      }
       if (fback.size()){
         bestHost = fback;
       }else{
@@ -2341,7 +2912,6 @@ uint64_t API::getStream(const std::string stream){
 JSON::Value API::serverList(){
     JSON::Value ret;
     for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
       ret[(std::string)(*it)->name] = stateLookup[(*it)->state];
     }
     return ret;    
@@ -2350,7 +2920,7 @@ JSON::Value API::serverList(){
 /**
    * return ingest point
    */
-void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback){
+void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback, bool repeat = true){
     H.Clean();
     H.SetHeader("Content-Type", "text/plain");
     double cpuUse = atoi(ingest.c_str());
@@ -2382,6 +2952,11 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
       }
     }
     if (bestScore == 0){
+      if(repeat){
+        extraServer();
+        getIngest(conn, H, ingest, fback, false);
+        return;
+      }
       if (fback.size()){
         bestHost = fback;
       }else{
@@ -2400,7 +2975,7 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
 /**
    * create stream
    */
-void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream){
+void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream, bool repeat = true){
     H.Clean();
     H.SetHeader("Content-Type", "text/plain");
     // Balance given stream
@@ -2419,13 +2994,10 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         return;
       }
       INFO_MSG("Balancing stream %s", stream.c_str());
-      H.Clean();
-      H.SetHeader("Content-Type", "text/plain");
-      H.setCORSHeaders();
       hostEntry *bestHost = 0;
       uint64_t bestScore = 0;
       for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-        if ((*it)->state != STATE_ONLINE){continue;}
+        if ((*it)->state != STATE_ACTIVE){continue;}
         uint64_t score = (*it)->details->rate(stream, tagAdjust);
         if (score > bestScore){
           bestHost = *it;
@@ -2433,14 +3005,26 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         }
       }
       if (!bestScore || !bestHost){
-        H.SetBody(fallback);
-        FAIL_MSG("All servers seem to be out of bandwidth!");
+        if(repeat){
+          extraServer();
+          API::stream(conn, H, proto, stream, false);
+        }else{
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
+          H.setCORSHeaders();
+          H.SetBody(fallback);
+          FAIL_MSG("All servers seem to be out of bandwidth!");
+        }
       }else{
         INFO_MSG("Winner: %s scores %" PRIu64, bestHost->details->host.c_str(), bestScore);
         bestHost->details->addViewer(stream, true);
+        H.Clean();
+        H.SetHeader("Content-Type", "text/plain");
+        H.setCORSHeaders();
         H.SetBody(bestHost->details->host);
       }
       if (proto != "" && bestHost && bestScore){
+        H.SetHeader("Content-Type", "text/plain");
         H.Clean();
         H.setCORSHeaders();
         H.SetHeader("Location", bestHost->details->getUrl(stream, proto) + vars);
@@ -2487,7 +3071,7 @@ JSON::Value API::getHostState(const std::string host){
       if ((*it)->state == STATE_OFF){continue;}
       if ((*it)->details->host == host){
         ret = stateLookup[(*it)->state];
-        if ((*it)->state != STATE_ONLINE){continue;}
+        if ((*it)->state != STATE_ACTIVE){continue;}
         (*it)->details->fillState(ret);
         break;
       }
@@ -2503,7 +3087,7 @@ JSON::Value API::getAllHostStates(){
     for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
       if ((*it)->state == STATE_OFF){continue;}
       ret[(*it)->details->host] = stateLookup[(*it)->state];
-      if ((*it)->state != STATE_ONLINE){continue;}
+      if ((*it)->state != STATE_ACTIVE){continue;}
       (*it)->details->fillState(ret[(*it)->details->host]);
     }
     return ret;
@@ -2641,7 +3225,8 @@ int main(int argc, char **argv){
   time(&prevSaveTime);
   //api login
   srand(time(0)+getpid());//setup random num generator
-  userAuth.insert(std::pair<std::string, std::string>("admin","default"));
+  std::string salt = generateSalt();
+  userAuth.insert(std::pair<std::string, std::pair<std::string, std::string> >("admin",std::pair<std::string, std::string>(Secure::sha256("default"+salt), salt)));
   bearerTokens.insert("test1233");
   //add localhost to whitelist
   if(conf.getBool("localmode")) {
@@ -2664,6 +3249,7 @@ int main(int argc, char **argv){
   checkServerMonitors();
 
   new tthread::thread(timerAddViewer, NULL);
+  new tthread::thread(checkNeedRedirect, NULL);
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");

@@ -14,9 +14,10 @@
 #define STATE_ONLINE 3
 #define STATE_GODOWN 4
 #define STATE_REQCLEAN 5
+#define STATE_ACTIVE 6
 const char *stateLookup[] ={"Offline",           "Starting monitoring",
-                             "Monitored (error)", "Monitored (online)",
-                             "Requesting stop",   "Requesting clean"};
+                             "Monitored (error)", "Monitored (not in service)",
+                             "Requesting stop",   "Requesting clean", "Monitored (in service)"};
 #define HOSTNAMELEN 1024
 
 
@@ -33,6 +34,7 @@ class delimiterParser{
   delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
   std::string next();
   int nextInt(int base);
+  double nextDouble();
 };
 
 
@@ -111,13 +113,18 @@ class hostDetails{
   protected:
   std::map<std::string, streamDetails> streams;
   tthread::recursive_mutex mutable *hostMutex;
-  uint64_t cpu;
   std::map<std::string, outUrl> outputs;
   std::set<std::string> conf_streams;
   std::set<std::string> tags;
   char* name;
+  uint64_t ramCurr;
+  uint64_t ramMax;
+  uint64_t cpu;
+  uint64_t currBandwidth;
+  
   
   public:
+  uint64_t availBandwidth;
   uint64_t prevAddBandwidth;
   uint64_t addBandwidth;
   char binHost[16];
@@ -128,6 +135,13 @@ class hostDetails{
   virtual ~hostDetails();
 
   uint64_t getAddBandwidth();
+
+  uint64_t getAvailBandwidth(){return availBandwidth;}
+  uint64_t getRamCurr(){return ramCurr;}
+  uint64_t getRamMax(){return ramMax;}
+  uint64_t getCpu(){return cpu;}
+  uint64_t getCurrBandwidth(){return currBandwidth;}
+
 
   /**
    *  Fills out a by reference given JSON::Value with current state.
@@ -160,7 +174,7 @@ class hostDetails{
   /**
    * Update precalculated host vars.
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, std::map<std::string, outUrl> outputs, std::set<std::string> conf_streams, std::map<std::string, streamDetails> streams, std::set<std::string> tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd, uint64_t currBandwidth, uint64_t availBandwidth, uint64_t currRam, uint64_t ramMax);
   
     /**
    * Update precalculated host vars without protected vars
@@ -170,7 +184,7 @@ class hostDetails{
   /**
    * allow for json inputs instead of sets and maps for update function
    */
-  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd);
+  void update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, uint64_t scoreSource, uint64_t scoreRate, JSON::Value outputs, JSON::Value conf_streams, JSON::Value streams, JSON::Value tags, uint64_t cpu, double servLati, double servLongi, const char* binHost, std::string host, uint64_t toAdd, uint64_t currBandwidth, uint64_t availBandwidth, uint64_t currRam, uint64_t ramMax);
   
 };
 
@@ -180,24 +194,24 @@ class hostDetails{
  */
 class hostDetailsCalc : public hostDetails {
   private:
-  uint64_t ramMax;
-  uint64_t ramCurr;
-  uint64_t upSpeed;
-  uint64_t downSpeed;
   uint64_t total;
   uint64_t upPrev;
   uint64_t downPrev;
   uint64_t prevTime;
-
+  uint64_t upSpeed;
+  uint64_t downSpeed;
 
   public:
-  uint64_t availBandwidth;
   JSON::Value geoDetails;
   std::string servLoc;
+
+  
 
   hostDetailsCalc(char* name);
   virtual ~hostDetailsCalc();
   
+
+
   void badNess();
 
   /// Fills out a by reference given JSON::Value with current state.
@@ -304,7 +318,7 @@ private:
   /**
    * return the best source of a stream
    */
-  static void getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback);
+  static void getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback, bool repeat);
   
   /**
    * get view count of a stream
@@ -319,12 +333,12 @@ private:
   /**
    * return ingest point
    */
-  static void getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback);
+  static void getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback, bool repeat);
   
   /**
    * create stream
    */
-  static void stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream);
+  static void stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std::string stream, bool repeat);
   
   /**
    * return stream stats

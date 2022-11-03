@@ -57,13 +57,16 @@ tthread::mutex Controller::statsMutex;
 unsigned int Controller::maxConnsPerIP = 0;
 uint64_t Controller::statDropoff = 0;
 static uint64_t cpu_use = 0;
+uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0;
+uint64_t bw_up_total = 0, bw_down_total = 0;
+uint64_t shm_total = 0, shm_free = 0;
 
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
 
-/// Session cache shared memory page
+/// Session cache shared memory globCfg
 IPC::sharedPage *shmSessions = 0;
-/// Lock for the session cache shared memory page
+/// Lock for the session cache shared memory globCfg
 IPC::semaphore *cacheLock = 0;
 
 /// Convert bandwidth config into memory format
@@ -341,7 +344,7 @@ void Controller::writeSessionCache(){
     if (sessions.size()){
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
         if (it->second.hasData()){
-          // store an entry in the shmSessions page, if it fits
+          // store an entry in the shmSessions globCfg, if it fits
           if (it->second.sync > 2 && shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
             *((uint32_t *)(shmSessions->mapped + shmOffset)) = it->first.crc;
             strncpy(shmSessions->mapped + shmOffset + 4, it->first.streamName.c_str(), 100);
@@ -400,6 +403,81 @@ void Controller::SharedMemStats(void *config){
         }
       }
     }
+    // Collect core server stats
+    {
+      std::ifstream meminfo("/proc/meminfo");
+      if (meminfo){
+        char line[300];
+        while (meminfo.good()){
+          meminfo.getline(line, 300);
+          if (meminfo.fail()){
+            // empty lines? ignore them, clear flags, continue
+            if (!meminfo.eof()){
+              meminfo.ignore();
+              meminfo.clear();
+            }
+            continue;
+          }
+          long long int i;
+          if (sscanf(line, "MemTotal : %lli kB", &i) == 1){mem_total = i;}
+          if (sscanf(line, "MemFree : %lli kB", &i) == 1){mem_free = i;}
+          if (sscanf(line, "Buffers : %lli kB", &i) == 1){mem_bufcache += i;}
+          if (sscanf(line, "Cached : %lli kB", &i) == 1){mem_bufcache += i;}
+        }
+      }
+      std::ifstream netUsage("/proc/net/dev");
+      while (netUsage){
+        char line[300];
+        netUsage.getline(line, 300);
+        long long unsigned sent = 0;
+        long long unsigned recv = 0;
+        char iface[10];
+        if (sscanf(line, "%9s %llu %*u %*u %*u %*u %*u %*u %*u %llu", iface, &recv, &sent) == 3){
+          if (iface[0] != 'l' || iface[1] != 'o'){
+            bw_down_total += recv;
+            bw_up_total += sent;
+          }
+        }
+      }
+    }
+    
+  #if !defined(__CYGWIN__) && !defined(_WIN32)
+    {
+      struct statvfs shmd;
+      IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
+      if (tmpCapa.mapped && tmpCapa.handle){
+        fstatvfs(tmpCapa.handle, &shmd);
+        shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
+        shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
+      }
+    }
+  #endif
+
+    IPC::sharedPage globCfg;
+    globCfg.init("systemHealth", 4096, false, false);
+    if (!globCfg.mapped){globCfg.init("systemHealth", 4096, true, false);}
+    if (globCfg.mapped){
+      Util::RelAccX globAccX(globCfg.mapped, false);
+      uint32_t i = 0;
+      
+      globAccX.addField("bwlimit", RAX_UINT);
+      globAccX.addField("mem_total", RAX_UINT);
+      globAccX.addField("cpu", RAX_UINT);
+      globAccX.addField("bw_curr", RAX_UINT);
+      globAccX.addField("mem_curr", RAX_UINT);
+      globAccX.setReady();
+
+      globAccX.setInt("bwlimit", bwLimit, i);
+      globAccX.setInt("mem_total", mem_total, i);
+      globAccX.setInt("cpu", cpu_use, i);
+      globAccX.setInt("bw_curr", servDownBytes + servUpBytes, i);
+      globAccX.setInt("mem_curr", mem_total - mem_free - mem_bufcache, i);
+      globAccX.setRCount(1);
+      globAccX.setEndPos(1);
+      globCfg.master = false; // leave the page after closing
+    }
+
+
     {
 
       tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
@@ -1831,57 +1909,6 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   H.SetHeader("Server", APPIDENT);
   H.StartResponse("200", "OK", H, conn, true);
 
-  // Collect core server stats
-  uint64_t mem_total = 0, mem_free = 0, mem_bufcache = 0;
-  uint64_t bw_up_total = 0, bw_down_total = 0;
-  {
-    std::ifstream meminfo("/proc/meminfo");
-    if (meminfo){
-      char line[300];
-      while (meminfo.good()){
-        meminfo.getline(line, 300);
-        if (meminfo.fail()){
-          // empty lines? ignore them, clear flags, continue
-          if (!meminfo.eof()){
-            meminfo.ignore();
-            meminfo.clear();
-          }
-          continue;
-        }
-        long long int i;
-        if (sscanf(line, "MemTotal : %lli kB", &i) == 1){mem_total = i;}
-        if (sscanf(line, "MemFree : %lli kB", &i) == 1){mem_free = i;}
-        if (sscanf(line, "Buffers : %lli kB", &i) == 1){mem_bufcache += i;}
-        if (sscanf(line, "Cached : %lli kB", &i) == 1){mem_bufcache += i;}
-      }
-    }
-    std::ifstream netUsage("/proc/net/dev");
-    while (netUsage){
-      char line[300];
-      netUsage.getline(line, 300);
-      long long unsigned sent = 0;
-      long long unsigned recv = 0;
-      char iface[10];
-      if (sscanf(line, "%9s %llu %*u %*u %*u %*u %*u %*u %*u %llu", iface, &recv, &sent) == 3){
-        if (iface[0] != 'l' || iface[1] != 'o'){
-          bw_down_total += recv;
-          bw_up_total += sent;
-        }
-      }
-    }
-  }
-  uint64_t shm_total = 0, shm_free = 0;
-#if !defined(__CYGWIN__) && !defined(_WIN32)
-  {
-    struct statvfs shmd;
-    IPC::sharedPage tmpCapa(SHM_CAPA, DEFAULT_CONF_PAGE_SIZE, false, false);
-    if (tmpCapa.mapped && tmpCapa.handle){
-      fstatvfs(tmpCapa.handle, &shmd);
-      shm_free = (shmd.f_bfree * shmd.f_frsize) / 1024;
-      shm_total = (shmd.f_blocks * shmd.f_frsize) / 1024;
-    }
-  }
-#endif
 
   if (mode == PROMETHEUS_TEXT){
     std::stringstream response;
@@ -2174,3 +2201,6 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   H.Chunkify("", conn);
   H.Clean();
 }
+
+
+

@@ -126,6 +126,10 @@ namespace Mist{
   std::string OutDTSC::getStatsName(){return (pushing ? "INPUT:DTSC" : "OUTPUT:DTSC");}
 
   void OutDTSC::sendNext(){
+    DTSC::Packet p(thisPacket, thisIdx+1);
+    myConn.SendNow(p.getData(), p.getDataLen());
+    lastActive = Util::epoch();
+
     // If selectable tracks changed, set sentHeader to false to force it to send init data
     static uint64_t lastMeta = 0;
     if (Util::epoch() > lastMeta + 5){
@@ -136,9 +140,6 @@ namespace Mist{
         return;
       }
     }
-    DTSC::Packet p(thisPacket, thisIdx+1);
-    myConn.SendNow(p.getData(), p.getDataLen());
-    lastActive = Util::epoch();
   }
 
   void OutDTSC::sendHeader(){

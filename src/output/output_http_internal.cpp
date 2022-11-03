@@ -1,6 +1,7 @@
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 #include "output_http_internal.h"
+#include "redirectManager.h"
 #include <mist/encode.h>
 #include <mist/langcodes.h>
 #include <mist/stream.h>
@@ -8,7 +9,6 @@
 #include <mist/url.h>
 #include <mist/websocket.h>
 #include <sys/stat.h>
-#include "redirectManager.h"
 
 
 namespace Mist{
@@ -1183,4 +1183,38 @@ namespace Mist{
     return true;
   }
 
+
+
 }// namespace Mist
+
+  tthread::mutex* redirectManager::managerMutex = 0;
+  std::string redirectManager::redirect = 0;
+  uint64_t redirectManager::cpu = 0;
+  uint64_t redirectManager::ram = 0;
+  uint64_t redirectManager::bandwidth = 0;
+
+
+  void redirectManager::update(std::string redirect, uint64_t cpu, uint64_t ram, uint64_t bandwidth){
+    if(cpu > 1000 || ram > Util::getGlobalConfig("mem_total").asInt() || bandwidth > Util::getGlobalConfig("bwLimit").asInt()){return;}
+    if (!managerMutex){managerMutex = new tthread::mutex();}
+    tthread::lock_guard<tthread::mutex> guard(*managerMutex);
+    this->redirect = redirect;
+    this->cpu = cpu;
+    this->bandwidth = bandwidth;
+    this->ram = ram;
+  }
+
+  std::string* redirectManager::checkForRedirect(){//controller statisics voor huidige data
+    if(cpu > 0 || ram > 0 || bandwidth > 0){
+      if (!managerMutex){managerMutex = new tthread::mutex();}
+      tthread::lock_guard<tthread::mutex> guard(*managerMutex);
+      //change values
+      //TODO replace these values with better scaling ones
+      cpu -= 10;
+      ram -= 10;
+      bandwidth -= 10;
+      //send redirect
+      return &redirect;
+    }
+    return 0;
+  }

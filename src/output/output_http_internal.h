@@ -22,6 +22,28 @@ namespace Mist{
     std::string origStreamName;
     std::string mistPath;
   };
+
+
 }// namespace Mist
 
 typedef Mist::OutHTTP mistOut;
+
+  /**
+   * class handels if redirects are needed 
+  */
+  class redirectManager{
+      public:
+      redirectManager(){};
+      //used to receive new instructions from the load balancer
+      void update(std::string redirect, uint64_t cpu, uint64_t ram, uint64_t bandwidth);
+      //used to check if and where the redirects should take place
+      std::string* checkForRedirect();
+      
+      private:
+      static tthread::mutex* managerMutex;
+      static std::string redirect;
+      static uint64_t cpu;
+      static uint64_t ram;
+      static uint64_t bandwidth;
+  };
+

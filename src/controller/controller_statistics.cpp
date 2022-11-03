@@ -453,14 +453,15 @@ void Controller::SharedMemStats(void *config){
     }
   #endif
 
+
     IPC::sharedPage globCfg;
-    globCfg.init("systemHealth", 4096, false, false);
-    if (!globCfg.mapped){globCfg.init("systemHealth", 4096, true, false);}
+    globCfg.init(SHM_GLOBAL_CONF, 4096, false, false);
+    if (!globCfg.mapped){globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);}
     if (globCfg.mapped){
       Util::RelAccX globAccX(globCfg.mapped, false);
       uint32_t i = 0;
       
-      globAccX.addField("bwlimit", RAX_UINT);
+      globAccX.addField("bwLimit", RAX_UINT);
       globAccX.addField("mem_total", RAX_UINT);
       globAccX.addField("cpu", RAX_UINT);
       globAccX.addField("bw_curr", RAX_UINT);

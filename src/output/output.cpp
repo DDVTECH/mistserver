@@ -453,7 +453,11 @@ namespace Mist{
           if (seekTargets.count(*it)){
             seek(*it, seekTargets[*it], false);
           }else{
-            seek(*it, seekTargets.begin()->second, false);
+            if (buffer.getSyncMode()){
+              seek(*it, seekTargets.begin()->second, false);
+            }else{
+              seek(*it, 0, false);
+            }
           }
         }
       }

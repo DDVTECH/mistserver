@@ -76,6 +76,21 @@ std::string const CONFIGBEARER = "bearer_tokens";
 std::string const CONFIGUSERS = "user_auth";
 std::string const CONFIGSERVERS = "server_list";
 std::string const CONFIGLOADBALANCER = "loadbalancers";
+std::string const CONFIGMINSTANDBY = "minstandby";
+std::string const CONFIGMAXSTANDBY = "maxstandby";
+std::string const CONFIGCAPPACITYTRIGGERCPUDEC = "cappacitytriggerdecrementcpu"; //percentage om cpu te verminderen
+std::string const CONFIGCAPPACITYTRIGGERBWDEC = "cappacitytriggerdecrementbandwidth"; //percentage om bandwidth te verminderen
+std::string const CONFIGCAPPACITYTRIGGERRAMDEC = "cappacitytriggerdecrementram"; //percentage om ram te verminderen
+std::string const CONFIGCAPPACITYTRIGGERCPU = "cappacitytriggercpu"; //max capacity trigger for balancing cpu
+std::string const CONFIGCAPPACITYTRIGGERBW = "cappacitytriggerbandwidth";  //max capacity trigger for balancing bandwidth
+std::string const CONFIGCAPPACITYTRIGGERRAM = "cappacitytriggerram"; //max capacity trigger for balancing ram
+std::string const CONFIGHIGHCAPPACITYTRIGGERCPU = "balancingcappacitytriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const CONFIGHIGHCAPPACITYTRIGGERBW = "balancingcappacitytriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const CONFIGHIGHCAPPACITYTRIGGERRAM = "balancingcappacitytriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const CONFIGLOWCAPPACITYTRIGGERCPU = "balancingminimumtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const CONFIGLOWCAPPACITYTRIGGERBW = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const CONFIGLOWCAPPACITYTRIGGERRAM = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const CONFIGBALANCINGINTERVAL = "balancinginterval";
 
 //streamdetails names
 std::string const STREAMDETAILSTOTAL = "total";
@@ -1298,6 +1313,23 @@ void saveFile(bool RESEND = false){
     j[CONFIGWHITELIST] = convertSetToJson(whitelist);
     j[CONFIGBEARER] = convertSetToJson(bearerTokens);
     j[CONFIGUSERS] = convertMapToJson(userAuth);
+
+    //balancing
+    j[CONFIGMINSTANDBY] = MINSTANDBY;
+    j[CONFIGMAXSTANDBY] = MAXSTANDBY;
+    j[CONFIGCAPPACITYTRIGGERCPUDEC] =  CAPPACITYTRIGGERCPUDEC; 
+    j[CONFIGCAPPACITYTRIGGERBWDEC] = CAPPACITYTRIGGERBWDEC; 
+    j[CONFIGCAPPACITYTRIGGERRAMDEC] = CAPPACITYTRIGGERRAMDEC; 
+    j[CONFIGCAPPACITYTRIGGERCPU] = CAPPACITYTRIGGERCPU; 
+    j[CONFIGCAPPACITYTRIGGERBW] = CAPPACITYTRIGGERBW;  
+    j[CONFIGCAPPACITYTRIGGERRAM] = CAPPACITYTRIGGERRAM; 
+    j[CONFIGHIGHCAPPACITYTRIGGERCPU] = HIGHCAPPACITYTRIGGERCPU; 
+    j[CONFIGHIGHCAPPACITYTRIGGERBW] = HIGHCAPPACITYTRIGGERBW;  
+    j[CONFIGHIGHCAPPACITYTRIGGERRAM] = HIGHCAPPACITYTRIGGERRAM; 
+    j[CONFIGLOWCAPPACITYTRIGGERCPU] = LOWCAPPACITYTRIGGERCPU; 
+    j[CONFIGLOWCAPPACITYTRIGGERBW] = LOWCAPPACITYTRIGGERBW;  
+    j[CONFIGLOWCAPPACITYTRIGGERRAM] = LOWCAPPACITYTRIGGERRAM; 
+    j[CONFIGBALANCINGINTERVAL] = BALANCINGINTERVAL;
     //serverlist 
     std::set<std::string> servers;
     for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -1386,6 +1418,31 @@ void loadFile(bool RESEND = false){
   passHash = j[CONFIGPASS].asString();
   passphrase = j[CONFIGSPASS].asStringRef();
   bearerTokens = convertJsonToSet(j[CONFIGBEARER]);
+
+  //balancing
+  MINSTANDBY = j[CONFIGMINSTANDBY].asInt();
+  MAXSTANDBY = j[CONFIGMAXSTANDBY].asInt();
+  CAPPACITYTRIGGERCPUDEC = j[CONFIGCAPPACITYTRIGGERCPUDEC].asDouble(); //percentage om cpu te verminderen
+  CAPPACITYTRIGGERBWDEC = j[CONFIGCAPPACITYTRIGGERBWDEC].asDouble(); //percentage om bandwidth te verminderen
+  CAPPACITYTRIGGERRAMDEC = j[CONFIGCAPPACITYTRIGGERRAMDEC].asDouble(); //percentage om ram te verminderen
+  CAPPACITYTRIGGERCPU = j[CONFIGCAPPACITYTRIGGERCPU].asDouble(); //max capacity trigger for balancing cpu
+  CAPPACITYTRIGGERBW = j[CONFIGCAPPACITYTRIGGERBW].asDouble();  //max capacity trigger for balancing bandwidth
+  CAPPACITYTRIGGERRAM = j[CONFIGCAPPACITYTRIGGERRAM].asDouble(); //max capacity trigger for balancing ram
+  HIGHCAPPACITYTRIGGERCPU = j[CONFIGHIGHCAPPACITYTRIGGERCPU].asDouble(); //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+  HIGHCAPPACITYTRIGGERBW = j[CONFIGHIGHCAPPACITYTRIGGERBW].asDouble();  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+  HIGHCAPPACITYTRIGGERRAM = j[CONFIGHIGHCAPPACITYTRIGGERRAM].asDouble(); //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+  LOWCAPPACITYTRIGGERCPU = j[CONFIGLOWCAPPACITYTRIGGERCPU].asDouble(); //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+  LOWCAPPACITYTRIGGERBW = j[CONFIGLOWCAPPACITYTRIGGERBW].asDouble();  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+  LOWCAPPACITYTRIGGERRAM = j[CONFIGLOWCAPPACITYTRIGGERRAM].asDouble(); //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+  BALANCINGINTERVAL = j[CONFIGBALANCINGINTERVAL].asInt();
+
+  if(HIGHCAPPACITYTRIGGERCPU > CAPPACITYTRIGGERCPU) HIGHCAPPACITYTRIGGERCPU = CAPPACITYTRIGGERCPU;
+  if(HIGHCAPPACITYTRIGGERBW > CAPPACITYTRIGGERBW) HIGHCAPPACITYTRIGGERBW = CAPPACITYTRIGGERBW;
+  if(HIGHCAPPACITYTRIGGERRAM > CAPPACITYTRIGGERRAM) HIGHCAPPACITYTRIGGERRAM = CAPPACITYTRIGGERRAM;
+  if(LOWCAPPACITYTRIGGERCPU > CAPPACITYTRIGGERCPU) LOWCAPPACITYTRIGGERCPU = HIGHCAPPACITYTRIGGERCPU;
+  if(LOWCAPPACITYTRIGGERBW > CAPPACITYTRIGGERBW) LOWCAPPACITYTRIGGERBW = HIGHCAPPACITYTRIGGERBW;
+  if(LOWCAPPACITYTRIGGERRAM > CAPPACITYTRIGGERRAM) LOWCAPPACITYTRIGGERRAM = HIGHCAPPACITYTRIGGERRAM;
+
   //load whitelist
   whitelist = convertJsonToSet(j[CONFIGWHITELIST]);
   
@@ -1836,7 +1893,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             api = path.next();
             if(!api.compare("cpu")){
               double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
                 LOWCAPPACITYTRIGGERCPU = newVal;
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
@@ -1855,7 +1912,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             }
             else if(!api.compare("ram")){
               double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
                 LOWCAPPACITYTRIGGERRAM = newVal;
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
@@ -1874,7 +1931,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             }
             else if(!api.compare("bandwidth")){
               double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
                 LOWCAPPACITYTRIGGERBW = newVal;
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");

@@ -440,7 +440,7 @@ namespace Mist{
     WARN_MSG("help")
     if(redirect){
       //send redirect request to player
-    //  json_resp["redirectpls"] = redirect;
+      json_resp["redirectpls"] = redirect;
     }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     if (streamStatus != STRMSTAT_READY){

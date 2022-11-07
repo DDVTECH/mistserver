@@ -65,9 +65,9 @@ uint64_t shm_total = 0, shm_free = 0;
 char noBWCountMatches[1717];
 uint64_t bwLimit = 128 * 1024 * 1024; // gigabit default limit
 
-/// Session cache shared memory globCfg
+/// Session cache shared memory page
 IPC::sharedPage *shmSessions = 0;
-/// Lock for the session cache shared memory globCfg
+/// Lock for the session cache shared memory page
 IPC::semaphore *cacheLock = 0;
 
 /// Convert bandwidth config into memory format
@@ -345,7 +345,7 @@ void Controller::writeSessionCache(){
     if (sessions.size()){
       for (std::map<sessIndex, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
         if (it->second.hasData()){
-          // store an entry in the shmSessions globCfg, if it fits
+          // store an entry in the shmSessions page, if it fits
           if (it->second.sync > 2 && shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
             *((uint32_t *)(shmSessions->mapped + shmOffset)) = it->first.crc;
             strncpy(shmSessions->mapped + shmOffset + 4, it->first.streamName.c_str(), 100);
@@ -2280,6 +2280,3 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
   H.Chunkify("", conn);
   H.Clean();
 }
-
-
-

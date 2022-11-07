@@ -160,5 +160,3 @@ namespace Controller{
 #define PROMETHEUS_JSON 1
   void handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int mode);
 }// namespace Controller
-
-

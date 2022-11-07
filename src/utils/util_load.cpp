@@ -1650,6 +1650,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             int newVal = path.nextInt();
             if(newVal > MAXSTANDBY){
               MINSTANDBY = newVal;
+              JSON::Value j;
+              j[MINSTANDBYKEY] = MINSTANDBY;
+              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                (*it)->send(j.asString());
+              }
               //start save timer
               time(&prevConfigChange);
               if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1672,6 +1677,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             int newVal = path.nextInt();
             if(newVal < MINSTANDBY){
               MAXSTANDBY = newVal;
+              JSON::Value j;
+              j[MAXSTANDBYKEY] = MAXSTANDBY;
+              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                (*it)->send(j.asString());
+              }
               //start save timer
               time(&prevConfigChange);
               if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1696,6 +1706,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERCPUDEC = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1718,6 +1733,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERRAMDEC = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1740,6 +1760,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERBWDEC = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1774,6 +1799,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERCPU = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1796,6 +1826,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERRAM = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1818,6 +1853,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERBW = newVal;
+                JSON::Value j;
+                j[CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1852,6 +1892,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
                 HIGHCAPPACITYTRIGGERCPU = newVal;
+                JSON::Value j;
+                j[HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1874,6 +1919,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
                 HIGHCAPPACITYTRIGGERRAM = newVal;
+                JSON::Value j;
+                j[HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1896,6 +1946,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
                 HIGHCAPPACITYTRIGGERBW = newVal;
+                JSON::Value j;
+                j[HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1930,6 +1985,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
                 LOWCAPPACITYTRIGGERCPU = newVal;
+                JSON::Value j;
+                j[LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1952,6 +2012,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
                 LOWCAPPACITYTRIGGERRAM = newVal;
+                JSON::Value j;
+                j[LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1974,6 +2039,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
                 LOWCAPPACITYTRIGGERBW = newVal;
+                JSON::Value j;
+                j[LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
+                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                  (*it)->send(j.asString());
+                }
                 //start save timer
                 time(&prevConfigChange);
                 if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -2006,6 +2076,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             int newVal = path.nextInt();
             if(newVal >= 0){
               BALANCINGINTERVAL = newVal;
+              JSON::Value j;
+              j[BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
+              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+                (*it)->send(j.asString());
+              }
               //start save timer
               time(&prevConfigChange);
               if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);

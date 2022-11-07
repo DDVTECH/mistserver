@@ -477,6 +477,10 @@ void Controller::SharedMemStats(void *config){
         globAccX.addField("cpu", RAX_UINT);
         globAccX.addField("bw_curr", RAX_UINT);
         globAccX.addField("mem_curr", RAX_UINT);
+        globAccX.addField("balancingbw", RAX_UINT);
+        globAccX.addField("balancingMem", RAX_UINT);
+        globAccX.addField("balancingCPU", RAX_UINT);
+        globAccX.addField("balancingRedirect", RAX_256STRING);
         globAccX.setRCount(1);
         globAccX.setEndPos(1);
         globAccX.setReady();
@@ -1953,6 +1957,11 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
           globAccX.addField("balancingMem", RAX_UINT);
           globAccX.addField("balancingCPU", RAX_UINT);
           globAccX.addField("balancingRedirect", RAX_256STRING);
+          globAccX.addField("bwlimit", RAX_UINT);
+          globAccX.addField("mem_total", RAX_UINT);
+          globAccX.addField("cpu", RAX_UINT);
+          globAccX.addField("bw_curr", RAX_UINT);
+          globAccX.addField("mem_curr", RAX_UINT);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();

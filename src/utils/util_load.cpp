@@ -1649,6 +1649,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           if(!api.compare("minstandby")){
             int newVal = path.nextInt();
             if(newVal > MAXSTANDBY){
+              MINSTANDBY = newVal;
+              //start save timer
+              time(&prevConfigChange);
+              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
               H.Clean();
               H.SetHeader("Content-Type", "text/plain");
               H.SetBody("invalid value");
@@ -1667,6 +1671,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           else if(!api.compare("maxstandby")){
             int newVal = path.nextInt();
             if(newVal < MINSTANDBY){
+              MAXSTANDBY = newVal;
+              //start save timer
+              time(&prevConfigChange);
+              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
               H.Clean();
               H.SetHeader("Content-Type", "text/plain");
               H.SetBody("invalid value");
@@ -1688,6 +1696,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERCPUDEC = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new balancing decrement cpu: %d", newVal);
@@ -1707,6 +1718,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERRAMDEC = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new balancing decrement ram: %d", newVal);
@@ -1726,6 +1740,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERBWDEC = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new balancing decrement bandwidth: %d", newVal);
@@ -1757,6 +1774,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERCPU = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new max cappacity trigger cpu: %d", newVal);
@@ -1776,6 +1796,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERRAM = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new max cappacity trigger ram: %d", newVal);
@@ -1795,6 +1818,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= 1){
                 CAPPACITYTRIGGERBW = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new max cappacity trigger bandwidth: %d", newVal);
@@ -1826,6 +1852,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
                 HIGHCAPPACITYTRIGGERCPU = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new high cappacity trigger cpu: %d", newVal);
@@ -1845,6 +1874,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
                 HIGHCAPPACITYTRIGGERRAM = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new high cappacity trigger ram: %d", newVal);
@@ -1864,6 +1896,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
                 HIGHCAPPACITYTRIGGERBW = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new high cappacity trigger bandwidth: %d", newVal);
@@ -1895,6 +1930,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
                 LOWCAPPACITYTRIGGERCPU = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new low cappacity trigger cpu: %d", newVal);
@@ -1914,6 +1952,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
                 LOWCAPPACITYTRIGGERRAM = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new low cappacity trigger ram: %d", newVal);
@@ -1933,6 +1974,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
               double newVal = path.nextDouble();
               if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
                 LOWCAPPACITYTRIGGERBW = newVal;
+                //start save timer
+                time(&prevConfigChange);
+                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
                 H.Clean();
                 H.SetHeader("Content-Type", "text/plain");
                 H.SetBody("new low cappacity trigger bandwidth: %d", newVal);
@@ -1962,6 +2006,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             int newVal = path.nextInt();
             if(newVal >= 0){
               BALANCINGINTERVAL = newVal;
+              //start save timer
+              time(&prevConfigChange);
+              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
               H.Clean();
               H.SetHeader("Content-Type", "text/plain");
               H.SetBody("new balancing interval value: %d", newVal);

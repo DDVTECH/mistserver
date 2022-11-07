@@ -47,6 +47,23 @@ std::string const CURRRAMKEY = "currram";
 std::string const RAMMAXKEY = "ramMax";
 std::string const BINHOSTKEY = "binhost";
 
+std::string const MINSTANDBYKEY = "minstandby";
+std::string const MAXSTANDBYKEY = "maxstandby";
+std::string const CAPPACITYTRIGGERCPUDECKEY = "cappacitytriggerdecrementcpu"; //percentage om cpu te verminderen
+std::string const CAPPACITYTRIGGERBWDECKEY = "cappacitytriggerdecrementbandwidth"; //percentage om bandwidth te verminderen
+std::string const CAPPACITYTRIGGERRAMDECKEY = "cappacitytriggerdecrementram"; //percentage om ram te verminderen
+std::string const CAPPACITYTRIGGERCPUKEY = "cappacitytriggercpu"; //max capacity trigger for balancing cpu
+std::string const CAPPACITYTRIGGERBWKEY = "cappacitytriggerbandwidth";  //max capacity trigger for balancing bandwidth
+std::string const CAPPACITYTRIGGERRAMKEY = "cappacitytriggerram"; //max capacity trigger for balancing ram
+std::string const HIGHCAPPACITYTRIGGERCPUKEY = "balancingcappacitytriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const HIGHCAPPACITYTRIGGERBWKEY = "balancingcappacitytriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const HIGHCAPPACITYTRIGGERRAMKEY = "balancingcappacitytriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const LOWCAPPACITYTRIGGERCPUKEY = "balancingminimumtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const LOWCAPPACITYTRIGGERBWKEY = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const LOWCAPPACITYTRIGGERRAMKEY = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const BALANCINGINTERVALKEY = "balancinginterval";
+
+
 //const api names set multiple times
 std::string const ADDLOADBALANCER = "addloadbalancer";
 std::string const REMOVELOADBALANCER = "removeloadbalancer";

@@ -35,7 +35,7 @@ typedef Mist::OutHTTP mistOut;
       public:
       redirectManager(){};
       //used to receive new instructions from the load balancer
-      void update(std::string redirect, uint64_t cpu, uint64_t ram, uint64_t bandwidth);
+      void update();
       //used to check if and where the redirects should take place
       std::string* checkForRedirect();
       

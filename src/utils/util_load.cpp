@@ -422,7 +422,7 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
  * \param LB contains the load balancer that created this object null if this load balancer
  * \param name is the name of the server
 */
-hostDetails::hostDetails(char* name) : hostMutex(0), name(name), ramCurr(0), ramMax(0), availBandwidth(128 * 1024 * 1024), addBandwidth(0) {}
+hostDetails::hostDetails(char* name) : hostMutex(0), name(name), ramCurr(0), ramMax(0), availBandwidth(128 * 1024 * 1024), addBandwidth(0), balanceCPU(0), balanceRAM(0), balanceBW(0), balanceRedirect("") {}
 
 hostDetails::~hostDetails(){
     if(hostMutex){
@@ -887,24 +887,6 @@ void hostDetailsCalc::update(JSON::Value &d){
 
 
 
-bool checkShouldBalance(){
-  int num = 0;//find start position
-  std::set<std::string> hostnames;
-  for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
-    hostnames.insert((*i)->name);
-  }
-  //find indexes
-  int trigger = hostnames.size()/identifiers.size();
-  int index;
-  index = num/trigger % identifiers.size();
-  
-  //find identifiers
-  std::set<std::string>::iterator it = identifiers.begin();
-  std::advance(it,index);
-  
-  return !(*it).compare(identifier);
-}
-
 /**
  * redirects traffic away
 */
@@ -916,23 +898,30 @@ bool redirectServer(hostEntry* H){
 
 
   std::map<int,hostEntry*> lbw;
-  //find host with lowest bw server
+  //find host with lowest bw usage
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    if(CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < ((*it)->details->getCurrBandwidth())){
+    if((*it)->state != STATE_ACTIVE) continue;
+    if(HIGHCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() > ((*it)->details->getCurrBandwidth())){
       lbw.insert(std::pair<uint64_t, hostEntry*>((*it)->details->getCurrBandwidth(), *it));
     }
   }
   if(!lbw.size()) return false;
   std::map<int, hostEntry*>::iterator i = lbw.begin();
-  int balancableCpu = CAPPACITYTRIGGERCPU * 1000 -100;
-  int balancableRam = CAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - 0.1 * (*i).second->details->getRamMax();
+
   while(i != lbw.end()){
-    if((*i).second->details->getCpu() < balancableCpu && (*i).second->details->getRamCurr() < balancableRam){
-      //TODO send redirect message
+    int balancableCpu = HIGHCAPPACITYTRIGGERCPU * 1000 - (*i).second->details->getCpu();
+    int balancableRam = HIGHCAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - (*i).second->details->getRamCurr();
+    if(balancableCpu > 0 && 0 < balancableRam){
+      int balancableBW = HIGHCAPPACITYTRIGGERBW * (*i).second->details->availBandwidth - (*i).second->details->getCurrBandwidth();
+      
+      H->details->balanceCPU = balancableCpu;
+      H->details->balanceBW = balancableBW;
+      H->details->balanceRAM = balancableRam;
+      H->details->balanceRedirect = (*i).second->name;
       return true;
     }
     i++;
-    balancableRam = CAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - 0.1 * (*i).second->details->getRamMax();
+
   }
   return false;
 }
@@ -962,53 +951,52 @@ void reduceServer(hostEntry* H){
 
 static void checkNeedRedirect(void*){
   while(cfg->is_active){
-    if(checkShouldBalance()){
-      //check if redirect is needed
-      bool balancing = false;
-      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-        if((*it)->state == STATE_ONLINE) continue;
-        if((*it)->details->getRamMax() * CAPPACITYTRIGGERRAM > (*it)->details->getRamCurr() || 
-          CAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu() ||
-          CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){     
-          balancing = redirectServer(*it);
-        }
-      }
-
-      if(!balancing){//dont trigger when still balancing
-        //check if reaching capacity
-        std::set<hostEntry*> highCapacity;
-        std::set<hostEntry*> lowCapacity;
-        for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-          if((*it)->state == STATE_ONLINE) continue;
-          if(HIGHCAPPACITYTRIGGERCPU * 1000< (*it)->details->getCpu()){
-            highCapacity.insert(*it);
-          }
-          if(HIGHCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() < (*it)->details->getRamCurr()){
-            highCapacity.insert(*it);
-          }
-          if(HIGHCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){
-            highCapacity.insert(*it);
-          }
-          if(LOWCAPPACITYTRIGGERCPU * 1000 > (*it)->details->getCpu()){
-            lowCapacity.insert(*it);
-          }
-          if(LOWCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() > (*it)->details->getRamCurr()){
-            lowCapacity.insert(*it);
-          }
-          if(LOWCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() > (*it)->details->getCurrBandwidth()){
-            lowCapacity.insert(*it);
-          }
-        }
-        //check if too much capacity
-        if(lowCapacity.size() > 1){
-          reduceServer(*lowCapacity.begin());
-        }
-        //check if too little capacity
-        if(lowCapacity.size() == 0 && highCapacity.size() == hosts.size()){
-          extraServer();
-        }
+    //check if redirect is needed
+    bool balancing = false;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if((*it)->state == STATE_ONLINE) continue;
+      if((*it)->details->getRamMax() * CAPPACITYTRIGGERRAM > (*it)->details->getRamCurr() || 
+        CAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu() ||
+        CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){     
+        balancing = redirectServer(*it);
       }
     }
+
+    if(!balancing){//dont trigger when still balancing
+      //check if reaching capacity
+      std::set<hostEntry*> highCapacity;
+      std::set<hostEntry*> lowCapacity;
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        if((*it)->state == STATE_ONLINE) continue;
+        if(HIGHCAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu()){
+          highCapacity.insert(*it);
+        }
+        if(HIGHCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() < (*it)->details->getRamCurr()){
+          highCapacity.insert(*it);
+        }
+        if(HIGHCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){
+          highCapacity.insert(*it);
+        }
+        if(LOWCAPPACITYTRIGGERCPU * 1000 > (*it)->details->getCpu()){
+          lowCapacity.insert(*it);
+        }
+        if(LOWCAPPACITYTRIGGERRAM * (*it)->details->getRamMax() > (*it)->details->getRamCurr()){
+          lowCapacity.insert(*it);
+        }
+        if(LOWCAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() > (*it)->details->getCurrBandwidth()){
+          lowCapacity.insert(*it);
+        }
+      }
+      //check if too much capacity
+      if(lowCapacity.size() > 1){
+        reduceServer(*lowCapacity.begin());
+      }
+      //check if too little capacity
+      if(lowCapacity.size() == 0 && highCapacity.size() == hosts.size()){
+        extraServer();
+      }
+    }
+    
     sleep(BALANCINGINTERVAL);
   }
 }
@@ -1040,6 +1028,12 @@ void handleServer(void *hostEntryPointer){
   HTTP::Downloader DL;
 
   while (cfg->is_active && (entry->state != STATE_GODOWN)){
+    JSON::Value j;
+    j["balancingbw"] = entry->details->balanceBW;
+    j["balancingCpu"] = entry->details->balanceCPU;
+    j["balancingMem"] = entry->details->balanceRAM;
+    j["redirect"] = entry->details->balanceRedirect;
+    DL.setHeader("balancing", j.asString().c_str());
     if (DL.get(url) && DL.isOk()){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){

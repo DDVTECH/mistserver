@@ -1,7 +1,6 @@
 #include "flashPlayer.h"
 #include "oldFlashPlayer.h"
 #include "output_http_internal.h"
-#include "redirectManager.h"
 #include <mist/encode.h>
 #include <mist/langcodes.h>
 #include <mist/stream.h>
@@ -438,6 +437,7 @@ namespace Mist{
     }
     redirectManager manager;
     std::string* redirect = manager.checkForRedirect();
+    WARN_MSG("help")
     if(redirect){
       //send redirect request to player
       json_resp["redirectpls"] = redirect;
@@ -1194,17 +1194,25 @@ namespace Mist{
   uint64_t redirectManager::bandwidth = 0;
 
 
-  void redirectManager::update(std::string redirect, uint64_t cpu, uint64_t ram, uint64_t bandwidth){
-    if(cpu > 1000 || ram > Util::getGlobalConfig("mem_total").asInt() || bandwidth > Util::getGlobalConfig("bwLimit").asInt()){return;}
+  void redirectManager::update(){
+    int balancingBW = Util::getGlobalConfig("balancingbw").asInt();
+    int balancingRAM = Util::getGlobalConfig("balancingMem").asInt();
+    int balancingCPU = Util::getGlobalConfig("balancingCPU").asInt();
+    std::string balancingRedirect = Util::getGlobalConfig("balancingRedirect").asString();
+
+
+    WARN_MSG("bw: %d, ram: %d, cpu: %d, redirect: %s", balancingBW, balancingRAM, balancingCPU, balancingRedirect.c_str());
+    if(balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() || balancingBW > Util::getGlobalConfig("bwLimit").asInt()){return;}
     if (!managerMutex){managerMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*managerMutex);
-    this->redirect = redirect;
-    this->cpu = cpu;
-    this->bandwidth = bandwidth;
-    this->ram = ram;
+    this->redirect = balancingRedirect;
+    this->cpu = balancingCPU;
+    this->bandwidth = balancingBW;
+    this->ram = balancingRAM;
   }
 
   std::string* redirectManager::checkForRedirect(){//controller statisics voor huidige data
+    update();
     if(cpu > 0 || ram > 0 || bandwidth > 0){
       if (!managerMutex){managerMutex = new tthread::mutex();}
       tthread::lock_guard<tthread::mutex> guard(*managerMutex);

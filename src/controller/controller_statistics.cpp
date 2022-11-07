@@ -15,6 +15,7 @@
 #include <mist/url.h>
 #include <sys/statvfs.h> //for fstatvfs
 #include <mist/triggers.h>
+#include <ctime>
 
 #ifndef KILL_ON_EXIT
 #define KILL_ON_EXIT false
@@ -461,20 +462,31 @@ void Controller::SharedMemStats(void *config){
       Util::RelAccX globAccX(globCfg.mapped, false);
       uint32_t i = 0;
       
-      globAccX.addField("bwLimit", RAX_UINT);
-      globAccX.addField("mem_total", RAX_UINT);
-      globAccX.addField("cpu", RAX_UINT);
-      globAccX.addField("bw_curr", RAX_UINT);
-      globAccX.addField("mem_curr", RAX_UINT);
-      globAccX.setReady();
+      if(!globAccX.getFieldAccX("mem_total") || !globAccX.getFieldAccX("cpu") || !globAccX.getFieldAccX("bw_curr") 
+      || !globAccX.getFieldAccX("mem_curr") || !globAccX.getFieldAccX("bwlimit")){
+        globAccX.setReload();
+        globCfg.master = true;
+        globCfg.close();
+        globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);
+        globAccX = Util::RelAccX(globCfg.mapped, false);
+      }
+
+      if(!globAccX.isReady()){
+        globAccX.addField("bwlimit", RAX_UINT);
+        globAccX.addField("mem_total", RAX_UINT);
+        globAccX.addField("cpu", RAX_UINT);
+        globAccX.addField("bw_curr", RAX_UINT);
+        globAccX.addField("mem_curr", RAX_UINT);
+        globAccX.setRCount(1);
+        globAccX.setEndPos(1);
+        globAccX.setReady();
+      }
 
       globAccX.setInt("bwlimit", bwLimit, i);
       globAccX.setInt("mem_total", mem_total, i);
       globAccX.setInt("cpu", cpu_use, i);
       globAccX.setInt("bw_curr", servDownBytes + servUpBytes, i);
       globAccX.setInt("mem_curr", mem_total - mem_free - mem_bufcache, i);
-      globAccX.setRCount(1);
-      globAccX.setEndPos(1);
       globCfg.master = false; // leave the page after closing
     }
 
@@ -1896,7 +1908,64 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   // all done! return is by reference, so no need to return anything here.
 }
 
+std::map<std::string, std::time_t> loadBalancers;
+std::time_t now;
+
 void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int mode){
+  //check if load balancer wants redirect
+  if(H.hasHeader("balancing")){
+    time(&now);
+    //remove all entries > 5 seconds
+    std::map<std::string, std::time_t>::iterator it = loadBalancers.begin();
+    while(it != loadBalancers.end()){
+      if(difftime(now, (*it).second) > 5){
+        loadBalancers.erase(it);
+        it = loadBalancers.begin();
+      }else {
+        it++;
+      }
+    }
+    JSON::Value j = H.GetHeader("balancing");
+    std::string host = conn.getHost();
+    //place current entry into map
+    loadBalancers.insert(std::pair<std::string, std::time_t>(host, now));
+    //read out data and place in shared memory
+    if(loadBalancers.empty() || host == (*loadBalancers.begin()).first){
+      //save values to config
+      IPC::sharedPage globCfg;
+      globCfg.init(SHM_GLOBAL_CONF, 4096, false, false);
+      if (!globCfg.mapped){globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);}
+      if (globCfg.mapped){
+        Util::RelAccX globAccX(globCfg.mapped, false);
+        uint32_t i = 0;
+        
+        if(!globAccX.getFieldAccX("balancingbw") || !globAccX.getFieldAccX("balancingCPU") || !globAccX.getFieldAccX("balancingMem") 
+          || !globAccX.getFieldAccX("balancingRedirect")){
+          globAccX.setReload();
+          globCfg.master = true;
+          globCfg.close();
+          globCfg.init(SHM_GLOBAL_CONF, 4096, true, false);
+          globAccX = Util::RelAccX(globCfg.mapped, false);
+        }
+
+        if(!globAccX.isReady()){
+          globAccX.addField("balancingbw", RAX_UINT);
+          globAccX.addField("balancingMem", RAX_UINT);
+          globAccX.addField("balancingCPU", RAX_UINT);
+          globAccX.addField("balancingRedirect", RAX_256STRING);
+          globAccX.setRCount(1);
+          globAccX.setEndPos(1);
+          globAccX.setReady();
+        }
+
+        globAccX.setInt("balancingbw", j["bandwidth"].asInt(), i);
+        globAccX.setInt("balancingMem", j["ram"].asInt(), i);
+        globAccX.setInt("balancingCPU", j["CPU"].asInt(), i);
+        globAccX.setString("balancingRedirect", j["redirect"].asString(), i);
+        globCfg.master = false; // leave the page after closing
+      }
+    }
+  }
   std::string jsonp;
   switch (mode){
   case PROMETHEUS_TEXT: H.SetHeader("Content-Type", "text/plain; version=0.0.4"); break;

@@ -130,6 +130,10 @@ class hostDetails{
   char binHost[16];
   std::string host;
   double servLati, servLongi;
+  int balanceCPU;
+  int balanceRAM;
+  int balanceBW;
+  std::string balanceRedirect;
 
   hostDetails(char* name);
   virtual ~hostDetails();

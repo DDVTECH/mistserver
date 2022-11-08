@@ -46,6 +46,7 @@ std::string const AVAILBANDWIDTHKEY = "availBandwidth";
 std::string const CURRRAMKEY = "currram";
 std::string const RAMMAXKEY = "ramMax";
 std::string const BINHOSTKEY = "binhost";
+std::string const BALANCEKEY = "balance";
 
 std::string const MINSTANDBYKEY = "minstandby";
 std::string const MAXSTANDBYKEY = "maxstandby";
@@ -1662,469 +1663,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
         }
         else if(!api.compare("balancing")){
-          api = path.next();
-          if(!api.compare("minstandby")){
-            int newVal = path.nextInt();
-            if(newVal > MAXSTANDBY){
-              MINSTANDBY = newVal;
-              JSON::Value j;
-              j[MINSTANDBYKEY] = MINSTANDBY;
-              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                (*it)->send(j.asString());
-              }
-              //start save timer
-              time(&prevConfigChange);
-              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid value");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }else {
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("new minstandby value: %d", newVal);
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("maxstandby")){
-            int newVal = path.nextInt();
-            if(newVal < MINSTANDBY){
-              MAXSTANDBY = newVal;
-              JSON::Value j;
-              j[MAXSTANDBYKEY] = MAXSTANDBY;
-              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                (*it)->send(j.asString());
-              }
-              //start save timer
-              time(&prevConfigChange);
-              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid value");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }else {
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("new maxstandby value: %d", newVal);
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("decrement")){
-            api = path.next();
-            if(!api.compare("cpu")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERCPUDEC = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new balancing decrement cpu: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("ram")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERRAMDEC = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new balancing decrement ram: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("bandwidth")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERBWDEC = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new balancing decrement bandwidth: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            //handle none api
-            else{
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("maxtrigger")){
-            api = path.next();
-            if(!api.compare("cpu")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERCPU = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new max cappacity trigger cpu: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("ram")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERRAM = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new max cappacity trigger ram: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("bandwidth")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= 1){
-                CAPPACITYTRIGGERBW = newVal;
-                JSON::Value j;
-                j[CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new max cappacity trigger bandwidth: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            //handle none api
-            else{
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("hightrigger")){
-            api = path.next();
-            if(!api.compare("cpu")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
-                HIGHCAPPACITYTRIGGERCPU = newVal;
-                JSON::Value j;
-                j[HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new high cappacity trigger cpu: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("ram")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
-                HIGHCAPPACITYTRIGGERRAM = newVal;
-                JSON::Value j;
-                j[HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new high cappacity trigger ram: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("bandwidth")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
-                HIGHCAPPACITYTRIGGERBW = newVal;
-                JSON::Value j;
-                j[HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new high cappacity trigger bandwidth: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            //handle none api
-            else{
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("lowTrigger")){
-            api = path.next();
-            if(!api.compare("cpu")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
-                LOWCAPPACITYTRIGGERCPU = newVal;
-                JSON::Value j;
-                j[LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new low cappacity trigger cpu: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("ram")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
-                LOWCAPPACITYTRIGGERRAM = newVal;
-                JSON::Value j;
-                j[LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new low cappacity trigger ram: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            else if(!api.compare("bandwidth")){
-              double newVal = path.nextDouble();
-              if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
-                LOWCAPPACITYTRIGGERBW = newVal;
-                JSON::Value j;
-                j[LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
-                for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                  (*it)->send(j.asString());
-                }
-                //start save timer
-                time(&prevConfigChange);
-                if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("new low cappacity trigger bandwidth: %d", newVal);
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }else{
-                H.Clean();
-                H.SetHeader("Content-Type", "text/plain");
-                H.SetBody("invalid");
-                H.setCORSHeaders();
-                H.SendResponse("200", "OK", conn);
-                H.Clean();
-              }
-            }
-            //handle none api
-            else{
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          else if(!api.compare("interval")){
-            int newVal = path.nextInt();
-            if(newVal >= 0){
-              BALANCINGINTERVAL = newVal;
-              JSON::Value j;
-              j[BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
-              for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-                (*it)->send(j.asString());
-              }
-              //start save timer
-              time(&prevConfigChange);
-              if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("new balancing interval value: %d", newVal);
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }else{
-              H.Clean();
-              H.SetHeader("Content-Type", "text/plain");
-              H.SetBody("invalid");
-              H.setCORSHeaders();
-              H.SendResponse("200", "OK", conn);
-              H.Clean();
-            }
-          }
-          //handle none api
-          else{
-            H.Clean();
-            H.SetHeader("Content-Type", "text/plain");
-            H.SetBody("invalid");
-            H.setCORSHeaders();
-            H.SendResponse("200", "OK", conn);
-            H.Clean();
-          }
+          balance(path);
         }
         //auth
         else if(!api.compare("auth")){
@@ -2546,9 +2085,239 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       saveFile();
     }else if(newVals.isMember(LOADKEY)){
       loadFile();
+    }else if(newVals.isMember(BALANCEKEY)){
+      balance(newVals[BALANCEKEY]);
     }
   }
   return LB;
+}
+
+
+/**
+ * set balancing settings received through API
+*/
+void API::balance(delimiterParser path){
+  JSON::Value j;
+  std::string api = path.next();
+  while(!api.compare("minstandby") || !api.compare("maxstandby") || !api.compare(CAPPACITYTRIGGERCPUDECKEY) || !api.compare(CAPPACITYTRIGGERRAMDECKEY) ||
+    !api.compare(CAPPACITYTRIGGERBWDECKEY) || !api.compare(CAPPACITYTRIGGERCPUKEY) || !api.compare(CAPPACITYTRIGGERRAMKEY) ||
+    !api.compare(CAPPACITYTRIGGERBWKEY) || !api.compare(HIGHCAPPACITYTRIGGERCPUKEY) || !api.compare(HIGHCAPPACITYTRIGGERRAMKEY) ||
+    !api.compare(HIGHCAPPACITYTRIGGERBWKEY) || !api.compare(LOWCAPPACITYTRIGGERCPUKEY) || !api.compare(LOWCAPPACITYTRIGGERRAMKEY) ||
+    !api.compare(LOWCAPPACITYTRIGGERBWKEY) || !api.compare(BALANCINGINTERVALKEY)) {
+    if(!api.compare("minstandby")){
+      int newVal = path.nextInt();
+      if(newVal > MAXSTANDBY){
+        MINSTANDBY = newVal;
+        j[BALANCEKEY][MINSTANDBYKEY] = MINSTANDBY;
+      }
+    }
+    else if(!api.compare("maxstandby")){
+      int newVal = path.nextInt();
+      if(newVal < MINSTANDBY){
+        MAXSTANDBY = newVal;
+        j[BALANCEKEY][MAXSTANDBYKEY] = MAXSTANDBY;
+      }
+    }        
+    if(!api.compare(CAPPACITYTRIGGERCPUDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERCPUDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
+      }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERRAMDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERRAMDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
+      }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERBWDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERBWDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
+      }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
+      }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
+      }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
+      }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+        HIGHCAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
+      }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+        HIGHCAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
+      }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+        HIGHCAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
+      }
+    }
+    if(!api.compare(LOWCAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
+        LOWCAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
+      }
+    }
+    else if(!api.compare(LOWCAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
+        LOWCAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
+      }
+    }
+    else if(!api.compare(LOWCAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
+        LOWCAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
+      }
+    }          
+    else if(!api.compare(BALANCINGINTERVALKEY)){
+      int newVal = path.nextInt();
+      if(newVal >= 0){
+        BALANCINGINTERVAL = newVal;
+        j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
+      }
+    }else {
+      path.next();
+    }
+    api = path.next();
+  }
+  for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+    (*it)->send(j.asString());
+  }
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+}
+
+/**
+ * set balancing settings receiverd from load balancers
+*/
+void API::balance(JSON::Value newVals){
+  if(newVals.isMember("minstandby")){
+    int newVal = newVals[MINSTANDBYKEY].asInt();
+    if(newVal > MAXSTANDBY){
+      MINSTANDBY = newVal;
+    }
+  }
+  else if(newVals.isMember("maxstandby")){
+    int newVal = newVals[MAXSTANDBYKEY].asInt();
+    if(newVal < MINSTANDBY){
+      MAXSTANDBY = newVal;
+    }
+  }        
+  if(newVals.isMember(CAPPACITYTRIGGERCPUDECKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERCPUDECKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERCPUDEC = newVal;
+    }
+  }
+  else if(newVals.isMember(CAPPACITYTRIGGERRAMDECKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERRAMDECKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERRAMDEC = newVal;
+    }
+  }
+  else if(newVals.isMember(CAPPACITYTRIGGERBWDECKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERBWDECKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERBWDEC = newVal;
+    }
+  }
+  else if(newVals.isMember(CAPPACITYTRIGGERCPUKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERCPUKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERCPU = newVal;
+    }
+  }
+  else if(newVals.isMember(CAPPACITYTRIGGERRAMKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERRAMKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERRAM = newVal;
+    }
+  }
+  else if(newVals.isMember(CAPPACITYTRIGGERBWKEY)){
+    double newVal = newVals[CAPPACITYTRIGGERBWKEY].asDouble();
+    if(newVal >= 0 && newVal <= 1){
+      CAPPACITYTRIGGERBW = newVal;
+    }
+  }
+  else if(newVals[HIGHCAPPACITYTRIGGERCPUKEY]){
+    double newVal = newVals[HIGHCAPPACITYTRIGGERCPUKEY].asDouble();
+    if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+      HIGHCAPPACITYTRIGGERCPU = newVal;
+    }
+  }
+  else if(newVals.isMember(HIGHCAPPACITYTRIGGERRAMKEY)){
+    double newVal = newVals[HIGHCAPPACITYTRIGGERRAMKEY].asDouble();
+    if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+      HIGHCAPPACITYTRIGGERRAM = newVal;
+    }
+  }
+  else if(newVals.isMember(HIGHCAPPACITYTRIGGERBWKEY)){
+    double newVal = newVals[HIGHCAPPACITYTRIGGERBWKEY].asDouble();
+    if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+      HIGHCAPPACITYTRIGGERBW = newVal;
+    }
+  }
+  if(newVals.isMember(LOWCAPPACITYTRIGGERCPUKEY)){
+    double newVal = newVals[LOWCAPPACITYTRIGGERCPUKEY].asDouble();
+    if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
+      LOWCAPPACITYTRIGGERCPU = newVal;
+    }
+  }
+  else if(newVals.isMember(LOWCAPPACITYTRIGGERRAMKEY)){
+    double newVal = newVals[LOWCAPPACITYTRIGGERRAMKEY].asDouble();
+    if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
+      LOWCAPPACITYTRIGGERRAM = newVal;
+    }
+  }
+  else if(newVals.isMember(LOWCAPPACITYTRIGGERBWKEY)){
+    double newVal = newVals[LOWCAPPACITYTRIGGERBWKEY].asDouble();
+    if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
+      LOWCAPPACITYTRIGGERBW = newVal;
+    }
+  }          
+  else if(newVals.isMember(BALANCINGINTERVALKEY)){
+    int newVal = newVals[BALANCINGINTERVALKEY].asInt();
+    if(newVal >= 0){
+      BALANCINGINTERVAL = newVal;
+    }
+  }
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 }
 
 /**

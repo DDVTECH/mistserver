@@ -266,6 +266,12 @@ public:
   static int handleRequest(Socket::Connection &conn);//for starting threads
 
   /**
+   * set balancing settings
+  */
+  static void balance(delimiterParser path);
+  static void balance(JSON::Value newVals);
+
+  /**
    * set and get weights
    */
   static JSON::Value setWeights(delimiterParser path);

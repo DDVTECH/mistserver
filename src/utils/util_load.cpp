@@ -2104,112 +2104,116 @@ void API::balance(delimiterParser path){
     !api.compare(CAPPACITYTRIGGERBWKEY) || !api.compare(HIGHCAPPACITYTRIGGERCPUKEY) || !api.compare(HIGHCAPPACITYTRIGGERRAMKEY) ||
     !api.compare(HIGHCAPPACITYTRIGGERBWKEY) || !api.compare(LOWCAPPACITYTRIGGERCPUKEY) || !api.compare(LOWCAPPACITYTRIGGERRAMKEY) ||
     !api.compare(LOWCAPPACITYTRIGGERBWKEY) || !api.compare(BALANCINGINTERVALKEY)) {
-    if(!api.compare("minstandby")){
-      int newVal = path.nextInt();
-      if(newVal > MAXSTANDBY){
-        MINSTANDBY = newVal;
-        j[BALANCEKEY][MINSTANDBYKEY] = MINSTANDBY;
+    try{
+      if(!api.compare("minstandby")){
+        int newVal = path.nextInt();
+        if(newVal > MAXSTANDBY){
+          MINSTANDBY = newVal;
+          j[BALANCEKEY][MINSTANDBYKEY] = MINSTANDBY;
+        }
       }
-    }
-    else if(!api.compare("maxstandby")){
-      int newVal = path.nextInt();
-      if(newVal < MINSTANDBY){
-        MAXSTANDBY = newVal;
-        j[BALANCEKEY][MAXSTANDBYKEY] = MAXSTANDBY;
+      else if(!api.compare("maxstandby")){
+        int newVal = path.nextInt();
+        if(newVal < MINSTANDBY){
+          MAXSTANDBY = newVal;
+          j[BALANCEKEY][MAXSTANDBYKEY] = MAXSTANDBY;
+        }
+      }        
+      if(!api.compare(CAPPACITYTRIGGERCPUDECKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERCPUDEC = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
+        }
       }
-    }        
-    if(!api.compare(CAPPACITYTRIGGERCPUDECKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERCPUDEC = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
+      else if(!api.compare(CAPPACITYTRIGGERRAMDECKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERRAMDEC = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
+        }
       }
-    }
-    else if(!api.compare(CAPPACITYTRIGGERRAMDECKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERRAMDEC = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
+      else if(!api.compare(CAPPACITYTRIGGERBWDECKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERBWDEC = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
+        }
       }
-    }
-    else if(!api.compare(CAPPACITYTRIGGERBWDECKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERBWDEC = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
+      else if(!api.compare(CAPPACITYTRIGGERCPUKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERCPU = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
+        }
       }
-    }
-    else if(!api.compare(CAPPACITYTRIGGERCPUKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERCPU = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
+      else if(!api.compare(CAPPACITYTRIGGERRAMKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERRAM = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
+        }
       }
-    }
-    else if(!api.compare(CAPPACITYTRIGGERRAMKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERRAM = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
+      else if(!api.compare(CAPPACITYTRIGGERBWKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= 1){
+          CAPPACITYTRIGGERBW = newVal;
+          j[BALANCEKEY][CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
+        }
       }
-    }
-    else if(!api.compare(CAPPACITYTRIGGERBWKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= 1){
-        CAPPACITYTRIGGERBW = newVal;
-        j[BALANCEKEY][CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
+      else if(!api.compare(HIGHCAPPACITYTRIGGERCPUKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+          HIGHCAPPACITYTRIGGERCPU = newVal;
+          j[BALANCEKEY][HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
+        }
       }
-    }
-    else if(!api.compare(HIGHCAPPACITYTRIGGERCPUKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
-        HIGHCAPPACITYTRIGGERCPU = newVal;
-        j[BALANCEKEY][HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
+      else if(!api.compare(HIGHCAPPACITYTRIGGERRAMKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+          HIGHCAPPACITYTRIGGERRAM = newVal;
+          j[BALANCEKEY][HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
+        }
       }
-    }
-    else if(!api.compare(HIGHCAPPACITYTRIGGERRAMKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
-        HIGHCAPPACITYTRIGGERRAM = newVal;
-        j[BALANCEKEY][HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
+      else if(!api.compare(HIGHCAPPACITYTRIGGERBWKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+          HIGHCAPPACITYTRIGGERBW = newVal;
+          j[BALANCEKEY][HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
+        }
       }
-    }
-    else if(!api.compare(HIGHCAPPACITYTRIGGERBWKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
-        HIGHCAPPACITYTRIGGERBW = newVal;
-        j[BALANCEKEY][HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
+      if(!api.compare(LOWCAPPACITYTRIGGERCPUKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
+          LOWCAPPACITYTRIGGERCPU = newVal;
+          j[BALANCEKEY][LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
+        }
       }
-    }
-    if(!api.compare(LOWCAPPACITYTRIGGERCPUKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
-        LOWCAPPACITYTRIGGERCPU = newVal;
-        j[BALANCEKEY][LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
+      else if(!api.compare(LOWCAPPACITYTRIGGERRAMKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
+          LOWCAPPACITYTRIGGERRAM = newVal;
+          j[BALANCEKEY][LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
+        }
       }
-    }
-    else if(!api.compare(LOWCAPPACITYTRIGGERRAMKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
-        LOWCAPPACITYTRIGGERRAM = newVal;
-        j[BALANCEKEY][LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
+      else if(!api.compare(LOWCAPPACITYTRIGGERBWKEY)){
+        double newVal = path.nextDouble();
+        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
+          LOWCAPPACITYTRIGGERBW = newVal;
+          j[BALANCEKEY][LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
+        }
+      }          
+      else if(!api.compare(BALANCINGINTERVALKEY)){
+        int newVal = path.nextInt();
+        if(newVal >= 0){
+          BALANCINGINTERVAL = newVal;
+          j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
+        }
+      }else {
+        path.next();
       }
-    }
-    else if(!api.compare(LOWCAPPACITYTRIGGERBWKEY)){
-      double newVal = path.nextDouble();
-      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
-        LOWCAPPACITYTRIGGERBW = newVal;
-        j[BALANCEKEY][LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
-      }
-    }          
-    else if(!api.compare(BALANCINGINTERVALKEY)){
-      int newVal = path.nextInt();
-      if(newVal >= 0){
-        BALANCINGINTERVAL = newVal;
-        j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
-      }
-    }else {
-      path.next();
+    }catch(std::invalid_argument &e){
+      INFO_MSG("invalid INPUT");
     }
     api = path.next();
   }

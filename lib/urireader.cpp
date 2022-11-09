@@ -332,7 +332,7 @@ namespace HTTP{
       bufPos = 0;
     }
     // Read more data if needed
-    while (allData.size() < wantedLen + bufPos && *this){
+    while (allData.size() < wantedLen + bufPos && *this && !downer.completed()){
       readSome(wantedLen - (allData.size() - bufPos), *this);
     }
     // Return wantedLen bytes if we have them

@@ -559,6 +559,7 @@ namespace Mist{
       thisPacket.reInit(tmpStr.data(), tmpStr.size());
     }else{
       thisPacket.genericFill(curPart.time, curPart.offset, curPart.trackID, readBuffer + (curPart.bpos-readPos), curPart.size, 0, isKeyframe);
+      INFO_MSG("Packet: %" PRIu64 ", track %zu, %" PRIu32 "b", curPart.time, curPart.trackID, curPart.size);
     }
     thisTime = curPart.time;
     thisIdx = curPart.trackID;

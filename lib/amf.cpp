@@ -6,7 +6,7 @@
 #include <sstream>
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
-std::string AMF::Object::Indice(){
+std::string AMF::Object::Indice() const{
   return myIndice;
 }
 
@@ -189,6 +189,52 @@ std::string AMF::Object::Print(std::string indent){
   }
   return st.str();
 }// print
+
+JSON::Value AMF::Object::toJSON() const{
+  switch (myType){
+  case AMF::AMF0_NUMBER:
+  case AMF::AMF0_DATE:
+  case AMF::AMF0_REFERENCE:
+    return numval;
+  case AMF::AMF0_BOOL:
+    return (bool)numval;
+  case AMF::AMF0_STRING:
+  case AMF::AMF0_LONGSTRING:
+  case AMF::AMF0_XMLDOC: // is always a longstring
+    return strval;
+  case AMF::AMF0_TYPED_OBJ: // is an object, with the classname first
+  case AMF::AMF0_OBJECT:
+  case AMF::AMF0_ECMA_ARRAY:{
+    JSON::Value ret;
+    if (contents.size() > 0){
+      for (std::vector<AMF::Object>::const_iterator it = contents.begin(); it != contents.end(); it++){
+        ret[it->Indice()] = it->toJSON();
+      }
+    }
+    return ret;
+  }
+  case AMF::AMF0_MOVIECLIP:
+  case AMF::AMF0_OBJ_END:
+  case AMF::AMF0_UPGRADE:
+  case AMF::AMF0_NULL:
+  case AMF::AMF0_UNDEFINED:
+  case AMF::AMF0_RECORDSET:
+  case AMF::AMF0_UNSUPPORTED:
+    // no data to add
+    return JSON::Value();
+  case AMF::AMF0_DDV_CONTAINER: // only send contents
+  case AMF::AMF0_STRICT_ARRAY:{
+    JSON::Value ret;
+    if (contents.size() > 0){
+      for (std::vector<AMF::Object>::const_iterator it = contents.begin(); it != contents.end(); it++){
+        ret.append(it->toJSON());
+      }
+    }
+    return ret;
+  }
+  }
+  return JSON::Value();
+}
 
 /// Packs the AMF object to a std::string for transfer over the network.
 /// If the object is a container type, this function will call itself recursively and contain all
@@ -489,7 +535,7 @@ AMF::Object AMF::parse(std::string data){
 
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
-std::string AMF::Object3::Indice(){
+std::string AMF::Object3::Indice() const{
   return myIndice;
 }
 
@@ -695,9 +741,15 @@ std::string AMF::Object3::Print(std::string indent){
 /// contents. Tip: When sending multiple AMF objects in one go, put them in a single
 /// AMF::AMF0_DDV_CONTAINER for easy transfer.
 std::string AMF::Object3::Pack(){
+  /// \TODO Implement
   std::string r = "";
   return r;
 }// pack
+
+JSON::Value AMF::Object3::toJSON() const{
+  /// \TODO Implement
+  return JSON::Value();
+}
 
 /// Parses a single AMF3 type - used recursively by the AMF::parse3() functions.
 /// This function updates i every call with the new position in the data.

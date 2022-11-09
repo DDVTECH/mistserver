@@ -991,13 +991,13 @@ namespace DTSC{
       setBootMsOffset(src.getMember("unixzero").asInt() - Util::unixMS() + Util::bootMS());
     }else{
       MEDIUM_MSG("No member \'unixzero\' found in DTSC::Scan. Calculating locally.");
-      int64_t lastMs = 0;
+      int64_t nowMs = 0;
       for (std::map<size_t, Track>::iterator it = tracks.begin(); it != tracks.end(); it++){
-        if (it->second.track.getInt(it->second.trackLastmsField) > lastMs){
-          lastMs = it->second.track.getInt(it->second.trackLastmsField);
+        if (it->second.track.getInt(it->second.trackNowmsField) > nowMs){
+          nowMs = it->second.track.getInt(it->second.trackNowmsField);
         }
       }
-      setBootMsOffset(Util::bootMS() - lastMs);
+      setBootMsOffset(Util::bootMS() - nowMs);
     }
   }
 
@@ -1243,6 +1243,9 @@ namespace DTSC{
       t.trackCodecField = t.track.getFieldData("codec");
       t.trackFirstmsField = t.track.getFieldData("firstms");
       t.trackLastmsField = t.track.getFieldData("lastms");
+      t.trackNowmsField = t.track.getFieldData("nowms");
+      // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+      if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
       t.trackBpsField = t.track.getFieldData("bps");
       t.trackMaxbpsField = t.track.getFieldData("maxbps");
       t.trackLangField = t.track.getFieldData("lang");
@@ -1332,6 +1335,9 @@ namespace DTSC{
         t.trackCodecField = t.track.getFieldData("codec");
         t.trackFirstmsField = t.track.getFieldData("firstms");
         t.trackLastmsField = t.track.getFieldData("lastms");
+        t.trackNowmsField = t.track.getFieldData("nowms");
+        // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+        if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
         t.trackBpsField = t.track.getFieldData("bps");
         t.trackMaxbpsField = t.track.getFieldData("maxbps");
         t.trackLangField = t.track.getFieldData("lang");
@@ -1542,6 +1548,11 @@ namespace DTSC{
     t.track.setString(t.trackCodecField, origAccess.getPointer("codec"));
     t.track.setInt(t.trackFirstmsField, origAccess.getInt("firstms"));
     t.track.setInt(t.trackLastmsField, origAccess.getInt("lastms"));
+    if (origAccess.hasField("nowms")){
+      t.track.setInt(t.trackNowmsField, origAccess.getInt("nowms"));
+    }else{
+      t.track.setInt(t.trackNowmsField, origAccess.getInt("lastms"));
+    }
     t.track.setInt(t.trackBpsField, origAccess.getInt("bps"));
     t.track.setInt(t.trackMaxbpsField, origAccess.getInt("maxbps"));
     t.track.setString(t.trackLangField, origAccess.getPointer("lang"));
@@ -1807,6 +1818,9 @@ namespace DTSC{
     t.trackCodecField = t.track.getFieldData("codec");
     t.trackFirstmsField = t.track.getFieldData("firstms");
     t.trackLastmsField = t.track.getFieldData("lastms");
+    t.trackNowmsField = t.track.getFieldData("nowms");
+    // If there is no nowMs field, fall back to the lastMs field instead ( = old behaviour).
+    if (!t.trackNowmsField){t.trackNowmsField = t.trackLastmsField;}
     t.trackBpsField = t.track.getFieldData("bps");
     t.trackMaxbpsField = t.track.getFieldData("maxbps");
     t.trackLangField = t.track.getFieldData("lang");
@@ -1997,6 +2011,15 @@ namespace DTSC{
   uint64_t Meta::getLastms(size_t trackIdx) const{
     const DTSC::Track &t = tracks.find(trackIdx)->second;
     return t.track.getInt(t.trackLastmsField);
+  }
+
+  void Meta::setNowms(size_t trackIdx, uint64_t nowms){
+    DTSC::Track &t = tracks.at(trackIdx);
+    t.track.setInt(t.trackNowmsField, nowms);
+  }
+  uint64_t Meta::getNowms(size_t trackIdx) const{
+    const DTSC::Track &t = tracks.find(trackIdx)->second;
+    return t.track.getInt(t.trackNowmsField);
   }
 
   uint64_t Meta::getDuration(size_t trackIdx) const{

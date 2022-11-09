@@ -1707,7 +1707,7 @@ namespace Mist{
         size_t reTrack = next.cs_id * 3 + (F.data[0] == 0x09 ? 1 : (F.data[0] == 0x08 ? 2 : 3));
         if (!reTrackToID.count(reTrack)){reTrackToID[reTrack] = INVALID_TRACK_ID;}
         F.toMeta(meta, *amf_storage, reTrackToID[reTrack], targetParams);
-        if (F.getDataLen() && !(F.needsInitData() && F.isInitData())){
+        if ((F.getDataLen() || (amf_storage && amf_storage->hasContent())) && !(F.needsInitData() && F.isInitData())){
           uint64_t tagTime = next.timestamp;
           uint64_t timeOffset = 0;
           if (targetParams.count("timeoffset")){
@@ -1778,8 +1778,22 @@ namespace Mist{
             }
           }
           ltt = tagTime;
-          //            bufferLivePacket(thisPacket);
-          bufferLivePacket(tagTime, F.offset(), idx, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+          if (ltt){
+            for (std::map<size_t, uint64_t>::iterator it = lastTagTime.begin(); it != lastTagTime.end(); ++it){
+              if (it->second == reTrack){continue;}
+              size_t iIdx = reTrackToID[it->second];
+              if (it->first < ltt){
+                meta.setNowms(iIdx, ltt-1);
+                it->second = ltt-1;
+              }
+            }
+          }
+          if (F.data[0] == 0x12 && amf_storage){
+            std::string mData = amf_storage->toJSON().toString();
+            bufferLivePacket(tagTime, F.offset(), idx, mData.c_str(), mData.size(), 0, true);
+          }else{
+            bufferLivePacket(tagTime, F.offset(), idx, F.getData(), F.getDataLen(), 0, F.isKeyframe);
+          }
           if (!meta){config->is_active = false;}
         }
         break;

@@ -238,6 +238,7 @@ namespace DTSC{
     Util::RelAccXFieldData trackCodecField;
     Util::RelAccXFieldData trackFirstmsField;
     Util::RelAccXFieldData trackLastmsField;
+    Util::RelAccXFieldData trackNowmsField;
     Util::RelAccXFieldData trackBpsField;
     Util::RelAccXFieldData trackMaxbpsField;
     Util::RelAccXFieldData trackLangField;
@@ -374,6 +375,9 @@ namespace DTSC{
 
     void setLastms(size_t trackIdx, uint64_t lastms);
     uint64_t getLastms(size_t trackIdx) const;
+
+    void setNowms(size_t trackIdx, uint64_t nowms);
+    uint64_t getNowms(size_t trackIdx) const;
 
     uint64_t getDuration(size_t trackIdx) const;
 

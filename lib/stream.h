@@ -63,6 +63,7 @@ namespace Util{
     uint64_t time;
     uint64_t offset;
     size_t partIndex;
+    bool ghostPacket;
   };
 
   /// Packet sorter used to determine which packet should be output next

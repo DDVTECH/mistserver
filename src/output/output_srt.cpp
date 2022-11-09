@@ -30,6 +30,12 @@ namespace Mist{
   }
 
   void OutSRT::sendNext(){
+    // Reached the end we wanted? Stop here.
+    if (filter_to > 0 && thisTime > filter_to && filter_to > filter_from){
+      config->is_active = false;
+      return;
+    }
+
     char *dataPointer = 0;
     size_t len = 0;
     thisPacket.getString("data", dataPointer, len);
@@ -37,35 +43,22 @@ namespace Mist{
     if (len == 0 || (len == 1 && dataPointer[0] == ' ')){return;}
     std::stringstream tmp;
     if (!webVTT){tmp << lastNum++ << std::endl;}
-    uint64_t time = thisPacket.getTime();
-
-    // filter subtitle in specific timespan
-    if (filter_from > 0 && time < filter_from){
-      index++; // when using seek, the index is lost.
-      seek(filter_from);
-      return;
-    }
-
-    if (filter_to > 0 && time > filter_to && filter_to > filter_from){
-      config->is_active = false;
-      return;
-    }
 
     char tmpBuf[50];
     size_t tmpLen =
-        sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (time / 3600000),
-                ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
+        sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (thisTime / 3600000),
+                ((thisTime % 3600000) / 60000), (((thisTime % 3600000) % 60000) / 1000), thisTime % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << " --> ";
-    time += thisPacket.getInt("duration");
-    if (time == thisPacket.getTime()){time += len * 75 + 800;}
+    uint64_t time = thisTime + thisPacket.getInt("duration");
+    if (time == thisTime){time += len * 75 + 800;}
     tmpLen = sprintf(tmpBuf, "%.2" PRIu64 ":%.2" PRIu64 ":%.2" PRIu64 ".%.3" PRIu64, (time / 3600000),
                      ((time % 3600000) / 60000), (((time % 3600000) % 60000) / 1000), time % 1000);
     tmp.write(tmpBuf, tmpLen);
     tmp << std::endl;
     myConn.SendNow(tmp.str());
-    // prevent double newlines
-    if (dataPointer[len - 1] == '\n'){--dataPointer;}
+    // prevent extra newlines
+    while (len && dataPointer[len - 1] == '\n'){--len;}
     myConn.SendNow(dataPointer, len);
     myConn.SendNow("\n\n");
   }
@@ -82,7 +75,7 @@ namespace Mist{
   void OutSRT::onHTTP(){
     std::string method = H.method;
     webVTT = (H.url.find(".vtt") != std::string::npos) || (H.url.find(".webvtt") != std::string::npos);
-    if (H.GetVar("track") != ""){
+    if (H.GetVar("track").size()){
       size_t tid = atoll(H.GetVar("track").c_str());
       if (M.getValidTracks().count(tid)){
         userSelect.clear();
@@ -94,7 +87,10 @@ namespace Mist{
     filter_to = 0;
     index = 0;
 
-    if (H.GetVar("from") != ""){filter_from = JSON::Value(H.GetVar("from")).asInt();}
+    if (H.GetVar("from") != ""){
+      filter_from = JSON::Value(H.GetVar("from")).asInt();
+      seek(filter_from);
+    }
     if (H.GetVar("to") != ""){filter_to = JSON::Value(H.GetVar("to")).asInt();}
     if (filter_to){realTime = 0;}
 

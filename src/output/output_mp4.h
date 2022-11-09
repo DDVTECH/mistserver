@@ -106,16 +106,10 @@ namespace Mist{
     bool doesWebsockets() { return true; }
     void onWebsocketConnect();
     void onWebsocketFrame();
-    void onIdle();
-    virtual bool onFinish();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
   protected:
-    bool possiblyReselectTracks(uint64_t seekTarget);
     void sendWebsocketCodecData(const std::string& type);
     bool handleWebsocketSeek(JSON::Value& command);
-    bool handleWebsocketSetSpeed(JSON::Value& command);
-    bool stayLive;
-    double target_rate; ///< Target playback speed rate (1.0 = normal, 0 = auto)
 
     uint64_t fileSize;
     uint64_t byteStart;
@@ -123,11 +117,9 @@ namespace Mist{
     int64_t leftOver;
     uint64_t currPos;
     uint64_t seekPoint;
-    uint64_t forwardTo;
 
     uint64_t nextHeaderTime;
     uint64_t headerSize;
-    size_t prevVidTrack;
 
     // variables for standard MP4
     std::set<keyPart> sortSet; // needed for unfragmented MP4, remembers the order of keyparts

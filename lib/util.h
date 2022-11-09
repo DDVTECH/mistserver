@@ -86,6 +86,7 @@ namespace Util{
       size = s;
       offset = o;
     }
+    operator bool() const {return offset;}
   };
 
 #define RAX_NESTED 0x01
@@ -158,6 +159,7 @@ namespace Util{
     bool isExit() const;
     bool isReload() const;
     bool isRecordAvailable(uint64_t recordNo) const;
+    bool hasField(const std::string &name) const;
     uint32_t getSize(const std::string &name, uint64_t recordNo = 0) const;
 
     char *getPointer(const std::string &name, uint64_t recordNo = 0) const;

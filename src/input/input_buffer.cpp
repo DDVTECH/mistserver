@@ -349,6 +349,8 @@ namespace Mist{
       }
       for (std::set<size_t>::iterator idx = tracks.begin(); idx != tracks.end(); idx++){
         size_t i = *idx;
+        //Don't delete idle metadata tracks
+        if (M.getType(i) == "meta"){continue;}
         uint64_t lastUp = M.getLastUpdated(i);
         //Prevent issues when getLastUpdated > current time. This can happen if the second rolls over exactly during this loop.
         if (lastUp >= time){continue;}

@@ -1274,7 +1274,7 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
 /// It is necessary to follow up with a selectDefaultTracks() call to strip unsupported
 /// codecs/combinations.
 std::set<size_t> Util::findTracks(const DTSC::Meta &M, const JSON::Value &capa, const std::string &trackType, const std::string &trackVal, const std::string &UA){
-  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks();
+  std::set<size_t> validTracks = capa?getSupportedTracks(M, capa, "", UA):M.getValidTracks(true);
   return pickTracks(M, validTracks, trackType, trackVal);
 }
 
@@ -1288,7 +1288,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::string &track
 
 std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value &capa,
                                           const std::string &type, const std::string &UA){
-  std::set<size_t> validTracks = M.getValidTracks();
+  std::set<size_t> validTracks = M.getValidTracks(true);
   uint64_t maxLastMs = 0;
   std::set<size_t> toRemove;
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
@@ -1415,7 +1415,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
   }
   /*LTS-END*/
 
-  std::set<size_t> validTracks = M.getValidTracks();
+  std::set<size_t> validTracks = M.getValidTracks(true);
   if (capa){validTracks = getSupportedTracks(M, capa);}
 
   // check which tracks don't actually exist
@@ -1624,6 +1624,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
                 /*LTS-START*/
                 if (noSelAudio && M.getType(*trit) == "audio"){continue;}
                 if (noSelVideo && M.getType(*trit) == "video"){continue;}
+                if (noSelMeta && M.getType(*trit) == "meta"){continue;}
                 if (noSelSub &&
                     (M.getType(*trit) == "subtitle" || M.getCodec(*trit) == "subtitle")){
                   continue;

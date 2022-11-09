@@ -21,6 +21,7 @@ outputs = [
     {'name' : 'WAV',               'format' : 'wav',                'extra': ['http']},
     {'name' : 'SDP',               'format' : 'sdp',                'extra': ['http']},
     {'name' : 'HTTP',              'format' : 'http_internal',      'extra': ['http','embed']},
+    {'name' : 'JSONLine',          'format' : 'jsonline'},
 ]
 
 if usessl 

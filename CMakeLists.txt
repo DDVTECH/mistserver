@@ -551,6 +551,7 @@ endmacro()
 
 makeOutput(RTMP rtmp)
 makeOutput(DTSC dtsc)
+makeOutput(JSONLine jsonline)
 makeOutput(OGG ogg             http)
 makeOutput(FLV flv             http)
 makeOutput(HTTPMinimalServer   http_minimalserver http)

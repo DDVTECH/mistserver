@@ -840,6 +840,11 @@ namespace Util{
     return true;
   }
 
+  /// Returns true if the given field exists.
+  bool RelAccX::hasField(const std::string & name) const{
+    return (fields.find(name) != fields.end());
+  }
+
   /// Returns the (max) size of the given field.
   /// For string types, returns the exact size excluding terminating null byte.
   /// For other types, returns the maximum size possible.

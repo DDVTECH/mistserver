@@ -181,6 +181,9 @@ namespace Mist{
         onFinish();
         return;
       }
+      if (config->getString("datatrack") == "json"){
+        tsIn.setRawDataParser(TS::JSON);
+      }
       parseData = false;
       wantRequest = true;
 
@@ -225,6 +228,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
+    capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
 
     capa["optional"]["profile"]["name"] = "RIST profile";
@@ -283,6 +287,25 @@ namespace Mist{
     opt["arg_num"] = 1;
     opt["help"] = "Target rist:// URL to push out towards.";
     cfg->addOption("target", opt);
+
+    opt.null();
+    opt["long"] = "datatrack";
+    opt["short"] = "D";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", opt);
+
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
   }
 
   // Buffers TS packets and sends after 7 are buffered.

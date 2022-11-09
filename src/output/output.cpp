@@ -94,7 +94,8 @@ namespace Mist{
     dataWaitTimeout = 2500;
     pushing = false;
     recursingSync = false;
-    firstTime = 0;
+    firstTime = Util::bootMS();
+    thisTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
     tkn = "";
@@ -247,7 +248,7 @@ namespace Mist{
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack != INVALID_TRACK_ID){
         DTSC::Keys keys(M.keys(mainTrack));
-        if (keys.getValidCount() >= minTracks || M.getLastms(mainTrack) - M.getFirstms(mainTrack) > minMs){
+        if (keys.getValidCount() >= minTracks || M.getNowms(mainTrack) - M.getFirstms(mainTrack) > minMs){
           return true;
         }
         HIGH_MSG("NOT READY YET (%zu tracks, main track: %zu, with %zu keys)",
@@ -393,7 +394,7 @@ namespace Mist{
     }
 
     bool autoSeek = buffer.size();
-    uint64_t seekTarget = buffer.getSyncMode()?currentTime():0;
+    uint64_t seekTarget = buffer.getSyncMode()?thisTime:0;
     std::set<size_t> newSelects =
         Util::wouldSelect(M, targetParams, capa, UA, autoSeek ? seekTarget : 0);
 
@@ -401,7 +402,7 @@ namespace Mist{
       std::set<size_t> toRemove;
       for (std::set<size_t>::iterator it = newSelects.begin(); it != newSelects.end(); it++){
         // autoSeeking and target not in bounds? Drop it too.
-        if (M.getLastms(*it) < std::max(seekTarget, (uint64_t)6000lu) - 6000){
+        if (M.getNowms(*it) < std::max(seekTarget, (uint64_t)6000lu) - 6000){
           toRemove.insert(*it);
         }
       }
@@ -493,7 +494,7 @@ namespace Mist{
     //Abort if there are no keys
     if (!keys.getValidCount()){return 0;}
     //Get the key for the current time
-    size_t keyNum = M.getKeyNumForTime(trk, lastPacketTime);
+    size_t keyNum = M.getKeyNumForTime(trk, thisTime);
     if (keyNum == INVALID_KEY_NUM){return 0;}
     if (keys.getEndValid() <= keyNum+1){return 0;}
     //Return the next key
@@ -720,6 +721,13 @@ namespace Mist{
     return buffer.begin()->time;
   }
 
+  /// Return the intended target current time of the media buffer (as opposed to actual)
+  /// This takes into account the current playback speed as well as the maxSkipAhead setting.
+  uint64_t Output::targetTime(){
+    if (!realTime){return currentTime();}
+    return (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead);
+  }
+
   /// Return the start time of the selected tracks.
   /// Returns the start time of earliest track if nothing is selected.
   /// Returns zero if no tracks exist.
@@ -836,16 +844,16 @@ namespace Mist{
     }
 
     HIGH_MSG("Seeking for pos %" PRIu64, pos);
-    if (meta.getLive() && meta.getLastms(tid) < pos){
+    if (meta.getLive() && meta.getNowms(tid) < pos){
       unsigned int maxTime = 0;
-      while (meta.getLastms(tid) < pos && myConn && ++maxTime <= 20 && keepGoing()){
+      while (meta.getNowms(tid) < pos && myConn && ++maxTime <= 20 && keepGoing()){
         Util::wait(500);
         stats();
       }
     }
-    if (meta.getLastms(tid) < pos){
+    if (meta.getNowms(tid) < pos){
       WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: past end of track (= %" PRIu64 "ms).",
-               pos, tid, meta.getLastms(tid));
+               pos, tid, meta.getNowms(tid));
       userSelect.erase(tid);
       return false;
     }
@@ -884,46 +892,24 @@ namespace Mist{
     tmpPack.reInit(curPage[tid].mapped + tmp.offset, 0, true);
     tmp.time = tmpPack.getTime();
     char *mpd = curPage[tid].mapped;
+    uint64_t nowMs = M.getNowms(tid);
     while (tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
       tmpPack.reInit(mpd + tmp.offset, 0, true);
       tmp.time = tmpPack.getTime();
     }
     if (tmpPack){
+      tmp.ghostPacket = false;
       HIGH_MSG("Sought to time %" PRIu64 " in %s", tmp.time, curPage[tid].name.c_str());
       tmp.partIndex = M.getPartIndex(tmpPack.getTime(), tmp.tid);
       buffer.insert(tmp);
       return true;
     }
-    // don't print anything for empty packets - not sign of corruption, just unfinished stream.
-    if (curPage[tid].mapped[tmp.offset] != 0){
-      //There's a chance the packet header was written in between this check and the previous.
-      //Let's check one more time before aborting
-      tmpPack.reInit(mpd + tmp.offset, 0, true);
-      tmp.time = tmpPack.getTime();
-      if (tmpPack){
-        HIGH_MSG("Sought to time %" PRIu64 " in %s", tmp.time, curPage[tid].name.c_str());
-        tmp.partIndex = M.getPartIndex(tmpPack.getTime(), tmp.tid);
-        buffer.insert(tmp);
-        return true;
-      }
-      FAIL_MSG("Noes! Couldn't find packet on track %zu because of some kind of corruption error "
-               "or somesuch.",
-               tid);
-      return false;
-    }
-    VERYHIGH_MSG("Track %zu no data (key %" PRIu32 " @ %" PRIu64 ") - waiting...", tid,
-                 keyNum + (getNextKey ? 1 : 0), tmp.offset);
-    uint32_t i = 0;
-    while (meta.getVod() && curPage[tid].mapped[tmp.offset] == 0 && ++i <= 10){
-      Util::wait(100 * i);
-      stats();
-    }
-    if (curPage[tid].mapped[tmp.offset]){return seek(tid, pos, getNextKey);}
-    FAIL_MSG("Track %zu no data (key %" PRIu32 "@%" PRIu64 ", page %s, time %" PRIu64 " -> %" PRIu64 ", next=%" PRIu64 ") - timeout", tid, keyNum + (getNextKey ? 1 : 0), tmp.offset, curPage[tid].name.c_str(), pos, actualKeyTime, keys.getTime(keyNum+1));
-    userSelect.erase(tid);
-    firstTime = Util::bootMS() - (buffer.begin()->time * realTime / 1000);
-    return false;
+    tmp.partIndex = M.getPartIndex(nowMs, tmp.tid);
+    tmp.ghostPacket = true;
+    tmp.time = nowMs;
+    buffer.insert(tmp);
+    return true;
   }
 
   /// This function decides where in the stream initial playback starts.
@@ -948,7 +934,7 @@ namespace Mist{
         bool good = true;
         // check if all tracks have data for this point in time
         for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
-          if (meta.getLastms(ti->first) < seekPos + needsLookAhead){
+          if (meta.getNowms(ti->first) < seekPos + needsLookAhead){
             good = false;
             break;
           }
@@ -957,15 +943,15 @@ namespace Mist{
             HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
             continue;
           }// ignore missing tracks
-          if (M.getLastms(ti->first) < seekPos + needsLookAhead + M.getMinKeepAway(ti->first)){
+          if (M.getNowms(ti->first) < seekPos + needsLookAhead + M.getMinKeepAway(ti->first)){
             good = false;
             break;
           }
-          if (meta.getLastms(ti->first) == M.getFirstms(ti->first)){
+          if (meta.getNowms(ti->first) == M.getFirstms(ti->first)){
             HIGH_MSG("Skipping track %zu, last equals first", ti->first);
             continue;
           }// ignore point-tracks
-          if (meta.getLastms(ti->first) < seekPos){
+          if (meta.getNowms(ti->first) < seekPos){
             good = false;
             break;
           }
@@ -1099,7 +1085,7 @@ namespace Mist{
       if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
         uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
         size_t mainTrack = getMainSelectedTrack();
-        int64_t streamAvail = M.getLastms(mainTrack);
+        int64_t streamAvail = M.getNowms(mainTrack);
         if (targetParams.count("startunix")){
           int64_t startUnix = atoll(targetParams["startunix"].c_str());
           if (startUnix < 0){
@@ -1116,8 +1102,7 @@ namespace Mist{
             }
           }
           if (startUnix < unixStreamBegin){
-            WARN_MSG("Start time is earlier than stream begin - starting earliest possible");
-            WARN_MSG("%" PRId64 " < %" PRId64, startUnix, unixStreamBegin);
+            WARN_MSG("Start time (%" PRId64 ") is earlier than stream begin (%" PRId64 ") - starting earliest possible", startUnix, unixStreamBegin);
             targetParams["start"] = "-1";
           }else{
             targetParams["start"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
@@ -1145,20 +1130,20 @@ namespace Mist{
       if (targetParams.count("start") && atoll(targetParams["start"].c_str()) != 0){
         size_t mainTrack = getMainSelectedTrack();
         int64_t startRec = atoll(targetParams["start"].c_str());
-        if (startRec > M.getLastms(mainTrack)){
+        if (startRec > M.getNowms(mainTrack)){
           if (!M.getLive()){
             onFail("Playback start past end of non-live source", true);
             return;
           }
-          int64_t streamAvail = M.getLastms(mainTrack);
+          int64_t streamAvail = M.getNowms(mainTrack);
           int64_t lastUpdated = Util::getMS();
           INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
-            if (M.getLastms(mainTrack) > streamAvail){
+            if (M.getNowms(mainTrack) > streamAvail){
               HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
               stats();
-              streamAvail = M.getLastms(mainTrack);
+              streamAvail = M.getNowms(mainTrack);
               lastUpdated = Util::getMS();
             }
           }
@@ -1309,12 +1294,12 @@ namespace Mist{
   bool Output::reachedPlannedStop(){
     // If we're recording to file and reached the target position, stop
     if (isRecordingToFile && targetParams.count("recstop") &&
-        atoll(targetParams["recstop"].c_str()) <= lastPacketTime){
+        atoll(targetParams["recstop"].c_str()) <= thisTime){
       INFO_MSG("End of planned recording reached");
       return true;
     }
     // Regardless of playback method, if we've reached the wanted stop point, stop
-    if (targetParams.count("stop") && atoll(targetParams["stop"].c_str()) <= lastPacketTime){
+    if (targetParams.count("stop") && atoll(targetParams["stop"].c_str()) <= thisTime){
       INFO_MSG("End of planned playback reached");
       return true;
     }
@@ -1331,7 +1316,7 @@ namespace Mist{
         return false;
       }
       // is this a split point?
-      if (targetParams.count("nxt-split") && atoll(targetParams["nxt-split"].c_str()) <= lastPacketTime){
+      if (targetParams.count("nxt-split") && atoll(targetParams["nxt-split"].c_str()) <= thisTime){
         INFO_MSG("Split point reached");
         return true;
       }
@@ -1610,10 +1595,11 @@ namespace Mist{
 
             // slow down processing, if real time speed is wanted
             if (realTime && buffer.getSyncMode()){
-              uint8_t i = 6;
-              while (--i && thisPacket.getTime() > (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead) &&
+              uint64_t amount = thisTime - targetTime();
+              size_t i = (amount / 1000) + 6;
+              while (--i && thisTime > targetTime() &&
                      keepGoing()){
-                uint64_t amount = thisPacket.getTime() - (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead);
+                amount = thisTime - targetTime();
                 if (amount > 1000){amount = 1000;}
                 idleTime(amount);
                 //Make sure we stay responsive to requests and stats while waiting
@@ -1633,23 +1619,23 @@ namespace Mist{
               // wait at most double the look ahead time, plus ten seconds
               uint64_t timeoutTries = (needsLookAhead / sleepTime) * 2 + (10000 / sleepTime);
               uint64_t needsTime = thisTime + needsLookAhead;
-              bool firstTime = true;
+              bool firstLookahead = true;
               while (--timeoutTries && keepGoing()){
                 bool lookReady = true;
                 for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
                      it != userSelect.end(); it++){
-                  if (meta.getLastms(it->first) <= needsTime){
+                  if (meta.getNowms(it->first) <= needsTime){
                     if (timeoutTries == 1){
                       WARN_MSG("Track %zu: %" PRIu64 " <= %" PRIu64, it->first,
-                               meta.getLastms(it->first), needsTime);
+                               meta.getNowms(it->first), needsTime);
                     }
                     lookReady = false;
                     break;
                   }
                 }
                 if (lookReady){break;}
-                if (firstTime){
-                  firstTime = false;
+                if (firstLookahead){
+                  firstLookahead = false;
                 }else{
                   playbackSleep(sleepTime);
                 }
@@ -1760,7 +1746,7 @@ namespace Mist{
                   onFinish();
                   break;
                 }
-                uint64_t endRec = lastPacketTime + atoll(targetParams["split"].c_str()) * 1000;
+                uint64_t endRec = thisTime + atoll(targetParams["split"].c_str()) * 1000;
                 targetParams["nxt-split"] = JSON::Value(endRec).asString();
                 sentHeader = false;
                 sendHeader();
@@ -1987,21 +1973,31 @@ namespace Mist{
         return false;
       }
 
-      // if we're going to read past the end of the data page, load the next page
-      // this only happens for VoD
+      // if we're going to read past the end of the data page...
       if (nxt.offset >= curPage[nxt.tid].len ||
           (!memcmp(curPage[nxt.tid].mapped + nxt.offset, "\000\000\000\000", 4))){
-        if (M.getVod() && nxt.time >= M.getLastms(nxt.tid)){
+        // For non-live, we may have just reached the end of the track. That's normal and fine, drop it.
+        if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
           dropTrack(nxt.tid, "end of VoD track reached", false);
           return false;
         }
+        // Check if there is a next page for the timestamp we're looking for.
         if (M.getPageNumberForTime(nxt.tid, nxt.time) != currentPage[nxt.tid]){
           loadPageForKey(nxt.tid, M.getPageNumberForTime(nxt.tid, nxt.time));
           nxt.offset = 0;
           //Only read the next time if the page load succeeded and there is a packet to read from
           if (curPage[nxt.tid].mapped && curPage[nxt.tid].mapped[0] == 'D'){
             nxt.time = getDTSCTime(curPage[nxt.tid].mapped, 0);
+            nxt.ghostPacket = false;
+          }else{
+            nxt.ghostPacket = true;
           }
+          buffer.replaceFirst(nxt);
+          return false;
+        }
+        // We're still on the same page; ghost packets should update their time and retry later
+        if (nxt.ghostPacket){
+          nxt.time = M.getNowms(nxt.tid);
           buffer.replaceFirst(nxt);
           return false;
         }
@@ -2016,6 +2012,7 @@ namespace Mist{
       }
       // We know this packet will be valid, pre-load it so we know its length
       DTSC::Packet preLoad(curPage[nxt.tid].mapped + nxt.offset, 0, true);
+      nxt.time = preLoad.getTime();
 
       nextTime = 0;
 
@@ -2042,6 +2039,7 @@ namespace Mist{
       if (!M.getLive() && nxt.time >= M.getLastms(nxt.tid)){
         thisPacket.reInit(curPage[nxt.tid].mapped + nxt.offset, 0, true);
         thisIdx = nxt.tid;
+        thisTime = nxt.time;
         dropTrack(nxt.tid, "end of non-live track reached", false);
         return true;
       }
@@ -2067,6 +2065,9 @@ namespace Mist{
         }
         break;//Valid packet!
       }
+
+      // Force valid packet if nowMs is higher than current packet time
+      if (M.getNowms(nxt.tid) > nxt.time){break;}
 
       //Okay, there's no next page yet, and no next packet on this page either.
       //That means we're waiting for data to show up, somewhere.
@@ -2118,7 +2119,7 @@ namespace Mist{
     }
     emptyCount = 0; // valid packet - reset empty counter
     thisIdx = nxt.tid;
-    thisTime = thisPacket.getTime();
+    thisTime = nxt.time;
 
     if (!userSelect[nxt.tid]){
       dropTrack(nxt.tid, "track is not alive!");
@@ -2134,7 +2135,14 @@ namespace Mist{
 
     // we assume the next packet is the next on this same page
     nxt.offset += thisPacket.getDataLen();
-    nxt.time = nextTime;
+    if (!nextTime){
+      // If time is not known yet, insert a ghostPacket with a known safe time
+      nxt.time = M.getNowms(nxt.tid);
+      nxt.ghostPacket = true;
+    }else{
+      nxt.time = nextTime;
+      nxt.ghostPacket = false;
+    }
     ++nxt.partIndex;
 
     // exchange the current packet in the buffer for the next one
@@ -2425,11 +2433,11 @@ namespace Mist{
       uint64_t oneTime = 0;
       uint64_t twoTime = 0;
       for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
-        if (M.getLastms(*it) > oneTime){oneTime = M.getLastms(*it);}
+        if (M.getNowms(*it) > oneTime){oneTime = M.getNowms(*it);}
       }
       Util::wait(2000);
       for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
-        if (M.getLastms(*it) > twoTime){twoTime = M.getLastms(*it);}
+        if (M.getNowms(*it) > twoTime){twoTime = M.getNowms(*it);}
       }
       if (twoTime <= oneTime+500){
         disconnect();

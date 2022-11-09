@@ -9,6 +9,8 @@
 #include <mist/websocket.h>
 #include <sys/stat.h>
 
+bool includeZeroMatches = false;
+
 namespace Mist{
   /// Helper function to find the protocol entry for a given port number
   std::string getProtocolForPort(uint16_t portNo){
@@ -647,7 +649,7 @@ namespace Mist{
 
     // loop over the added sources, add them to json_resp["sources"]
     for (std::set<JSON::Value, sourceCompare>::iterator it = sources.begin(); it != sources.end(); it++){
-      if ((*it)["simul_tracks"].asInt() > 0){
+      if (includeZeroMatches || (*it)["simul_tracks"].asInt() > 0){
         if (Comms::tknMode & 0x04){
           JSON::Value tmp;
           tmp = (*it);
@@ -664,6 +666,7 @@ namespace Mist{
 
   void OutHTTP::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     origStreamName = streamName;
+    includeZeroMatches = req.GetVar("inclzero").size();
 
     if (req.GetHeader("X-Mst-Path").size()){mistPath = req.GetHeader("X-Mst-Path");}
 

@@ -117,6 +117,25 @@ namespace Mist{
     option["help"] = "Enable raw MPEG-TS passthrough mode";
     config->addOption("raw", option);
     
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    option.null();
+    option["long"] = "datatrack";
+    option["short"] = "D";
+    option["arg"] = "string";
+    option["default"] = "";
+    option["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", option);
+
     // Setup if we are called form with a thread for push-based input.
     if (s.connected()){
       srtConn = s;
@@ -140,7 +159,12 @@ namespace Mist{
 
   inputTSSRT::~inputTSSRT(){}
 
-  bool inputTSSRT::checkArguments(){return true;}
+  bool inputTSSRT::checkArguments(){
+    if (config->getString("datatrack") == "json"){
+      tsStream.setRawDataParser(TS::JSON);
+    }
+    return true;
+  }
 
   /// Live Setup of SRT Input. Runs only if we are the "main" thread
   bool inputTSSRT::preRun(){

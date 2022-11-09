@@ -5,6 +5,7 @@
 
 namespace Mist{
   OutJSON::OutJSON(Socket::Connection &conn) : HTTPOutput(conn){
+    wsCmds = true;
     realTime = 0;
     bootMsOffset = 0;
     keepReselecting = false;
@@ -19,7 +20,8 @@ namespace Mist{
     capa["friendly"] = "JSON over HTTP";
     capa["desc"] = "Pseudostreaming in JSON format over HTTP";
     capa["url_match"] = "/$.json";
-    capa["codecs"][0u][0u].append("@+meta");
+    capa["codecs"][0u][0u].append("@meta");
+    capa["codecs"][0u][0u].append("subtitle");
     capa["methods"][0u]["handler"] = "http";
     capa["methods"][0u]["type"] = "html5/text/javascript";
     capa["methods"][0u]["hrn"] = "JSON progressive";
@@ -33,6 +35,9 @@ namespace Mist{
   }
 
   void OutJSON::sendNext(){
+    //Call parent handler for generic websocket handling
+    HTTPOutput::sendNext();
+
     if (keepReselecting){
       // If we can select more tracks, do it and continue.
       if (selectDefaultTracks()){
@@ -44,11 +49,31 @@ namespace Mist{
       char *dPtr;
       size_t dLen;
       thisPacket.getString("data", dPtr, dLen);
+      if (dLen == 0 || (dLen == 1 && dPtr[0] == ' ')){return;}
       jPack["data"] = JSON::fromString(dPtr, dLen);
-      jPack["time"] = thisPacket.getTime();
+      jPack["time"] = thisTime;
       jPack["track"] = (uint64_t)thisIdx;
+    }else if (M.getCodec(thisIdx) == "subtitle"){
+      char *dPtr;
+      size_t dLen;
+      thisPacket.getString("data", dPtr, dLen);
+
+      //Ignore blank subtitles
+      if (dLen == 0 || (dLen == 1 && dPtr[0] == ' ')){return;}
+
+      //Get duration, or calculate if missing
+      uint64_t duration = thisPacket.getInt("duration");
+      if (!duration){duration = dLen * 75 + 800;}
+
+      //Build JSON data to transmit
+      jPack["duration"] = duration;
+      jPack["time"] = thisTime;
+      jPack["track"] = (uint64_t)thisIdx;
+      jPack["data"] = std::string(dPtr, dLen);
     }else{
       jPack = thisPacket.toJSON();
+      jPack.removeMember("bpos");
+      jPack["generic_converter_used"] = true;
     }
     if (dupcheck){
       if (jPack.compareExcept(lastVal, nodup)){
@@ -75,13 +100,14 @@ namespace Mist{
   }
 
   void OutJSON::sendHeader(){
+    sentHeader = true;
+    if (webSock){return;}
     std::string method = H.method;
     H.Clean();
     H.SetHeader("Content-Type", "text/javascript");
     H.protocol = "HTTP/1.0";
     H.setCORSHeaders();
     H.SendResponse("200", "OK", myConn);
-    sentHeader = true;
   }
 
   void OutJSON::onFail(const std::string &msg, bool critical){
@@ -203,9 +229,11 @@ namespace Mist{
 
   /// Repeats last JSON packet every 5 seconds to keep stream alive.
   void OutJSON::onIdle(){
-    lastOutTime += (Util::bootMS() - lastSendTime);
-    lastSendTime = Util::bootMS();
-    bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
+    if (isPushing()){
+      lastOutTime += (Util::bootMS() - lastSendTime);
+      lastSendTime = Util::bootMS();
+      bufferLivePacket(lastOutTime, 0, pushTrack, lastOutData.data(), lastOutData.size(), 0, true);
+    }
   }
 
   void OutJSON::onHTTP(){

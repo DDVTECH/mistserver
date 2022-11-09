@@ -22,6 +22,11 @@ namespace TS{
     OPUS = 0x060001
   };
 
+  enum rawDataType{
+    NONE = 0,
+    JSON
+  };
+
   class ADTSRemainder{
   private:
     char *data;
@@ -75,9 +80,11 @@ namespace TS{
     std::set<size_t> getActiveTracks();
 
     void setLastms(size_t tid, uint64_t timestamp);
+    void setRawDataParser(rawDataType parser);
 
   private:
     uint64_t lastPAT;
+    rawDataType rParser;
     ProgramAssociationTable associationTable;
     std::map<size_t, ADTSRemainder> remainders;
 

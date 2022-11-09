@@ -825,7 +825,21 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
   case 0x12: trackType = "meta"; break;  // meta
   }
 
+  if (meta.getVod() && reTrack == INVALID_TRACK_ID){
+    reTrack = meta.trackIDToIndex(getTrackID(), getpid());
+  }
+
+  if (reTrack == INVALID_TRACK_ID){
+    reTrack = meta.addTrack();
+    meta.setID(reTrack, getTrackID());
+    if (targetParams.count("lang")){
+      meta.setLang(reTrack, targetParams.at("lang"));
+    }
+  }
+
   if (data[0] == 0x12){
+    meta.setType(reTrack, "meta");
+    meta.setCodec(reTrack, "JSON");
     AMF::Object meta_in = AMF::parse((unsigned char *)data + 11, len - 15);
     AMF::Object *tmp = 0;
     if (meta_in.getContentP(1) && meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData")){
@@ -837,18 +851,6 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
     }
     if (tmp){amf_storage = *tmp;}
     return;
-  }
-
-  if (meta.getVod() && reTrack == INVALID_TRACK_ID){
-    reTrack = meta.trackIDToIndex(getTrackID(), getpid());
-  }
-
-  if (reTrack == INVALID_TRACK_ID){
-    reTrack = meta.addTrack();
-    meta.setID(reTrack, getTrackID());
-    if (targetParams.count("lang")){
-      meta.setLang(reTrack, targetParams.at("lang"));
-    }
   }
 
   std::string codec = meta.getCodec(reTrack);

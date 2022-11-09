@@ -226,8 +226,14 @@ namespace Mist{
       fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }else if (type == "meta"){
       long unsigned int tempLen = dataLen;
+      if (codec == "JSON"){tempLen += 2;}
       bs = TS::Packet::getPESMetaLeadIn(tempLen, packTime, M.getBps(thisIdx));
       fillPacket(bs.data(), bs.size(), firstPack, video, keyframe, pkgPid, contPkg);
+      if (codec == "JSON"){
+        char dLen[2];
+        Bit::htobs(dLen, dataLen);
+        fillPacket(dLen, 2, firstPack, video, keyframe, pkgPid, contPkg);
+      }
       fillPacket(dataPointer, dataLen, firstPack, video, keyframe, pkgPid, contPkg);
     }
     if (packData.getBytesFree() < 184){

@@ -150,7 +150,10 @@ namespace TS{
   Stream::Stream(){
     psCache = 0;
     psCacheTid = 0;
+    rParser = NONE;
   }
+
+  void Stream::setRawDataParser(rawDataType parser){rParser = parser;}
 
   Stream::~Stream(){}
 
@@ -288,6 +291,10 @@ namespace TS{
             std::string reg = desc.getRegistration();
             if (reg == "Opus"){
               pidToCodec[pid] = OPUS;
+            }else if (reg == "JSON"){
+              pidToCodec[pid] = JSON;
+            }else if (rParser == JSON){
+              pidToCodec[pid] = JSON;
             }else{
               pidToCodec.erase(pid);
             }
@@ -643,6 +650,13 @@ namespace TS{
       if (thisCodec == MP2 && !mp2Hdr.count(tid)){
         mp2Hdr[tid] = std::string(pesPayload, realPayloadSize);
       }
+    }
+    if (thisCodec == JSON){
+      //Ignore if invalid
+      if (realPayloadSize < 2){return;}
+      out.push_back(DTSC::Packet());
+      //Skip the first two bytes
+      out.back().genericFill(timeStamp, timeOffset, tid, pesPayload+2, realPayloadSize-2, bPos, 0);
     }
     if (thisCodec == OPUS){
       size_t offset = 0;
@@ -1057,6 +1071,11 @@ namespace TS{
         type = "audio";
         codec = "AC3";
         size = 16;
+      }break;
+      case JSON:{
+        addNewTrack = true;
+        type = "meta";
+        codec = "JSON";
       }break;
       case OPUS:{
         addNewTrack = true;

@@ -42,6 +42,7 @@ namespace Mist{
     uint64_t currentTime();
     uint64_t startTime();
     uint64_t endTime();
+    uint64_t targetTime();
     void setBlocking(bool blocking);
     bool selectDefaultTracks();
     bool connectToFile(std::string file, bool append = false, Socket::Connection *conn = 0);

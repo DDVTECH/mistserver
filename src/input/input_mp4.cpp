@@ -478,7 +478,7 @@ namespace Mist{
             packSendSize = 24 + (BsetPart.timeOffset ? 17 : 0) + (BsetPart.bpos ? 15 : 0) + 19 +
                            stszBox.getEntrySize(stszIndex) + 11 - 2 + 19;
             meta.update(BsetPart.time, BsetPart.timeOffset, tNumber,
-                        stszBox.getEntrySize(stszIndex) - 2, BsetPart.bpos, true, packSendSize);
+                        stszBox.getEntrySize(stszIndex) - 2, BsetPart.bpos+2, true, packSendSize);
           }
         }else{
           meta.update(BsetPart.time, BsetPart.timeOffset, tNumber,
@@ -558,16 +558,11 @@ namespace Mist{
     }
 
     if (M.getCodec(curPart.trackID) == "subtitle"){
-      unsigned int txtLen = Bit::btohs(readBuffer + (curPart.bpos-readPos));
-      if (!txtLen && false){
-        curPart.index++;
-        return getNext(idx);
-      }
       static JSON::Value thisPack;
       thisPack.null();
       thisPack["trackid"] = (uint64_t)curPart.trackID;
       thisPack["bpos"] = curPart.bpos; //(long long)fileSource.tellg();
-      thisPack["data"] = std::string(readBuffer + (curPart.bpos-readPos) + 2, txtLen);
+      thisPack["data"] = std::string(readBuffer + (curPart.bpos-readPos), curPart.size);
       thisPack["time"] = curPart.time;
       if (curPart.duration){thisPack["duration"] = curPart.duration;}
       thisPack["keyframe"] = true;
@@ -583,6 +578,7 @@ namespace Mist{
     curPart.index++;
     if (curPart.index < headerData(M.getID(curPart.trackID)).size()){
       headerData(M.getID(curPart.trackID)).getPart(curPart.index, curPart.bpos);
+      if (M.getCodec(curPart.trackID) == "subtitle"){curPart.bpos += 2;}
       curPart.size = parts.getSize(curPart.index);
       curPart.offset = parts.getOffset(curPart.index);
       curPart.time = M.getPartTime(curPart.index, thisIdx);
@@ -616,6 +612,7 @@ namespace Mist{
     for (size_t i = 0; i < headerDataSize; i++){
 
       thisHeader.getPart(i, addPart.bpos);
+      if (M.getCodec(idx) == "subtitle"){addPart.bpos += 2;}
       addPart.size = parts.getSize(i);
       addPart.offset = parts.getOffset(i);
       addPart.time = M.getPartTime(i, idx);

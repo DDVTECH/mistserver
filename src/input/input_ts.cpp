@@ -243,6 +243,25 @@ namespace Mist{
     capa["optional"]["segmentsize"]["type"] = "uint";
     capa["optional"]["segmentsize"]["default"] = 1900;
 
+    capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
+    capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";
+    capa["optional"]["datatrack"]["type"] = "select";
+    capa["optional"]["datatrack"]["option"] = "--datatrack";
+    capa["optional"]["datatrack"]["short"] = "D";
+    capa["optional"]["datatrack"]["default"] = "";
+    capa["optional"]["datatrack"]["select"][0u][0u] = "";
+    capa["optional"]["datatrack"]["select"][0u][1u] = "None / disabled";
+    capa["optional"]["datatrack"]["select"][1u][0u] = "json";
+    capa["optional"]["datatrack"]["select"][1u][1u] = "2b size-prepended JSON";
+
+    JSON::Value option;
+    option["long"] = "datatrack";
+    option["short"] = "D";
+    option["arg"] = "string";
+    option["default"] = "";
+    option["help"] = "Which parser to use for data tracks";
+    config->addOption("datatrack", option);
+
     capa["optional"]["fallback_stream"]["name"] = "Fallback stream";
     capa["optional"]["fallback_stream"]["help"] =
         "Alternative stream to load for playback when there is no active broadcast";
@@ -253,7 +272,7 @@ namespace Mist{
     capa["optional"]["raw"]["help"] = "Enable raw MPEG-TS passthrough mode";
     capa["optional"]["raw"]["option"] = "--raw";
 
-    JSON::Value option;
+    option.null();
     option["long"] = "raw";
     option["short"] = "R";
     option["help"] = "Enable raw MPEG-TS passthrough mode";
@@ -277,6 +296,11 @@ namespace Mist{
       config->getOption("input", true).append("ts-exec:srt-live-transmit " + srtUrl.getUrl() + " file://con");
       INFO_MSG("Rewriting SRT source '%s' to '%s'", source.c_str(), config->getString("input").c_str());
     }
+    if (config->getString("datatrack") == "json"){
+      liveStream.setRawDataParser(TS::JSON);
+      tsStream.setRawDataParser(TS::JSON);
+    }
+
     // We call preRun early and, if successful, close the opened reader.
     // This is to ensure we have udpMode/rawMode/standAlone all set properly before the first call to needsLock.
     // The reader must be closed so that the angel process does not have a reader open.

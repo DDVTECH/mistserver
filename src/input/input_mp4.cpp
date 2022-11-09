@@ -301,6 +301,17 @@ namespace Mist{
         continue;
       }
 
+      MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
+
+      MP4::STSD stsdBox = stblBox.getChild<MP4::STSD>();
+      MP4::Box sEntryBox = stsdBox.getEntry(0);
+      std::string sType = sEntryBox.getType();
+
+      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g")){
+        INFO_MSG("Unsupported track type: %s", sType.c_str());
+        continue;
+      }
+
       tNumber = meta.addTrack();
 
       MP4::TKHD tkhdBox = trakIt->getChild<MP4::TKHD>();
@@ -314,11 +325,6 @@ namespace Mist{
       uint64_t timescale = mdhdBox.getTimeScale();
       meta.setLang(tNumber, mdhdBox.getLanguage());
 
-      MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
-
-      MP4::STSD stsdBox = stblBox.getChild<MP4::STSD>();
-      MP4::Box sEntryBox = stsdBox.getEntry(0);
-      std::string sType = sEntryBox.getType();
       HIGH_MSG("Found track %zu of type %s", tNumber, sType.c_str());
 
       if (sType == "avc1" || sType == "h264" || sType == "mp4v"){

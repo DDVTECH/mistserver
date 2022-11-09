@@ -4932,7 +4932,7 @@ var UI = {
           var tables = {
             audio: {
               vheader: 'Audio',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Channels','Samplerate','Language','Track index',""],
               content: []
             },
             video: {
@@ -4942,7 +4942,12 @@ var UI = {
             },
             subtitle: {
               vheader: 'Subtitles',
-              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index'],
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate','Language','Track index',"","",""],
+              content: []
+            },
+            meta: {
+              vheader: 'Metadata',
+              labels: ['Codec','Duration','Avg bitrate','Peak bitrate',"","","","",""],
               content: []
             }
           }
@@ -4979,7 +4984,8 @@ var UI = {
                     track.channels,
                     UI.format.addUnit(UI.format.number(track.rate),'Hz'),
                     ('language' in track ? track.language : 'unknown'),
-                    (trackindex.audio)
+                    (trackindex.audio),
+                    ""
                   ]
                 });
                 trackindex.audio++;
@@ -5012,15 +5018,29 @@ var UI = {
                       peakoravg(track,"bps"),
                       peakoravg(track,"maxbps"),
                       ('language' in track ? track.language : 'unknown'),
-                      (trackindex.subtitle)
+                      (trackindex.subtitle),
+                      "","",""
                     ]
                   });
                   trackindex.subtitle++
                   break;
                 }
+                else {
+                  tables.meta.content.push({
+                    header: 'Track '+i.split('_').pop(),
+                    body: [
+                      track.codec,
+                      UI.format.duration((track.lastms-track.firstms)/1000)+'<br><span class=description>'+UI.format.duration(track.firstms/1000)+' to '+UI.format.duration(track.lastms/1000)+'</span>',
+                      peakoravg(track,"bps"),
+                      peakoravg(track,"maxbps"),
+                      "","","","",""
+                    ]
+                  });
+                  break;
+                }
             }
           }
-          var tracktypes = ['audio','video','subtitle'];
+          var tracktypes = ['audio','video','subtitle','meta'];
           var $c = $('<div>').css({
             'display': 'flex',
             'flex-flow': 'row wrap',
@@ -5603,7 +5623,7 @@ var UI = {
         
         $.ajax({
           type: 'GET',
-          url: otherbase+'json_'+escapedstream+'.js',
+          url: otherbase+'json_'+escapedstream+'.js?inclzero=1',
           success: function(d) {
             
             var build = [];
@@ -5637,22 +5657,24 @@ var UI = {
             
             $setTracks.html('');
             var tracks = {};
-            for (var i in d.meta.tracks) {
-              var t = d.meta.tracks[i];
-              if (t.codec == "subtitle") {
-                t.type = "subtitle";
-              }
-              if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
-              
-              if (!(t.type in tracks)) {
-                if (t.type == "subtitle") {
-                  tracks[t.type] = [];
+            if (d.meta) { 
+              for (var i in d.meta.tracks) {
+                var t = d.meta.tracks[i];
+                if (t.codec == "subtitle") {
+                  t.type = "subtitle";
                 }
-                else {
-                  tracks[t.type] = [[(''),"Autoselect "+t.type]];
+                if ((t.type != 'audio') && (t.type != 'video') && (t.type != "subtitle")) { continue; }
+
+                if (!(t.type in tracks)) {
+                  if (t.type == "subtitle") {
+                    tracks[t.type] = [];
+                  }
+                  else {
+                    tracks[t.type] = [[(''),"Autoselect "+t.type]];
+                  }
                 }
+                tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
               }
-              tracks[t.type].push([t.trackid,UI.format.capital(t.type)+' track '+(tracks[t.type].length+(t.type == "subtitle" ? 1 : 0))]);
             }
             if (Object.keys(tracks).length) {
               $setTracks.closest('label').show();

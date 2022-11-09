@@ -10,6 +10,28 @@
   align-items: center;
   justify-content: center;
 }
+.mistvideo-subtitles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.mistvideo-subtitles > * {
+  margin-bottom: 0.5em;
+  padding: 0.1em 0.3em;
+  text-align: center;
+  background: rgba(0,0,0,0.6);
+  white-space: pre-wrap;
+}
+.mistvideo-subtitles > *:empty {
+  display: none;
+}
+.mistvideo[data-fullscreen] .mistvideo-subtitles {
+  font-size: 3vh;
+}
 .mistvideo-background { background-color: $background; }
 .mistvideo-totalTime:before {
   content: '/';

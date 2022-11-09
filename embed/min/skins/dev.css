@@ -67,6 +67,10 @@ svg.icon .spin,svg.icon.spin{animation:mistvideo-spin 1.5s infinite linear;trans
 .mistvideo{line-height:1.2;font-size:14.5px}
 .mistvideo svg{margin:2.5px}
 .mistvideo-video{display:flex;align-items:center;justify-content:center}
+.mistvideo-subtitles{position:absolute;width:100%;height:100%;pointer-events:none;display:flex;align-items:flex-end;justify-content:center}
+.mistvideo-subtitles>*{margin-bottom:.5em;padding:.1em .3em;text-align:center;background:rgba(0,0,0,.6);white-space:pre-wrap}
+.mistvideo-subtitles>:empty{display:none}
+.mistvideo[data-fullscreen] .mistvideo-subtitles{font-size:3vh}
 .mistvideo-background{background-color:$background}
 .mistvideo-totalTime:before{content:'/';margin:.2em}
 .mistvideo-progress{padding:10px 0;margin:-10px 0;z-index:2}

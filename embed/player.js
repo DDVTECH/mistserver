@@ -35,7 +35,8 @@ function MistVideo(streamName,options) {
     maxheight: false,     //no max height (apart from targets dimensions)
     ABR_resize: true,     //for supporting wrappers: when the player resizes, request a video track that matches the resolution best
     ABR_bitrate: true,    //for supporting wrappers: when there are playback issues, request a lower bitrate video track
-    useDateTime: true,    //when the unix timestamp of the stream is known, display the date/time
+    useDateTime: true,    //when the unix timestamp of the stream is known, display the date/time,
+    subscribeToMetaTrack: false, //pass [[track index,callback]]; the callback function will be called whenever the specified meta data track receives a message. 
     MistVideoObject: false//no reference object is passed
   },options);
   if (options.host) { options.host = MistUtil.http.url.sanitizeHost(options.host); }
@@ -115,7 +116,6 @@ function MistVideo(streamName,options) {
     this.log("A reloadDelay of more than an hour was set: assuming milliseconds were intended. ReloadDelay is now "+options.reloadDelay+"s");
   }
 
-  
   new MistSkin(this);
   
   this.checkCombo = function(options,quiet) {
@@ -507,7 +507,7 @@ function MistVideo(streamName,options) {
         if (MistVideo.reporting) {
           MistVideo.reporting.init();
         }
-        
+
         if ("api" in MistVideo.player) {
           
           //add monitoring
@@ -663,7 +663,251 @@ function MistVideo(streamName,options) {
             MistUtil.event.addListener(MistVideo.video,events[i],function(){
               if (MistVideo.monitor) { MistVideo.monitor.reset(); }
             });
-          }          
+          }
+
+          if ("currentTime" in MistVideo.player.api) {
+            var json_source = MistUtil.sources.find(MistVideo.info.source,{
+              type: "html5/text/javascript",
+              protocol: "ws"+(location.protocol.charAt(location.protocol.length-2) == "s" ? "s" : "")+":"
+            });
+            if (json_source) {
+              MistVideo.metaTrackSubscriptions = {
+                subscriptions: {},
+                socket: null,
+                listeners: {},
+                init: function(){
+                  var me = this;
+                  this.socket = new WebSocket(MistUtil.http.url.addParam(MistVideo.urlappend(json_source.url),{rate:1}));
+                  me.send_queue = [];
+                  me.checktimer = null;
+                  me.s = function(obj){
+                    if (me.socket.readyState == me.socket.OPEN) {
+                      me.socket.send(JSON.stringify(obj));
+                      return true;
+                    }
+                    if (me.socket.readyState >= me.socket.CLOSING) {
+                      //reopen websocket
+                      me.init();
+                    }
+                    //add message to queue
+                    this.send_queue.push(obj);
+                  };
+
+                  var stayahead = 5; //ask MistServer to fastforward to stayahead seconds ahead, so we receive messages earlier
+                  var isfarahead = false; //for rate limiting the 'pause when too far ahead'-function
+
+                  me.socket.setTracks = function(){
+                    me.s({type:"tracks",meta:MistUtil.object.keys(me.subscriptions).join(",")});
+                  };
+                  me.socket.onopen = function(){
+                    MistVideo.log("Metadata socket opened");
+
+                    me.socket.setTracks();
+                    if (MistVideo.player.api.playbackRate != 1) { me.s({type:"set_speed",play_rate:MistVideo.player.api.playbackRate}); }
+                    me.s({type:"seek",seek_time:Math.round(MistVideo.player.api.currentTime*1e3),ff_to:Math.round((MistVideo.player.api.currentTime+stayahead)*1e3)});
+                    me.socket.addEventListener("message",function(e){
+                      if (!e.data) { MistVideo.log("Subtitle websocket received empty message."); return; }
+                      var message = JSON.parse(e.data);
+                      if (!message) { MistVideo.log("Subtitle websocket received invalid message."); return; }
+
+                      if (("time" in message) && ("track" in message) && ("data" in message)) {
+                        if (message.track in me.subscriptions) {
+                          //console.warn("received:",message.track,message.data);
+                          me.subscriptions[message.track].buffer.push(message);
+                          console.warn("received:",message.track,message.time*1e-3,"currentTime:",MistVideo.player.api.currentTime,"latency",Math.round(MistVideo.player.api.currentTime-message.time*1e-3),"bufferlength:",me.subscriptions[message.track].buffer.length,"timer:",!!me.checktimer);
+
+                          if (!me.checktimer) { 
+                            me.check();
+                          }
+                          else {
+                            var willCheckAt = MistVideo.timers.list[me.checktimer];
+                            if (willCheckAt) {
+                              var messageAt = (new Date()).getTime() + message.time - MistVideo.player.api.currentTime*1e3;
+                              if (willCheckAt > messageAt) {
+                                MistVideo.log("The metadata socket received a message that should be displayed sooner than the current check time; resetting");
+                                MistVideo.timers.stop(me.checktimer);
+                                me.checktimer = null;
+                                me.check();
+                              }
+                            }
+                          }
+                        }
+                      }
+                      //per track, the messages should arrive in the correct order and we shouldn't need to do sorting
+                      
+
+                      if ("type" in message) {
+                        switch (message.type) {
+                          case "on_time": {
+                            if (!isfarahead && (message.data.current > (MistVideo.player.api.currentTime + stayahead*6)*1e3)) {
+                              //the playing point for the metadata track is very far ahead of the player; 
+                              isfarahead = true;
+                              me.s({type:"hold"});
+                              MistVideo.log("Pausing metadata buffer because it is very far ahead, checking again in 5 seconds: "+message.data.current+" > "+MistVideo.player.api.currentTime*1e3)
+                              MistVideo.timers.start(function(){
+                                if (!MistVideo.player.api.paused) { me.s({type:"play"}); }
+                                me.s({type:"fast_forward",ff_to:Math.round((MistVideo.player.api.currentTime+stayahead)*1e3)});
+                              },5e3);
+                            }
+                            break;
+                          }
+                          case "seek": {
+                            for (var i in me.subscriptions) {
+                              me.subscriptions[i].buffer = [];
+                            }
+                            MistVideo.log("Cleared metadata buffer after completed seek");
+                            if (me.checktimer) {
+                              //there might be a timer going for some time in the future: stop it, 
+                              MistVideo.timers.stop(me.checktimer);
+                              me.checktimer = null;
+                            }
+                          }
+                          break;
+                        }
+                      }
+
+                    });
+                    me.socket.onclose = function(){
+                      //dont me.init();, send function will reopen if needed instead
+                      MistVideo.log("Metadata socket closed");
+                    }
+
+                    while (me.send_queue.length && (me.socket.readyState == me.socket.OPEN)) {
+                      me.s(me.send_queue.shift());
+                    }
+                  };
+                  if (!("seeked" in this.listeners)) { //prevent duplication
+                    var lastff = (new Date()).getTime(); //init at now, as a seek with ff_to is also sent at init time
+
+                    me.check = function(){
+                      //console.warn(me.checktimer,"check");
+                      if (me.checktimer) {
+                        MistVideo.timers.stop(me.checktimer);
+                        me.checktimer = null;
+                      }
+
+                      if (MistVideo.player.api.paused) { return; }
+                      
+                      var nextAtGlobal = null;
+                      for (var i in me.subscriptions) {
+                        var buffer = me.subscriptions[i].buffer;
+                        while (buffer.length && (buffer[0].time <= MistVideo.player.api.currentTime*1e3)) {
+                          var message = buffer.shift();
+
+                          if (message.time < (MistVideo.player.api.currentTime - 5) * 1e3) {
+                            //the message is at least 5 seconds older than the video time
+                            continue;
+                          }
+                          else {
+                            for (var j in me.subscriptions[i].callbacks) {
+                              me.subscriptions[i].callbacks[j].call(MistVideo,message);
+                            }
+                          }
+                        }
+                        if (buffer.length) {
+                          //save when the next message should be played
+                          nextAtGlobal = Math.min(nextAtGlobal === null ? 1e9 : nextAtGlobal,buffer[0].time);
+                        }
+                      }
+                      
+                      //add rate limiting: do not ask for fast forward more than once every 5 seconds
+                      var now = (new Date()).getTime()
+                      if (now > lastff+5e3) {
+                        me.s({type:"fast_forward",ff_to:Math.round((MistVideo.player.api.currentTime+stayahead)*1e3)});
+                        lastff = now;
+                      }
+
+
+                      if (nextAtGlobal) {
+                        var delay = nextAtGlobal-MistVideo.player.api.currentTime*1e3;
+                        me.checktimer = MistVideo.timers.start(function(){
+                          me.check();
+                        },delay);
+                      }
+
+                    };
+                    
+                    this.listeners.seeked = MistUtil.event.addListener(MistVideo.video,"seeked",function(){
+                      for (var i in me.subscriptions) {
+                        me.subscriptions[i].buffer = [];
+                      }
+                      me.s({type:"seek",seek_time:Math.round(MistVideo.player.api.currentTime*1e3),ff_to:Math.round((MistVideo.player.api.currentTime+stayahead)*1e3)});
+                      lastff = (new Date()).getTime();
+                      //console.warn("seek to",Math.round(MistVideo.player.api.currentTime*1e3));
+                    });
+                    this.listeners.pause = MistUtil.event.addListener(MistVideo.video,"pause",function(){
+                      me.s({type:"hold"});
+                      MistVideo.timers.stop(me.checktimer);
+                      me.checktimer = null;
+                    });
+                    this.listeners.playing = MistUtil.event.addListener(MistVideo.video,"playing",function(){
+                      me.s({type:"play"});
+                        if (!me.checktimer) me.check();
+                    });
+                    this.listeners.ratechange = MistUtil.event.addListener(MistVideo.video,"ratechange",function(){
+                      me.s({type:"set_speed",play_rate:MistVideo.player.api.playbackRate});
+                    });
+                  }
+                },
+                destroy: function(){
+                  MistVideo.log("Closing metadata socket..");
+                  this.socket.close();
+                  this.socket = null;
+                  this.subscriptions = {};
+                  for (var i in this.listeners) {
+                    MistUtil.event.removeListener(this.listeners[i]);
+                  }
+                  this.listeners = {};
+                },
+                add: function (trackid,callback) {
+                  if (typeof callback != "function") { return; }
+
+                  if (!(trackid in this.subscriptions)) {
+                    this.subscriptions[trackid] = {
+                      buffer: [],
+                      callbacks: []
+                    };
+                  }
+                  this.subscriptions[trackid].callbacks.push(callback);
+
+                  if (this.socket === null) {
+                    this.init();
+                  }
+                  else {
+                    this.socket.setTracks();
+                  }
+                },
+                remove: function(trackid,callback){
+                  if (trackid in this.subscriptions) {
+                    for (var i in this.subscriptions[trackid].callbacks) {
+                      if (callback == this.subscriptions[trackid].callbacks[i]) {
+                        this.subscriptions[trackid].callbacks.splice(i,1);
+                        break;
+                      }
+                    }
+                    if (this.subscriptions[trackid].callbacks.length == 0) {
+                      delete this.subscriptions[trackid];
+                      if (MistUtil.object.keys(this.subscriptions).length) {
+                        this.socket.setTracks();
+                      }
+                      else {
+                        this.destroy();
+                      }
+                    }
+                  }
+                }
+              };
+              if (options.subscribeToMetaTrack.length) {
+                if (typeof options.subscribeToMetaTrack[0] != "object") {
+                  options.subscribeToMetaTrack = [options.subscribeToMetaTrack];
+                }
+                for (var i in options.subscribeToMetaTrack) {
+                  MistVideo.metaTrackSubscriptions.add.apply(MistVideo.metaTrackSubscriptions,options.subscribeToMetaTrack[i]);
+                }
+              }
+            }
+          }
+
         }
         
         //remove placeholder and add UI structure
@@ -1051,7 +1295,7 @@ function MistVideo(streamName,options) {
   //switch to polling-mode if websockets are not supported
   
   function openWithGet() {
-    var url = MistUtil.http.url.addParam(MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1});
+    var url = MistUtil.http.url.addParam(MistVideo.urlappend(options.host+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1,inclzero:1});
     MistVideo.log("Requesting stream info from "+url);
     MistUtil.http.get(url,function(d){
       if (MistVideo.destroyed) { return; }
@@ -1070,7 +1314,7 @@ function MistVideo(streamName,options) {
     function openSocket() {
       MistVideo.log("Opening stream status stream through websocket..");
       var url = MistVideo.options.host.replace(/^http/i,"ws");
-      url = MistUtil.http.url.addParam(MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1});
+      url = MistUtil.http.url.addParam(MistVideo.urlappend(url+"/json_"+encodeURIComponent(MistVideo.stream)+".js"),{metaeverywhere:1,inclzero:1});
       var socket;
       try {
         socket = new WebSocket(url);
@@ -1415,10 +1659,8 @@ function MistVideo(streamName,options) {
           if (diff) {
             //console.log("Difference",diff,data,MistVideo.info);
             
-            if ("source" in diff) {
-              if ("error" in MistVideo.info) {
-                MistVideo.reload("Reloading, stream info has error");
-              }
+            if (("source" in diff) && ("error" in MistVideo.info)) {
+              MistVideo.reload("Reloading, stream info has error");
               return;
             }
             
@@ -1512,6 +1754,9 @@ function MistVideo(streamName,options) {
           MistVideo.log("Error while unloading player: "+e.message);
         }
       }
+    }
+    if (this.metaTrackSubscriptions && this.metaTrackSubscriptions.socket) {
+      this.metaTrackSubscriptions.destroy();
     }
     if ((this.UI) && (this.UI.elements)) {
       for (var i in this.UI.elements) {

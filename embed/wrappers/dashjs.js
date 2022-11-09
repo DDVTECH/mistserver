@@ -177,6 +177,9 @@ p.prototype.build = function (MistVideo,callback) {
       MistVideo.player.dash.attachSource(url);
     };
     
+    if (MistVideo.options.controls != "stock"){
+      me.dash.updateSettings({streaming:{text:{defaultEnabled:false}}});
+    }
     var subsloaded = false;
     me.dash.on("allTextTracksAdded",function(){
       subsloaded = true;

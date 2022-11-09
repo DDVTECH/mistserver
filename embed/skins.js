@@ -59,7 +59,8 @@ MistSkins["default"] = {
       type: "container",
       children: [
         {type: "videobackground", alwaysDisplay: false, delay: 5 },
-        {type: "video"}
+        {type: "video"},
+        {type: "subtitles"}
       ]
     },
     controls: {
@@ -1533,12 +1534,22 @@ MistSkins["default"] = {
         for (var j in tracktypes) {
           var type = tracktypes[j];
           var t = tracks[type];
+
+          if (MistUtil.array.indexOf(["video","audio","subtitle"],type) <= -1) {
+            //Do not display this track type
+            continue;
+          }
           
           if (type == "subtitle") {
-            if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setSubtitle" in MistVideo.player.api))) {
+            if ((!("player" in MistVideo)) || (!("api" in MistVideo.player)) || (!("setWSSubtitle" in MistVideo.player.api) && !("setSubtitle" in MistVideo.player.api))) {
               //this player does not support adding subtitles, don't show track selection in the interface
               MistVideo.log("Subtitle selection was disabled as this player does not support it.");
               continue;
+            }
+            
+            var mime = "html5/text/vtt"
+            if ("setWSSubtitle" in MistVideo.player.api) {
+              mime = "html5/text/javascript";
             }
             
             //check if the VTT output is available
@@ -1546,7 +1557,7 @@ MistSkins["default"] = {
             for (var i in MistVideo.info.source) {
               var source = MistVideo.info.source[i];
               //this is a subtitle source, and it's the same protocol (HTTP/HTTPS) as the video source
-              if ((source.type == "html5/text/vtt") && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol.replace(/^ws/,"http"))) {
+              if ((source.type == mime) && (MistUtil.http.url.split(source.url).protocol == MistUtil.http.url.split(MistVideo.source.url).protocol.replace(/^ws/,"http"))) {
                 subtitleSource = source.url.replace(/.srt$/,".vtt");
                 break;
               }
@@ -1554,7 +1565,7 @@ MistSkins["default"] = {
             
             if (!subtitleSource) {
               //if we can't find a subtitle output, don't show track selection in the interface
-              MistVideo.log("Subtitle selection was disabled as an SRT source could not be found.");
+              MistVideo.log("Subtitle selection was disabled as a source could not be found.");
               continue;
             }
             
@@ -1721,17 +1732,22 @@ MistSkins["default"] = {
                   localStorage["mistSubtitleLanguage"] = t[this.value].lang;
                 }
                 catch (e) {}
-                
-                if (this.value != "") {
-                  //gather metadata for this subtitle track here
-                  var trackinfo = MistUtil.object.extend({},t[this.value]);
-                  trackinfo.label = orderValues(trackinfo.describe).join(" ");
-                  
-                  trackinfo.src = MistUtil.http.url.addParam(subtitleSource,{track:this.value});
-                  MistVideo.player.api.setSubtitle(trackinfo);
+
+                if ("setWSSubtitle" in MistVideo.player.api) {
+                  MistVideo.player.api.setWSSubtitle(this.value == "" ? undefined : this.value);
                 }
                 else {
-                  MistVideo.player.api.setSubtitle();
+                  if (this.value != "") {
+                    //gather metadata for this subtitle track here
+                    var trackinfo = MistUtil.object.extend({},t[this.value]);
+                    trackinfo.label = orderValues(trackinfo.describe).join(" ");
+                    
+                    trackinfo.src = MistUtil.http.url.addParam(subtitleSource,{track:this.value});
+                    MistVideo.player.api.setSubtitle(trackinfo);
+                  }
+                  else {
+                    MistVideo.player.api.setSubtitle();
+                  }
                 }
               });
               
@@ -2101,6 +2117,7 @@ MistSkins["default"] = {
         }
         
         if (event.defaultPrevented) {
+          MistVideo.log("Error event was defaultPrevented, not showing.");
           container.clear();
         }
       };
@@ -2277,8 +2294,89 @@ MistSkins["default"] = {
 
 
       return ele;
-    }
+    },
+    subtitles: function(options){
+      if (!("WebSocket" in window)) { return false; }
+      var MistVideo = this;
+      if (!("player" in MistVideo) || !("api" in MistVideo.player) || !("currentTime" in MistVideo.player.api)) { return false; }
+      
+      if (!("metaTrackSubscriptions" in MistVideo)) { return false; }
+
+      function clearFormatting(str) {
+        str = str.replace(/\<\/?[bui]\>/gi,""); //remove <b>,</b>,<u>,</u>,<i>,</i>
+        str = str.replace(/{\/?[bui]}/gi,"");   //remove {b},{/b},{u},{/u},{i},{/i}
+        str = str.replace(/{\\a\d+}/gi,"");     //remove {\a3} (line position)
+        str = str.replace(/\<\/?font[^>]*?\>/gi,""); //remove <font color="white">,</font>
+        return str;
+      }
+
+      var container = document.createElement("div");
+
+      var c = document.createElement("span");
+      container.appendChild(c);
+      var textNode = document.createTextNode("");
+      c.appendChild(textNode);
+
+      var timer = false;
+      function displayMessage(message) {
+        textNode.nodeValue = clearFormatting(message.data);
+        if (timer) {
+          //a previous message is still being displayed, remove the timer so that it doesn't remove the new message
+          MistVideo.timers.stop(timer);
+          timer = null;
+        }
+
+
+        function setTimer(delay) {
+          timer = MistVideo.timers.start(function(){
+
+            if (MistVideo.player.api.paused) {
+              //leave the subtitle for now, and start a new timer once the video starts playing
+
+              var playing = MistUtil.event.addListener(MistVideo.video,"playing",function(){
+                setTimer(message.time + ("duration" in message ? message.duration : 5e3) - MistVideo.player.api.currentTime*1e3);
+                MistUtil.event.removeListener(playing);
+              });
+
+              return;
+            }
+
+            textNode.nodeValue = "";
+          },delay);
+        }
+        setTimer("duration" in message ? message.duration : 5e3);
+
+      }
+
+      //when seeking, clear the current subtitle message
+      MistUtil.event.addListener(MistVideo.video,"seeked",function(){
+        textNode.nodeValue = "";
+        if (timer) { MistVideo.timers.stop(timer); }
+        timer = null;
+      });
+
+      if (!("setWSSubtitle" in MistVideo.player.api)) {
+        //insert generic subtitle function unless it already exists
+        var trackid = false;
+        MistVideo.player.api.setWSSubtitle = function(id){
+          if (id == trackid) { return; } //already selected
+
+          //first add, then remove: this prevents the websocket closing because no tracks are selected
+
+          if (typeof id != "undefined") {
+            MistVideo.metaTrackSubscriptions.add(id,displayMessage);
+          }
+
+          if (id != trackid) {
+            MistVideo.metaTrackSubscriptions.remove(trackid,displayMessage);
+          }
+
+          trackid = (id == "undefined" ? false : id);
+        }
+      }
     
+      return container;
+    }
   },
   colors: {
     fill: "#fff",

@@ -848,7 +848,7 @@ var MistUtil = {
               }
               break;
             case "rate":
-              name[j] = Math.round(track.rate)+"Khz";
+              name[j] = Math.round(track.rate*1e-3)+"Khz";
               break;
             case "language":
               if (track[j] != "Undetermined") { name[j] = track[j]; }
@@ -1130,5 +1130,35 @@ var MistUtil = {
   getAndroid: function(){
     var match = navigator.userAgent.toLowerCase().match(/android\s([\d\.]*)/i);
     return match ? match[1] : false;
+  },
+  sources: {
+    find: function(sources,matchObj){
+      /*
+        Example use: 
+        MistUtil.sources.find(MistVideo.info.source,{
+          type: "html5/text/javascript",
+          protocol: "wss:"
+        })
+      */
+
+      outer:
+      for (var i in sources) {
+        for (var j in matchObj) {
+          if (j == "protocol") {
+            if (sources[i].url.slice(0,matchObj.protocol.length) != matchObj.protocol) {
+              continue outer;
+            }
+          }
+          else {
+            if (sources[i][j] != matchObj[j]) {
+              continue outer;
+            }
+          }
+        }
+        //if any key of matchObj did not match the source, the outer loop was continued and this code does not execute
+        return sources[i];
+      }
+      return false;
+    }
   }
 };

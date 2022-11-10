@@ -8,6 +8,7 @@
 #include <mist/timing.h>
 #include <mist/util.h>
 #include <mist/encryption.h>
+#include <mist/triggers.h>
 #include <set>
 #include "util_load.h"
 #include <mist/encryption.h>
@@ -50,15 +51,15 @@ std::string const BALANCEKEY = "balance";
 
 std::string const MINSTANDBYKEY = "minstandby";
 std::string const MAXSTANDBYKEY = "maxstandby";
-std::string const CAPPACITYTRIGGERCPUDECKEY = "cappacitytriggerdecrementcpu"; //percentage om cpu te verminderen
-std::string const CAPPACITYTRIGGERBWDECKEY = "cappacitytriggerdecrementbandwidth"; //percentage om bandwidth te verminderen
-std::string const CAPPACITYTRIGGERRAMDECKEY = "cappacitytriggerdecrementram"; //percentage om ram te verminderen
-std::string const CAPPACITYTRIGGERCPUKEY = "cappacitytriggercpu"; //max capacity trigger for balancing cpu
-std::string const CAPPACITYTRIGGERBWKEY = "cappacitytriggerbandwidth";  //max capacity trigger for balancing bandwidth
-std::string const CAPPACITYTRIGGERRAMKEY = "cappacitytriggerram"; //max capacity trigger for balancing ram
-std::string const HIGHCAPPACITYTRIGGERCPUKEY = "balancingcappacitytriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
-std::string const HIGHCAPPACITYTRIGGERBWKEY = "balancingcappacitytriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
-std::string const HIGHCAPPACITYTRIGGERRAMKEY = "balancingcappacitytriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const CAPPACITYTRIGGERCPUDECKEY = "triggerdecrementcpu"; //percentage om cpu te verminderen
+std::string const CAPPACITYTRIGGERBWDECKEY = "triggerdecrementbandwidth"; //percentage om bandwidth te verminderen
+std::string const CAPPACITYTRIGGERRAMDECKEY = "triggerdecrementram"; //percentage om ram te verminderen
+std::string const CAPPACITYTRIGGERCPUKEY = "triggercpu"; //max capacity trigger for balancing cpu
+std::string const CAPPACITYTRIGGERBWKEY = "triggerbandwidth";  //max capacity trigger for balancing bandwidth
+std::string const CAPPACITYTRIGGERRAMKEY = "triggerram"; //max capacity trigger for balancing ram
+std::string const HIGHCAPPACITYTRIGGERCPUKEY = "balancingtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const HIGHCAPPACITYTRIGGERBWKEY = "balancingtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const HIGHCAPPACITYTRIGGERRAMKEY = "balancingtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
 std::string const LOWCAPPACITYTRIGGERCPUKEY = "balancingminimumtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
 std::string const LOWCAPPACITYTRIGGERBWKEY = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
 std::string const LOWCAPPACITYTRIGGERRAMKEY = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
@@ -99,15 +100,15 @@ std::string const CONFIGSERVERS = "server_list";
 std::string const CONFIGLOADBALANCER = "loadbalancers";
 std::string const CONFIGMINSTANDBY = "minstandby";
 std::string const CONFIGMAXSTANDBY = "maxstandby";
-std::string const CONFIGCAPPACITYTRIGGERCPUDEC = "cappacitytriggerdecrementcpu"; //percentage om cpu te verminderen
-std::string const CONFIGCAPPACITYTRIGGERBWDEC = "cappacitytriggerdecrementbandwidth"; //percentage om bandwidth te verminderen
-std::string const CONFIGCAPPACITYTRIGGERRAMDEC = "cappacitytriggerdecrementram"; //percentage om ram te verminderen
-std::string const CONFIGCAPPACITYTRIGGERCPU = "cappacitytriggercpu"; //max capacity trigger for balancing cpu
-std::string const CONFIGCAPPACITYTRIGGERBW = "cappacitytriggerbandwidth";  //max capacity trigger for balancing bandwidth
-std::string const CONFIGCAPPACITYTRIGGERRAM = "cappacitytriggerram"; //max capacity trigger for balancing ram
-std::string const CONFIGHIGHCAPPACITYTRIGGERCPU = "balancingcappacitytriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
-std::string const CONFIGHIGHCAPPACITYTRIGGERBW = "balancingcappacitytriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
-std::string const CONFIGHIGHCAPPACITYTRIGGERRAM = "balancingcappacitytriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+std::string const CONFIGCAPPACITYTRIGGERCPUDEC = "triggerdecrementcpu"; //percentage om cpu te verminderen
+std::string const CONFIGCAPPACITYTRIGGERBWDEC = "triggerdecrementbandwidth"; //percentage om bandwidth te verminderen
+std::string const CONFIGCAPPACITYTRIGGERRAMDEC = "triggerdecrementram"; //percentage om ram te verminderen
+std::string const CONFIGCAPPACITYTRIGGERCPU = "triggercpu"; //max capacity trigger for balancing cpu
+std::string const CONFIGCAPPACITYTRIGGERBW = "triggerbandwidth";  //max capacity trigger for balancing bandwidth
+std::string const CONFIGCAPPACITYTRIGGERRAM = "triggerram"; //max capacity trigger for balancing ram
+std::string const CONFIGHIGHCAPPACITYTRIGGERCPU = "balancingtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
+std::string const CONFIGHIGHCAPPACITYTRIGGERBW = "balancingtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
+std::string const CONFIGHIGHCAPPACITYTRIGGERRAM = "balancingtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
 std::string const CONFIGLOWCAPPACITYTRIGGERCPU = "balancingminimumtriggercpu"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
 std::string const CONFIGLOWCAPPACITYTRIGGERBW = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
 std::string const CONFIGLOWCAPPACITYTRIGGERRAM = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
@@ -466,6 +467,16 @@ hostDetails::~hostDetails(){
       hostMutex = 0;
     }
   }
+
+JSON::Value hostDetails::getServerData(){
+  JSON::Value j;
+  j["cpu"] = cpu;
+  j["currRam"] = ramCurr;
+  j["maxRam"] = ramMax;
+  j["currBW"] = currBandwidth;
+  j["BWLimit"] = availBandwidth;
+  return j;
+}
 
 uint64_t hostDetails::getAddBandwidth(){
   uint64_t ret = addBandwidth;
@@ -982,7 +993,16 @@ void extraServer(){
       found = true;
     }else if((*it)->state == STATE_ONLINE) counter++;
   }
-  if(counter < MINSTANDBY) WARN_MSG("Server cappacity runing low!");
+  if(counter < MINSTANDBY) {
+    JSON::Value serverData;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      serverData[(const char*)((*it)->name)] = (*it)->details->getServerData();
+    }
+    if (Triggers::shouldTrigger("LOAD_OVER")){
+      Triggers::doTrigger("LOAD_OVER", serverData.asString());
+    }
+    WARN_MSG("Server capacity running low!");
+  }
 }
 
 void reduceServer(hostEntry* H){
@@ -993,7 +1013,14 @@ void reduceServer(hostEntry* H){
     if((*it)->state == STATE_ONLINE) counter++;
   }
   if(counter > MAXSTANDBY){
-    WARN_MSG("A lot of free server cappacity! %d free servers", counter);
+    JSON::Value serverData;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      serverData[(const char*)((*it)->name)] = (*it)->details->getServerData();
+    }
+    if (Triggers::shouldTrigger("LOAD_UNDER")){
+      Triggers::doTrigger("LOAD_UNDER", serverData.asString());
+    }
+    WARN_MSG("A lot of free server ! %d free servers", counter);
   }
 }
 

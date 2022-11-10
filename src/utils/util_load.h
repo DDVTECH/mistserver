@@ -146,6 +146,7 @@ class hostDetails{
   uint64_t getCpu(){return cpu;}
   uint64_t getCurrBandwidth(){return currBandwidth;}
 
+  JSON::Value getServerData();
 
   /**
    *  Fills out a by reference given JSON::Value with current state.

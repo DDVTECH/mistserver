@@ -977,7 +977,7 @@ void extraServer(){
   int counter = 0;
   bool found = false;
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    if(!found && (*it)->state == STATE_ONLINE) {
+    if(!found && (*it)->state == STATE_ONLINE && (*it)->standByLock) {
       api.removeStandBy(*it);
       found = true;
     }else if((*it)->state == STATE_ONLINE) counter++;

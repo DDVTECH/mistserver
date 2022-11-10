@@ -988,7 +988,7 @@ void extraServer(){
   int counter = 0;
   bool found = false;
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    if(!found && (*it)->state == STATE_ONLINE && (*it)->standByLock) {
+    if(!found && (*it)->state == STATE_ONLINE && !(*it)->standByLock) {
       api.removeStandBy(*it);
       found = true;
     }else if((*it)->state == STATE_ONLINE) counter++;
@@ -1010,7 +1010,7 @@ void reduceServer(hostEntry* H){
   int counter = 0;
   redirectServer(H, true);
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    if((*it)->state == STATE_ONLINE) counter++;
+    if((*it)->state == STATE_ONLINE && !(*it)->standByLock) counter++;
   }
   if(counter > MAXSTANDBY){
     JSON::Value serverData;

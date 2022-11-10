@@ -35,6 +35,7 @@ namespace Mist{
     capa["codecs"].append("MPEG2");
     capa["codecs"].append("MP3");
     capa["codecs"].append("AC3");
+    capa["codecs"].append("EAC3");
     capa["codecs"].append("FLOAT");
     capa["codecs"].append("DTS");
     capa["codecs"].append("JSON");
@@ -300,6 +301,10 @@ namespace Mist{
         }
         if (codec == "A_AC3"){
           trueCodec = "AC3";
+          trueType = "audio";
+        }
+        if (codec == "A_EAC3"){
+          trueCodec = "EAC3";
           trueType = "audio";
         }
         if (codec == "A_MPEG/L3"){

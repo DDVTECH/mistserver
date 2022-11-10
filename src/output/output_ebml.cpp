@@ -100,6 +100,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("FLOAT");
     capa["codecs"][0u][1u].append("AC3");
+    capa["codecs"][0u][1u].append("EAC3");
     capa["codecs"][0u][1u].append("DTS");
     capa["codecs"][0u][2u].append("+JSON");
     capa["methods"][0u]["handler"] = "http";
@@ -123,6 +124,7 @@ namespace Mist{
     capa["exceptions"]["codec:MP3"] = blacklistNonChrome;
     capa["exceptions"]["codec:FLOAT"] = blacklistNonChrome;
     capa["exceptions"]["codec:AC3"] = blacklistNonChrome;
+    capa["exceptions"]["codec:EAC3"] = blacklistNonChrome;
     capa["exceptions"]["codec:DTS"] = blacklistNonChrome;
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
@@ -218,6 +220,7 @@ namespace Mist{
     if (codec == "MP2"){return "A_MPEG/L2";}
     if (codec == "MP3"){return "A_MPEG/L3";}
     if (codec == "AC3"){return "A_AC3";}
+    if (codec == "EAC3"){return "A_EAC3";}
     if (codec == "ALAW"){return "A_MS/ACM";}
     if (codec == "ULAW"){return "A_MS/ACM";}
     if (codec == "FLOAT"){return "A_PCM/FLOAT/IEEE";}

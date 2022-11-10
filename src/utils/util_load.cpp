@@ -135,9 +135,9 @@ double CAPPACITYTRIGGERRAM = 0.9; //max capacity trigger for balancing ram
 double HIGHCAPPACITYTRIGGERCPU = 0.8; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
 double HIGHCAPPACITYTRIGGERBW = 0.8;  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
 double HIGHCAPPACITYTRIGGERRAM = 0.8; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
-double LOWCAPPACITYTRIGGERCPU = 0.3; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERCPU
-double LOWCAPPACITYTRIGGERBW = 0.3;  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
-double LOWCAPPACITYTRIGGERRAM = 0.3; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
+double LOWCAPPACITYTRIGGERCPU = 0.3; //capacity at which considerd almost empty. should be less than CAPPACITYTRIGGERCPU
+double LOWCAPPACITYTRIGGERBW = 0.3;  //capacity at which considerd almost empty. should be less than CAPPACITYTRIGGERBW
+double LOWCAPPACITYTRIGGERRAM = 0.3; //capacity at which considerd almost empty. should be less than CAPPACITYTRIGGERRAM
 int BALANCINGINTERVAL = 1000;
 
 
@@ -971,7 +971,7 @@ void extraServer(){
   if(counter < MINSTANDBY) WARN_MSG("Server cappacity runing low!");
 }
 
-void reduceServer(hostEntry* H){
+void reduceServer(hostEntry* H){//TODO set a server to standby and notify other LB
   H->state = STATE_ONLINE;
   int counter = 0;
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -999,8 +999,10 @@ static void checkNeedRedirect(void*){
       //check if reaching capacity
       std::set<hostEntry*> highCapacity;
       std::set<hostEntry*> lowCapacity;
+      int counter = 0;
       for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-        if((*it)->state == STATE_ONLINE) continue;
+        if((*it)->state != STATE_ACTIVE) continue;
+        counter++;
         if(HIGHCAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu()){
           highCapacity.insert(*it);
         }
@@ -1025,7 +1027,7 @@ static void checkNeedRedirect(void*){
         reduceServer(*lowCapacity.begin());
       }
       //check if too little capacity
-      if(lowCapacity.size() == 0 && highCapacity.size() == hosts.size()){
+      if(lowCapacity.size() == 0 && highCapacity.size() == counter){
         extraServer();
       }
     }
@@ -3018,7 +3020,6 @@ JSON::Value API::getStreamStats(const std::string streamStats){
 void API::addViewer(std::string stream, const std::string addViewer){
     for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
       if((*it)->name == addViewer){
-        //next line can cause infinate loop if LB ip is 
         (*it)->details->addViewer(stream, true);
         break;
       }

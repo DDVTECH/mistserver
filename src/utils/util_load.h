@@ -265,6 +265,32 @@ public:
   static int handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock, LoadBalancer* LB);
   static int handleRequest(Socket::Connection &conn);//for starting threads
 
+  
+  /**
+   * add server to be monitored
+   */
+  static void addServer(std::string& ret, const std::string addserver, bool resend);
+  
+  /**
+   * remove server from ?
+   */
+  static JSON::Value delServer(const std::string delserver, bool resend);
+
+  /**
+   * add load balancer to mesh
+   */
+  static void addLB(void* p);
+  
+
+
+private:
+  /**
+   * handle websockets only used for other load balancers 
+   * \return loadbalancer corisponding to this socket
+  */
+  static LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB);
+
+
   /**
    * set balancing settings
   */
@@ -276,44 +302,21 @@ public:
    */
   static JSON::Value setWeights(delimiterParser path);
   static void setWeights(const JSON::Value weights);
-  /**
-   * remove server from ?
-   */
-  static JSON::Value delServer(const std::string delserver, bool resend);
 
   /**
    * receive server updates and adds new foreign hosts if needed
    */
   static void updateHost(const JSON::Value newVals);
-  
-  /**
-   * add server to be monitored
-   */
-  static void addServer(std::string& ret, const std::string addserver, bool resend);
-  
+
   /**
    * remove load balancer from mesh
    */
   static void removeLB(const std::string removeLoadBalancer, const std::string resend);
   
   /**
-   * add load balancer to mesh
-   */
-  static void addLB(void* p);
-  
-  /**
    * reconnect to load balancer
   */
   static void reconnectLB(void* p);
-
-
-
-private:
-  /**
-   * handle websockets only used for other load balancers 
-   * \return loadbalancer corisponding to this socket
-  */
-  static LoadBalancer* onWebsocketFrame(HTTP::Websocket* webSock, std::string name, LoadBalancer* LB);
 
   /**
   * returns load balancer list

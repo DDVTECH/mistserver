@@ -251,6 +251,7 @@ struct hostEntry{
   char name[HOSTNAMELEN];          // host+port for server
   hostDetails *details;    /// hostDetails pointer
   tthread::thread *thread; /// thread pointer
+  bool standByLock;
 };
 
 
@@ -280,8 +281,11 @@ public:
    * add load balancer to mesh
    */
   static void addLB(void* p);
-  
 
+
+  static void removeStandBy(hostEntry* H);
+  
+  static void setStandBy(hostEntry* H, bool lock);
 
 private:
   /**

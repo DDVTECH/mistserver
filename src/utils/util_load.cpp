@@ -63,6 +63,9 @@ std::string const LOWCAPPACITYTRIGGERCPUKEY = "balancingminimumtriggercpu"; //ca
 std::string const LOWCAPPACITYTRIGGERBWKEY = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
 std::string const LOWCAPPACITYTRIGGERRAMKEY = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
 std::string const BALANCINGINTERVALKEY = "balancinginterval";
+std::string const STANDBYKEY = "standby";
+std::string const REMOVESTANDBYKEY = "removestandby";
+std::string const LOCKKEY = "lock";
 
 
 //const api names set multiple times
@@ -975,15 +978,15 @@ void extraServer(){
   bool found = false;
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
     if(!found && (*it)->state == STATE_ONLINE) {
-      (*it)->state = STATE_ACTIVE;
+      api.removeStandBy(*it);
       found = true;
     }else if((*it)->state == STATE_ONLINE) counter++;
   }
   if(counter < MINSTANDBY) WARN_MSG("Server cappacity runing low!");
 }
 
-void reduceServer(hostEntry* H){//TODO notify other LB
-  H->state = STATE_ONLINE;
+void reduceServer(hostEntry* H){
+  api.setStandBy(H, false);
   int counter = 0;
   redirectServer(H, true);
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -1679,6 +1682,26 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         else if(!api.compare("balancing")){
           balance(path);
         }
+        else if(!api.compare("standby")){
+          std::string name = path.next();
+          std::set<hostEntry*>::iterator it = hosts.begin();
+          while(!name.compare((*it)->name) && it != hosts.end()) it++;
+          if(it != hosts.end()) {
+            setStandBy(*it, path.nextInt());
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+          }else{
+          H.Clean();
+          H.SetHeader("Content-Type", "text/plain");
+          H.SetBody("invalid server name");
+          H.setCORSHeaders();
+          H.SendResponse("200", "OK", conn);
+          H.Clean();
+          }
+        }
         //auth
         else if(!api.compare("auth")){
           api = path.next();
@@ -2101,11 +2124,53 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       loadFile();
     }else if(newVals.isMember(BALANCEKEY)){
       balance(newVals[BALANCEKEY]);
+    }else if(newVals.isMember(STANDBYKEY)){
+      std::set<hostEntry*>::iterator it = hosts.begin();
+      while(!newVals[STANDBYKEY].asString().compare((*it)->name) && it != hosts.end()) it++;
+      if(it != hosts.end()) setStandBy(*it, newVals[LOCKKEY]);
+    }else if(newVals.isMember(REMOVESTANDBYKEY)){
+      std::set<hostEntry*>::iterator it = hosts.begin();
+      while(!newVals[STANDBYKEY].asString().compare((*it)->name) && it != hosts.end()) it++;
+      if(it != hosts.end()) removeStandBy(*it);
+      
     }
   }
   return LB;
 }
 
+
+void API::removeStandBy(hostEntry* H){
+  if(H->standByLock) {
+    WARN_MSG("can't activate server. it is locked in standby mode");
+    return;
+  }
+  if(H->state == STATE_ONLINE){
+    H->state = STATE_ACTIVE;
+    INFO_MSG("server %s removed from standby mode", H->name);
+    JSON::Value j;
+    j[REMOVESTANDBYKEY] = H->name;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+    return;
+  }
+  WARN_MSG("can't activate server. server is not running or already active");
+}
+
+void API::setStandBy(hostEntry* H, bool lock){
+  if(H->state != STATE_ACTIVE || H->state != STATE_ONLINE){
+    WARN_MSG("server %s is not available", H->name);
+    return;
+  }
+  H->state = STATE_ACTIVE;
+  H->standByLock = lock; 
+  JSON::Value j;
+  j[STANDBYKEY] = H->name;
+  j[LOCKKEY] = lock;
+  for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+    (*it)->send(j.asString());
+  }
+}
 
 /**
  * set balancing settings received through API

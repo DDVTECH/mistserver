@@ -1538,10 +1538,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       delimiterParser path((std::string)HTTP::URL(H.url).path,"/");
       std::string api = path.next();
      
-      if(H.method.compare("PUT") && !api.compare("stream")){
+      if(!H.method.compare("PUT") && !api.compare("stream")){
         stream(conn, H, path.next(), path.next(), true);
       }
-      if(H.method.compare("GET") && !api.compare("salt")){//request your salt
+      if(!H.method.compare("GET") && !api.compare("salt")){//request your salt
         H.Clean();
         H.SetHeader("Content-Type", "text/plain");
         H.SetBody(userAuth.at(path.next()).second);

@@ -55,6 +55,7 @@ namespace Mist{
     capa["codecs"]["audio"].append("MP2");
     capa["codecs"]["audio"].append("MP3");
     capa["codecs"]["audio"].append("AC3");
+    capa["codecs"]["audio"].append("EAC3");
     capa["codecs"]["audio"].append("FLOAT");
     capa["codecs"]["audio"].append("DTS");
     capa["codecs"]["audio"].append("FLAC");
@@ -354,6 +355,10 @@ namespace Mist{
           trueType = "audio";
           tmpElem = E.findChild(EBML::EID_CODECPRIVATE);
           if (tmpElem){init = tmpElem.getValStringUntrimmed();}
+        }
+        if (codec == "A_EAC3"){
+          trueCodec = "EAC3";
+          trueType = "audio";
         }
         if (codec == "A_MPEG/L3"){
           trueCodec = "MP3";

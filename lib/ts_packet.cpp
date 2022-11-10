@@ -1408,6 +1408,7 @@ namespace TS{
       std::string codec = M.getCodec(*it);
       entry.setElementaryPid(getUniqTrackID(M, *it));
       std::string es_info;
+      // https://en.wikipedia.org/wiki/Program-specific_information#Elementary_stream_types
       if (codec == "H264"){
         entry.setStreamType(0x1B);
       }else if (codec == "HEVC"){
@@ -1427,6 +1428,8 @@ namespace TS{
         es_info.append(1, (char)M.getChannels(*it));
       }else if (codec == "AC3"){
         entry.setStreamType(0x81);
+      }else if (codec == "EAC3"){
+        entry.setStreamType(0x87);
       }else if (codec == "ID3"){
         entry.setStreamType(0x15);
         entry.setESInfo(M.getInit(*it));

@@ -122,6 +122,7 @@ namespace Mist{
     capa["codecs"]["audio"].append("AAC");
     capa["codecs"]["audio"].append("AC3");
     capa["codecs"]["audio"].append("MP3");
+    capa["codecs"]["audio"].append("EAC3");
     readPos = 0;
   }
 
@@ -297,7 +298,7 @@ namespace Mist{
       MP4::Box sEntryBox = stsdBox.getEntry(0);
       std::string sType = sEntryBox.getType();
 
-      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g" || sType == "av01")){
+      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g" || sType == "av01" || sType == "ec-3")){
         if (onUnsupportedTrack(sType)){
           WARN_MSG("Skipping unsupported track type: %s", sType.c_str());
         }else{
@@ -382,7 +383,7 @@ namespace Mist{
           meta.setInit(tNumber, initBox.payload(), initBox.payloadSize());
         }
       }
-      if (sType == "mp4a" || sType == "aac " || sType == "ac-3"){
+      if (sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "ec-3"){
         MP4::AudioSampleEntry &aEntryBox = (MP4::AudioSampleEntry &)sEntryBox;
         meta.setType(tNumber, "audio");
         meta.setChannels(tNumber, aEntryBox.getChannelCount());
@@ -390,6 +391,8 @@ namespace Mist{
 
         if (sType == "ac-3"){
           meta.setCodec(tNumber, "AC3");
+        }else if (sType == "ec-3"){
+          meta.setCodec(tNumber, "EAC3");
         }else{
           MP4::Box codingBox = aEntryBox.getCodecBox();
           if (codingBox.getType() == "esds"){

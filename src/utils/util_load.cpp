@@ -923,13 +923,19 @@ void hostDetailsCalc::update(JSON::Value &d){
 /**
  * redirects traffic away
 */
-bool redirectServer(hostEntry* H){
-  JSON::Value j;
-  if(H->details->getRamMax() * CAPPACITYTRIGGERRAM > H->details->getRamCurr()) j["redirect"]["ram"] = CAPPACITYTRIGGERRAMDEC * H->details->getRamCurr();
-  if(CAPPACITYTRIGGERCPU * 1000 < H->details->getCpu()) j["redirect"]["cpu"] = CAPPACITYTRIGGERCPUDEC * H->details->getCpu();
-  if(CAPPACITYTRIGGERBW * H->details->getAvailBandwidth() < H->details->getCurrBandwidth()) j["redirect"]["bandwidth"] = CAPPACITYTRIGGERBWDEC * H->details->getCurrBandwidth();
-
-
+bool redirectServer(hostEntry* H, bool empty){
+  int reduceCPU;
+  int reduceRAM;
+  int reduceBW;
+  if(!empty){//decrement
+    if(H->details->getRamMax() * CAPPACITYTRIGGERRAM > H->details->getRamCurr()) reduceRAM = CAPPACITYTRIGGERRAMDEC * H->details->getRamCurr();
+    if(CAPPACITYTRIGGERCPU * 1000 < H->details->getCpu()) reduceCPU = CAPPACITYTRIGGERCPUDEC * H->details->getCpu();
+    if(CAPPACITYTRIGGERBW * H->details->getAvailBandwidth() < H->details->getCurrBandwidth()) reduceBW = CAPPACITYTRIGGERBWDEC * H->details->getCurrBandwidth();
+  }else {//remove all users
+    reduceRAM = H->details->getRamCurr();
+    reduceCPU = H->details->getCpu();
+    reduceBW = H->details->getCurrBandwidth();
+  }
   std::map<int,hostEntry*> lbw;
   //find host with lowest bw usage
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -941,7 +947,7 @@ bool redirectServer(hostEntry* H){
   if(!lbw.size()) return false;
   std::map<int, hostEntry*>::iterator i = lbw.begin();
 
-  while(i != lbw.end()){
+  while(i != lbw.end() && (reduceCPU != 0 || reduceBW != 0 || reduceRAM != 0)){//redirect until it finished or can't
     int balancableCpu = HIGHCAPPACITYTRIGGERCPU * 1000 - (*i).second->details->getCpu();
     int balancableRam = HIGHCAPPACITYTRIGGERRAM * (*i).second->details->getRamMax() - (*i).second->details->getRamCurr();
     if(balancableCpu > 0 && 0 < balancableRam){
@@ -951,10 +957,15 @@ bool redirectServer(hostEntry* H){
       H->details->balanceBW = balancableBW;
       H->details->balanceRAM = balancableRam;
       H->details->balanceRedirect = (*i).second->name;
-      return true;
+      reduceBW -= balancableBW;
+      reduceCPU -= balancableCpu;
+      reduceRAM -= balancableRam;
+      if(reduceCPU == 0 && reduceBW == 0 && reduceRAM == 0){
+        return true;
+      }
     }
     i++;
-
+    sleep(50);
   }
   return false;
 }
@@ -966,14 +977,15 @@ void extraServer(){
     if(!found && (*it)->state == STATE_ONLINE) {
       (*it)->state = STATE_ACTIVE;
       found = true;
-    }else if((*it)->state == STATE_ACTIVE) counter++;
+    }else if((*it)->state == STATE_ONLINE) counter++;
   }
   if(counter < MINSTANDBY) WARN_MSG("Server cappacity runing low!");
 }
 
-void reduceServer(hostEntry* H){//TODO set a server to standby and notify other LB
+void reduceServer(hostEntry* H){//TODO notify other LB
   H->state = STATE_ONLINE;
   int counter = 0;
+  redirectServer(H, true);
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
     if((*it)->state == STATE_ONLINE) counter++;
   }
@@ -987,11 +999,11 @@ static void checkNeedRedirect(void*){
     //check if redirect is needed
     bool balancing = false;
     for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if((*it)->state == STATE_ONLINE) continue;
+      if((*it)->state != STATE_ACTIVE) continue;
       if((*it)->details->getRamMax() * CAPPACITYTRIGGERRAM > (*it)->details->getRamCurr() || 
         CAPPACITYTRIGGERCPU * 1000 < (*it)->details->getCpu() ||
         CAPPACITYTRIGGERBW * (*it)->details->getAvailBandwidth() < (*it)->details->getCurrBandwidth()){     
-        balancing = redirectServer(*it);
+        balancing = redirectServer(*it, false);
       }
     }
 
@@ -1240,7 +1252,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   int trigger = hostnames.size()/identifiers.size();
   std::set<int> indexs;
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
-    indexs.insert(num/trigger+j % identifiers.size());
+    indexs.insert((num/trigger+j) % identifiers.size());
   }
   //find identifiers
   std::set<std::string> ret;

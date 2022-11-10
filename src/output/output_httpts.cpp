@@ -153,6 +153,7 @@ namespace Mist{
     capa["codecs"][0u][1u].append("+AAC");
     capa["codecs"][0u][1u].append("+MP3");
     capa["codecs"][0u][1u].append("+AC3");
+    capa["codecs"][0u][1u].append("+EAC3");
     capa["codecs"][0u][1u].append("+MP2");
     capa["codecs"][0u][1u].append("+opus");
     capa["codecs"][1u][0u].append("rawts");

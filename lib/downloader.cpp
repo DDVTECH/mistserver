@@ -8,7 +8,7 @@ namespace HTTP{
   Downloader::Downloader(){
     progressCallback = 0;
     connectedPort = 0;
-    dataTimeout = 5;
+    dataTimeout = 30;
     retryCount = 5;
     ssl = false;
     proxied = false;

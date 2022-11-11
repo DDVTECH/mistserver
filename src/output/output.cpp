@@ -542,12 +542,13 @@ namespace Mist{
     uint64_t micros = Util::getMicros();
     VERYHIGH_MSG("Loading track %zu, containing key %zu", trackId, keyNum);
     uint32_t timeout = 0;
+    uint32_t maxTimeout = (meta.getLive() ? 300 : 600);
     uint32_t pageNum = pageNumForKey(trackId, keyNum);
     while (keepGoing() && pageNum == INVALID_KEY_NUM){
       if (!timeout){HIGH_MSG("Requesting page with key %zu:%zu", trackId, keyNum);}
       ++timeout;
-      //Time out after 15 seconds
-      if (timeout > 300){
+      //Time out after 15s for live or 30s for vod 
+      if (timeout > maxTimeout){
         FAIL_MSG("Timeout while waiting for requested key %zu for track %zu. Aborting.", keyNum, trackId);
         curPage.erase(trackId);
         currentPage.erase(trackId);

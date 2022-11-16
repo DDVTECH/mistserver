@@ -162,7 +162,7 @@ size_t weight_bonus = 50;
 
 
 API api;
-std::set<hostEntry*> hosts; ///array holding all hosts
+std::set<hostEntry*> hosts; //array holding all hosts
 std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the mesh
 #define SERVERMONITORLIMIT 1
 
@@ -317,8 +317,6 @@ JSON::Value streamDetails::stringify() const{
   out[STREAMDETAILSBYTESDOWN] = bytesDown;
   return out;
 }
-
-
 /**
  * \returns \param j as a streamDetails object
 */
@@ -332,13 +330,10 @@ streamDetails* streamDetails::destringify(JSON::Value j){
     out->bytesDown = j[STREAMDETAILSBYTESDOWN].asInt();
     return out;
   }
-
-
 /**
  * construct an object to represent an other load balancer
 */
 LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident) : LoadMutex(0), ws(ws), name(name), ident(ident), Go_Down(false) {}
-
 LoadBalancer::~LoadBalancer(){
   if(LoadMutex){
     delete LoadMutex;
@@ -348,14 +343,11 @@ LoadBalancer::~LoadBalancer(){
   delete ws;
   ws = 0;
 }
-
 /**
  * \return the address of this load balancer
 */
 std::string LoadBalancer::getName() const {return name;}
-
 std::string LoadBalancer::getIdent() const {return ident;}
-
 /**
  * allows for ordering of load balancers
 */
@@ -372,7 +364,6 @@ bool LoadBalancer::operator == (const LoadBalancer &other) const {return this->g
  * \returns true only if \param other is the ip of this load balancer
 */
 bool LoadBalancer::operator == (const std::string &other) const {return this->getName().compare(other);}
-
 /**
  * send \param ret to the load balancer represented by this object
 */
@@ -384,7 +375,6 @@ void LoadBalancer::send(std::string ret) const {
 
 
 outUrl::outUrl(){};
-
 outUrl::outUrl(const std::string &u, const std::string &host){
   std::string tmp = u;
   if (u.find("HOST") != std::string::npos){
@@ -394,7 +384,6 @@ outUrl::outUrl(const std::string &u, const std::string &host){
   pre = tmp.substr(0, dolsign);
   if (dolsign != std::string::npos){post = tmp.substr(dolsign + 1);}
 }
-
 /**
  * turn outUrl into string
 */
@@ -404,7 +393,6 @@ JSON::Value outUrl::stringify() const{
   j[OUTURLPOST] = post;
   return j;
 }
-
 /**
  * turn json \param j into outUrl
 */
@@ -426,7 +414,6 @@ JSON::Value convertSetToJson(std::set<std::string> s){
   }
   return tmp;
 }
-
 /**
  * convert maps<string, object> \param s to json where the object has a stringify function
 */
@@ -438,7 +425,6 @@ JSON::Value convertMapToJson(std::map<std::string, data> s){
   }
   return out;
 }
-
 /**
  * convert a map<string, string> \param s to a json
 */
@@ -449,7 +435,6 @@ JSON::Value convertMapToJson(std::map<std::string, std::string> s){
   }
   return out;
 }
-
 /**
  * convert a map<string, string> \param s to a json
 */
@@ -462,7 +447,6 @@ JSON::Value convertMapToJson(std::map<std::string, std::pair<std::string, std::s
   }
   return out;
 }
-
 /**
  * convert a json \param j to a set<string>
 */
@@ -473,8 +457,6 @@ std::set<std::string> convertJsonToSet(JSON::Value j){
   } 
   return s;
 }
-
-
 /**
  * convert json \param j to map<string, string>
 */
@@ -485,7 +467,6 @@ std::map<std::string, std::string> convertJsonToMap(JSON::Value j){
   }
   return m;
 }
-
 /**
  * convert json \param j to map<string, string>
 */
@@ -523,11 +504,15 @@ int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & 
   if (haveOne == !invert){return adj;}
   return 0;
 }
-
+/**
+ * convert degrees to radians
+*/
 inline double toRad(double degree) {
   return degree / 57.29577951308232087684;
 }
-
+/**
+ * calcuate distance between 2 coordinates
+*/
 double geoDist(double lat1, double long1, double lat2, double long2) {
   double dist;
   dist = sin(toRad(lat1)) * sin(toRad(lat2)) + cos(toRad(lat1)) * cos(toRad(lat2)) * cos(toRad(long1 - long2));
@@ -540,14 +525,18 @@ double geoDist(double lat1, double long1, double lat2, double long2) {
  * \param name is the name of the server
 */
 hostDetails::hostDetails(char* name) : hostMutex(0), name(name), ramCurr(0), ramMax(0), availBandwidth(128 * 1024 * 1024), addBandwidth(0), balanceCPU(0), balanceRAM(0), balanceBW(0), balanceRedirect("") {}
-
+/**
+ * destructor
+*/
 hostDetails::~hostDetails(){
     if(hostMutex){
       delete hostMutex;
       hostMutex = 0;
     }
   }
-
+/**
+ * \returns JSON of server status
+*/
 JSON::Value hostDetails::getServerData(){
   JSON::Value j;
   j["cpu"] = cpu;
@@ -557,15 +546,15 @@ JSON::Value hostDetails::getServerData(){
   j["BWLimit"] = availBandwidth;
   return j;
 }
-
+/**
+ * \returns the value to add to the bandwidth to prevent overflow
+*/
 uint64_t hostDetails::getAddBandwidth(){
   uint64_t ret = addBandwidth;
   prevAddBandwidth += addBandwidth;
   addBandwidth = 0; 
   return ret;
 }
-
-
 /**
    *  Fills out a by reference given JSON::Value with current state.
    */
@@ -730,7 +719,6 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
     this->scoreRate = scoreRate;
     toAddB = toAdd;
   }
-
 /**
    * allow for json inputs instead of sets and maps for update function
    */
@@ -851,7 +839,6 @@ uint64_t hostDetailsCalc::source() const{
     uint64_t score = cpu_score + ram_score + bw_score + 1;
     return score;
   }
-
 /**
    * calculate and update precalculated variables
   */
@@ -910,8 +897,6 @@ void hostDetailsCalc::calc(){
       (*it)->send(out.asString());
     }
   }
-  
-
 /**
    * update vars from server
    */
@@ -1065,7 +1050,9 @@ bool redirectServer(hostEntry* H, bool empty){
   }
   return false;
 }
-
+/**
+ * grabs server from standby and if minstandby reached calls trigger LOAD_OVER
+*/
 void extraServer(){
   int counter = 0;
   bool found = false;
@@ -1086,7 +1073,9 @@ void extraServer(){
     WARN_MSG("Server capacity running low!");
   }
 }
-
+/**
+ * puts server in standby mode and if max standby is reached calss trigger LOAD_UNDER
+*/
 void reduceServer(hostEntry* H){
   api.setStandBy(H, false);
   int counter = 0;
@@ -1105,7 +1094,10 @@ void reduceServer(hostEntry* H){
     WARN_MSG("A lot of free server ! %d free servers", counter);
   }
 }
-
+/**
+ * checks if redirect needs to happen
+ * prevents servers from going online when still balancing the servers
+*/
 static void checkNeedRedirect(void*){
   while(cfg->is_active){
     //check if redirect is needed
@@ -1246,6 +1238,9 @@ void handleServer(void *hostEntryPointer){
   entry->state = STATE_REQCLEAN;
 }
 
+/**
+ * create new server without starting it
+*/
 void initNewHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
@@ -1255,7 +1250,6 @@ void initNewHost(hostEntry &H, const std::string &N){
   H.thread = 0;
   H.details = 0;
 }
-
 /**
  * setup new server for monitoring (with hostDetailsCalc class)
  * \param N gives server name
@@ -1271,7 +1265,6 @@ void initHost(hostEntry &H, const std::string &N){
   H.thread = new tthread::thread(handleServer, (void *)&H);
   INFO_MSG("Starting monitoring %s", H.name);
 }
-
 /**
  * Setup foreign host (with hostDetails class)
  * \param LB identifies the load balancer creating this foreign host
@@ -1291,7 +1284,6 @@ void initForeignHost(const std::string &N){
   hosts.insert(H);
   INFO_MSG("Created foreign server %s", H->name);
 }
-
 /**
  * remove monitored server or foreign server at \param H
 */
@@ -1355,11 +1347,12 @@ std::string delimiterParser::next() {
 
   return ret;
 }
-
+/**
+ * \returns next double seperated by delimiter
+*/
 double delimiterParser::nextDouble(){
   return atof(this->next().c_str());
 }
-
 /**
  * \return s until first \param delimiter or end of string as an Int
 */
@@ -1397,7 +1390,6 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   }
   return ret;
 }
-
 /**
  * changes host to correct monitor state
 */
@@ -1520,7 +1512,6 @@ void saveFile(bool RESEND = false){
     INFO_MSG("save failed");
   }
 }
-
 /**
  * timer to check if enough time passed since last config change to save to the config file
 */
@@ -1544,7 +1535,6 @@ static void saveTimeCheck(void*){
   saveFile();
   saveTimer = 0;
 }
-
 /**
  * load config vars from config file 
  * \param RESEND allows for command to be sent sent to other load balancers
@@ -1648,7 +1638,6 @@ void loadFile(bool RESEND = false){
 int API::handleRequest(Socket::Connection &conn){
   return handleRequests(conn, 0, 0);
 }
-
 /**
  * function to select the api function wanted
  */
@@ -2239,7 +2228,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
   conn.close();
   return 0;
 }
-
 /**
  * handle websockets only used for other load balancers 
  * \return loadbalancer corisponding to this socket
@@ -2375,7 +2363,10 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
   return LB;
 }
 
-
+/**
+ * remove standby status from server
+ * does not remove locked standby
+*/
 void API::removeStandBy(hostEntry* H){
   if(H->standByLock) {
     WARN_MSG("can't activate server. it is locked in standby mode");
@@ -2393,7 +2384,9 @@ void API::removeStandBy(hostEntry* H){
   }
   WARN_MSG("can't activate server. server is not running or already active");
 }
-
+/**
+ * puts server in standby made with locked status depending on \param lock
+*/
 void API::setStandBy(hostEntry* H, bool lock){
   if(H->state != STATE_ACTIVE || H->state != STATE_ONLINE){
     WARN_MSG("server %s is not available", H->name);

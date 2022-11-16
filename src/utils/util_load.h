@@ -21,6 +21,46 @@ const char *stateLookup[] ={"Offline",           "Starting monitoring",
 #define HOSTNAMELEN 1024
 
 
+
+/**
+ * prometheus data sorted in PROMETHEUSTIMEINTERVA minute intervals 
+ * each node is stored for PROMETHEUSMAXTIMEDIFF minutes
+*/
+struct prometheusDataNode{
+  std::map<std::string, int> numStreams;//number of new streams connected by this load balancer
+
+  int numSuccessViewer;//new viewer redirects preformed without problem
+  int numIllegalViewer;//new viewer redirect requests for stream that doesn't exist
+  int numFailedViewer;//new viewer redirect requests the load balancer can't forfill
+
+  int numSuccessSource;//request best source for stream that occured without problem
+  int numFailedSource;//request best source for stream that can't be forfilled or doesn't exist
+
+  int numSuccessIngest;//http api requests that occured without problem
+  int numFailedIngest;//http api requests the load balancer can't forfill
+
+  std::map<std::string, int> numReconnectServer;//number of times a reconnect is initiated by this load balancer to a server
+  std::map<std::string, int> numSuccessConnectServer;//number of times this load balancer successfully connects to a server
+  std::map<std::string, int> numFailedConnectServer;//number of times this load balancer failed to connect to a server 
+  
+  std::map<std::string, int> numReconnectLB;//number of times a reconnect is initiated by this load balancer to another load balancer
+  std::map<std::string, int> numSuccessConnectLB;//number of times a load balancer successfully connects to this load balancer 
+  std::map<std::string, int> numFailedConnectLB;//number of times a load balancer failed to connect to this load balancer 
+  
+  int numSuccessRequests;//http api requests that occured without problem
+  int numIllegalRequests;//http api requests that don't exist
+  int numFailedRequests;//http api requests the load balancer can't forfill
+  
+  int numLBSuccessRequests;//websocket requests that occured without problem
+  int numLBIllegalRequests;//webSocket requests that don't exist
+  int numLBFailedRequests;//webSocket requests the load balancer can't forfill
+  
+  int badAuth;//number of failed logins
+  int goodAuth;//number of successfull logins
+}typedef prometheusDataNode;
+
+
+
 /**
  * class to parse a string with a delimiter
 */

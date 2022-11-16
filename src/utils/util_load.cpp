@@ -127,7 +127,7 @@ std::string const OUTURLPRE = "pre";
 std::string const OUTURLPOST = "post";
 
 
-//balancing
+//rebalancing
 int MINSTANDBY = 1;
 int MAXSTANDBY = 1;
 double CAPPACITYTRIGGERCPUDEC = 0.01; //percentage om cpu te verminderen
@@ -153,6 +153,7 @@ tthread::mutex globalMutex;
 tthread::mutex fileMutex;
 std::map<std::string, int32_t> blankTags;
 
+//server balancing weights
 size_t weight_cpu = 500;
 size_t weight_ram = 500;
 size_t weight_bw = 1000;
@@ -181,48 +182,12 @@ std::string const fileloc  = "config.txt";
 tthread::thread* saveTimer;
 std::time_t prevConfigChange;
 std::time_t prevSaveTime;
+
 //timer vars
-#define PROMETHEUSMAXTIMEDIFF 180
-#define PROMETHEUSTIMEINTERVAL 10
+#define PROMETHEUSMAXTIMEDIFF 180 //time prometheusnodes stay in system
+#define PROMETHEUSTIMEINTERVAL 10 //time prometheusnodes receive data
 #define SAVETIMEINTERVAL 5 //time to save after config change in minutes
 std::time_t now;
-
-/**
- * prometheus data sorted in PROMETHEUSTIMEINTERVA minute intervals 
- * each node is stored for PROMETHEUSMAXTIMEDIFF minutes
-*/
-struct prometheusDataNode{
-  std::map<std::string, int> numStreams;//number of new streams connected by this load balancer
-
-  int numSuccessViewer;//new viewer redirects preformed without problem
-  int numIllegalViewer;//new viewer redirect requests for stream that doesn't exist
-  int numFailedViewer;//new viewer redirect requests the load balancer can't forfill
-
-  int numSuccessSource;//request best source for stream that occured without problem
-  int numFailedSource;//request best source for stream that can't be forfilled or doesn't exist
-
-  int numSuccessIngest;//http api requests that occured without problem
-  int numFailedIngest;//http api requests the load balancer can't forfill
-
-  std::map<std::string, int> numReconnectServer;//number of times a reconnect is initiated by this load balancer to a server
-  std::map<std::string, int> numSuccessConnectServer;//number of times this load balancer successfully connects to a server
-  std::map<std::string, int> numFailedConnectServer;//number of times this load balancer failed to connect to a server 
-  
-  std::map<std::string, int> numReconnectLB;//number of times a reconnect is initiated by this load balancer to another load balancer
-  std::map<std::string, int> numSuccessConnectLB;//number of times a load balancer successfully connects to this load balancer 
-  std::map<std::string, int> numFailedConnectLB;//number of times a load balancer failed to connect to this load balancer 
-  
-  int numSuccessRequests;//http api requests that occured without problem
-  int numIllegalRequests;//http api requests that don't exist
-  int numFailedRequests;//http api requests the load balancer can't forfill
-  
-  int numLBSuccessRequests;//websocket requests that occured without problem
-  int numLBIllegalRequests;//webSocket requests that don't exist
-  int numLBFailedRequests;//webSocket requests the load balancer can't forfill
-  
-  int badAuth;//number of failed logins
-  int goodAuth;//number of successfull logins
-}typedef prometheusDataNode;
 
 prometheusDataNode lastPromethNode;
 std::map<time_t, prometheusDataNode>  prometheusData;
@@ -535,7 +500,6 @@ std::map<std::string, std::pair<std::string, std::string> > convertJsonToMapPair
   }
   return m;
 }
-
 
 
 int32_t applyAdjustment(const std::set<std::string> & tags, const std::string & match, int32_t adj) {
@@ -1047,7 +1011,6 @@ void hostDetailsCalc::update(JSON::Value &d){
     prevAddBandwidth = 0.75*(prevAddBandwidth);
     calc();//update preclaculated host vars
   }
-
 
 
 /**

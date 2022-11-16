@@ -223,7 +223,7 @@ struct prometheusDataNode{
   int badAuth;//number of failed logins
   int goodAuth;//number of successfull logins
 }typedef prometheusDataNode;
-  
+
 prometheusDataNode lastPromethNode;
 std::map<time_t, prometheusDataNode>  prometheusData;
 
@@ -299,7 +299,6 @@ JSON::Value handlePrometheus(){
   return res;
 
 }
-
 
 
 /**
@@ -1234,7 +1233,11 @@ void handleServer(void *hostEntryPointer){
     if (DL.get(url) && DL.isOk()){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){
-        lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numFailedConnectServer.at(entry->name)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectServer.at(entry->name);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
         FAIL_MSG("Can't decode server %s load information", url.host.c_str());
         ((hostDetailsCalc*)(entry->details))->badNess();
         DL.getSocket().close();
@@ -1248,13 +1251,25 @@ void handleServer(void *hostEntryPointer){
           memcpy(((hostDetailsCalc*)(entry->details))->binHost, DL.getSocket().getBinHost().data(), 16);
           entry->state = STATE_ONLINE;
           down = false;
-          lastPromethNode.numReconnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numReconnectServer.at(entry->name)+1));
+          int tmp = 0;
+          try{
+            tmp = lastPromethNode.numReconnectServer.at(entry->name);
+          }catch(std::out_of_range &e){}
+          lastPromethNode.numReconnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
         }
         ((hostDetailsCalc*)(entry->details))->update(servData);
-        lastPromethNode.numSuccessConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numSuccessConnectServer.at(entry->name)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numSuccessConnectServer.at(entry->name);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numSuccessConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
       }
     }else{
-      lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numFailedConnectServer.at(entry->name)+1));
+      int tmp = 0;
+      try{
+          tmp = lastPromethNode.numFailedConnectServer.at(entry->name);
+        }catch(std::out_of_range &e){}
+      lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
       FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
       ((hostDetailsCalc*)(entry->details))->badNess();
       DL.getSocket().close();
@@ -2245,7 +2260,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
     if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       LB->state = false;
-      lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), lastPromethNode.numReconnectLB.at(LB->getName())+1));
+      int tmp = 0;
+      try{
+        tmp = lastPromethNode.numReconnectLB.at(LB->getName());
+      }catch(std::out_of_range &e){}
+      lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), tmp+1));
       new tthread::thread(reconnectLB, (void*)&LB);
     }else{//shutdown load balancer
       LB->Go_Down = true;
@@ -2897,7 +2916,11 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
       sleep(1);
@@ -2910,7 +2933,11 @@ void API::addLB(void* p){
         ws->sendFrame("noAuth");
         conn.close();
         WARN_MSG("load balancer already connected");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
     }
@@ -2925,7 +2952,11 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
       sleep(1);
@@ -2935,7 +2966,11 @@ void API::addLB(void* p){
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
       WARN_MSG("unautherised");
-      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+      int tmp = 0;
+      try{
+        tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+      }catch(std::out_of_range &e){}
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
       ws->sendFrame("noAuth");
       return;
     }
@@ -2945,7 +2980,11 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
       sleep(1);
@@ -2960,7 +2999,11 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
       sleep(1);
@@ -2987,7 +3030,11 @@ void API::addLB(void* p){
       time(&prevConfigChange);
       if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 
-      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numSuccessConnectLB.at(*addLoadBalancer)+1));
+      int tmp = 0;
+      try{
+        tmp = lastPromethNode.numSuccessConnectLB.at(*addLoadBalancer);
+      }catch(std::out_of_range &e){}
+      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
 
       //start monitoring
       handleRequests(conn,ws,LB); 
@@ -3019,7 +3066,11 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
       }
@@ -3033,7 +3084,11 @@ void API::reconnectLB(void* p) {
         ws->sendFrame("noAuth");
         conn.close();
         WARN_MSG("load balancer already connected");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         return;
       }
     }
@@ -3048,7 +3103,11 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
       }
@@ -3059,7 +3118,11 @@ void API::reconnectLB(void* p) {
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
       WARN_MSG("unautherised");
-      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+      int tmp = 0;
+      try{
+        tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+      }catch(std::out_of_range &e){}
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
       ws->sendFrame("noAuth");
       return;
     }
@@ -3069,7 +3132,11 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
       }
@@ -3085,7 +3152,11 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
       }
@@ -3109,7 +3180,11 @@ void API::reconnectLB(void* p) {
       z[GETSERVERS] = true;
       LB->send(z.asString());
 
-      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numSuccessConnectLB.at(LB->getName())+1));
+      int tmp = 0;
+      try{
+        tmp = lastPromethNode.numSuccessConnectLB.at(LB->getName());
+      }catch(std::out_of_range &e){}
+      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
       //start monitoring
       handleRequests(conn,ws,LB); 
     }else {
@@ -3337,7 +3412,11 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         H.setCORSHeaders();
         H.SetBody(bestHost->details->host);
         lastPromethNode.numSuccessViewer++;
-        lastPromethNode.numStreams.insert(std::pair<std::string, int>(bestHost->name,lastPromethNode.numStreams.at(bestHost->name)+1));
+        int tmp = 0;
+        try{
+          tmp = lastPromethNode.numStreams.at(bestHost->name);
+        }catch(std::out_of_range &e){}
+        lastPromethNode.numStreams.insert(std::pair<std::string, int>(bestHost->name,tmp+1));
       }
       if (proto != "" && bestHost && bestScore){
         H.SetHeader("Content-Type", "text/plain");

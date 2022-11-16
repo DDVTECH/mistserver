@@ -178,11 +178,118 @@ std::set<std::string> identifiers;
 
 //file save and loading vars
 std::string const fileloc  = "config.txt";
-#define SAVETIMEINTERVAL 5 //time to save after config change in minutes
-std::time_t prevSaveTime;
-std::time_t now;
-std::time_t prevConfigChange;
 tthread::thread* saveTimer;
+std::time_t prevConfigChange;
+std::time_t prevSaveTime;
+//timer vars
+#define PROMETHEUSMAXTIMEDIFF  180
+#define PROMETHEUSTIMEINTERVAL 10
+#define SAVETIMEINTERVAL 5 //time to save after config change in minutes
+std::time_t now;
+
+
+struct prometheusDataNode{
+  std::map<std::string, int> numStreams;//number of new streams connected by this load balancer
+
+  int numSuccessViewer;//new viewer redirects preformed without problem
+  int numIllegalViewer;//new viewer redirect requests for stream that doesn't exist
+  int numFailedViewer;//new viewer redirect requests the load balancer can't forfill
+
+  int numSuccessSource;//request best source for stream that occured without problem
+  int numFailedSource;//request best source for stream that can't be forfilled or doesn't exist
+
+  int numSuccessIngest;//http api requests that occured without problem
+  int numFailedIngest;//http api requests the load balancer can't forfill
+
+  std::map<std::string, int> numReconnectServer;//number of times a reconnect is initiated by this load balancer to a server
+  std::map<std::string, int> numSuccessConnectServer;//number of times this load balancer successfully connects to a server
+  std::map<std::string, int> numFailedConnectServer;//number of times this load balancer failed to connect to a server 
+  
+  std::map<std::string, int> numReconnectLB;//number of times a reconnect is initiated by this load balancer to another load balancer
+  std::map<std::string, int> numSuccessConnectLB;//number of times a load balancer successfully connects to this load balancer 
+  std::map<std::string, int> numFailedConnectLB;//number of times a load balancer failed to connect to this load balancer 
+  
+  int numSuccessRequests;//http api requests that occured without problem
+  int numIllegalRequests;//http api requests that don't exist
+  int numFailedRequests;//http api requests the load balancer can't forfill
+  
+  int numLBSuccessRequests;//websocket requests that occured without problem
+  int numLBIllegalRequests;//webSocket requests that don't exist
+  int numLBFailedRequests;//webSocket requests the load balancer can't forfill
+  
+  int badAuth;//number of failed logins
+  int goodAuth;//number of successfull logins
+}typedef prometheusDataNode;
+  
+prometheusDataNode lastPromethNode;
+std::map<time_t, prometheusDataNode>  prometheusData;
+
+static void prometheusTimer(void*){
+  while(cfg->is_active){
+    //create new data node
+    lastPromethNode = prometheusDataNode();
+    time(&now);
+    
+    std::map<time_t, prometheusDataNode>::reverse_iterator it = prometheusData.rbegin();
+    //remove old data
+    while(it != prometheusData.rend()){
+      double timeDiff = difftime(now,(*it).first);
+      if(timeDiff >= 60*PROMETHEUSMAXTIMEDIFF){
+        prometheusData.erase((*it).first);
+        it = prometheusData.rbegin();
+      }else{
+        it++;
+      }
+    }
+    //add new data node to data collection
+    prometheusData.insert(std::pair<time_t, prometheusDataNode>(now, lastPromethNode));
+    
+    sleep(PROMETHEUSTIMEINTERVAL*60);
+  }
+}
+
+JSON::Value handlePrometheus(){
+  JSON::Value res;
+  for(std::map<time_t, prometheusDataNode>::iterator i = prometheusData.begin(); i != prometheusData.end(); i++){
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      JSON::Value serv;
+      serv["number of reconnects"] = (*i).second.numReconnectServer[(*it)->name];
+      serv["number of successful connects"] = (*i).second.numSuccessConnectServer[(*it)->name];
+      serv["number of failed connects"] = (*i).second.numFailedConnectServer[(*it)->name];
+      serv["number of new viewers to this server"] = (*i).second.numStreams[(*it)->name];
+      res[(*i).first]["servers"][(std::string)(*it)->name] = serv;
+    }
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      JSON::Value serv;
+      serv["number of reconnects"] = (*i).second.numReconnectLB[(*it)->getName()];
+      serv["number of successful connects"] = (*i).second.numSuccessConnectLB[(*it)->getName()];
+      serv["number of failed connects"] = (*i).second.numFailedConnectLB[(*it)->getName()];
+      res[(*i).first]["load balancers"][(*it)->getName()] = serv;
+    }
+    res[(*i).first]["successful viewers assignments"] = (*i).second.numSuccessViewer;
+    res[(*i).first]["failed viewers assignments"] = (*i).second.numFailedViewer;
+    res[(*i).first]["Illegal viewers assignments"] = (*i).second.numIllegalViewer;
+
+    res[(*i).first]["successful source requests"] = (*i).second.numSuccessSource;
+    res[(*i).first]["failed source requests"] = (*i).second.numFailedSource;
+
+    res[(*i).first]["successful ingest requests"] = (*i).second.numSuccessIngest;
+    res[(*i).first]["failed ingest requests"] = (*i).second.numFailedIngest;
+
+    res[(*i).first]["successful api requests"] = (*i).second.numSuccessRequests;
+    res[(*i).first]["failed api requests"] = (*i).second.numFailedRequests;
+    res[(*i).first]["Illegal api requests"] = (*i).second.numIllegalRequests;
+
+    res[(*i).first]["successful load balancer requests"] = (*i).second.numLBSuccessRequests;
+    res[(*i).first]["failed load balancer requests"] = (*i).second.numLBFailedRequests;
+    res[(*i).first]["Illegal load balancer requests"] = (*i).second.numLBIllegalRequests;
+
+    res[(*i).first]["successful login attempts"] = (*i).second.goodAuth;
+    res[(*i).first]["failed login attempts"] = (*i).second.badAuth;
+  }
+  return res;
+
+}
 
 
 
@@ -968,6 +1075,9 @@ bool redirectServer(hostEntry* H, bool empty){
     if(balancableCpu > 0 && 0 < balancableRam){
       int balancableBW = HIGHCAPPACITYTRIGGERBW * (*i).second->details->availBandwidth - (*i).second->details->getCurrBandwidth();
       
+      balancableBW = 100;
+
+
       H->details->balanceCPU = balancableCpu;
       H->details->balanceBW = balancableBW;
       H->details->balanceRAM = balancableRam;
@@ -1115,6 +1225,7 @@ void handleServer(void *hostEntryPointer){
     if (DL.get(url) && DL.isOk()){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){
+        lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numFailedConnectServer.at(entry->name)+1));
         FAIL_MSG("Can't decode server %s load information", url.host.c_str());
         ((hostDetailsCalc*)(entry->details))->badNess();
         DL.getSocket().close();
@@ -1128,10 +1239,13 @@ void handleServer(void *hostEntryPointer){
           memcpy(((hostDetailsCalc*)(entry->details))->binHost, DL.getSocket().getBinHost().data(), 16);
           entry->state = STATE_ONLINE;
           down = false;
+          lastPromethNode.numReconnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numReconnectServer.at(entry->name)+1));
         }
         ((hostDetailsCalc*)(entry->details))->update(servData);
+        lastPromethNode.numSuccessConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numSuccessConnectServer.at(entry->name)+1));
       }
     }else{
+      lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, lastPromethNode.numFailedConnectServer.at(entry->name)+1));
       FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
       ((hostDetailsCalc*)(entry->details))->badNess();
       DL.getSocket().close();
@@ -1577,12 +1691,15 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.Clean();
         continue;
       }
+
       //handle non-websocket connections
       delimiterParser path((std::string)HTTP::URL(H.url).path,"/");
       std::string api = path.next();
      
       if(!H.method.compare("PUT") && !api.compare("stream")){
         stream(conn, H, path.next(), path.next(), true);
+        lastPromethNode.numSuccessRequests++;
+        continue;
       }
       if(!H.method.compare("GET") && !api.compare("salt")){//request your salt
         H.Clean();
@@ -1591,6 +1708,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.setCORSHeaders();
         H.SendResponse("200", "OK", conn);
         H.Clean();
+        lastPromethNode.numSuccessRequests++;
+        continue;
       }
   
 
@@ -1608,8 +1727,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("403", "Forbidden", conn);
           H.Clean();
           conn.close();
+          lastPromethNode.badAuth++;
           continue;
         }
+        lastPromethNode.goodAuth++;
       }
       //auth with bearer token
       else if(!creds.substr(0,7).compare("Bearer ")){
@@ -1619,8 +1740,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("403", "Forbidden", conn);
           H.Clean();
           conn.close();
+          lastPromethNode.badAuth++;
           continue;
         }
+        lastPromethNode.goodAuth++;
       }
       //whitelist ipv6 & ipv4
       else if(conn.getHost().size()){
@@ -1639,8 +1762,10 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("403", "Forbidden", conn);
           H.Clean();
           conn.close();
+          lastPromethNode.badAuth++;
           continue;
         }
+        lastPromethNode.goodAuth++;
       }
       //block other auth forms including none
       else{
@@ -1649,6 +1774,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.SendResponse("403", "Forbidden", conn);
         H.Clean();
         conn.close();
+        lastPromethNode.badAuth++;
         continue;
       }
 
@@ -1663,6 +1789,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("204", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         //load config
         else if(!api.compare("load")){
@@ -1673,6 +1800,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("204", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         //return load balancer list
         //add load balancer to mesh
@@ -1685,6 +1813,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Get/set weights
         else if (!api.compare("weights")){
@@ -1695,6 +1824,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Add server to list
         else if (!api.compare("servers")){
@@ -1706,9 +1836,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         else if(!api.compare("balancing")){
           balance(path);
+          lastPromethNode.numSuccessRequests++;
         }
         else if(!api.compare("standby")){
           std::string name = path.next();
@@ -1721,13 +1853,15 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
           }else{
-          H.Clean();
-          H.SetHeader("Content-Type", "text/plain");
-          H.SetBody("invalid server name");
-          H.setCORSHeaders();
-          H.SendResponse("200", "OK", conn);
-          H.Clean();
+            lastPromethNode.numFailedRequests++;
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("invalid server name");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
           }
         }
         //auth
@@ -1742,6 +1876,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1757,6 +1892,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1770,9 +1906,20 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+          }
+          //handle none api
+          else{
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("invalid");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+            lastPromethNode.numIllegalRequests++;
           }
         }
         //handle none api
@@ -1783,6 +1930,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numIllegalRequests++;
         }
       }else if(!H.method.compare("GET")){
         if(!api.compare("loadbalancers")){
@@ -1793,6 +1941,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }        
         // Get server list
         else if (!api.compare("servers")){
@@ -1803,6 +1952,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Request viewer count
         else if (!api.compare("viewers")){
@@ -1813,6 +1963,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Request full stream statistics
         else if (!api.compare("streamstats")){
@@ -1822,7 +1973,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SetBody(ret.toPrettyString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
-          H.Clean();   
+          H.Clean();
+          lastPromethNode.numSuccessRequests++;   
         }
         //get stream viewer count
         else if (!api.compare("stream")){
@@ -1833,6 +1985,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Find source for given stream
         else if (!api.compare("source")){
@@ -1855,6 +2008,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
           }else{
             JSON::Value ret = getHostState(host);
             H.Clean();
@@ -1863,6 +2017,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
           }
         // Get weights
         }else if (!api.compare("weights")){
@@ -1873,7 +2028,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
-        
+          lastPromethNode.numSuccessRequests++;
         }
         else if(!api.compare("balancing")){
           JSON::Value ret;
@@ -1898,6 +2053,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         else if(!api.compare("auth")){
           api = path.next();
@@ -1910,6 +2066,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
           }
           // add user acount
           else if (!api.compare("user")){
@@ -1920,6 +2077,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
           }
           // add whitelist policy
           else if (!api.compare("whitelist")){
@@ -1930,6 +2088,18 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
+          }
+          //handle none api
+          else{
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("invalid");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+            conn.close();
+            lastPromethNode.numIllegalRequests++;
           }
         }
         //handle none api
@@ -1941,6 +2111,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.SendResponse("200", "OK", conn);
           H.Clean();
           conn.close();
+          lastPromethNode.numIllegalRequests++;
         }
       }else if(!H.method.compare("DELETE")){
         //remove load balancer from mesh
@@ -1953,6 +2124,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numSuccessRequests++;
         }
         // Remove server from list
         else if (!api.compare("servers")){
@@ -1964,8 +2136,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
-            
-         
+          lastPromethNode.numSuccessRequests++;
         }
         //auth
         else if(!api.compare("auth")){
@@ -1979,6 +2150,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -1992,6 +2164,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
@@ -2011,9 +2184,20 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
             if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+          }
+          //handle none api
+          else{
+            H.Clean();
+            H.SetHeader("Content-Type", "text/plain");
+            H.SetBody("invalid");
+            H.setCORSHeaders();
+            H.SendResponse("200", "OK", conn);
+            H.Clean();
+            lastPromethNode.numIllegalRequests++;
           }
         }
         //handle none api
@@ -2024,6 +2208,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
           H.Clean();
+          lastPromethNode.numIllegalRequests++;
         }
       }
       //handle none api
@@ -2034,6 +2219,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.setCORSHeaders();
         H.SendResponse("200", "OK", conn);
         H.Clean();
+        lastPromethNode.numIllegalRequests++;
       }
     }
   }
@@ -2042,6 +2228,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
     if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       LB->state = false;
+      lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), lastPromethNode.numReconnectLB.at(LB->getName())+1));
       new tthread::thread(reconnectLB, (void*)&LB);
     }else{//shutdown load balancer
       LB->Go_Down = true;
@@ -2062,6 +2249,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
   std::string frame(webSock->data, webSock->data.size());
   if(!frame.substr(0, frame.size()).compare("ident")){
     webSock->sendFrame(identifier);
+    lastPromethNode.numLBSuccessRequests++;
   }
   else if(!frame.substr(0, frame.find(":")).compare("auth")){
     //send response to challenge
@@ -2072,6 +2260,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
     //send own challenge
     std::string salt = generateSalt();
     webSock->sendFrame(salt);
+    lastPromethNode.numLBSuccessRequests++;
   }
   else if(!frame.substr(0, frame.find(":")).compare("salt")){
     //check responce
@@ -2082,6 +2271,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       webSock->sendFrame("noAuth");
       webSock->getSocket().close();
       WARN_MSG("no salt")
+      lastPromethNode.numLBFailedRequests++;
       return LB;
     }
 
@@ -2092,38 +2282,48 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       loadBalancers.insert(LB);
       INFO_MSG("Load balancer added");
       checkServerMonitors();
-
+      lastPromethNode.numLBSuccessRequests++;
     }else{
       webSock->sendFrame("noAuth");
       INFO_MSG("unautherized load balancer");
       LB = 0;
+      lastPromethNode.numLBFailedRequests++;
     }
+    
   }
   //close bad auth
   else if(!frame.substr(0, frame.find(":")).compare("noAuth")){
     webSock->getSocket().close();
+    lastPromethNode.numLBSuccessRequests++;
   }
   //close authenticated load balancer
   else if(!frame.compare("close")){
     LB->Go_Down = true;
     loadBalancers.erase(LB);
     webSock->getSocket().close();
+    lastPromethNode.numLBSuccessRequests++;
   }
   else if(LB && !frame.substr(0, 1).compare("{")){
     JSON::Value newVals = JSON::fromString(frame);
     if(newVals.isMember(ADDLOADBALANCER)) {
       new tthread::thread(api.addLB,(void*)&(newVals[ADDLOADBALANCER]));
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(REMOVELOADBALANCER)) {
       api.removeLB(newVals[REMOVELOADBALANCER], newVals[RESEND]);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(UPDATEHOST)) {
       api.updateHost(newVals[UPDATEHOST]);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(WEIGHTS)) {
       api.setWeights(newVals[WEIGHTS]);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(ADDSERVER)){
       std::string ret;
       api.addServer(ret,newVals[ADDSERVER], false);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(REMOVESERVER)){
       api.delServer(newVals[REMOVESERVER].asString(), false);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(GETSERVERS)){
       JSON::Value j;
       j[RESEND] = false;
@@ -2131,6 +2331,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
         j[ADDSERVER] = (*it)->name;
         webSock->sendFrame(j.asString());
       }
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(ADDVIEWER)){
       //find host
       for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -2146,22 +2347,31 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
           }
         }
       }
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(SAVEKEY)){
       saveFile();
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(LOADKEY)){
       loadFile();
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(BALANCEKEY)){
       balance(newVals[BALANCEKEY]);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(STANDBYKEY)){
       std::set<hostEntry*>::iterator it = hosts.begin();
       while(!newVals[STANDBYKEY].asString().compare((*it)->name) && it != hosts.end()) it++;
       if(it != hosts.end()) setStandBy(*it, newVals[LOCKKEY]);
+      lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(REMOVESTANDBYKEY)){
       std::set<hostEntry*>::iterator it = hosts.begin();
       while(!newVals[STANDBYKEY].asString().compare((*it)->name) && it != hosts.end()) it++;
       if(it != hosts.end()) removeStandBy(*it);
-      
+      lastPromethNode.numLBSuccessRequests++;
+    }else{
+      lastPromethNode.numLBIllegalRequests++;
     }
+  }else{
+    lastPromethNode.numLBIllegalRequests++;
   }
   return LB;
 }
@@ -2654,12 +2864,6 @@ void API::addLB(void* p){
     if(addLoadBalancer->find(":") == -1){
       addLoadBalancer->append(":8042");
     }
-    //send to other load balancers
-    JSON::Value j;
-    j["addloadbalancer"] = addLoadBalancer;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      (*it)->send(j.asString());
-    }
     
 
     Socket::Connection conn(addLoadBalancer->substr(0,addLoadBalancer->find(":")), atoi(addLoadBalancer->substr(addLoadBalancer->find(":")+1).c_str()), false, false);
@@ -2676,6 +2880,7 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
         return;
       }
       sleep(1);
@@ -2688,6 +2893,7 @@ void API::addLB(void* p){
         ws->sendFrame("noAuth");
         conn.close();
         WARN_MSG("load balancer already connected");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
         return;
       }
     }
@@ -2702,6 +2908,7 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
         return;
       }
       sleep(1);
@@ -2711,6 +2918,7 @@ void API::addLB(void* p){
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
       WARN_MSG("unautherised");
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
       ws->sendFrame("noAuth");
       return;
     }
@@ -2720,6 +2928,7 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
         return;
       }
       sleep(1);
@@ -2734,6 +2943,7 @@ void API::addLB(void* p){
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numFailedConnectLB.at(*addLoadBalancer)+1));
         return;
       }
       sleep(1);
@@ -2755,9 +2965,13 @@ void API::addLB(void* p){
       JSON::Value z;
       z[GETSERVERS] = true;
       LB->send(z.asString());
+
       //start save timer
       time(&prevConfigChange);
       if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+
+      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,lastPromethNode.numSuccessConnectLB.at(*addLoadBalancer)+1));
+
       //start monitoring
       handleRequests(conn,ws,LB); 
     }else if(check == "noAuth"){
@@ -2788,6 +3002,7 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
         reconnectLB(p);
         return;
       }
@@ -2801,6 +3016,7 @@ void API::reconnectLB(void* p) {
         ws->sendFrame("noAuth");
         conn.close();
         WARN_MSG("load balancer already connected");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
         return;
       }
     }
@@ -2815,6 +3031,7 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
         reconnectLB(p);
         return;
       }
@@ -2825,6 +3042,7 @@ void API::reconnectLB(void* p) {
     if(Secure::sha256(passHash+salt).compare(result)){
       //unautherized
       WARN_MSG("unautherised");
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
       ws->sendFrame("noAuth");
       return;
     }
@@ -2834,6 +3052,7 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
         reconnectLB(p);
         return;
       }
@@ -2849,6 +3068,7 @@ void API::reconnectLB(void* p) {
       reset++;
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
+        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numFailedConnectLB.at(LB->getName())+1));
         reconnectLB(p);
         return;
       }
@@ -2872,6 +3092,7 @@ void API::reconnectLB(void* p) {
       z[GETSERVERS] = true;
       LB->send(z.asString());
 
+      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),lastPromethNode.numSuccessConnectLB.at(LB->getName())+1));
       //start monitoring
       handleRequests(conn,ws,LB); 
     }else {
@@ -2908,7 +3129,7 @@ JSON::Value API::getViewers(){
   }
   
 /**
-   * return the best source of a stream
+   * return the best source of a stream for inter server replication
    */
 void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string source, const std::string fback, bool repeat = true){
     H.Clean();
@@ -2954,8 +3175,10 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
       }else{
         bestHost = fallback;
       }
+      lastPromethNode.numFailedSource++;
       FAIL_MSG("No source for %s found!", source.c_str());
     }else{
+      lastPromethNode.numSuccessSource++;
       INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
     }
     H.SetBody(bestHost);
@@ -2988,7 +3211,7 @@ JSON::Value API::serverList(){
   }
  
 /**
-   * return ingest point
+   * return optimal server to start new stream on
    */
 void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string ingest, const std::string fback, bool repeat = true){
     H.Clean();
@@ -3032,8 +3255,10 @@ void API::getIngest(Socket::Connection conn, HTTP::Parser H, const std::string i
       }else{
         bestHost = fallback;
       }
+      lastPromethNode.numFailedIngest++;
       FAIL_MSG("No ingest point found!");
     }else{
+      lastPromethNode.numSuccessIngest++;
       INFO_MSG("Winner: %s scores %" PRIu64, bestHost.c_str(), bestScore);
     }
     H.SetBody(bestHost);
@@ -3061,6 +3286,7 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         H.Clean();
         H.SendResponse("404", "No favicon", conn);
         H.Clean();
+        lastPromethNode.numIllegalViewer++;
         return;
       }
       INFO_MSG("Balancing stream %s", stream.c_str());
@@ -3083,6 +3309,7 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
           H.SetHeader("Content-Type", "text/plain");
           H.setCORSHeaders();
           H.SetBody(fallback);
+          lastPromethNode.numFailedViewer++;
           FAIL_MSG("All servers seem to be out of bandwidth!");
         }
       }else{
@@ -3092,6 +3319,8 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         H.SetHeader("Content-Type", "text/plain");
         H.setCORSHeaders();
         H.SetBody(bestHost->details->host);
+        lastPromethNode.numSuccessViewer++;
+        lastPromethNode.numStreams.insert(std::pair<std::string, int>(bestHost->name,lastPromethNode.numStreams.at(bestHost->name)+1));
       }
       if (proto != "" && bestHost && bestScore){
         H.SetHeader("Content-Type", "text/plain");
@@ -3319,6 +3548,7 @@ int main(int argc, char **argv){
 
   new tthread::thread(timerAddViewer, NULL);
   new tthread::thread(checkNeedRedirect, NULL);
+  new tthread::thread(prometheusTimer, NULL);
   conf.serveThreadedSocket(api.handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");

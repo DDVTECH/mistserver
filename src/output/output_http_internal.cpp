@@ -1186,11 +1186,11 @@ namespace Mist{
 
 }// namespace Mist
 
-  tthread::mutex* redirectManager::managerMutex = 0;
-  std::string* redirectManager::redirect = 0;
-  uint64_t redirectManager::cpu = 0;
-  uint64_t redirectManager::ram = 0;
-  uint64_t redirectManager::bandwidth = 0;
+tthread::mutex* redirectManager::managerMutex = 0;
+std::string* redirectManager::redirect = 0;
+uint64_t redirectManager::cpu = 0;
+uint64_t redirectManager::ram = 0;
+uint64_t redirectManager::bandwidth = 0;
 
 
   void redirectManager::update(){
@@ -1199,9 +1199,8 @@ namespace Mist{
     int balancingCPU = Util::getGlobalConfig("balancingCPU").asInt();
     std::string balancingRedirect = Util::getGlobalConfig("balancingRedirect").asString();
 
-
     WARN_MSG("bw: %d, ram: %d, cpu: %d, redirect: %s", balancingBW, balancingRAM, balancingCPU, balancingRedirect.c_str());
-    if(balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() || balancingBW > Util::getGlobalConfig("bwLimit").asInt()){return;}
+    if(balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() || balancingBW > Util::getGlobalConfig("bwlimit").asInt()){return;}
     if (!managerMutex){managerMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*managerMutex);
     this->redirect = &balancingRedirect;

@@ -1932,6 +1932,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       }
     }
     JSON::Value j = H.GetHeader("balancing");
+    WARN_MSG("balancing value: %s", j.asString());
     std::string host = conn.getHost();
     //place current entry into map
     loadBalancers.insert(std::pair<std::string, std::time_t>(host, now));

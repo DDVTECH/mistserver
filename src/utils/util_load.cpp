@@ -182,12 +182,15 @@ tthread::thread* saveTimer;
 std::time_t prevConfigChange;
 std::time_t prevSaveTime;
 //timer vars
-#define PROMETHEUSMAXTIMEDIFF  180
+#define PROMETHEUSMAXTIMEDIFF 180
 #define PROMETHEUSTIMEINTERVAL 10
 #define SAVETIMEINTERVAL 5 //time to save after config change in minutes
 std::time_t now;
 
-
+/**
+ * prometheus data sorted in PROMETHEUSTIMEINTERVA minute intervals 
+ * each node is stored for PROMETHEUSMAXTIMEDIFF minutes
+*/
 struct prometheusDataNode{
   std::map<std::string, int> numStreams;//number of new streams connected by this load balancer
 
@@ -224,6 +227,9 @@ struct prometheusDataNode{
 prometheusDataNode lastPromethNode;
 std::map<time_t, prometheusDataNode>  prometheusData;
 
+/**
+ * creates new prometheus data node every PROMETHEUSTIMEINTERVAL
+*/
 static void prometheusTimer(void*){
   while(cfg->is_active){
     //create new data node
@@ -248,6 +254,9 @@ static void prometheusTimer(void*){
   }
 }
 
+/**
+ * return JSON with all prometheus data nodes
+*/
 JSON::Value handlePrometheus(){
   JSON::Value res;
   for(std::map<time_t, prometheusDataNode>::iterator i = prometheusData.begin(); i != prometheusData.end(); i++){
@@ -1719,7 +1728,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         H.StartResponse("200", "OK", H, conn, true);
         H.Chunkify(handlePrometheus().toString(), conn);
         continue;
-      }  
+      }
 
       //Authentication
       std::string creds = H.GetHeader("Authorization");

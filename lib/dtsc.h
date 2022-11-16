@@ -372,6 +372,7 @@ namespace DTSC{
     void refresh();
     bool reloadReplacedPagesIfNeeded();
     void setTrackInvalidateCallback(std::function<void(size_t trkIdx)> cb) { trackInvalidateCallback = cb; }
+    bool exists() const;
 
     operator bool() const;
 

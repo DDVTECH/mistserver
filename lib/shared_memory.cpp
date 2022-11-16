@@ -302,7 +302,7 @@ namespace IPC{
   }
 
   /// Returns true if the open file still exists.
-  bool sharedPage::exists(){
+  bool sharedPage::exists() const {
     struct stat sb;
     return fstat(handle, &sb) ? false : (sb.st_nlink > 0);
   }

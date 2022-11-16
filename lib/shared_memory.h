@@ -69,7 +69,7 @@ namespace IPC{
     void init(bool autoBackoff = true);
     void unmap();
     void close();
-    bool exists();
+    bool exists() const;
 
     int handle{-1};
     std::string name;

@@ -1502,6 +1502,16 @@ namespace DTSC{
     }
   }
 
+  /// Returns true if none of the shared memory pages for this stream were deleted
+  bool Meta::exists() const {
+    if (isMemBuf) { return true; }
+    if (!streamPage.exists()) { return false; }
+    for (std::map<size_t, IPC::sharedPage>::const_iterator it = tM.begin(); it != tM.end(); ++it) {
+      if (!it->second.exists()) { return false; }
+    }
+    return true;
+  }
+
   /// Reloads shared memory pages that are marked as needing an update, if any
   /// Returns true if a reload happened
   bool Meta::reloadReplacedPagesIfNeeded(){

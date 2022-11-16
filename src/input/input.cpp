@@ -949,6 +949,14 @@ namespace Mist{
         config->is_active = false;
         return 0;
       }
+
+      // Check if metadata still in a valid state
+      if (!M.exists()) {
+        Util::logExitReason(ER_SHM_LOST, "metadata shared memory was deleted through some external means");
+        config->is_active = false;
+        return 0;
+      }
+
       inputServeStats();
       return INPUT_USER_INTERVAL;
     }, 1);

@@ -137,6 +137,7 @@ namespace Mist{
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
+    if (config->getBool("headeronly")){return true;}
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
         std::cerr << "Output to stdout not yet supported" << std::endl;

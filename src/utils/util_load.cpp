@@ -1711,7 +1711,15 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         lastPromethNode.numSuccessRequests++;
         continue;
       }
-  
+
+      if(H.url.substr(0, passphrase.size() + 6) == "/" + passphrase + ".json"){
+        H.Clean();
+        H.SetHeader("Content-Type", "text/json");
+        H.setCORSHeaders();
+        H.StartResponse("200", "OK", H, conn, true);
+        H.Chunkify(handlePrometheus().toString(), conn);
+        continue;
+      }  
 
       //Authentication
       std::string creds = H.GetHeader("Authorization");

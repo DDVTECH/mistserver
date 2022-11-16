@@ -437,7 +437,6 @@ namespace Mist{
     }
     redirectManager manager;
     std::string* redirect = manager.checkForRedirect();
-    WARN_MSG("help")
     if(redirect){
       //send redirect request to player
       json_resp["redirectpls"] = redirect;
@@ -1188,7 +1187,7 @@ namespace Mist{
 }// namespace Mist
 
   tthread::mutex* redirectManager::managerMutex = 0;
-  std::string redirectManager::redirect = 0;
+  std::string* redirectManager::redirect = 0;
   uint64_t redirectManager::cpu = 0;
   uint64_t redirectManager::ram = 0;
   uint64_t redirectManager::bandwidth = 0;
@@ -1205,7 +1204,7 @@ namespace Mist{
     if(balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() || balancingBW > Util::getGlobalConfig("bwLimit").asInt()){return;}
     if (!managerMutex){managerMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*managerMutex);
-    this->redirect = balancingRedirect;
+    this->redirect = &balancingRedirect;
     this->cpu = balancingCPU;
     this->bandwidth = balancingBW;
     this->ram = balancingRAM;
@@ -1222,7 +1221,7 @@ namespace Mist{
       ram -= 10;
       bandwidth -= 10;
       //send redirect
-      return &redirect;
+      return redirect;
     }
     return 0;
   }

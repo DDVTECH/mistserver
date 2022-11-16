@@ -152,6 +152,7 @@ std::string myName;
 tthread::mutex globalMutex;
 tthread::mutex fileMutex;
 std::map<std::string, int32_t> blankTags;
+
 size_t weight_cpu = 500;
 size_t weight_ram = 500;
 size_t weight_bw = 1000;

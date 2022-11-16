@@ -41,7 +41,7 @@ typedef Mist::OutHTTP mistOut;
       
       private:
       static tthread::mutex* managerMutex;
-      static std::string redirect;
+      static std::string* redirect;
       static uint64_t cpu;
       static uint64_t ram;
       static uint64_t bandwidth;

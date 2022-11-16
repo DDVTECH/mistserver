@@ -461,6 +461,15 @@ namespace Controller{
         if (!globAccX.isReady()){
           globAccX.addField("defaultStream", RAX_128STRING);
           globAccX.addField("systemBoot", RAX_64UINT);
+          globAccX.addField("bwlimit", RAX_UINT);
+          globAccX.addField("mem_total", RAX_UINT);
+          globAccX.addField("cpu", RAX_UINT);
+          globAccX.addField("bw_curr", RAX_UINT);
+          globAccX.addField("mem_curr", RAX_UINT);
+          globAccX.addField("balancingbw", RAX_UINT);
+          globAccX.addField("balancingMem", RAX_UINT);
+          globAccX.addField("balancingCPU", RAX_UINT);
+          globAccX.addField("balancingRedirect", RAX_256STRING);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();

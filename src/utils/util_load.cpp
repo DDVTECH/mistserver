@@ -49,6 +49,7 @@ std::string const RAMMAXKEY = "ramMax";
 std::string const BINHOSTKEY = "binhost";
 std::string const BALANCEKEY = "balance";
 
+//balancing transmision json names
 std::string const MINSTANDBYKEY = "minstandby";
 std::string const MAXSTANDBYKEY = "maxstandby";
 std::string const CAPPACITYTRIGGERCPUDECKEY = "triggerdecrementcpu"; //percentage om cpu te verminderen
@@ -98,6 +99,8 @@ std::string const CONFIGBEARER = "bearer_tokens";
 std::string const CONFIGUSERS = "user_auth";
 std::string const CONFIGSERVERS = "server_list";
 std::string const CONFIGLOADBALANCER = "loadbalancers";
+
+//balancing config file names
 std::string const CONFIGMINSTANDBY = "minstandby";
 std::string const CONFIGMAXSTANDBY = "maxstandby";
 std::string const CONFIGCAPPACITYTRIGGERCPUDEC = "triggerdecrementcpu"; //percentage om cpu te verminderen
@@ -167,7 +170,7 @@ std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the
 #define SERVERMONITORLIMIT 1
 
 //authentication storage
-std::map<std::string,std::pair<std::string, std::string> > userAuth;//key: (passhash, salt)
+std::map<std::string,std::pair<std::string, std::string> > userAuth;//username: (passhash, salt)
 std::set<std::string> bearerTokens;
 std::string passHash;
 std::set<std::string> whitelist;
@@ -180,8 +183,8 @@ std::set<std::string> identifiers;
 //file save and loading vars
 std::string const fileloc  = "config.txt";
 tthread::thread* saveTimer;
-std::time_t prevConfigChange;
-std::time_t prevSaveTime;
+std::time_t prevConfigChange;//time of last config change
+std::time_t prevSaveTime;//time of last save
 
 //timer vars
 #define PROMETHEUSMAXTIMEDIFF 180 //time prometheusnodes stay in system
@@ -283,7 +286,10 @@ static void timerAddViewer(void*){
   }
 }
 
-
+/**
+ * \returns an integer represented by \param s of base \param base
+ * default base is decimal  
+*/
 int stoi(std::string s, int base = 10){
   Util::stringToLower(s);
   int ret = 0;
@@ -1786,7 +1792,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           H.Clean();
           lastPromethNode.numSuccessRequests++;
         }
-        //return load balancer list
         //add load balancer to mesh
         else if(!api.compare("loadbalancers")){
           std::string loadbalancer = path.next();
@@ -2213,7 +2218,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       LB->state = false;
       int tmp = 0;
-      try{
+      try{//TODO remove try catchs
         tmp = lastPromethNode.numReconnectLB.at(LB->getName());
       }catch(std::out_of_range &e){}
       lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), tmp+1));

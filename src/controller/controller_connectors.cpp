@@ -167,12 +167,15 @@ namespace Controller{
 
     jsonForEach(p, ait){
       std::string prevOnline = (*ait)["online"].asString();
-      const std::string &connName = (*ait)["connector"].asStringRef();
+      
       // do not further parse if there's no connector name
-      if (!(*ait).isMember("connector") || connName == ""){
+      if (!(*ait).isMember("connector") || (*ait)["connector"].asStringRef() == ""){
         (*ait)["online"] = "Missing connector name";
         continue;
       }
+
+      const std::string &connName = (*ait)["connector"].asStringRef();
+
       // ignore connectors that are not installed
       if (!capabilities.isMember("connectors") || !capabilities["connectors"].isMember(connName)){
         (*ait)["online"] = "Not installed";

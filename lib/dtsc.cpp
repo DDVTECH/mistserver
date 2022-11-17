@@ -1434,9 +1434,7 @@ namespace DTSC{
 
   /// Evaluates to true if this is a shared-memory-backed object, correctly mapped, with a non-exit
   /// state on the "stream" RelAccX page.
-  Meta::operator bool() const{
-    return (!isMemBuf && streamPage.mapped && !stream.isExit()) || (isMemBuf && streamMemBuf && !stream.isExit());
-  }
+  Meta::operator bool() const{return !isMemBuf && streamPage.mapped && !stream.isExit();}
 
   /// Intended to be used for encryption. Not currently called anywhere.
   size_t Meta::addCopy(size_t sourceTrack){

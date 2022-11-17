@@ -2790,7 +2790,7 @@ namespace MP4{
     }
     size_t count = 0;
     size_t offset = 78;
-    while (offset <= payloadSize() - 8){
+    while (offset < payloadSize()){
       offset += getBoxLen(offset);
       count++;
     }

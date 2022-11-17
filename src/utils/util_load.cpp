@@ -286,29 +286,6 @@ static void timerAddViewer(void*){
   }
 }
 
-/**
- * \returns an integer represented by \param s of base \param base
- * default base is decimal  
-*/
-int stoi(std::string s, int base = 10){
-  Util::stringToLower(s);
-  int ret = 0;
-  for(int i = 0; i < s.size(); i++){
-    ret = ret * i * base;
-    int ascii  = int(s[i]);
-    if(ascii<58 && ascii>= 48){
-      ascii = ascii-48;
-    }else if(ascii >= 97 && ascii < 123){
-      ascii = ascii - 87;
-    }else throw std::invalid_argument("");
-    if(ascii > base){
-      throw std::out_of_range("");
-    }
-    ret += ascii;
-  }
-  return ret;
-}
-
 
 /**
  * \returns this object as a string
@@ -638,11 +615,7 @@ uint64_t hostDetails::rate(std::string &s, const std::map<std::string, int32_t> 
 uint64_t hostDetails::source(const std::string &s, const std::map<std::string, int32_t> &tagAdjust, uint32_t minCpu, double lati = 0, double longi = 0) const{
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
-    try{
-      if(s.size() && (!streams.count(s) || !streams.at(s).inputs)){return 0;}
-    }catch (std::out_of_range const&){
-      return 0;
-    }
+    if(s.size() && (!streams.count(s) || !streams.at(s).inputs)){return 0;}
 
     if (minCpu && cpu + minCpu >= 1000){return 0;}
     uint64_t score = scoreSource;
@@ -663,17 +636,13 @@ uint64_t hostDetails::source(const std::string &s, const std::map<std::string, i
  * give url of the server for a protocol, \param proto, and stream, \param s
 */
 std::string hostDetails::getUrl(std::string &s, std::string &proto) const{
-    if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
-    tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
-    if(!outputs.count(proto)){return "";}
-    outUrl o;
-    try{
-      const outUrl o = outputs.at(proto);
-      return o.pre + s + o.post;
-    }catch (std::out_of_range const&){
-      return NULL;
-    }
-  }
+  if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
+  tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
+  if(!outputs.count(proto)){return "";}
+  outUrl o;
+  const outUrl o = outputs.at(proto);
+  return o.pre + s + o.post;
+}
 /**
    * add the viewer to this host
    * updates all precalculated host vars
@@ -1195,9 +1164,9 @@ void handleServer(void *hostEntryPointer){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectServer.count(entry->name)){
           tmp = lastPromethNode.numFailedConnectServer.at(entry->name);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
         FAIL_MSG("Can't decode server %s load information", url.host.c_str());
         ((hostDetailsCalc*)(entry->details))->badNess();
@@ -1213,23 +1182,23 @@ void handleServer(void *hostEntryPointer){
           entry->state = STATE_ONLINE;
           down = false;
           int tmp = 0;
-          try{
+          if(lastPromethNode.numReconnectServer.count(entry->name)){
             tmp = lastPromethNode.numReconnectServer.at(entry->name);
-          }catch(std::out_of_range &e){}
+          }
           lastPromethNode.numReconnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
         }
         ((hostDetailsCalc*)(entry->details))->update(servData);
         int tmp = 0;
-        try{
+        if(lastPromethNode.numSuccessConnectServer.count(entry->name)){
           tmp = lastPromethNode.numSuccessConnectServer.at(entry->name);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numSuccessConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
       }
     }else{
       int tmp = 0;
-      try{
-          tmp = lastPromethNode.numFailedConnectServer.at(entry->name);
-        }catch(std::out_of_range &e){}
+      if(lastPromethNode.numFailedConnectServer.count(entry->name)){
+        tmp = lastPromethNode.numFailedConnectServer.at(entry->name);
+      }
       lastPromethNode.numFailedConnectServer.insert(std::pair<std::string, int>(entry->name, tmp+1));
       FAIL_MSG("Can't retrieve server %s load information", url.host.c_str());
       ((hostDetailsCalc*)(entry->details))->badNess();
@@ -1363,7 +1332,7 @@ double delimiterParser::nextDouble(){
  * \return s until first \param delimiter or end of string as an Int
 */
 int delimiterParser::nextInt(int base = 10) {
-  return stoi(this->next().c_str(), base);
+  return atoi(this->next().c_str(), base);
 }
 
 /**
@@ -2218,9 +2187,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       LB->state = false;
       int tmp = 0;
-      try{//TODO remove try catchs
+      if(lastPromethNode.numReconnectLB.count(LB->getName())){
         tmp = lastPromethNode.numReconnectLB.at(LB->getName());
-      }catch(std::out_of_range &e){}
+      }
       lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), tmp+1));
       new tthread::thread(reconnectLB, (void*)&LB);
     }else{//shutdown load balancer
@@ -2418,116 +2387,112 @@ void API::balance(delimiterParser path){
     !api.compare(CAPPACITYTRIGGERBWKEY) || !api.compare(HIGHCAPPACITYTRIGGERCPUKEY) || !api.compare(HIGHCAPPACITYTRIGGERRAMKEY) ||
     !api.compare(HIGHCAPPACITYTRIGGERBWKEY) || !api.compare(LOWCAPPACITYTRIGGERCPUKEY) || !api.compare(LOWCAPPACITYTRIGGERRAMKEY) ||
     !api.compare(LOWCAPPACITYTRIGGERBWKEY) || !api.compare(BALANCINGINTERVALKEY)) {
-    try{
-      if(!api.compare("minstandby")){
-        int newVal = path.nextInt();
-        if(newVal > MAXSTANDBY){
-          MINSTANDBY = newVal;
-          j[BALANCEKEY][MINSTANDBYKEY] = MINSTANDBY;
-        }
+    if(!api.compare("minstandby")){
+      int newVal = path.nextInt();
+      if(newVal > MAXSTANDBY){
+        MINSTANDBY = newVal;
+        j[BALANCEKEY][MINSTANDBYKEY] = MINSTANDBY;
       }
-      else if(!api.compare("maxstandby")){
-        int newVal = path.nextInt();
-        if(newVal < MINSTANDBY){
-          MAXSTANDBY = newVal;
-          j[BALANCEKEY][MAXSTANDBYKEY] = MAXSTANDBY;
-        }
-      }        
-      if(!api.compare(CAPPACITYTRIGGERCPUDECKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERCPUDEC = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
-        }
+    }
+    else if(!api.compare("maxstandby")){
+      int newVal = path.nextInt();
+      if(newVal < MINSTANDBY){
+        MAXSTANDBY = newVal;
+        j[BALANCEKEY][MAXSTANDBYKEY] = MAXSTANDBY;
       }
-      else if(!api.compare(CAPPACITYTRIGGERRAMDECKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERRAMDEC = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
-        }
+    }        
+    if(!api.compare(CAPPACITYTRIGGERCPUDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERCPUDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERCPUDECKEY] = CAPPACITYTRIGGERCPUDEC;
       }
-      else if(!api.compare(CAPPACITYTRIGGERBWDECKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERBWDEC = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
-        }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERRAMDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERRAMDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERRAMDECKEY] = CAPPACITYTRIGGERRAMDEC;
       }
-      else if(!api.compare(CAPPACITYTRIGGERCPUKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERCPU = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
-        }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERBWDECKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERBWDEC = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERBWDECKEY] = CAPPACITYTRIGGERBWDEC;
       }
-      else if(!api.compare(CAPPACITYTRIGGERRAMKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERRAM = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
-        }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERCPUKEY] = CAPPACITYTRIGGERCPU;
       }
-      else if(!api.compare(CAPPACITYTRIGGERBWKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= 1){
-          CAPPACITYTRIGGERBW = newVal;
-          j[BALANCEKEY][CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
-        }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERRAMKEY] = CAPPACITYTRIGGERRAM;
       }
-      else if(!api.compare(HIGHCAPPACITYTRIGGERCPUKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
-          HIGHCAPPACITYTRIGGERCPU = newVal;
-          j[BALANCEKEY][HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
-        }
+    }
+    else if(!api.compare(CAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= 1){
+        CAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][CAPPACITYTRIGGERBWKEY] = CAPPACITYTRIGGERBW;
       }
-      else if(!api.compare(HIGHCAPPACITYTRIGGERRAMKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
-          HIGHCAPPACITYTRIGGERRAM = newVal;
-          j[BALANCEKEY][HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
-        }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
+        HIGHCAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERCPUKEY] = HIGHCAPPACITYTRIGGERCPU;
       }
-      else if(!api.compare(HIGHCAPPACITYTRIGGERBWKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
-          HIGHCAPPACITYTRIGGERBW = newVal;
-          j[BALANCEKEY][HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
-        }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
+        HIGHCAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERRAMKEY] = HIGHCAPPACITYTRIGGERRAM;
       }
-      if(!api.compare(LOWCAPPACITYTRIGGERCPUKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
-          LOWCAPPACITYTRIGGERCPU = newVal;
-          j[BALANCEKEY][LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
-        }
+    }
+    else if(!api.compare(HIGHCAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
+        HIGHCAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][HIGHCAPPACITYTRIGGERBWKEY] = HIGHCAPPACITYTRIGGERBW;
       }
-      else if(!api.compare(LOWCAPPACITYTRIGGERRAMKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
-          LOWCAPPACITYTRIGGERRAM = newVal;
-          j[BALANCEKEY][LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
-        }
+    }
+    if(!api.compare(LOWCAPPACITYTRIGGERCPUKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERCPU){
+        LOWCAPPACITYTRIGGERCPU = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERCPUKEY] = LOWCAPPACITYTRIGGERCPU;
       }
-      else if(!api.compare(LOWCAPPACITYTRIGGERBWKEY)){
-        double newVal = path.nextDouble();
-        if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
-          LOWCAPPACITYTRIGGERBW = newVal;
-          j[BALANCEKEY][LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
-        }
-      }          
-      else if(!api.compare(BALANCINGINTERVALKEY)){
-        int newVal = path.nextInt();
-        if(newVal >= 0){
-          BALANCINGINTERVAL = newVal;
-          j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
-        }
-      }else {
-        path.next();
+    }
+    else if(!api.compare(LOWCAPPACITYTRIGGERRAMKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
+        LOWCAPPACITYTRIGGERRAM = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERRAMKEY] = LOWCAPPACITYTRIGGERRAM;
       }
-    }catch(std::invalid_argument &e){
-      INFO_MSG("invalid INPUT");
+    }
+    else if(!api.compare(LOWCAPPACITYTRIGGERBWKEY)){
+      double newVal = path.nextDouble();
+      if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
+        LOWCAPPACITYTRIGGERBW = newVal;
+        j[BALANCEKEY][LOWCAPPACITYTRIGGERBWKEY] = LOWCAPPACITYTRIGGERBW;
+      }
+    }          
+    else if(!api.compare(BALANCINGINTERVALKEY)){
+      int newVal = path.nextInt();
+      if(newVal >= 0){
+        BALANCINGINTERVAL = newVal;
+        j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
+      }
+    }else {
+      path.next();
     }
     api = path.next();
   }
@@ -2646,26 +2611,22 @@ JSON::Value API::setWeights(delimiterParser path){
     std::string newVals = path.next();
     bool changed = false;
     while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
-      try{
-        int num = path.nextInt();
-        changed = true;
-        if (!newVals.compare("cpu")){
-          weight_cpu = num;
-        }
-        else if (!newVals.compare("ram")){
-          weight_ram = num;
-        }
-        else if (!newVals.compare("bw")){
-          weight_bw = num;
-        }
-        else if (!newVals.compare("geo")){
-          weight_geo = num;
-        }
-        else if (!newVals.compare("bonus")){
-          weight_bonus = num;
-        }
-      }catch(std::invalid_argument &e){
-        INFO_MSG("invalid INPUT");
+      int num = path.nextInt();
+      changed = true;
+      if (!newVals.compare("cpu")){
+        weight_cpu = num;
+      }
+      else if (!newVals.compare("ram")){
+        weight_ram = num;
+      }
+      else if (!newVals.compare("bw")){
+        weight_bw = num;
+      }
+      else if (!newVals.compare("geo")){
+        weight_geo = num;
+      }
+      else if (!newVals.compare("bonus")){
+        weight_bonus = num;
       }
       newVals = path.next();
     }
@@ -2878,9 +2839,9 @@ void API::addLB(void* p){
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
@@ -2895,9 +2856,9 @@ void API::addLB(void* p){
         conn.close();
         WARN_MSG("load balancer already connected");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
@@ -2914,9 +2875,9 @@ void API::addLB(void* p){
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
@@ -2928,9 +2889,9 @@ void API::addLB(void* p){
       //unautherized
       WARN_MSG("unautherised");
       int tmp = 0;
-      try{
+      if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
         tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-      }catch(std::out_of_range &e){}
+      }
       lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
       ws->sendFrame("noAuth");
       return;
@@ -2942,9 +2903,9 @@ void API::addLB(void* p){
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
@@ -2961,9 +2922,9 @@ void API::addLB(void* p){
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(*addLoadBalancer);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
         return;
       }
@@ -2992,9 +2953,9 @@ void API::addLB(void* p){
       if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 
       int tmp = 0;
-      try{
+      if(lastPromethNode.numSuccessConnectLB.count(*addLoadBalancer)){
         tmp = lastPromethNode.numSuccessConnectLB.at(*addLoadBalancer);
-      }catch(std::out_of_range &e){}
+      }
       lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(*addLoadBalancer,tmp+1));
 
       //start monitoring
@@ -3028,9 +2989,9 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
@@ -3046,9 +3007,9 @@ void API::reconnectLB(void* p) {
         conn.close();
         WARN_MSG("load balancer already connected");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         return;
       }
@@ -3065,9 +3026,9 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
@@ -3080,9 +3041,9 @@ void API::reconnectLB(void* p) {
       //unautherized
       WARN_MSG("unautherised");
       int tmp = 0;
-      try{
+      if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
         tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-      }catch(std::out_of_range &e){}
+      }
       lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
       ws->sendFrame("noAuth");
       return;
@@ -3094,9 +3055,9 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
@@ -3114,9 +3075,9 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        try{
+        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
         reconnectLB(p);
         return;
@@ -3142,9 +3103,9 @@ void API::reconnectLB(void* p) {
       LB->send(z.asString());
 
       int tmp = 0;
-      try{
+      if(lastPromethNode.numSuccessConnectLB.count(LB->getName())){
         tmp = lastPromethNode.numSuccessConnectLB.at(LB->getName());
-      }catch(std::out_of_range &e){}
+      }
       lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
       //start monitoring
       handleRequests(conn,ws,LB); 
@@ -3374,9 +3335,9 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         H.SetBody(bestHost->details->host);
         lastPromethNode.numSuccessViewer++;
         int tmp = 0;
-        try{
+        if(lastPromethNode.numStreams.count(bestHost->name)){
           tmp = lastPromethNode.numStreams.at(bestHost->name);
-        }catch(std::out_of_range &e){}
+        }
         lastPromethNode.numStreams.insert(std::pair<std::string, int>(bestHost->name,tmp+1));
       }
       if (proto != "" && bestHost && bestScore){

@@ -211,14 +211,11 @@ std::string HTTP::URL::getFilePath() const{
 
 /// Returns whether the URL is probably pointing to a local file
 bool HTTP::URL::isLocalPath() const{
-  //Anything with a "file" protocol is explicitly a local file
-  if (protocol == "file"){return true;}
-
   // If we have no host, protocol or port we can assume it is a local path
-  if (!host.size() && !protocol.size() && !port.size()){return true;}
-
-  //Anything else is probably not local
-  return false;
+  if (host.size() || protocol.size() || port.size()){
+    return false;
+  }
+  return true;
 }
 
 /// Returns the URL in string format without auth and frag

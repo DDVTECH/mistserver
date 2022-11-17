@@ -477,8 +477,6 @@ namespace DTSC{
 
     void getHealthJSON(JSON::Value & returnReference) const;
 
-    bool isShared() const {return !isMemBuf;}
-
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true);

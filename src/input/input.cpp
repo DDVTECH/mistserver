@@ -679,7 +679,7 @@ namespace Mist{
     Comms::Connections statComm;
     uint64_t startTime = Util::bootSecs();
 
-    if (!M || !M.isShared()){
+    if (!M){
       // Initialize meta page
       meta.reInit(streamName, true);
     }else{

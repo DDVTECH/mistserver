@@ -2554,7 +2554,6 @@ void API::balance(delimiterParser path){
   time(&prevConfigChange);
   if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 }
-
 /**
  * set balancing settings receiverd from load balancers
 */
@@ -2704,7 +2703,6 @@ JSON::Value API::setWeights(delimiterParser path){
     }
     return ret;
   }
-
 /**
    * set weights for websockets
    */
@@ -2762,24 +2760,6 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
     return ret;
     
   }
-
-/**
-   * receive server updates and adds new foreign hosts if needed
-   */
-void API::updateHost(JSON::Value newVals){
-  
-      std::string hostName = newVals[HOSTNAMEKEY].asString();
-      std::set<hostEntry*>::iterator i = hosts.begin();
-      while(i != hosts.end()){
-        if(hostName == (*i)->name) break;
-        i++;
-      }
-      if(i == hosts.end()){
-        INFO_MSG("unknown host update failed")
-      }
-      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals[BINHOSTKEY].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt(), newVals[CURRBANDWIDTHKEY].asInt(), newVals[AVAILBANDWIDTHKEY].asInt(), newVals[CURRRAMKEY].asInt(), newVals[RAMMAXKEY].asInt());   
-  }
-  
 /**
    * add server to be monitored
    */
@@ -2830,6 +2810,33 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
     return;
   }
+/**
+   * return server list
+   */
+JSON::Value API::serverList(){
+    JSON::Value ret;
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      ret[(std::string)(*it)->name] = stateLookup[(*it)->state];
+    }
+    return ret;    
+  }
+ 
+/**
+   * receive server updates and adds new foreign hosts if needed
+   */
+void API::updateHost(JSON::Value newVals){
+  
+      std::string hostName = newVals[HOSTNAMEKEY].asString();
+      std::set<hostEntry*>::iterator i = hosts.begin();
+      while(i != hosts.end()){
+        if(hostName == (*i)->name) break;
+        i++;
+      }
+      if(i == hosts.end()){
+        INFO_MSG("unknown host update failed")
+      }
+      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals[BINHOSTKEY].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt(), newVals[CURRBANDWIDTHKEY].asInt(), newVals[AVAILBANDWIDTHKEY].asInt(), newVals[CURRRAMKEY].asInt(), newVals[RAMMAXKEY].asInt());   
+  }
 
 /**
    * remove load balancer from mesh
@@ -2864,7 +2871,6 @@ void API::removeLB(std::string removeLoadBalancer, const std::string RESEND){
   time(&prevConfigChange);
   if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
 }
-
 /**
    * add load balancer to mesh
    */
@@ -3016,7 +3022,6 @@ void API::addLB(void* p){
     }
     return;
   }
-
 /**
  * reconnect to load balancer
 */
@@ -3165,7 +3170,6 @@ void API::reconnectLB(void* p) {
     }
     return;
 }
-
 /**
   * returns load balancer list
   */
@@ -3180,7 +3184,36 @@ std::string API::getLoadBalancerList(){
     out += "]";
     return out;
   }
-  
+/**
+   * return server data of a server
+   */
+JSON::Value API::getHostState(const std::string host){
+    JSON::Value ret;
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      if ((*it)->details->host == host){
+        ret = stateLookup[(*it)->state];
+        if ((*it)->state != STATE_ACTIVE){continue;}
+        (*it)->details->fillState(ret);
+        break;
+      }
+    }
+    return ret;
+  }
+/**
+   * return all server data
+   */
+JSON::Value API::getAllHostStates(){
+    JSON::Value ret;
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      ret[(*it)->details->host] = stateLookup[(*it)->state];
+      if ((*it)->state != STATE_ACTIVE){continue;}
+      (*it)->details->fillState(ret[(*it)->details->host]);
+    }
+    return ret;
+  }
+
 /**
    * return viewer counts of streams
    */
@@ -3192,7 +3225,29 @@ JSON::Value API::getViewers(){
     }
     return ret;
   }
-  
+/**
+   * get view count of a stream
+   */
+uint64_t API::getStream(const std::string stream){
+    uint64_t count = 0;
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      count += (*it)->details->getViewers(stream);
+    }
+    return count;   
+  }
+/**
+   * return stream stats
+   */
+JSON::Value API::getStreamStats(const std::string streamStats){
+    JSON::Value ret;
+    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if ((*it)->state == STATE_OFF){continue;}
+      (*it)->details->fillStreamStats(streamStats, ret);
+    }
+    return ret;
+  }
+ 
 /**
    * return the best source of a stream for inter server replication
    */
@@ -3251,30 +3306,6 @@ void API::getSource(Socket::Connection conn, HTTP::Parser H, const std::string s
     H.SendResponse("200", "OK", conn);
     H.Clean();    
   }
-  
-/**
-   * get view count of a stream
-   */
-uint64_t API::getStream(const std::string stream){
-    uint64_t count = 0;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
-      count += (*it)->details->getViewers(stream);
-    }
-    return count;   
-  }
-  
-/**
-   * return server list
-   */
-JSON::Value API::serverList(){
-    JSON::Value ret;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      ret[(std::string)(*it)->name] = stateLookup[(*it)->state];
-    }
-    return ret;    
-  }
- 
 /**
    * return optimal server to start new stream on
    */
@@ -3404,19 +3435,6 @@ void API::stream(Socket::Connection conn, HTTP::Parser H, std::string proto, std
         H.Clean();
       }
     }// if HTTP request received
-  
-/**
-   * return stream stats
-   */
-JSON::Value API::getStreamStats(const std::string streamStats){
-    JSON::Value ret;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
-      (*it)->details->fillStreamStats(streamStats, ret);
-    }
-    return ret;
-  }
- 
 /**
    * add viewer to stream on server
    */
@@ -3427,37 +3445,6 @@ void API::addViewer(std::string stream, const std::string addViewer){
         break;
       }
     }
-  }
-
-/**
-   * return server data of a server
-   */
-JSON::Value API::getHostState(const std::string host){
-    JSON::Value ret;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
-      if ((*it)->details->host == host){
-        ret = stateLookup[(*it)->state];
-        if ((*it)->state != STATE_ACTIVE){continue;}
-        (*it)->details->fillState(ret);
-        break;
-      }
-    }
-    return ret;
-  }
-  
-/**
-   * return all server data
-   */
-JSON::Value API::getAllHostStates(){
-    JSON::Value ret;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
-      ret[(*it)->details->host] = stateLookup[(*it)->state];
-      if ((*it)->state != STATE_ACTIVE){continue;}
-      (*it)->details->fillState(ret[(*it)->details->host]);
-    }
-    return ret;
   }
 
 

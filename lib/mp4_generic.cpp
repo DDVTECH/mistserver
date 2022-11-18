@@ -1318,6 +1318,8 @@ namespace MP4{
 
   DINF::DINF(){memcpy(data + 4, "dinf", 4);}
 
+  WAVE::WAVE(){memcpy(data + 4, "wave", 4);}
+
   MFRA::MFRA(){memcpy(data + 4, "mfra", 4);}
 
   MFRO::MFRO(){memcpy(data + 4, "mfro", 4);}

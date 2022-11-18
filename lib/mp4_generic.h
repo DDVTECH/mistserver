@@ -346,6 +346,11 @@ namespace MP4{
     DINF();
   };
 
+  class WAVE : public containerBox{
+  public:
+    WAVE();
+  };
+
   class MFRO : public Box{
   public:
     MFRO();

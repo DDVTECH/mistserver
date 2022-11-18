@@ -1357,7 +1357,11 @@ namespace MP4{
 
   void HDLR::setName(std::string newName){setString(newName, 24);}
 
-  std::string HDLR::getName(){return getString(24);}
+  std::string HDLR::getName(){
+    std::string tmpName = getString(24);
+    if (tmpName[0] == tmpName.size()-1){tmpName.erase(0, 1);}
+    return tmpName;
+  }
 
   std::string HDLR::toPrettyString(uint32_t indent){
     std::stringstream r;
@@ -2695,7 +2699,11 @@ namespace MP4{
     setString(newCompressorName, 42);
   }
 
-  std::string VisualSampleEntry::getCompressorName(){return getString(42);}
+  std::string VisualSampleEntry::getCompressorName(){
+    std::string tmpName = getString(42);
+    if (tmpName[0] == tmpName.size()-1){tmpName.erase(0, 1);}
+    return tmpName;
+  }
 
   void VisualSampleEntry::setDepth(uint16_t newDepth){setInt16(newDepth, 74);}
 
@@ -2839,6 +2847,8 @@ namespace MP4{
     return result;
   }
 
+  uint16_t AudioSampleEntry::getVersion() const{return getInt16(8);}
+
   void AudioSampleEntry::setCodec(const char *newCodec){memcpy(data + 4, newCodec, 4);}
 
   void AudioSampleEntry::setChannelCount(uint16_t newChannelCount){
@@ -2861,9 +2871,9 @@ namespace MP4{
 
   uint32_t AudioSampleEntry::getSampleRate(){return getInt32(24) >> 16;}
 
-  void AudioSampleEntry::setCodecBox(Box &newBox){setBox(newBox, 28);}
+  void AudioSampleEntry::setCodecBox(Box &newBox){setBox(newBox, getBoxOffset());}
 
-  Box &AudioSampleEntry::getCodecBox(){return getBox(28);}
+  Box &AudioSampleEntry::getCodecBox(){return getBox(getBoxOffset());}
 
   /*LTS-START*/
   Box &AudioSampleEntry::getSINFBox(){
@@ -2872,13 +2882,22 @@ namespace MP4{
   }
   /*LTS-END*/
 
+  size_t AudioSampleEntry::getBoxOffset() const{
+    size_t offset = 28;
+    //Quicktime-specific box versions. We should really only do this if we see a "qt  " ftyp
+    /// \TODO Do this properly at some point :-(
+    if (getVersion() == 1){offset = 28 + 16;}
+    if (getVersion() == 2){offset = 28 + 36;}
+    return offset;
+  }
+
   size_t AudioSampleEntry::getBoxEntryCount(){
     if (payloadSize() < 36){// if the EntryBox is not big enough to hold any box
       return 0;
     }
     size_t count = 0;
-    size_t offset = 28;
-    while (offset < payloadSize()){
+    size_t offset = getBoxOffset();
+    while (offset <= payloadSize() - 8){
       offset += getBoxLen(offset);
       count++;
     }
@@ -2889,7 +2908,7 @@ namespace MP4{
     static Box ret = Box((char *)"\000\000\000\010erro", false);
     if (index >= getBoxEntryCount()){return ret;}
     size_t count = 0;
-    size_t offset = 28;
+    size_t offset = getBoxOffset();
     while (offset < payloadSize()){
       if (count == index){return getBox(offset);}
       offset += getBoxLen(offset);
@@ -2904,7 +2923,7 @@ namespace MP4{
       WARN_MSG("This function can not leave empty spaces, appending at index %zu nstead!", index);
     }
     size_t count = 0;
-    size_t offset = 28;
+    size_t offset = getBoxOffset();
     while (offset < payloadSize()){
       if (count == index){
         setBox(box, offset);

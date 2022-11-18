@@ -714,6 +714,7 @@ namespace MP4{
     ///\todo set default values
     AudioSampleEntry();
     AudioSampleEntry(const DTSC::Meta &M, size_t idx);
+    uint16_t getVersion() const;
     void initialize();
     void setCodec(const char *newCodec);
     void setChannelCount(uint16_t newChannelCount);
@@ -725,6 +726,7 @@ namespace MP4{
     void setSampleRate(uint32_t newSampleRate);
     uint16_t toAACInit();
     uint32_t getSampleRate();
+    size_t getBoxOffset() const;
     void setCodecBox(Box &newBox);
     Box &getCodecBox();
     Box &getSINFBox(); /*LTS*/

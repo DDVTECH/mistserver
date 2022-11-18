@@ -73,7 +73,7 @@ class delimiterParser{
   delimiterParser(){};
   delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
   std::string next();
-  int nextInt(int base);
+  int nextInt();
   double nextDouble();
 };
 

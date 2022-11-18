@@ -48,6 +48,14 @@ std::string const CURRRAMKEY = "currram";
 std::string const RAMMAXKEY = "ramMax";
 std::string const BINHOSTKEY = "binhost";
 std::string const BALANCEKEY = "balance";
+std::string const ADDUSERKEY = "auser";
+std::string const ADDPASSKEY = "apass";
+std::string const ADDSALTKEY = "asalt";
+std::string const ADDWHITELISTKEY = "awhitelist";
+std::string const RUSERKEY = "ruser";
+std::string const RPASSKEY = "rpass";
+std::string const RSALTKEY = "rsalt";
+std::string const RWHITELISTKEY = "rwhitelist";
 
 //balancing transmision json names
 std::string const MINSTANDBYKEY = "minstandby";
@@ -639,7 +647,6 @@ std::string hostDetails::getUrl(std::string &s, std::string &proto) const{
   if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
   tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
   if(!outputs.count(proto)){return "";}
-  outUrl o;
   const outUrl o = outputs.at(proto);
   return o.pre + s + o.post;
 }
@@ -1331,8 +1338,8 @@ double delimiterParser::nextDouble(){
 /**
  * \return s until first \param delimiter or end of string as an Int
 */
-int delimiterParser::nextInt(int base = 10) {
-  return atoi(this->next().c_str(), base);
+int delimiterParser::nextInt() {
+  return atoi(this->next().c_str());
 }
 
 /**
@@ -1827,7 +1834,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           api = path.next();
           // add bearer token
           if (!api.compare("bearer")){
-            bearerTokens.insert(path.next());
+            std::string bearer = path.next();
+            bearerTokens.insert(bearer);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
@@ -1843,13 +1851,21 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           else if (!api.compare("user")){
             std::string userName = path.next();
             std::string salt = generateSalt();
-            userAuth[userName] = std::pair<std::string, std::string>(Secure::sha256(path.next()+salt), salt);
+            std::string password = Secure::sha256(path.next()+salt);
+            userAuth[userName] = std::pair<std::string, std::string>(password, salt);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            JSON::Value j;
+            j[ADDUSERKEY] = userName;
+            j[ADDPASSKEY] = password;
+            j[ADDSALTKEY] = salt;
+            for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+              (*it)->send(j.asString());
+            }
             lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
@@ -1858,6 +1874,11 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           // add whitelist policy
           else if (!api.compare("whitelist")){
             whitelist.insert(H.body);
+            JSON::Value j;
+            j[ADDWHITELISTKEY] = H.body;
+            for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+              (*it)->send(j.asString());
+            }
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
@@ -2115,13 +2136,19 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
           // del user acount
           else if (!api.compare("user")){
-            userAuth.erase(path.next());
+            std::string userName = path.next();
+            userAuth.erase(userName);
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
             H.SetBody("OK");
             H.setCORSHeaders();
             H.SendResponse("200", "OK", conn);
             H.Clean();
+            JSON::Value j;
+            j[RUSERKEY] = userName;
+            for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+              (*it)->send(j.asString());
+            }
             lastPromethNode.numSuccessRequests++;
             //start save timer
             time(&prevConfigChange);
@@ -2135,6 +2162,12 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
                 whitelist.erase(it);
                 it = whitelist.begin();
               }else it++;
+            }
+            
+            JSON::Value j;
+            j[RUSERKEY] =H.body;
+            for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+              (*it)->send(j.asString());
             }
             H.Clean();
             H.SetHeader("Content-Type", "text/plain");
@@ -2328,7 +2361,25 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       while(!newVals[STANDBYKEY].asString().compare((*it)->name) && it != hosts.end()) it++;
       if(it != hosts.end()) removeStandBy(*it);
       lastPromethNode.numLBSuccessRequests++;
-    }else{
+    }else if(newVals.isMember(ADDWHITELISTKEY)){
+      whitelist.insert(newVals[ADDWHITELISTKEY].asString());
+      lastPromethNode.numLBSuccessRequests++;
+    }else if(newVals.isMember(ADDPASSKEY) && newVals.isMember(ADDUSERKEY) && newVals.isMember(ADDSALTKEY)){
+      userAuth[newVals[ADDUSERKEY].asString()] = std::pair<std::string, std::string>(newVals[ADDPASSKEY].asString(), newVals[ADDSALTKEY].asString());
+      lastPromethNode.numLBSuccessRequests++;
+    }else if(newVals.isMember(RWHITELISTKEY)){
+      std::set<std::string>::iterator it = whitelist.begin();
+      while(it != whitelist.end()){
+        if(!(*it).compare(newVals[RWHITELISTKEY].asString())){
+          whitelist.erase(it);
+          it = whitelist.begin();
+        }else it++;
+      }
+      lastPromethNode.numLBSuccessRequests++;
+    }else if(newVals.isMember(RUSERKEY)){
+      userAuth.erase(newVals[RUSERKEY].asString());
+      lastPromethNode.numLBSuccessRequests++;
+    }else {
       lastPromethNode.numLBIllegalRequests++;
     }
   }else{
@@ -2989,7 +3040,7 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
         }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
@@ -3007,7 +3058,7 @@ void API::reconnectLB(void* p) {
         conn.close();
         WARN_MSG("load balancer already connected");
         int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
         }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
@@ -3026,7 +3077,7 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
         }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
@@ -3041,7 +3092,7 @@ void API::reconnectLB(void* p) {
       //unautherized
       WARN_MSG("unautherised");
       int tmp = 0;
-      if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+      if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
         tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
       }
       lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
@@ -3055,7 +3106,7 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
         }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
@@ -3075,7 +3126,7 @@ void API::reconnectLB(void* p) {
       if(reset >= 20){
         WARN_MSG("auth failed: connection timeout");
         int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(*addLoadBalancer)){
+        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
           tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
         }
         lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));

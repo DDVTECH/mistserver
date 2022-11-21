@@ -1567,24 +1567,12 @@ void configFromString(std::string s){
   
   userAuth = convertJsonToMapPair(j[CONFIGUSERS]);
 
-  //serverlist 
-  //remove monitored servers
-  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-    api.delServer((*it)->name, true);
-  }
   //add new servers
   for(int i = 0; i < j[CONFIGSERVERS].size(); i++){
     std::string ret;
     api.addServer(ret,j[CONFIGSERVERS][i], true);
   }
-  //remove load balancers
-  std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
-  while(loadBalancers.size()){
-    (*it)->send("close");
-    (*it)->Go_Down = true;
-    loadBalancers.erase(it);
-    it = loadBalancers.begin(); 
-  }
+  
   //add new load balancers
   jsonForEach(j[CONFIGLOADBALANCER],i){
     if(!(*i).asString().compare(myName)) continue;
@@ -1613,6 +1601,19 @@ void loadFile(bool RESEND = false){
   if(file.is_open()){
     while(getline(file,line)){
       data.append(line);
+    }
+
+      //remove monitored servers
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      api.delServer((*it)->name, true);
+    }
+    //remove load balancers
+    std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
+    while(loadBalancers.size()){
+      (*it)->send("close");
+      (*it)->Go_Down = true;
+      loadBalancers.erase(it);
+      it = loadBalancers.begin(); 
     }
     configFromString(data);  
   

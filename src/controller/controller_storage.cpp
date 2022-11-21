@@ -378,6 +378,40 @@ namespace Controller{
     }
   }
 
+  void writeServices(){
+    static JSON::Value services_written;
+    std::set<std::string> skip;
+    skip.insert("online");
+    skip.insert("error");
+    if (Storage["config"]["services"].compareExcept(services_written, skip)){return;}
+    services_written.assignFrom(Storage["config"]["services"], skip);
+    std::string temp = services_written.toPacked();
+    static IPC::sharedPage mistProtoOut(SHM_SERVICES, temp.size() + 100, false, false);
+    if (mistProtoOut){
+      Util::RelAccX tmpA(mistProtoOut.mapped, false);
+      if (tmpA.isReady()){tmpA.setReload();}
+      mistProtoOut.master = true;
+      mistProtoOut.close();
+    }
+    mistProtoOut.init(SHM_SERVICES, temp.size() + 100, true, false);
+    if (!mistProtoOut.mapped){
+      FAIL_MSG(
+          "Could not open protocol config for writing! Is shared memory enabled on your system?");
+      return;
+    }
+    // write config
+    {
+      Util::RelAccX A(mistProtoOut.mapped, false);
+      A.addField("dtsc_data", RAX_DTSC, temp.size());
+      // write config
+      memcpy(A.getPointer("dtsc_data"), temp.data(), temp.size());
+      A.setRCount(1);
+      A.setEndPos(1);
+      A.setReady();
+    }
+  }
+
+
   void writeStream(const std::string &sName, const JSON::Value &sConf){
     static std::map<std::string, JSON::Value> writtenStrms;
     static std::map<std::string, IPC::sharedPage> pages;

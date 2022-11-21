@@ -187,7 +187,6 @@ std::string identifier;
 std::set<std::string> identifiers;
 #define SALTSIZE 10
 
-
 //file save and loading vars
 std::string const fileloc  = "config.txt";
 tthread::thread* saveTimer;
@@ -296,32 +295,6 @@ static void timerAddViewer(void*){
 
 
 /**
- * \returns this object as a string
-*/
-JSON::Value streamDetails::stringify() const{
-  JSON::Value out;
-  out[STREAMDETAILSTOTAL] = total;
-  out[STREAMDETAILSINPUTS] = inputs;
-  out[STREAMDETAILSBANDWIDTH] = bandwidth;
-  out[STREAMDETAILSPREVTOTAL] = prevTotal;
-  out[STREAMDETAILSBYTESUP] = bytesUp;
-  out[STREAMDETAILSBYTESDOWN] = bytesDown;
-  return out;
-}
-/**
- * \returns \param j as a streamDetails object
-*/
-streamDetails* streamDetails::destringify(JSON::Value j){
-    streamDetails* out = new streamDetails();
-    out->total = j[STREAMDETAILSTOTAL].asInt();
-    out->inputs = j[STREAMDETAILSINPUTS].asInt();
-    out->bandwidth = j[STREAMDETAILSBANDWIDTH].asInt();
-    out->prevTotal = j[STREAMDETAILSPREVTOTAL].asInt();
-    out->bytesUp = j[STREAMDETAILSBYTESUP].asInt();
-    out->bytesDown = j[STREAMDETAILSBYTESDOWN].asInt();
-    return out;
-  }
-/**
  * construct an object to represent an other load balancer
 */
 LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident) : LoadMutex(0), ws(ws), name(name), ident(ident), Go_Down(false) {}
@@ -364,6 +337,33 @@ void LoadBalancer::send(std::string ret) const {
     }
 }
 
+
+/**
+ * \returns this object as a string
+*/
+JSON::Value streamDetails::stringify() const{
+  JSON::Value out;
+  out[STREAMDETAILSTOTAL] = total;
+  out[STREAMDETAILSINPUTS] = inputs;
+  out[STREAMDETAILSBANDWIDTH] = bandwidth;
+  out[STREAMDETAILSPREVTOTAL] = prevTotal;
+  out[STREAMDETAILSBYTESUP] = bytesUp;
+  out[STREAMDETAILSBYTESDOWN] = bytesDown;
+  return out;
+}
+/**
+ * \returns \param j as a streamDetails object
+*/
+streamDetails* streamDetails::destringify(JSON::Value j){
+    streamDetails* out = new streamDetails();
+    out->total = j[STREAMDETAILSTOTAL].asInt();
+    out->inputs = j[STREAMDETAILSINPUTS].asInt();
+    out->bandwidth = j[STREAMDETAILSBANDWIDTH].asInt();
+    out->prevTotal = j[STREAMDETAILSPREVTOTAL].asInt();
+    out->bytesUp = j[STREAMDETAILSBYTESUP].asInt();
+    out->bytesDown = j[STREAMDETAILSBYTESDOWN].asInt();
+    return out;
+  }
 
 outUrl::outUrl(){};
 outUrl::outUrl(const std::string &u, const std::string &host){
@@ -1614,6 +1614,7 @@ void loadFile(bool RESEND = false){
   }else WARN_MSG("cant load")
 }
 
+
 /**
  * allow connection threads to be made to call API::handleRequests
 */
@@ -2426,7 +2427,6 @@ void API::setStandBy(hostEntry* H, bool lock){
     (*it)->send(j.asString());
   }
 }
-
 /**
  * set balancing settings received through API
 */

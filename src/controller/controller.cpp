@@ -4,6 +4,7 @@
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
+#include "controller_services.h"
 #include "controller_push.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
@@ -73,6 +74,7 @@ void createAccount(std::string account){
 /// Will check outputs, inputs and converters every three seconds
 void statusMonitor(void *np){
   Controller::loadActiveConnectors();
+  Controller::loadActiveServices();
   while (Controller::conf.is_active){
     // this scope prevents the configMutex from being locked constantly
     {
@@ -83,13 +85,19 @@ void statusMonitor(void *np){
       }
       // checks stream statuses, reports changes to status
       Controller::CheckAllStreams(Controller::Storage["streams"]);
+      // checks online services, reports changes to status
+      if(Controller::CheckService(Controller::Storage["config"]["services"])){
+        Controller::writeServices();
+      }
     }
     Util::sleep(3000); // wait at least 3 seconds
   }
   if (Util::Config::is_restarting){
     Controller::prepareActiveConnectorsForReload();
+    Controller::prepareActiveServicesForReload();
   }else{
     Controller::prepareActiveConnectorsForShutdown();
+    Controller::prepareActiveServicesForShutdown();
   }
 }
 

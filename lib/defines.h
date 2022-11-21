@@ -229,6 +229,7 @@ static inline void show_stackframe(){}
 #define SEM_SESSCACHE "/MstSessCacheLock"
 #define SHM_CAPA "MstCapa"
 #define SHM_PROTO "MstProt"
+#define SHM_SERVICES "MstSrvs"
 #define SHM_PROXY "MstProx"
 #define SHM_STATE_LOGS "MstStateLogs"
 #define SHM_STATE_ACCS "MstStateAccs"

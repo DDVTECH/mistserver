@@ -41,5 +41,6 @@ namespace Controller{
   void writeStream(const std::string &sName, const JSON::Value &sConf);
   void writeCapabilities();
   void writeProtocols();
+  void writeServices();
 
 }// namespace Controller

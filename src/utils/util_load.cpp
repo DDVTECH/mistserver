@@ -296,7 +296,7 @@ static void timerAddViewer(void*){
 /**
  * construct an object to represent an other load balancer
 */
-LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident) : LoadMutex(0), ws(ws), name(name), ident(ident), Go_Down(false) {}
+LoadBalancer::LoadBalancer(HTTP::Websocket* ws, std::string name, std::string ident) : LoadMutex(0), ws(ws), name(name), ident(ident), state(true), Go_Down(false) {}
 LoadBalancer::~LoadBalancer(){
   if(LoadMutex){
     delete LoadMutex;
@@ -331,7 +331,7 @@ bool LoadBalancer::operator == (const std::string &other) const {return this->ge
  * send \param ret to the load balancer represented by this object
 */
 void LoadBalancer::send(std::string ret) const {
-    if(!Go_Down){//prevent sending when shuting down
+    if(!Go_Down && state){//prevent sending when shuting down
       ws->sendFrame(ret);
     }
 }
@@ -2226,6 +2226,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
   //check if this is a load balancer connection
   if(LB){
     if(!LB->Go_Down){//check if load balancer crashed
+      LB->state = false;
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
       int tmp = 0;
       if(lastPromethNode.numReconnectLB.count(LB->getName())){
@@ -3148,13 +3149,8 @@ void API::reconnectLB(void* p) {
     LoadBalancer* LB = new LoadBalancer(ws, addLoadBalancer, ident);
     loadBalancers.insert(LB);
     identifiers.insert(ident);
+    LB->state = true;
     
-    JSON::Value j;
-    j[RESEND] = false;
-    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-      j[ADDSERVER] = (*it)->name;
-      LB->send(j.asString());
-    }
 
     JSON::Value z;
     z[SENDCONFIG] = configToString();

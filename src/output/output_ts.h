@@ -31,7 +31,7 @@ namespace Mist{
     RTP::Packet tsOut;
 
   protected:
-    inline virtual bool keepGoing() { return config->is_active && (!listenMode(config) || myConn); }
+    inline virtual bool keepGoing() { return config->is_active && (myConn || (!listenMode(config) && pushOut)); }
   };
 }// namespace Mist
 

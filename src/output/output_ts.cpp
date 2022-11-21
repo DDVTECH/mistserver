@@ -69,32 +69,46 @@ namespace Mist{
           config->is_active = false;
           return;
         }
-      }
-      closeMyConn();
-      udpSize = 7;
-      if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
-      packetBuffer.allocate(188 * udpSize);
-      if (target.path.size()){
-        if (!pushSock.bind(0, target.path)){
-          disconnect();
-          streamName = "";
-          userSelect.clear();
-          config->is_active = false;
-          return;
+      } else {
+        myConn.close();
+        udpSize = 7;
+        if (targetParams.count("pkts")) { udpSize = atoi(targetParams["pkts"].c_str()); }
+        packetBuffer.allocate(188 * udpSize);
+        if (target.path.size()) {
+          if (!pushSock.bind(0, target.path)) {
+            disconnect();
+            streamName = "";
+            userSelect.clear();
+            config->is_active = false;
+            return;
+          }
         }
+        pushSock.SetDestination(target.host, target.getPort());
+        myConn.setHost(target.host);
+        pushing = false;
       }
-      pushSock.SetDestination(target.host, target.getPort());
-      myConn.setHost(target.host);
-      pushing = false;
-    }else{
-      //No push target? Check if this is a push input or pull output by waiting for data for 5s
-      setBlocking(false);
-      size_t ctr = 0;
-      while (++ctr <= 50 && !pushing){
-        Util::wait(100);
-        pushing = conn.spool() || conn.Received().size();
+    } else {
+      int64_t accTypes = config->getInteger("acceptable");
+      // No push target? Check if this is a push input or pull output by waiting for data for 5s
+      if (!accTypes) {
+        setBlocking(false);
+        size_t ctr = 0;
+        while (++ctr <= 50 && !pushing) {
+          Util::wait(100);
+          if (conn.spool() || conn.Received().size()) {
+            accTypes = 2;
+            INFO_MSG("Connection put into ingest mode");
+            break;
+          }
+        }
+        setBlocking(true);
       }
-      setBlocking(true);
+      // If not, assume they are receiving.
+      if (!accTypes) {
+        accTypes = 1;
+        INFO_MSG("Connection put into egress mode");
+      }
+      pushing = (accTypes == 2);
     }
 
     //set the correct mode depending on pushing yes/no
@@ -136,6 +150,21 @@ namespace Mist{
     capa["required"]["streamname"]["type"] = "str";
     capa["required"]["streamname"]["option"] = "--stream";
     capa["required"]["streamname"]["short"] = "s";
+
+    capa["optional"]["acceptable"]["name"] = "Acceptable connection types";
+    capa["optional"]["acceptable"]["help"] =
+      "Whether to allow only incoming pushes (2), only outgoing pulls (1), or both (0, default)";
+    capa["optional"]["acceptable"]["option"] = "--acceptable";
+    capa["optional"]["acceptable"]["short"] = "T";
+    capa["optional"]["acceptable"]["default"] = 0;
+    capa["optional"]["acceptable"]["type"] = "select";
+    capa["optional"]["acceptable"]["select"][0u][0u] = 0;
+    capa["optional"]["acceptable"]["select"][0u][1u] = "Allow both incoming and outgoing connections";
+    capa["optional"]["acceptable"]["select"][1u][0u] = 1;
+    capa["optional"]["acceptable"]["select"][1u][1u] = "Allow only outgoing connections";
+    capa["optional"]["acceptable"]["select"][2u][0u] = 2;
+    capa["optional"]["acceptable"]["select"][2u][1u] = "Allow only incoming connections";
+
     capa["codecs"][0u][0u].append("+HEVC");
     capa["codecs"][0u][0u].append("+H264");
     capa["codecs"][0u][0u].append("+MPEG2");
@@ -216,6 +245,8 @@ namespace Mist{
       packetBuffer.append(tsData, len);
       curFilled++;
     }else{
+      // If TCP socket is blocked, don't send anything until unblocked
+      if (myConn.sendingBlocked(1)) { return; }
       myConn.SendNow(tsData, len);
       if (!myConn){
         Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed by peer");
@@ -287,6 +318,10 @@ namespace Mist{
         size_t idx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
         if (idx == INVALID_TRACK_ID || !M.getCodec(idx).size()) {
           tsIn.initializeMetadata(meta, thisPacket.getTrackId());
+          idx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+        }
+        if (!userSelect.count(idx)) {
+          userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE);
         }
         bufferLivePacket(thisPacket);
       }

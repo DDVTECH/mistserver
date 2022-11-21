@@ -450,7 +450,7 @@ namespace Mist{
 
     ProcessSource(Socket::Connection & c, Util::Config & _cfg, JSON::Value & _capa) : Output(c, _cfg, _capa) {
       meta.ignorePid(getpid());
-      closeMyConn();
+      myConn.close();
 
       if (isVideo) {
         targetParams["audio"] = "none";

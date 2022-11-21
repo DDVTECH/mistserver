@@ -521,7 +521,7 @@ namespace Mist{
       outAddr = response.candidates;
       setupOutgoingMainSocket();
       noSignalling = true;
-      closeMyConn();
+      myConn.close();
       return;
     }
 
@@ -978,7 +978,7 @@ namespace Mist{
           H.StartResponse("201", "Created", req, myConn);
           H.Chunkify(sdpAnswer.toString(), myConn);
           H.Chunkify(0, 0, myConn);
-          closeMyConn();
+          myConn.close();
           return;
         }else{
           H.setCORSHeaders();

@@ -1625,15 +1625,6 @@ namespace Mist{
     return false;
   }
 
-  /// Closes myConn and also removes it from the event loop
-  void Output::closeMyConn(){
-    if (!myConn){return;}
-    int sock = myConn.getSocket();
-    evLp.remove(sock);
-    if (sock == 1){evLp.remove(0);}
-    myConn.close();
-  }
-
   /// \triggers
   /// The `"CONN_OPEN"` trigger is stream-specific, and is ran when a connection is made or passed to a new handler. Its payload is:
   /// ~~~~~~~~~~~~~~~
@@ -1889,30 +1880,15 @@ namespace Mist{
     /*LTS-END*/
     DONTEVEN_MSG("MistOut client handler started");
     evLp.setup();
-    int mainSock = -1;
-    int addiSock = -1;
-    if (!isRecordingToFile && myConn){
-      mainSock = myConn.getSocket();
-      evLp.addSocket(1, mainSock);
-      if (mainSock == 1 && !Socket::checkTrueSocket(mainSock)) {
-        addiSock = 0;
-        evLp.addSocket(1, addiSock);
-      }
+    if (!isRecordingToFile && myConn) {
+      evLp.addSocket(1, myConn);
+      evLp.addSendSocket(myConn);
+      myConn.onClose([&](int fd) { evLp.remove(fd); });
     }
     maxWait = 2000;
     size_t suggestedWait = 0;
     if (keepGoing() && wantRequest && myConn.Received().size()) {
       requestHandler(false);
-      if (mainSock != -1 && !myConn) {
-        if (mainSock != -1) {
-          evLp.remove(mainSock);
-          mainSock = -1;
-        }
-        if (addiSock != -1) {
-          evLp.remove(addiSock);
-          addiSock = -1;
-        }
-      }
     }
 
     size_t prepFalse = 0;
@@ -1974,16 +1950,6 @@ namespace Mist{
       thisBootMs = Util::bootMS();
       stats();
       requestHandler((task == 1));
-      if (mainSock != -1 && !myConn) {
-        if (mainSock != -1) {
-          evLp.remove(mainSock);
-          mainSock = -1;
-        }
-        if (addiSock != -1) {
-          evLp.remove(addiSock);
-          addiSock = -1;
-        }
-      }
       //if (task == std::string::npos){} // Continue signal received; no special handling needed
       if (parseData && (!realTime || !nTime || nTime <= targetTime())) {
         if (!isInitialized){

@@ -31,6 +31,7 @@ namespace Event {
       void addSendSocket(int sock, std::function<void(void *)> cb, std::function<bool(void *)> checker, void *userPtr);
       void addSendSocket(const Socket::Connection & S, std::function<void(void *)> cb,
                          std::function<bool(void *)> checker, void *userPtr);
+      void addSendSocket(Socket::Connection & S);
       void addSendQueue(Socket::UDPConnection *udpSock);
       size_t addInterval(std::function<size_t()> cb, size_t millis);
       void onChildSig(std::function<size_t()> cb);

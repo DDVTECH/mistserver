@@ -116,7 +116,6 @@ namespace Mist{
     virtual bool inlineRestartCapable() const{
       return false;
     }///< True if the output is capable of restarting mid-stream. This is used for swapping recording files
-    void closeMyConn();
     bool pushing;
     std::map<std::string, std::string> targetParams; /*LTS*/
     std::string UA;                                  ///< User Agent string, if known.

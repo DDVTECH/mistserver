@@ -266,6 +266,11 @@ namespace Event{
     addSendSocket(S.getSocket(), cb, checker, userPtr);
   }
 
+  void Loop::addSendSocket(Socket::Connection & S) {
+    addSendSocket(S.getSocket(), [](void *c) { ((Socket::Connection *)c)->send(0, 0); },
+                  [](void *c) { return (bool)((Socket::Connection *)c)->sendingBlocked(1); }, &S);
+  }
+
   void Loop::addSendQueue(Socket::UDPConnection * udpSock){
     if (!udpSock){return;}
     sendQueues.insert(udpSock);

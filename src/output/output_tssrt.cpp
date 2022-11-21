@@ -104,7 +104,7 @@ namespace Mist {
 
   OutTSSRT::OutTSSRT(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa, Socket::SRTConnection *_srtSock)
     : TSOutput(conn, _cfg, _capa) {
-    closeMyConn();
+    myConn.close();
     srtConn = _srtSock;
     // NOTE: conn is useless for SRT, as it uses a different socket type.
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)

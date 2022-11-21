@@ -79,7 +79,7 @@ namespace Mist{
 
   OutTSRIST::OutTSRIST(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
     : TSOutput(conn, _cfg, _capa) {
-    closeMyConn();
+    myConn.close();
     connTime = Util::bootSecs();
     lastTimeStamp = 0;
     timeStampOffset = 0;

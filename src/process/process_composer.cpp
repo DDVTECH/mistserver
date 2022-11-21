@@ -89,7 +89,7 @@ namespace Mist {
 
       ProcessSource(Socket::Connection & c, Util::Config & cfg, JSON::Value & capa) : Output(c, cfg, capa) {
         lastSelCheck = Util::bootMS();
-        closeMyConn();
+        myConn.close();
         targetParams["keeptimes"] = true;
         realTime = 0;
         wantRequest = true;

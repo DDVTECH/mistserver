@@ -250,7 +250,11 @@ namespace HLS{
   }
 
   void addTargetDuration(std::stringstream &result, const uint32_t targetDurationMax){
-    result << "#EXT-X-TARGETDURATION:" << targetDurationMax << "\r\n";
+    uint32_t dur = targetDurationMax;
+    if (dur <= 0) {
+      dur = 1;
+    }
+    result << "#EXT-X-TARGETDURATION:" << dur << "\r\n";
   }
 
   /// Appends result with encrytion / drm data

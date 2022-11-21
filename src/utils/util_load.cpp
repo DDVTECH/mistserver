@@ -2233,7 +2233,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         tmp = lastPromethNode.numReconnectLB.at(LB->getName());
       }
       lastPromethNode.numReconnectLB.insert(std::pair<std::string, int>(LB->getName(), tmp+1));
-      new tthread::thread(reconnectLB, (void*)&LB);
+      new tthread::thread(reconnectLB, (void*)LB);
     }else{//shutdown load balancer
       LB->Go_Down = true;
       loadBalancers.erase(LB);
@@ -3033,145 +3033,145 @@ void API::reconnectLB(void* p) {
   identifiers.erase(LB->getIdent());
   std::string addLoadBalancer = LB->getName();
 
-    Socket::Connection conn(addLoadBalancer.substr(0,addLoadBalancer.find(":")), atoi(addLoadBalancer.substr(addLoadBalancer.find(":")+1).c_str()), false, false);
-    
-    HTTP::URL url("ws://"+(addLoadBalancer));
-    HTTP::Websocket* ws = new HTTP::Websocket(conn, url);
-    
+  Socket::Connection conn(addLoadBalancer.substr(0,addLoadBalancer.find(":")), atoi(addLoadBalancer.substr(addLoadBalancer.find(":")+1).c_str()), false, false);
+  
+  HTTP::URL url("ws://"+(addLoadBalancer));
+  HTTP::Websocket* ws = new HTTP::Websocket(conn, url);
+  
 
-    ws->sendFrame("ident");
+  ws->sendFrame("ident");
 
-    //check responce
-    int reset = 0;
-    while(!ws->readFrame()){
-      reset++;
-      if(reset >= 20){
-        WARN_MSG("auth failed: connection timeout");
-        int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
-          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-        reconnectLB(p);
-        return;
-      }
-      sleep(1);
-    }
-
-    std::string ident(ws->data, ws->data.size());
-
-    for (std::set<std::string>::iterator i = identifiers.begin(); i != identifiers.end(); i++){
-      if(!(*i).compare(ident)){
-        ws->sendFrame("noAuth");
-        conn.close();
-        WARN_MSG("load balancer already connected");
-        int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
-          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-        return;
-      }
-    }
-
-    //send challenge
-    std::string salt = generateSalt();
-    ws->sendFrame("auth:" + salt);
-
-    //check responce
-    reset = 0;
-    while(!ws->readFrame()){
-      reset++;
-      if(reset >= 20){
-        WARN_MSG("auth failed: connection timeout");
-        int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
-          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-        reconnectLB(p);
-        return;
-      }
-      sleep(1);
-    }
-    std::string result(ws->data, ws->data.size());
-    
-    if(Secure::sha256(passHash+salt).compare(result)){
-      //unautherized
-      WARN_MSG("unautherised");
+  //check responce
+  int reset = 0;
+  while(!ws->readFrame()){
+    reset++;
+    if(reset >= 20){
+      WARN_MSG("auth failed: connection timeout");
       int tmp = 0;
       if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
         tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
       }
       lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-      ws->sendFrame("noAuth");
+      reconnectLB(p);
       return;
     }
-    //send response to challenge
-    reset = 0;
-    while(!ws->readFrame()){
-      reset++;
-      if(reset >= 20){
-        WARN_MSG("auth failed: connection timeout");
-        int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
-          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-        reconnectLB(p);
-        return;
-      }
-      sleep(1);
-    }
-    std::string auth(ws->data, ws->data.size());
-    std::string pass = Secure::sha256(passHash+auth);
+    sleep(1);
+  }
 
-    ws->sendFrame("salt:"+auth+";"+pass+" "+myName);
+  std::string ident(ws->data, ws->data.size());
 
-    reset = 0;
-    while(!ws->readFrame()){
-      reset++;
-      if(reset >= 20){
-        WARN_MSG("auth failed: connection timeout");
-        int tmp = 0;
-        if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
-          tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
-        }
-        lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-        reconnectLB(p);
-        return;
-      }
-      sleep(1);
-    }
-    std::string check(ws->data, ws->data.size());
-    if(check == "OK"){
-      INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer.c_str());
-      LoadBalancer* LB = new LoadBalancer(ws, addLoadBalancer, ident);
-      loadBalancers.insert(LB);
-      identifiers.insert(ident);
-      
-      JSON::Value j;
-      j[RESEND] = false;
-      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-        j[ADDSERVER] = (*it)->name;
-        LB->send(j.asString());
-      }
-
-      JSON::Value z;
-      z[SENDCONFIG] = configToString();
-      LB->send(z.asString());
-
+  for (std::set<std::string>::iterator i = identifiers.begin(); i != identifiers.end(); i++){
+    if(!(*i).compare(ident)){
+      ws->sendFrame("noAuth");
+      conn.close();
+      WARN_MSG("load balancer already connected");
       int tmp = 0;
-      if(lastPromethNode.numSuccessConnectLB.count(LB->getName())){
-        tmp = lastPromethNode.numSuccessConnectLB.at(LB->getName());
+      if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
+        tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
       }
-      lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
-      //start monitoring
-      handleRequests(conn,ws,LB); 
-    }else {
-      reconnectLB(p);
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+      return;
     }
+  }
+
+  //send challenge
+  std::string salt = generateSalt();
+  ws->sendFrame("auth:" + salt);
+
+  //check responce
+  reset = 0;
+  while(!ws->readFrame()){
+    reset++;
+    if(reset >= 20){
+      WARN_MSG("auth failed: connection timeout");
+      int tmp = 0;
+      if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
+        tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+      }
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+      reconnectLB(p);
+      return;
+    }
+    sleep(1);
+  }
+  std::string result(ws->data, ws->data.size());
+  
+  if(Secure::sha256(passHash+salt).compare(result)){
+    //unautherized
+    WARN_MSG("unautherised");
+    int tmp = 0;
+    if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
+      tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+    }
+    lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+    ws->sendFrame("noAuth");
     return;
+  }
+  //send response to challenge
+  reset = 0;
+  while(!ws->readFrame()){
+    reset++;
+    if(reset >= 20){
+      WARN_MSG("auth failed: connection timeout");
+      int tmp = 0;
+      if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
+        tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+      }
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+      reconnectLB(p);
+      return;
+    }
+    sleep(1);
+  }
+  std::string auth(ws->data, ws->data.size());
+  std::string pass = Secure::sha256(passHash+auth);
+
+  ws->sendFrame("salt:"+auth+";"+pass+" "+myName);
+
+  reset = 0;
+  while(!ws->readFrame()){
+    reset++;
+    if(reset >= 20){
+      WARN_MSG("auth failed: connection timeout");
+      int tmp = 0;
+      if(lastPromethNode.numFailedConnectLB.count(addLoadBalancer)){
+        tmp = lastPromethNode.numFailedConnectLB.at(LB->getName());
+      }
+      lastPromethNode.numFailedConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+      reconnectLB(p);
+      return;
+    }
+    sleep(1);
+  }
+  std::string check(ws->data, ws->data.size());
+  if(check == "OK"){
+    INFO_MSG("Successful authentication of load balancer %s",addLoadBalancer.c_str());
+    LoadBalancer* LB = new LoadBalancer(ws, addLoadBalancer, ident);
+    loadBalancers.insert(LB);
+    identifiers.insert(ident);
+    
+    JSON::Value j;
+    j[RESEND] = false;
+    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
+      j[ADDSERVER] = (*it)->name;
+      LB->send(j.asString());
+    }
+
+    JSON::Value z;
+    z[SENDCONFIG] = configToString();
+    LB->send(z.asString());
+
+    int tmp = 0;
+    if(lastPromethNode.numSuccessConnectLB.count(LB->getName())){
+      tmp = lastPromethNode.numSuccessConnectLB.at(LB->getName());
+    }
+    lastPromethNode.numSuccessConnectLB.insert(std::pair<std::string, int>(LB->getName(),tmp+1));
+    //start monitoring
+    handleRequests(conn,ws,LB); 
+  }else {
+    reconnectLB(p);
+  }
+  return;
 }
 /**
   * returns load balancer list

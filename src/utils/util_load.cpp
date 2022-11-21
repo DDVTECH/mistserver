@@ -331,7 +331,7 @@ bool LoadBalancer::operator == (const std::string &other) const {return this->ge
  * send \param ret to the load balancer represented by this object
 */
 void LoadBalancer::send(std::string ret) const {
-    if(!Go_Down && state){//prevent sending when shuting down
+    if(!Go_Down){//prevent sending when shuting down
       ws->sendFrame(ret);
     }
 }
@@ -2227,7 +2227,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
   if(LB){
     if(!LB->Go_Down){//check if load balancer crashed
       WARN_MSG("restarting connection of load balancer: %s", LB->getName().c_str());
-      LB->state = false;
       int tmp = 0;
       if(lastPromethNode.numReconnectLB.count(LB->getName())){
         tmp = lastPromethNode.numReconnectLB.at(LB->getName());

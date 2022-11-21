@@ -1,6 +1,7 @@
 #include "controller_api.h"
 #include "controller_capabilities.h"
 #include "controller_connectors.h"
+#include "controller_services.h"
 #include "controller_statistics.h"
 #include "controller_storage.h"
 #include "controller_streams.h"
@@ -484,6 +485,30 @@ static void removeDuplicateProtocols(){
   }
 }
 
+/// Local-only helper function that checks for duplicate services and removes them
+static void removeDuplicateServices(){
+  JSON::Value &P = Controller::Storage["config"]["services"];
+  jsonForEach(P, it){it->removeNullMembers();}
+  std::set<std::string> ignores;
+  ignores.insert("online");
+  bool reloop = true;
+  while (reloop){
+    reloop = false;
+    jsonForEach(P, it){
+      jsonForEach(P, jt){
+        if (it.num() == jt.num()){continue;}
+        if ((*it).compareExcept(*jt, ignores)){
+          jt.remove();
+          reloop = true;
+          break;
+        }
+      }
+      if (reloop){break;}
+    }
+  }
+}
+
+
 /// Helper function for nuke_stream and related calls
 static void nukeStream(const std::string & strm){
   std::deque<std::string> command;
@@ -740,6 +765,60 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
         }
       }
       removeDuplicateProtocols();
+    }else{
+      FAIL_MSG("Cannot parse updateprotocol call: needs to be in the form [A, B]");
+    }
+  }
+  if (Request.isMember("addservice")){
+    if (Request["addservice"].isArray()){
+      jsonForEach(Request["addservice"], it){
+        Controller::Storage["config"]["service"].append(*it);
+      }
+    }
+    if (Request["addservice"].isObject()){
+      Controller::Storage["config"]["services"].append(Request["addservice"]);
+    }
+    removeDuplicateServices();
+  }
+  if (Request.isMember("deleteservice")){
+    std::set<std::string> ignores;
+    ignores.insert("online");
+    if (Request["deleteservice"].isArray() && Request["deleteservice"].size()){
+      JSON::Value newServices;
+      jsonForEach(Controller::Storage["config"]["services"], it){
+        bool add = true;
+        jsonForEach(Request["deleteservice"], pit){
+          if ((*it).compareExcept(*pit, ignores)){
+            add = false;
+            break;
+          }
+        }
+        if (add){newServices.append(*it);}
+      }
+      Controller::Storage["config"]["vs"] = newServices;
+    }
+    if (Request["deleteservice"].isObject()){
+      JSON::Value newServices;
+      jsonForEach(Controller::Storage["config"]["services"], it){
+        if (!(*it).compareExcept(Request["deleteservice"], ignores)){newServices.append(*it);}
+      }
+      Controller::Storage["config"]["services"] = newServices;
+    }
+  }
+  if (Request.isMember("updateservice")){
+    std::set<std::string> ignores;
+    ignores.insert("online");
+    if (Request["updateservice"].isArray() && Request["updateservice"].size() == 2){
+      jsonForEach(Controller::Storage["config"]["services"], it){
+        if ((*it).compareExcept(Request["updateservice"][0u], ignores)){
+          // If the connector type didn't change, mark it as needing a reload
+          if ((*it)["connector"] == Request["updateservice"][1u]["connector"]){
+            reloadService(it.num());
+          }
+          (*it) = Request["updateservice"][1u];
+        }
+      }
+      removeDuplicateServices();
     }else{
       FAIL_MSG("Cannot parse updateprotocol call: needs to be in the form [A, B]");
     }

@@ -77,8 +77,7 @@ std::string const STANDBYKEY = "standby";
 std::string const REMOVESTANDBYKEY = "removestandby";
 std::string const LOCKKEY = "lock";
 
-
-//const api names set multiple times
+//const websocket api names set multiple times
 std::string const ADDLOADBALANCER = "addloadbalancer";
 std::string const REMOVELOADBALANCER = "removeloadbalancer";
 std::string const RESEND = "resend";
@@ -89,7 +88,7 @@ std::string const ADDVIEWER = "addviewer";
 std::string const HOST = "host";
 std::string const ADDSERVER = "addserver";
 std::string const REMOVESERVER = "removeServer";
-std::string const GETSERVERS = "getservers";
+std::string const SENDCONFIG = "configExchange";
 
 //config file names
 std::string const CONFIGFALLBACK = "fallback";
@@ -1421,6 +1420,57 @@ void checkServerMonitors(){
     }
 }
 
+
+/**
+ * \returns the config as a string
+*/
+std::string configToString(){
+  JSON::Value j;
+  j[CONFIGFALLBACK] = fallback;
+  j[CONFIGC] = weight_cpu;
+  j[CONFIGR] = weight_ram;
+  j[CONFIGBW] = weight_bw;
+  j[CONFIGWG] = weight_geo;
+  j[CONFIGWB] = weight_bonus;
+  j[CONFIGPASS] = passHash;
+  j[CONFIGSPASS] = passphrase;
+  j[CONFIGWHITELIST] = convertSetToJson(whitelist);
+  j[CONFIGBEARER] = convertSetToJson(bearerTokens);
+  j[CONFIGUSERS] = convertMapToJson(userAuth);
+
+  //balancing
+  j[CONFIGMINSTANDBY] = MINSTANDBY;
+  j[CONFIGMAXSTANDBY] = MAXSTANDBY;
+  j[CONFIGCAPPACITYTRIGGERCPUDEC] =  CAPPACITYTRIGGERCPUDEC; 
+  j[CONFIGCAPPACITYTRIGGERBWDEC] = CAPPACITYTRIGGERBWDEC; 
+  j[CONFIGCAPPACITYTRIGGERRAMDEC] = CAPPACITYTRIGGERRAMDEC; 
+  j[CONFIGCAPPACITYTRIGGERCPU] = CAPPACITYTRIGGERCPU; 
+  j[CONFIGCAPPACITYTRIGGERBW] = CAPPACITYTRIGGERBW;  
+  j[CONFIGCAPPACITYTRIGGERRAM] = CAPPACITYTRIGGERRAM; 
+  j[CONFIGHIGHCAPPACITYTRIGGERCPU] = HIGHCAPPACITYTRIGGERCPU; 
+  j[CONFIGHIGHCAPPACITYTRIGGERBW] = HIGHCAPPACITYTRIGGERBW;  
+  j[CONFIGHIGHCAPPACITYTRIGGERRAM] = HIGHCAPPACITYTRIGGERRAM; 
+  j[CONFIGLOWCAPPACITYTRIGGERCPU] = LOWCAPPACITYTRIGGERCPU; 
+  j[CONFIGLOWCAPPACITYTRIGGERBW] = LOWCAPPACITYTRIGGERBW;  
+  j[CONFIGLOWCAPPACITYTRIGGERRAM] = LOWCAPPACITYTRIGGERRAM; 
+  j[CONFIGBALANCINGINTERVAL] = BALANCINGINTERVAL;
+  //serverlist 
+  std::set<std::string> servers;
+  for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if((*it)->thread != 0){
+      servers.insert((*it)->name);
+    }
+  }
+  j[CONFIGSERVERS] = convertSetToJson(servers);
+  //loadbalancer list
+  std::set<std::string> lb;
+  lb.insert(myName);
+  for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+    lb.insert((*it)->getName());
+  }
+  j[CONFIGLOADBALANCER] = convertSetToJson(lb);
+  return j.asString();
+}
 /**
  * save config vars to config file
  * \param RESEND allows for command to be sent to other load balacners
@@ -1439,53 +1489,8 @@ void saveFile(bool RESEND = false){
   
 
   if(file.is_open()){
-    JSON::Value j;
-    j[CONFIGFALLBACK] = fallback;
-    j[CONFIGC] = weight_cpu;
-    j[CONFIGR] = weight_ram;
-    j[CONFIGBW] = weight_bw;
-    j[CONFIGWG] = weight_geo;
-    j[CONFIGWB] = weight_bonus;
-    j[CONFIGPASS] = passHash;
-    j[CONFIGSPASS] = passphrase;
-    j[CONFIGWHITELIST] = convertSetToJson(whitelist);
-    j[CONFIGBEARER] = convertSetToJson(bearerTokens);
-    j[CONFIGUSERS] = convertMapToJson(userAuth);
 
-    //balancing
-    j[CONFIGMINSTANDBY] = MINSTANDBY;
-    j[CONFIGMAXSTANDBY] = MAXSTANDBY;
-    j[CONFIGCAPPACITYTRIGGERCPUDEC] =  CAPPACITYTRIGGERCPUDEC; 
-    j[CONFIGCAPPACITYTRIGGERBWDEC] = CAPPACITYTRIGGERBWDEC; 
-    j[CONFIGCAPPACITYTRIGGERRAMDEC] = CAPPACITYTRIGGERRAMDEC; 
-    j[CONFIGCAPPACITYTRIGGERCPU] = CAPPACITYTRIGGERCPU; 
-    j[CONFIGCAPPACITYTRIGGERBW] = CAPPACITYTRIGGERBW;  
-    j[CONFIGCAPPACITYTRIGGERRAM] = CAPPACITYTRIGGERRAM; 
-    j[CONFIGHIGHCAPPACITYTRIGGERCPU] = HIGHCAPPACITYTRIGGERCPU; 
-    j[CONFIGHIGHCAPPACITYTRIGGERBW] = HIGHCAPPACITYTRIGGERBW;  
-    j[CONFIGHIGHCAPPACITYTRIGGERRAM] = HIGHCAPPACITYTRIGGERRAM; 
-    j[CONFIGLOWCAPPACITYTRIGGERCPU] = LOWCAPPACITYTRIGGERCPU; 
-    j[CONFIGLOWCAPPACITYTRIGGERBW] = LOWCAPPACITYTRIGGERBW;  
-    j[CONFIGLOWCAPPACITYTRIGGERRAM] = LOWCAPPACITYTRIGGERRAM; 
-    j[CONFIGBALANCINGINTERVAL] = BALANCINGINTERVAL;
-    //serverlist 
-    std::set<std::string> servers;
-    for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if((*it)->thread != 0){
-        servers.insert((*it)->name);
-      }
-    }
-    j[CONFIGSERVERS] = convertSetToJson(servers);
-    //loadbalancer list
-    std::set<std::string> lb;
-    lb.insert(myName);
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-      lb.insert((*it)->getName());
-    }
-    j[CONFIGLOADBALANCER] = convertSetToJson(lb);
-
-
-    file << j.asString().c_str();
+    file << configToString().c_str();
     file.flush();
     file.close();
     time(&prevSaveTime);
@@ -1518,33 +1523,11 @@ static void saveTimeCheck(void*){
   saveTimer = 0;
 }
 /**
- * load config vars from config file 
- * \param RESEND allows for command to be sent sent to other load balancers
+ * loads the config from a string
 */
-void loadFile(bool RESEND = false){
-  //send command to other load balancers
-  if(RESEND){
-    JSON::Value j;
-    j[LOADKEY] = true;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
-      (*it)->send(j.asString());
-    }
-  }
-  
-  tthread::lock_guard<tthread::mutex> guard(fileMutex);
-  std::ifstream file(fileloc.c_str());
-  std::string data;
-  std::string line;
-  //read file
-  if(file.is_open()){
-    while(getline(file,line)){
-      data.append(line);
-    }
-    
-  
-  
+void configFromString(std::string s){
   //change config vars
-  JSON::Value j = JSON::fromString(data);
+  JSON::Value j = JSON::fromString(s);
   fallback = j[CONFIGFALLBACK].asString();
   weight_cpu = j[CONFIGC].asInt();
   weight_ram = j[CONFIGR].asInt();
@@ -1607,13 +1590,38 @@ void loadFile(bool RESEND = false){
     if(!(*i).asString().compare(myName)) continue;
     new tthread::thread(api.addLB,(void*)&((*i).asStringRef()));
   }
+}
+/**
+ * load config vars from config file 
+ * \param RESEND allows for command to be sent sent to other load balancers
+*/
+void loadFile(bool RESEND = false){
+  //send command to other load balancers
+  if(RESEND){
+    JSON::Value j;
+    j[LOADKEY] = true;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      (*it)->send(j.asString());
+    }
+  }
+  
+  tthread::lock_guard<tthread::mutex> guard(fileMutex);
+  std::ifstream file(fileloc.c_str());
+  std::string data;
+  std::string line;
+  //read file
+  if(file.is_open()){
+    while(getline(file,line)){
+      data.append(line);
+    }
+    configFromString(data);  
+  
 
   file.close();
   INFO_MSG("loaded config");
   checkServerMonitors();
   }else WARN_MSG("cant load")
 }
-
 
 /**
  * allow connection threads to be made to call API::handleRequests
@@ -2319,13 +2327,8 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
     }else if(newVals.isMember(REMOVESERVER)){
       api.delServer(newVals[REMOVESERVER].asString(), false);
       lastPromethNode.numLBSuccessRequests++;
-    }else if(newVals.isMember(GETSERVERS)){
-      JSON::Value j;
-      j[RESEND] = false;
-      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-        j[ADDSERVER] = (*it)->name;
-        webSock->sendFrame(j.asString());
-      }
+    }else if(newVals.isMember(SENDCONFIG)){
+      configFromString(newVals[SENDCONFIG]);
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(ADDVIEWER)){
       //find host
@@ -2688,7 +2691,7 @@ JSON::Value API::setWeights(delimiterParser path){
     ret["geo"] = weight_geo;
     ret["bonus"] = weight_bonus;
 
-    if(changed && (!newVals.size() || atoi(newVals.c_str()) == 1)){
+    if(changed){
       JSON::Value j;
       j[WEIGHTS] = ret;
       j[RESEND] = false;
@@ -3002,7 +3005,7 @@ void API::addLB(void* p){
       }
       
       JSON::Value z;
-      z[GETSERVERS] = true;
+      z[SENDCONFIG] = configToString();
       LB->send(z.asString());
 
       //start save timer
@@ -3155,7 +3158,7 @@ void API::reconnectLB(void* p) {
       }
 
       JSON::Value z;
-      z[GETSERVERS] = true;
+      z[SENDCONFIG] = configToString();
       LB->send(z.asString());
 
       int tmp = 0;

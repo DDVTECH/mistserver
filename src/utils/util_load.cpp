@@ -2308,7 +2308,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
   else if(LB && !frame.substr(0, 1).compare("{")){
     JSON::Value newVals = JSON::fromString(frame);
     if(newVals.isMember(ADDLOADBALANCER)) {
-      new tthread::thread(api.addLB,(void*)&(newVals[ADDLOADBALANCER]));
+      new tthread::thread(api.addLB,(void*)&(newVals[ADDLOADBALANCER].asStringRef()));
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(REMOVELOADBALANCER)) {
       api.removeLB(newVals[REMOVELOADBALANCER], newVals[RESEND]);
@@ -3186,6 +3186,7 @@ std::string API::getLoadBalancerList(){
     out += "]";
     return out;
   }
+
 /**
    * return server data of a server
    */

@@ -1525,7 +1525,7 @@ static void saveTimeCheck(void*){
 /**
  * loads the config from a string
 */
-void configFromString(std::string s){
+void configFromString(std::string s){//TODO if this loads correctly
   //change config vars
   JSON::Value j = JSON::fromString(s);
   fallback = j[CONFIGFALLBACK].asString();
@@ -1576,7 +1576,11 @@ void configFromString(std::string s){
   //add new load balancers
   jsonForEach(j[CONFIGLOADBALANCER],i){
     if(!(*i).asString().compare(myName)) continue;
-    new tthread::thread(api.addLB,(void*)&((*i).asStringRef()));
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
+      if((*it)->getName().compare((*i).asString())){
+        new tthread::thread(api.addLB,(void*)&((*i).asStringRef()));
+      }
+    }
   }
 }
 /**

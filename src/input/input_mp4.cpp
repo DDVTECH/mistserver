@@ -409,9 +409,25 @@ namespace Mist{
         }else if (sType == "ec-3"){
           meta.setCodec(tNumber, "EAC3");
         }else{
-          MP4::ESDS esdsBox = (MP4::ESDS &)(aEntryBox.getCodecBox());
-          meta.setCodec(tNumber, esdsBox.getCodec());
-          meta.setInit(tNumber, esdsBox.getInitData());
+          MP4::Box codingBox = aEntryBox.getCodecBox();
+          INFO_MSG("%s box!", codingBox.getType().c_str());
+          if (codingBox.getType() == "esds"){
+            MP4::ESDS & esdsBox = (MP4::ESDS &)codingBox;
+            meta.setCodec(tNumber, esdsBox.getCodec());
+            meta.setInit(tNumber, esdsBox.getInitData());
+          }
+          if (codingBox.getType() == "wave"){
+            MP4::WAVE & waveBox = (MP4::WAVE &)codingBox;
+            for (size_t c = 0; c < waveBox.getContentCount(); ++c){
+              MP4::Box content = waveBox.getContent(c);
+              INFO_MSG("Wave content: %s", content.getType().c_str());
+              if (content.getType() == "esds"){
+                MP4::ESDS & esdsBox = (MP4::ESDS &)content;
+                meta.setCodec(tNumber, esdsBox.getCodec());
+                meta.setInit(tNumber, esdsBox.getInitData());
+              }
+            }
+          }
         }
         meta.setSize(tNumber, 16); ///\todo this might be nice to calculate from mp4 file;
       }

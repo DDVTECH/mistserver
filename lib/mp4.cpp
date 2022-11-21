@@ -238,6 +238,7 @@ namespace MP4{
     case 0x6D646961: return ((MDIA *)this)->toPrettyString(indent); break;
     case 0x6D696E66: return ((MINF *)this)->toPrettyString(indent); break;
     case 0x64696E66: return ((DINF *)this)->toPrettyString(indent); break;
+    case 0x77617665: return ((WAVE *)this)->toPrettyString(indent); break;
     case 0x6D66726F: return ((MFRO *)this)->toPrettyString(indent); break;
     case 0x68646C72: return ((HDLR *)this)->toPrettyString(indent); break;
     case 0x766D6864: return ((VMHD *)this)->toPrettyString(indent); break;

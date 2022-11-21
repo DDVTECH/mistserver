@@ -2997,12 +2997,6 @@ void API::addLB(void* p){
       loadBalancers.insert(LB);
       identifiers.insert(ident);
       
-      JSON::Value j;
-      j[RESEND] = false;
-      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); ++it){
-        j[ADDSERVER] = (*it)->name;
-        LB->send(j.asString());
-      }
       
       JSON::Value z;
       z[SENDCONFIG] = configToString();

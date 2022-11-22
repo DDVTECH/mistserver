@@ -85,6 +85,12 @@ namespace Mist{
     option["value"].append(0u);
     option["help"] = "Generate .dtsh, then exit";
     config->addOption("headeronly", option);
+    option.null();
+    option["arg"] = "string";
+    option["short"] = "F";
+    option["long"] = "dtshOutputFile";
+    option["help"] = "The output path for the generated .dtsh if -H (--headerOnly) is selected";
+    config->addOption("dtshoutput", option);
 
     /*LTS-START*/
     /*
@@ -1525,6 +1531,13 @@ namespace Mist{
   }
 
   bool Input::readExistingHeader(){
+    const char *origTarget = getenv("MST_ORIG_TARGET");
+    if (!origTarget) {
+	    INFO_MSG("env MST_ORIG_TARGET not set - running MistIn* out-of-band");
+	    return false;
+    }
+    std::string segmentOutputTarget(origTarget);
+    std::string inUrl = config->getString("input");
     if (config->getBool("realtime")){
       meta.reInit("", config->getString("input") + ".dtsh");
       if (!meta){return false;}
@@ -1546,9 +1559,14 @@ namespace Mist{
         return true;
       }
     }
-    // Try to read any existing DTSH file
-    std::string fileName = config->getString("input") + ".dtsh";
-    HIGH_MSG("Refreshing metadata for stream '%s'. Trying to reinit from file '%s'", streamName.c_str(), fileName.c_str());
+    // Try to read any existing DTSH file - the location of the DTSH file
+    // will typically be in the path specified in the MST_ORIG_TARGET env variable
+    std::string inputFile = config->getString("input") + ".dtsh";
+    std::string srcFileName = inputFile.substr(inputFile.find_last_of("/")+1);
+    std::string srcFilePath = segmentOutputTarget.substr(0, segmentOutputTarget.find_last_of("/")+1);
+    std::string fileName = srcFilePath + srcFileName;
+    INFO_MSG("Refreshing metadata for stream '%s'. Trying to reinit from file '%s'", streamName.c_str(), fileName.c_str());
+
     char *scanBuf;
     size_t fileSize;
     HTTP::URIReader inFile(fileName);

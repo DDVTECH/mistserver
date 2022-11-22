@@ -137,7 +137,12 @@ namespace Mist{
       std::cerr << "Input from stdin not yet supported" << std::endl;
       return false;
     }
-    if (config->getBool("headeronly")){return true;}
+    std::string dtshOutUrl = config->getString("dtshoutput");
+    if (!config->getBool("headeronly") && !dtshOutUrl.empty() > 0){
+        return false;
+    } else if (config->getBool("headeronly")) {
+        return true;
+    }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
         std::cerr << "Output to stdout not yet supported" << std::endl;
@@ -468,13 +473,19 @@ namespace Mist{
     }
 
     std::string inUrl = config->getString("input");
+    std::string dtshOutUrl;
+    if (config->getBool("headeronly")) {
+      dtshOutUrl = config->getString("dtshoutput");
+    }
+    std::string outUrl = !dtshOutUrl.empty() ? dtshOutUrl : inUrl;
     // Export DTSH to file
     Socket::Connection outFile;
     int tmpFd = open("/dev/null", O_RDWR);
     outFile.open(tmpFd);
     Util::Procs::socketList.insert(tmpFd);
-    genericWriter(inUrl + ".dtsh", &outFile, false);
+    genericWriter(outUrl + ".dtsh", &outFile, false);
     if (outFile){M.send(outFile, false, M.getValidTracks(), false);}
+    Util::Procs::socketList.insert(tmpFd);
     bps = 0;
     std::set<size_t> tracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){bps += M.getBps(*it);}

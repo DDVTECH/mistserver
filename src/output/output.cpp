@@ -563,6 +563,7 @@ namespace Mist{
 
       stats(true);
       playbackSleep(50);
+      meta.reloadReplacedPagesIfNeeded();
       pageNum = pageNumForKey(trackId, keyNum);
     }
 

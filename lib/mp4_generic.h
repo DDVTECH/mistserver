@@ -470,8 +470,9 @@ namespace MP4{
     void setVolume(uint16_t newVolume);
     uint16_t getVolume();
     uint32_t getMatrixCount();
-    void setMatrix(int32_t newMatrix, size_t index);
-    int32_t getMatrix(size_t index);
+    void setMatrix(double newMatrix, size_t index);
+    double getMatrix(size_t index);
+    uint16_t getRotation();
     void setTrackID(uint32_t newTrackID);
     uint32_t getTrackID();
     std::string toPrettyString(uint32_t indent = 0);
@@ -529,6 +530,7 @@ namespace MP4{
     uint32_t getMatrixCount();
     void setMatrix(int32_t newMatrix, size_t index);
     int32_t getMatrix(size_t index);
+    uint16_t getRotation();
 
     void setWidth(double newWidth);
     double getWidth();

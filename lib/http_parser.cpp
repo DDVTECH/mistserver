@@ -581,7 +581,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
                 parseVars(url.substr(url.find('?') + 1), vars); // parse GET variables
                 url.erase(url.find('?'));
               }
-              url = Encodings::URL::decode(url);
+              url = Encodings::URL::decode(url, true);
             }else{
               seenReq = false;
             }
@@ -597,7 +597,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
                 parseVars(url.substr(url.find('?') + 1), vars); // parse GET variables
                 url.erase(url.find('?'));
               }
-              url = Encodings::URL::decode(url);
+              url = Encodings::URL::decode(url, true);
             }else{
               seenReq = false;
             }

@@ -119,7 +119,7 @@ namespace Encodings{
   }
 
   /// urldecodes std::string data, parsing out both %-encoded characters and +-encoded spaces.
-  std::string URL::decode(const std::string &in, bool literalPlus){
+  std::string URL::decode(const std::string &in){
     std::string out;
     for (unsigned int i = 0; i < in.length(); ++i){
       if (in[i] == '%'){
@@ -130,7 +130,7 @@ namespace Encodings{
         if (i < in.length()){tmp += Hex::ord(in[i]);}
         out += tmp;
       }else{
-        if (!literalPlus && in[i] == '+'){
+        if (in[i] == '+'){
           out += ' ';
         }else{
           out += in[i];

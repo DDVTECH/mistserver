@@ -38,7 +38,7 @@ HTTP::URL::URL(const std::string &url){
     if (protocol != "rtsp"){
       size_t hmark = path.find('#');
       if (hmark != std::string::npos){
-        frag = Encodings::URL::decode(path.substr(hmark + 1));
+        frag = Encodings::URL::decode(path.substr(hmark + 1), true);
         path.erase(hmark);
       }
       size_t qmark = path.find('?');
@@ -87,7 +87,7 @@ HTTP::URL::URL(const std::string &url){
           path.erase(prevslash + 1, path.length());
         }
       }
-      path = Encodings::URL::decode(path);
+      path = Encodings::URL::decode(path, true);
     }
   }
   // user, pass, host and port are now definitely between proto_sep and first_slash
@@ -99,10 +99,10 @@ HTTP::URL::URL(const std::string &url){
     uphp.erase(0, at_sign + 1);
     size_t colon = creds.find(':');
     if (colon != std::string::npos){
-      user = Encodings::URL::decode(creds.substr(0, colon));
-      pass = Encodings::URL::decode(creds.substr(colon + 1));
+      user = Encodings::URL::decode(creds.substr(0, colon), true);
+      pass = Encodings::URL::decode(creds.substr(colon + 1), true);
     }else{
-      user = Encodings::URL::decode(creds);
+      user = Encodings::URL::decode(creds, true);
     }
   }
   // we check for [ at the start because we may have an IPv6 address as host
@@ -195,12 +195,12 @@ std::string HTTP::URL::getUrl() const{
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
   if (protocol == "rtsp"){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&+");}
   }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+");}
   }
   if (args.size()){ret += "?" + args;}
-  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&");}
+  if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&+");}
   return ret;
 }
 

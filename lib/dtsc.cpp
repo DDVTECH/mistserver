@@ -3052,6 +3052,31 @@ namespace DTSC{
     return res;
   }
 
+  /// Returns the part timestamp for the given index.
+  /// Assumes the Packet is for the given track, and assumes the metadata and track data are not out
+  /// of sync. Works by looking up the packet's key's timestamp, then walking through the
+  /// parts adding up durations until we reach the part we want. Returns zero if the track
+  /// index is invalid or if the timestamp cannot be found.
+  uint64_t Meta::getPartTime(uint32_t partIndex, size_t idx) const{
+    if (idx == INVALID_TRACK_ID){return 0;}
+    DTSC::Keys Keys(keys(idx));
+    DTSC::Parts Parts(parts(idx));
+    size_t kId = 0;
+    for (kId = 0; kId < Keys.getEndValid(); ++kId){
+      size_t keyPartId = Keys.getFirstPart(kId);
+      if (keyPartId+Keys.getParts(kId) > partIndex){
+        //It's inside this key. Step through.
+        uint64_t res = Keys.getTime(kId);
+        while (keyPartId < partIndex){
+          res += Parts.getDuration(keyPartId);
+          ++keyPartId;
+        }
+        return res;
+      }
+    }
+    return 0;
+  }
+
   /// Given the current page, check if the next page is available. Returns true if it is.
   bool Meta::nextPageAvailable(uint32_t idx, size_t currentPage) const{
     const Util::RelAccX &pages = tracks.at(idx).pages;

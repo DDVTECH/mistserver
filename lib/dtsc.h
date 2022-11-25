@@ -445,6 +445,7 @@ namespace DTSC{
     uint32_t getKeyIndexForTime(uint32_t idx, uint64_t timestamp) const;
 
     uint32_t getPartIndex(uint64_t timestamp, size_t idx) const;
+    uint64_t getPartTime(uint32_t partIndex, size_t idx) const;
 
     bool nextPageAvailable(uint32_t idx, size_t currentPage) const;
     size_t getPageNumberForTime(uint32_t idx, uint64_t time) const;

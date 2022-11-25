@@ -60,8 +60,7 @@ namespace Mist{
     hasCTTS = cttsBox.isType("ctts");
   }
 
-  void mp4TrackHeader::getPart(uint64_t index, uint64_t &offset, uint32_t &size,
-                               uint64_t &timestamp, int32_t &timeOffset, uint64_t &duration){
+  void mp4TrackHeader::getPart(uint64_t index, uint64_t &offset){
     if (index < sampleIndex){
       sampleIndex = 0;
       stscStart = 0;
@@ -94,60 +93,7 @@ namespace Mist{
     offset = (stco64 ? co64Box.getChunkOffset(stcoPlace) : stcoBox.getChunkOffset(stcoPlace));
     for (int j = stszStart; j < index; j++){offset += stszBox.getEntrySize(j);}
 
-    if (index < deltaPos){
-      deltaIndex = 0;
-      deltaPos = 0;
-      deltaTotal = 0;
-    }
-
-    MP4::STTSEntry tmpSTTS;
-    uint64_t sttsCount = sttsBox.getEntryCount();
-    while (deltaIndex < sttsCount){
-      tmpSTTS = sttsBox.getSTTSEntry(deltaIndex);
-      if ((index - deltaPos) < tmpSTTS.sampleCount){break;}
-      deltaTotal += tmpSTTS.sampleCount * tmpSTTS.sampleDelta;
-      deltaPos += tmpSTTS.sampleCount;
-      ++deltaIndex;
-    }
-    timestamp = ((deltaTotal + ((index - deltaPos) * tmpSTTS.sampleDelta)) * 1000) / timeScale;
-    duration = 0;
-
-    {
-      uint64_t tmpIndex = deltaIndex;
-      uint64_t tmpPos = deltaPos;
-      uint64_t tmpTotal = deltaTotal;
-      while (tmpIndex < sttsCount){
-        tmpSTTS = sttsBox.getSTTSEntry(tmpIndex);
-        if ((index + 1 - tmpPos) < tmpSTTS.sampleCount){
-          duration = (((tmpTotal + ((index + 1 - tmpPos) * tmpSTTS.sampleDelta)) * 1000) / timeScale) - timestamp;
-          break;
-        }
-        tmpTotal += tmpSTTS.sampleCount * tmpSTTS.sampleDelta;
-        tmpPos += tmpSTTS.sampleCount;
-        ++tmpIndex;
-      }
-    }
-
     initialised = true;
-
-    if (index < offsetPos){
-      offsetIndex = 0;
-      offsetPos = 0;
-    }
-    if (hasCTTS){
-      MP4::CTTSEntry tmpCTTS;
-      uint32_t cttsCount = cttsBox.getEntryCount();
-      while (offsetIndex < cttsCount){
-        tmpCTTS = cttsBox.getCTTSEntry(offsetIndex);
-        if ((index - offsetPos) < tmpCTTS.sampleCount){
-          timeOffset = (tmpCTTS.sampleOffset * 1000) / timeScale;
-          break;
-        }
-        offsetPos += tmpCTTS.sampleCount;
-        ++offsetIndex;
-      }
-    }
-    size = stszBox.getEntrySize(index);
   }
 
   mp4TrackHeader &inputMP4::headerData(size_t trackID){
@@ -216,7 +162,7 @@ namespace Mist{
 
   bool inputMP4::readHeader(){
     if (!inFile){
-      INFO_MSG("inFile failed!");
+      Util::logExitReason("Could not open input file");
       return false;
     }
     bool hasMoov = false;
@@ -269,8 +215,8 @@ namespace Mist{
     }
 
     if (!hasMoov){
-      FAIL_MSG("No MOOV box found in source file; aborting!");
-      if (!inFile){FAIL_MSG("URIReader for source file was disconnected!");}
+      if (!inFile){Util::logExitReason("URIReader for source file was disconnected!");}
+      Util::logExitReason("No MOOV box found in source file; aborting!");
       return false;
     }
 
@@ -282,7 +228,7 @@ namespace Mist{
       for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){bps += M.getBps(*it);}
       return true;
     }
-    INFO_MSG("Not read existing header");
+    INFO_MSG("Not reading existing header");
 
     meta.reInit(isSingular() ? streamName : "");
     tNumber = 0;
@@ -416,6 +362,7 @@ namespace Mist{
       bool hasCTTS = cttsBox.isType("ctts");
 
       uint64_t totaldur = 0; ///\todo note: set this to begin time
+      uint64_t totalExtraDur = 0;
       mp4PartBpos BsetPart;
 
       uint64_t entryNo = 0;
@@ -462,6 +409,20 @@ namespace Mist{
         }
         BsetPart.time = (totaldur * 1000) / timescale;
         totaldur += sttsEntry.sampleDelta;
+        
+        //Undo time shifts as much as possible
+        if (totalExtraDur){
+          totaldur -= totalExtraDur;
+          totalExtraDur = 0;
+        }
+
+        //Make sure our timestamps go up by at least 1 for every packet
+        if (BsetPart.time >= (uint64_t)((totaldur * 1000) / timescale)){
+          uint32_t wantSamples = ((BsetPart.time+1) * timescale) / 1000;
+          totalExtraDur += wantSamples - totaldur;
+          totaldur = wantSamples;
+        }
+
         sampleNo++;
         if (sampleNo >= sttsEntry.sampleCount){
           ++entryNo;
@@ -523,6 +484,7 @@ namespace Mist{
 
     bool isKeyframe = false;
     DTSC::Keys keys(M.keys(curPart.trackID));
+    DTSC::Parts parts(M.parts(curPart.trackID));
     uint32_t nextKeyNum = nextKeyframe[curPart.trackID];
     if (nextKeyNum < keys.getEndValid()){
       // checking if this is a keyframe
@@ -600,8 +562,11 @@ namespace Mist{
     // get the next part for this track
     curPart.index++;
     if (curPart.index < headerData(M.getID(curPart.trackID)).size()){
-      headerData(M.getID(curPart.trackID))
-          .getPart(curPart.index, curPart.bpos, curPart.size, curPart.time, curPart.offset, curPart.duration);
+      headerData(M.getID(curPart.trackID)).getPart(curPart.index, curPart.bpos);
+      curPart.size = parts.getSize(curPart.index);
+      curPart.offset = parts.getOffset(curPart.index);
+      curPart.time = M.getPartTime(curPart.index, thisIdx);
+      curPart.duration = parts.getDuration(curPart.index);
       curPositions.insert(curPart);
     }
   }
@@ -627,8 +592,15 @@ namespace Mist{
     mp4TrackHeader &thisHeader = headerData(M.getID(idx));
     size_t headerDataSize = thisHeader.size();
     DTSC::Keys keys(M.keys(idx));
+    DTSC::Parts parts(M.parts(idx));
     for (size_t i = 0; i < headerDataSize; i++){
-      thisHeader.getPart(i, addPart.bpos, addPart.size, addPart.time, addPart.offset, addPart.duration);
+
+      thisHeader.getPart(i, addPart.bpos);
+      addPart.size = parts.getSize(i);
+      addPart.offset = parts.getOffset(i);
+      addPart.time = M.getPartTime(i, idx);
+      addPart.duration = parts.getDuration(i);
+
       if (keys.getTime(nextKeyframe[idx]) < addPart.time){nextKeyframe[idx]++;}
       if (addPart.time >= seekTime){
         addPart.index = i;

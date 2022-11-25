@@ -51,8 +51,7 @@ namespace Mist{
     MP4::CTTS cttsBox;
     MP4::STSC stscBox;
     uint64_t timeScale;
-    void getPart(uint64_t index, uint64_t &offset, uint32_t &size, uint64_t &timestamp,
-                 int32_t &timeOffset, uint64_t &duration);
+    void getPart(uint64_t index, uint64_t &offset);
     uint64_t size();
 
   private:

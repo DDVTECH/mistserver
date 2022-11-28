@@ -1232,9 +1232,9 @@ var UI = {
                       classes: ['red']
                     };
                   }
-                  if (val.replace(/[^\da-z_]/g,'') != val) {
+                  if (val.replace(/[^\da-z_\-\.]/g,'') != val) {
                     return {
-                      msg: 'Special characters (except for underscores) are not allowed.',
+                      msg: 'Special characters (except for underscores (_), periods (.) and dashes (-)) are not allowed.',
                       classes: ['red']
                     };
                   }

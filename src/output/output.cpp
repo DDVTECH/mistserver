@@ -99,7 +99,6 @@ namespace Mist{
     isInitialized = false;
     isBlocking = false;
     needsLookAhead = 0;
-    extraKeepAway = 0;
     lastStats = 0xFFFFFFFFFFFFFFFFull;
     maxSkipAhead = 7500;
     uaDelay = 10;
@@ -823,7 +822,7 @@ namespace Mist{
             HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
             continue;
           }// ignore missing tracks
-          if (M.getLastms(ti->first) < seekPos + needsLookAhead + extraKeepAway + M.getMinKeepAway(ti->first)){
+          if (M.getLastms(ti->first) < seekPos + needsLookAhead + M.getMinKeepAway(ti->first)){
             good = false;
             break;
           }
@@ -1054,11 +1053,9 @@ namespace Mist{
       if (M.getMinKeepAway(ti->first) > r){r = M.getMinKeepAway(ti->first);}
     }
     //Limit the value to the maxKeepAway setting
-    //Also lowers extraKeepAway if needed
     uint64_t maxKeepAway = M.getMaxKeepAway();
     if (maxKeepAway){
       if (r > maxKeepAway){r = maxKeepAway;}
-      if (r+extraKeepAway > maxKeepAway){extraKeepAway = maxKeepAway - r;}
     }
     return r;
   }
@@ -1079,10 +1076,9 @@ namespace Mist{
     if (!maxSkipAhead){
       bool noReturn = false;
       uint64_t newSpeed = 1000;
-      if (extraKeepAway > 0){extraKeepAway--;}//Reduce extra latency if possible
-      if (lMs - mKa - needsLookAhead - extraKeepAway > cTime + 50){
+      if (lMs - mKa - needsLookAhead > cTime + 50){
         // We need to speed up!
-        uint64_t diff = (lMs - mKa - needsLookAhead - extraKeepAway) - cTime;
+        uint64_t diff = (lMs - mKa - needsLookAhead) - cTime;
         if (!rateOnly && diff > 3000){
           noReturn = true;
           newSpeed = 1000;
@@ -1095,7 +1091,7 @@ namespace Mist{
         }
       }
       if (realTime != newSpeed){
-        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA, %" PRIu64 " eKA)", realTime, newSpeed, needsLookAhead, mKa, extraKeepAway);
+        HIGH_MSG("Changing playback speed from %" PRIu64 " to %" PRIu64 "(%" PRIu64 " ms LA, %" PRIu64 " ms mKA)", realTime, newSpeed, needsLookAhead, mKa);
         firstTime = Util::bootMS() - (cTime * newSpeed / 1000);
         realTime = newSpeed;
       }
@@ -1117,7 +1113,7 @@ namespace Mist{
           HIGH_MSG("Skipping track %zu, not in tracks", ti->first);
           continue;
         }// ignore missing tracks
-        if (meta.getLastms(ti->first) < seekPos + needsLookAhead + extraKeepAway + mKa){
+        if (meta.getLastms(ti->first) < seekPos + needsLookAhead + mKa){
           good = false;
           break;
         }
@@ -1131,8 +1127,8 @@ namespace Mist{
       // if yes, seek here
       if (good){
         HIGH_MSG("Skipping forward %" PRIu64 "ms (%" PRIu64 " ms LA, %" PRIu64
-                 " ms mKA, %" PRIu64 " eKA, > %" PRIu32 "ms, mSa %" PRIu64 " ms)",
-                 seekPos - cTime, needsLookAhead, mKa, extraKeepAway, seekCount * 100, maxSkipAhead);
+                 " ms mKA, > %" PRIu32 "ms, mSa %" PRIu64 " ms)",
+                 seekPos - cTime, needsLookAhead, mKa, seekCount * 100, maxSkipAhead);
         if (seekCount < 20){++seekCount;}
         seek(seekPos);
         return true;
@@ -1164,7 +1160,6 @@ namespace Mist{
   void Output::playbackSleep(uint64_t millis){
     if (realTime && M.getLive() && buffer.getSyncMode()){
       firstTime += millis;
-      extraKeepAway += millis;
     }
     Util::wait(millis);
   }

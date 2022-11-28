@@ -134,7 +134,6 @@ namespace Mist{
         }
       }
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
-      extraKeepAway = 0;
       needsLookAhead = 0;
       maxSkipAhead = 0;
       if (!sendFirst){

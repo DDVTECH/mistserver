@@ -149,7 +149,6 @@ namespace Mist{
         }
         while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
         presegs[currPreSeg].data.assign(0, 0);
-        extraKeepAway = 0;
         needsLookAhead = 0;
         maxSkipAhead = 0;
         packCounter = 0;

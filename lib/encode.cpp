@@ -107,12 +107,8 @@ namespace Encodings{
           (ign.size() && ign.find(c[i]) != std::string::npos)){
         escaped.append(&c[i], 1);
       }else{
-        if (c[i] == ' '){
-          escaped.append("+");
-        }else{
-          escaped.append("%");
-          escaped.append(Hex::chr(c[i]));
-        }
+        escaped.append("%");
+        escaped.append(Hex::chr(c[i]));
       }
     }
     return escaped;

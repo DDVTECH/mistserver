@@ -249,7 +249,12 @@ var UI = {
   menu: [
     {
       Overview: {},
-      General: {},
+      General: {
+        hiddenmenu: {
+          "Edit variable": {},
+          "Edit external writer": {}
+        }
+      },
       Protocols: {},
       Streams: {
         hiddenmenu: {
@@ -698,9 +703,12 @@ var UI = {
             }
             else {
               var o = Object.assign({},e);
+              delete o.validate;
+              delete o.pointer;
               o.type = "str";
               $part = UI.buildUI([o]).find(".field_container");
             }
+            $part.removeClass("isSetting");
             $part.addClass("listitem");
 
             var keyup = function(e){
@@ -2208,7 +2216,9 @@ var UI = {
       }
     }
     
-    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').closest('.button');
+    var $currbut = UI.elements.menu.removeClass('hide').find('.plain:contains("'+tab+'")').filter(function(){
+      return $(this).text() === tab;
+    }).closest('.button');
     if ($currbut.length > 0) {
       //only remove previous button highlight if the current tab is found in the menu
       UI.elements.menu.find('.button.active').removeClass('active');
@@ -3052,7 +3062,7 @@ var UI = {
             type: "help",
             help: "In certain places, like target URL's and pushes, variable substitution is applied in order to replace a $variable with their corresponding value. Here you can define your own constants and variables which will be used when variable substitution is applied. Variables can be used within variables but will not be reflected in their latest value on this page."
           },
-          $("<div>").css("text-align","right").html(
+          $("<div>").addClass("button_container").css("text-align","right").html(
             $("<button>").text("New variable").click(function(){
               UI.navto("Edit variable","");
             })
@@ -3143,6 +3153,164 @@ var UI = {
             }]
           }
         ]));
+
+
+        var $uploaders = $("<div>").html("Loading..");
+        $main.append(UI.buildUI([
+
+          $('<h3>').text("External writers"),
+          {
+            type: "help",
+            help: "When pushing a stream to a target unsupported by MistServer like S3 storage, an external writer can be provided which handles writing the media data to the target location. The writer will receive data over stdin and MistServer will print any info written to stdout and stderr as log messages."
+          },
+          $("<div>").addClass("button_container").css("text-align","right").html(
+            $("<button>").text("New external writer").click(function(){
+              UI.navto("Edit external writer","");
+            })
+          ),
+          $uploaders
+
+        ]));
+
+        mist.send(function(d){
+          if (!d.external_writer_list) {
+            $uploaders.html("None configured.");
+          }
+          else {
+            var $tbody = $("<tbody>");
+            $uploaders.html(
+              $("<table>").html(
+                $("<thead>").html(
+                  $("<tr>").append(
+                    $("<th>").text("Name")
+                  ).append(
+                    $("<th>").text("Command line")
+                  ).append(
+                    $("<th>").text("URI protocols handled")
+                  ).append(
+                    $("<th>")
+                  )
+                )
+              ).append($tbody)
+            );
+            for (var i in d.external_writer_list) {
+              var uploader = d.external_writer_list[i];
+              $tbody.append(
+                $("<tr>").addClass("uploader").attr("data-name",i).html(
+                  $("<td>").text(uploader[0])
+                ).append(
+                  $("<td>").html($("<code>").html(uploader[1]))
+                ).append(
+                  $("<td>").text(uploader[2] ? uploader[2].join(", ") : "none").addClass("desc")
+                ).append(
+                  $("<td>").html(
+                  $("<button>").text("Edit").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    UI.navto("Edit external writer",i);
+                  })
+                ).append(
+                  $("<button>").text("Remove").click(function(){
+                    var i = $(this).closest("tr").attr("data-name");
+                    if (confirm("Are you sure you want to remove the Uploader '"+i+"'?")) {
+                      mist.send(function(){
+                        UI.showTab("General");
+                      },{external_writer_remove:i});
+                    }
+                  })
+                )
+                )
+              );
+            }
+          }
+        },{external_writer_list:true});
+
+        break;
+      }
+      case "Edit external writer": {
+        var editing = false;
+        if (other != '') { editing = true; }
+
+        function buildPage() {
+          if (!editing) {
+            $main.html($('<h2>').text('New external writer'));
+          }
+          else {
+            $main.html($('<h2>').text('Edit external writer \''+other+'\''));
+          }
+
+          var saveas = {};
+          if (mist.data.external_writer_list && (other in mist.data.external_writer_list)) {
+            var uploader = mist.data.external_writer_list[other];
+            saveas.name = uploader[0];
+            saveas.cmdline = uploader[1];
+            saveas.protocols = uploader[2];
+          }
+
+          $main.append(UI.buildUI([
+            {
+              type: "str",
+              label: "Human readable name",
+              help: "A human readable name for the external writer.",
+              validate: ['required'],
+              pointer: {
+                main: saveas,
+                index: "name"
+              }
+            },{
+              type: "str",
+              label: "Command line",
+              help: "Command line for a local command (with optional arguments) which will write media data to the target.",
+              validate: ['required'],
+              pointer: {
+                main: saveas,
+                index: "cmdline"
+              }
+            },{
+              type: "inputlist",
+              label: "URI protocols handled",
+              help: "URI protocols which the external writer will be handling.",
+              validate: ['required'],
+              pointer: {
+                main: saveas,
+                index: "protocols"
+              }
+            },{
+              type: "buttons",
+              buttons: [
+                {
+                  type: 'cancel',
+                  label: 'Cancel',
+                  'function': function(){
+                    UI.navto('General');
+                  }
+                },{
+                  type: 'save',
+                  label: 'Save',
+                  'function': function(){
+                    var o = {external_writer_add:saveas};
+
+                    if (saveas.name != other) {
+                      o.external_writer_remove = other;
+                    }
+                    mist.send(function(){
+                      UI.navto('General');
+                    },o);
+                  }
+                }
+              ]
+            }
+          ]));
+        }
+
+        if ("external_writer_list" in mist.data) {
+          buildPage();
+        }
+        else {
+          mist.send(function(){
+            buildPage();
+          },{external_writer_list:true});
+        }
+
         break;
       }
       case 'Edit variable': {
@@ -5957,11 +6125,11 @@ var UI = {
         break;
       case 'Start Push':
         
-        if (!('capabilities' in mist.data) || !('variable_list' in mist.data)) {
+        if (!('capabilities' in mist.data) || !('variable_list' in mist.data) || !('external_writer_list' in mist.data)) {
           $main.append('Loading Mist capabilities..');
           mist.send(function(){
             UI.navto('Start Push',other);
-          },{capabilities:1,variable_list:true});
+          },{capabilities:1,variable_list:true,external_writer_list:true});
           return;
         }
         
@@ -5980,15 +6148,38 @@ var UI = {
           }
           
           //retrieve a list of valid targets
-          var target_match = [];
+          //var target_match = [];
+          var file_match = [];
+          var prot_match = [];
           var connector2target_match = {};
+          var writer_protocols = [];
           for (var i in mist.data.capabilities.connectors) {
             var conn = mist.data.capabilities.connectors[i];
             if ('push_urls' in conn) {
-              target_match = target_match.concat(conn.push_urls);
+              //target_match = target_match.concat(conn.push_urls);
               connector2target_match[i] = conn.push_urls;
+              for (var j in conn.push_urls) {
+                if (conn.push_urls[j][0] == "/") {
+                  file_match.push(conn.push_urls[j]);
+                }
+                else {
+                  prot_match.push(conn.push_urls[j]);
+                }
+              }
             }
           }
+          if (mist.data.external_writer_list) {
+            for (var i in mist.data.external_writer_list) {
+              var writer = mist.data.external_writer_list[i];
+              if (writer.length >= 3) {
+                for (var j in writer[2]) {
+                  writer_protocols.push(writer[2][j]+"://");
+                }
+              }
+            }
+          }
+          file_match.sort();
+          prot_match.sort();
           
           if (other == 'auto') {
             $main.find('h2').text('Add automatic push');
@@ -6202,10 +6393,15 @@ var UI = {
             label: 'Target',
             type: 'str',
             help: 'Where the stream will be pushed to.<br>\
-                  Valid formats:\
+                  Valid push formats:\
                   <ul>\
-                    <li>'+target_match.join('</li><li>')+'</li>\
+                    <li>'+prot_match.join('</li><li>')+'</li>\
                   </ul>\
+                  Valid file formats:\
+                   <ul>\
+                    <li>'+file_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  '+(writer_protocols.length ? 'Additionally, the following protocols (from generic writers) may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : "")+'\
                   Valid text replacements:\
                   <ul>\
                     <li>$stream - inserts the stream name used to push to MistServer</li>\
@@ -6220,13 +6416,32 @@ var UI = {
               index: 'target'
             },
             validate: ['required',function(val,me){
-              for (var i in target_match) {
-                if (mist.inputMatch(target_match[i],val)) {
+              for (var i in prot_match) {
+                if (mist.inputMatch(prot_match[i],val)) {
                   return false;
                 }
               }
+              for (var i in file_match) {
+                if (mist.inputMatch(file_match[i],val)) {
+                  return false;
+                }
+                for (var j in writer_protocols) {
+                  if (mist.inputMatch(writer_protocols[j]+file_match[i].slice(1),val)) {
+                    return false;
+                  }
+                }
+              }
+
               return {
-                msg: 'Does not match a valid target.<br>Valid formats:<ul><li>'+target_match.join('</li><li>')+'</li></ul>',
+                msg: 'Does not match a valid target.<br>Valid push formats:\
+                  <ul>\
+                    <li>'+prot_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  Valid file formats:\
+                   <ul>\
+                    <li>'+file_match.join('</li><li>')+'</li>\
+                  </ul>\
+                  '+(writer_protocols.length ? 'Additionally, the following protocols may be used in combination with any of the above file formats:<ul><li>'+writer_protocols.join("</li><li>")+'</li></ul>' : ""),
                 classes: ['red']
               }
             }],
@@ -6240,6 +6455,14 @@ var UI = {
                     match = connector;
                     break;
                   }
+                  if (connector2target_match[connector][i][0] == "/") {
+                    for (var j in writer_protocols) {
+                      if (mist.inputMatch(writer_protocols[j]+connector2target_match[connector][i].slice(1),val)) {
+                        match = connector;
+                        break;
+                      }
+                    }
+                  }
                 }
               }
               if (!match) {
@@ -6250,7 +6473,7 @@ var UI = {
                 );
                 return;
               }
-              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly));
+              $additional_params.html($("<h3>").text(mist.data.capabilities.connectors[match].friendly.replace("over HTTP","")));
               push_parameters = {};
               //filter out protocol only or file only options. This does not need to be dynamic as when the target changes, the whole $additional_params container is overwritten anyway
               for (var i in mist.data.capabilities.connectors[match].push_parameters) {
@@ -6261,7 +6484,7 @@ var UI = {
               }
 
               var capa = {
-                desc: mist.data.capabilities.connectors[match].desc,
+                desc: mist.data.capabilities.connectors[match].desc.replace("over HTTP",""),
                 optional: push_parameters,
                 sort: "sort"
               };
@@ -7414,7 +7637,7 @@ var mist = {
             
             //remove everything we don't care about
             var save = $.extend({},d);
-            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list']; //streams was already copied above
+            var keep = ['config','capabilities','ui_settings','LTS','active_streams','browse','log','totals','bandwidth','variable_list','external_writer_list']; //streams was already copied above
             for (var i in save) {
               if (keep.indexOf(i) == -1) {
                 delete save[i];

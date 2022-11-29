@@ -249,6 +249,42 @@ namespace Mist{
     std::deque<MP4::TRAK> trak = ((MP4::MOOV*)&moovBox)->getChildren<MP4::TRAK>();
     HIGH_MSG("Obtained %zu trak Boxes", trak.size());
 
+    uint64_t globalTimeOffset = 0;
+    for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
+      MP4::MDIA mdiaBox = trakIt->getChild<MP4::MDIA>();
+      std::string hdlrType = mdiaBox.getChild<MP4::HDLR>().getHandlerType();
+      if (hdlrType != "vide" && hdlrType != "soun" && hdlrType != "sbtl"){
+        INFO_MSG("Unsupported handler: %s", hdlrType.c_str());
+        continue;
+      }
+
+      MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
+
+      MP4::STSD stsdBox = stblBox.getChild<MP4::STSD>();
+      MP4::Box sEntryBox = stsdBox.getEntry(0);
+      std::string sType = sEntryBox.getType();
+
+      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g")){
+        INFO_MSG("Unsupported track type: %s", sType.c_str());
+        continue;
+      }
+
+      MP4::CTTS cttsBox = stblBox.getChild<MP4::CTTS>(); // optional ctts box
+      MP4::MDHD mdhdBox = mdiaBox.getChild<MP4::MDHD>();
+      uint64_t timescale = mdhdBox.getTimeScale();
+
+      int64_t DTS_CTS_offset = 0; ///< Difference between composition time and decode time. Always positive.
+      if (cttsBox.isType("ctts")){
+        uint32_t cttsCount = cttsBox.getEntryCount();
+        for (uint32_t i = 0; i < cttsCount; ++i){
+          MP4::CTTSEntry e = cttsBox.getCTTSEntry(i);
+          int64_t o = (-e.sampleOffset * 1000) / (int64_t)timescale;
+          if (o > DTS_CTS_offset){DTS_CTS_offset = o;}
+        }
+        if (DTS_CTS_offset > globalTimeOffset){globalTimeOffset = DTS_CTS_offset;}
+      }
+    }
+
     for (std::deque<MP4::TRAK>::iterator trakIt = trak.begin(); trakIt != trak.end(); trakIt++){
       MP4::MDIA mdiaBox = trakIt->getChild<MP4::MDIA>();
 
@@ -388,6 +424,16 @@ namespace Mist{
 
       bool stco64 = co64Box.isType("co64");
       bool hasCTTS = cttsBox.isType("ctts");
+      int64_t DTS_CTS_offset = 0; ///< Difference between composition time and decode time. Always positive.
+      if (hasCTTS){
+        uint32_t cttsCount = cttsBox.getEntryCount();
+        for (uint32_t i = 0; i < cttsCount; ++i){
+          MP4::CTTSEntry e = cttsBox.getCTTSEntry(i);
+          int64_t o = (-e.sampleOffset * 1000) / (int64_t)timescale;
+          if (o > DTS_CTS_offset){DTS_CTS_offset = o;}
+        }
+      }
+      INFO_MSG("Calculated DTS/CTS offset for track %zu: %" PRId64, tNumber, DTS_CTS_offset);
 
       uint64_t totaldur = 0; ///\todo note: set this to begin time
       uint64_t totalExtraDur = 0;
@@ -465,7 +511,7 @@ namespace Mist{
             ++cttsIndex;
             cttsEntryRead = 0;
           }
-          BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000) / timescale;
+          BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000) / (int64_t)timescale;
         }else{
           BsetPart.timeOffset = 0;
         }
@@ -477,11 +523,11 @@ namespace Mist{
             long long packSendSize = 0;
             packSendSize = 24 + (BsetPart.timeOffset ? 17 : 0) + (BsetPart.bpos ? 15 : 0) + 19 +
                            stszBox.getEntrySize(stszIndex) + 11 - 2 + 19;
-            meta.update(BsetPart.time, BsetPart.timeOffset, tNumber,
+            meta.update(BsetPart.time - DTS_CTS_offset + globalTimeOffset, BsetPart.timeOffset + DTS_CTS_offset, tNumber,
                         stszBox.getEntrySize(stszIndex) - 2, BsetPart.bpos+2, true, packSendSize);
           }
         }else{
-          meta.update(BsetPart.time, BsetPart.timeOffset, tNumber,
+          meta.update(BsetPart.time - DTS_CTS_offset + globalTimeOffset, BsetPart.timeOffset + DTS_CTS_offset, tNumber,
                       stszBox.getEntrySize(stszIndex), BsetPart.bpos, BsetPart.keyframe);
         }
       }

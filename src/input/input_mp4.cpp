@@ -474,7 +474,7 @@ namespace Mist{
             ++cttsIndex;
             cttsEntryRead = 0;
           }
-          BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000) / timescale;
+          BsetPart.timeOffset = (cttsEntry.sampleOffset * 1000) / (int64_t)timescale;
         }else{
           BsetPart.timeOffset = 0;
         }

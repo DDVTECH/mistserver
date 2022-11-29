@@ -767,11 +767,11 @@ namespace Util{
     }
     if ((fd.type & 0xF0) == RAX_INT){// signed int
       switch (fd.size){
-      case 1: return *(int8_t *)ptr;
-      case 2: return *(int16_t *)ptr;
-      case 3: return Bit::btoh24(ptr);
-      case 4: return *(int32_t *)ptr;
-      case 8: return *(int64_t *)ptr;
+      case 1: return (int64_t)*(int8_t *)ptr;
+      case 2: return (int64_t)*(int16_t *)ptr;
+      case 3: return (int64_t)Bit::btoh24(ptr);
+      case 4: return (int64_t)*(int32_t *)ptr;
+      case 8: return (int64_t)*(int64_t *)ptr;
       default: WARN_MSG("Unimplemented integer");
       }
     }
@@ -786,6 +786,22 @@ namespace Util{
     if (max == 0){max = getRCount();}
     r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
       << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
+
+    for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
+         it != fields.end(); ++it){
+    r << std::string(indent + 2, ' ') << "Field " << it->first << ": ";
+      switch (it->second.type & 0xF0){
+        case RAX_INT: r << "int"; break;
+        case RAX_UINT: r << "uint"; break;
+        case RAX_STRING: r << "string"; break;
+        case 0: r << "nested RAX"; break;
+        case RAX_RAW: r << "raw"; break;
+        case RAX_DTSC: r << "DTSC"; break;
+        default: r << "[UNIMPLEMENTED]"; break;
+      }
+      r << " (" << it->second.size << ")" << std::endl;
+    }
+
     for (uint64_t i = delled; i < max; ++i){
       r << std::string(indent + 2, ' ') << "#" << i << ":" << std::endl;
       for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
@@ -840,6 +856,22 @@ namespace Util{
     uint64_t max = getEndPos();
     r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
       << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
+
+    for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
+         it != fields.end(); ++it){
+    r << std::string(indent + 2, ' ') << "Field " << it->first << ": ";
+      switch (it->second.type & 0xF0){
+        case RAX_INT: r << "int"; break;
+        case RAX_UINT: r << "uint"; break;
+        case RAX_STRING: r << "string"; break;
+        case 0: r << "nested RAX"; break;
+        case RAX_RAW: r << "raw"; break;
+        case RAX_DTSC: r << "DTSC"; break;
+        default: r << "[UNIMPLEMENTED]"; break;
+      }
+      r << " (" << it->second.size << ")" << std::endl;
+    }
+
     for (uint64_t i = delled; i < max; ++i){
       r << std::string(indent + 2, ' ') << "#" << i << ": ";
       for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();

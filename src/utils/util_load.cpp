@@ -1046,7 +1046,9 @@ void extraServer(){
   if(counter < MINSTANDBY) {
     JSON::Value serverData;
     for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      serverData[(const char*)((*it)->name)] = (*it)->details->getServerData();
+      if((*it)->details){
+        serverData[(const char*)((*it)->name)] = (*it)->details->getServerData();
+      }
     }
     if (Triggers::shouldTrigger("LOAD_OVER")){
       Triggers::doTrigger("LOAD_OVER", serverData.asString());
@@ -1350,6 +1352,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     hostnames.insert((*i)->name);
     WARN_MSG("p");
   }
+  WARN_MSG("p : %ld", hostnames.size());
   for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
     if(H.name == (*i)) break;
     num++;
@@ -1362,6 +1365,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     indexs.insert((num/trigger+j) % identifiers.size());
     WARN_MSG("e");
   }
+  WARN_MSG("p : %ld", indexs.size());
   //find identifiers
   std::set<std::string> ret;
   std::set<int>::iterator i = indexs.begin();
@@ -1372,6 +1376,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     i++;
     WARN_MSG("h");
   }
+  
   return ret;
 }
 /**

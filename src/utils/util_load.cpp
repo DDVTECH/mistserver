@@ -1288,6 +1288,8 @@ void cleanupHost(hostEntry &H){
   H.details = 0;
   memset(H.name, 0, HOSTNAMELEN);
   H.state = STATE_OFF;
+  hosts.erase(&H);
+  delete &H;
 }
 
 /// Fills the given map with the given JSON string of tag adjustments
@@ -2742,7 +2744,6 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
     if(resend){
       JSON::Value j;
       j[REMOVESERVER] = delserver;
-      j[RESEND] = false;
       for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         (*it)->send(j.asString());
       }

@@ -2750,14 +2750,15 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
   }
 
   ret = "Server not monitored - could not delete from monitored server list!";
-  
+  std::string name = "";
   std::set<hostEntry*>::iterator it = hosts.begin();
   while(delserver.compare((*it)->name) && it != hosts.end()){
     it++;
   }
   if (it != hosts.end()){
+    name = (*it)->name;
     cleanupHost(**it);
-    ret = stateLookup[STATE_OFF];
+    ret[name] = stateLookup[STATE_OFF];
   }
 
   checkServerMonitors();

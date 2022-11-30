@@ -2792,23 +2792,13 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
           (*it)->send(j.asString());
         }
       }
-      for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-        if ((*it)->state == STATE_OFF){
-          initNewHost(**it, addserver);
-          newEntry = *it;
-          stop = true;
-          checkServerMonitors();
-          WARN_MSG("%ld", hosts.size())
-          break;
-        }
-      }
-      if (!stop){
-        newEntry = new hostEntry();
-        initNewHost(*newEntry, addserver);
-        hosts.insert(newEntry);
-        checkServerMonitors();
-        WARN_MSG("%ld", hosts.size())
-      }
+      
+      newEntry = new hostEntry();
+      initNewHost(*newEntry, addserver);
+      hosts.insert(newEntry);
+      checkServerMonitors();
+      WARN_MSG("%ld", hosts.size())
+      
       ret = "server starting";
     }
     //start save timer

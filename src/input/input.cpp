@@ -1405,6 +1405,7 @@ namespace Mist{
       for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
       DTSC::Parts parts(M.parts(idx));
       while (thisPacket && thisTime < stopTime){
+        if (connectedUsers){activityCounter = Util::bootSecs();}
         if (thisTime >= lastBuffered){
           if (sourceIdx != idx){
             if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){

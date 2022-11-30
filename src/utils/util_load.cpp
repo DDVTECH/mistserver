@@ -1350,28 +1350,21 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   std::set<std::string> hostnames;
   for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
     hostnames.insert((*i)->name);
-    WARN_MSG("p");
   }
-  WARN_MSG("p : %ld", hostnames.size());
   //get offset
   for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
     if(H.name == (*i)) break;
     num++;
-    WARN_MSG("l");
   }
-  WARN_MSG("l : %ld", identifiers.size());
   //find indexes
   int trigger = hostnames.size()/identifiers.size();
   if(trigger<1){
     trigger = 1;
   }
   std::set<int> indexs;
-  WARN_MSG("ef : %d", (num/trigger));
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
     indexs.insert((num/trigger+j) % identifiers.size());
-    WARN_MSG("e");
   }
-  WARN_MSG("e : %ld", indexs.size());
   //find identifiers
   std::set<std::string> ret;
   std::set<int>::iterator i = indexs.begin();
@@ -1380,9 +1373,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     std::advance(it,(*i));
     ret.insert(*it);
     i++;
-    WARN_MSG("h");
-  }
-  
+  } 
   return ret;
 }
 /**
@@ -1393,12 +1384,9 @@ void checkServerMonitors(){
   //check for monitoring changes
   std::set<hostEntry*>::iterator it = hosts.begin();
   while(it != hosts.end()){
-    WARN_MSG("help");
     std::set<std::string> idents = hostNeedsMonitoring(*(*it));
     std::set<std::string>::iterator i = idents.find(identifier);
-    WARN_MSG("help1");
     if(i != idents.end()){
-      
       if((*it)->thread == 0){//check monitored
         std::string name = ((*it)->name);
         //delete old host
@@ -1413,7 +1401,6 @@ void checkServerMonitors(){
         it = hosts.begin();
       }else it++;
     }else if((*it)->thread != 0 || (*it)->details == 0){//check not monitored
-      WARN_MSG("help2");
       //delete old host
       std::string name ((*it)->name);
       
@@ -1428,7 +1415,6 @@ void checkServerMonitors(){
     }
     else {
       it++;
-      WARN_MSG("help3");
     }
   }
 }
@@ -2343,7 +2329,6 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       std::string ret;
       api.addServer(ret,newVals[ADDSERVER], false);
       lastPromethNode.numLBSuccessRequests++;
-      WARN_MSG("ret %s", ret.c_str())
     }else if(newVals.isMember(REMOVESERVER)){
       api.delServer(newVals[REMOVESERVER].asString(), false);
       lastPromethNode.numLBSuccessRequests++;
@@ -2795,7 +2780,6 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
       (*it)->send(j.asString());
     }
   }
-  WARN_MSG("%ld", hosts.size())
   bool stop = false;
   hostEntry *newEntry = 0;
   for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -2806,16 +2790,11 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
   }
   if (stop){
     ret = "Server already monitored - add request ignored";
-    WARN_MSG("?%ld", hosts.size())
   }else{
-    WARN_MSG("%ld", hosts.size())
     newEntry = new hostEntry();
     initNewHost(*newEntry, addserver);
-    WARN_MSG("stf")
     hosts.insert(newEntry);
-    WARN_MSG("tf: %ld", hosts.size())
     checkServerMonitors();
-    WARN_MSG("%ld", hosts.size())
     
     ret = "server starting";
   }

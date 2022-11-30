@@ -1397,7 +1397,7 @@ void checkServerMonitors(){
         it = hosts.begin();
         changed = true;
       }
-    }else if((*it)->thread != 0 || (*it)->details == 0){//check not monitored
+    }else if((*it)->thread != 0 || !(*it)->details){//check not monitored
         //delete old host
         std::string name ((*it)->name);
         

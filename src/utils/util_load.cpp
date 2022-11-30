@@ -1363,8 +1363,8 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   //find indexes
   int trigger = hostnames.size()/identifiers.size();
   std::set<int> indexs;
+  WARN_MSG("ef : %d", (num/trigger));
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
-    WARN_MSG("ef : %d", (num/trigger+j));
     indexs.insert((num/trigger+j) % identifiers.size());
     WARN_MSG("e");
   }

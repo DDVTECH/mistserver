@@ -1378,6 +1378,7 @@ void checkServerMonitors(){
   //check for monitoring changes
   std::set<hostEntry*>::iterator it = hosts.begin();
   while(it != hosts.end()){
+    WARN_MSG("help");
     std::set<std::string> idents = hostNeedsMonitoring(*(*it));
     std::set<std::string>::iterator i = idents.find(identifier);
     WARN_MSG("help1");

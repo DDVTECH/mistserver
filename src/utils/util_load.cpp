@@ -1362,8 +1362,8 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   //find identifiers
   std::set<std::string> ret;
   std::set<int>::iterator i = indexs.begin();
-  std::set<std::string>::iterator it = identifiers.begin();
   for(int x = 0; x < SERVERMONITORLIMIT && i != indexs.end(); x++){
+    std::set<std::string>::iterator it = identifiers.begin();
     std::advance(it,(*i));
     ret.insert(*it);
     i++;
@@ -2797,7 +2797,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     initNewHost(*newEntry, addserver);
     WARN_MSG("stf")
     hosts.insert(newEntry);
-    WARN_MSG("tf")
+    WARN_MSG("tf: %ld", hosts.size())
     checkServerMonitors();
     WARN_MSG("%ld", hosts.size())
     

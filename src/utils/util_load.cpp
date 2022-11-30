@@ -2327,6 +2327,7 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       std::string ret;
       api.addServer(ret,newVals[ADDSERVER], false);
       lastPromethNode.numLBSuccessRequests++;
+      WARN_MSG("ret %s", ret.c_str())
     }else if(newVals.isMember(REMOVESERVER)){
       api.delServer(newVals[REMOVESERVER].asString(), false);
       lastPromethNode.numLBSuccessRequests++;

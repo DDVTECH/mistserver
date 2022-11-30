@@ -1353,11 +1353,13 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     WARN_MSG("p");
   }
   WARN_MSG("p : %ld", hostnames.size());
+  //get offset
   for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
     if(H.name == (*i)) break;
     num++;
     WARN_MSG("l");
   }
+  WARN_MSG("l : %ld", identifiers.size());
   //find indexes
   int trigger = hostnames.size()/identifiers.size();
   std::set<int> indexs;
@@ -1365,7 +1367,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     indexs.insert((num/trigger+j) % identifiers.size());
     WARN_MSG("e");
   }
-  WARN_MSG("p : %ld", indexs.size());
+  WARN_MSG("e : %ld", indexs.size());
   //find identifiers
   std::set<std::string> ret;
   std::set<int>::iterator i = indexs.begin();

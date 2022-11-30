@@ -2772,13 +2772,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     if (addserver.size() >= HOSTNAMELEN){
       return;
     }
-    if(resend){
-      JSON::Value j;
-      j[ADDSERVER] = addserver;
-      for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        (*it)->send(j.asString());
-      }
-    }
+    
     bool stop = false;
     hostEntry *newEntry = 0;
     for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -2791,12 +2785,20 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     if (stop){
       ret = "Server already monitored - add request ignored";
     }else{
+      if(resend){
+        JSON::Value j;
+        j[ADDSERVER] = addserver;
+        for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+          (*it)->send(j.asString());
+        }
+      }
       for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
         if ((*it)->state == STATE_OFF){
           initNewHost(**it, addserver);
           newEntry = *it;
           stop = true;
           checkServerMonitors();
+          WARN_MSG("%ld", hosts.size())
           break;
         }
       }
@@ -2805,6 +2807,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
         initNewHost(*newEntry, addserver);
         hosts.insert(newEntry);
         checkServerMonitors();
+        WARN_MSG("%ld", hosts.size())
       }
       ret = "server starting";
     }

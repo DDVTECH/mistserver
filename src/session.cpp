@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 // Global counters
+uint64_t thisType = 0;
 uint64_t now = Util::bootSecs();
 uint64_t currentConnections = 0;
 uint64_t lastSecond = 0;
@@ -44,7 +45,7 @@ const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 void userOnActive(Comms::Connections &connections, size_t idx){
   uint64_t lastUpdate = connections.getNow(idx);
-  if (lastUpdate < now - 10){return;}
+  if (lastUpdate < now - 10 && thisType != 1){return;}
   ++currentConnections;
   std::string thisConnector = connections.getConnector(idx);
   std::string thisStreamName = connections.getStream(idx);
@@ -235,7 +236,6 @@ int main(int argc, char **argv){
   if (memcmp(thisHost.data(), nullAddress, 16)){hostLastActive[thisHost] = now;}
 
   // Determine session type, since triggers only get run for viewer type sessions
-  uint64_t thisType = 0;
   if (thisSessionId[0] == 'I'){
     thisType = 1;
   } else if (thisSessionId[0] == 'O'){

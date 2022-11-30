@@ -720,16 +720,16 @@ void hostDetails::update(JSON::Value fillStateOut, JSON::Value fillStreamsOut, u
 */
 hostDetailsCalc::hostDetailsCalc(char* name) : hostDetails(name), total(0), upPrev(0), downPrev(0), prevTime(0), upSpeed(0), 
   downSpeed(0) {
-    cpu = 1000;
-    servLati = 0;
-    servLongi = 0;
-  }
+  cpu = 1000;
+  servLati = 0;
+  servLongi = 0;
+}
 hostDetailsCalc::~hostDetailsCalc(){
-    if (hostMutex){
-      delete hostMutex;
-      hostMutex = 0;
-    }
+  if (hostMutex){
+    delete hostMutex;
+    hostMutex = 0;
   }
+}
 void hostDetailsCalc::badNess(){
     if (!hostMutex){hostMutex = new tthread::recursive_mutex();}
     tthread::lock_guard<tthread::recursive_mutex> guard(*hostMutex);
@@ -2775,7 +2775,6 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     if(resend){
       JSON::Value j;
       j[ADDSERVER] = addserver;
-      j[RESEND] = false;
       for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
         (*it)->send(j.asString());
       }
@@ -2829,18 +2828,18 @@ JSON::Value API::serverList(){
    * receive server updates and adds new foreign hosts if needed
    */
 void API::updateHost(JSON::Value newVals){
-  
-      std::string hostName = newVals[HOSTNAMEKEY].asString();
-      std::set<hostEntry*>::iterator i = hosts.begin();
-      while(i != hosts.end()){
-        if(hostName == (*i)->name) break;
-        i++;
-      }
-      if(i == hosts.end()){
-        INFO_MSG("unknown host update failed")
-      }
-      (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals[BINHOSTKEY].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt(), newVals[CURRBANDWIDTHKEY].asInt(), newVals[AVAILBANDWIDTHKEY].asInt(), newVals[CURRRAMKEY].asInt(), newVals[RAMMAXKEY].asInt());   
+  std::string hostName = newVals[HOSTNAMEKEY].asString();
+  std::set<hostEntry*>::iterator i = hosts.begin();
+  while(i != hosts.end()){
+    if(hostName == (*i)->name) break;
+    i++;
   }
+  if(i == hosts.end()){
+    INFO_MSG("unknown host update failed")
+  }else {
+  (*i)->details->update(newVals[FILLSTATEOUT], newVals[FILLSTREAMSOUT], newVals[SCORESOURCE].asInt(), newVals[SCORERATE].asInt(), newVals[OUTPUTSKEY], newVals[CONFSTREAMSKEY], newVals[STREAMSKEY], newVals[TAGSKEY], newVals[CPUKEY].asInt(), newVals[SERVLATIKEY].asDouble(), newVals[SERVLONGIKEY].asDouble(), newVals[BINHOSTKEY].asString().c_str(), newVals[HOST].asString(), newVals[TOADD].asInt(), newVals[CURRBANDWIDTHKEY].asInt(), newVals[AVAILBANDWIDTHKEY].asInt(), newVals[CURRRAMKEY].asInt(), newVals[RAMMAXKEY].asInt());   
+  }
+}
 
 /**
    * remove load balancer from mesh

@@ -1380,7 +1380,6 @@ void checkServerMonitors(){
   std::set<hostEntry*>::iterator it = hosts.begin();
   while(it != hosts.end()){
     std::set<std::string> idents = hostNeedsMonitoring(*(*it));
-    bool changed = false;
     std::set<std::string>::iterator i = idents.find(identifier);
     if(i != idents.end()){
       if((*it)->thread == 0){//check monitored
@@ -1395,22 +1394,19 @@ void checkServerMonitors(){
 
         //reset itterator
         it = hosts.begin();
-        changed = true;
-      }
+      }else it++;
     }else if((*it)->thread != 0 || !(*it)->details){//check not monitored
-        //delete old host
-        std::string name ((*it)->name);
-        
-        cleanupHost(**it);
-        //create new host
-        initForeignHost(name);
-        
-        //reset iterator
-        it = hosts.begin();
-        changed = true;
-        break;
-      }
-    if(!changed){
+      //delete old host
+      std::string name ((*it)->name);
+      
+      cleanupHost(**it);
+      //create new host
+      initForeignHost(name);
+      
+      //reset iterator
+      it = hosts.begin();
+    }
+    else {
       it++;
     }
   }

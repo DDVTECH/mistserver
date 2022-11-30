@@ -1391,7 +1391,7 @@ void checkServerMonitors(){
     if(i != idents.end()){
       if((*it)->thread == 0){//check monitored
         std::string name = ((*it)->name);
-        
+
         //delete old host
         cleanupHost(**it);
 
@@ -2755,7 +2755,7 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
       if ((std::string)(*it)->name == delserver){
         name = (*it)->name;
         cleanupHost(**it);
-        ret = stateLookup[(*it)->state];
+        ret = stateLookup[STATE_OFF];
       }
     }
 

@@ -1381,6 +1381,7 @@ void checkServerMonitors(){
     std::set<std::string> idents = hostNeedsMonitoring(*(*it));
     std::set<std::string>::iterator i = idents.find(identifier);
     if(i != idents.end()){
+      WARN_MSG("help");
       if((*it)->thread == 0){//check monitored
         std::string name = ((*it)->name);
         //delete old host
@@ -1400,7 +1401,7 @@ void checkServerMonitors(){
       
       cleanupHost(**it);
       delete *it;
-      
+
       //create new host
       initForeignHost(name);
       

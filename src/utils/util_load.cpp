@@ -2739,33 +2739,34 @@ void API::setWeights(const JSON::Value newVals){
    * remove server from ?
    */
 JSON::Value API::delServer(const std::string delserver, bool resend){
-    JSON::Value ret;
-    tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
-    if(resend){
-      JSON::Value j;
-      j[REMOVESERVER] = delserver;
-      for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        (*it)->send(j.asString());
-      }
+  JSON::Value ret;
+  tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+  if(resend){
+    JSON::Value j;
+    j[REMOVESERVER] = delserver;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      (*it)->send(j.asString());
     }
-
-    ret = "Server not monitored - could not delete from monitored server list!";
-    std::string name = "";
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((std::string)(*it)->name == delserver){
-        name = (*it)->name;
-        cleanupHost(**it);
-        ret = stateLookup[STATE_OFF];
-      }
-    }
-
-    checkServerMonitors();
-    //start save timer
-    time(&prevConfigChange);
-    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-    return ret;
-    
   }
+
+  ret = "Server not monitored - could not delete from monitored server list!";
+  
+  std::set<hostEntry*>::iterator it = hosts.begin();
+  while(delserver.compare((*it)->name) && it != hosts.end()){
+    it++;
+  }
+  if (it != hosts.end()){
+    cleanupHost(**it);
+    ret = stateLookup[STATE_OFF];
+  }
+
+  checkServerMonitors();
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  return ret;
+  
+}
 /**
    * add server to be monitored
    */

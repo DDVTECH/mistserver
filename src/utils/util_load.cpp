@@ -1362,14 +1362,13 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   WARN_MSG("l : %ld", identifiers.size());
   //find indexes
   int trigger = hostnames.size()/identifiers.size();
+  if(trigger<1){
+    trigger = 1;
+  }
   std::set<int> indexs;
   WARN_MSG("ef : %d", (num/trigger));
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
-    int calc = 0;
-    if(!num){
-      calc = num/trigger;
-    }
-    indexs.insert((calc+j) % identifiers.size());
+    indexs.insert((num/trigger+j) % identifiers.size());
     WARN_MSG("e");
   }
   WARN_MSG("e : %ld", indexs.size());

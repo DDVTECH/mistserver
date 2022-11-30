@@ -2776,7 +2776,6 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     bool stop = false;
     hostEntry *newEntry = 0;
     for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((*it)->state == STATE_OFF){continue;}
       if ((std::string)(*it)->name == addserver){
         stop = true;
         break;
@@ -2784,6 +2783,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     }
     if (stop){
       ret = "Server already monitored - add request ignored";
+      WARN_MSG("?%ld", hosts.size())
     }else{
       if(resend){
         JSON::Value j;

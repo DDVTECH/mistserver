@@ -1229,7 +1229,7 @@ void initNewHost(hostEntry &H, const std::string &N){
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = 0;
-  H.details = NULL;
+  H.details = 0;
 }
 /**
  * setup new server for monitoring (with hostDetailsCalc class)
@@ -1252,7 +1252,6 @@ void initHost(hostEntry &H, const std::string &N){
  * \param N gives server name
  */
 void initForeignHost(const std::string &N){
-  
   // Cancel if this host has no name or load balancer set
   if (!N.size()){return;}
 
@@ -1395,11 +1394,13 @@ void checkServerMonitors(){
         //reset itterator
         it = hosts.begin();
       }else it++;
-    }else if((*it)->thread != 0 || (*it)->details == NULL){//check not monitored
+    }else if((*it)->thread != 0 || (*it)->details == 0){//check not monitored
       //delete old host
       std::string name ((*it)->name);
       
       cleanupHost(**it);
+      delete *it;
+      
       //create new host
       initForeignHost(name);
       

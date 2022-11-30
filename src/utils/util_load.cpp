@@ -2711,26 +2711,26 @@ JSON::Value API::setWeights(delimiterParser path){
    * set weights for websockets
    */
 void API::setWeights(const JSON::Value newVals){
-    if (!newVals.isMember(CPUKEY)){
-      weight_cpu = newVals[CPUKEY].asInt();
-    }
-    if (!newVals.isMember(RAMKEY)){
-      weight_ram = newVals[RAMKEY].asInt();
-
-    }
-    if (!newVals.isMember(BWKEY)){
-      weight_bw = newVals[BWKEY].asInt();
-    }
-    if (!newVals.isMember(GEOKEY)){
-      weight_geo = newVals[GEOKEY].asInt();
-    }
-    if (!newVals.isMember(BONUSKEY)){
-      weight_bonus = newVals[BONUSKEY].asInt();
-    }
-    //start save timer
-    time(&prevConfigChange);
-    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  WARN_MSG("%s", newVals.asString().c_str())
+  if (!newVals.isMember(CPUKEY)){
+    weight_cpu = newVals[CPUKEY].asInt();
   }
+  if (!newVals.isMember(RAMKEY)){
+    weight_ram = newVals[RAMKEY].asInt();
+  }
+  if (!newVals.isMember(BWKEY)){
+    weight_bw = newVals[BWKEY].asInt();
+  }
+  if (!newVals.isMember(GEOKEY)){
+    weight_geo = newVals[GEOKEY].asInt();
+  }
+  if (!newVals.isMember(BONUSKEY)){
+    weight_bonus = newVals[BONUSKEY].asInt();
+  }
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+}
 
 /**
    * remove server from ?

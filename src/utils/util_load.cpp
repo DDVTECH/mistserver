@@ -2768,44 +2768,44 @@ JSON::Value API::delServer(const std::string delserver, bool resend){
    * add server to be monitored
    */
 void API::addServer(std::string& ret, const std::string addserver, bool resend){
-    tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
-    if (addserver.size() >= HOSTNAMELEN){
-      return;
-    }
-    
-    bool stop = false;
-    hostEntry *newEntry = 0;
-    for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-      if ((std::string)(*it)->name == addserver){
-        stop = true;
-        break;
-      }
-    }
-    if (stop){
-      ret = "Server already monitored - add request ignored";
-      WARN_MSG("?%ld", hosts.size())
-    }else{
-      if(resend){
-        JSON::Value j;
-        j[ADDSERVER] = addserver;
-        for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-          (*it)->send(j.asString());
-        }
-      }
-      
-      newEntry = new hostEntry();
-      initNewHost(*newEntry, addserver);
-      hosts.insert(newEntry);
-      checkServerMonitors();
-      WARN_MSG("%ld", hosts.size())
-      
-      ret = "server starting";
-    }
-    //start save timer
-    time(&prevConfigChange);
-    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  tthread::lock_guard<tthread::mutex> globGuard(globalMutex);
+  if (addserver.size() >= HOSTNAMELEN){
     return;
   }
+  if(resend){
+    JSON::Value j;
+    j[ADDSERVER] = addserver;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      (*it)->send(j.asString());
+    }
+  }
+  WARN_MSG("%ld", hosts.size())
+  bool stop = false;
+  hostEntry *newEntry = 0;
+  for (std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+    if ((std::string)(*it)->name == addserver){
+      stop = true;
+      break;
+    }
+  }
+  if (stop){
+    ret = "Server already monitored - add request ignored";
+    WARN_MSG("?%ld", hosts.size())
+  }else{
+    WARN_MSG("%ld", hosts.size())
+    newEntry = new hostEntry();
+    initNewHost(*newEntry, addserver);
+    hosts.insert(newEntry);
+    checkServerMonitors();
+    WARN_MSG("%ld", hosts.size())
+    
+    ret = "server starting";
+  }
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  return;
+}
 /**
    * return server list
    */

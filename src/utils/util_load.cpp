@@ -2667,6 +2667,7 @@ void API::balance(JSON::Value newVals){
    * set and get weights
    */
 JSON::Value API::setWeights(delimiterParser path){
+  WARN_MSG("yes")
   std::string newVals = path.next();
   while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
     int num = path.nextInt();

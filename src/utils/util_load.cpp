@@ -2690,15 +2690,14 @@ JSON::Value API::setWeights(delimiterParser path){
     }
 
     //create json for sending
-    ret["cpu"] = weight_cpu;
-    ret["ram"] = weight_ram;
-    ret["bw"] = weight_bw;
-    ret["geo"] = weight_geo;
-    ret["bonus"] = weight_bonus;
+    ret[CPUKEY] = weight_cpu;
+    ret[RAMKEY] = weight_ram;
+    ret[BWKEY] = weight_bw;
+    ret[GEOKEY] = weight_geo;
+    ret[BONUSKEY] = weight_bonus;
 
     JSON::Value j;
     j[WEIGHTS] = ret;
-    j[RESEND] = false;
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       (*it)->send(j.asString());
     }

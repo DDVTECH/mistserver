@@ -281,6 +281,7 @@ static void timerAddViewer(void*){
   while(cfg->is_active){
     JSON::Value j;
     for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+      if((*it)->state != STATE_ACTIVE) continue;
       std::string name = (*it)->name;
       j[ADDVIEWER][name] = (*it)->details->getAddBandwidth();
     }

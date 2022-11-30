@@ -1255,6 +1255,7 @@ namespace DTSC{
       t.trackHeightField = t.track.getFieldData("height");
       t.trackFpksField = t.track.getFieldData("fpks");
       t.trackMissedFragsField = t.track.getFieldData("missedFrags");
+      t.extraJSON = t.track.getFieldData("extrajson");
 
       t.partSizeField = t.parts.getFieldData("size");
       t.partDurationField = t.parts.getFieldData("duration");
@@ -1344,6 +1345,7 @@ namespace DTSC{
         t.trackHeightField = t.track.getFieldData("height");
         t.trackFpksField = t.track.getFieldData("fpks");
         t.trackMissedFragsField = t.track.getFieldData("missedFrags");
+        t.extraJSON = t.track.getFieldData("extrajson");
 
         t.partSizeField = t.parts.getFieldData("size");
         t.partDurationField = t.parts.getFieldData("duration");
@@ -1769,6 +1771,7 @@ namespace DTSC{
     t.track.addField("height", RAX_32UINT);
     t.track.addField("fpks", RAX_16UINT);
     t.track.addField("missedFrags", RAX_32UINT);
+    t.track.addField("extrajson", RAX_STRING, 512);
     t.track.addField("parts", RAX_NESTED, TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount));
     t.track.addField("keys", RAX_NESTED, TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount));
     t.track.addField("fragments", RAX_NESTED, TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount));
@@ -1819,6 +1822,7 @@ namespace DTSC{
     t.trackHeightField = t.track.getFieldData("height");
     t.trackFpksField = t.track.getFieldData("fpks");
     t.trackMissedFragsField = t.track.getFieldData("missedFrags");
+    t.extraJSON = t.track.getFieldData("extrajson");
 
     t.partSizeField = t.parts.getFieldData("size");
     t.partDurationField = t.parts.getFieldData("duration");
@@ -2109,6 +2113,16 @@ namespace DTSC{
     stream.setInt(streamLiveField, live ? 1 : 0);
   }
   bool Meta::getLive() const{return stream.getInt(streamLiveField);}
+
+  void Meta::setTrackExtraJSON(size_t trackIdx, const JSON::Value & val){
+    DTSC::Track &t = tracks.at(trackIdx);
+    t.track.setString(t.extraJSON, val.toString());
+  }
+
+  JSON::Value Meta::getTrackExtraJSON(size_t trackIdx) const{
+    const DTSC::Track &t = tracks.at(trackIdx);
+    return JSON::fromString(t.track.getPointer(t.extraJSON));
+  }
 
   bool Meta::hasBFrames(size_t idx) const{
     std::set<size_t> vTracks = getValidTracks();
@@ -2728,6 +2742,9 @@ namespace DTSC{
         trackJSON["jitter"] = trkJitter;
         if (trkJitter > jitter){jitter = trkJitter;}
       }
+
+      JSON::Value extraJson = getTrackExtraJSON(*it);
+      if (extraJson){trackJSON["extra"] = extraJson;}
 
       if (getLang(*it) != "" && getLang(*it) != "und"){trackJSON["lang"] = getLang(*it);}
       if (type == "audio"){

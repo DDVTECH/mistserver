@@ -227,7 +227,6 @@ static void prometheusTimer(void*){
     sleep(PROMETHEUSTIMEINTERVAL*60);
   }
 }
-
 /**
  * return JSON with all prometheus data nodes
 */
@@ -1377,48 +1376,45 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
 void checkServerMonitors(){
   INFO_MSG("recalibrating server monitoring")
   //check for monitoring changes
-    std::set<hostEntry*>::iterator it = hosts.begin();
-    while(it != hosts.end()){
-      std::set<std::string> idents = hostNeedsMonitoring(*(*it));
-      bool changed = false;
-      for(std::set<std::string>::iterator i = idents.begin(); i != idents.end(); i++){
-        if((!(*i).compare(identifier)) && (*it)->thread == 0){//check monitored
-          std::string name = ((*it)->name);
-          //delete old host
-          cleanupHost(**it);
-          delete *it;
-          //create new host
-          hostEntry* e = new hostEntry();
-          initHost(*e, name);
-          hosts.insert(e);
+  std::set<hostEntry*>::iterator it = hosts.begin();
+  while(it != hosts.end()){
+    std::set<std::string> idents = hostNeedsMonitoring(*(*it));
+    bool changed = false;
+    std::set<std::string>::iterator i = idents.find(identifier);
+    if(i != set::end){
+      if((*it)->thread == 0){//check monitored
+        std::string name = ((*it)->name);
+        //delete old host
+        cleanupHost(**it);
+        delete *it;
+        //create new host
+        hostEntry* e = new hostEntry();
+        initHost(*e, name);
+        hosts.insert(e);
 
-          //reset itterator
-          it = hosts.begin();
-          changed = true;
-          break;
-        }
-        else if((*i).compare(identifier) && (*it)->thread == 0 && (*it)->details != 0){//check not monitored
-          continue;
-        }else if ((i) == idents.end()){
-          //delete old host
-          std::string name ((*it)->name);
-          
-          cleanupHost(**it);
-          //create new host
-          initForeignHost(name);
-          
-
-          //reset iterator
-          it = hosts.begin();
-          changed = true;
-          break;
-        }
+        //reset itterator
+        it = hosts.begin();
+        changed = true;
       }
-      if(!changed){
-        it++;
+    }else if((*it)->thread != 0 && (*it)->details == 0){//check not monitored
+        //delete old host
+        std::string name ((*it)->name);
+        
+        cleanupHost(**it);
+        //create new host
+        initForeignHost(name);
+        
+        //reset iterator
+        it = hosts.begin();
+        changed = true;
+        break;
       }
-    }
+  }
+  if(!changed){
+    it++;
+  }
 }
+
 
 
 /**
@@ -1525,7 +1521,7 @@ static void saveTimeCheck(void*){
 /**
  * loads the config from a string
 */
-void configFromString(std::string s){//TODO if this loads correctly
+void configFromString(std::string s){
   //change config vars
   JSON::Value j = JSON::fromString(s);
   fallback = j[CONFIGFALLBACK].asString();
@@ -2667,10 +2663,8 @@ void API::balance(JSON::Value newVals){
 JSON::Value API::setWeights(delimiterParser path){
     JSON::Value ret;
     std::string newVals = path.next();
-    bool changed = false;
     while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
       int num = path.nextInt();
-      changed = true;
       if (!newVals.compare("cpu")){
         weight_cpu = num;
       }
@@ -2696,19 +2690,18 @@ JSON::Value API::setWeights(delimiterParser path){
     ret["geo"] = weight_geo;
     ret["bonus"] = weight_bonus;
 
-    if(changed){
-      JSON::Value j;
-      j[WEIGHTS] = ret;
-      j[RESEND] = false;
-      for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-        (*it)->send(j.asString());
-      }
+    JSON::Value j;
+    j[WEIGHTS] = ret;
+    j[RESEND] = false;
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      (*it)->send(j.asString());
     }
-    if(changed){
-      //start save timer
-      time(&prevConfigChange);
-      if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-    }
+  
+  
+    //start save timer
+    time(&prevConfigChange);
+    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+    
     return ret;
   }
 /**

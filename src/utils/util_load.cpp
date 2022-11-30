@@ -1348,16 +1348,19 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
   std::set<std::string> hostnames;
   for(std::set<hostEntry*>::iterator i = hosts.begin(); i != hosts.end(); i++){
     hostnames.insert((*i)->name);
+    WARN_MSG("p");
   }
   for(std::set<std::string>::iterator i = hostnames.begin(); i != hostnames.end(); i++){
     if(H.name == (*i)) break;
     num++;
+    WARN_MSG("l");
   }
   //find indexes
   int trigger = hostnames.size()/identifiers.size();
   std::set<int> indexs;
   for(int j = 0; j < SERVERMONITORLIMIT; j++){
     indexs.insert((num/trigger+j) % identifiers.size());
+    WARN_MSG("e");
   }
   //find identifiers
   std::set<std::string> ret;
@@ -1367,6 +1370,7 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     std::advance(it,(*i));
     ret.insert(*it);
     i++;
+    WARN_MSG("h");
   }
   return ret;
 }

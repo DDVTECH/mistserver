@@ -2797,6 +2797,7 @@ void API::addServer(std::string& ret, const std::string addserver, bool resend){
     initNewHost(*newEntry, addserver);
     WARN_MSG("stf")
     hosts.insert(newEntry);
+    WARN_MSG("tf")
     checkServerMonitors();
     WARN_MSG("%ld", hosts.size())
     

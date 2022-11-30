@@ -51,6 +51,7 @@ namespace Mist{
     MP4::CTTS cttsBox;
     MP4::STSC stscBox;
     uint64_t timeScale;
+    uint32_t rotation;
     void getPart(uint64_t index, uint64_t &offset);
     uint64_t size();
 

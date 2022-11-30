@@ -2667,48 +2667,46 @@ void API::balance(JSON::Value newVals){
    * set and get weights
    */
 JSON::Value API::setWeights(delimiterParser path){
-    JSON::Value ret;
-    std::string newVals = path.next();
-    while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
-      int num = path.nextInt();
-      if (!newVals.compare("cpu")){
-        weight_cpu = num;
-      }
-      else if (!newVals.compare("ram")){
-        weight_ram = num;
-      }
-      else if (!newVals.compare("bw")){
-        weight_bw = num;
-      }
-      else if (!newVals.compare("geo")){
-        weight_geo = num;
-      }
-      else if (!newVals.compare("bonus")){
-        weight_bonus = num;
-      }
-      newVals = path.next();
+  std::string newVals = path.next();
+  while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
+    int num = path.nextInt();
+    if (!newVals.compare("cpu")){
+      weight_cpu = num;
     }
-
-    //create json for sending
-    ret[CPUKEY] = weight_cpu;
-    ret[RAMKEY] = weight_ram;
-    ret[BWKEY] = weight_bw;
-    ret[GEOKEY] = weight_geo;
-    ret[BONUSKEY] = weight_bonus;
-
-    JSON::Value j;
-    j[WEIGHTS] = ret;
-    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      (*it)->send(j.asString());
+    else if (!newVals.compare("ram")){
+      weight_ram = num;
     }
-  
-  
-    //start save timer
-    time(&prevConfigChange);
-    if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
-    
-    return ret;
+    else if (!newVals.compare("bw")){
+      weight_bw = num;
+    }
+    else if (!newVals.compare("geo")){
+      weight_geo = num;
+    }
+    else if (!newVals.compare("bonus")){
+      weight_bonus = num;
+    }
+    newVals = path.next();
   }
+
+  //create json for sending
+  JSON::Value ret;
+  ret[WEIGHTS][CPUKEY] = weight_cpu;
+  ret[WEIGHTS][RAMKEY] = weight_ram;
+  ret[WEIGHTS][BWKEY] = weight_bw;
+  ret[WEIGHTS][GEOKEY] = weight_geo;
+  ret[WEIGHTS][BONUSKEY] = weight_bonus;
+
+  for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+    (*it)->send(ret.asString());
+  }
+
+
+  //start save timer
+  time(&prevConfigChange);
+  if(saveTimer == 0) saveTimer = new tthread::thread(saveTimeCheck,NULL);
+  
+  return ret;
+}
 /**
    * set weights for websockets
    */

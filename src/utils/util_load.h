@@ -345,7 +345,7 @@ private:
   /**
    * set and get weights
    */
-  static JSON::Value setWeights(delimiterParser path);
+  static JSON::Value setWeights(delimiterParser path, bool resend);
   static void setWeights(const JSON::Value weights);
 
   /**

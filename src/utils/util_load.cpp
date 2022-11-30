@@ -1798,7 +1798,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
         }
         // Get/set weights
         else if (!api.compare("weights")){
-          JSON::Value ret = setWeights(path);
+          JSON::Value ret = setWeights(path, true);
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
@@ -2016,7 +2016,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
         // Get weights
         }else if (!api.compare("weights")){
-          JSON::Value ret = setWeights(delimiterParser("",""));
+          JSON::Value ret = setWeights(delimiterParser("",""), false);
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
@@ -2666,7 +2666,7 @@ void API::balance(JSON::Value newVals){
 /**
    * set and get weights
    */
-JSON::Value API::setWeights(delimiterParser path){
+JSON::Value API::setWeights(delimiterParser path, bool resend){
   WARN_MSG("yes")
   std::string newVals = path.next();
   while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
@@ -2697,10 +2697,11 @@ JSON::Value API::setWeights(delimiterParser path){
   ret[WEIGHTS][GEOKEY] = weight_geo;
   ret[WEIGHTS][BONUSKEY] = weight_bonus;
 
-  for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-    (*it)->send(ret.asString());
+  if(resend){
+    for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
+      (*it)->send(ret.asString());
+    }
   }
-
 
   //start save timer
   time(&prevConfigChange);

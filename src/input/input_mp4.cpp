@@ -44,6 +44,7 @@ namespace Mist{
     MP4::MDIA mdiaBox = trakBox.getChild<MP4::MDIA>();
 
     timeScale = mdiaBox.getChild<MP4::MDHD>().getTimeScale();
+    rotation = trakBox.getChild<MP4::TKHD>().getRotation();
     trackId = trakBox.getChild<MP4::TKHD>().getTrackID();
 
     MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
@@ -236,7 +237,15 @@ namespace Mist{
     if (readExistingHeader()){
       bps = 0;
       std::set<size_t> tracks = M.getValidTracks();
-      for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){bps += M.getBps(*it);}
+      for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
+        bps += M.getBps(*it);
+        mp4TrackHeader &thisHeader = headerData(M.getID(*it));
+        if (thisHeader.rotation){
+          JSON::Value json;
+          json["rotation"] = thisHeader.rotation;
+          meta.setTrackExtraJSON(*it, json);
+        }
+      }
       return true;
     }
     INFO_MSG("Not reading existing header");
@@ -283,6 +292,12 @@ namespace Mist{
       meta.setLang(tNumber, mdhdBox.getLanguage());
 
       HIGH_MSG("Found track %zu of type %s", tNumber, sType.c_str());
+
+      if (tkhdBox.getRotation()){
+        JSON::Value json;
+        json["rotation"] = tkhdBox.getRotation();
+        meta.setTrackExtraJSON(tNumber, json);
+      }
 
       if (sType == "avc1" || sType == "h264" || sType == "mp4v"){
         MP4::VisualSampleEntry &vEntryBox = (MP4::VisualSampleEntry &)sEntryBox;

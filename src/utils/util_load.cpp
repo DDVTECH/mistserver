@@ -1391,9 +1391,10 @@ void checkServerMonitors(){
     if(i != idents.end()){
       if((*it)->thread == 0){//check monitored
         std::string name = ((*it)->name);
+        
         //delete old host
         cleanupHost(**it);
-        delete *it;
+
         //create new host
         hostEntry* e = new hostEntry();
         initHost(*e, name);
@@ -1407,7 +1408,6 @@ void checkServerMonitors(){
       std::string name ((*it)->name);
       
       cleanupHost(**it);
-      delete *it;
 
       //create new host
       initForeignHost(name);

@@ -1229,7 +1229,7 @@ void initNewHost(hostEntry &H, const std::string &N){
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
   H.thread = 0;
-  H.details = 0;
+  H.details = NULL;
 }
 /**
  * setup new server for monitoring (with hostDetailsCalc class)
@@ -1395,7 +1395,7 @@ void checkServerMonitors(){
         //reset itterator
         it = hosts.begin();
       }else it++;
-    }else if((*it)->thread != 0 || !(*it)->details){//check not monitored
+    }else if((*it)->thread != 0 || (*it)->details == NULL){//check not monitored
       //delete old host
       std::string name ((*it)->name);
       

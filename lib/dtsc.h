@@ -266,8 +266,6 @@ namespace DTSC{
     Util::RelAccXFieldData fragmentKeysField;
     Util::RelAccXFieldData fragmentFirstKeyField;
     Util::RelAccXFieldData fragmentSizeField;
-
-    Util::RelAccXFieldData extraJSON;
   };
 
   class Meta{
@@ -410,9 +408,6 @@ namespace DTSC{
     /*LTS-START
     uint64_t getFragmentDuration() const{return DEFAULT_FRAGMENT_DURATION;}
     LTS-END*/
-
-    void setTrackExtraJSON(size_t trackIdx, const JSON::Value & val);
-    JSON::Value getTrackExtraJSON(size_t trackIdx) const;
 
     void setVod(bool vod);
     bool getVod() const;

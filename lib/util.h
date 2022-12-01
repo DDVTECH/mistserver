@@ -18,12 +18,12 @@ namespace Util{
   */
   class StringParser{
     private:
-    std::string s;
-    std::string delimiter;
+    const std::string& s;
+    const std::string& delimiter;
+    int counter;
 
     public:
-    StringParser(){};
-    StringParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
+    StringParser(const std::string& s, const std::string& delimiter);
     std::string next();
     int nextInt();
     double nextDouble();

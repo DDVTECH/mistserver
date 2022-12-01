@@ -1640,7 +1640,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
 
       //handle non-websocket connections
-      Util::StringParser path((std::string)HTTP::URL(H.url).path,"/");
+      Util::StringParser path(HTTP::URL(H.url).path, "/");
       std::string api = path.next();
      
       if(!H.method.compare("PUT") && !api.compare("stream")){
@@ -1672,7 +1672,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       std::string creds = H.GetHeader("Authorization");
       //auth with username and password
       if(!creds.substr(0,5).compare("Basic")){
-        Util::StringParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())),":");
+        Util::StringParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())), std::string(":"));
         //check if user exists
         std::map<std::string, std::pair<std::string, std::string> >::iterator user = userAuth.find(cred.next());
         //check password

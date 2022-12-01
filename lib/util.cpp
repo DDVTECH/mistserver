@@ -109,17 +109,18 @@ namespace Util{
     }
   }
 
+  StringParser::StringParser(const std::string& s, const std::string& delimiter) : s(s), delimiter(delimiter), counter(0) {}
   /**
    * \return s until first \param delimiter or end of string as a string
   */
   std::string StringParser::next() {
     //get next delimiter
-    int index = s.find(delimiter);
+    int index = s.find(delimiter, counter);
     if(index == -1) index = s.size(); //prevent index from being negative
     std::string ret;
-    ret = s.substr(0, index);
+    ret = s.substr(counter, index);
     //remove next output from s
-    s.erase(0, index + delimiter.size());
+    counter += index + delimiter.size();
 
     return ret;
   }

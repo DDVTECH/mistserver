@@ -23,7 +23,7 @@ namespace Util{
     int counter;
 
     public:
-    StringParser(const std::string& s, const std::string& delimiter);
+    StringParser(std::string& s, std::string& delimiter);
     std::string next();
     int nextInt();
     double nextDouble();

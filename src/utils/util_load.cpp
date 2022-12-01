@@ -1640,7 +1640,9 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
 
       //handle non-websocket connections
-      Util::StringParser path(HTTP::URL(H.url).path, "/");
+      std::string pathvar = HTTP::URL(H.url).path;
+      std::string pathdelimiter = "/";
+      Util::StringParser path(pathvar, pathdelimiter);
       std::string api = path.next();
      
       if(!H.method.compare("PUT") && !api.compare("stream")){
@@ -1670,9 +1672,12 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
 
       //Authentication
       std::string creds = H.GetHeader("Authorization");
+
       //auth with username and password
       if(!creds.substr(0,5).compare("Basic")){
-        Util::StringParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())), std::string(":"));
+        std::string auth = Encodings::Base64::decode(creds.substr(6,creds.size()));
+        std::string authDelimiter = ":";
+        Util::StringParser cred(auth, authDelimiter);
         //check if user exists
         std::map<std::string, std::pair<std::string, std::string> >::iterator user = userAuth.find(cred.next());
         //check password
@@ -1989,7 +1994,8 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
         // Get weights
         }else if (!api.compare("weights")){
-          JSON::Value ret = setWeights(Util::StringParser("",""), false);
+          std::string empty = "";
+          JSON::Value ret = setWeights(Util::StringParser(empty,empty), false);
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
@@ -2653,7 +2659,6 @@ void API::balance(JSON::Value newVals){
    * set and get weights
    */
 JSON::Value API::setWeights(Util::StringParser path, bool resend){
-  WARN_MSG("yes")
   std::string newVals = path.next();
   while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
     int num = path.nextInt();
@@ -2685,7 +2690,8 @@ JSON::Value API::setWeights(Util::StringParser path, bool resend){
 
   
   if(resend){
-    JSON::Value j = ret[WEIGHTS];
+    JSON::Value j;
+    j[WEIGHTS] = ret;
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
       (*it)->send(j.asString());
     }
@@ -3557,6 +3563,7 @@ int main(int argc, char **argv){
   bearerTokens.insert("test1233");
   //add localhost to whitelist
   if(conf.getBool("localmode")) {
+    whitelist.insert("localhost");
     whitelist.insert("::1/128");
     whitelist.insert("127.0.0.1/24");
   }

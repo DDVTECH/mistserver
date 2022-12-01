@@ -1318,33 +1318,6 @@ std::string generateSalt(){
 
 
 /**
- * \return s until first \param delimiter or end of string as a string
-*/
-std::string delimiterParser::next() {
-  //get next delimiter
-  int index = s.find(delimiter);
-  if(index == -1) index = s.size(); //prevent index from being negative
-  std::string ret;
-  ret = s.substr(0, index);
-  //remove next output from s
-  s.erase(0, index + delimiter.size());
-
-  return ret;
-}
-/**
- * \returns next double seperated by delimiter
-*/
-double delimiterParser::nextDouble(){
-  return atof(this->next().c_str());
-}
-/**
- * \return s until first \param delimiter or end of string as an Int
-*/
-int delimiterParser::nextInt() {
-  return atoi(this->next().c_str());
-}
-
-/**
  * \returns the identifiers of the load balancers that need to monitor the server in \param H
 */
 std::set<std::string> hostNeedsMonitoring(hostEntry H){
@@ -1667,7 +1640,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       }
 
       //handle non-websocket connections
-      delimiterParser path((std::string)HTTP::URL(H.url).path,"/");
+      Util::StringParser path((std::string)HTTP::URL(H.url).path,"/");
       std::string api = path.next();
      
       if(!H.method.compare("PUT") && !api.compare("stream")){
@@ -1699,7 +1672,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       std::string creds = H.GetHeader("Authorization");
       //auth with username and password
       if(!creds.substr(0,5).compare("Basic")){
-        delimiterParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())),":");
+        Util::StringParser cred(Encodings::Base64::decode(creds.substr(6,creds.size())),":");
         //check if user exists
         std::map<std::string, std::pair<std::string, std::string> >::iterator user = userAuth.find(cred.next());
         //check password
@@ -2016,7 +1989,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
         // Get weights
         }else if (!api.compare("weights")){
-          JSON::Value ret = setWeights(delimiterParser("",""), false);
+          JSON::Value ret = setWeights(Util::StringParser("",""), false);
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
@@ -2453,7 +2426,7 @@ void API::setStandBy(hostEntry* H, bool lock){
 /**
  * set balancing settings received through API
 */
-void API::balance(delimiterParser path){
+void API::balance(Util::StringParser path){
   JSON::Value j;
   std::string api = path.next();
   while(!api.compare("minstandby") || !api.compare("maxstandby") || !api.compare(CAPPACITYTRIGGERCPUDECKEY) || !api.compare(CAPPACITYTRIGGERRAMDECKEY) ||
@@ -2679,7 +2652,7 @@ void API::balance(JSON::Value newVals){
 /**
    * set and get weights
    */
-JSON::Value API::setWeights(delimiterParser path, bool resend){
+JSON::Value API::setWeights(Util::StringParser path, bool resend){
   WARN_MSG("yes")
   std::string newVals = path.next();
   while(!newVals.compare("cpu") || !newVals.compare("ram") || !newVals.compare("bw") || !newVals.compare("geo") || !newVals.compare("bonus")){
@@ -2727,7 +2700,7 @@ JSON::Value API::setWeights(delimiterParser path, bool resend){
 /**
    * set weights for websockets
    */
-void API::setWeights(const JSON::Value newVals){//TODO doesnt work
+void API::setWeights(const JSON::Value newVals){
   WARN_MSG("%s", newVals.asString().c_str())
   if (!newVals.isMember(CPUKEY)){
     weight_cpu = newVals[CPUKEY].asInt();

@@ -60,24 +60,6 @@ struct prometheusDataNode{
 }typedef prometheusDataNode;
 
 
-
-/**
- * class to parse a string with a delimiter
-*/
-class delimiterParser{
-  private:
-  std::string s;
-  std::string delimiter;
-
-  public:
-  delimiterParser(){};
-  delimiterParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
-  std::string next();
-  int nextInt();
-  double nextDouble();
-};
-
-
 /**
  * class to keep track of stream data
 */
@@ -339,13 +321,13 @@ private:
   /**
    * set balancing settings
   */
-  static void balance(delimiterParser path);
+  static void balance(Util::StringParser path);
   static void balance(JSON::Value newVals);
 
   /**
    * set and get weights
    */
-  static JSON::Value setWeights(delimiterParser path, bool resend);
+  static JSON::Value setWeights(Util::StringParser path, bool resend);
   static void setWeights(const JSON::Value weights);
 
   /**

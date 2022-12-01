@@ -109,6 +109,34 @@ namespace Util{
     }
   }
 
+  /**
+   * \return s until first \param delimiter or end of string as a string
+  */
+  std::string StringParser::next() {
+    //get next delimiter
+    int index = s.find(delimiter);
+    if(index == -1) index = s.size(); //prevent index from being negative
+    std::string ret;
+    ret = s.substr(0, index);
+    //remove next output from s
+    s.erase(0, index + delimiter.size());
+
+    return ret;
+  }
+  /**
+   * \returns next double seperated by delimiter
+  */
+  double StringParser::nextDouble(){
+    return atof(this->next().c_str());
+  }
+  /**
+   * \return s until first \param delimiter or end of string as an Int
+  */
+  int StringParser::nextInt() {
+    return atoi(this->next().c_str());
+  }
+
+
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result){
     result.clear();
     std::deque<size_t> positions;

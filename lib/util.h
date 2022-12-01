@@ -11,6 +11,24 @@ namespace Util{
   bool isDirectory(const std::string &path);
   bool createPathFor(const std::string &file);
   bool createPath(const std::string &path);
+  
+  
+  /**
+   * class to parse a string with a delimiter
+  */
+  class StringParser{
+    private:
+    std::string s;
+    std::string delimiter;
+
+    public:
+    StringParser(){};
+    StringParser(std::string s, std::string delimiter) : s(s), delimiter(delimiter){}
+    std::string next();
+    int nextInt();
+    double nextDouble();
+  };
+
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result);
   void stringToLower(std::string &val);
 

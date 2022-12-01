@@ -11,7 +11,7 @@ namespace Mist{
 
   class inputTSSRT : public Input{
   public:
-    inputTSSRT(Util::Config *cfg, SRTSOCKET s = -1);
+    inputTSSRT(Util::Config *cfg, Socket::SRTConnection s = Socket::SRTConnection());
     ~inputTSSRT();
     void setSingular(bool newSingular);
     virtual bool needsLock();

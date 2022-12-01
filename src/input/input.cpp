@@ -957,7 +957,6 @@ namespace Mist{
   void Input::connStats(Comms::Connections &statComm){
     statComm.setUp(0);
     statComm.setDown(streamByteCount());
-    statComm.setHost(getConnectedBinHost());
   }
 
   void Input::realtimeMainLoop(){

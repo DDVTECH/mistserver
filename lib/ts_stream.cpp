@@ -15,6 +15,14 @@ tthread::recursive_mutex tMutex;
 
 namespace TS{
 
+  Assembler::Assembler(){
+    isLive = false;
+  }
+
+  void Assembler::setLive(bool live){
+    isLive = live;
+  }
+
   bool Assembler::assemble(Stream & TSStrm, const char * ptr, size_t len, bool parse, uint64_t bytePos){
     bool ret = false;
     size_t offset = 0;
@@ -30,7 +38,7 @@ namespace TS{
           tsBuf.FromPointer(leftData);
           if (!ret && tsBuf.getUnitStart()){ret = true;}
           if (parse){
-            TSStrm.parse(tsBuf, bytePos);
+            TSStrm.parse(tsBuf, isLive?0:bytePos);
           }else{
             TSStrm.add(tsBuf);
             if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}
@@ -59,7 +67,7 @@ namespace TS{
           tsBuf.FromPointer(ptr + offset);
           if (!ret && tsBuf.getUnitStart()){ret = true;}
           if (parse){
-            TSStrm.parse(tsBuf, bytePos);
+            TSStrm.parse(tsBuf, isLive?0:bytePos);
           }else{
             TSStrm.add(tsBuf);
             if (!TSStrm.isDataTrack(tsBuf.getPID())){TSStrm.parse(tsBuf.getPID());}

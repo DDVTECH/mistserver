@@ -39,9 +39,8 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
 
 // We use threads here for multiple input pushes, because of the internals of the SRT Library
 static void callThreadCallbackSRT(void *socknum){
-  SRTSOCKET sock = *((SRTSOCKET *)socknum);
   // use the accepted socket as the second parameter
-  Mist::inputTSSRT inp(cfgPointer, sock);
+  Mist::inputTSSRT inp(cfgPointer, *(Socket::SRTConnection *)socknum);
   inp.setSingular(false);
   inp.run();
 }
@@ -49,7 +48,7 @@ static void callThreadCallbackSRT(void *socknum){
 namespace Mist{
   /// Constructor of TS Input
   /// \arg cfg Util::Config that contains all current configurations.
-  inputTSSRT::inputTSSRT(Util::Config *cfg, SRTSOCKET s) : Input(cfg){
+  inputTSSRT::inputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
     capa["name"] = "TSSRT";
@@ -118,8 +117,8 @@ namespace Mist{
     config->addOption("raw", option);
     
     // Setup if we are called form with a thread for push-based input.
-    if (s != -1){
-      srtConn = Socket::SRTConnection(s);
+    if (s.connected()){
+      srtConn = s;
       streamName = baseStreamName;
       std::string streamid = srtConn.getStreamName();
       int64_t acc = config->getInteger("acceptable");
@@ -263,9 +262,8 @@ namespace Mist{
       while (config->is_active && sSock.connected()){
         Socket::SRTConnection S = sSock.accept();
         if (S.connected()){// check if the new connection is valid
-          SRTSOCKET sock = S.getSocket();
           // spawn a new thread for this connection
-          tthread::thread T(callThreadCallbackSRT, (void *)&sock);
+          tthread::thread T(callThreadCallbackSRT, (void *)&S);
           // detach it, no need to keep track of it anymore
           T.detach();
           HIGH_MSG("Spawned new thread for socket %i", S.getSocket());
@@ -285,7 +283,6 @@ namespace Mist{
   void inputTSSRT::connStats(Comms::Connections &statComm){
     statComm.setUp(srtConn.dataUp());
     statComm.setDown(srtConn.dataDown());
-    statComm.setHost(getConnectedBinHost());
     statComm.setPacketCount(srtConn.packetCount());
     statComm.setPacketLostCount(srtConn.packetLostCount());
     statComm.setPacketRetransmitCount(srtConn.packetRetransmitCount());

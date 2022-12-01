@@ -76,6 +76,38 @@ namespace Socket{
     lastGood = Util::bootMS();
   }
 
+  // Copy constructor
+  SRTConnection::SRTConnection(const SRTConnection &rhs){
+    initializeEmpty();
+    *this = rhs;
+  }
+
+  // Assignment constructor
+  SRTConnection &SRTConnection::operator=(const SRTConnection &rhs){
+    close();
+    initializeEmpty();
+    if (!rhs){return *this;}
+    memcpy(&remoteaddr, &(rhs.remoteaddr), sizeof(sockaddr_in6));
+    direction = rhs.direction;
+    remotehost = rhs.remotehost;
+    sock = rhs.sock;
+    performanceMonitor = rhs.performanceMonitor;
+    host = rhs.host;
+    outgoing_port = rhs.outgoing_port;
+    prev_pktseq = rhs.prev_pktseq;
+    lastGood = rhs.lastGood;
+    chunkTransmitSize = rhs.chunkTransmitSize;
+    adapter = rhs.adapter;
+    modeName = rhs.modeName;
+    timeout = rhs.timeout;
+    tsbpdMode = rhs.tsbpdMode;
+    params = rhs.params;
+    blocking = rhs.blocking;
+    getBinHost();
+    return *this;
+  }
+
+
   SRTConnection::SRTConnection(const std::string &_host, int _port, const std::string &_direction,
                                const std::map<std::string, std::string> &_params){
     connect(_host, _port, _direction, _params);
@@ -101,7 +133,7 @@ namespace Socket{
       memcpy(tmpBuffer + 12, &(reinterpret_cast<const sockaddr_in *>(&remoteaddr)->sin_addr.s_addr), 4);
       break;
     case AF_INET6: memcpy(tmpBuffer, &(remoteaddr.sin6_addr.s6_addr), 16); break;
-    default: return ""; break;
+    default: memset(tmpBuffer, 0, 16); break;
     }
     return std::string(tmpBuffer, 16);
   }
@@ -343,6 +375,7 @@ namespace Socket{
   }
 
   void SRTConnection::initializeEmpty(){
+    memset(&performanceMonitor, 0, sizeof(performanceMonitor));
     prev_pktseq = 0;
     sock = SRT_INVALID_SOCK;
     outgoing_port = 0;
@@ -494,11 +527,12 @@ namespace Socket{
     }
 
     r.direction = direction;
+    r.params = conn.params;
     r.postConfigureSocket();
     r.setBlocking(!nonblock);
     static char addrconv[INET6_ADDRSTRLEN];
 
-    r.remoteaddr = tmpaddr;
+    memcpy(&(r.remoteaddr), &tmpaddr, sizeof(tmpaddr));
     if (tmpaddr.sin6_family == AF_INET6){
       r.remotehost = inet_ntop(AF_INET6, &(tmpaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
       HIGH_MSG("IPv6 addr [%s]", r.remotehost.c_str());
@@ -508,6 +542,7 @@ namespace Socket{
       HIGH_MSG("IPv4 addr [%s]", r.remotehost.c_str());
     }
     INFO_MSG("Accepted a socket coming from %s", r.remotehost.c_str());
+    r.getBinHost();
     return r;
   }
 

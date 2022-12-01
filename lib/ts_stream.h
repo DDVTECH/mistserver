@@ -112,9 +112,12 @@ namespace TS{
 
   class Assembler{
   public:
+    Assembler();
     bool assemble(Stream & TSStrm, const char * ptr, size_t len, bool parse = false, uint64_t bytePos = 0);
     void clear();
+    void setLive(bool live = true);
   private:
+    bool isLive;
     Util::ResizeablePointer leftData;
     TS::Packet tsBuf;
   };

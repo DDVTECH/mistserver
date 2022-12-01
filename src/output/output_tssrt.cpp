@@ -7,6 +7,8 @@
 #include <mist/stream.h>
 #include <mist/triggers.h>
 
+bool allowStreamNameOverride = true;
+
 namespace Mist{
   OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection & _srtSock) : TSOutput(conn), srtConn(_srtSock){
     // NOTE: conn is useless for SRT, as it uses a different socket type.
@@ -14,6 +16,7 @@ namespace Mist{
     streamName = config->getString("streamname");
     Util::setStreamName(streamName);
     pushOut = false;
+    assembler.setLive();
     // Push output configuration
     if (config->getString("target").size()){
       target = HTTP::URL(config->getString("target"));
@@ -28,11 +31,7 @@ namespace Mist{
         return;
       }
       pushOut = true;
-      std::map<std::string, std::string> arguments;
-      HTTP::parseVars(target.args, arguments);
-      for (std::map<std::string, std::string>::iterator it = arguments.begin(); it != arguments.end(); ++it){
-        targetParams[it->first] = it->second;
-      }
+      HTTP::parseVars(target.args, targetParams);
       size_t connectCnt = 0;
       do{
         srtConn.connect(target.host, target.getPort(), "output", targetParams);
@@ -44,6 +43,9 @@ namespace Mist{
         }
         ++connectCnt;
       }while (!srtConn && connectCnt < 5);
+      if (!srtConn){
+        FAIL_MSG("Failed to connect to '%s'!", config->getString("target").c_str());
+      }
       wantRequest = false;
       parseData = true;
       initialize();
@@ -51,10 +53,12 @@ namespace Mist{
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
       // Handle override / append of streamname options
       std::string sName = srtConn.getStreamName();
-      if (sName != ""){
-        streamName = sName;
-        Util::sanitizeName(streamName);
-        Util::setStreamName(streamName);
+      if (allowStreamNameOverride){
+        if (sName != ""){
+          streamName = sName;
+          Util::sanitizeName(streamName);
+          Util::setStreamName(streamName);
+        }
       }
 
       int64_t accTypes = config->getInteger("acceptable");
@@ -437,7 +441,8 @@ int main(int argc, char *argv[]){
     int filelimit = conf.getInteger("filelimit");
     Util::sysSetNrOpenFiles(filelimit);
 
-    if (!mistOut::listenMode()){
+    std::string target = conf.getString("target");
+    if (!mistOut::listenMode() && (!target.size() || Socket::interpretSRTMode(HTTP::URL(target)) != "listener")){
       Socket::Connection S(fileno(stdout), fileno(stdin));
       Socket::SRTConnection tmpSock;
       mistOut tmp(S, tmpSock);
@@ -450,7 +455,17 @@ int main(int argc, char *argv[]){
       new_action.sa_flags = 0;
       sigaction(SIGUSR1, &new_action, NULL);
     }
-    if (conf.getInteger("port") && conf.getString("interface").size()){
+    if (target.size()){
+      //Force acceptable option to 1 (outgoing only), since this is a push output and we can't accept incoming connections
+      conf.getOption("acceptable", true).append((uint64_t)1);
+      //Disable overriding streamname with streamid parameter on other side
+      allowStreamNameOverride = false;
+      HTTP::URL tgt(target);
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(tgt.args, arguments);
+      server_socket = Socket::SRTServer(tgt.getPort(), tgt.host, arguments, false, "output");
+      conf.getOption("target", true).append("");
+    }else{
       std::map<std::string, std::string> arguments;
       server_socket = Socket::SRTServer(conf.getInteger("port"), conf.getString("interface"), arguments, false, "output");
     }

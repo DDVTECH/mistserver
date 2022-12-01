@@ -2335,6 +2335,22 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       api.delServer(newVals[REMOVESERVER].asString(), false);
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(SENDCONFIG)){
+      //remove monitored servers
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        api.delServer((*it)->name, true);
+      }
+      //remove load balancers
+      std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
+      while(loadBalancers.size()){
+        if((*it)->getName().compare(LB->getName())){
+          it++;
+        }
+        if(it == loadBalancers.end()) break;
+        (*it)->send("close");
+        (*it)->Go_Down = true;
+        loadBalancers.erase(it);
+        it = loadBalancers.begin(); 
+      }
       configFromString(newVals[SENDCONFIG]);
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(ADDVIEWER)){
@@ -2691,15 +2707,17 @@ JSON::Value API::setWeights(delimiterParser path, bool resend){
 
   //create json for sending
   JSON::Value ret;
-  ret[WEIGHTS][CPUKEY] = weight_cpu;
-  ret[WEIGHTS][RAMKEY] = weight_ram;
-  ret[WEIGHTS][BWKEY] = weight_bw;
-  ret[WEIGHTS][GEOKEY] = weight_geo;
-  ret[WEIGHTS][BONUSKEY] = weight_bonus;
+  ret[CPUKEY] = weight_cpu;
+  ret[RAMKEY] = weight_ram;
+  ret[BWKEY] = weight_bw;
+  ret[GEOKEY] = weight_geo;
+  ret[BONUSKEY] = weight_bonus;
 
+  
   if(resend){
+    JSON::Value j = ret[WEIGHTS];
     for(std::set<LoadBalancer*>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); ++it){
-      (*it)->send(ret.asString());
+      (*it)->send(j.asString());
     }
   }
 
@@ -2712,7 +2730,7 @@ JSON::Value API::setWeights(delimiterParser path, bool resend){
 /**
    * set weights for websockets
    */
-void API::setWeights(const JSON::Value newVals){
+void API::setWeights(const JSON::Value newVals){//TODO doesnt work
   WARN_MSG("%s", newVals.asString().c_str())
   if (!newVals.isMember(CPUKEY)){
     weight_cpu = newVals[CPUKEY].asInt();

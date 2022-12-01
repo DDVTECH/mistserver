@@ -76,52 +76,6 @@ bool LBlocalmode = conf.getOption("localmode");
 bool LBLoad = conf.getOption("load");
 
 
-
-
-
-if(!LBhost.find(':')){
-    if(port.size()) {
-        LBhost += ':' + port;
-    }else LBhost += ":8042";
-}
-if(!host.find(':')){
-    host += ":4242";
-}
-
-if(load){
-    int pid = fork();
-    if(pid == 0){
-        std::string cmd = "./MistUtilLoad";
-        //check for load balancer startup settings
-        if(port>=0){
-            cmd += " -p " + LBport;
-        }
-        if(LBauth.size()){
-            cmd += " -A " + LBauth;
-        }
-        if(LBhost.size()){
-            cmd += " -H " + LBhost;
-        }
-        if(passphrase.size()){
-            cmd += " -P " + passphrase;
-        }
-        if(LBinterface.size()){
-            cmd += " -i " + LBinterface;
-        }
-        if(LBFallback.size()){
-            cmd += " -F " + LBFallback;
-        }
-        if(LBlocalmode){
-            cmd += " -L";
-        }
-        if(LBLoad){
-            cmd += " -c";
-        }
-        //make system call
-        system(cmd);
-    }
-}
-
 if(mesh.size()){
     if(load) {
         HTTP::URL url(mesh);

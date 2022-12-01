@@ -2288,6 +2288,19 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
     if(!Secure::sha256(passHash+salt).compare(frame.substr(frame.find(";")+1, frame.find(" ")-frame.find(";")-1))){
       //auth successful
       webSock->sendFrame("OK");
+      //remove monitored servers
+      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
+        api.delServer((*it)->name, true);
+      }
+      //remove load balancers
+      std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
+      while(loadBalancers.size()){
+        (*it)->send("close");
+        (*it)->Go_Down = true;
+        loadBalancers.erase(it);
+        it = loadBalancers.begin(); 
+      }
+      
       LB = new LoadBalancer(webSock, frame.substr(frame.find(" ")+1, frame.size()), frame.substr(frame.find(" "), frame.size()));
       loadBalancers.insert(LB);
       INFO_MSG("Load balancer added");
@@ -2335,22 +2348,6 @@ LoadBalancer* API::onWebsocketFrame(HTTP::Websocket* webSock, std::string name, 
       api.delServer(newVals[REMOVESERVER].asString(), false);
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(SENDCONFIG)){
-      //remove monitored servers
-      for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
-        api.delServer((*it)->name, true);
-      }
-      //remove load balancers
-      std::set<LoadBalancer*>::iterator it = loadBalancers.begin();
-      while(loadBalancers.size()){
-        if((*it)->getName().compare(LB->getName())){
-          it++;
-        }
-        if(it == loadBalancers.end()) break;
-        (*it)->send("close");
-        (*it)->Go_Down = true;
-        loadBalancers.erase(it);
-        it = loadBalancers.begin(); 
-      }
       configFromString(newVals[SENDCONFIG]);
       lastPromethNode.numLBSuccessRequests++;
     }else if(newVals.isMember(ADDVIEWER)){

@@ -109,7 +109,7 @@ namespace Util{
     }
   }
 
-  StringParser::StringParser(std::string& s, std::string& delimiter) : s(s), delimiter(delimiter), counter(0) {}
+  StringParser::StringParser(const std::string& s, const std::string& delimiter) : s(s), delimiter(delimiter), counter(0) {}
   /**
    * \return s until first \param delimiter or end of string as a string
   */

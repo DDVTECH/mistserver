@@ -1603,6 +1603,10 @@ void loadFile(bool RESEND = false){
   }else WARN_MSG("cant load")
 }
 
+const std::string API::empty = "";
+const std::string API::authDelimiter = ":";
+const std::string API::pathdelimiter = "/";
+
 /**
  * allow connection threads to be made to call API::handleRequests
 */
@@ -1641,7 +1645,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
 
       //handle non-websocket connections
       std::string pathvar = HTTP::URL(H.url).path;
-      std::string pathdelimiter = "/";
       Util::StringParser path(pathvar, pathdelimiter);
       std::string api = path.next();
      
@@ -1676,7 +1679,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
       //auth with username and password
       if(!creds.substr(0,5).compare("Basic")){
         std::string auth = Encodings::Base64::decode(creds.substr(6,creds.size()));
-        std::string authDelimiter = ":";
         Util::StringParser cred(auth, authDelimiter);
         //check if user exists
         std::map<std::string, std::pair<std::string, std::string> >::iterator user = userAuth.find(cred.next());
@@ -1994,7 +1996,6 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           }
         // Get weights
         }else if (!api.compare("weights")){
-          std::string empty = "";
           JSON::Value ret = setWeights(Util::StringParser(empty,empty), false);
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");

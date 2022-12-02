@@ -311,6 +311,9 @@ public:
   static void setStandBy(hostEntry* H, bool lock);
 
 private:
+  static const std::string empty;
+  static const std::string authDelimiter;
+  static const std::string pathdelimiter;
   /**
    * handle websockets only used for other load balancers 
    * \return loadbalancer corisponding to this socket

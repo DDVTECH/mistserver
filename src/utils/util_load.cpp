@@ -1430,6 +1430,7 @@ std::string configToString(){
   j[CONFIGLOWCAPPACITYTRIGGERBW] = LOWCAPPACITYTRIGGERBW;  
   j[CONFIGLOWCAPPACITYTRIGGERRAM] = LOWCAPPACITYTRIGGERRAM; 
   j[CONFIGBALANCINGINTERVAL] = BALANCINGINTERVAL;
+  j[SERVERMONITORLIMITKEY] = serverMonitorLimit;
   //serverlist 
   std::set<std::string> servers;
   for(std::set<hostEntry*>::iterator it = hosts.begin(); it != hosts.end(); it++){
@@ -1530,6 +1531,7 @@ void configFromString(std::string s){
   LOWCAPPACITYTRIGGERBW = j[CONFIGLOWCAPPACITYTRIGGERBW].asDouble();  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
   LOWCAPPACITYTRIGGERRAM = j[CONFIGLOWCAPPACITYTRIGGERRAM].asDouble(); //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
   BALANCINGINTERVAL = j[CONFIGBALANCINGINTERVAL].asInt();
+  serverMonitorLimit = j[SERVERMONITORLIMITKEY].asInt();
 
   if(HIGHCAPPACITYTRIGGERCPU > CAPPACITYTRIGGERCPU) HIGHCAPPACITYTRIGGERCPU = CAPPACITYTRIGGERCPU;
   if(HIGHCAPPACITYTRIGGERBW > CAPPACITYTRIGGERBW) HIGHCAPPACITYTRIGGERBW = CAPPACITYTRIGGERBW;
@@ -2023,6 +2025,7 @@ int API::handleRequests(Socket::Connection &conn, HTTP::Websocket* webSock = 0, 
           ret["CAPPACITYTRIGGERCPUDEC"] = CAPPACITYTRIGGERCPUDEC;
           ret["CAPPACITYTRIGGERBWDEC"] = CAPPACITYTRIGGERBWDEC;
           ret["CAPPACITYTRIGGERRAMDEC"] = CAPPACITYTRIGGERRAMDEC;
+          ret["SERVERMONITORLIMIT"] = serverMonitorLimit;
           H.Clean();
           H.SetHeader("Content-Type", "text/plain");
           H.SetBody(ret.toString());
@@ -3567,6 +3570,7 @@ int main(int argc, char **argv){
 
   api = API();
   loadBalancers = std::set<LoadBalancer*>();
+  serverMonitorLimit = 1;
   //setup saving
   saveTimer = 0;
   time(&prevSaveTime);

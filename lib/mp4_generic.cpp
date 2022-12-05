@@ -1604,9 +1604,10 @@ namespace MP4{
     setDuration(duration); // in ms
     setRate(0x00010000);   // playback rate 1.0X
     setVolume(0x0100);     // volume 1.0X
-    setMatrix(0x00010000, 0);
-    setMatrix(0x00010000, 4);
-    setMatrix(0x40000000, 8);
+    //Identity Transformation Matrix
+    setMatrix(1, 0);
+    setMatrix(1, 4);
+    setMatrix(1, 8);
     setTrackID(0xFFFFFFFF); // empty track numbers is unknown
   }
 
@@ -1708,24 +1709,45 @@ namespace MP4{
   // 10 bytes reserved in between
   uint32_t MVHD::getMatrixCount(){return 9;}
 
-  void MVHD::setMatrix(int32_t newMatrix, size_t index){
+  void MVHD::setMatrix(double newMatrix, size_t index){
     int offset = 0;
     if (getVersion() == 0){
       offset = 24 + 2 + 10;
     }else{
       offset = 36 + 2 + 10;
     }
-    setInt32(newMatrix, offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      setInt32((int32_t)(newMatrix * 1073741824.0), offset + index * 4);
+    }else{
+      setInt32((int32_t)(newMatrix * 65536.0), offset + index * 4);
+    }
   }
 
-  int32_t MVHD::getMatrix(size_t index){
+  double MVHD::getMatrix(size_t index){
     int offset = 0;
     if (getVersion() == 0){
       offset = 36;
     }else{
       offset = 48;
     }
-    return getInt32(offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      return (int32_t)getInt32(offset + index * 4) / 1073741824.0;
+    }else{
+      return (int32_t)getInt32(offset + index * 4) / 65536.0;
+    }
+  }
+
+  uint16_t MVHD::getRotation(){
+    //These are oversimplifications that ignore scaling and translation
+    //We also only handle the 90-degree-increment rotations, nothing else
+    //That should cover practically all videos we'll encounter though...
+    if (getMatrix(1) > 0.0 && getMatrix(3) < 0.0){return 90;}
+    if (getMatrix(1) < 0.0 && getMatrix(3) > 0.0){return 270;}
+    if (getMatrix(0) > 0.0 && getMatrix(4) > 0.0){return 0;}
+    if (getMatrix(0) < 0.0 && getMatrix(4) < 0.0){return 180;}
+    return 0; //Unknown rotation, assume none
   }
 
   // 24 bytes of pre-defined in between
@@ -1761,6 +1783,7 @@ namespace MP4{
       if (i != getMatrixCount() - 1){r << ", ";}
     }
     r << std::endl;
+    r << std::string(indent + 1, ' ') << "Rotation (calculated from Matrix): " << getRotation() << std::endl;
     r << std::string(indent + 1, ' ') << "next_track_ID: " << getTrackID() << std::endl;
     return r.str();
   }
@@ -1937,9 +1960,10 @@ namespace MP4{
     }
     memset(data + payloadOffset, 0, 84); // set all bytes (92 - 8) to zeroes
     setFlags(3);                         // ENABLED | IN_MOVIE
-    setMatrix(0x00010000, 0);
-    setMatrix(0x00010000, 4);
-    setMatrix(0x40000000, 8);
+    //Identity transformation Matrix
+    setMatrix(1, 0);
+    setMatrix(1, 4);
+    setMatrix(1, 8);
     setVolume(0x0100);
   }
 
@@ -2064,7 +2088,12 @@ namespace MP4{
     }else{
       offset = 52;
     }
-    setInt32(newMatrix, offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      setInt32((int32_t)(newMatrix * 1073741824.0), offset + index * 4);
+    }else{
+      setInt32((int32_t)(newMatrix * 65536.0), offset + index * 4);
+    }
   }
 
   int32_t TKHD::getMatrix(size_t index){
@@ -2074,7 +2103,23 @@ namespace MP4{
     }else{
       offset = 52;
     }
-    return getInt32(offset + index * 4);
+    //Indexes 2, 6 and 8 are 2.30 fixed point, the rest is 16.16 fixed point.
+    if (index == 2 || index == 5 || index == 8){
+      return (int32_t)getInt32(offset + index * 4) / 1073741824.0;
+    }else{
+      return (int32_t)getInt32(offset + index * 4) / 65536.0;
+    }
+  }
+
+  uint16_t TKHD::getRotation(){
+    //These are oversimplifications that ignore scaling and translation
+    //We also only handle the 90-degree-increment rotations, nothing else
+    //That should cover practically all videos we'll encounter though...
+    if (getMatrix(1) > 0.0 && getMatrix(3) < 0.0){return 90;}
+    if (getMatrix(1) < 0.0 && getMatrix(3) > 0.0){return 270;}
+    if (getMatrix(0) > 0.0 && getMatrix(4) > 0.0){return 0;}
+    if (getMatrix(0) < 0.0 && getMatrix(4) < 0.0){return 180;}
+    return 0; //Unknown rotation, assume none
   }
 
   void TKHD::setWidth(double newWidth){
@@ -2126,6 +2171,7 @@ namespace MP4{
       if (i != getMatrixCount() - 1){r << ", ";}
     }
     r << std::endl;
+    r << std::string(indent + 1, ' ') << "Rotation (calculated from Matrix): " << getRotation() << std::endl;
     r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
     r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
     return r.str();

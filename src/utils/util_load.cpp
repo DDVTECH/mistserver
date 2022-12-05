@@ -73,6 +73,7 @@ std::string const LOWCAPPACITYTRIGGERCPUKEY = "balancingminimumtriggercpu"; //ca
 std::string const LOWCAPPACITYTRIGGERBWKEY = "balancingminimumtriggerbandwidth";  //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERBW
 std::string const LOWCAPPACITYTRIGGERRAMKEY = "balancingminimumtriggerram"; //capacity at which considerd almost full. should be less than CAPPACITYTRIGGERRAM
 std::string const BALANCINGINTERVALKEY = "balancinginterval";
+std::string const SERVERMONITORLIMITKEY = "servermonitorlimit";
 std::string const STANDBYKEY = "standby";
 std::string const REMOVESTANDBYKEY = "removestandby";
 std::string const LOCKKEY = "lock";
@@ -174,7 +175,7 @@ size_t weight_bonus = 50;
 API api;
 std::set<hostEntry*> hosts; //array holding all hosts
 std::set<LoadBalancer*> loadBalancers; //array holding all load balancers in the mesh
-#define SERVERMONITORLIMIT 1
+int serverMonitorLimit;
 
 //authentication storage
 std::map<std::string,std::pair<std::string, std::string> > userAuth;//username: (passhash, salt)
@@ -1337,13 +1338,13 @@ std::set<std::string> hostNeedsMonitoring(hostEntry H){
     trigger = 1;
   }
   std::set<int> indexs;
-  for(int j = 0; j < SERVERMONITORLIMIT; j++){
+  for(int j = 0; j < serverMonitorLimit; j++){
     indexs.insert((num/trigger+j) % identifiers.size());
   }
   //find identifiers
   std::set<std::string> ret;
   std::set<int>::iterator i = indexs.begin();
-  for(int x = 0; x < SERVERMONITORLIMIT && i != indexs.end(); x++){
+  for(int x = 0; x < serverMonitorLimit && i != indexs.end(); x++){
     std::set<std::string>::iterator it = identifiers.begin();
     std::advance(it,(*i));
     ret.insert(*it);
@@ -2440,7 +2441,7 @@ void API::balance(Util::StringParser path){
     !api.compare(CAPPACITYTRIGGERBWDECKEY) || !api.compare(CAPPACITYTRIGGERCPUKEY) || !api.compare(CAPPACITYTRIGGERRAMKEY) ||
     !api.compare(CAPPACITYTRIGGERBWKEY) || !api.compare(HIGHCAPPACITYTRIGGERCPUKEY) || !api.compare(HIGHCAPPACITYTRIGGERRAMKEY) ||
     !api.compare(HIGHCAPPACITYTRIGGERBWKEY) || !api.compare(LOWCAPPACITYTRIGGERCPUKEY) || !api.compare(LOWCAPPACITYTRIGGERRAMKEY) ||
-    !api.compare(LOWCAPPACITYTRIGGERBWKEY) || !api.compare(BALANCINGINTERVALKEY)) {
+    !api.compare(LOWCAPPACITYTRIGGERBWKEY) || !api.compare(BALANCINGINTERVALKEY) || !api.compare(SERVERMONITORLIMITKEY)) {
     if(!api.compare("minstandby")){
       int newVal = path.nextInt();
       if(newVal > MAXSTANDBY){
@@ -2545,6 +2546,12 @@ void API::balance(Util::StringParser path){
         BALANCINGINTERVAL = newVal;
         j[BALANCEKEY][BALANCINGINTERVALKEY] = BALANCINGINTERVAL;
       }
+    }else if(!api.compare(SERVERMONITORLIMITKEY)){
+    int newVal = path.nextInt();
+      if(newVal >= 0){
+        serverMonitorLimit = newVal;
+        j[BALANCEKEY][SERVERMONITORLIMITKEY] = serverMonitorLimit;
+      }
     }else {
       path.next();
     }
@@ -2567,7 +2574,7 @@ void API::balance(JSON::Value newVals){
       MINSTANDBY = newVal;
     }
   }
-  else if(newVals.isMember("maxstandby")){
+  if(newVals.isMember("maxstandby")){
     int newVal = newVals[MAXSTANDBYKEY].asInt();
     if(newVal < MINSTANDBY){
       MAXSTANDBY = newVal;
@@ -2579,25 +2586,25 @@ void API::balance(JSON::Value newVals){
       CAPPACITYTRIGGERCPUDEC = newVal;
     }
   }
-  else if(newVals.isMember(CAPPACITYTRIGGERRAMDECKEY)){
+  if(newVals.isMember(CAPPACITYTRIGGERRAMDECKEY)){
     double newVal = newVals[CAPPACITYTRIGGERRAMDECKEY].asDouble();
     if(newVal >= 0 && newVal <= 1){
       CAPPACITYTRIGGERRAMDEC = newVal;
     }
   }
-  else if(newVals.isMember(CAPPACITYTRIGGERBWDECKEY)){
+  if(newVals.isMember(CAPPACITYTRIGGERBWDECKEY)){
     double newVal = newVals[CAPPACITYTRIGGERBWDECKEY].asDouble();
     if(newVal >= 0 && newVal <= 1){
       CAPPACITYTRIGGERBWDEC = newVal;
     }
   }
-  else if(newVals.isMember(CAPPACITYTRIGGERCPUKEY)){
+  if(newVals.isMember(CAPPACITYTRIGGERCPUKEY)){
     double newVal = newVals[CAPPACITYTRIGGERCPUKEY].asDouble();
     if(newVal >= 0 && newVal <= 1){
       CAPPACITYTRIGGERCPU = newVal;
     }
   }
-  else if(newVals.isMember(CAPPACITYTRIGGERRAMKEY)){
+  if(newVals.isMember(CAPPACITYTRIGGERRAMKEY)){
     double newVal = newVals[CAPPACITYTRIGGERRAMKEY].asDouble();
     if(newVal >= 0 && newVal <= 1){
       CAPPACITYTRIGGERRAM = newVal;
@@ -2609,19 +2616,19 @@ void API::balance(JSON::Value newVals){
       CAPPACITYTRIGGERBW = newVal;
     }
   }
-  else if(newVals[HIGHCAPPACITYTRIGGERCPUKEY]){
+  if(newVals[HIGHCAPPACITYTRIGGERCPUKEY]){
     double newVal = newVals[HIGHCAPPACITYTRIGGERCPUKEY].asDouble();
     if(newVal >= 0 && newVal <= CAPPACITYTRIGGERCPU){
       HIGHCAPPACITYTRIGGERCPU = newVal;
     }
   }
-  else if(newVals.isMember(HIGHCAPPACITYTRIGGERRAMKEY)){
+  if(newVals.isMember(HIGHCAPPACITYTRIGGERRAMKEY)){
     double newVal = newVals[HIGHCAPPACITYTRIGGERRAMKEY].asDouble();
     if(newVal >= 0 && newVal <= CAPPACITYTRIGGERRAM){
       HIGHCAPPACITYTRIGGERRAM = newVal;
     }
   }
-  else if(newVals.isMember(HIGHCAPPACITYTRIGGERBWKEY)){
+  if(newVals.isMember(HIGHCAPPACITYTRIGGERBWKEY)){
     double newVal = newVals[HIGHCAPPACITYTRIGGERBWKEY].asDouble();
     if(newVal >= 0 && newVal <= CAPPACITYTRIGGERBW){
       HIGHCAPPACITYTRIGGERBW = newVal;
@@ -2633,22 +2640,28 @@ void API::balance(JSON::Value newVals){
       LOWCAPPACITYTRIGGERCPU = newVal;
     }
   }
-  else if(newVals.isMember(LOWCAPPACITYTRIGGERRAMKEY)){
+  if(newVals.isMember(LOWCAPPACITYTRIGGERRAMKEY)){
     double newVal = newVals[LOWCAPPACITYTRIGGERRAMKEY].asDouble();
     if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERRAM){
       LOWCAPPACITYTRIGGERRAM = newVal;
     }
   }
-  else if(newVals.isMember(LOWCAPPACITYTRIGGERBWKEY)){
+  if(newVals.isMember(LOWCAPPACITYTRIGGERBWKEY)){
     double newVal = newVals[LOWCAPPACITYTRIGGERBWKEY].asDouble();
     if(newVal >= 0 && newVal <= HIGHCAPPACITYTRIGGERBW){
       LOWCAPPACITYTRIGGERBW = newVal;
     }
   }          
-  else if(newVals.isMember(BALANCINGINTERVALKEY)){
+  if(newVals.isMember(BALANCINGINTERVALKEY)){
     int newVal = newVals[BALANCINGINTERVALKEY].asInt();
     if(newVal >= 0){
       BALANCINGINTERVAL = newVal;
+    }
+  }
+  if(newVals.isMember(SERVERMONITORLIMITKEY)){
+    int newVal = newVals[SERVERMONITORLIMITKEY].asInt();
+    if(newVal >= 0){
+      serverMonitorLimit = newVal;
     }
   }
   //start save timer

@@ -402,7 +402,7 @@ namespace HTTP{
         if (allData.size() && bufPos < allData.size()){return false;}
         return true;
       }
-      if ((totalSize > 0 && curPos >= totalSize) || downer.completed() || (!totalSize && !downer.getSocket())){
+      if ((totalSize != std::string::npos && curPos >= totalSize) || downer.completed() || (totalSize == std::string::npos && !downer.getSocket())){
         if (allData.size() && bufPos < allData.size()){return false;}
         return true;
       }

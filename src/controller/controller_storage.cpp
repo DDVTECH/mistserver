@@ -1,6 +1,6 @@
 #include "controller_capabilities.h"
-#include "controller_storage.h"
 #include "controller_push.h" //LTS
+#include "controller_storage.h"
 #include "controller_streams.h" //LTS
 #include <algorithm>
 #include <fstream>
@@ -35,16 +35,23 @@ namespace Controller{
   Util::RelAccX *rlxStrm = 0;
   uint64_t systemBoot = Util::unixMS() - Util::bootMS();
 
-  Util::RelAccX *logAccessor(){return rlxLogs;}
+  Util::RelAccX *logAccessor(){
+    return rlxLogs;
+  }
 
-  Util::RelAccX *accesslogAccessor(){return rlxAccs;}
+  Util::RelAccX *accesslogAccessor(){
+    return rlxAccs;
+  }
 
-  Util::RelAccX *streamsAccessor(){return rlxStrm;}
+  Util::RelAccX *streamsAccessor(){
+    return rlxStrm;
+  }
 
   ///\brief Store and print a log message.
   ///\param kind The type of message.
   ///\param message The message to be logged.
-  void Log(const std::string &kind, const std::string &message, const std::string &stream, uint64_t progPid, bool noWriteToLog){
+  void Log(const std::string &kind, const std::string &message, const std::string &stream,
+           uint64_t progPid, bool noWriteToLog){
     if (noWriteToLog){
       tthread::lock_guard<tthread::mutex> guard(logMutex);
       JSON::Value m;
@@ -54,9 +61,9 @@ namespace Controller{
       m.append(message);
       m.append(stream);
       Storage["log"].append(m);
-      Storage["log"].shrink(100); // limit to 100 log messages
-      if (isPushActive(progPid)){pushLogMessage(progPid, m);} //LTS
-      if (isProcActive(progPid)){procLogMessage(progPid, m);} //LTS
+      Storage["log"].shrink(100);                                // limit to 100 log messages
+      if (isPushActive(progPid)){pushLogMessage(progPid, m);}// LTS
+      if (isProcActive(progPid)){procLogMessage(progPid, m);}// LTS
       logCounter++;
       if (rlxLogs && rlxLogs->isReady()){
         if (!firstLog){firstLog = logCounter;}
@@ -266,7 +273,7 @@ namespace Controller{
           tmpConf[cs.key()] = tmp[cs.key()];
           if (!Controller::WriteFile(cs->asStringRef(), tmpConf.toString())){
             ERROR_MSG("Error writing config.%s to %s", cs.key().c_str(), cs->asStringRef().c_str());
-            std::cout << "**config." << cs.key() <<"**" << std::endl;
+            std::cout << "**config." << cs.key() << "**" << std::endl;
             std::cout << tmp[cs.key()].toString() << std::endl;
             std::cout << "**End config." << cs.key() << "**" << std::endl;
           }
@@ -411,7 +418,6 @@ namespace Controller{
     }
   }
 
-
   void writeStream(const std::string &sName, const JSON::Value &sConf){
     static std::map<std::string, JSON::Value> writtenStrms;
     static std::map<std::string, IPC::sharedPage> pages;
@@ -480,11 +486,8 @@ namespace Controller{
 
         // if fields missing, recreate the page
         if (globAccX.isReady()){
-          if(globAccX.getFieldAccX("systemBoot")){
-            systemBoot = globAccX.getInt("systemBoot");
-          }
-          if(!globAccX.getFieldAccX("defaultStream")
-             || !globAccX.getFieldAccX("systemBoot")){
+          if (globAccX.getFieldAccX("systemBoot")){systemBoot = globAccX.getInt("systemBoot");}
+          if (!globAccX.getFieldAccX("defaultStream") || !globAccX.getFieldAccX("systemBoot")){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();

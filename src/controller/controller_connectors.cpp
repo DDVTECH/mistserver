@@ -23,7 +23,9 @@ namespace Controller{
   static std::set<size_t> needsReload; ///< List of connector indices that needs a reload
   static std::map<std::string, pid_t> currentConnectors; ///< The currently running connectors.
 
-  void reloadProtocol(size_t indice){needsReload.insert(indice);}
+  void reloadProtocol(size_t indice){
+    needsReload.insert(indice);
+  }
 
   /// Updates the shared memory page with active connectors
   void saveActiveConnectors(bool forceOverride){
@@ -167,7 +169,7 @@ namespace Controller{
 
     jsonForEach(p, ait){
       std::string prevOnline = (*ait)["online"].asString();
-      
+
       // do not further parse if there's no connector name
       if (!(*ait).isMember("connector") || (*ait)["connector"].asStringRef() == ""){
         (*ait)["online"] = "Missing connector name";
@@ -188,8 +190,8 @@ namespace Controller{
       if (capabilities["connectors"][connName].isMember("PUSHONLY")){
         (*ait)["online"] = "Push-only";
         if ((*ait)["online"].asString() != prevOnline){
-          Log("WARN",
-              connName + " connector is enabled but can only be used by the pushing system! Ignoring connector.");
+          Log("WARN", connName + " connector is enabled but can only be used by the pushing "
+                                 "system! Ignoring connector.");
         }
         continue;
       }

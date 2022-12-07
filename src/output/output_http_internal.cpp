@@ -9,7 +9,6 @@
 #include <mist/websocket.h>
 #include <sys/stat.h>
 
-
 namespace Mist{
   /// Helper function to find the protocol entry for a given port number
   std::string getProtocolForPort(uint16_t portNo){
@@ -55,13 +54,17 @@ namespace Mist{
     if (config->getOption("wrappers", true).size() == 0 || config->getString("wrappers") == ""){
       JSON::Value &wrappers = config->getOption("wrappers", true);
       wrappers.shrink(0);
-      jsonForEach(capa["optional"]["wrappers"]["allowed"], it){wrappers.append(*it);}
+      jsonForEach(capa["optional"]["wrappers"]["allowed"], it){
+        wrappers.append(*it);
+      }
     }
   }
 
   OutHTTP::~OutHTTP(){}
 
-  bool OutHTTP::listenMode(){return !(config->getString("ip").size());}
+  bool OutHTTP::listenMode(){
+    return !(config->getString("ip").size());
+  }
 
   void OutHTTP::onFail(const std::string &msg, bool critical){
     if (responded){
@@ -260,9 +263,7 @@ namespace Mist{
                   byType = true;
                   ++shift;
                 }
-                if (strRef[shift] == '+'){
-                  ++shift;
-                }
+                if (strRef[shift] == '+'){++shift;}
                 jsonForEach(strmMeta["tracks"], trit){
                   if ((!byType && (*trit)["codec"].asStringRef() == strRef.substr(shift)) ||
                       (byType && (*trit)["type"].asStringRef() == strRef.substr(shift)) ||
@@ -313,7 +314,7 @@ namespace Mist{
           bool isSSL = false;
           if (url.protocol == "https" || url.protocol == "wss"){isSSL = true;}
           if (it->isMember("handler")){
-            url.protocol = (*it)["handler"].asStringRef() + (isSSL?"s":"");
+            url.protocol = (*it)["handler"].asStringRef() + (isSSL ? "s" : "");
           }
           JSON::Value tmp;
           tmp["type"] = (*it)["type"];
@@ -323,7 +324,9 @@ namespace Mist{
           if ((*it).isMember("player_url")){
             tmp["player_url"] = (*it)["player_url"].asStringRef();
           }
-          if (conncapa.isMember("cnf") && conncapa["cnf"].isMember("iceservers")){tmp["RTCIceServers"] = conncapa["cnf"]["iceservers"];}
+          if (conncapa.isMember("cnf") && conncapa["cnf"].isMember("iceservers")){
+            tmp["RTCIceServers"] = conncapa["cnf"]["iceservers"];
+          }
           tmp["simul_tracks"] = most_simul;
           tmp["total_matches"] = total_matches;
           tmp["url"] = url.link(relurl).getUrl();
@@ -436,9 +439,9 @@ namespace Mist{
       json_resp["redirected"].append(streamName);
     }
     redirectManager manager;
-    std::string* redirect = manager.checkForRedirect();
-    if(redirect){
-      //send redirect request to player
+    std::string *redirect = manager.checkForRedirect();
+    if (redirect){
+      // send redirect request to player
       json_resp["redirectpls"] = redirect;
     }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
@@ -452,7 +455,8 @@ namespace Mist{
           std::string newStrm = defStrm;
           Util::streamVariables(newStrm, streamName, "");
           if (streamName != newStrm){
-            INFO_MSG("Switching to configured fallback stream '%s' -> '%s'", defStrm.c_str(), newStrm.c_str());
+            INFO_MSG("Switching to configured fallback stream '%s' -> '%s'", defStrm.c_str(),
+                     newStrm.c_str());
             origStreamName = streamName;
             streamName = newStrm;
             Util::setStreamName(streamName);
@@ -461,7 +465,7 @@ namespace Mist{
           }
         }
 
-        //global fallback stream
+        // global fallback stream
         JSON::Value defStrmJson = Util::getGlobalConfig("defaultStream");
         std::string defStrm = defStrmJson.asString();
         if (Triggers::shouldTrigger("DEFAULT_STREAM", streamName)){
@@ -523,9 +527,7 @@ namespace Mist{
         json_resp["unixoffset"] = M.getBootMsOffset() + (Util::unixMS() - Util::bootMS());
       }
     }else{
-      if (M.getUTCOffset()){
-        json_resp["unixoffset"] = M.getUTCOffset();
-      }
+      if (M.getUTCOffset()){json_resp["unixoffset"] = M.getUTCOffset();}
     }
 
     // show ALL the meta datas!
@@ -914,8 +916,8 @@ namespace Mist{
           used = true;
         }
         if (it->asStringRef() == "hlsjs"){
-          #include "hlsjs.js.h"
-          response.append((char*)hlsjs_js, (size_t)hlsjs_js_len);
+#include "hlsjs.js.h"
+          response.append((char *)hlsjs_js, (size_t)hlsjs_js_len);
           used = true;
         }
         if (!used){WARN_MSG("Unknown player type: %s", it->asStringRef().c_str());}
@@ -1071,10 +1073,10 @@ namespace Mist{
         H.Clean();
         return;
       }
-      
-      #include "player_hlsjs.js.h"
-      response.append((char*)player_hlsjs_js, (size_t)player_hlsjs_js_len);
-      
+
+#include "player_hlsjs.js.h"
+      response.append((char *)player_hlsjs_js, (size_t)player_hlsjs_js_len);
+
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -1092,14 +1094,14 @@ namespace Mist{
         return;
       }
 
-      #include "player_libde265.js.h"
-      response.append((char*)player_libde265_js, (size_t)player_libde265_js_len);
+#include "player_libde265.js.h"
+      response.append((char *)player_libde265_js, (size_t)player_libde265_js_len);
 
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
-    } 
+    }
   }
 
   void OutHTTP::sendIcon(){
@@ -1182,45 +1184,46 @@ namespace Mist{
     return true;
   }
 
-
-
 }// namespace Mist
 
-tthread::mutex* redirectManager::managerMutex = 0;
-std::string* redirectManager::redirect = 0;
+tthread::mutex *redirectManager::managerMutex = 0;
+std::string *redirectManager::redirect = 0;
 uint64_t redirectManager::cpu = 0;
 uint64_t redirectManager::ram = 0;
 uint64_t redirectManager::bandwidth = 0;
 
+void redirectManager::update(){
+  int balancingBW = Util::getGlobalConfig("balancingbw").asInt();
+  int balancingRAM = Util::getGlobalConfig("balancingMem").asInt();
+  int balancingCPU = Util::getGlobalConfig("balancingCPU").asInt();
+  std::string balancingRedirect = Util::getGlobalConfig("balancingRedirect").asString();
 
-  void redirectManager::update(){
-    int balancingBW = Util::getGlobalConfig("balancingbw").asInt();
-    int balancingRAM = Util::getGlobalConfig("balancingMem").asInt();
-    int balancingCPU = Util::getGlobalConfig("balancingCPU").asInt();
-    std::string balancingRedirect = Util::getGlobalConfig("balancingRedirect").asString();
+  WARN_MSG("bw: %d, ram: %d, cpu: %d, redirect: %s", balancingBW, balancingRAM, balancingCPU,
+           balancingRedirect.c_str());
+  if (balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() ||
+      balancingBW > Util::getGlobalConfig("bwlimit").asInt()){
+    return;
+  }
+  if (!managerMutex){managerMutex = new tthread::mutex();}
+  tthread::lock_guard<tthread::mutex> guard(*managerMutex);
+  this->redirect = &balancingRedirect;
+  this->cpu = balancingCPU;
+  this->bandwidth = balancingBW;
+  this->ram = balancingRAM;
+}
 
-    WARN_MSG("bw: %d, ram: %d, cpu: %d, redirect: %s", balancingBW, balancingRAM, balancingCPU, balancingRedirect.c_str());
-    if(balancingCPU > 1000 || balancingRAM > Util::getGlobalConfig("mem_total").asInt() || balancingBW > Util::getGlobalConfig("bwlimit").asInt()){return;}
+std::string *redirectManager::checkForRedirect(){// controller statisics voor huidige data
+  update();
+  if (cpu > 0 || ram > 0 || bandwidth > 0){
     if (!managerMutex){managerMutex = new tthread::mutex();}
     tthread::lock_guard<tthread::mutex> guard(*managerMutex);
-    this->redirect = &balancingRedirect;
-    this->cpu = balancingCPU;
-    this->bandwidth = balancingBW;
-    this->ram = balancingRAM;
+    // change values
+    // TODO replace these values with better scaling ones
+    cpu -= 10;
+    ram -= 10;
+    bandwidth -= 10;
+    // send redirect
+    return redirect;
   }
-
-  std::string* redirectManager::checkForRedirect(){//controller statisics voor huidige data
-    update();
-    if(cpu > 0 || ram > 0 || bandwidth > 0){
-      if (!managerMutex){managerMutex = new tthread::mutex();}
-      tthread::lock_guard<tthread::mutex> guard(*managerMutex);
-      //change values
-      //TODO replace these values with better scaling ones
-      cpu -= 10;
-      ram -= 10;
-      bandwidth -= 10;
-      //send redirect
-      return redirect;
-    }
-    return 0;
-  }
+  return 0;
+}

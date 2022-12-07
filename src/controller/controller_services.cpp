@@ -23,7 +23,9 @@ namespace Controller{
   static std::set<size_t> needsReload; ///< List of service indices that needs a reload
   static std::map<std::string, pid_t> currentservices; ///< The currently running services.
 
-  void reloadService(size_t indice){needsReload.insert(indice);}
+  void reloadService(size_t indice){
+    needsReload.insert(indice);
+  }
 
   /// Updates the shared memory page with active services
   void saveActiveServices(bool forceOverride){

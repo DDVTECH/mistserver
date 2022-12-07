@@ -27,7 +27,8 @@
 // This access method is stable with changing start/end positions and present record counts,
 // because it only
 // depends on the record count, which may not change for ring buffers.
-#define RECORD_POINTER p + *hdrOffset + (((*hdrRecordCnt)?(recordNo % *hdrRecordCnt) : recordNo) * *hdrRecordSize) + fd.offset
+#define RECORD_POINTER                                                                             \
+  p + *hdrOffset + (((*hdrRecordCnt) ? (recordNo % *hdrRecordCnt) : recordNo) * *hdrRecordSize) + fd.offset
 
 namespace Util{
   Util::DataCallback defaultDataCallback;
@@ -109,34 +110,34 @@ namespace Util{
     }
   }
 
-  StringParser::StringParser(const std::string& s, const std::string& delimiter) : s(s), delimiter(delimiter), counter(0) {}
+  StringParser::StringParser(const std::string &s, const std::string &delimiter)
+      : s(s), delimiter(delimiter), counter(0){}
   /**
    * \return s until first \param delimiter or end of string as a string
-  */
-  std::string StringParser::next() {
-    //get next delimiter
+   */
+  std::string StringParser::next(){
+    // get next delimiter
     int index = s.find(delimiter, counter);
-    if(index == -1) index = s.size(); //prevent index from being negative
+    if (index == -1) index = s.size(); // prevent index from being negative
     std::string ret;
-    if(counter>index) return ret;
-    ret = s.substr(counter, index-counter);
-    //remove next output from s
+    if (counter > index) return ret;
+    ret = s.substr(counter, index - counter);
+    // remove next output from s
     counter = index + delimiter.size();
     return ret;
   }
   /**
    * \returns next double seperated by delimiter
-  */
+   */
   double StringParser::nextDouble(){
     return atof(this->next().c_str());
   }
   /**
    * \return s until first \param delimiter or end of string as an Int
-  */
-  int StringParser::nextInt() {
+   */
+  int StringParser::nextInt(){
     return atoi(this->next().c_str());
   }
-
 
   bool stringScan(const std::string &src, const std::string &pattern, std::deque<std::string> &result){
     result.clear();
@@ -179,10 +180,10 @@ namespace Util{
     }
   }
 
-  //Returns the time to wait in milliseconds for exponential back-off waiting.
-  //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
-  //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.
-  //Wildly inaccurate for very short max durations and/or very large maxIter values, but otherwise works as expected.
+  // Returns the time to wait in milliseconds for exponential back-off waiting.
+  // If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
+  // Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.
+  // Wildly inaccurate for very short max durations and/or very large maxIter values, but otherwise works as expected.
   int64_t expBackoffMs(const size_t currIter, const size_t maxIter, const int64_t maxWait){
     if (currIter > maxIter){return 5;}
     int64_t w = maxWait >> 1;
@@ -221,13 +222,13 @@ namespace Util{
   }
 
   void ResizeablePointer::shift(size_t byteCount){
-    //Shifting the entire buffer is easy, we do nothing and set size to zero
+    // Shifting the entire buffer is easy, we do nothing and set size to zero
     if (byteCount >= currSize){
       currSize = 0;
       return;
     }
-    //Shifting partial needs a memmove and size change
-    memmove(ptr, ((char*)ptr)+byteCount, currSize-byteCount);
+    // Shifting partial needs a memmove and size change
+    memmove(ptr, ((char *)ptr) + byteCount, currSize - byteCount);
     currSize -= byteCount;
   }
 
@@ -277,7 +278,9 @@ namespace Util{
   }
 
   /// Returns amount of space currently reserved for this pointer
-  uint32_t ResizeablePointer::rsize(){return maxSize;}
+  uint32_t ResizeablePointer::rsize(){
+    return maxSize;
+  }
 
   void ResizeablePointer::truncate(const size_t newLen){
     if (currSize > newLen){currSize = newLen;}
@@ -419,7 +422,8 @@ namespace Util{
         if (!strcmp(kind, "ERROR")){dprintf(out, "<1>");}
         if (!strcmp(kind, "WARN")){dprintf(out, "<2>");}
         if (!strcmp(kind, "INFO")){dprintf(out, "<5>");}
-        if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") || !strcmp(kind, "DONTEVEN")){
+        if (!strcmp(kind, "VERYHIGH") || !strcmp(kind, "EXTREME") || !strcmp(kind, "INSANE") ||
+            !strcmp(kind, "DONTEVEN")){
           dprintf(out, "<7>");
         }
       }else{
@@ -451,17 +455,21 @@ namespace Util{
 
   FieldAccX::FieldAccX(RelAccX *_src, RelAccXFieldData _field) : src(_src), field(_field){}
 
-  uint64_t FieldAccX::uint(size_t recordNo) const{return src->getInt(field, recordNo);}
+  uint64_t FieldAccX::uint(size_t recordNo) const{
+    return src->getInt(field, recordNo);
+  }
 
   std::string FieldAccX::string(size_t recordNo) const{
     return std::string(src->getPointer(field, recordNo));
   }
 
-  const char * FieldAccX::ptr(size_t recordNo) const{
+  const char *FieldAccX::ptr(size_t recordNo) const{
     return src->getPointer(field, recordNo);
   }
 
-  void FieldAccX::set(uint64_t val, size_t recordNo){src->setInt(field, val, recordNo);}
+  void FieldAccX::set(uint64_t val, size_t recordNo){
+    src->setInt(field, val, recordNo);
+  }
 
   void FieldAccX::set(const std::string &val, size_t recordNo){
     char *place = src->getPointer(field, recordNo);
@@ -478,13 +486,13 @@ namespace Util{
       return;
     }
     p = data;
-    hdrRecordCnt = (uint32_t*)(p+2);
-    hdrRecordSize = (uint32_t*)(p+6);
-    hdrStartPos = (uint32_t*)(p+10);
-    hdrDeleted = (uint64_t*)(p+14);
-    hdrPresent = (uint32_t*)(p+22);
-    hdrOffset = (uint16_t*)(p+26);
-    hdrEndPos = (uint64_t*)(p+28);
+    hdrRecordCnt = (uint32_t *)(p + 2);
+    hdrRecordSize = (uint32_t *)(p + 6);
+    hdrStartPos = (uint32_t *)(p + 10);
+    hdrDeleted = (uint64_t *)(p + 14);
+    hdrPresent = (uint32_t *)(p + 22);
+    hdrOffset = (uint16_t *)(p + 26);
+    hdrEndPos = (uint64_t *)(p + 28);
     if (waitReady){
       uint64_t maxWait = Util::bootMS() + 10000;
       while (!isReady()){
@@ -542,37 +550,59 @@ namespace Util{
   }
 
   /// Gets the amount of records present in the structure.
-  uint32_t RelAccX::getRCount() const{return *hdrRecordCnt;}
+  uint32_t RelAccX::getRCount() const{
+    return *hdrRecordCnt;
+  }
 
   /// Gets the size in bytes of a single record in the structure.
-  uint32_t RelAccX::getRSize() const{return *hdrRecordSize;}
+  uint32_t RelAccX::getRSize() const{
+    return *hdrRecordSize;
+  }
 
   /// Gets the position in the records where the entries start
-  uint32_t RelAccX::getStartPos() const{return *hdrStartPos;}
+  uint32_t RelAccX::getStartPos() const{
+    return *hdrStartPos;
+  }
 
   /// Gets the number of deleted records
-  uint64_t RelAccX::getDeleted() const{return *hdrDeleted;}
+  uint64_t RelAccX::getDeleted() const{
+    return *hdrDeleted;
+  }
 
   /// Gets the number of records present
-  size_t RelAccX::getPresent() const{return *hdrPresent;}
+  size_t RelAccX::getPresent() const{
+    return *hdrPresent;
+  }
 
   /// Gets the number of the last valid index
-  uint64_t RelAccX::getEndPos() const{return *hdrEndPos;}
+  uint64_t RelAccX::getEndPos() const{
+    return *hdrEndPos;
+  }
 
   /// Gets the number of fields per recrd
-  uint32_t RelAccX::getFieldCount() const{return fields.size();}
+  uint32_t RelAccX::getFieldCount() const{
+    return fields.size();
+  }
 
   /// Gets the offset from the structure start where records begin.
-  uint16_t RelAccX::getOffset() const{return *hdrOffset;}
+  uint16_t RelAccX::getOffset() const{
+    return *hdrOffset;
+  }
 
   /// Returns true if the structure is ready for read operations.
-  bool RelAccX::isReady() const{return p && (p[0] & 1);}
+  bool RelAccX::isReady() const{
+    return p && (p[0] & 1);
+  }
 
   /// Returns true if the structure will no longer be updated.
-  bool RelAccX::isExit() const{return !p || (p[0] & 2);}
+  bool RelAccX::isExit() const{
+    return !p || (p[0] & 2);
+  }
 
   /// Returns true if the structure should be reloaded through out of band means.
-  bool RelAccX::isReload() const{return p[0] & 4;}
+  bool RelAccX::isReload() const{
+    return p[0] & 4;
+  }
 
   /// Returns true if the given record number can be accessed.
   bool RelAccX::isRecordAvailable(uint64_t recordNo) const{
@@ -766,7 +796,7 @@ namespace Util{
     // Get current offset and record size
     // The first field initializes the offset and record size.
     if (!fields.size()){
-      *hdrRecordSize = 0;                 // Nothing yet, this is the first data field.
+      *hdrRecordSize = 0;              // Nothing yet, this is the first data field.
       *hdrOffset = RAX_REQDFIELDS_LEN; // All mandatory fields are first - so we start there.
       RAXHDR_FIELDOFFSET = *hdrOffset; // store the field_offset
     }
@@ -796,20 +826,30 @@ namespace Util{
   }
 
   /// Sets the record counter to the given value.
-  void RelAccX::setRCount(uint32_t count){*hdrRecordCnt = count;}
+  void RelAccX::setRCount(uint32_t count){
+    *hdrRecordCnt = count;
+  }
 
   /// Sets the position in the records where the entries start
-  void RelAccX::setStartPos(uint32_t n){*hdrStartPos = n;}
+  void RelAccX::setStartPos(uint32_t n){
+    *hdrStartPos = n;
+  }
 
   /// Sets the number of deleted records
-  void RelAccX::setDeleted(uint64_t n){*hdrDeleted = n;}
+  void RelAccX::setDeleted(uint64_t n){
+    *hdrDeleted = n;
+  }
 
   /// Sets the number of records present
   /// Defaults to the record count if set to zero.
-  void RelAccX::setPresent(uint32_t n){*hdrPresent = n;}
+  void RelAccX::setPresent(uint32_t n){
+    *hdrPresent = n;
+  }
 
   /// Sets the number of the last valid index
-  void RelAccX::setEndPos(uint64_t n){*hdrEndPos = n;}
+  void RelAccX::setEndPos(uint64_t n){
+    *hdrEndPos = n;
+  }
 
   /// Sets the ready flag.
   /// After calling this function, addField() may no longer be called.
@@ -824,11 +864,15 @@ namespace Util{
 
   // Sets the exit flag.
   /// After calling this function, addField() may no longer be called.
-  void RelAccX::setExit(){p[0] |= 2;}
+  void RelAccX::setExit(){
+    p[0] |= 2;
+  }
 
   // Sets the reload flag.
   /// After calling this function, addField() may no longer be called.
-  void RelAccX::setReload(){p[0] |= 4;}
+  void RelAccX::setReload(){
+    p[0] |= 4;
+  }
 
   /// Writes the given string to the given field in the given record.
   /// Fails if ready is not set.
@@ -905,8 +949,8 @@ namespace Util{
   /// Updates the deleted record counter, the start position and the present record counter,
   /// shifting the ring buffer start position forward without moving the ring buffer end position.
   void RelAccX::deleteRecords(uint32_t amount){
-    *hdrStartPos += amount;    // update start position
-    *hdrDeleted += amount; // update deleted record counter
+    *hdrStartPos += amount; // update start position
+    *hdrDeleted += amount;  // update deleted record counter
     if (*hdrPresent >= amount){
       *hdrPresent -= amount; // decrease records present
     }else{
@@ -922,7 +966,8 @@ namespace Util{
   void RelAccX::addRecords(uint32_t amount){
     if ((*hdrPresent) + amount > *hdrRecordCnt){
       BACKTRACE;
-      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", (*hdrPresent) + amount, *hdrPresent, amount, *hdrRecordCnt);
+      WARN_MSG("Exceeding recordCount (%d [%d + %d] > %d)", (*hdrPresent) + amount, *hdrPresent,
+               amount, *hdrRecordCnt);
       *hdrPresent = 0;
     }else{
       *hdrPresent += amount;
@@ -1021,14 +1066,14 @@ namespace Util{
 
   bool sysSetNrOpenFiles(int n){
     struct rlimit limit;
-    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0){
       FAIL_MSG("Could not get open file limit: %s", strerror(errno));
       return false;
     }
     int currLimit = limit.rlim_cur;
-    if(limit.rlim_cur < n){
+    if (limit.rlim_cur < n){
       limit.rlim_cur = n;
-      if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
+      if (setrlimit(RLIMIT_NOFILE, &limit) != 0){
         FAIL_MSG("Could not set open file limit from %d to %d: %s", currLimit, n, strerror(errno));
         return false;
       }

@@ -434,10 +434,6 @@ makeUtil(RAX rax)
 makeUtil(AMF amf)
 makeUtil(Certbot certbot)
 makeUtil(Nuke nuke)
-option(LOAD_BALANCE "Build the load balancer")
-if (LOAD_BALANCE)
-  makeUtil(Load load)
-endif()
 #LTS_END
 
 add_executable(MistTranslateH264
@@ -894,6 +890,33 @@ target_link_libraries(MistController
 )
 install(
   TARGETS MistController
+  DESTINATION bin
+)
+
+########################################
+# Load balancer - Build               #
+########################################
+add_executable(MistLoadbalancer
+  src/loadbalancer/communication_defines.h
+  src/loadbalancer/api.h
+  src/loadbalancer/server.h
+  src/loadbalancer/util_load.h
+  src/loadbalancer/loadbalancer.cpp
+  src/loadbalancer/api.cpp
+  src/loadbalancer/server.cpp
+  src/loadbalancer/util_load.cpp
+  
+  generated/server.html.h
+  ${BINARY_DIR}/mist/.headers
+)
+set_target_properties(MistLoadbalancer
+  PROPERTIES COMPILE_DEFINITIONS RELEASE=${RELEASE}
+)
+target_link_libraries(MistLoadbalancer
+  mist
+)
+install(
+  TARGETS MistLoadbalancer
   DESTINATION bin
 )
 

@@ -48,6 +48,9 @@ namespace JSON{
     Value(uint64_t val);
     Value(double val);
     Value(bool val);
+    Value(std::set<std::string> val);
+    Value(std::map<std::string, std::string>);
+    Value(std::map<std::string, std::pair<std::string, std::string> > val);
     // comparison operators
     bool operator==(const Value &rhs) const;
     bool operator!=(const Value &rhs) const;
@@ -65,6 +68,9 @@ namespace JSON{
     Value &operator=(const uint32_t &rhs);
     Value &operator=(const double &rhs);
     Value &operator=(const bool &rhs);
+    Value &operator=(const std::set<std::string> &rhs);
+    Value &operator=(const std::map<std::string, std::string> &rhs);
+    Value &operator=(const std::map<std::string, std::pair<std::string, std::string> > &rhs);
     // converts to basic types
     operator int64_t() const;
     operator std::string() const;
@@ -76,6 +82,9 @@ namespace JSON{
     const double asDouble() const;
     const std::string &asStringRef() const;
     const char *c_str() const;
+    std::set<std::string> asStringSet() const;
+    std::map<std::string, std::string> asStringMap() const;
+    std::map<std::string, std::pair<std::string, std::string> > asStringPairMap() const;
     // array operator for maps and arrays
     Value &operator[](const std::string &i);
     Value &operator[](const char *i);

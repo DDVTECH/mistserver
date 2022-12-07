@@ -11,19 +11,18 @@ namespace Util{
   bool isDirectory(const std::string &path);
   bool createPathFor(const std::string &file);
   bool createPath(const std::string &path);
-  
-  
+
   /**
    * class to parse a string with a delimiter
-  */
+   */
   class StringParser{
-    private:
-    const std::string& s;
-    const std::string& delimiter;
+  private:
+    const std::string &s;
+    const std::string &delimiter;
     int counter;
 
-    public:
-    StringParser(const std::string& s, const std::string& delimiter);
+  public:
+    StringParser(const std::string &s, const std::string &delimiter);
     std::string next();
     int nextInt();
     double nextDouble();
@@ -208,13 +207,13 @@ namespace Util{
     std::map<std::string, RelAccXFieldData> fields;
 
   private:
-    uint32_t * hdrRecordCnt;
-    uint32_t * hdrRecordSize;
-    uint32_t * hdrStartPos;
-    uint64_t * hdrDeleted;
-    uint32_t * hdrPresent;
-    uint16_t * hdrOffset;
-    uint64_t * hdrEndPos;
+    uint32_t *hdrRecordCnt;
+    uint32_t *hdrRecordSize;
+    uint32_t *hdrStartPos;
+    uint64_t *hdrDeleted;
+    uint32_t *hdrPresent;
+    uint16_t *hdrOffset;
+    uint64_t *hdrEndPos;
     char *p;
   };
 
@@ -223,10 +222,10 @@ namespace Util{
     FieldAccX(RelAccX *_src = NULL, RelAccXFieldData _field = RelAccXFieldData());
     uint64_t uint(size_t recordNo) const;
     std::string string(size_t recordNo) const;
-    const char * ptr(size_t recordNo) const;
+    const char *ptr(size_t recordNo) const;
     void set(uint64_t val, size_t recordNo = 0);
     void set(const std::string &val, size_t recordNo = 0);
-    operator bool() const {return src;}
+    operator bool() const{return src;}
 
   private:
     RelAccX *src;

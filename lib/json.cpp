@@ -502,6 +502,47 @@ JSON::Value::Value(bool val){
   intVal = (val ? 1 : 0);
 }
 
+/// Sets this JSON::Value to the given set of strings.
+JSON::Value::Value(std::set<std::string> val){
+  for (std::set<std::string>::iterator it = val.begin(); it != val.end(); ++it){this->append(*it);}
+}
+
+/// Sets this JSON::Value to the given map of strings.
+JSON::Value::Value(std::map<std::string, std::string> val){
+  for (std::map<std::string, std::string>::iterator it = val.begin(); it != val.end(); ++it){
+    if (myType != OBJECT){
+    null();
+    myType = OBJECT;
+    }
+    Value *pntr = objVal[(*it).first];
+    if (!pntr){
+      objVal[(*it).first] = new JSON::Value();
+      pntr = objVal[(*it).first];
+    }
+    *pntr = (*it).second;
+  }
+}
+
+
+/// Sets this JSON::Value to the given map of strings.
+JSON::Value::Value(std::map<std::string, std::pair<std::string, std::string> > val){
+  for (std::map<std::string, std::pair<std::string, std::string> >::iterator it = val.begin(); it != val.end(); ++it){
+    if (myType != OBJECT){
+    null();
+    myType = OBJECT;
+    }
+    Value *pntr = objVal[(*it).first];
+    if (!pntr){
+      objVal[(*it).first] = new JSON::Value();
+      pntr = objVal[(*it).first];
+    }
+    (*pntr).append((*it).second.first);
+    (*pntr).append((*it).second.second);
+  }
+}
+
+
+
 /// Compares a JSON::Value to another for equality.
 bool JSON::Value::operator==(const JSON::Value &rhs) const{
   if (myType != rhs.myType){return false;}
@@ -697,6 +738,44 @@ JSON::Value &JSON::Value::operator=(const uint32_t &rhs){
   return ((*this) = (int64_t)rhs);
 }
 
+
+JSON::Value &JSON::Value::operator=(const std::set<std::string> &rhs){
+  for (std::set<std::string>::iterator it = rhs.begin(); it != rhs.end(); ++it){this->append(*it);}
+  return *this;
+}
+
+JSON::Value &JSON::Value::operator=(const std::map<std::string, std::string> &rhs){
+    for (std::map<std::string, std::string>::const_iterator it = rhs.begin(); it != rhs.end(); ++it){
+    if (myType != OBJECT){
+    null();
+    myType = OBJECT;
+    }
+    Value *pntr = objVal[(*it).first];
+    if (!pntr){
+      objVal[(*it).first] = new JSON::Value();
+      pntr = objVal[(*it).first];
+    }
+    *pntr = (*it).second;
+  }
+  return *this;
+}
+JSON::Value &JSON::Value::operator=(const std::map<std::string, std::pair<std::string, std::string> > &rhs){
+  for (std::map<std::string, std::pair<std::string, std::string> >::const_iterator it = rhs.begin(); it != rhs.end(); ++it){
+    if (myType != OBJECT){
+    null();
+    myType = OBJECT;
+    }
+    Value *pntr = objVal[(*it).first];
+    if (!pntr){
+      objVal[(*it).first] = new JSON::Value();
+      pntr = objVal[(*it).first];
+    }
+    (*pntr).append((*it).second.first);
+    (*pntr).append((*it).second.second);
+  }
+  return *this;
+}
+
 /// Automatic conversion to long long int - returns 0 if not convertable.
 JSON::Value::operator int64_t() const{
   if (myType == INTEGER){return intVal;}
@@ -765,6 +844,36 @@ const std::string &JSON::Value::asStringRef() const{
 const char *JSON::Value::c_str() const{
   if (myType == STRING){return strVal.c_str();}
   return "";
+}
+
+/// converts json to set of strings
+std::set<std::string> JSON::Value::asStringSet() const{
+  std::set<std::string> s;
+  jsonForEachConst(*this, it){
+    s.insert(it->asString());
+  }
+  return s;
+}
+
+/// converts json to set of strings
+std::map<std::string, std::string> JSON::Value::asStringMap() const{
+  std::map<std::string, std::string> m;
+  jsonForEachConst(*this, i){
+    m.insert(std::pair<std::string, std::string>(i.key(), (*i).asString()));
+  }
+  return m;
+}
+
+std::map<std::string, std::pair<std::string, std::string> > JSON::Value::asStringPairMap() const{
+  std::map<std::string, std::pair<std::string, std::string> > m;
+  jsonForEachConst(*this, i){
+    //JSON::ConstIter i;
+    std::string first = (*i).asString();
+    ++i;
+    std::string second = (*i).asString();
+    m.insert(std::make_pair(i.key(), std::make_pair(first, second)));
+  }
+  return m;
 }
 
 /// Retrieves or sets the JSON::Value at this position in the object.

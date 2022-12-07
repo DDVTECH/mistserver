@@ -25,9 +25,7 @@ namespace Mist{
     deltaTotal = 0;
     offsetIndex = 0;
     offsetPos = 0;
-    sttsBox.clear();
-    hasCTTS = false;
-    cttsBox.clear();
+    stscBox.clear();
     stszBox.clear();
     stcoBox.clear();
     co64Box.clear();
@@ -51,14 +49,11 @@ namespace Mist{
 
     MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
 
-    sttsBox.copyFrom(stblBox.getChild<MP4::STTS>());
-    cttsBox.copyFrom(stblBox.getChild<MP4::CTTS>());
     stszBox.copyFrom(stblBox.getChild<MP4::STSZ>());
     stcoBox.copyFrom(stblBox.getChild<MP4::STCO>());
     co64Box.copyFrom(stblBox.getChild<MP4::CO64>());
     stscBox.copyFrom(stblBox.getChild<MP4::STSC>());
     stco64 = co64Box.isType("co64");
-    hasCTTS = cttsBox.isType("ctts");
   }
 
   void mp4TrackHeader::getPart(uint64_t index, uint64_t &offset){
@@ -174,7 +169,10 @@ namespace Mist{
     } else {
       INFO_MSG("inFile is unknown!");
     }
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason("Could not open URL or contains no data");
+      return false;
+    }
     if (!inFile.isSeekable()){
       FAIL_MSG("MP4 input only supports seekable data sources, for now, and this source is not seekable: %s", config->getString("input").c_str());
       return false;
@@ -185,17 +183,13 @@ namespace Mist{
   void inputMP4::dataCallback(const char *ptr, size_t size){readBuffer.append(ptr, size);}
 
   bool inputMP4::readHeader(){
-    if (!inFile){
-      Util::logExitReason("Could not open input file");
-      return false;
-    }
     bool hasMoov = false;
     readBuffer.truncate(0);
     readPos = 0;
 
     INFO_MSG("inFile is seekable: %d", inFile.isSeekable());
     INFO_MSG("inFile is EOF: %d", inFile.isEOF());	
-    INFO_MSG("inFile getPos: %"PRIu64"", inFile.getPos());
+    INFO_MSG("inFile getPos: %" PRIu64 "", inFile.getPos());
     INFO_MSG("inFile getSize: %zu", inFile.getSize());
 
     // first we get the necessary header parts

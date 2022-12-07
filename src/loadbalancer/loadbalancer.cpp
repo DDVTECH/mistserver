@@ -4,6 +4,7 @@
 #include <mist/config.h>
 #include <mist/util.h>
 #include <string>
+#include <mist/auth.h>
 
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();

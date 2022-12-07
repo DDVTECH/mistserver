@@ -1,6 +1,9 @@
 #ifndef server
 #define server
 #include "communication_defines.h"
+#include <mist/websocket.h>
+#include <mist/config.h>
+
 
 #define STATE_OFF 0
 #define STATE_BOOT 1

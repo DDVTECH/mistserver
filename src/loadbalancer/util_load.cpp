@@ -1,5 +1,7 @@
 #include "util_load.h"
 #include <mist/downloader.h>
+#include <mist/triggers.h>
+#include <mist/encryption.h>
 
 // rebalancing
 int minstandby = 1;

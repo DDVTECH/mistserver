@@ -1,4 +1,5 @@
 #include "server.h"
+#include <cmath>
 
 const char *stateLookup[] ={
     "Offline",         "Starting monitoring", "Monitored (error)",     "Monitored (not in service)",

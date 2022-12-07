@@ -1,23 +1,11 @@
 #pragma once
-#include <cmath>
-#include <cstdlib>
+
+
 #include <ctime>
-#include <fstream>
-#include <iostream>
-#include <mist/auth.h>
-#include <mist/config.h>
-#include <mist/defines.h>
-#include <mist/encode.h>
-#include <mist/encryption.h>
-#include <mist/timing.h>
 #include <mist/tinythread.h>
-#include <mist/triggers.h>
-#include <mist/util.h>
-#include <mist/websocket.h>
 #include <set>
-#include <stdint.h>
 #include <string>
-#include <unistd.h>
+
 
 // transmision json names
 #define confStreamKey "conf_streams"

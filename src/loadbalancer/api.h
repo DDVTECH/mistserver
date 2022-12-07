@@ -2,6 +2,8 @@
 #define apifile
 #include "communication_defines.h"
 #include "server.h"
+#include <mist/websocket.h>
+#include <mist/config.h>
 
 class LoadBalancer;
 struct hostEntry;

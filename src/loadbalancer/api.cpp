@@ -1,5 +1,9 @@
 #include "api.h"
 #include "util_load.h"
+#include <mist/encryption.h>
+#include <mist/encode.h>
+#include <mist/auth.h>
+#include <fstream>
 
 /**
  * allow connection threads to be made to call handleRequests
@@ -1049,7 +1053,7 @@ void setWeights(const JSON::Value newVals){
 }
 
 /**
- * remove server from ?
+ * remove server from the mesh
  */
 JSON::Value delServer(const std::string delserver, bool resend){
   JSON::Value ret;

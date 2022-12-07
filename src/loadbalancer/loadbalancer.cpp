@@ -1,15 +1,15 @@
 #include "api.h"
 #include "communication_defines.h"
 #include "util_load.h"
+#include <mist/auth.h>
 #include <mist/config.h>
 #include <mist/util.h>
 #include <string>
-#include <mist/auth.h>
 
 int main(int argc, char **argv){
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
-  cfg = &conf;
+  Loadbalancer::cfg = &conf;
   JSON::Value opt;
 
   opt["arg"] = "integer";
@@ -51,28 +51,28 @@ int main(int argc, char **argv){
   opt["short"] = "R";
   opt["long"] = "ram";
   opt["help"] = "Weight for RAM scoring";
-  opt["value"].append(weight_ram);
+  opt["value"].append(Loadbalancer::weight_ram);
   conf.addOption("ram", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "C";
   opt["long"] = "cpu";
   opt["help"] = "Weight for CPU scoring";
-  opt["value"].append(weight_cpu);
+  opt["value"].append(Loadbalancer::weight_cpu);
   conf.addOption("cpu", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "B";
   opt["long"] = "bw";
   opt["help"] = "Weight for BW scoring";
-  opt["value"].append(weight_bw);
+  opt["value"].append(Loadbalancer::weight_bw);
   conf.addOption("bw", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "G";
   opt["long"] = "geo";
   opt["help"] = "Weight for geo scoring";
-  opt["value"].append(weight_geo);
+  opt["value"].append(Loadbalancer::weight_geo);
   conf.addOption("geo", opt);
 
   opt["arg"] = "string";
@@ -85,7 +85,7 @@ int main(int argc, char **argv){
   opt["short"] = "X";
   opt["long"] = "extra";
   opt["help"] = "Weight for extra scoring when stream exists";
-  opt["value"].append(weight_bonus);
+  opt["value"].append(Loadbalancer::weight_bonus);
   conf.addOption("extra", opt);
 
   opt.null();
@@ -109,77 +109,79 @@ int main(int argc, char **argv){
   conf.parseArgs(argc, argv);
 
   std::string password = "default"; // set default password for load balancer communication
-  passphrase = conf.getOption("passphrase").asStringRef();
+  Loadbalancer::passphrase = conf.getOption("passphrase").asStringRef();
   password = conf.getString("auth");
-  weight_ram = conf.getInteger("ram");
-  weight_cpu = conf.getInteger("cpu");
-  weight_bw = conf.getInteger("bw");
-  weight_geo = conf.getInteger("geo");
-  weight_bonus = conf.getInteger("extra");
-  fallback = conf.getString("fallback");
+  Loadbalancer::weight_ram = conf.getInteger("ram");
+  Loadbalancer::weight_cpu = conf.getInteger("cpu");
+  Loadbalancer::weight_bw = conf.getInteger("bw");
+  Loadbalancer::weight_geo = conf.getInteger("geo");
+  Loadbalancer::weight_bonus = conf.getInteger("extra");
+  Loadbalancer::fallback = conf.getString("fallback");
   bool load = conf.getBool("load");
-  myName = conf.getString("myName");
+  Loadbalancer::myName = conf.getString("myName");
 
-  if (myName.find(":") == std::string::npos){myName.append(":" + conf.getString("port"));}
+  if (Loadbalancer::myName.find(":") == std::string::npos){Loadbalancer::myName.append(":" + conf.getString("port"));}
 
   conf.activate();
 
-  loadBalancers = std::set<LoadBalancer *>();
-  serverMonitorLimit = 1;
+  Loadbalancer::loadBalancers = std::set<Loadbalancer::LoadBalancer *>();
+  Loadbalancer::serverMonitorLimit = 1;
   // setup saving
-  saveTimer = 0;
-  time(&prevSaveTime);
+  Loadbalancer::saveTimer = 0;
+  time(&Loadbalancer::prevSaveTime);
   // api login
   srand(time(0) + getpid()); // setup random num generator
-  std::string salt = generateSalt();
-  userAuth.insert(std::pair<std::string, std::pair<std::string, std::string> >(
+  std::string salt = Loadbalancer::generateSalt();
+  Loadbalancer::userAuth.insert(std::pair<std::string, std::pair<std::string, std::string> >(
       "admin", std::pair<std::string, std::string>(Secure::sha256("default" + salt), salt)));
-  bearerTokens.insert("test1233");
+  Loadbalancer::bearerTokens.insert("test1233");
   // add localhost to whitelist
   if (conf.getBool("localmode")){
-    whitelist.insert("localhost");
-    whitelist.insert("::1/128");
-    whitelist.insert("127.0.0.1/24");
+    Loadbalancer::whitelist.insert("localhost");
+    Loadbalancer::whitelist.insert("::1/128");
+    Loadbalancer::whitelist.insert("127.0.0.1/24");
   }
 
-  identifier = generateSalt();
-  identifiers.insert(identifier);
+  Loadbalancer::identifier = Loadbalancer::generateSalt();
+  Loadbalancer::identifiers.insert(Loadbalancer::identifier);
 
   if (load){
-    loadFile();
+    Loadbalancer::loadFile();
   }else{
-    passHash = Secure::sha256(password);
+    Loadbalancer::passHash = Secure::sha256(password);
   }
 
   std::map<std::string, tthread::thread *> threads;
 
-  checkServerMonitors();
+  Loadbalancer::checkServerMonitors();
 
-  new tthread::thread(timerAddViewer, NULL);
-  new tthread::thread(checkNeedRedirect, NULL);
-  new tthread::thread(prometheusTimer, NULL);
-  conf.serveThreadedSocket(handleRequest);
+  new tthread::thread(Loadbalancer::timerAddViewer, NULL);
+  new tthread::thread(Loadbalancer::checkNeedRedirect, NULL);
+  new tthread::thread(Loadbalancer::prometheusTimer, NULL);
+  conf.serveThreadedSocket(Loadbalancer::handleRequest);
   if (!conf.is_active){
     WARN_MSG("Load balancer shutting down; received shutdown signal");
   }else{
     WARN_MSG("Load balancer shutting down; socket problem");
   }
   conf.is_active = false;
-  saveFile();
+  Loadbalancer::saveFile();
 
   // Join all threads
-  for (std::set<hostEntry *>::iterator it = hosts.begin(); it != hosts.end(); it++){
+  for (std::set<Loadbalancer::hostEntry *>::iterator it = Loadbalancer::hosts.begin();
+       it != Loadbalancer::hosts.end(); it++){
     if (!(*it)->name[0]){continue;}
     (*it)->state = STATE_GODOWN;
   }
-  for (std::set<hostEntry *>::iterator i = hosts.begin(); i != hosts.end(); i++){
-    cleanupHost(**i);
+  for (std::set<Loadbalancer::hostEntry *>::iterator i = Loadbalancer::hosts.begin();
+       i != Loadbalancer::hosts.end(); i++){
+    Loadbalancer::cleanupHost(**i);
   }
-  std::set<LoadBalancer *>::iterator it = loadBalancers.begin();
-  while (loadBalancers.size()){
+  std::set<Loadbalancer::LoadBalancer *>::iterator it = Loadbalancer::loadBalancers.begin();
+  while (Loadbalancer::loadBalancers.size()){
     (*it)->send("close");
     (*it)->Go_Down = true;
-    loadBalancers.erase(it);
-    it = loadBalancers.begin();
+    Loadbalancer::loadBalancers.erase(it);
+    it = Loadbalancer::loadBalancers.begin();
   }
 }

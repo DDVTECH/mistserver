@@ -1,12 +1,11 @@
 #pragma once
 
-
 #include <ctime>
 #include <mist/tinythread.h>
 #include <set>
 #include <string>
 
-
+namespace Loadbalancer{
 // transmision json names
 #define confStreamKey "conf_streams"
 #define tagKey "tags"
@@ -135,3 +134,4 @@
 // outurl names
 #define outUrlPre "pre"
 #define outUrlPost "post"
+}// namespace Loadbalancer

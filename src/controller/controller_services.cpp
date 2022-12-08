@@ -137,6 +137,8 @@ namespace Controller{
     builPipedPart(p, argarr, argnum);
   }
 
+  bool started = false;
+  
   ///\brief Checks current service configuration, updates state of enabled services if
   /// neccessary. \param p An object containing all services. \param capabilities An object
   /// containing the detected capabilities. \returns True if any action was taken
@@ -167,6 +169,11 @@ namespace Controller{
       // do not further parse if there's no service name
       if (!(*ait).isMember("cmd") || !(*ait)["cmd"].asStringRef().size()){
         (*ait)["online"] = "Missing service name";
+        continue;
+      }
+      //label one time HTTP functions as running
+      if (started && ((*ait).isMember("socket") || ((*ait).isMember("deps") && (*ait)["deps"].asStringRef() == "HTTP"))){
+        (*ait)["online"] = "Enabled";
         continue;
       }
 
@@ -225,6 +232,7 @@ namespace Controller{
       runningServices.erase(runningServices.begin());
     }
     if (action){saveActiveServices();}
+    started = true;
     return action;
   }
 

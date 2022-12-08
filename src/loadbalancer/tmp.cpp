@@ -76,7 +76,7 @@ bool LBlocalmode = conf.getOption("localmode");
 bool LBLoad = conf.getOption("load");
 
 if (mesh.size()){
-  if (load){//add load balancer to mesh
+  if (load){// add load balancer to mesh
     HTTP::URL url(mesh);
     url.protocol = "http";
     if (!url.port.size()){url.port = "8042";}
@@ -85,10 +85,10 @@ if (mesh.size()){
     HTTP::Downloader DL;
     if (DL.get(url) && DL.isOk()){INFO_MSG("load balancer started");}
   }
-}else{//take new lb host as mesh if none defined
+}else{// take new lb host as mesh if none defined
   mesh = LBhost;
 }
-//add server to mesh
+// add server to mesh
 HTTP::URL url(mesh);
 url.protocol = "http";
 if (!url.port.size()){url.port = "8042";}

@@ -120,7 +120,9 @@ int main(int argc, char **argv){
   bool load = conf.getBool("load");
   Loadbalancer::myName = conf.getString("myName");
 
-  if (Loadbalancer::myName.find(":") == std::string::npos){Loadbalancer::myName.append(":" + conf.getString("port"));}
+  if (Loadbalancer::myName.find(":") == std::string::npos){
+    Loadbalancer::myName.append(":" + conf.getString("port"));
+  }
 
   conf.activate();
 

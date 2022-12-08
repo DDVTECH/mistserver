@@ -388,7 +388,7 @@ namespace Mist{
           if (!newStream.size()){
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), qUrl.getUrl().c_str());
-            Util::logExitReason(
+            Util::logExitReason(ER_TRIGGER,
                 "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                 getConnectedHost().c_str(), qUrl.getUrl().c_str());
             onFinish();

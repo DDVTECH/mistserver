@@ -170,7 +170,7 @@ namespace Mist{
       INFO_MSG("inFile is unknown!");
     }
     if (!inFile){
-      Util::logExitReason("Could not open URL or contains no data");
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open URL or contains no data");
       return false;
     }
     if (!inFile.isSeekable()){
@@ -239,8 +239,8 @@ namespace Mist{
     }
 
     if (!hasMoov){
-      if (!inFile){Util::logExitReason("URIReader for source file was disconnected!");}
-      Util::logExitReason("No MOOV box found in source file; aborting!");
+      if (!inFile){Util::logExitReason(ER_READ_START_FAILURE, "URIReader for source file was disconnected!");}
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "No MOOV box found in source file; aborting!");
       return false;
     }
 

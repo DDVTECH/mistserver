@@ -206,7 +206,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -312,7 +312,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
       }
     }
 

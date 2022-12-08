@@ -255,7 +255,7 @@ int main(int argc, char **argv){
                           "\n" + thisReqUrl + "\n" + thisSessionId;
     if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
       // Mark all connections of this session as finished, since this viewer is not allowed to view this stream
-      Util::logExitReason("Session rejected by USER_NEW");
+      Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");
       connections.setExit();
       connections.finishAll();
     }
@@ -352,7 +352,7 @@ int main(int argc, char **argv){
                               "\n" + thisReqUrl + "\n" + thisSessionId;
         if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
           INFO_MSG("USER_NEW rejected stream %s", thisStreamName.c_str());
-          Util::logExitReason("Session rejected by USER_NEW");
+          Util::logExitReason(ER_TRIGGER, "Session rejected by USER_NEW");
           connections.setExit();
           connections.finishAll();
           break;
@@ -368,7 +368,7 @@ int main(int argc, char **argv){
     Util::wait(1000);
   }
   if (Util::bootSecs() - lastSeen > STATS_DELAY){
-    Util::logExitReason("Session inactive for %d seconds", STATS_DELAY);
+    Util::logExitReason(ER_CLEAN_INACTIVE, "Session inactive for %d seconds", STATS_DELAY);
   }
 
   // Trigger USER_END

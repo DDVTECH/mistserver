@@ -181,7 +181,7 @@ namespace Mist{
     }else{
       MEDIUM_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
     }
-    Util::logExitReason(msg.c_str());
+    Util::logExitReason(ER_UNKNOWN, msg.c_str());
     isInitialized = false;
     wantRequest = true;
     parseData = false;
@@ -1348,7 +1348,7 @@ namespace Mist{
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
                 if (!genericWriter(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
-                  Util::logExitReason("failed to open file, aborting: %s", newTarget.c_str());
+                  Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
                   onFinish();
                   break;
                 }
@@ -1359,7 +1359,7 @@ namespace Mist{
               }else{
                 if (!onFinish()){
                   INFO_MSG("Shutting down because planned stopping point reached");
-                  Util::logExitReason("planned stopping point reached");
+                  Util::logExitReason(ER_CLEAN_INTENDED_STOP, "planned stopping point reached");
                   break;
                 }
               }
@@ -1375,20 +1375,20 @@ namespace Mist{
             }
             /*LTS-END*/
             if (!onFinish()){
-              Util::logExitReason("end of stream");
+              Util::logExitReason(ER_CLEAN_EOF, "end of stream");
               break;
             }
           }
         }
         if (!meta){
-          Util::logExitReason("lost internal connection to stream data");
+          Util::logExitReason(ER_SHM_LOST, "lost internal connection to stream data");
           break;
         }
       }
       stats();
     }
-    if (!config->is_active){Util::logExitReason("set inactive");}
-    if (!myConn){Util::logExitReason("connection closed");}
+    if (!config->is_active){Util::logExitReason(ER_UNKNOWN, "set inactive");}
+    if (!myConn){Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed");}
     if (strncmp(Util::exitReason, "connection closed", 17) == 0){
       MEDIUM_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
     }else{
@@ -1533,7 +1533,7 @@ namespace Mist{
       }
       if (!dropTracks.size()){
         FAIL_MSG("Could not equalize tracks! This is very very very bad and I am now going to shut down to prevent worse.");
-        Util::logExitReason("Could not equalize tracks");
+        Util::logExitReason(ER_INTERNAL_ERROR, "Could not equalize tracks");
         parseData = false;
         config->is_active = false;
         return false;
@@ -1658,7 +1658,7 @@ namespace Mist{
       }
       //every ~1 second, check if the stream is not offline
       if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
-        Util::logExitReason("Stream source shut down");
+        Util::logExitReason(ER_CLEAN_EOF, "Stream source shut down");
         thisPacket.null();
         return true;
       }
@@ -1673,7 +1673,7 @@ namespace Mist{
         }
         // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
         if (!meta){
-          Util::logExitReason("Attempted reconnect to source failed");
+          Util::logExitReason(ER_SHM_LOST, "Attempted reconnect to source failed");
           thisPacket.null();
           return true;
         }

@@ -321,7 +321,7 @@ namespace Mist{
       if (trks.size()){
         audioTrack = *(trks.begin());
       }else{
-        Util::logExitReason("no audio track in header");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "no audio track in header");
         FAIL_MSG("No audio track in header - aborting");
         return;
       }

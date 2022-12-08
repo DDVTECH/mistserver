@@ -149,6 +149,7 @@ namespace Mist{
         }
         while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
         presegs[currPreSeg].data.assign(0, 0);
+        selectDefaultTracks();
         extraKeepAway = 0;
         needsLookAhead = 0;
         maxSkipAhead = 0;

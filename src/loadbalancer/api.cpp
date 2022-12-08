@@ -1852,38 +1852,63 @@ namespace Loadbalancer{
   void configFromString(std::string s){
     // change config vars
     JSON::Value j = JSON::fromString(s);
+    if(j.isMember(configFallback))
     fallback = j[configFallback].asString();
+    if(j.isMember(configC))
     weight_cpu = j[configC].asInt();
+    if(j.isMember(configR))
     weight_ram = j[configR].asInt();
+    if(j.isMember(configBW))
     weight_bw = j[configBW].asInt();
+    if(j.isMember(configWG))
     weight_geo = j[configWG].asInt();
+    if(j.isMember(configWB))
     weight_bonus = j[configWB].asInt();
+    if(j.isMember(configPass))
     passHash = j[configPass].asString();
+    if(j.isMember(configSPass))
     passphrase = j[configSPass].asStringRef();
+    if(j.isMember(configBearer))
     bearerTokens = j[configBearer].asStringSet();
 
     // balancing
+    if(j.isMember(configMinStandby))
     minstandby = j[configMinStandby].asInt();
+    if(j.isMember(configMaxStandby))
     maxstandby = j[configMaxStandby].asInt();
+    if(j.isMember(configCappacityTriggerCPUDec))
     cappacityTriggerCPUDec = j[configCappacityTriggerCPUDec].asDouble(); // percentage om cpu te verminderen
+    if(j.isMember(configCappacityTriggerBWDec))
     cappacitytriggerBWDec = j[configCappacityTriggerBWDec].asDouble(); // percentage om bandwidth te verminderen
+    if(j.isMember(configCappacityTriggerRAMDEC))
     cappacityTriggerRAMDec = j[configCappacityTriggerRAMDEC].asDouble(); // percentage om ram te verminderen
+    if(j.isMember(configCappacityTriggerCPU))
     cappacityTriggerCPU = j[configCappacityTriggerCPU].asDouble(); // max capacity trigger for balancing cpu
+    if(j.isMember(configCappacityTriggerBW))
     cappacityTriggerBW = j[configCappacityTriggerBW].asDouble(); // max capacity trigger for balancing bandwidth
+    if(j.isMember(configCappacityTriggerRAM))
     cappacityTriggerRAM = j[configCappacityTriggerRAM].asDouble(); // max capacity trigger for balancing ram
+    if(j.isMember(configHighCappacityTriggerCPU))
     highCappacityTriggerCPU =
         j[configHighCappacityTriggerCPU].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerCPU
+    if(j.isMember(configHighCappacityTriggerBW))
     highCappacityTriggerBW =
         j[configHighCappacityTriggerBW].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerBW
+        if(j.isMember(configHighCappacityTriggerRAM))
     highCappacityTriggerRAM =
         j[configHighCappacityTriggerRAM].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerRAM
+        if(j.isMember(configLowCappacityTriggerCPU))
     lowCappacityTriggerCPU =
         j[configLowCappacityTriggerCPU].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerCPU
+        if(j.isMember(configLowCappacityTriggerBW))
     lowCappacityTriggerBW =
         j[configLowCappacityTriggerBW].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerBW
+        if(j.isMember(configLowcappacityTriggerRAM))
     lowCappacityTriggerRAM =
         j[configLowcappacityTriggerRAM].asDouble(); // capacity at which considerd almost full. should be less than cappacityTriggerRAM
+        if(j.isMember(configBalancingInterval))
     balancingInterval = j[configBalancingInterval].asInt();
+    if(j.isMember(serverMonitorLimitKey))
     serverMonitorLimit = j[serverMonitorLimitKey].asInt();
 
     if (highCappacityTriggerCPU > cappacityTriggerCPU)
@@ -1898,17 +1923,20 @@ namespace Loadbalancer{
       lowCappacityTriggerRAM = highCappacityTriggerRAM;
 
     // load whitelist
+    if(j.isMember(configWhitelist))
     whitelist = j[configWhitelist].asStringSet();
-
+    if(j.isMember(configUsers))
     userAuth = j[configUsers].asStringPairMap();
 
     // add new servers
+    if(j.isMember(configServers)){
     for (int i = 0; i < j[configServers].size(); i++){
       std::string ret;
       addServer(ret, j[configServers][i], true);
-    }
+    }}
 
     // add new load balancers
+    if(j.isMember(configLoadbalancer)){
     jsonForEach(j[configLoadbalancer], i){
       if (!(*i).asString().compare(myName)) continue;
       for (std::set<LoadBalancer *>::iterator it = loadBalancers.begin(); it != loadBalancers.end(); it++){
@@ -1916,6 +1944,7 @@ namespace Loadbalancer{
           new tthread::thread(addLB, (void *)&((*i).asStringRef()));
         }
       }
+    }
     }
   }
   /**

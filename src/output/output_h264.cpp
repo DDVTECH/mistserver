@@ -169,7 +169,7 @@ namespace Mist{
     }else if (command["type"] == "set_speed") {
       handleWebsocketSetSpeed(command);
     }else if (command["type"] == "stop") {
-      Util::logExitReason("User requested stop");
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "User requested stop");
       myConn.close();
     }else if (command["type"] == "play") {
       parseData = true;

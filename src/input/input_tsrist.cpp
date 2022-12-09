@@ -184,7 +184,7 @@ namespace Mist{
       while (!hasRaw && config->is_active){
         Util::sleep(50);
         if (!bufferActive()){
-          Util::logExitReason("Buffer shut down");
+          Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
           return;
         }
       }
@@ -198,7 +198,7 @@ namespace Mist{
       }else{
         Util::sleep(50);
         if (!bufferActive()){
-          Util::logExitReason("Buffer shut down");
+          Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
           return;
         }
       }
@@ -224,7 +224,7 @@ namespace Mist{
 
   void inputTSRIST::onFail(const std::string & msg){
     FAIL_MSG("%s", msg.c_str());
-    Util::logExitReason(msg.c_str());
+    Util::logExitReason(ER_FORMAT_SPECIFIC, msg.c_str());
   }
 
   bool inputTSRIST::openStreamSource(){

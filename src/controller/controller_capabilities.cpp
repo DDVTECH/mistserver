@@ -115,6 +115,12 @@ namespace Controller{
     trgs["STREAM_END"]["response"] = "ignored";
     trgs["STREAM_END"]["response_action"] = "None.";
 
+    trgs["INPUT_ABORT"]["when"] = "Every time an Input process exits with an error";
+    trgs["INPUT_ABORT"]["stream_specific"] = true;
+    trgs["INPUT_ABORT"]["payload"] = "stream name (string)\nsource URI (string)\nbinary name (string)\npid (integer)\nmachine-readable reason for exit (string, enum)\nhuman-readable reason for exit (string)";
+    trgs["INPUT_ABORT"]["response"] = "ignored";
+    trgs["INPUT_ABORT"]["response_action"] = "None.";
+
     trgs["RTMP_PUSH_REWRITE"]["when"] =
         "On incoming RTMP pushes, allows rewriting the RTMP URL to/from custom formatting";
     trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = false;

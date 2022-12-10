@@ -173,26 +173,26 @@ static inline void show_stackframe(){}
 // Pages get marked for deletion after X seconds of no one watching
 #define DEFAULT_PAGE_TIMEOUT 15
 
-/// \TODO These values are hardcoded and that is dangerous and probably a very bad idea. I don't even know if they are currently correct...?! I doubt they are.
-#define META_META_OFFSET 104
-#define META_META_RECORDSIZE 576
+/// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
+#define META_META_OFFSET 138
+#define META_META_RECORDSIZE 548
 
 #define META_TRACK_OFFSET 148
 #define META_TRACK_RECORDSIZE 1893
 
-#define TRACK_TRACK_OFFSET 184
-#define TRACK_TRACK_RECORDSIZE 362 + (1 * 1024 * 1024)
+#define TRACK_TRACK_OFFSET 193
+#define TRACK_TRACK_RECORDSIZE 1049060
 
 #define TRACK_FRAGMENT_OFFSET 68
 #define TRACK_FRAGMENT_RECORDSIZE 14
 
 #define TRACK_KEY_OFFSET 90
-#define TRACK_KEY_RECORDSIZE 42
+#define TRACK_KEY_RECORDSIZE 40
 
 #define TRACK_PART_OFFSET 60
 #define TRACK_PART_RECORDSIZE 8
 
-#define TRACK_PAGE_OFFSET 92
+#define TRACK_PAGE_OFFSET 100
 #define TRACK_PAGE_RECORDSIZE 36
 
 #define COMMS_STATISTICS "MstStat"

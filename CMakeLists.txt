@@ -948,4 +948,5 @@ add_executable(streamstatustest test/status.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(streamstatustest mist)
 add_executable(websockettest test/websocket.cpp ${BINARY_DIR}/mist/.headers)
 target_link_libraries(websockettest mist)
-
+add_executable(dtsc_sizing_test test/dtsc_sizing.cpp ${BINARY_DIR}/mist/.headers)
+target_link_libraries(dtsc_sizing_test mist)

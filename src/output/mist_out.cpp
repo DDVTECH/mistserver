@@ -20,7 +20,7 @@ int spawnForked(Socket::Connection &S){
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   HIGH_MSG("USR1 received - triggering rolling restart");
   Util::Config::is_restarting = true;
-  Util::logExitReason("signal USR1");
+  Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1");
   Util::Config::is_active = false;
 }
 

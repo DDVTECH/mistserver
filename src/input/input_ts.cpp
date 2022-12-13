@@ -583,7 +583,7 @@ namespace Mist{
         }
         if (!reader){
           config->is_active = false;
-          Util::logExitReason("end of streamed input");
+          Util::logExitReason(ER_CLEAN_EOF, "end of streamed input");
           return;
         }
       }else{
@@ -635,7 +635,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -654,7 +654,7 @@ namespace Mist{
           if (hasStarted && !threadTimer.size()){
             if (!isAlwaysOn()){
               config->is_active = false;
-              Util::logExitReason("no active threads and we had input in the past");
+              Util::logExitReason(ER_CLEAN_INACTIVE, "no active threads and we had input in the past");
               return;
             }else{
               liveStream.clear();
@@ -686,7 +686,7 @@ namespace Mist{
       if (Util::bootSecs() - noDataSince > 20){
         if (!isAlwaysOn()){
           config->is_active = false;
-          Util::logExitReason("no packets received for 20 seconds");
+          Util::logExitReason(ER_CLEAN_INACTIVE, "no packets received for 20 seconds");
           return;
         }else{
           noDataSince = Util::bootSecs();

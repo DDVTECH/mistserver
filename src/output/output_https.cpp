@@ -92,7 +92,7 @@ namespace Mist{
         char error_buf[200];
         mbedtls_strerror(ret, error_buf, 200);
         MEDIUM_MSG("Could not handshake, SSL error: %s (%d)", error_buf, ret);
-        Util::logExitReason("Could not handshake, SSL error: %s (%d)", error_buf, ret);
+        Util::logExitReason(ER_READ_START_FAILURE, "Could not handshake, SSL error: %s (%d)", error_buf, ret);
         C.close();
         return;
       }else{
@@ -111,7 +111,7 @@ namespace Mist{
     int fd[2];
     if (socketpair(PF_LOCAL, SOCK_STREAM, 0, fd) != 0){
       FAIL_MSG("Could not open anonymous socket for SSL<->HTTP connection!");
-      Util::logExitReason("Could not open anonymous socket for SSL<->HTTP connection!");
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open anonymous socket for SSL<->HTTP connection!");
       return 1;
     }
     std::deque<std::string> args;
@@ -137,7 +137,7 @@ namespace Mist{
     close(fd[1]);
     if (http_proc < 2){
       FAIL_MSG("Could not spawn MistOutHTTP process for SSL connection!");
-      Util::logExitReason("Could not spawn MistOutHTTP process for SSL connection!");
+      Util::logExitReason(ER_EXEC_FAILURE, "Could not spawn MistOutHTTP process for SSL connection!");
       return 1;
     }
     Socket::Connection http(fd[0]);
@@ -153,7 +153,7 @@ namespace Mist{
       if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE){
         if (ret <= 0){
           HIGH_MSG("SSL disconnect!");
-          Util::logExitReason("SSL client disconnected");
+          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SSL client disconnected");
           break;
         }
         // we received ret bytes of data to pass on. Do so.
@@ -172,7 +172,7 @@ namespace Mist{
             ret = mbedtls_ssl_write(&ssl, (const unsigned char *)http_buf.get().data() + done, toSend - done);
             if (ret == MBEDTLS_ERR_NET_CONN_RESET || ret == MBEDTLS_ERR_SSL_CLIENT_RECONNECT){
               HIGH_MSG("SSL disconnect!");
-              Util::logExitReason("SSL client disconnected");
+              Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SSL client disconnected");
               http.close();
               break;
             }

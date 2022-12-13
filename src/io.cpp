@@ -471,7 +471,7 @@ namespace Mist{
 
     if (!livePage[packTrack].exists()){
       WARN_MSG("Data page '%s' was deleted - forcing source shutdown to prevent unstable state", livePage[packTrack].name.c_str());
-      Util::logExitReason("data page was deleted, forcing shutdown to prevent unstable state");
+      Util::logExitReason(ER_SHM_LOST, "data page was deleted, forcing shutdown to prevent unstable state");
       bufferFinalize(packTrack, livePage[packTrack]);
       kill(getpid(), SIGINT);
       return;

@@ -467,8 +467,12 @@ namespace Mist{
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
-      int ret = 0;
-      if (preRun()){ret = run();}
+      int ret = 1;
+      if (preRun()){
+        ret = run();
+      }else{
+        return exitAndLogReason();
+      }
       if (playerLock){
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
@@ -501,7 +505,9 @@ namespace Mist{
         // Abandon all semaphores, ye who enter here.
         playerLock.abandon();
         pullLock.abandon();
-        if (!preRun()){return 0;}
+        if (!preRun()){
+          return exitAndLogReason();
+        }
         return run();
       }
       Util::Procs::fork_complete();
@@ -525,8 +531,8 @@ namespace Mist{
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
-      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        INFO_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0 || WEXITSTATUS(status) == 1)){
+        HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
       if (playerLock){
@@ -591,8 +597,8 @@ namespace Mist{
     if (needHeader()){
       uint64_t timer = Util::getMicros();
       if (!readHeader() || (!M && needsLock())){
-        FAIL_MSG("Reading header for '%s' failed.", config->getString("input").c_str());
-        return 0;
+        Util::logExitReason(ER_INTERNAL_ERROR, "Reading header for '%s' failed.", config->getString("input").c_str());
+        return exitAndLogReason();
       }
       timer = Util::getMicros(timer);
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
@@ -621,7 +627,7 @@ namespace Mist{
       INFO_MSG("Starting serve");
       serve();
     }
-    return 0;
+    return exitAndLogReason();
   }
 
   void Input::convert(){
@@ -674,6 +680,49 @@ namespace Mist{
     file.close();
     // Export DTSH to a file or remote target
     outMeta.toFile(fileName + ".dtsh");
+  }
+
+  // Logs the current exit reason and returns a 0 or 1 depending on whether
+  // this was a clean exit or not
+  bool Input::exitAndLogReason(){
+    std::string payload;
+    int returnCode = 1;
+    // Calculate variables required for the trigger
+    if (Triggers::shouldTrigger("INPUT_ABORT", streamName)){
+      std::ostringstream pidString;
+      pidString << getpid();
+      payload = streamName + "\n" + config->getString("input") + "\n" \
+        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
+        + Util::mRExitReason + "\n" + Util::exitReason;
+    }
+    // If no reason is set at all, return the default status
+    if (!Util::exitReason[0]){
+      INFO_MSG("Input closing without a set exit reason");
+    }else if(strncmp(Util::mRExitReason, "CLEAN", 5) == 0){
+      INFO_MSG("Input closing cleanly with reason: %s", Util::exitReason);
+      returnCode = 0; 
+    }else{
+      WARN_MSG("Input closing unclean, reason: %s", Util::exitReason);
+    }
+    if (returnCode && Triggers::shouldTrigger("INPUT_ABORT", streamName)){
+      Triggers::doTrigger("INPUT_ABORT", payload, streamName);
+    }
+    return returnCode;
+  }
+
+  /// \brief Checks if we should abort for a unsupported track
+  /// \return false if further processing should be aborted
+  bool Input::onUnsupportedTrack(std::string trackType){
+    if (Triggers::shouldTrigger("INPUT_RECOVERABLE", streamName)){
+      std::string payload;
+      std::ostringstream pidString;
+      pidString << getpid();
+      payload = streamName + "\n" + config->getString("input") + "\n" \
+        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
+        + ER_UNSUPPORTED + "\n" + "Unsupported track type: " + trackType;
+      return Triggers::doTrigger("INPUT_RECOVERABLE", payload, streamName);
+    }
+    return true;
   }
 
   /// Checks in the server configuration if this stream is set to always on or not.
@@ -730,7 +779,7 @@ namespace Mist{
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef();
       if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
-        Util::logExitReason("STREAM_READY trigger returned false");
+        Util::logExitReason(ER_TRIGGER, "STREAM_READY trigger returned false");
         config->is_active = false;
       }
     }
@@ -771,7 +820,6 @@ namespace Mist{
       config->is_active = false;
     }
     finish();
-    INFO_MSG("Input closing clean, reason: %s", Util::exitReason);
     userSelect.clear();
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
@@ -823,7 +871,7 @@ namespace Mist{
     }
     /*LTS-END*/
     if (!ret && ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT)){
-      Util::logExitReason("no activity for %u seconds", Util::bootSecs() - activityCounter);
+      Util::logExitReason(ER_CLEAN_INACTIVE, "no activity for %u seconds", Util::bootSecs() - activityCounter);
     }
     return ret;
   }
@@ -868,14 +916,13 @@ namespace Mist{
     if (config->getBool("realtime")){
       realtimeMainLoop();
       finish();
-      INFO_MSG("Real-time input closing clean; reason: %s", Util::exitReason);
       return;
     }
 
     meta.reInit(streamName, false);
 
     if (!openStreamSource()){
-      FAIL_MSG("Unable to connect to source");
+      Util::logExitReason(ER_READ_START_FAILURE, "Unable to connect to source");
       return;
     }
     parseStreamHeader();
@@ -883,9 +930,9 @@ namespace Mist{
     if (publishesTracks()){
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       if (!validTracks.size()){
+        Util::logExitReason(ER_CLEAN_EOF, "No tracks found, cancelling pull");
         userSelect.clear();
         finish();
-        INFO_MSG("No tracks found, cancelling");
         return;
       }
     }
@@ -894,7 +941,6 @@ namespace Mist{
     closeStreamSource();
     userSelect.clear();
     finish();
-    INFO_MSG("Input closing clean; reason: %s", Util::exitReason);
     return;
   }
 
@@ -915,17 +961,17 @@ namespace Mist{
     }
     while (thisPacket && config->is_active && userSelect[thisIdx]){
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       if (isSingular() && !bufferActive()){
-        Util::logExitReason("Buffer shut down");
+        Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
         return;
       }
       bufferLivePacket(thisPacket);
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       if (thisPacket && !userSelect.count(thisIdx)){
@@ -938,7 +984,7 @@ namespace Mist{
         if (statComm){
           if (!statComm){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -1067,7 +1113,7 @@ namespace Mist{
     while (config->is_active){
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       idx = realTimeTrackMap.count(thisIdx) ? realTimeTrackMap[thisIdx] : INVALID_TRACK_ID;
@@ -1075,7 +1121,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       while (config->is_active && userSelect[idx] &&
@@ -1101,7 +1147,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();

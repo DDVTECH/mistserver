@@ -229,9 +229,9 @@ namespace Mist{
     if (!thisPacket){
       if (srtConn){
         INFO_MSG("Could not getNext TS packet!");
-        Util::logExitReason("internal TS parser error");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "internal TS parser error");
       }else{
-        Util::logExitReason("SRT connection close");
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection close");
       }
       return;
     }

@@ -156,7 +156,7 @@ namespace Mist{
     std::string inUrl = config->getString("input");
     inFile.open(inUrl);
     if (!inFile){
-      Util::logExitReason("Could not open URL or contains no data");
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open URL or contains no data");
       return false;
     }
     if (!inFile.isSeekable()){
@@ -169,6 +169,10 @@ namespace Mist{
   void inputMP4::dataCallback(const char *ptr, size_t size){readBuffer.append(ptr, size);}
 
   bool inputMP4::readHeader(){
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open input file");
+      return false;
+    }
     bool hasMoov = false;
     readBuffer.truncate(0);
     readPos = 0;
@@ -219,8 +223,8 @@ namespace Mist{
     }
 
     if (!hasMoov){
-      if (!inFile){Util::logExitReason("URIReader for source file was disconnected!");}
-      Util::logExitReason("No MOOV box found in source file; aborting!");
+      if (!inFile){Util::logExitReason(ER_READ_START_FAILURE, "URIReader for source file was disconnected!");}
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "No MOOV box found in source file; aborting!");
       return false;
     }
 
@@ -294,7 +298,12 @@ namespace Mist{
       std::string sType = sEntryBox.getType();
 
       if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g")){
-        INFO_MSG("Unsupported track type: %s", sType.c_str());
+        if (onUnsupportedTrack(sType)){
+          WARN_MSG("Skipping unsupported track type: %s", sType.c_str());
+        }else{
+          Util::logExitReason(ER_TRIGGER, "Trigger abort; unsupported track type: %s", sType.c_str());
+          return false;
+        }
         continue;
       }
 

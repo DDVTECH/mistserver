@@ -46,9 +46,6 @@ namespace Mist{
     MP4::STCO stcoBox;
     MP4::CO64 co64Box;
     MP4::STSZ stszBox;
-    MP4::STTS sttsBox;
-    bool hasCTTS;
-    MP4::CTTS cttsBox;
     MP4::STSC stscBox;
     uint64_t timeScale;
     void getPart(uint64_t index, uint64_t &offset);

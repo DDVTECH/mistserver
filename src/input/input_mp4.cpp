@@ -25,9 +25,7 @@ namespace Mist{
     deltaTotal = 0;
     offsetIndex = 0;
     offsetPos = 0;
-    sttsBox.clear();
-    hasCTTS = false;
-    cttsBox.clear();
+    stscBox.clear();
     stszBox.clear();
     stcoBox.clear();
     co64Box.clear();
@@ -50,14 +48,11 @@ namespace Mist{
 
     MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
 
-    sttsBox.copyFrom(stblBox.getChild<MP4::STTS>());
-    cttsBox.copyFrom(stblBox.getChild<MP4::CTTS>());
     stszBox.copyFrom(stblBox.getChild<MP4::STSZ>());
     stcoBox.copyFrom(stblBox.getChild<MP4::STCO>());
     co64Box.copyFrom(stblBox.getChild<MP4::CO64>());
     stscBox.copyFrom(stblBox.getChild<MP4::STSC>());
     stco64 = co64Box.isType("co64");
-    hasCTTS = cttsBox.isType("ctts");
   }
 
   void mp4TrackHeader::getPart(uint64_t index, uint64_t &offset){

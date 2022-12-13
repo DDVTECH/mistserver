@@ -234,7 +234,7 @@ namespace Mist{
     }else{
       myConn.SendNow(tsData, len);
       if (!myConn){
-        Util::logExitReason("connection closed by peer");
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed by peer");
         config->is_active = false;
       }
     }

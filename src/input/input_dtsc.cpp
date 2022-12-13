@@ -370,7 +370,7 @@ namespace Mist{
         }
         if (cmd == "error"){
           thisPacket.getString("msg", cmd);
-          Util::logExitReason("%s", cmd.c_str());
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
           thisPacket.null();
           return;
         }

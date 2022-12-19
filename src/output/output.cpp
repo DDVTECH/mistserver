@@ -353,9 +353,9 @@ namespace Mist{
     if (isPushing()){return;}
 
     //live streams that are no push outputs (recordings), wait for stream to be ready
-    if (!isRecording() && M.getLive() && !isReadyForPlay()){
+    if (!isRecording() && M && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
-      while (M.getLive() && !isReadyForPlay()){
+      while (M && M.getLive() && !isReadyForPlay()){
         if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
           INFO_MSG("Giving up waiting for playable tracks. IP: %s", getConnectedHost().c_str());
           break;
@@ -365,6 +365,7 @@ namespace Mist{
         stats();
       }
     }
+    if (!M){return;}
     //Finally, select the default tracks
     selectDefaultTracks();
   }

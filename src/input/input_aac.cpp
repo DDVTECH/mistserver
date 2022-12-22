@@ -131,7 +131,7 @@ namespace Mist{
     size_t bytesRead = 0;
 
     if (!inFile || inFile.isEOF()){
-      INFO_MSG("Could not open input stream");
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
     }
     
@@ -140,15 +140,12 @@ namespace Mist{
     // Read fixed + variable header
     inFile.readSome(aacData, bytesRead, 6);
     if (bytesRead < 6){
-      WARN_MSG("Not enough bytes left in buffer. Quitting...");
-      // Dump for debug purposes
-      INFO_MSG("Header contains bytes: %x %x %x %x %x %x", aacData[0]
-      , aacData[1], aacData[2], aacData[3], aacData[4], aacData[5]);
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Not enough bytes left in buffer", config->getString("input").c_str());
       return false;
     }
     // Confirm syncword (= FFF)
     if (aacData[0] != 0xFF || (aacData[1] & 0xF0) != 0xF0){
-      WARN_MSG("Invalid sync word at start of header");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Invalid sync word at start of header", config->getString("input").c_str());
       return false;
     }
     // Calculate the starting position of the next frame
@@ -172,7 +169,7 @@ namespace Mist{
     // Create ADTS object of complete frame info
     aac::adts adtsPack(aacFrame, frameSize);
     if (!adtsPack){
-      WARN_MSG("Could not parse ADTS package!");   
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Could not parse ADTS package", config->getString("input").c_str());
       return false;
     }
     

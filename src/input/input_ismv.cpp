@@ -47,7 +47,10 @@ namespace Mist{
   }
 
   bool inputISMV::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(streamName);
     // parse ismv header
     fseek(inFile, 0, SEEK_SET);

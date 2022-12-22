@@ -174,7 +174,7 @@ namespace Mist{
 
   bool inputMP4::readHeader(){
     if (!inFile){
-      Util::logExitReason(ER_READ_START_FAILURE, "Could not open input file");
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
     }
     bool hasMoov = false;
@@ -229,8 +229,8 @@ namespace Mist{
     }
 
     if (!hasMoov){
-      if (!inFile){Util::logExitReason(ER_READ_START_FAILURE, "URIReader for source file was disconnected!");}
-      Util::logExitReason(ER_FORMAT_SPECIFIC, "No MOOV box found in source file; aborting!");
+      if (!inFile){Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: URIReader for source file was disconnected!", config->getString("input").c_str());}
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: No MOOV box found in source file; aborting!", config->getString("input").c_str());
       return false;
     }
 

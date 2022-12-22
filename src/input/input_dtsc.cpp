@@ -255,17 +255,20 @@ namespace Mist{
   }
 
   bool inputDTSC::readHeader(){
-    if (!F){return false;}
+    if (!F){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     size_t moreHeader = 0;
     do{
       char hdr[8];
       fseek(F, moreHeader, SEEK_SET);
       if (fread(hdr, 8, 1, F) != 1){
-        FAIL_MSG("Could not read header @ bpos %zu", moreHeader);
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not read header @ bpos %zu", config->getString("input").c_str(), moreHeader);
         return false;
       }
       if (memcmp(hdr, DTSC::Magic_Header, 4)){
-        FAIL_MSG("File does not have a DTSC header @ bpos %zu", moreHeader);
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: File does not have a DTSC header @ bpos %zu", config->getString("input").c_str(), moreHeader);
         return false;
       }
       size_t pktLen = Bit::btohl(hdr + 4);

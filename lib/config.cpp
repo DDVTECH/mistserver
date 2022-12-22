@@ -45,7 +45,7 @@ __thread char Util::streamName[256] = {0};
 __thread char Util::UUID[64] = {0};
 __thread char Util::exitReason[256] = {0};
 __thread char* Util::mRExitReason = (char*)ER_UNKNOWN;
-
+Util::binType Util::Config::binaryType = UNSET;
 
 void Util::setStreamName(const std::string & sn){
   strncpy(Util::streamName, sn.c_str(), 256);

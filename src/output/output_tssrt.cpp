@@ -437,6 +437,7 @@ int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
+  Util::Config::binaryType = Util::OUTPUT;
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){

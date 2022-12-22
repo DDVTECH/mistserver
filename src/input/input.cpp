@@ -93,6 +93,7 @@ namespace Mist{
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;
     standAlone = true;
+    Util::Config::binaryType = Util::INPUT;
 
     JSON::Value option;
     option["long"] = "json";
@@ -544,7 +545,8 @@ namespace Mist{
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
-      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0 || WEXITSTATUS(status) == 1)){
+      int exitCode = WEXITSTATUS(status);
+      if (WIFEXITED(status) && (exitCode == 0 || exitCode == 1)){
         HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
@@ -554,12 +556,49 @@ namespace Mist{
         streamStatus.init(pageName, STRMSTAT_LEN, false, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
       }
-#if DEBUG >= DLVL_DEVEL
+      // Fire the INPUT_ABORT trigger if the child process ends with an abnormal exit code
+      // Prevents automatic restarts of the input for unrecoverable errors
+      if (WIFEXITED(status)){
+        char exitReason[256];
+        memcpy(exitReason, Util::exitReason, 256);
+        if (exitCode == 2){
+          WARN_MSG("Child process %u exited with exit code %i (major error occurred), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with exit code %i (major error occurred)", pid, exitCode);
+        }else if (exitCode == 132){
+          WARN_MSG("Child process %u exited with exit code %i (SIGILL), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_SIGILL, "Child process %u exited with exit code %i (SIGILL)", pid, exitCode);
+        }else if (exitCode == 133){
+          WARN_MSG("Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+          Util::logExitReason(ER_SIGTRAP, "Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+        }else if (exitCode == 134){
+          WARN_MSG("Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+          Util::logExitReason(ER_SIGABRT, "Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+        }else if (exitCode == 136){
+          WARN_MSG("Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+          Util::logExitReason(ER_SIGFPE, "Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+        }else if (exitCode == 137){
+          WARN_MSG("Child process %u exited with exit code %i (used too much memory), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_MEMORY, "Child process %u exited with exit code %i (used too much memory)", pid, exitCode);
+        }else if (exitCode == 138){
+          WARN_MSG("Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+          Util::logExitReason(ER_SIGBUS, "Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+        }else if (exitCode == 139){
+          WARN_MSG("Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+          Util::logExitReason(ER_SEGFAULT, "Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+        }else{
+          WARN_MSG("Child process %u exited with an unhandled exit code %i, cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with an unhandled exit code %i", pid, exitCode);
+        }
+        doInputAbortTrigger(pid, Util::mRExitReason, Util::exitReason);
+        memcpy(Util::exitReason, exitReason, 256);
+      }
+      
+      #if DEBUG >= DLVL_DEVEL
       WARN_MSG(
           "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.",
           streamName.c_str());
       break;
-#else
+      #else
       if (config->is_active){
         WARN_MSG("Input for stream %s uncleanly shut down! Cleaning and restarting...", streamName.c_str());
       }else{
@@ -614,8 +653,9 @@ namespace Mist{
     //needHeader internally calls readExistingHeader which in turn attempts to read header cache
     if (needHeader()){
       uint64_t timer = Util::getMicros();
-      if (!readHeader() || (!M && needsLock())){
-        Util::logExitReason(ER_INTERNAL_ERROR, "Reading header for '%s' failed.", config->getString("input").c_str());
+      bool headerSuccess = readHeader();
+      if (!headerSuccess || (!M && needsLock())){
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed", config->getString("input").c_str());
         return exitAndLogReason();
       }
       timer = Util::getMicros(timer);
@@ -700,19 +740,24 @@ namespace Mist{
     outMeta.toFile(fileName + ".dtsh");
   }
 
+  // Fires the `INPUT_ABORT` trigger. Allows overrides to allow parent processes
+  // to fire the trigger for child processes which have already exited (EG segfaults)
+  void Input::doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason){
+    // Calculate variables required for the trigger
+    if (Util::Config::binaryType == Util::INPUT && Triggers::shouldTrigger("INPUT_ABORT", streamName)){
+      std::ostringstream pidString;
+      pidString << pid;
+      std::string payload = streamName + "\n" + config->getString("input") + "\n" \
+        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
+        + mRExitReason + "\n" + exitReason;
+      Triggers::doTrigger("INPUT_ABORT", payload, streamName);
+    }
+  }
+
   // Logs the current exit reason and returns a 0 or 1 depending on whether
   // this was a clean exit or not
   bool Input::exitAndLogReason(){
-    std::string payload;
     int returnCode = 1;
-    // Calculate variables required for the trigger
-    if (Triggers::shouldTrigger("INPUT_ABORT", streamName)){
-      std::ostringstream pidString;
-      pidString << getpid();
-      payload = streamName + "\n" + config->getString("input") + "\n" \
-        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
-        + Util::mRExitReason + "\n" + Util::exitReason;
-    }
     // If no reason is set at all, return the default status
     if (!Util::exitReason[0]){
       INFO_MSG("Input closing without a set exit reason");
@@ -722,8 +767,9 @@ namespace Mist{
     }else{
       WARN_MSG("Input closing unclean, reason: %s", Util::exitReason);
     }
-    if (returnCode && Triggers::shouldTrigger("INPUT_ABORT", streamName)){
-      Triggers::doTrigger("INPUT_ABORT", payload, streamName);
+    // If this is an unclean exit, fire the INPUT_ABORT trigger
+    if (returnCode){
+      doInputAbortTrigger(getpid(), Util::mRExitReason, Util::exitReason);
     }
     return returnCode;
   }

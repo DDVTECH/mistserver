@@ -50,7 +50,10 @@ namespace Mist{
   }
 
   bool inputMP3::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     size_t tNum = meta.addTrack();
     meta.setID(tNum, tNum);

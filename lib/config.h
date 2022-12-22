@@ -22,6 +22,14 @@ namespace Util{
   extern __thread char* mRExitReason;
   void logExitReason(const char* shortString, const char *format, ...);
 
+  enum binType {
+    UNSET,
+    INPUT,
+    OUTPUT,
+    PROCESS,
+    CONTROLLER
+  };
+
   /// Deals with parsing configuration from commandline options.
   class Config{
   private:
@@ -33,6 +41,7 @@ namespace Util{
     // variables
     static bool is_active;     ///< Set to true by activate(), set to false by the signal handler.
     static bool is_restarting; ///< Set to true when restarting, set to false on boot.
+    static binType binaryType;
     // functions
     Config();
     Config(std::string cmd);

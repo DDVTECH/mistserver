@@ -113,6 +113,7 @@ namespace Mist{
     firstData = true;
     newUA = true;
     lastPushUpdate = 0;
+    Util::Config::binaryType = Util::OUTPUT;
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -1538,11 +1539,13 @@ namespace Mist{
       if (!streamName.size()){
         WARN_MSG("Recording unconnected %s output to file! Cancelled.", capa["name"].asString().c_str());
         onFail("Unconnected recording output", true);
+        recEndTrigger();
         return 2;
       }
       if (!M.getValidTracks().size() || !userSelect.size() || !keepGoing()){
         INFO_MSG("Stream not available - aborting");
         onFail("Stream not available for recording", true);
+        recEndTrigger();
         return 3;
       }
       initialSeek();
@@ -1559,6 +1562,7 @@ namespace Mist{
       }else{
         if (!connectToFile(newTarget, targetParams.count("append"))){
           onFail("Could not connect to the target for recording", true);
+          recEndTrigger();
           return 3;
         }
         INFO_MSG("Recording %s to %s with %s format", streamName.c_str(),
@@ -1868,7 +1872,6 @@ namespace Mist{
       }else{
         FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
         Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
-        return 1;
       }
     }
 
@@ -1878,25 +1881,10 @@ namespace Mist{
           streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
       Triggers::doTrigger("CONN_CLOSE", payload, streamName);
     }
-    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
-      uint64_t rightNow = Util::epoch();
-      std::stringstream payl;
-      payl << streamName << '\n';
-      payl << config->getString("target") << '\n';
-      payl << capa["name"].asStringRef() << '\n';
-      payl << myConn.dataUp() << '\n';
-      payl << (Util::bootSecs() - myConn.connTime()) << '\n';
-      payl << (rightNow - (Util::bootSecs() - myConn.connTime())) << '\n';
-      payl << rightNow << '\n';
-      if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
-        payl << (lastPacketTime - firstPacketTime) << '\n';
-      }else{
-        payl << 0 << '\n';
-      }
-      payl << firstPacketTime << '\n';
-      payl << lastPacketTime << '\n';
-      Triggers::doTrigger("RECORDING_END", payl.str(), streamName);
+    if (isRecordingToFile){
+      recEndTrigger();
     }
+    outputEndTrigger();
     /*LTS-END*/
 
     disconnect();
@@ -2420,6 +2408,44 @@ namespace Mist{
     close(outFile);
     realTime = 0;
     return true;
+  }
+
+  std::string Output::getExitTriggerPayload(){
+    uint64_t rightNow = Util::epoch();
+    std::stringstream payl;
+    payl << streamName << '\n';
+    payl << config->getString("target") << '\n';
+    payl << capa["name"].asStringRef() << '\n';
+    payl << myConn.dataUp() << '\n';
+    payl << (Util::bootSecs() - myConn.connTime()) << '\n';
+    payl << (rightNow - (Util::bootSecs() - myConn.connTime())) << '\n';
+    payl << rightNow << '\n';
+    if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
+      payl << (lastPacketTime - firstPacketTime) << '\n';
+    }else{
+      payl << 0 << '\n';
+    }
+    payl << firstPacketTime << '\n';
+    payl << lastPacketTime << '\n';
+    if (Util::exitReason[0]){
+      payl << Util::mRExitReason << '\n';
+    }else{
+      payl << "" << '\n';
+    }
+    payl << Util::exitReason << '\n';
+    return payl.str();
+  }
+  
+  void Output::recEndTrigger(){
+    if (config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+      Triggers::doTrigger("RECORDING_END", getExitTriggerPayload(), streamName);
+    }
+  }
+
+  void Output::outputEndTrigger(){
+    if (config->hasOption("target") && Triggers::shouldTrigger("OUTPUT_END", streamName)){
+      Triggers::doTrigger("OUTPUT_END", getExitTriggerPayload(), streamName);
+    }
   }
 
   /// Checks if the set streamName allows pushes from this connector/IP/password combination.

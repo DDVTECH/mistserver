@@ -46,7 +46,10 @@ namespace Mist{
   }
 
   bool InputSrt::readHeader(){
-    if (!fileSource.good()){return false;}
+    if (!fileSource.good()){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     size_t idx = meta.addTrack();
     meta.setID(idx, 1);
     meta.setType(idx, "meta");

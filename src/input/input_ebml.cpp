@@ -262,7 +262,11 @@ namespace Mist{
   }
 
   bool InputEBML::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
+    // Create header file from file
     if (!meta || (needsLock() && isSingular())){
       meta.reInit(isSingular() ? streamName : "");
     }

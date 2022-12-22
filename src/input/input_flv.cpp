@@ -78,7 +78,10 @@ namespace Mist{
   }
 
   bool inputFLV::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){Util::logExitReason(
+      ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     // Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);

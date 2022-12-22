@@ -174,7 +174,7 @@ static inline void show_stackframe(){}
 #define DEFAULT_PAGE_TIMEOUT 15
 
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
-#define META_META_OFFSET 146
+#define META_META_OFFSET 153
 #define META_META_RECORDSIZE 613
 
 #define META_TRACK_OFFSET 148
@@ -318,6 +318,13 @@ static inline void show_stackframe(){}
 #define ER_INTERNAL_ERROR "INTERNAL_ERROR"
 #define ER_WRITE_FAILURE "WRITE_FAILURE"
 #define ER_EXEC_FAILURE "EXEC_FAILURE"
+#define ER_MEMORY "OUT_OF_MEMORY"
 #define ER_SHM_LOST "SHM_LOST"
-#define ER_TRIGGER "TRIGGER"
 #define ER_UNSUPPORTED "UNSUPPORTED"
+#define ER_SEGFAULT "SEGFAULT"
+#define ER_TRIGGER "TRIGGER"
+#define ER_SIGTRAP "SIGTRAP"
+#define ER_SIGABRT "SIGABRT"
+#define ER_SIGILL "SIGILL"
+#define ER_SIGFPE "SIGFPE"
+#define ER_SIGBUS "SIGBUS"

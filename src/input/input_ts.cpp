@@ -387,7 +387,10 @@ namespace Mist{
   /// for a specific track to metadata. After the entire stream has been read,
   /// it writes the remaining metadata.
   bool inputTS::readHeader(){
-    if (!reader){return false;}
+    if (!reader){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     TS::Packet packet; // to analyse and extract data
     DTSC::Packet headerPack;

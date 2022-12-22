@@ -57,6 +57,7 @@ headers = [
   'websocket.h',
   'url.h',
   'urireader.h',
+  'ptvtmp.h',
 ]
 
 if have_srt 
@@ -123,6 +124,7 @@ libmist = library('mist',
   'url.cpp',
   'urireader.cpp',
   'websocket.cpp',
+  'ptvtmp.cpp',
   extra_code,
   include_directories: incroot,
   dependencies: mist_deps,

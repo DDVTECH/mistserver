@@ -56,7 +56,7 @@ namespace Mist{
     key = Encodings::Base64::decode(config->getString("key"));
     if (key == ""){
       if (config->getString("keyseed") == "" || config->getString("keyid") == ""){
-        std::cerr << "No key given, and no keyseed/keyid geven" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "No key given, and no keyseed/keyid given");
         return false;
       }
       std::string tmpSeed = Encodings::Base64::decode(config->getString("keyseed"));
@@ -66,29 +66,35 @@ namespace Mist{
     }
 
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
 
     // open File
     inFile = DTSC::File(config->getString("input"));
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
     return true;
   }
 
   bool inputDTSC::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     DTSC::File tmp(config->getString("input") + ".dtsh");
     if (tmp){
       myMeta = tmp.getMeta();
@@ -96,7 +102,7 @@ namespace Mist{
       return true;
     }
     if (inFile.getMeta().moreheader < 0 || inFile.getMeta().tracks.size() == 0){
-      DEBUG_MSG(DLVL_FAIL, "Missing external header file");
+      Util::logExitReason(ER_READ_START_FAILURE, "Missing external header file");
       return false;
     }
     myMeta = DTSC::Meta(inFile.getMeta());

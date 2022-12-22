@@ -71,6 +71,7 @@ void sourceThread(void *){
 int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
+  Util::Config::binaryType = Util::PROCESS;
   JSON::Value capa;
 
   {

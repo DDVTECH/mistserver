@@ -77,7 +77,7 @@ namespace Mist{
   bool InputSDP::checkArguments(){
     const std::string &inpt = config->getString("input");
     if (inpt.substr(inpt.length() - 4) != ".sdp"){
-      FAIL_MSG("Expected a SDP file but received: '%s'", inpt.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Expected a SDP file but received: '%s'", inpt.c_str());
       return false;
     }
     return true;
@@ -88,13 +88,17 @@ namespace Mist{
     const std::string &inpt = config->getString("input");
     reader.open(inpt);
     // Will return false if it cant open file or it is EOF
-    return reader;
+    if (!reader){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
+    return true;
   }
 
   /// Gets and parses the SDP file
   void InputSDP::parseStreamHeader(){
     if (!reader){
-      FAIL_MSG("Connection lost with input. Could not get stream description!");
+      Util::logExitReason(ER_READ_START_FAILURE, "Connection lost with input. Could not get stream description!");
       return;
     }
 
@@ -206,7 +210,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() == COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -312,7 +316,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() == COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
       }
     }
 

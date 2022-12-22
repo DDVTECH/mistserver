@@ -95,6 +95,8 @@ namespace Mist{
     virtual void connStats(Comms::Connections & statComm);
     virtual void parseHeader();
     bool bufferFrame(size_t track, uint32_t keyNum);
+    void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
+    bool exitAndLogReason();
 
     uint64_t activityCounter;
 

@@ -122,12 +122,12 @@ namespace Mist{
   bool InputRTSP::checkArguments(){
     const std::string &inpt = config->getString("input");
     if (inpt.substr(0, 7) != "rtsp://"){
-      FAIL_MSG("Unsupported RTSP URL: '%s'", inpt.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Unsupported RTSP URL: '%s'", inpt.c_str());
       return false;
     }
     const std::string &transport = config->getString("transport");
     if (transport != "TCP" && transport != "UDP" && transport != "tcp" && transport != "udp"){
-      FAIL_MSG("Not a supported transport mode: %s", transport.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Not a supported transport mode: %s", transport.c_str());
       return false;
     }
     if (transport == "UDP" || transport == "udp"){TCPmode = false;}
@@ -142,7 +142,11 @@ namespace Mist{
   bool InputRTSP::openStreamSource(){
     tcpCon.open(url.host, url.getPort(), false);
     mainConn = &tcpCon;
-    return tcpCon;
+    if (!tcpCon){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening TCP socket `%s:%s` failed", url.host.c_str(), url.getPort());
+      return false;
+    }
+    return true;
   }
 
   void InputRTSP::parseStreamHeader(){
@@ -152,7 +156,7 @@ namespace Mist{
     extraHeaders["Accept"] = "application/sdp";
     sendCommand("DESCRIBE", url.getUrl(), "", &extraHeaders);
     if (!tcpCon || !seenSDP){
-      FAIL_MSG("Could not get stream description!");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not get stream description!");
       return;
     }
     if (sdpState.tracks.size()){
@@ -178,7 +182,7 @@ namespace Mist{
           atLeastOne = true;
           continue;
         }
-        FAIL_MSG("Could not setup track %s!", M.getTrackIdentifier(it->first).c_str());
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not setup track %s!", M.getTrackIdentifier(it->first).c_str());
         tcpCon.close();
         return;
       }
@@ -214,7 +218,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -229,7 +233,7 @@ namespace Mist{
       }
     }
     if (!tcpCon){
-      Util::logExitReason("TCP connection closed");
+      Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "TCP connection closed");
     }
   }
 
@@ -402,7 +406,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         tcpCon.close();
       }
     }

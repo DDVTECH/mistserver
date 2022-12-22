@@ -32,17 +32,17 @@ namespace Mist{
 
   bool inputFLV::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -52,7 +52,10 @@ namespace Mist{
   bool inputFLV::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
     struct stat statData;
     lastModTime = 0;
     if (stat(config->getString("input").c_str(), &statData) != -1){
@@ -78,7 +81,10 @@ namespace Mist{
   }
 
   bool inputFLV::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     meta.reInit(isSingular() ? streamName : "");
     // Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);
@@ -128,13 +134,14 @@ namespace Mist{
       }
     }
     if (feof(inFile)){
+      Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
       thisPacket.null();
       return;
     }
     if (FLV::Parse_Error){
       FLV::Parse_Error = false;
       tmpTag = FLV::Tag();
-      FAIL_MSG("FLV error @ %" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "FLV error @ %" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
       thisPacket.null();
       return;
     }

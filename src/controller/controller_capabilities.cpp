@@ -115,6 +115,12 @@ namespace Controller{
     trgs["STREAM_END"]["response"] = "ignored";
     trgs["STREAM_END"]["response_action"] = "None.";
 
+    trgs["INPUT_ABORT"]["when"] = "Every time an Input process exits with an error";
+    trgs["INPUT_ABORT"]["stream_specific"] = true;
+    trgs["INPUT_ABORT"]["payload"] = "stream name (string)\nsource URI (string)\nbinary name (string)\npid (integer)\nmachine-readable reason for exit (string, enum)\nhuman-readable reason for exit (string)";
+    trgs["INPUT_ABORT"]["response"] = "ignored";
+    trgs["INPUT_ABORT"]["response_action"] = "None.";
+
     trgs["RTMP_PUSH_REWRITE"]["when"] =
         "On incoming RTMP pushes, allows rewriting the RTMP URL to/from custom formatting";
     trgs["RTMP_PUSH_REWRITE"]["stream_specific"] = false;
@@ -150,9 +156,20 @@ namespace Controller{
         "(integer)\nseconds spent recording (integer)\nunix time recording started (integer)\nunix "
         "time recording stopped (integer)\ntotal milliseconds of media data recorded "
         "(integer)\nmillisecond timestamp of first media packet (integer)\nmillisecond timestamp "
-        "of last media packet (integer)\n";
+        "of last media packet (integer)\nmachine-readable reason for exit (string, enum)\nhuman-readable reason for exit (string)";
     trgs["RECORDING_END"]["response"] = "ignored";
     trgs["RECORDING_END"]["response_action"] = "None.";
+
+    trgs["OUTPUT_END"]["when"] = "When an output finishes";
+    trgs["OUTPUT_END"]["stream_specific"] = true;
+    trgs["OUTPUT_END"]["payload"] =
+        "stream name (string)\npush target (string)\nconnector / filetype (string)\nbytes recorded "
+        "(integer)\nseconds spent recording (integer)\nunix time output started (integer)\nunix "
+        "time output stopped (integer)\ntotal milliseconds of media data recorded "
+        "(integer)\nmillisecond timestamp of first media packet (integer)\nmillisecond timestamp "
+        "of last media packet (integer)\nmachine-readable reason for exit (string, enum)\nhuman-readable reason for exit (string)";
+    trgs["OUTPUT_END"]["response"] = "ignored";
+    trgs["OUTPUT_END"]["response_action"] = "None.";
 
     trgs["CONN_OPEN"]["when"] = "After a new connection is accepted";
     trgs["CONN_OPEN"]["stream_specific"] = true;

@@ -54,7 +54,10 @@ namespace Mist{
   bool inputOGG::preRun(){
     // open File
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
     return true;
   }
 
@@ -142,7 +145,7 @@ namespace Mist{
           size_t len = myPage.getSegmentLen(i);
           theora::header tmpHead((char *)myPage.getSegment(i), len);
           if (!tmpHead.isHeader()){// not copying the header anymore, should this check isHeader?
-            FAIL_MSG("Theora Header read failed!");
+            Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Theora header read failed", config->getString("input").c_str());
             return false;
           }
           switch (tmpHead.getHeaderType()){
@@ -174,7 +177,7 @@ namespace Mist{
           size_t len = myPage.getSegmentLen(i);
           vorbis::header tmpHead((char *)myPage.getSegment(i), len);
           if (!tmpHead.isHeader()){
-            FAIL_MSG("Header read failed!");
+            Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Header read failed", config->getString("input").c_str());
             return false;
           }
           switch (tmpHead.getHeaderType()){

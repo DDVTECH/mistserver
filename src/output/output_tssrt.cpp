@@ -104,7 +104,7 @@ namespace Mist{
           if (!newStream.size()){
             FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                      getConnectedHost().c_str(), reqUrl.getUrl().c_str());
-            Util::logExitReason(
+            Util::logExitReason(ER_TRIGGER,
                 "Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL",
                 getConnectedHost().c_str(), reqUrl.getUrl().c_str());
             onFinish();
@@ -291,7 +291,7 @@ namespace Mist{
           srtConn.connect(target.host, target.getPort(), "output", targetParams);
           if (!srtConn){Util::sleep(500);}
         }else{
-          Util::logExitReason("SRT connection closed");
+          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
           myConn.close();
           parseData = false;
           return;
@@ -301,7 +301,7 @@ namespace Mist{
         srtConn.SendNow(packetBuffer, packetBuffer.size());
         if (!srtConn){
           if (!config->getString("target").size()){
-            Util::logExitReason("SRT connection closed");
+            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
             myConn.close();
             parseData = false;
           }
@@ -366,7 +366,7 @@ namespace Mist{
   }
 
   bool OutTSSRT::dropPushTrack(uint32_t trackId, const std::string & dropReason){
-    Util::logExitReason("track dropped by buffer");
+    Util::logExitReason(ER_SHM_LOST, "track dropped by buffer");
     myConn.close();
     srtConn.close();
     return Output::dropPushTrack(trackId, dropReason);
@@ -401,13 +401,13 @@ void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   if (!sockCount){
     INFO_MSG("USR1 received - triggering rolling restart (no connections active)");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, no connections");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, no connections");
     server_socket.close();
     Util::Config::is_active = false;
   }else{
     INFO_MSG("USR1 received - triggering rolling restart when connection count reaches zero");
     Util::Config::is_restarting = true;
-    Util::logExitReason("signal USR1, after disconnect wait");
+    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, after disconnect wait");
   }
 }
 
@@ -437,6 +437,7 @@ int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
   Util::redirectLogsIfNeeded();
   Util::Config conf(argv[0]);
+  Util::Config::binaryType = Util::OUTPUT;
   mistOut::init(&conf);
   if (conf.parseArgs(argc, argv)){
     if (conf.getBool("json")){

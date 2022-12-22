@@ -80,12 +80,12 @@ namespace Mist{
   bool inputAAC::checkArguments(){
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -94,7 +94,10 @@ namespace Mist{
 
   bool inputAAC::preRun(){
     inFile.open(config->getString("input"));
-    if (!inFile || inFile.isEOF()){return false;}
+    if (!inFile || inFile.isEOF()){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     
     struct stat statData;
     lastModTime = 0;
@@ -131,7 +134,7 @@ namespace Mist{
     size_t bytesRead = 0;
 
     if (!inFile || inFile.isEOF()){
-      INFO_MSG("Could not open input stream");
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
     }
     
@@ -140,15 +143,12 @@ namespace Mist{
     // Read fixed + variable header
     inFile.readSome(aacData, bytesRead, 6);
     if (bytesRead < 6){
-      WARN_MSG("Not enough bytes left in buffer. Quitting...");
-      // Dump for debug purposes
-      INFO_MSG("Header contains bytes: %x %x %x %x %x %x", aacData[0]
-      , aacData[1], aacData[2], aacData[3], aacData[4], aacData[5]);
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Not enough bytes left in buffer", config->getString("input").c_str());
       return false;
     }
     // Confirm syncword (= FFF)
     if (aacData[0] != 0xFF || (aacData[1] & 0xF0) != 0xF0){
-      WARN_MSG("Invalid sync word at start of header");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Invalid sync word at start of header", config->getString("input").c_str());
       return false;
     }
     // Calculate the starting position of the next frame
@@ -172,7 +172,7 @@ namespace Mist{
     // Create ADTS object of complete frame info
     aac::adts adtsPack(aacFrame, frameSize);
     if (!adtsPack){
-      WARN_MSG("Could not parse ADTS package!");   
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: Could not parse ADTS package", config->getString("input").c_str());
       return false;
     }
     
@@ -231,7 +231,7 @@ namespace Mist{
     size_t disregardAmount = 0;
     
     if (!inFile || inFile.isEOF()){
-      INFO_MSG("Reached EOF");
+      Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
       return;
     }
     
@@ -251,9 +251,10 @@ namespace Mist{
       aacData[3] == 0x54 && aacData[4] == 0x41 && aacData[5] == 0x47){
         inFile.readAll(aacData, bytesRead);
         INFO_MSG("Throwing out %zu bytes of metadata...", bytesRead);
+        Util::logExitReason(ER_CLEAN_EOF, "Reached EOF");
         return;
       }
-      WARN_MSG("Invalid sync word at start of header");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Invalid sync word at start of header");
       return;
     }
     // Calculate the starting position of the next frame
@@ -278,21 +279,7 @@ namespace Mist{
     // Create ADTS object of frame
     aac::adts adtsPack(aacFrame, frameSize);
     if (!adtsPack){
-      WARN_MSG("Could not parse ADTS package!");
-      WARN_MSG("Current frame info:");
-      WARN_MSG("Current frame pos: %zu", filePos);
-      WARN_MSG("Next frame pos: %zu", nextFramePos);
-      WARN_MSG("Frame size expected: %" PRIu64, frameSize);
-      WARN_MSG("Bytes read: %zu", bytesRead);
-      WARN_MSG("ADTS getAACProfile: %li", adtsPack.getAACProfile());
-      WARN_MSG("ADTS getFrequencyIndex: %li", adtsPack.getFrequencyIndex());
-      WARN_MSG("ADTS getFrequency: %li", adtsPack.getFrequency());
-      WARN_MSG("ADTS getChannelConfig: %li", adtsPack.getChannelConfig());
-      WARN_MSG("ADTS getChannelCount: %li", adtsPack.getChannelCount());
-      WARN_MSG("ADTS getHeaderSize: %li", adtsPack.getHeaderSize());
-      WARN_MSG("ADTS getPayloadSize: %li", adtsPack.getPayloadSize());
-      WARN_MSG("ADTS getCompleteSize: %li", adtsPack.getCompleteSize());
-      WARN_MSG("ADTS getSampleCount: %li", adtsPack.getSampleCount());  
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not parse ADTS package");
       return;
     }
     
@@ -313,8 +300,7 @@ namespace Mist{
       if (trks.size()){
         audioTrack = *(trks.begin());
       }else{
-        Util::logExitReason("no audio track in header");
-        FAIL_MSG("No audio track in header - aborting");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "No audio track in header");
         return;
       }
     }

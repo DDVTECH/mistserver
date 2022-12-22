@@ -43,17 +43,17 @@ namespace Mist{
 
   bool inputAV::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -79,7 +79,7 @@ namespace Mist{
     if (ret != 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      FAIL_MSG("Could not open file: %s", errstr);
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open file: %s", errstr);
       return false; // Couldn't open file
     }
 
@@ -88,7 +88,7 @@ namespace Mist{
     if (ret < 0){
       char errstr[300];
       av_strerror(ret, errstr, 300);
-      FAIL_MSG("Could not find stream info: %s", errstr);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not find stream info: %s", errstr);
       return false;
     }
     return true;
@@ -195,7 +195,7 @@ namespace Mist{
     thisPacket.null();
     preRun();
     // failure :-(
-    FAIL_MSG("getNext failed");
+    Util::logExitReason(ER_UNKNOWN, "getNext failed");
   }
 
   void inputAV::seek(uint64_t seekTime, size_t idx){

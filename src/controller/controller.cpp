@@ -629,6 +629,7 @@ int main(int argc, char **argv){
   }
 
   Controller::conf = Util::Config(argv[0]);
+  Util::Config::binaryType = Util::CONTROLLER;
   Controller::conf.activate();
   if (getenv("ATHEIST")){return main_loop(argc, argv);}
   uint64_t reTimer = 0;

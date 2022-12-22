@@ -22,17 +22,17 @@ namespace Mist{
 
   bool inputPlaylist::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -45,7 +45,7 @@ namespace Mist{
     killSwitch.reload(streamName, (size_t)INVALID_TRACK_ID, (uint8_t)(COMM_STATUS_ACTIVE | COMM_STATUS_DONOTTRACK));
     while (config->is_active){
       if (killSwitch && killSwitch.getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         config->is_active = false;
         break;
       }
@@ -55,7 +55,7 @@ namespace Mist{
       wallTime = wTime->tm_hour * 60 + wTime->tm_min;
       reloadPlaylist();
       if (!playlist.size()){
-        Util::logExitReason("No entries in playlist");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "No entries in playlist");
         return;
       }
       ++playlistIndex;
@@ -112,7 +112,7 @@ namespace Mist{
       seenValidEntry = true;
       while (Util::Procs::isRunning(spawn_pid) && config->is_active){
         if (killSwitch && killSwitch.getStatus() & COMM_STATUS_REQDISCONNECT){
-          Util::logExitReason("buffer requested shutdown");
+          Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
           config->is_active = false;
           break;
         }

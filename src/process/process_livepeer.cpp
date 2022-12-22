@@ -248,7 +248,7 @@ namespace Mist{
         if (!thisPacket){
           Util::sleep(25);
           if (userSelect.size() && userSelect.begin()->second.getStatus() == COMM_STATUS_REQDISCONNECT){
-            Util::logExitReason("buffer requested shutdown");
+            Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
             return;
           }
         }
@@ -486,7 +486,7 @@ void uploadThread(void * num){
       attempts++;
       Util::sleep(100);//Rate-limit retries
       if (attempts > 4){
-        Util::logExitReason("too many upload failures");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "too many upload failures");
         conf.is_active = false;
         return;
       }
@@ -497,7 +497,7 @@ void uploadThread(void * num){
         Mist::pickRandomBroadcaster();
         if (!Mist::currBroadAddr.size()){
           FAIL_MSG("Cannot switch to new broadcaster: none available");
-          Util::logExitReason("no Livepeer broadcasters available");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "no Livepeer broadcasters available");
           conf.is_active = false;
           return;
         }
@@ -523,6 +523,7 @@ void uploadThread(void * num){
 int main(int argc, char *argv[]){
   DTSC::trackValidMask = TRACK_VALID_INT_PROCESS;
   Util::Config config(argv[0]);
+  Util::Config::binaryType = Util::PROCESS;
   JSON::Value capa;
 
   {

@@ -489,7 +489,7 @@ namespace Mist{
     }
     if (hasPush){everHadPush = true;}
     if (!hasPush && everHadPush && !resumeMode && config->is_active){
-      Util::logExitReason("source disconnected for non-resumable stream");
+      Util::logExitReason(ER_CLEAN_EOF, "source disconnected for non-resumable stream");
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}
       config->is_active = false;
       userSelect.clear();

@@ -66,7 +66,7 @@ namespace Mist{
   bool InputH264::checkArguments(){
     std::string input = config->getString("input");
     if (input != "-" && input.substr(0, 10) != "h264-exec:"){
-      FAIL_MSG("Unsupported input type: %s", input.c_str());
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Unsupported input type: %s", input.c_str());
       return false;
     }
     return true;

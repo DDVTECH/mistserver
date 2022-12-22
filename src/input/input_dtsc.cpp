@@ -210,12 +210,12 @@ namespace Mist{
     if (!needsLock()){return true;}
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -223,7 +223,7 @@ namespace Mist{
     // open File
     F = fopen(config->getString("input").c_str(), "r+b");
     if (!F){
-      HIGH_MSG("Could not open file %s", config->getString("input").c_str());
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open file %s", config->getString("input").c_str());
       return false;
     }
     fseek(F, 0, SEEK_SET);
@@ -236,17 +236,20 @@ namespace Mist{
   }
 
   bool inputDTSC::readHeader(){
-    if (!F){return false;}
+    if (!F){
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
+      return false;
+    }
     size_t moreHeader = 0;
     do{
       char hdr[8];
       fseek(F, moreHeader, SEEK_SET);
       if (fread(hdr, 8, 1, F) != 1){
-        FAIL_MSG("Could not read header @ bpos %zu", moreHeader);
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not read header @ bpos %zu", config->getString("input").c_str(), moreHeader);
         return false;
       }
       if (memcmp(hdr, DTSC::Magic_Header, 4)){
-        FAIL_MSG("File does not have a DTSC header @ bpos %zu", moreHeader);
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: File does not have a DTSC header @ bpos %zu", config->getString("input").c_str(), moreHeader);
         return false;
       }
       size_t pktLen = Bit::btohl(hdr + 4);
@@ -283,6 +286,7 @@ namespace Mist{
     fseek(F, thisPos.bytePos, SEEK_SET);
     if (feof(F)){
       thisPacket.null();
+      Util::logExitReason(ER_CLEAN_EOF, "End of file reached");
       return;
     }
     clearerr(F);
@@ -290,9 +294,9 @@ namespace Mist{
     lastreadpos = ftell(F);
     if (fread(buffer, 4, 1, F) != 1){
       if (feof(F)){
-        INFO_MSG("End of file reached while seeking @ %" PRIu64, lastreadpos);
+        Util::logExitReason(ER_CLEAN_EOF, "End of file reached while seeking @ %" PRIu64, lastreadpos);
       }else{
-        ERROR_MSG("Could not seek to next @ %" PRIu64, lastreadpos);
+        Util::logExitReason(ER_UNKNOWN, "Could not seek to next @ %" PRIu64, lastreadpos);
       }
       thisPacket.null();
       return;
@@ -306,13 +310,13 @@ namespace Mist{
     if (memcmp(buffer, DTSC::Magic_Packet, 4) == 0){version = 1;}
     if (memcmp(buffer, DTSC::Magic_Packet2, 4) == 0){version = 2;}
     if (version == 0){
-      ERROR_MSG("Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Invalid packet header @ %#" PRIx64 " - %.4s != %.4s @ %" PRIu64, lastreadpos,
                 buffer, DTSC::Magic_Packet2, lastreadpos);
       thisPacket.null();
       return;
     }
     if (fread(buffer + 4, 4, 1, F) != 1){
-      ERROR_MSG("Could not read packet size @ %" PRIu64, lastreadpos);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet size @ %" PRIu64, lastreadpos);
       thisPacket.null();
       return;
     }
@@ -321,7 +325,7 @@ namespace Mist{
     pBuf.resize(8 + packSize);
     memcpy((char *)pBuf.data(), buffer, 8);
     if (fread((void *)(pBuf.data() + 8), packSize, 1, F) != 1){
-      ERROR_MSG("Could not read packet @ %" PRIu64, lastreadpos);
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read packet @ %" PRIu64, lastreadpos);
       thisPacket.null();
       return;
     }
@@ -353,7 +357,7 @@ namespace Mist{
         }
         if (cmd == "error"){
           thisPacket.getString("msg", cmd);
-          Util::logExitReason("%s", cmd.c_str());
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "%s", cmd.c_str());
           thisPacket.null();
           return;
         }

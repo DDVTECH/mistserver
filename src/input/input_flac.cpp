@@ -40,17 +40,17 @@ namespace Mist{
 
   bool inputFLAC::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
     }
@@ -59,7 +59,10 @@ namespace Mist{
 
   bool inputFLAC::preRun(){
     inFile = fopen(config->getString("input").c_str(), "r");
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
     return true;
   }
 
@@ -81,7 +84,7 @@ namespace Mist{
   bool inputFLAC::readMagicPacket(){
     char magic[4];
     if (fread(magic, 4, 1, inFile) != 1){
-      FAIL_MSG("Could not read magic word - aborting!");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read magic word - aborting!");
       return false;
     }
 
@@ -90,12 +93,15 @@ namespace Mist{
       return true;
     }
 
-    FAIL_MSG("Not a FLAC file - aborting!");
+    Util::logExitReason(ER_FORMAT_SPECIFIC, "Not a FLAC file - aborting!");
     return false;
   }
 
   bool inputFLAC::readHeader(){
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Opening input '%s' failed", config->getString("input").c_str());
+      return false;
+    }
 
     if (readExistingHeader()){
       WARN_MSG("header exists, read old one");
@@ -118,7 +124,7 @@ namespace Mist{
     char metahead[4];
     while (!feof(inFile) && !lastMeta){
       if (fread(metahead, 4, 1, inFile) != 1){
-        FAIL_MSG("Could not read metadata block header - aborting!");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read metadata block header - aborting!");
         return false;
       }
 
@@ -132,7 +138,7 @@ namespace Mist{
 
         char metaTmp[bytes];
         if (fread(metaTmp, bytes, 1, inFile) != 1){
-          FAIL_MSG("Could not read streaminfo metadata - aborting!");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read streaminfo metadata - aborting!");
           return false;
         }
 
@@ -147,8 +153,8 @@ namespace Mist{
 
         blockSize = (metaTmp[0] << 8 | metaTmp[1]);
         if ((metaTmp[2] << 8 | metaTmp[3]) != blockSize){
-          FAIL_MSG("variable block size not supported!");
-          return 1;
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "variable block size not supported!");
+          return false;
         }
 
         sampleRate = ((metaTmp[10] << 12) | (metaTmp[11] << 4) | ((metaTmp[12] & 0xf0) >> 4));
@@ -174,11 +180,11 @@ namespace Mist{
     }
 
     if (!sampleRate){
-      FAIL_MSG("Could not get sample rate from file header");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not get sample rate from file header");
       return false;
     }
     if (!channels){
-      FAIL_MSG("no channel information found!");
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "no channel information found!");
       return false;
     }
 

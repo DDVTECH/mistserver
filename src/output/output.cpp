@@ -113,6 +113,7 @@ namespace Mist{
     firstData = true;
     newUA = true;
     lastPushUpdate = 0;
+    Util::Config::binaryType = Util::OUTPUT;
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -185,7 +186,7 @@ namespace Mist{
     }else{
       MEDIUM_MSG("onFail '%s': %s", streamName.c_str(), msg.c_str());
     }
-    Util::logExitReason(msg.c_str());
+    Util::logExitReason(ER_UNKNOWN, msg.c_str());
     isInitialized = false;
     wantRequest = false;
     parseData = false;
@@ -1519,12 +1520,14 @@ namespace Mist{
       if (!streamName.size()){
         WARN_MSG("Recording unconnected %s output to file! Cancelled.", capa["name"].asString().c_str());
         onFail("Unconnected recording output", true);
+        recEndTrigger();
         return 2;
       }
       initialize();
       if (!M.getValidTracks().size() || !userSelect.size() || !keepGoing()){
         INFO_MSG("Stream not available - aborting");
         onFail("Stream not available for recording", true);
+        recEndTrigger();
         return 3;
       }
       initialSeek();
@@ -1562,6 +1565,7 @@ namespace Mist{
       }else{
         if (!connectToFile(newTarget, targetParams.count("append"))){
           onFail("Could not connect to the target for recording", true);
+          recEndTrigger();
           return 3;
         }
         INFO_MSG("Recording %s to %s with %s format", streamName.c_str(),
@@ -1752,7 +1756,7 @@ namespace Mist{
                 INFO_MSG("Switching to next push target filename: %s", newTarget.c_str());
                 if (!connectToFile(newTarget)){
                   FAIL_MSG("Failed to open file, aborting: %s", newTarget.c_str());
-                  Util::logExitReason("failed to open file, aborting: %s", newTarget.c_str());
+                  Util::logExitReason(ER_WRITE_FAILURE, "failed to open file, aborting: %s", newTarget.c_str());
                   onFinish();
                   break;
                 }
@@ -1763,7 +1767,7 @@ namespace Mist{
               }else{
                 if (!onFinish()){
                   INFO_MSG("Shutting down because planned stopping point reached");
-                  Util::logExitReason("planned stopping point reached");
+                  Util::logExitReason(ER_CLEAN_INTENDED_STOP, "planned stopping point reached");
                   break;
                 }
               }
@@ -1779,20 +1783,20 @@ namespace Mist{
             }
             /*LTS-END*/
             if (!onFinish()){
-              Util::logExitReason("end of stream");
+              Util::logExitReason(ER_CLEAN_EOF, "end of stream");
               break;
             }
           }
         }
         if (!meta){
-          Util::logExitReason("lost internal connection to stream data");
+          Util::logExitReason(ER_SHM_LOST, "lost internal connection to stream data");
           break;
         }
       }
       stats();
     }
-    if (!config->is_active){Util::logExitReason("set inactive");}
-    if (!myConn){Util::logExitReason("connection closed");}
+    if (!config->is_active){Util::logExitReason(ER_UNKNOWN, "set inactive");}
+    if (!myConn){Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "connection closed");}
     if (strncmp(Util::exitReason, "connection closed", 17) == 0){
       MEDIUM_MSG("Client handler shutting down, exit reason: %s", Util::exitReason);
     }else{
@@ -1831,7 +1835,6 @@ namespace Mist{
       }else{
         FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
         Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
-        return 1;
       }
     }
 
@@ -1841,25 +1844,10 @@ namespace Mist{
           streamName + "\n" + getConnectedHost() + "\n" + capa["name"].asStringRef() + "\n" + reqUrl;
       Triggers::doTrigger("CONN_CLOSE", payload, streamName);
     }
-    if (isRecordingToFile && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
-      uint64_t rightNow = Util::epoch();
-      std::stringstream payl;
-      payl << streamName << '\n';
-      payl << config->getString("target") << '\n';
-      payl << capa["name"].asStringRef() << '\n';
-      payl << myConn.dataUp() << '\n';
-      payl << (Util::bootSecs() - myConn.connTime()) << '\n';
-      payl << (rightNow - (Util::bootSecs() - myConn.connTime())) << '\n';
-      payl << rightNow << '\n';
-      if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
-        payl << (lastPacketTime - firstPacketTime) << '\n';
-      }else{
-        payl << 0 << '\n';
-      }
-      payl << firstPacketTime << '\n';
-      payl << lastPacketTime << '\n';
-      Triggers::doTrigger("RECORDING_END", payl.str(), streamName);
+    if (isRecordingToFile){
+      recEndTrigger();
     }
+    outputEndTrigger();
     /*LTS-END*/
 
     disconnect();
@@ -1971,7 +1959,7 @@ namespace Mist{
       }
       if (!dropTracks.size()){
         FAIL_MSG("Could not equalize tracks! This is very very very bad and I am now going to shut down to prevent worse.");
-        Util::logExitReason("Could not equalize tracks");
+        Util::logExitReason(ER_INTERNAL_ERROR, "Could not equalize tracks");
         parseData = false;
         config->is_active = false;
         return false;
@@ -2099,11 +2087,11 @@ namespace Mist{
       //every ~1 second, check if the stream is not offline
       if (emptyCount % 100 == 0 && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
         if (M.getLive()){
-          Util::logExitReason("Live stream source shut down");
+          Util::logExitReason(ER_CLEAN_EOF, "Live stream source shut down");
           thisPacket.null();
           return true;
         }else if (!Util::startInput(streamName)){
-          Util::logExitReason("VoD stream source shut down and could not be restarted");
+          Util::logExitReason(ER_UNKNOWN, "VoD stream source shut down and could not be restarted");
           thisPacket.null();
           return true;
         }
@@ -2327,6 +2315,40 @@ namespace Mist{
     close(outFile);
     realTime = 0;
     return true;
+  }
+
+  std::string Output::getExitTriggerPayload(){
+    uint64_t rightNow = Util::epoch();
+    std::stringstream payl;
+    payl << streamName << '\n';
+    payl << config->getString("target") << '\n';
+    payl << capa["name"].asStringRef() << '\n';
+    payl << myConn.dataUp() << '\n';
+    payl << (Util::bootSecs() - myConn.connTime()) << '\n';
+    payl << (rightNow - (Util::bootSecs() - myConn.connTime())) << '\n';
+    payl << rightNow << '\n';
+    if (firstPacketTime != 0xFFFFFFFFFFFFFFFFull){
+      payl << (lastPacketTime - firstPacketTime) << '\n';
+    }else{
+      payl << 0 << '\n';
+    }
+    payl << firstPacketTime << '\n';
+    payl << lastPacketTime << '\n';
+    payl << Util::mRExitReason << '\n';
+    payl << Util::exitReason << '\n';
+    return payl.str();
+  }
+  
+  void Output::recEndTrigger(){
+    if (Util::Config::binaryType == Util::OUTPUT && config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
+      Triggers::doTrigger("RECORDING_END", getExitTriggerPayload(), streamName);
+    }
+  }
+
+  void Output::outputEndTrigger(){
+    if (Util::Config::binaryType == Util::OUTPUT && config->hasOption("target") && Triggers::shouldTrigger("OUTPUT_END", streamName)){
+      Triggers::doTrigger("OUTPUT_END", getExitTriggerPayload(), streamName);
+    }
   }
 
   /// Checks if the set streamName allows pushes from this connector/IP/password combination.

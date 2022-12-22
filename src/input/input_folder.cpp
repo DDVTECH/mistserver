@@ -27,27 +27,27 @@ namespace Mist{
 
     streamName = config->getString("streamname");
     if (streamName.find_first_of("+ ") == std::string::npos){
-      FAIL_MSG("Folder input requires a + or space in the stream name.");
-      return 1;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Folder input requires a + or space in the stream name.");
+      return exitAndLogReason();
     }
 
     std::string folder = config->getString("input");
     if (folder[folder.size() - 1] != '/'){
-      FAIL_MSG("Input path must end in a forward slash.");
-      return 1;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input path must end in a forward slash.");
+      return exitAndLogReason();
     }
 
     std::string folder_noslash = folder.substr(0, folder.size() - 1);
     struct stat fileCheck;
     if (stat(folder_noslash.c_str(), &fileCheck) != 0 || !S_ISDIR(fileCheck.st_mode)){
-      FAIL_MSG("Folder input requires a folder as input.");
-      return 1;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Folder input requires a folder as input.");
+      return exitAndLogReason();
     }
 
     std::string path = folder + streamName.substr(streamName.find_first_of("+ ") + 1);
     if (stat(path.c_str(), &fileCheck) != 0 || S_ISDIR(fileCheck.st_mode)){
-      FAIL_MSG("File not found: %s", path.c_str());
-      return 1;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "File not found: %s", path.c_str());
+      return exitAndLogReason();
     }
 
     Util::startInput(streamName, path, false);

@@ -151,6 +151,9 @@ namespace Mist{
     virtual bool isRecording();
     virtual bool isFileTarget();
     virtual bool isPushing(){return pushing;};
+    std::string getExitTriggerPayload();
+    void recEndTrigger();
+    void outputEndTrigger();
     bool allowPush(const std::string &passwd);
     void waitForStreamPushReady();
 

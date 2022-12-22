@@ -740,7 +740,10 @@ namespace Mist{
       return false;
     }
 
-    if (!initPlaylist(config->getString("input"), false)){return false;}
+    if (!initPlaylist(config->getString("input"), false)){
+      Util::logExitReason(ER_UNKNOWN, "Failed to load HLS playlist, aborting");
+      return false;
+    }
 
     // If the playlist is of event type, init the amount of segments in the playlist
     if (isLiveDVR){
@@ -756,7 +759,7 @@ namespace Mist{
 
   void inputHLS::parseStreamHeader(){
     if (!initPlaylist(config->getString("input"))){
-      FAIL_MSG("Failed to load HLS playlist, aborting");
+      Util::logExitReason(ER_UNKNOWN, "Failed to load HLS playlist, aborting");
       return;
     }
     meta.reInit(isSingular() ? streamName : "", false);
@@ -1195,7 +1198,7 @@ namespace Mist{
           tsStream.getPacket(tid, thisPacket);
         }
         if (!thisPacket){
-          FAIL_MSG("Could not getNext TS packet!");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not getNext TS packet!");
           return;
         }
 
@@ -1256,7 +1259,7 @@ namespace Mist{
 
       // Nothing works!
       // HLS input will now quit trying to prevent severe mental depression.
-      INFO_MSG("No packets can be read - exhausted all playlists");
+      Util::logExitReason(ER_CLEAN_EOF, "No packets can be read - exhausted all playlists");
       thisPacket.null();
       return;
     }
@@ -1481,14 +1484,14 @@ namespace Mist{
       INFO_MSG("Downloading main playlist file from '%s'", uri.c_str());
       HTTP::URIReader plsDL;
       if (!plsDL.open(playlistRootPath) || !plsDL){
-        FAIL_MSG("Could not open main playlist, aborting");
+        Util::logExitReason(ER_READ_START_FAILURE, "Could not open main playlist, aborting");
         return false;
       }
       char * dataPtr;
       size_t dataLen;
       plsDL.readAll(dataPtr, dataLen);
       if (!dataLen){
-        FAIL_MSG("Could not download main playlist, aborting.");
+        Util::logExitReason(ER_READ_START_FAILURE, "Could not download main playlist, aborting.");
         return false;
       }
       urlSource.str(std::string(dataPtr, dataLen));
@@ -1503,7 +1506,7 @@ namespace Mist{
       }
       fileSource.open(playlistLocation.c_str());
       if (!fileSource.good()){
-        FAIL_MSG("Could not open playlist (%s): %s", strerror(errno), playlistLocation.c_str());
+        Util::logExitReason(ER_READ_START_FAILURE, "Could not open playlist (%s): %s", strerror(errno), playlistLocation.c_str());
       }
     }
 

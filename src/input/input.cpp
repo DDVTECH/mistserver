@@ -93,6 +93,7 @@ namespace Mist{
   Input::Input(Util::Config *cfg) : InOutBase(){
     config = cfg;
     standAlone = true;
+    Util::Config::binaryType = Util::INPUT;
 
     JSON::Value option;
     option["long"] = "json";
@@ -399,8 +400,8 @@ namespace Mist{
     }
 
     if (!checkArguments()){
-      FAIL_MSG("Setup failed - exiting");
-      return 0;
+      Util::logExitReason(ER_UNKNOWN, "Setup failed - exiting");
+      return exitAndLogReason();
     }
 
     IPC::semaphore playerLock;
@@ -476,8 +477,12 @@ namespace Mist{
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
-      int ret = 0;
-      if (preRun()){ret = run();}
+      int ret = 1;
+      if (preRun()){
+        ret = run();
+      }else{
+        return exitAndLogReason();
+      }
       if (playerLock){
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
@@ -514,7 +519,9 @@ namespace Mist{
         // Abandon all semaphores, ye who enter here.
         playerLock.abandon();
         pullLock.abandon();
-        if (!preRun()){return 0;}
+        if (!preRun()){
+          return exitAndLogReason();
+        }
         return run();
       }
       Util::Procs::fork_complete();
@@ -538,8 +545,9 @@ namespace Mist{
       }
       HIGH_MSG("Done waiting for child for stream %s", streamName.c_str());
       // if the exit was clean, don't restart it
-      if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)){
-        INFO_MSG("Input for stream %s shut down cleanly", streamName.c_str());
+      int exitCode = WEXITSTATUS(status);
+      if (WIFEXITED(status) && (exitCode == 0 || exitCode == 1)){
+        HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
       if (playerLock){
@@ -548,12 +556,49 @@ namespace Mist{
         streamStatus.init(pageName, 2, false, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
       }
-#if DEBUG >= DLVL_DEVEL
+      // Fire the INPUT_ABORT trigger if the child process ends with an abnormal exit code
+      // Prevents automatic restarts of the input for unrecoverable errors
+      if (WIFEXITED(status)){
+        char exitReason[256];
+        memcpy(exitReason, Util::exitReason, 256);
+        if (exitCode == 2){
+          WARN_MSG("Child process %u exited with exit code %i (major error occurred), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with exit code %i (major error occurred)", pid, exitCode);
+        }else if (exitCode == 132){
+          WARN_MSG("Child process %u exited with exit code %i (SIGILL), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_SIGILL, "Child process %u exited with exit code %i (SIGILL)", pid, exitCode);
+        }else if (exitCode == 133){
+          WARN_MSG("Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+          Util::logExitReason(ER_SIGTRAP, "Child process %u exited with exit code %i (SIGTRAP)", pid, exitCode);
+        }else if (exitCode == 134){
+          WARN_MSG("Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+          Util::logExitReason(ER_SIGABRT, "Child process %u exited with exit code %i (SIGABRT)", pid, exitCode);
+        }else if (exitCode == 136){
+          WARN_MSG("Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+          Util::logExitReason(ER_SIGFPE, "Child process %u exited with exit code %i (SIGFPE)", pid, exitCode);
+        }else if (exitCode == 137){
+          WARN_MSG("Child process %u exited with exit code %i (used too much memory), cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_MEMORY, "Child process %u exited with exit code %i (used too much memory)", pid, exitCode);
+        }else if (exitCode == 138){
+          WARN_MSG("Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+          Util::logExitReason(ER_SIGBUS, "Child process %u exited with exit code %i (SIGBUS)", pid, exitCode);
+        }else if (exitCode == 139){
+          WARN_MSG("Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+          Util::logExitReason(ER_SEGFAULT, "Child process %u exited with exit code %i (SEGFAULT)", pid, exitCode);
+        }else{
+          WARN_MSG("Child process %u exited with an unhandled exit code %i, cleaning up...", pid, exitCode);
+          Util::logExitReason(ER_UNKNOWN, "Child process %u exited with an unhandled exit code %i", pid, exitCode);
+        }
+        doInputAbortTrigger(pid, Util::mRExitReason, Util::exitReason);
+        memcpy(Util::exitReason, exitReason, 256);
+      }
+      
+      #if DEBUG >= DLVL_DEVEL
       WARN_MSG(
           "Input for stream %s uncleanly shut down! Aborting restart; this is a development build.",
           streamName.c_str());
       break;
-#else
+      #else
       if (config->is_active){
         WARN_MSG("Input for stream %s uncleanly shut down! Cleaning and restarting...", streamName.c_str());
       }else{
@@ -609,8 +654,8 @@ namespace Mist{
     if (needHeader()){
       uint64_t timer = Util::getMicros();
       if (!readHeader() || (!M && needsLock())){
-        FAIL_MSG("Reading header for '%s' failed.", config->getString("input").c_str());
-        return 0;
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed", config->getString("input").c_str());
+        return exitAndLogReason();
       }
       timer = Util::getMicros(timer);
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
@@ -639,7 +684,7 @@ namespace Mist{
       INFO_MSG("Starting serve");
       serve();
     }
-    return 0;
+    return exitAndLogReason();
   }
 
   void Input::convert(){
@@ -692,6 +737,40 @@ namespace Mist{
     file.close();
     // Export DTSH to a file or remote target
     outMeta.toFile(fileName + ".dtsh");
+  }
+
+  // Fires the `INPUT_ABORT` trigger. Allows overrides to allow parent processes
+  // to fire the trigger for child processes which have already exited (EG segfaults)
+  void Input::doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason){
+    // Calculate variables required for the trigger
+    if (Util::Config::binaryType == Util::INPUT && Triggers::shouldTrigger("INPUT_ABORT", streamName)){
+      std::ostringstream pidString;
+      pidString << pid;
+      std::string payload = streamName + "\n" + config->getString("input") + "\n" \
+        + "MistIn" + capa["name"].asString() + "\n" + pidString.str() + "\n" \
+        + mRExitReason + "\n" + exitReason;
+      Triggers::doTrigger("INPUT_ABORT", payload, streamName);
+    }
+  }
+
+  // Logs the current exit reason and returns a 0 or 1 depending on whether
+  // this was a clean exit or not
+  bool Input::exitAndLogReason(){
+    int returnCode = 1;
+    // If no reason is set at all, return the default status
+    if (!Util::exitReason[0]){
+      INFO_MSG("Input closing without a set exit reason");
+    }else if(strncmp(Util::mRExitReason, "CLEAN", 5) == 0){
+      INFO_MSG("Input closing cleanly with reason: %s", Util::exitReason);
+      returnCode = 0; 
+    }else{
+      WARN_MSG("Input closing unclean, reason: %s", Util::exitReason);
+    }
+    // If this is an unclean exit, fire the INPUT_ABORT trigger
+    if (returnCode){
+      doInputAbortTrigger(getpid(), Util::mRExitReason, Util::exitReason);
+    }
+    return returnCode;
   }
 
   /// Checks in the server configuration if this stream is set to always on or not.
@@ -748,7 +827,7 @@ namespace Mist{
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
       std::string payload = config->getString("streamname") + "\n" + capa["name"].asStringRef();
       if (!Triggers::doTrigger("STREAM_READY", payload, config->getString("streamname"))){
-        Util::logExitReason("STREAM_READY trigger returned false");
+        Util::logExitReason(ER_TRIGGER, "STREAM_READY trigger returned false");
         config->is_active = false;
       }
     }
@@ -789,7 +868,6 @@ namespace Mist{
       config->is_active = false;
     }
     finish();
-    INFO_MSG("Input closing clean, reason: %s", Util::exitReason);
     userSelect.clear();
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
@@ -837,7 +915,7 @@ namespace Mist{
     }
     /*LTS-END*/
     if (!ret && ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT)){
-      Util::logExitReason("no activity for %u seconds", Util::bootSecs() - activityCounter);
+      Util::logExitReason(ER_CLEAN_INACTIVE, "no activity for %u seconds", Util::bootSecs() - activityCounter);
     }
     return ret;
   }
@@ -882,14 +960,13 @@ namespace Mist{
     if (config->getBool("realtime")){
       realtimeMainLoop();
       finish();
-      INFO_MSG("Real-time input closing clean; reason: %s", Util::exitReason);
       return;
     }
 
     meta.reInit(streamName, false);
 
     if (!openStreamSource()){
-      FAIL_MSG("Unable to connect to source");
+      Util::logExitReason(ER_READ_START_FAILURE, "Unable to connect to source");
       return;
     }
     parseStreamHeader();
@@ -897,9 +974,9 @@ namespace Mist{
     if (publishesTracks()){
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());
       if (!validTracks.size()){
+        Util::logExitReason(ER_CLEAN_EOF, "No tracks found, cancelling pull");
         userSelect.clear();
         finish();
-        INFO_MSG("No tracks found, cancelling");
         return;
       }
     }
@@ -908,7 +985,6 @@ namespace Mist{
     closeStreamSource();
     userSelect.clear();
     finish();
-    INFO_MSG("Input closing clean; reason: %s", Util::exitReason);
     return;
   }
 
@@ -929,17 +1005,17 @@ namespace Mist{
     }
     while (thisPacket && config->is_active && userSelect[thisIdx]){
       if (userSelect[thisIdx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       if (isSingular() && !bufferActive()){
-        Util::logExitReason("Buffer shut down");
+        Util::logExitReason(ER_SHM_LOST, "Buffer shut down");
         return;
       }
       bufferLivePacket(thisPacket);
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       if (thisPacket && !userSelect.count(thisIdx)){
@@ -952,7 +1028,7 @@ namespace Mist{
         if (statComm){
           if (!statComm){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();
@@ -1080,7 +1156,7 @@ namespace Mist{
     while (config->is_active){
       getNext();
       if (!thisPacket){
-        Util::logExitReason("no more data");
+        Util::logExitReason(ER_CLEAN_EOF, "no more data");
         break;
       }
       idx = realTimeTrackMap.count(thisIdx) ? realTimeTrackMap[thisIdx] : INVALID_TRACK_ID;
@@ -1088,7 +1164,7 @@ namespace Mist{
         userSelect[idx].reload(streamName, idx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
       if (userSelect[idx].getStatus() & COMM_STATUS_REQDISCONNECT){
-        Util::logExitReason("buffer requested shutdown");
+        Util::logExitReason(ER_CLEAN_LIVE_BUFFER_REQ, "buffer requested shutdown");
         break;
       }
       while (config->is_active && userSelect[idx] &&
@@ -1114,7 +1190,7 @@ namespace Mist{
         if (statComm){
           if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
             config->is_active = false;
-            Util::logExitReason("received shutdown request from controller");
+            Util::logExitReason(ER_CLEAN_CONTROLLER_REQ, "received shutdown request from controller");
             return;
           }
           uint64_t now = Util::bootSecs();

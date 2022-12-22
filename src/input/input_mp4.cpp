@@ -127,17 +127,17 @@ namespace Mist{
 
   bool inputMP4::checkArguments(){
     if (config->getString("input") == "-"){
-      std::cerr << "Input from stdin not yet supported" << std::endl;
+      Util::logExitReason(ER_FORMAT_SPECIFIC, "Input from stdin not yet supported");
       return false;
     }
     if (!config->getString("streamname").size()){
       if (config->getString("output") == "-"){
-        std::cerr << "Output to stdout not yet supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Output to stdout not yet supported");
         return false;
       }
     }else{
       if (config->getString("output") != "-"){
-        std::cerr << "File output in player mode not supported" << std::endl;
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "File output in player mode not supported");
         return false;
       }
       streamName = config->getString("streamname");
@@ -148,9 +148,12 @@ namespace Mist{
   bool inputMP4::preRun(){
     // open File
     inFile.open(config->getString("input"));
-    if (!inFile){return false;}
+    if (!inFile){
+      Util::logExitReason(ER_READ_START_FAILURE, "Could not open URL or contains no data");
+      return false;
+    }
     if (!inFile.isSeekable()){
-      FAIL_MSG("MP4 input only supports seekable data sources, for now, and this source is not seekable: %s", config->getString("input").c_str());
+      Util::logExitReason(ER_READ_START_FAILURE, "MP4 input only supports seekable data sources, for now, and this source is not seekable: %s", config->getString("input").c_str());
       return false;
     }
     return true;
@@ -168,7 +171,7 @@ namespace Mist{
 
   bool inputMP4::readHeader(){
     if (!inFile){
-      Util::logExitReason("Could not open input file");
+      Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: Could not open input stream", config->getString("input").c_str());
       return false;
     }
     bool hasMoov = false;
@@ -183,7 +186,7 @@ namespace Mist{
       while (readBuffer.size() < 16 && inFile && keepRunning()){inFile.readSome(16, *this);}
       //Failed? Abort.
       if (readBuffer.size() < 16){
-        FAIL_MSG("Could not read box header from input!");
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read box header from input!");
         break;
       }
       //Box type is always on bytes 5-8 from the start of a box
@@ -192,7 +195,7 @@ namespace Mist{
       if (boxType == "moov"){
         while (readBuffer.size() < boxSize && inFile && keepRunning()){inFile.readSome(boxSize-readBuffer.size(), *this);}
         if (readBuffer.size() < boxSize){
-          FAIL_MSG("Could not read entire MOOV box into memory");
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not read entire MOOV box into memory");
           break;
         }
         MP4::Box moovBox(readBuffer, false);
@@ -221,8 +224,11 @@ namespace Mist{
     }
 
     if (!hasMoov){
-      if (!inFile){Util::logExitReason("URIReader for source file was disconnected!");}
-      Util::logExitReason("No MOOV box found in source file; aborting!");
+      if (!inFile){
+        Util::logExitReason(ER_READ_START_FAILURE, "Reading header for '%s' failed: URIReader for source file was disconnected!", config->getString("input").c_str());
+      }else{
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Reading header for '%s' failed: No MOOV box found in source file; aborting!", config->getString("input").c_str());
+      }
       return false;
     }
 
@@ -515,7 +521,7 @@ namespace Mist{
       INFO_MSG("Buffer contains %" PRIu64 "-%" PRIu64 ", but we need %" PRIu64 "; seeking!", readPos, readPos + readBuffer.size(), curPart.bpos);
       readBuffer.truncate(0);
       if (!inFile.seek(curPart.bpos)){
-        FAIL_MSG("seek unsuccessful @bpos %" PRIu64 ": %s", curPart.bpos, strerror(errno));
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "seek unsuccessful @bpos %" PRIu64 ": %s", curPart.bpos, strerror(errno));
         thisPacket.null();
         return;
       }
@@ -536,7 +542,7 @@ namespace Mist{
       FAIL_MSG("Read unsuccessful at %" PRIu64 ", seeking to retry...", readPos+readBuffer.size());
       readBuffer.truncate(0);
       if (!inFile.seek(curPart.bpos)){
-        FAIL_MSG("seek unsuccessful @bpos %" PRIu64 ": %s", curPart.bpos, strerror(errno));
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "seek unsuccessful @bpos %" PRIu64 ": %s", curPart.bpos, strerror(errno));
         thisPacket.null();
         return;
       }
@@ -545,7 +551,7 @@ namespace Mist{
         inFile.readSome((curPart.bpos+curPart.size) - (readPos+readBuffer.size()), *this);
       }
       if (readPos+readBuffer.size() < curPart.bpos+curPart.size){
-        FAIL_MSG("Read retry unsuccessful at %" PRIu64 ", aborting", readPos+readBuffer.size());
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Read retry unsuccessful at %" PRIu64 ", aborting", readPos+readBuffer.size());
         thisPacket.null();
         return;
       }

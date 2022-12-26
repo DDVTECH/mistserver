@@ -33,16 +33,6 @@ static std::string strftime_now(const std::string &format){
   return buffer;
 }
 
-/// Replaces any occurrences of 'from' with 'to' in 'str'.
-static void replace(std::string &str, const std::string &from, const std::string &to){
-  if (from.empty()){return;}
-  size_t start_pos = 0;
-  while ((start_pos = str.find(from, start_pos)) != std::string::npos){
-    str.replace(start_pos, from.length(), to);
-    start_pos += to.length();
-  }
-}
-
 std::string Util::codecString(const std::string &codec, const std::string &initData){
   if (codec == "H264"){
     std::stringstream r;
@@ -119,32 +109,32 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
 
 /// Replaces all stream-related variables in the given 'str' with their values.
 void Util::streamVariables(std::string &str, const std::string &streamname, const std::string &source){
-  replace(str, "$source", source);
-  replace(str, "$datetime", "$year.$month.$day.$hour.$minute.$second");
-  replace(str, "$day", strftime_now("%d"));
-  replace(str, "$month", strftime_now("%m"));
-  replace(str, "$year", strftime_now("%Y"));
-  replace(str, "$hour", strftime_now("%H"));
-  replace(str, "$minute", strftime_now("%M"));
-  replace(str, "$second", strftime_now("%S"));
-  replace(str, "$wday", strftime_now("%u")); // weekday, 1-7, monday=1
-  replace(str, "$yday", strftime_now("%j")); // yearday, 001-366
-  replace(str, "$week", strftime_now("%V")); // week number, 01-53
-  replace(str, "$stream", streamname);
+  Util::replace(str, "$source", source);
+  Util::replace(str, "$datetime", "$year.$month.$day.$hour.$minute.$second");
+  Util::replace(str, "$day", strftime_now("%d"));
+  Util::replace(str, "$month", strftime_now("%m"));
+  Util::replace(str, "$year", strftime_now("%Y"));
+  Util::replace(str, "$hour", strftime_now("%H"));
+  Util::replace(str, "$minute", strftime_now("%M"));
+  Util::replace(str, "$second", strftime_now("%S"));
+  Util::replace(str, "$wday", strftime_now("%u")); // weekday, 1-7, monday=1
+  Util::replace(str, "$yday", strftime_now("%j")); // yearday, 001-366
+  Util::replace(str, "$week", strftime_now("%V")); // week number, 01-53
+  Util::replace(str, "$stream", streamname);
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));
     std::string strext = streamname.substr(streamname.find('+') + 1);
-    replace(str, "$basename", strbase);
-    replace(str, "$wildcard", strext);
+    Util::replace(str, "$basename", strbase);
+    Util::replace(str, "$wildcard", strext);
     if (strext.size()){
-      replace(str, "$pluswildcard", "+" + strext);
+      Util::replace(str, "$pluswildcard", "+" + strext);
     }else{
-      replace(str, "$pluswildcard", "");
+      Util::replace(str, "$pluswildcard", "");
     }
   }else{
-    replace(str, "$basename", streamname);
-    replace(str, "$wildcard", "");
-    replace(str, "$pluswildcard", "");
+    Util::replace(str, "$basename", streamname);
+    Util::replace(str, "$wildcard", "");
+    Util::replace(str, "$pluswildcard", "");
   }
 }
 

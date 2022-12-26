@@ -150,6 +150,16 @@ namespace Util{
     }
   }
 
+  /// Replaces any occurrences of 'from' with 'to' in 'str'.
+  void replace(std::string &str, const std::string &from, const std::string &to){
+    if (from.empty()){return;}
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos){
+      str.replace(start_pos, from.length(), to);
+      start_pos += to.length();
+    }
+  }
+
   //Returns the time to wait in milliseconds for exponential back-off waiting.
   //If currIter > maxIter, always returns 5ms to prevent tight eternal loops when mistakes are made
   //Otherwise, exponentially increases wait time for a total of maxWait milliseconds after maxIter calls.

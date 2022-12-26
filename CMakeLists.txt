@@ -512,7 +512,7 @@ macro(makeOutput outputName format)
     SET(tsOutput src/output/output_ts_base.cpp)
   endif()
   if (";${ARGN};" MATCHES ";jpg;")
-    SET(tsOutput generated/noffmpeg.h generated/noh264.h)
+    SET(tsOutput ${BINARY_DIR}/generated/noffmpeg.h ${BINARY_DIR}/generated/noh264.h)
   endif()
   add_executable(MistOut${outputName}
     ${outBaseFile}
@@ -634,26 +634,26 @@ add_executable(MistOutHTTP
   src/output/output_http.cpp 
   src/output/output_http_internal.cpp
   src/io.cpp
-  generated/player.js.h
-  generated/html5.js.h
-  generated/flash_strobe.js.h
-  generated/dashjs.js.h
-  generated/videojs.js.h
-  generated/webrtc.js.h
-  generated/mews.js.h
-  generated/flv.js.h
-  generated/hlsjs.js.h
-  generated/rawws.js.h
-  generated/player_dash.js.h
-  generated/player_dash_lic.js.h
-  generated/player_video.js.h
-  generated/player_webrtc.js.h
-  generated/player_flv.js.h
-  generated/player_hlsjs.js.h
-  generated/player_libde265.js.h
-  generated/skin_default.css.h
-  generated/skin_dev.css.h
-  generated/skin_videojs.css.h
+  ${BINARY_DIR}/generated/player.js.h
+  ${BINARY_DIR}/generated/html5.js.h
+  ${BINARY_DIR}/generated/flash_strobe.js.h
+  ${BINARY_DIR}/generated/dashjs.js.h
+  ${BINARY_DIR}/generated/videojs.js.h
+  ${BINARY_DIR}/generated/webrtc.js.h
+  ${BINARY_DIR}/generated/mews.js.h
+  ${BINARY_DIR}/generated/flv.js.h
+  ${BINARY_DIR}/generated/hlsjs.js.h
+  ${BINARY_DIR}/generated/rawws.js.h
+  ${BINARY_DIR}/generated/player_dash.js.h
+  ${BINARY_DIR}/generated/player_dash_lic.js.h
+  ${BINARY_DIR}/generated/player_video.js.h
+  ${BINARY_DIR}/generated/player_webrtc.js.h
+  ${BINARY_DIR}/generated/player_flv.js.h
+  ${BINARY_DIR}/generated/player_hlsjs.js.h
+  ${BINARY_DIR}/generated/player_libde265.js.h
+  ${BINARY_DIR}/generated/skin_default.css.h
+  ${BINARY_DIR}/generated/skin_dev.css.h
+  ${BINARY_DIR}/generated/skin_videojs.css.h
 )
 set_target_properties(MistOutHTTP 
   PROPERTIES COMPILE_DEFINITIONS "OUTPUTTYPE=\"output_http_internal.h\""
@@ -715,99 +715,101 @@ endif()
 ########################################
 # Embed Code                           #
 ########################################
+# make sure generated directory is there
+file(MAKE_DIRECTORY ${BINARY_DIR}/generated)
 # main
-add_custom_command(OUTPUT generated/player.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/player.js player_js generated/player.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/player.js player_js ${BINARY_DIR}/generated/player.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/player.js
 )
 # wrappers
-add_custom_command(OUTPUT generated/html5.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/html5.js html5_js generated/html5.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/html5.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/html5.js html5_js ${BINARY_DIR}/generated/html5.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/html5.js
 )
-add_custom_command(OUTPUT generated/flash_strobe.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/flash_strobe.js flash_strobe_js generated/flash_strobe.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/flash_strobe.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/flash_strobe.js flash_strobe_js ${BINARY_DIR}/generated/flash_strobe.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/flash_strobe.js
 )
-add_custom_command(OUTPUT generated/dashjs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/dashjs.js dash_js generated/dashjs.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/dashjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/dashjs.js dash_js ${BINARY_DIR}/generated/dashjs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/dashjs.js
 )
-add_custom_command(OUTPUT generated/videojs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/videojs.js video_js generated/videojs.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/videojs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/videojs.js video_js ${BINARY_DIR}/generated/videojs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/videojs.js
 )
-add_custom_command(OUTPUT generated/webrtc.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js webrtc_js generated/webrtc.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/webrtc.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js webrtc_js ${BINARY_DIR}/generated/webrtc.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/webrtc.js
 )
-add_custom_command(OUTPUT generated/mews.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/mews.js mews_js generated/mews.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/mews.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/mews.js mews_js ${BINARY_DIR}/generated/mews.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/mews.js
 )
-add_custom_command(OUTPUT generated/flv.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/flv.js flv_js generated/flv.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/flv.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/flv.js flv_js ${BINARY_DIR}/generated/flv.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/flv.js
 )
-add_custom_command(OUTPUT generated/hlsjs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/hlsjs.js hlsjs_js generated/hlsjs.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/hlsjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/hlsjs.js hlsjs_js ${BINARY_DIR}/generated/hlsjs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/hlsjs.js
 )
-add_custom_command(OUTPUT generated/rawws.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/rawws.js rawws_js generated/rawws.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/rawws.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/wrappers/rawws.js rawws_js ${BINARY_DIR}/generated/rawws.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/wrappers/rawws.js
 )# players
-add_custom_command(OUTPUT generated/player_dash_lic.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js player_dash_lic_js generated/player_dash_lic.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_dash_lic.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js player_dash_lic_js ${BINARY_DIR}/generated/player_dash_lic.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.js.license.js
 )
-add_custom_command(OUTPUT generated/player_dash.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js player_dash_js generated/player_dash.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_dash.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js player_dash_js ${BINARY_DIR}/generated/player_dash.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/dash.all.min.js
 )
-add_custom_command(OUTPUT generated/player_video.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/video.min.js player_video_js generated/player_video.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_video.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/video.min.js player_video_js ${BINARY_DIR}/generated/player_video.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/video.min.js
 )
-add_custom_command(OUTPUT generated/player_webrtc.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/webrtc.js player_webrtc_js generated/player_webrtc.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_webrtc.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/webrtc.js player_webrtc_js ${BINARY_DIR}/generated/player_webrtc.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/webrtc.js
 )
-add_custom_command(OUTPUT generated/player_flv.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/flv.min.js player_flv_js generated/player_flv.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_flv.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/flv.min.js player_flv_js ${BINARY_DIR}/generated/player_flv.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/flv.min.js
 )
-add_custom_command(OUTPUT generated/player_hlsjs.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/hls.js player_hlsjs_js generated/player_hlsjs.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_hlsjs.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/hls.js player_hlsjs_js ${BINARY_DIR}/generated/player_hlsjs.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/hls.js
 )
-add_custom_command(OUTPUT generated/player_libde265.js.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/libde265.min.js player_libde265_js generated/player_libde265.js.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/player_libde265.js.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/players/libde265.min.js player_libde265_js ${BINARY_DIR}/generated/player_libde265.js.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/players/libde265.min.js
 )
 # css
-add_custom_command(OUTPUT generated/skin_default.css.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/default.css skin_default_css generated/skin_default.css.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/skin_default.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/default.css skin_default_css ${BINARY_DIR}/generated/skin_default.css.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/skins/default.css
 )
-add_custom_command(OUTPUT generated/skin_dev.css.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/dev.css skin_dev_css generated/skin_dev.css.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/skin_dev.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/min/skins/dev.css skin_dev_css ${BINARY_DIR}/generated/skin_dev.css.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/min/skins/dev.css
 )
-add_custom_command(OUTPUT generated/skin_videojs.css.h
-  COMMAND ./sourcery ${SOURCE_DIR}/embed/skins/video-js.css skin_videojs_css generated/skin_videojs.css.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/skin_videojs.css.h
+  COMMAND ./sourcery ${SOURCE_DIR}/embed/skins/video-js.css skin_videojs_css ${BINARY_DIR}/generated/skin_videojs.css.h
   DEPENDS sourcery ${SOURCE_DIR}/embed/skins/video-js.css
 )
 
 ########################################
 # JPG output                           #
 ########################################
-add_custom_command(OUTPUT generated/noffmpeg.h
-  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noffmpeg.jpg noffmpeg generated/noffmpeg.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/noffmpeg.h
+  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noffmpeg.jpg noffmpeg ${BINARY_DIR}/generated/noffmpeg.h
   DEPENDS sourcery ${SOURCE_DIR}/src/output/noffmpeg.jpg
 )
-add_custom_command(OUTPUT generated/noh264.h
-  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noh264.jpg noh264 generated/noh264.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/noh264.h
+  COMMAND ./sourcery ${SOURCE_DIR}/src/output/noh264.jpg noh264 ${BINARY_DIR}/generated/noh264.h
   DEPENDS sourcery ${SOURCE_DIR}/src/output/noh264.jpg
 )
 
@@ -832,8 +834,8 @@ add_custom_command(OUTPUT ${BINARY_DIR}/generated/server.html
   COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR="${SOURCE_DIR}" -DlspSOURCES="${lspSOURCES}" -P ${SOURCE_DIR}/CMakeServHtml.txt
   DEPENDS ${lspSOURCES} ${SOURCE_DIR}/CMakeServHtml.txt ${SOURCE_DIR}/lsp/main.css ${SOURCE_DIR}/lsp/header.html ${SOURCE_DIR}/lsp/footer.html
 )
-add_custom_command(OUTPUT generated/server.html.h
-  COMMAND ./sourcery generated/server.html server_html generated/server.html.h
+add_custom_command(OUTPUT ${BINARY_DIR}/generated/server.html.h
+  COMMAND ./sourcery ${BINARY_DIR}/generated/server.html server_html ${BINARY_DIR}/generated/server.html.h
   DEPENDS sourcery ${BINARY_DIR}/generated/server.html
 )
 
@@ -862,7 +864,7 @@ add_executable(MistController
   src/controller/controller_uplink.cpp
   src/controller/controller_api.cpp
   src/controller/controller_push.cpp
-  generated/server.html.h
+  ${BINARY_DIR}/generated/server.html.h
   ${BINARY_DIR}/mist/.headers
 )
 set_target_properties(MistController

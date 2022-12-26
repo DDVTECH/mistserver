@@ -224,6 +224,10 @@ namespace Mist{
     if (url.find("/") == std::string::npos){
       sendHlsMasterManifest();
     }else{
+      if (!M.getValidTracks().count(atoll(url.c_str()))){
+        H.SendResponse("400", "Bad Request: Invalid track requested", myConn);
+        return;
+      }
       sendHlsMediaManifest(atoll(url.c_str()));
     }
   }

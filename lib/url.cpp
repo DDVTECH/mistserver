@@ -271,6 +271,30 @@ std::string HTTP::URL::getBareUrl() const{
   return ret;
 }
 
+/// Returns a string guaranteed to end in a slash, pointing to the base directory-equivalent of the URL
+std::string HTTP::URL::getBase() const{
+  std::string tmpUrl = getBareUrl();
+  size_t slashPos = tmpUrl.rfind('/');
+  if (slashPos == std::string::npos){
+    tmpUrl += "/";
+  }else{
+    tmpUrl.erase(slashPos + 1);
+  }
+  return tmpUrl;
+}
+
+/// Returns a string that links to the URL from the given URL
+/// If the given URL is in a parent directory of the URL, it will be relative
+/// Otherwise, it will be absolute
+std::string HTTP::URL::getLinkFrom(const HTTP::URL & fromUrl) const{
+  std::string to = getUrl();
+  std::string from = fromUrl.getBase();
+  if (to.substr(0, from.size()) == from){
+    return to.substr(from.size());
+  }
+  return to;
+}
+
 /// Returns a URL object for the given link, resolved relative to the current URL object.
 HTTP::URL HTTP::URL::link(const std::string &l) const{
   // Full link
@@ -294,13 +318,7 @@ HTTP::URL HTTP::URL::link(const std::string &l) const{
     }
   }
   // Relative link
-  std::string tmpUrl = getBareUrl();
-  size_t slashPos = tmpUrl.rfind('/');
-  if (slashPos == std::string::npos){
-    tmpUrl += "/";
-  }else{
-    tmpUrl.erase(slashPos + 1);
-  }
-  DONTEVEN_MSG("Relative link: %s+%s", tmpUrl.c_str(), l.c_str());
-  return URL(tmpUrl + l);
+  std::string base = getBase();
+  DONTEVEN_MSG("Relative link: %s+%s", base.c_str(), l.c_str());
+  return URL(base + l);
 }

@@ -18,8 +18,10 @@ namespace HTTP{
     std::string getExt() const;
     std::string getUrl() const;
     std::string getFilePath() const;
+    std::string getBase() const;
     std::string getBareUrl() const;
     std::string getProxyUrl() const;
+    std::string getLinkFrom(const URL &) const;
     bool isLocalPath() const;
     std::string host;     ///< Hostname or IP address of URL
     std::string protocol; ///< Protocol of URL

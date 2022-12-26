@@ -1876,7 +1876,8 @@ namespace Mist{
     sentHeader = true;
   }
 
-  bool Output::connectToFile(std::string file, bool append){
+  bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
+    if (!conn){conn = &myConn;}
     int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
     if (!Util::createPathFor(file)){
@@ -1889,7 +1890,15 @@ namespace Mist{
       return false;
     }
 
-    int r = dup2(outFile, myConn.getSocket());
+    //Ensure the Socket::Connection is valid before we overwrite the socket
+    if (!*conn){
+      static int tmpFd = open("/dev/null", O_RDWR);
+      conn->open(tmpFd);
+      //We always want to close sockets opened in this way on fork
+      Util::Procs::socketList.insert(tmpFd);
+    }
+
+    int r = dup2(outFile, conn->getSocket());
     if (r == -1){
       ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
       return false;

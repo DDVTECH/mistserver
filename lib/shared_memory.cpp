@@ -592,7 +592,11 @@ namespace IPC{
     unmap();
     if (handle > 0){
       ::close(handle);
-      if (master && name != ""){unlink(name.c_str());}
+      if (master && name != ""){
+        std::string remove(Util::getTmpFolder() + name);
+        DONTEVEN_MSG("Unlinking %s", remove.c_str());
+        unlink(remove.c_str());
+      }
       handle = 0;
     }
   }

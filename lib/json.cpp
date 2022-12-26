@@ -479,6 +479,15 @@ JSON::Value::Value(uint64_t val){
   myType = INTEGER;
   intVal = val;
 }
+
+#if defined(__APPLE__)
+/// Sets this JSON::Value to the given integer.
+JSON::Value::Value(unsigned long val){
+  myType = INTEGER;
+  intVal = val;
+}
+#endif
+
 /// Sets this JSON::Value to the given integer.
 JSON::Value::Value(int32_t val){
   myType = INTEGER;
@@ -683,6 +692,13 @@ JSON::Value &JSON::Value::operator=(const int32_t &rhs){
 JSON::Value &JSON::Value::operator=(const uint64_t &rhs){
   return ((*this) = (int64_t)rhs);
 }
+
+#if defined(__APPLE__)
+/// Sets this JSON::Value to the given integer.
+JSON::Value &JSON::Value::operator=(const unsigned long &rhs){
+  return ((*this) = (int64_t)rhs);
+}
+#endif
 
 /// Sets this JSON::Value to the given double.
 JSON::Value &JSON::Value::operator=(const double &rhs){

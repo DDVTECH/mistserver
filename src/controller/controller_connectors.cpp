@@ -160,7 +160,7 @@ namespace Controller{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[15]; // approx max # of args (with a wide margin)
+    char *argarr[30]; // approx max # of args (with a wide margin)
     int i;
 
     std::string tmp;

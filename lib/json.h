@@ -46,6 +46,9 @@ namespace JSON{
     Value(int64_t val);
     Value(uint32_t val);
     Value(uint64_t val);
+#if defined(__APPLE__)
+    Value(unsigned long val);
+#endif
     Value(double val);
     Value(bool val);
     // comparison operators
@@ -62,6 +65,9 @@ namespace JSON{
     Value &operator=(const int64_t &rhs);
     Value &operator=(const int32_t &rhs);
     Value &operator=(const uint64_t &rhs);
+#if defined(__APPLE__)
+    Value &operator=(const unsigned long &rhs);
+#endif
     Value &operator=(const uint32_t &rhs);
     Value &operator=(const double &rhs);
     Value &operator=(const bool &rhs);

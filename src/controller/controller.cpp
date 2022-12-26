@@ -235,6 +235,9 @@ int main_loop(int argc, char **argv){
   // reload config from config file
   Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
 
+  // start push checking thread
+  tthread::thread pushThread(Controller::pushCheckLoop, 0);
+
   {// spawn thread that reads stderr of process
     std::string logPipe = Util::getTmpFolder() + "MstLog";
     if (mkfifo(logPipe.c_str(), S_IWUSR | S_IRUSR | S_IRGRP | S_IROTH) != 0){
@@ -265,7 +268,11 @@ int main_loop(int argc, char **argv){
       msghandler.detach();
       // Attempt to open and redirect log messages to named pipe
       int outFD = -1;
-      if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
+      if (getenv("MIST_NO_PRETTY_LOGGING")) {
+        WARN_MSG(
+            "MIST_NO_PRETTY_LOGGING is active, printing lots of pipes");
+      }
+      else if ((outFD = open(logPipe.c_str(), O_WRONLY)) == -1){
         ERROR_MSG(
             "Could not open log message pipe %s for writing! %s; falling back to standard error",
             logPipe.c_str(), strerror(errno));
@@ -565,8 +572,6 @@ int main_loop(int argc, char **argv){
   tthread::thread UDPAPIThread(Controller::handleUDPAPI, 0);
   // start monitoring thread /*LTS*/
   tthread::thread uplinkThread(Controller::uplinkConnection, 0); /*LTS*/
-  // start push checking thread
-  tthread::thread pushThread(Controller::pushCheckLoop, 0);
 #ifdef UPDATER
   // start updater thread
   tthread::thread updaterThread(Controller::updateThread, 0);

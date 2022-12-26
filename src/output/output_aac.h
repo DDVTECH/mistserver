@@ -10,6 +10,7 @@ namespace Mist{
     void initialSeek();
 
   private:
+    virtual bool inlineRestartCapable() const{return true;}
     bool isFileTarget(){return isRecording();}
   };
 }// namespace Mist

@@ -48,30 +48,6 @@ namespace Mist{
       if (config->getString("target").find(".webm") != std::string::npos){doctype = "webm";}
       initialize();
       if (!M.getLive()){calcVodSizes();}
-      if (!streamName.size()){
-        WARN_MSG("Recording unconnected EBML output to file! Cancelled.");
-        conn.close();
-        return;
-      }
-      if (config->getString("target") == "-"){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Outputting %s to stdout in EBML format", streamName.c_str());
-        return;
-      }
-      if (!M.getValidTracks().size()){
-        INFO_MSG("Stream not available - aborting");
-        conn.close();
-        return;
-      }
-      if (connectToFile(config->getString("target"))){
-        parseData = true;
-        wantRequest = false;
-        INFO_MSG("Recording %s to %s in EBML format", streamName.c_str(),
-                 config->getString("target").c_str());
-        return;
-      }
-      conn.close();
     }
   }
 

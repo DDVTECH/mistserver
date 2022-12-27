@@ -725,7 +725,7 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
                      output.getMember("name").asString().c_str(), checkTarget.c_str());
 
           if (checkTarget.substr(0, front.size()) == front &&
-              checkTarget.substr(checkTarget.size() - back.size()) == back){
+              checkTarget.size() >= back.size() && checkTarget.substr(checkTarget.size() - back.size()) == back){
             output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
             break;
           }

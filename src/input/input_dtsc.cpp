@@ -173,6 +173,12 @@ namespace Mist{
       DTSC::Packet metaPack(dataPacket.data(), dataPacket.size());
       DTSC::Meta nM("", metaPack.getScan());
       meta.reInit(streamName, false);
+      if (!meta){
+        FAIL_MSG("Could not open stream metadata to merge in remote tracks; aborting!");
+        Util::logExitReason(ER_INTERNAL_ERROR, "Could not open stream metadata to merge in remote tracks");
+        config->is_active = false;
+        break;
+      }
       meta.merge(nM, true, false);
       meta.setBootMsOffset(nM.getBootMsOffset());
       std::set<size_t> validTracks = M.getMySourceTracks(getpid());

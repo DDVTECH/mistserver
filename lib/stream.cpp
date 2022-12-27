@@ -1269,6 +1269,15 @@ std::set<size_t> Util::getSupportedTracks(const DTSC::Meta &M, const JSON::Value
   std::set<size_t> validTracks = M.getValidTracks();
   uint64_t maxLastMs = 0;
   std::set<size_t> toRemove;
+  //Make sure we don't select tracks where we are the source, ourselves
+  // (handles MistProc, so its not selecting its own outputs)
+  std::set<size_t> sTrks = M.getMySourceTracks(getpid());
+  if (sTrks.size()){
+    for (std::set<size_t>::iterator it = sTrks.begin(); it != sTrks.end(); it++){
+      validTracks.erase(*it);
+    }
+  }
+  //Proceed with the remaining track checks
   for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
     // Remove unrequested tracks
     if (type != "" && type != M.getType(*it)){

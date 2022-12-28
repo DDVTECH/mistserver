@@ -237,28 +237,8 @@ namespace Mist{
              (Util::printDebugLevel >= DLVL_MEDIUM ? "" : "-v quiet"),
              config->getString("ffopts").c_str());
 
-    HIGH_MSG("Starting JPG command: %s", ffcmd);
-    char *args[128];
-    uint8_t argCnt = 0;
-    char *startCh = 0;
-    for (char *i = ffcmd; i - ffcmd < 256; ++i){
-      if (!*i){
-        if (startCh){args[argCnt++] = startCh;}
-        break;
-      }
-      if (*i == ' '){
-        if (startCh){
-          args[argCnt++] = startCh;
-          startCh = 0;
-          *i = 0;
-        }
-      }else{
-        if (!startCh){startCh = i;}
-      }
-    }
-    args[argCnt] = 0;
-
-    ffmpeg = Util::Procs::StartPiped(args, &fin, &fout, &ferr);
+    HIGH_MSG("Starting JPG command: %s", ffcmd);    
+    ffmpeg = Util::Procs::StartPipedShell(ffcmd, &fin, &fout, &ferr);
     if (ffmpeg < 2){
       Socket::Connection failure(fin, fout);
       failure.close();

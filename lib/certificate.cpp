@@ -1,6 +1,7 @@
 #include "certificate.h"
 #include "defines.h"
 #include <string.h>
+#include <ctime>
 
 
 Certificate::Certificate(){

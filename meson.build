@@ -120,7 +120,7 @@ if usessl
   endif
 
   srtp2 = dependency('libsrtp2', fallback : ['libsrtp2', 'libsrtp2_dep'])
-  ssl_deps = [mbedtls, mbedx509, mbedcrypto, srtp2]
+  ssl_deps = [mbedtls, mbedx509, mbedcrypto]
 endif
 
 libsrt = false

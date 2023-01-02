@@ -63,11 +63,11 @@
 #include <mist/rtp_fec.h>
 #include <mist/sdp_media.h>
 #include <mist/socket.h>
-#include <mist/srtp.h>
 #include <mist/stun.h>
 #include <mist/tinythread.h>
 #include <mist/websocket.h>
 #include <fstream>
+#include "output_webrtc_srtp.h"
 
 #define NACK_BUFFER_SIZE 1024
 

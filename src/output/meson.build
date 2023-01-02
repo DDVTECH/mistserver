@@ -24,7 +24,7 @@ outputs = [
 if usessl 
   outputs += [
     {'name' : 'HTTPS', 'format' : 'https'},
-    {'name' : 'WebRTC', 'format' : 'webrtc', 'extra': ['http','jpg']}
+    {'name' : 'WebRTC', 'format' : 'webrtc', 'extra': ['http','jpg','srtp']}
   ]
 endif
 
@@ -88,6 +88,10 @@ foreach output : outputs
     if extra.contains('with_srt')
       link_libs += libmist_srt
       deps += libsrt
+    endif
+    if extra.contains('srtp')
+      deps += srtp2
+      sources += files('output_webrtc_srtp.cpp', 'output_webrtc_srtp.h')
     endif
   else
     sources += base

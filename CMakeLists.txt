@@ -212,7 +212,6 @@ set(libHeaders
   lib/sdp_media.h
   lib/shared_memory.h
   lib/socket.h
-  lib/srtp.h
   lib/stream.h
   lib/stun.h
   lib/theora.h
@@ -279,7 +278,6 @@ add_library (mist
   lib/sdp_media.cpp
   lib/shared_memory.cpp
   lib/socket.cpp
-  lib/srtp.cpp
   lib/stream.cpp
   lib/stun.cpp
   lib/theora.cpp
@@ -306,7 +304,7 @@ target_link_libraries(mist
   ${LIBRT}
 )
 if (NOT NOSSL)
-  target_link_libraries(mist mbedtls mbedx509 mbedcrypto srtp2)
+  target_link_libraries(mist mbedtls mbedx509 mbedcrypto)
 endif()
 install(
   FILES ${libHeaders}
@@ -514,6 +512,9 @@ macro(makeOutput outputName format)
   if (";${ARGN};" MATCHES ";jpg;")
     SET(tsOutput generated/noffmpeg.h generated/noh264.h)
   endif()
+  if (";${ARGN};" MATCHES ";srtp;")
+    SET(tsOutput src/output/output_webrtc_srtp.h src/output/output_webrtc_srtp.cpp)
+  endif()
   add_executable(MistOut${outputName}
     ${outBaseFile}
     src/output/output.cpp
@@ -532,6 +533,9 @@ macro(makeOutput outputName format)
   endif()
   if (";${ARGN};" MATCHES ";with_rist;")
     target_link_libraries(MistOut${outputName} rist cjson)
+  endif()
+  if (";${ARGN};" MATCHES ";srtp;")
+    target_link_libraries(MistOut${outputName} srtp2)
   endif()
   target_link_libraries(MistOut${outputName} mist )
   install( 
@@ -619,7 +623,7 @@ target_link_libraries(MistProcLivepeer mist)
 
 if (NOT NOSSL)
   makeOutput(HTTPS https)#LTS
-  makeOutput(WebRTC webrtc http)#LTS
+  makeOutput(WebRTC webrtc http srtp)#LTS
 endif()
 
 option(WITH_SANITY "Enable MistOutSanityCheck output for testing purposes")

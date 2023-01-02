@@ -40,7 +40,6 @@ headers = [
   'sdp_media.h',
   'shared_memory.h',
   'socket.h',
-  'srtp.h',
   'stream.h',
   'stun.h',
   'theora.h',
@@ -69,7 +68,7 @@ install_headers(headers, subdir: 'mist')
 extra_code = []
 
 if usessl
-  extra_code += ['dtls_srtp_handshake.cpp', 'stun.cpp', 'certificate.cpp', 'encryption.cpp', 'srtp.cpp',]
+  extra_code += ['dtls_srtp_handshake.cpp', 'stun.cpp', 'certificate.cpp', 'encryption.cpp',]
 endif
 
 libmist = library('mist',

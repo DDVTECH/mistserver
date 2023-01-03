@@ -21,20 +21,18 @@ foreach analyser : analysers
                           'analyser_'+analyser.get('format')+'.cpp'),
                     header_tgts,
                  ],
-                 'link': libmist,
                  'defines': [
                     string_opt.format('ANALYSERHEADER', 'analyser_'+analyser.get('format')+'.h'),
                     '-DANALYSERTYPE=Analyser'+analyser.get('name')
                  ],
-                 'deps': []
+                 'deps': [libmist_dep]
                 }
 endforeach
 
 executables += {
   'name': 'MistTranslateH264', 
   'sources' : [files('h264_translate.cpp'),  header_tgts],
-  'link': libmist, 
   'defines': [],
-  'deps' : []
+  'deps' : [libmist_dep]
 }
 

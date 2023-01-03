@@ -125,11 +125,18 @@ libmist = library('mist',
   'websocket.cpp',
   extra_code,
   include_directories: incroot,
-  dependencies: ssl_deps,
+  dependencies: mist_deps,
   install: true,
 )
 
+libmist_dep = declare_dependency(
+    link_with: [libmist],
+    dependencies: mist_deps,
+    include_directories: incroot
+)
+
 if have_srt
-  libmist_srt = library('mist_srt', 'socket_srt.cpp', include_directories: incroot, link_with: libmist, dependencies: libsrt, install: true)
+  libmist_srt = library('mist_srt', 'socket_srt.cpp', dependencies: [libsrt, libmist_dep], install: true)
+  libmist_srt_dep = declare_dependency(link_with: [libmist_srt])
 endif
 

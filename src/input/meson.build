@@ -45,23 +45,19 @@ endif
 inputs_tgts = []
 
 foreach input : inputs
-  link_libs = [libmist]
-  deps = []
+  deps = [libmist_dep]
 
   if input.has_key('extra')
     if input.get('extra').contains('with_rist')
       deps += librist
     endif
     if input.get('extra').contains('with_srt')
-      link_libs += libmist_srt
+      deps += libmist_srt_dep
       deps += libsrt
     endif
   endif
   if input.get('name').contains('AV')
     deps += av_libs
-  endif
-  if input.get('name').contains('HLS')
-    deps += ssl_deps
   endif
 
   executables += {
@@ -75,9 +71,7 @@ foreach input : inputs
       io_cpp,
       header_tgts
     ],
-    'link' : link_libs,
     'deps' : deps,
-    'inc': [],
     'defines': [
       string_opt.format('INPUTTYPE', 'input_'+input.get('format')+'.h')
     ]

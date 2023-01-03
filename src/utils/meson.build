@@ -21,8 +21,7 @@ foreach util : utils
       files('util_'+util.get('file')+'.cpp'),
       header_tgts
     ],
-    'link' : libmist,
-    'deps' : [],
+    'deps' : [libmist_dep],
     'defines' :[],
   }
 endforeach

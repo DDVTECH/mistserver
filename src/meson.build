@@ -10,8 +10,7 @@ subdir('controller')
 executables += {
   'name': 'MistSession',
   'sources' : [files('session.cpp'),  header_tgts],
-  'link': libmist,
   'defines': [],
-  'deps' : []
+  'deps' : [libmist_dep]
 }
 

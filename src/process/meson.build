@@ -6,9 +6,10 @@ process_common = static_library('mist_process_common',
                             output_cpp,
                             io_cpp,
                             header_tgts,
-                            include_directories: incroot,
+                            dependencies: libmist_dep,
                             install: false,
 )
+process_common_dep = declare_dependency(link_with: process_common)
 
 executables += {
     'name' : 'MistProcFFMPEG',
@@ -16,8 +17,7 @@ executables += {
         files('process_ffmpeg.cpp'),
         header_tgts
     ],
-    'link' : [libmist, process_common],
-    'deps' :[],
+    'deps' :[libmist_dep, process_common_dep],
     'defines': [],
 }
 
@@ -27,8 +27,7 @@ executables += {
         files('process_exec.cpp'),
         header_tgts
     ],
-    'link' : [libmist, process_common],
-    'deps' :[],
+    'deps' :[libmist_dep, process_common_dep],
     'defines': [],
 }
 
@@ -43,8 +42,7 @@ executables += {
         io_cpp,
         header_tgts
     ],
-    'link' : [libmist],
-    'deps' :[],
+    'deps' :[libmist_dep],
     'defines': [],
 }
 

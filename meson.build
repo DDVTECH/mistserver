@@ -13,9 +13,19 @@ release = release.strip()
 
 # Grab version number from git, if available
 # Falls back to a file called "VERSION" or the string "Unknown" otherwise
-rv = run_command('git', 'describe', '--tags', check: false)
-version = rv.stdout().strip()
-if rv.returncode() != 0
+git = find_program('git', required: false)
+if git.found()
+  rv = run_command(git, 'describe', '--tags', check: false)
+  version = rv.stdout().strip()
+  if rv.returncode() != 0
+    fs = import('fs') 
+    if fs.is_file('VERSION')
+      version = fs.read('VERSION').strip()
+    else 
+      version = 'Unknown'
+    endif
+  endif
+else
   fs = import('fs') 
   if fs.is_file('VERSION')
     version = fs.read('VERSION').strip()
@@ -90,7 +100,7 @@ message('Building release @0@ for version @1@ @ debug level @2@'.format(release,
 
 # Set dependencies
 
-ssl_deps = []
+mist_deps = []
 
 if usessl
   ccpp = meson.get_compiler('cpp')
@@ -119,8 +129,8 @@ if usessl
     mbedcrypto = mbedtls_proj.get_variable('mbedcrypto_dep')
   endif
 
-  srtp2 = dependency('libsrtp2', fallback : ['libsrtp2', 'libsrtp2_dep'])
-  ssl_deps = [mbedtls, mbedx509, mbedcrypto]
+  mist_deps += [mbedtls, mbedx509, mbedcrypto]
+  mist_deps += dependency('libsrtp2', default_options: ['tests=disabled'], fallback: ['libsrtp2', 'libsrtp2_dep'])
 endif
 
 libsrt = false
@@ -135,6 +145,13 @@ if not get_option('NORIST')
 endif
 have_librist = not get_option('NORIST') and librist.found()
 
+# Add thread dependency since we always have thread code in libmist
+mist_deps += dependency('threads')
+
+# Add rt dependency when using shared memory
+if not get_option('NOSHM')
+  mist_deps += ccpp.find_library('rt', required : true)
+endif
 
 # Set build targets
 
@@ -160,7 +177,6 @@ foreach exec : executables
   exec_tgts += executable(
     exec.get('name'),
     exec.get('sources'),
-    link_with: exec.get('link'),
     dependencies: exec.get('deps'),
     cpp_args: exec.get('defines'),
     install: true,

@@ -15,8 +15,7 @@ executables += {
            'controller_push.cpp'),
     header_tgts,
     server_html],
-  'link': libmist, 
   'defines': [],
-  'deps' : []
+  'deps' : [libmist_dep]
 }
 

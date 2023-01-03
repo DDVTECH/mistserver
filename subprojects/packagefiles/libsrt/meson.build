@@ -11,6 +11,7 @@ if not mbedtls_lib.found()
   mbedx509_lib = ccpp.find_library('mbedx509')
   mbedcrypto_lib = ccpp.find_library('mbedcrypto')
 endif
+thread_dep = dependency('threads')
 
 
 header_tgts = []
@@ -64,13 +65,13 @@ srt_src = files(
 libsrt = library(
   'srt',
   sources: [srt_src, versionfile],
-  dependencies: [mbedtls_lib, mbedx509_lib, mbedcrypto_lib],
+  dependencies: [mbedtls_lib, mbedx509_lib, mbedcrypto_lib, thread_dep],
   include_directories: ['srt', 'haicrypt', 'srtcore']
 )
 
 srt_dep = declare_dependency(
   link_with : [libsrt],
-  dependencies: [mbedtls_lib, mbedx509_lib, mbedcrypto_lib],
+  dependencies: [mbedtls_lib, mbedx509_lib, mbedcrypto_lib, thread_dep],
   sources: [header_tgts],
   include_directories: include_directories('.'),
 )

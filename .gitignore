@@ -67,4 +67,6 @@ aes_ctr128
 *test
 CMakeDoxyfile.in
 RelAccXSampler
-
+subprojects/
+!subprojects/packagefiles/
+!subprojects/*.wrap

@@ -1,4 +1,4 @@
-project('mistserver', 'cpp', default_options: ['cpp_std=gnu++03'])
+project('mistserver', 'cpp', default_options: ['cpp_std=c++98'])
 add_project_arguments(['-funsigned-char', '-D_LARGEFILE_SOURCE','-Wno-sign-compare', '-Wparentheses', '-Wno-non-virtual-dtor', '-Wno-strict-aliasing'], language: 'cpp')
 
 # Ensures the "mist" directory is in the include path
@@ -50,7 +50,7 @@ option_defines = [
     int_opt.format('UDP_API_PORT', get_option('UDP_API_PORT')),
 ]
 
-if not get_option('NOSHM')
+if not get_option('NOSHM') and host_machine.system() != 'darwin'
   option_defines += '-DSHM_ENABLED=1'
 else
   message('Shared memory use is turned OFF')
@@ -134,10 +134,10 @@ if usessl
 endif
 
 libsrt = false
-if not get_option('NOSRT')
+if not get_option('NOSRT') and host_machine.system() != 'darwin'
   libsrt = dependency('srt', fallback: ['libsrt', 'srt_dep'])
 endif
-have_srt = not get_option('NOSRT') and libsrt.found()
+have_srt = not get_option('NOSRT') and host_machine.system() != 'darwin' and libsrt.found()
 
 librist = false
 if not get_option('NORIST')
@@ -149,7 +149,7 @@ have_librist = not get_option('NORIST') and librist.found()
 mist_deps += dependency('threads')
 
 # Add rt dependency when using shared memory
-if not get_option('NOSHM')
+if not get_option('NOSHM') and host_machine.system() != 'darwin'
   mist_deps += ccpp.find_library('rt', required : true)
 endif
 

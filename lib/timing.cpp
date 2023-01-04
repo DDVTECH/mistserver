@@ -6,6 +6,8 @@
 #include <cstring>
 #include <sys/time.h> //for gettimeofday
 #include <time.h>     //for time and nanosleep
+#include <sstream>
+#include <stdlib.h>
 
 // emulate clock_gettime() for OSX compatibility
 #if defined(__APPLE__) || defined(__MACH__)
@@ -120,6 +122,37 @@ std::string Util::getUTCStringMillis(uint64_t epoch_millis){
   char result[25];
   snprintf(result, 25, "%.4u-%.2u-%.2uT%.2u:%.2u:%.2u.%.3uZ", (ptm->tm_year + 1900)%10000, (ptm->tm_mon + 1)%100, ptm->tm_mday%100, ptm->tm_hour%100, ptm->tm_min%100, ptm->tm_sec%100, (unsigned int)(epoch_millis%1000));
   return std::string(result);
+}
+
+// Returns the epoch of a UTC string in the format of %Y-%m-%dT%H:%M:%S%z
+uint64_t Util::getMSFromUTCString(std::string UTCString){
+  if (UTCString.size() < 24){return 0;}
+  // Strip milliseconds
+  std::string millis = UTCString.substr(UTCString.rfind('.') + 1, 3);
+  UTCString = UTCString.substr(0, UTCString.rfind('.')) + "Z";
+  struct tm ptm;
+  memset(&ptm, 0, sizeof(struct tm));
+  strptime(UTCString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &ptm);
+  time_t ts = mktime(&ptm);
+  return ts * 1000 + atoll(millis.c_str());
+}
+
+// Converts epoch_millis into UTC time and returns the diff with UTCString in seconds
+uint64_t Util::getUTCTimeDiff(std::string UTCString, uint64_t epochMillis){
+  if (!epochMillis){return 0;}
+  if (UTCString.size() < 24){return 0;}
+  // Convert epoch to UTC time
+  time_t epochSeconds = epochMillis / 1000;
+  struct tm *ptmEpoch;
+  ptmEpoch = gmtime(&epochSeconds);
+  uint64_t epochTime = mktime(ptmEpoch);
+  // Parse UTC string and strip the milliseconds
+  UTCString = UTCString.substr(0, UTCString.rfind('.')) + "Z";
+  struct tm ptmUTC;
+  memset(&ptmUTC, 0, sizeof(struct tm));
+  strptime(UTCString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &ptmUTC);
+  time_t UTCTime = mktime(&ptmUTC);
+  return epochTime - UTCTime;
 }
 
 std::string Util::getDateString(uint64_t epoch){

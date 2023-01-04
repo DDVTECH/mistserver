@@ -580,7 +580,7 @@ namespace Util{
   bool RelAccX::isExit() const{return !p || (p[0] & 2);}
 
   /// Returns true if the structure should be reloaded through out of band means.
-  bool RelAccX::isReload() const{return p[0] & 4;}
+  bool RelAccX::isReload() const{return !p || (p[0] & 4);}
 
   /// Returns true if the given record number can be accessed.
   bool RelAccX::isRecordAvailable(uint64_t recordNo) const{

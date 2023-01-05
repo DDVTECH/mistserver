@@ -1704,6 +1704,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
 
   if (mode == PROMETHEUS_TEXT){
     std::stringstream response;
+    response << "# HELP version Current software version as a tag, always 1\n";
+    response << "# TYPE version gauge\n";
+    response << "version{app=\"" APPNAME "\",version=\"" PACKAGE_VERSION "\",release=\"" RELEASE "\"} 1\n\n";
     response << "# HELP mist_logs Count of log messages since server start.\n";
     response << "# TYPE mist_logs counter\n";
     response << "mist_logs " << Controller::logCounter << "\n\n";

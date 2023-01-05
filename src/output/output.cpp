@@ -382,6 +382,11 @@ namespace Mist{
     }
 
     meta.reloadReplacedPagesIfNeeded();
+    if (!M){
+      userSelect.clear();
+      buffer.clear();
+      return true;
+    }
 
     bool autoSeek = buffer.size();
     uint64_t seekTarget = buffer.getSyncMode()?currentTime():0;

@@ -57,6 +57,7 @@ AMF::Object *AMF::Object::getContentP(unsigned int i){
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param i The indice of the object in this container.
 AMF::Object AMF::Object::getContent(unsigned int i){
+  if (i >= contents.size()){return AMF::Object("error", AMF0_DDV_CONTAINER);}
   return contents.at(i);
 }
 

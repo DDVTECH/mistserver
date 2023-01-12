@@ -92,8 +92,6 @@ if get_option('NOLLHLS')
   option_defines += '-DNOLLHLS=1'
 endif
 
-add_project_arguments(option_defines, language: 'cpp')
-
 # End of options
 
 message('Building release @0@ for version @1@ @ debug level @2@'.format(release, version, get_option('DEBUG')))
@@ -138,6 +136,9 @@ if not get_option('NOSRT') and host_machine.system() != 'darwin'
   libsrt = dependency('srt', fallback: ['libsrt', 'srt_dep'])
 endif
 have_srt = not get_option('NOSRT') and host_machine.system() != 'darwin' and libsrt.found()
+if have_srt
+  option_defines += '-DWITH_SRT'
+endif
 
 librist = false
 if not get_option('NORIST')
@@ -152,6 +153,9 @@ mist_deps += dependency('threads')
 if not get_option('NOSHM') and host_machine.system() != 'darwin'
   mist_deps += ccpp.find_library('rt', required : true)
 endif
+
+# Set defines from active options
+add_project_arguments(option_defines, language: 'cpp')
 
 # Set build targets
 

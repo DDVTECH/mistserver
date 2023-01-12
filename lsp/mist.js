@@ -5986,7 +5986,7 @@ var UI = {
         }
         if (typeof mist.data.capabilities == 'undefined') {
           mist.send(function(d){
-            UI.navto(tab);
+            UI.navto(tab,other);
           },{capabilities: true});
           $main.append('Loading..');
           return;

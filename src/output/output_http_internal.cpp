@@ -227,7 +227,7 @@ namespace Mist{
   };
 
   void addSources(std::string &streamname, std::set<JSON::Value, sourceCompare> &sources, HTTP::URL url,
-                  JSON::Value &conncapa, JSON::Value &strmMeta, const std::string &useragent){
+                  JSON::Value &conncapa, JSON::Value &strmMeta, const std::string &useragent, bool metaEverywhere){
     url.path += "/";
     if (strmMeta.isMember("live") && conncapa.isMember("exceptions") &&
         conncapa["exceptions"].isObject() && conncapa["exceptions"].size()){
@@ -271,6 +271,7 @@ namespace Mist{
                   if ((!byType && (*trit)["codec"].asStringRef() == strRef.substr(shift)) ||
                       (byType && (*trit)["type"].asStringRef() == strRef.substr(shift)) ||
                       strRef.substr(shift) == "*"){
+                    if (metaEverywhere && (*trit)["type"] == "meta"){continue;}
                     if (allowBFrames || !(trit->isMember("bframes") && (*trit)["bframes"])){
                       matches++;
                       total_matches++;
@@ -294,6 +295,19 @@ namespace Mist{
             if (matches){simul++;}
           }
         }
+
+        // Simulate support for all metadata tracks in every protocol
+        if (metaEverywhere){
+          size_t matches = 0;
+          jsonForEach(strmMeta["tracks"], trit){
+            if ((*trit)["type"] == "meta"){++matches;}
+          }
+          if (matches){
+            total_matches += matches;
+            ++simul;
+          }
+        }
+
         if (simul > most_simul){most_simul = simul;}
       }
     }
@@ -426,7 +440,7 @@ namespace Mist{
     H.Clean();
   }
 
-  JSON::Value OutHTTP::getStatusJSON(std::string &reqHost, const std::string &useragent){
+  JSON::Value OutHTTP::getStatusJSON(std::string &reqHost, const std::string &useragent, bool metaEverywhere){
     JSON::Value json_resp;
     if (config->getString("nostreamtext") != ""){
       json_resp["on_error"] = config->getString("nostreamtext");
@@ -453,7 +467,7 @@ namespace Mist{
             streamName = newStrm;
             Util::setStreamName(streamName);
             reconnect();
-            return getStatusJSON(reqHost, useragent);
+            return getStatusJSON(reqHost, useragent, metaEverywhere);
           }
         }
 
@@ -475,7 +489,7 @@ namespace Mist{
             streamName = newStrm;
             Util::setStreamName(streamName);
             reconnect();
-            return getStatusJSON(reqHost, useragent);
+            return getStatusJSON(reqHost, useragent, metaEverywhere);
           }
         }
         origStreamName.clear(); // no fallback, don't check again
@@ -595,7 +609,7 @@ namespace Mist{
             if (jit->asString().size()){altURL = jit->asString();}
             if (!altURL.host.size()){altURL.host = outURL.host;}
             if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
-            addSources(streamName, sources, altURL, capa_json, json_resp["meta"], useragent);
+            addSources(streamName, sources, altURL, capa_json, json_resp["meta"], useragent, metaEverywhere);
           }
         }
         // Make note if this connector can be depended upon by other connectors
@@ -623,7 +637,7 @@ namespace Mist{
                 if (jit->asString().size()){altURL = jit->asString();}
                 if (!altURL.host.size()){altURL.host = outURL.host;}
                 if (!altURL.protocol.size()){altURL.protocol = outURL.protocol;}
-                addSources(streamName, sources, altURL, subcapa_json, json_resp["meta"], useragent);
+                addSources(streamName, sources, altURL, subcapa_json, json_resp["meta"], useragent, metaEverywhere);
               }
             }
           }
@@ -803,6 +817,7 @@ namespace Mist{
         (req.url.length() > 9 && req.url.substr(0, 6) == "/json_" && req.url.substr(req.url.length() - 3, 3) == ".js")){
       HTTPOutput::respondHTTP(req, headersOnly);
       if (websocketHandler(req, headersOnly)){return;}
+      bool metaEverywhere = req.GetVar("metaeverywhere").size();
       std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
       std::string useragent = req.GetVar("ua");
       if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
@@ -820,7 +835,7 @@ namespace Mist{
         return;
       }
       response = "// Generating info code for stream " + streamName + "\n\nif (!mistvideo){var mistvideo ={};}\n";
-      JSON::Value json_resp = getStatusJSON(reqHost, useragent);
+      JSON::Value json_resp = getStatusJSON(reqHost, useragent, metaEverywhere);
       if (rURL.substr(0, 6) != "/json_"){
         response += "mistvideo['" + streamName + "'] = " + json_resp.toString() + ";\n";
       }else{
@@ -1116,6 +1131,7 @@ namespace Mist{
   bool OutHTTP::websocketHandler(const HTTP::Parser & req, bool headersOnly){
     stayConnected = true;
     std::string reqHost = HTTP::URL(req.GetHeader("Host")).host;
+    bool metaEverywhere = req.GetVar("metaeverywhere").size();
     if (req.GetHeader("X-Mst-Path").size()){mistPath = req.GetHeader("X-Mst-Path");}
     std::string useragent = req.GetVar("ua");
     if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
@@ -1160,7 +1176,7 @@ namespace Mist{
         JSON::Value resp;
         // Check if we have an error message set
         if (thisError == ""){
-          resp = getStatusJSON(reqHost, useragent);
+          resp = getStatusJSON(reqHost, useragent, metaEverywhere);
         }else{
           resp["error"] = "Could not retrieve stream. Sorry.";
           resp["error_guru"] = thisError;

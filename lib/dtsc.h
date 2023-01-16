@@ -284,11 +284,11 @@ namespace DTSC{
   class Meta{
   public:
     Meta(const std::string &_streamName, const DTSC::Scan &src);
-    Meta(const std::string &_streamName = "", bool master = true);
+    Meta(const std::string &_streamName = "", bool master = true, bool autoBackOff = true);
     Meta(const std::string &_streamName, const std::string &fileName);
 
     ~Meta();
-    void reInit(const std::string &_streamName, bool master = true);
+    void reInit(const std::string &_streamName, bool master = true, bool autoBackOff = true);
     void reInit(const std::string &_streamName, const std::string &fileName);
     void reInit(const std::string &_streamName, const DTSC::Scan &src);
     void addTrackFrom(const DTSC::Scan &src);
@@ -493,7 +493,7 @@ namespace DTSC{
 
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
-    void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true);
+    void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true, bool autoBackOff = true);
     void streamInit(size_t trackCount = DEFAULT_TRACK_COUNT);
 
     std::string streamName;

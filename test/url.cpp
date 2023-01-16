@@ -1,4 +1,5 @@
 #include "../lib/http_parser.cpp"
+#include <cassert>
 #include <iostream>
 
 int main(int argc, char **argv){
@@ -20,6 +21,22 @@ int main(int argc, char **argv){
     std::cout << "Username: " << u.user << std::endl;
     std::cout << "Password: " << u.pass << std::endl;
     std::cout << std::endl;
+
+    assert(u.protocol == std::getenv("Protocol"));
+    assert(u.host == std::getenv("Host"));
+    std::string ulocal;
+    Socket::isLocalhost(u.host) ? ulocal = "Yes" : ulocal = "No";
+    assert(ulocal == std::getenv("Local"));
+    uint16_t uport = 0;
+    std::stringstream ss(std::getenv("Port"));
+    ss >> uport;
+    assert(u.getPort() == uport);
+    assert(u.path == std::getenv("Path"));
+    assert(u.args == std::getenv("Query"));
+    assert(u.frag == std::getenv("Fragment"));
+    assert(u.user == std::getenv("Username"));
+    assert(u.pass == std::getenv("Password"));
+
   }
   return 0;
 }

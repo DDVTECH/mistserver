@@ -304,6 +304,7 @@ namespace Mist{
 
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
+      if (H.GetVar("meta") != ""){targetParams["meta"] = H.GetVar("meta");}
       if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
       if (H.GetVar("start") != ""){targetParams["start"] = H.GetVar("start");}
       if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}

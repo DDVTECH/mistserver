@@ -399,7 +399,7 @@ namespace Mist{
     std::string uAgent = req.GetHeader("User-Agent");
 
     std::string forceType = "";
-    if (H.GetVar("forcetype").size()){
+    if (req.GetVar("forcetype").size()){
       forceType = ",forceType:\"" + req.GetVar("forcetype") + "\"";
     }
 

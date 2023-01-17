@@ -127,7 +127,6 @@ namespace Mist{
   public:
     OutWebRTC(Socket::Connection &myConn);
     ~OutWebRTC();
-    bool hasSessionIDs(){return !config->getBool("mergesessions");}
     static void init(Util::Config *cfg);
     virtual void sendHeader();
     virtual void sendNext();

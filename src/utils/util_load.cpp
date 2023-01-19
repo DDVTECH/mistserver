@@ -171,7 +171,7 @@ public:
     r["up"] = upSpeed;
     r["up_add"] = addBandwidth;
     r["down"] = downSpeed;
-    r["streams"] = streams.size();
+    r["streams"] = (uint64_t)streams.size();
     r["viewers"] = total;
     r["bwlimit"] = availBandwidth;
     if (servLati || servLongi){
@@ -266,9 +266,9 @@ public:
       score = 0;
     }
     // Print info on host
-    MEDIUM_MSG("%s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
+    MEDIUM_MSG("%s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %zu, BW %" PRIu64
                " (max %" PRIu64 " MB/s), Geo %" PRIu64 ", tag adjustment %" PRId64 " -> %" PRIu64,
-               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
+               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : (size_t)0, bw_score,
                availBandwidth / 1024 / 1024, geo_score, adjustment, score);
     return score;
   }
@@ -309,9 +309,9 @@ public:
       score = 0;
     }
     // Print info on host
-    MEDIUM_MSG("SOURCE %s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %" PRIu64 ", BW %" PRIu64
+    MEDIUM_MSG("SOURCE %s: CPU %" PRIu64 ", RAM %" PRIu64 ", Stream %zu, BW %" PRIu64
                " (max %" PRIu64 " MB/s), Geo %" PRIu64 ", tag adjustment %" PRId64 " -> %" PRIu64,
-               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : 0, bw_score,
+               host.c_str(), cpu_score, ram_score, streams.count(s) ? weight_bonus : (size_t)0, bw_score,
                availBandwidth / 1024 / 1024, geo_score, adjustment, score);
     return score;
   }
@@ -490,11 +490,11 @@ int handleRequest(Socket::Connection &conn){
           if (newVals.isMember("bw")){weight_bw = newVals["bw"].asInt();}
           if (newVals.isMember("geo")){weight_geo = newVals["geo"].asInt();}
           if (newVals.isMember("bonus")){weight_bonus = newVals["bonus"].asInt();}
-          ret["cpu"] = weight_cpu;
-          ret["ram"] = weight_ram;
-          ret["bw"] = weight_bw;
-          ret["geo"] = weight_geo;
-          ret["bonus"] = weight_bonus;
+          ret["cpu"] = (uint64_t)weight_cpu;
+          ret["ram"] = (uint64_t)weight_ram;
+          ret["bw"] = (uint64_t)weight_bw;
+          ret["geo"] = (uint64_t)weight_geo;
+          ret["bonus"] = (uint64_t)weight_bonus;
           H.SetBody(ret.toString());
           H.setCORSHeaders();
           H.SendResponse("200", "OK", conn);
@@ -902,35 +902,35 @@ int main(int argc, char **argv){
   opt["short"] = "R";
   opt["long"] = "ram";
   opt["help"] = "Weight for RAM scoring";
-  opt["value"].append(weight_ram);
+  opt["value"].append((uint64_t)weight_ram);
   conf.addOption("ram", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "C";
   opt["long"] = "cpu";
   opt["help"] = "Weight for CPU scoring";
-  opt["value"].append(weight_cpu);
+  opt["value"].append((uint64_t)weight_cpu);
   conf.addOption("cpu", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "B";
   opt["long"] = "bw";
   opt["help"] = "Weight for BW scoring";
-  opt["value"].append(weight_bw);
+  opt["value"].append((uint64_t)weight_bw);
   conf.addOption("bw", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "G";
   opt["long"] = "geo";
   opt["help"] = "Weight for geo scoring";
-  opt["value"].append(weight_geo);
+  opt["value"].append((uint64_t)weight_geo);
   conf.addOption("geo", opt);
 
   opt["arg"] = "integer";
   opt["short"] = "X";
   opt["long"] = "extra";
   opt["help"] = "Weight for extra scoring when stream exists";
-  opt["value"].append(weight_bonus);
+  opt["value"].append((uint64_t)weight_bonus);
   conf.addOption("extra", opt);
 
   opt.null();

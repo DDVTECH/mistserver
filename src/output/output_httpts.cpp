@@ -81,6 +81,9 @@ namespace Mist{
     capa["methods"][0u]["hrn"] = "TS HTTP progressive";
     capa["methods"][0u]["priority"] = 1;
     capa["push_urls"].append("/*.ts");
+    capa["push_urls"].append("s3+https://*.ts");
+    capa["push_urls"].append("s3+http://*.ts");
+    capa["push_urls"].append("s3://*.ts");
     capa["push_urls"].append("ts-exec:*");
 
 #ifndef WITH_SRT
@@ -109,21 +112,6 @@ namespace Mist{
   }
 
   bool OutHTTPTS::isRecording(){return config->getString("target").size();}
-
-  bool OutHTTPTS::onFinish(){
-    if(addFinalHeader){
-      addFinalHeader = false;
-      sendHeader();
-    }
-    if (plsConn){
-      if (forceVodPlaylist || !M.getLive()){
-        playlistBuffer += "#EXT-X-ENDLIST";
-        plsConn.SendNow(playlistBuffer);
-      }
-      plsConn.close();
-    }
-    return false;
-  }
 
   void OutHTTPTS::onHTTP(){
     std::string method = H.method;

@@ -3,6 +3,7 @@
 #include <iterator> //std::distance
 #include <semaphore.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -18,7 +19,6 @@
 #include <mist/timing.h>
 #include <mist/util.h>
 #include <mist/urireader.h>
-#include <sys/file.h>
 
 /*LTS-START*/
 #include <arpa/inet.h>
@@ -2327,9 +2327,12 @@ namespace Mist{
     int outFile = -1;
     if (!conn) {conn = &myConn;}
     if (!Util::genericWriter(file, outFile, append)){return false;}
-    int r = dup2(outFile, conn->getSocket());
-    if (r == -1){
-      ERROR_MSG("Failed to create an alias for the socket using dup2: %s.", strerror(errno));
+    if (*conn) {
+      flock(conn->getSocket(), LOCK_UN | LOCK_NB);
+    }
+    // Lock the file in exclusive mode to ensure no other processes write to it
+    if(flock(outFile, LOCK_EX | LOCK_NB)){
+      ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
       return false;
     }
     //Ensure the Socket::Connection is valid before we overwrite the socket
@@ -2338,6 +2341,11 @@ namespace Mist{
       conn->open(tmpFd);
       //We always want to close sockets opened in this way on fork
       Util::Procs::socketList.insert(tmpFd);
+    }
+    int r = dup2(outFile, conn->getSocket());
+    if (r == -1){
+      ERROR_MSG("Failed to create an alias for the socket %d -> %d using dup2: %s.", outFile, conn->getSocket(), strerror(errno));
+      return false;
     }
     close(outFile);
     realTime = 0;

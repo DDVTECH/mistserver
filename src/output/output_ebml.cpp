@@ -105,6 +105,9 @@ namespace Mist{
     capa["push_urls"].append("/*.mkv");
     capa["push_urls"].append("/*.webm");
     capa["push_urls"].append("mkv-exec:*");
+    capa["push_urls"].append("s3+https://*.mkv");
+    capa["push_urls"].append("s3+http://*.mkv");
+    capa["push_urls"].append("s3://*.mkv");
 
     JSON::Value opt;
     opt["arg"] = "string";

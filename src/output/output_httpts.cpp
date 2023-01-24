@@ -15,11 +15,11 @@ namespace Mist{
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
     if (target.protocol == "srt"){
-      std::string tgt = config->getString("target");
-      HTTP::URL srtUrl(tgt);
-      config->getOption("target", true).append("ts-exec:srt-live-transmit file://con " + srtUrl.getUrl());
-      INFO_MSG("Rewriting SRT target '%s' to '%s'", tgt.c_str(), config->getString("target").c_str());
-    } else if (config->getString("target").substr(0, 8) == "ts-exec:"){
+      std::string newTarget = "ts-exec:srt-live-transmit file://con " + target.getUrl();
+      INFO_MSG("Rewriting SRT target '%s' to '%s'", config->getString("target").c_str(), newTarget.c_str());
+      config->getOption("target", true).append(newTarget);
+    }
+    if (config->getString("target").substr(0, 8) == "ts-exec:"){
       std::string input = config->getString("target").substr(8);
       char *args[128];
       uint8_t argCnt = 0;
@@ -129,10 +129,6 @@ namespace Mist{
     H.StartResponse(H, myConn);
     parseData = true;
     wantRequest = false;
-  }
-
-  void OutHTTPTS::sendHeader(){
-    TSOutput::sendHeader();
   }
 
   void OutHTTPTS::sendTS(const char *tsData, size_t len){

@@ -15,11 +15,10 @@ namespace Mist{
     bool isRecording();
     bool isFileTarget(){
       HTTP::URL target(config->getString("target"));
-      if (isRecording() && (config->getString("target").substr(0, 8) != "ts-exec:")){return true;}
+      if (isRecording() && target.protocol != "srt" && (config->getString("target").substr(0, 8) != "ts-exec:")){return true;}
       return false;
     }
     virtual bool inlineRestartCapable() const{return true;}
-    void sendHeader();
   };
 }// namespace Mist
 

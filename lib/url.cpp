@@ -87,7 +87,9 @@ HTTP::URL::URL(const std::string &url){
           path.erase(prevslash + 1, path.length());
         }
       }
-      path = Encodings::URL::decode(path);
+      if (!isLocalPath()){
+        path = Encodings::URL::decode(path);
+      }
     }
   }
   // user, pass, host and port are now definitely between proto_sep and first_slash
@@ -196,6 +198,8 @@ std::string HTTP::URL::getUrl() const{
   ret += "/";
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
+  }else if (isLocalPath()){
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
   }else{
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
@@ -238,6 +242,8 @@ std::string HTTP::URL::getProxyUrl() const{
   ret += "/";
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
+  }else if (isLocalPath()){
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
   }else{
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
@@ -265,6 +271,8 @@ std::string HTTP::URL::getBareUrl() const{
   ret += "/";
   if (protocol == "rtsp"){
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
+  }else if (isLocalPath()){
+    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
   }else{
     if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
   }
@@ -273,7 +281,12 @@ std::string HTTP::URL::getBareUrl() const{
 
 /// Returns a string guaranteed to end in a slash, pointing to the base directory-equivalent of the URL
 std::string HTTP::URL::getBase() const{
-  std::string tmpUrl = getBareUrl();
+  std::string tmpUrl;
+  if (isLocalPath()){
+    tmpUrl = getFilePath();
+  }else{
+    tmpUrl = getBareUrl();
+  }
   size_t slashPos = tmpUrl.rfind('/');
   if (slashPos == std::string::npos){
     tmpUrl += "/";
@@ -287,7 +300,12 @@ std::string HTTP::URL::getBase() const{
 /// If the given URL is in a parent directory of the URL, it will be relative
 /// Otherwise, it will be absolute
 std::string HTTP::URL::getLinkFrom(const HTTP::URL & fromUrl) const{
-  std::string to = getUrl();
+  std::string to;
+  if (isLocalPath()){
+    to = getFilePath();
+  }else{
+    to = getUrl();
+  }
   std::string from = fromUrl.getBase();
   if (to.substr(0, from.size()) == from){
     return to.substr(from.size());

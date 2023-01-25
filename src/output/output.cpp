@@ -19,6 +19,7 @@
 #include <mist/util.h>
 #include <mist/urireader.h>
 #include <sys/file.h>
+#include <mist/encode.h>
 
 /*LTS-START*/
 #include <arpa/inet.h>
@@ -1360,12 +1361,33 @@ namespace Mist{
     if (origTargetPtr){
       origTarget = origTargetPtr;
       if (origTarget.rfind('?') != std::string::npos){
+        std::map<std::string, std::string> tmpParams;
+        HTTP::parseVars(origTarget.substr(origTarget.rfind('?') + 1), tmpParams);
         origTarget.erase(origTarget.rfind('?'));
+        if (tmpParams.count("m3u8")){
+          targetParams["m3u8"] = tmpParams["m3u8"];
+        }
+        if (tmpParams.count("segment")){
+          targetParams["segment"] = tmpParams["segment"];
+        }
       }
     }else if (config->hasOption("target")){
       origTarget = config->getString("target");
     }
-    Util::streamVariables(origTarget, streamName);
+    // Check if the target segment contains any of the required variables
+    if (targetParams.count("m3u8")){
+      std::string tmpTarget;
+      if (targetParams.count("segment")){
+        tmpTarget = targetParams["segment"];
+      }else{
+        tmpTarget = origTarget;
+      }
+      if (tmpTarget.find("$currentMediaTime") == std::string::npos && tmpTarget.find("$segmentCounter") == std::string::npos){
+        FAIL_MSG("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", tmpTarget.c_str());
+        Util::logExitReason("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", tmpTarget.c_str());
+        return 1;
+      }
+    }
     if (targetParams.count("maxEntries")){
       maxEntries = atoll(targetParams["maxEntries"].c_str());
     }
@@ -1380,7 +1402,9 @@ namespace Mist{
       if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
       // Create a new or connect to an existing playlist file
       if (!plsConn){
-        playlistLocation = HTTP::URL(origTarget).link(targetParams["m3u8"]);
+        std::string plsRel = targetParams["m3u8"];
+        Util::streamVariables(plsRel, streamName);
+        playlistLocation = HTTP::URL(config->getString("target")).link(plsRel);
         if (playlistLocation.isLocalPath()){
           playlistLocationString = playlistLocation.getFilePath();
           INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
@@ -1455,9 +1479,11 @@ namespace Mist{
               INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());
             }else{
               WARN_MSG("Overwriting existing remote playlist file '%s'", playlistLocationString.c_str());
+              reInitPlaylist = true;
             }
           }else{
             INFO_MSG("Creating new remote playlist file '%s'", playlistLocationString.c_str());
+            reInitPlaylist = true;
           }
         }
       }
@@ -1510,7 +1536,9 @@ namespace Mist{
       std::string newTarget = origTarget;
       Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
       Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
+      Util::streamVariables(newTarget, streamName);
       currentTarget = newTarget;
+      config->getOption("target", true).append(currentTarget);
       if (newTarget == "-"){
         INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
                  capa["name"].asString().c_str());
@@ -1649,7 +1677,7 @@ namespace Mist{
                     if (!M.getLive()){
                       uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                    }else if (!maxEntries && !targetAge){
+                    }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
                       // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
                       HTTP::URIReader inFile(playlistLocationString);
                       char *newBuffer;
@@ -1661,7 +1689,7 @@ namespace Mist{
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
                       connectToFile(playlistLocationString, false, &plsConn);
                     }
-                    // Else we are in a sliding window playlist, so it will already get overwritten
+                    // Else we are in a sliding window playlist, so it will automatically get overwritten
                   }
                   // Remove older entries in the playlist
                   if (maxEntries || targetAge){
@@ -1682,20 +1710,22 @@ namespace Mist{
                 }
 
                 // Keep track of filenames written, so that they can be added to the playlist file
-                std::string newTarget = origTarget;
+                std::string newTarget;
+                if (targetParams.count("segment")){
+                  HTTP::URL targetUrl = HTTP::URL(config->getString("target")).link(targetParams["segment"]);
+                  if (targetUrl.isLocalPath()){
+                    newTarget = targetUrl.getFilePath();
+                  }else{
+                    newTarget = targetUrl.getUrl();
+                  }
+                }else{
+                  newTarget = origTarget;
+                }
                 currentStartTime = lastPacketTime;
                 segmentCount++;
-                // Replace variable currentMediaTime and segmentCounter
-                if (targetParams.count("m3u8")){
-                  if (newTarget.find("$currentMediaTime") == std::string::npos && newTarget.find("$segmentCounter") == std::string::npos){
-                    FAIL_MSG("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", newTarget.c_str());
-                    Util::logExitReason("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", newTarget.c_str());
-                    onFinish();
-                    break;
-                  }
-                  Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
-                  Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
-                }
+                Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
+                Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
+                Util::streamVariables(newTarget, streamName);
                 if (newTarget.rfind('?') != std::string::npos){
                   newTarget.erase(newTarget.rfind('?'));
                 }
@@ -1752,8 +1782,8 @@ namespace Mist{
     onFinish();
     // Write last segment
     if (targetParams.count("m3u8")){
-      // If this is VOD, we can finally open up the connection to the playlist file
-      if (M.getVod()){connectToFile(playlistLocationString, false, &plsConn);}
+      // If this is a non-live source, we can finally open up the connection to the playlist file
+      if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
       if (plsConn){
         std::string segment = HTTP::URL(currentTarget).getLinkFrom(playlistLocation);
         if (M.getLive()){

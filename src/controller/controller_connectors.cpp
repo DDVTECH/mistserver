@@ -196,7 +196,10 @@ namespace Controller{
       if (connCapa.isMember("required")){
         bool gotAll = true;
         jsonForEachConst(connCapa["required"], it){
-          if (!(*ait).isMember(it.key()) || (*ait)[it.key()].isNull() || ((*ait)[it.key()].isString() && !(*ait)[it.key()])){
+          if (!(*ait).isMember(it.key()) || (*ait)[it.key()].isNull() ||
+              ((*ait)[it.key()].isString() && !(*ait)[it.key()].asStringRef().size()) ||
+              ((*ait)[it.key()].isArray() && (!(*ait)[it.key()].size() || !(*ait)[it.key()][0u].isString())) ||
+              (!(*ait)[it.key()].isString() && !(*ait)[it.key()].isArray())) {
             gotAll = false;
             (*ait)["online"] = "Invalid configuration";
             if ((*ait)["online"].asString() != prevOnline){

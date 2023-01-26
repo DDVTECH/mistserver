@@ -27,15 +27,12 @@ namespace Mist{
     static bool listenMode(){return true;}
     static void init(Util::Config *cfg);
 
-  private:
+    // SSL related
     mbedtls_net_context client_fd;
     mbedtls_ssl_context ssl;
     static mbedtls_entropy_context entropy;
     static mbedtls_ctr_drbg_context ctr_drbg;
     static mbedtls_ssl_config sslConf;
-    static mbedtls_x509_crt srvcert;
-    static mbedtls_pk_context pkey;
-  
   };
 }// namespace Mist
 

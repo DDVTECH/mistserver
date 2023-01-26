@@ -13,6 +13,45 @@
 #include <mist/util.h>
 #include <sys/stat.h>
 
+class crtAndKey {
+  public:
+    crtAndKey() {
+      mbedtls_x509_crt_init(&crt);
+      mbedtls_pk_init(&key);
+    }
+    mbedtls_x509_crt crt;
+    mbedtls_pk_context key;
+    std::string crtFile, keyFile;
+};
+std::deque<crtAndKey> srvcerts;
+
+static int cert_callback(void *p_info, mbedtls_ssl_context *ssl, const unsigned char *name, size_t name_len) {
+  std::string sniName((char *)name, name_len);
+
+  for (auto & it : srvcerts) {
+    std::string subject((char *)it.crt.subject.val.p, it.crt.subject.val.len);
+    if (sniName != subject) {
+      bool found = false;
+      mbedtls_asn1_sequence *cur = &it.crt.subject_alt_names;
+      while (cur) {
+        if (sniName == std::string((char *)cur->buf.p, cur->buf.len)) {
+          found = true;
+          break;
+        }
+        cur = cur->next;
+      }
+      if (!found) { continue; }
+    }
+    MEDIUM_MSG("Matched %s to (%s, %s)!", sniName.c_str(), it.crtFile.c_str(), it.keyFile.c_str());
+
+    int r = mbedtls_ssl_set_hs_own_cert(ssl, &(it.crt), &(it.key));
+    if (r) { WARN_MSG("Could not set certificate!"); }
+    return r;
+  }
+  WARN_MSG("Could not find matching certificate for %s; using default certificate instead", sniName.c_str());
+  return 0;
+}
+
 const char * trackType(char ID){
   if (ID == 8){return "audio";}
   if (ID == 9){return "video";}
@@ -119,9 +158,13 @@ namespace Mist {
     mbedtls_ctr_drbg_init(&ctr_drbg);
     isTLSEnabled = true;
 
-    mbedtls_debug_set_threshold(0);
+    mbedtls_debug_set_threshold(3);
     mbedtls_ssl_conf_dbg(&sslConf, [](void *ctx, int level, const char *file, int line, const char *str) {
-      INFO_MSG("TLS [%d]: %s:%d %s", level, file, line, str);
+      const int lvl = (level == 1) ? 4 : level + 6;
+      if (Util::printDebugLevel >= lvl) {
+        fprintf(stderr, "%.8s|%.30s|%d|%.100s:%d|%.200s|TLS: %s\n", DBG_LVL_LIST[lvl], MIST_PROG, getpid(), file, line,
+                Util::streamName, str);
+      }
     }, 0);
 
     // seed the rng
@@ -131,25 +174,57 @@ namespace Mist {
     }
 
     // Read certificate chain(s) from cmdline option(s)
+    bool ignoreKeys = false;
     JSON::Value certs = config->getOption("cert", true);
-    jsonForEach(certs, it){
-      if (it->asStringRef().size()){// Ignore empty entries (default is empty)
-        ret = mbedtls_x509_crt_parse_file(&srvcert, it->asStringRef().c_str());
-        if (ret != 0){
-          WARN_MSG("Could not load any certificates from file: %s", it->asStringRef().c_str());
+    jsonForEach (certs, it) {
+      const std::string & cFile = it->asStringRef();
+      if (!cFile.size()) { continue; } // Ignore empty entries (default is empty)
+      srvcerts.push_back(crtAndKey());
+      crtAndKey & srvcert = srvcerts.back();
+      if (cFile[0] == '[') {
+        ignoreKeys = true;
+        const JSON::Value crtCnf = JSON::fromString(cFile);
+        jsonForEachConst (crtCnf, jt) {
+          if (!jt->asStringRef().size()) { continue; }
+          if (jt.num() + 1 != crtCnf.size()) {
+            if (!srvcert.crtFile.size()) { srvcert.crtFile = jt->asStringRef(); }
+            ret = mbedtls_x509_crt_parse_file(&srvcert.crt, jt->asStringRef().c_str());
+            if (ret) { WARN_MSG("Could not load any certificates from file: %s", jt->asStringRef().c_str()); }
+          } else {
+            srvcert.keyFile = jt->asStringRef();
+            ret = mbedtls_pk_parse_keyfile(&(srvcert.key), jt->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                           ,
+                                           mbedtls_ctr_drbg_random, &ctr_drbg
+#endif
+            );
+            if (ret) { WARN_MSG("Could not load any keys from file: %s", jt->asStringRef().c_str()); }
+          }
         }
+        continue;
       }
+      srvcert.crtFile = cFile;
+      ret = mbedtls_x509_crt_parse_file(&srvcert.crt, cFile.c_str());
+      if (ret != 0) { WARN_MSG("Could not load any certificates from file: %s", cFile.c_str()); }
     }
 
-    // Read key from cmdline option
-#if !HAVE_UPSTREAM_MBEDTLS_SRTP
-    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0);
-#else
-    ret = mbedtls_pk_parse_keyfile(&pkey, config->getString("key").c_str(), 0, mbedtls_ctr_drbg_random, &ctr_drbg);
+    if (!ignoreKeys) {
+      auto crtIt = srvcerts.begin();
+      // Read key from cmdline option
+      JSON::Value keys = config->getOption("key", true);
+      jsonForEach (keys, it) {
+        if (!it->asStringRef().size()) { continue; } // Ignore empty entries (default is empty)
+        if (crtIt == srvcerts.end()) { break; }
+        crtIt->keyFile = it->asStringRef();
+        ret = mbedtls_pk_parse_keyfile(&(crtIt->key), it->asStringRef().c_str(), NULL
+#if MBEDTLS_VERSION_MAJOR > 2
+                                       ,
+                                       mbedtls_ctr_drbg_random, &ctr_drbg
 #endif
-    if (ret != 0){
-      FAIL_MSG("Could not load any keys from file: %s", config->getString("key").c_str());
-      return false;
+        );
+        if (ret != 0) { WARN_MSG("Could not load any keys from file: %s", config->getString("key").c_str()); }
+        ++crtIt;
+      }
     }
 
     if ((ret = mbedtls_ssl_config_defaults(&sslConf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -163,6 +238,7 @@ namespace Mist {
       FAIL_MSG("SSL config own certificate failed");
       return false;
     }
+    mbedtls_ssl_conf_sni(&sslConf, cert_callback, (void *)&srvcerts);
     return true;
   }
 #endif

@@ -1652,7 +1652,7 @@ namespace Mist{
                       // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
                       HTTP::URIReader inFile(playlistLocationString);
                       char *newBuffer;
-                      uint64_t bytesRead;
+                      size_t bytesRead;
                       inFile.readAll(newBuffer, bytesRead);
                       playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
                       // Reinit the playlist with the new targetDuration

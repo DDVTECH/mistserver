@@ -18,6 +18,7 @@ namespace HTTP{
     std::string getExt() const;
     std::string getUrl() const;
     std::string getFilePath() const;
+    std::string getEncodedPath() const;
     std::string getBase() const;
     std::string getBareUrl() const;
     std::string getProxyUrl() const;

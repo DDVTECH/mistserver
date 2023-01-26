@@ -75,17 +75,19 @@ HTTP::URL::URL(const std::string &url){
       if (path.substr(0, 2) == "./"){path.erase(0, 2);}
       if (path.substr(0, 3) == "../"){path.erase(0, 3);}
       //RFC 2396 sec 5.2: check if URL ends with <name>/.. -> remove iff name != ..
-      if (path.length() == 2 && path == "..")
-        path = "";
-      if (path.length() > 2 && path.substr(path.length() - 2) == ".."){
-        // |<name>| == 1, so <name> != '..'
-        if (path.length() == 4){
-          path.erase(path.length() - 4, path.length());
+      if (path.length() == 2 && path == ".."){path.clear();}
+      if (path.length() == 1 && path == "."){path.clear();}
+      if (path.length() > 2 && path.substr(path.length() - 3) == "/.."){
+        if (path.length() <= 4){
+          path.clear();
         }
         else if (path.length() > 4 && path.substr(path.length() - 5) != "../.."){
           size_t prevslash = path.rfind('/', path.length() - 4);
           path.erase(prevslash + 1, path.length());
         }
+      }
+      if (path.length() > 1 && path.substr(path.length() - 2) == "/."){
+        path.erase(path.length()-1);
       }
       if (!isLocalPath()){
         path = Encodings::URL::decode(path);
@@ -143,6 +145,7 @@ HTTP::URL::URL(const std::string &url){
         port = "";
       }
     }
+    if (host.find(':') != std::string::npos){IPv6Addr = true;}
   }
   // if the host is numeric, assume it is a port, instead
   if (host.size() && is_numeric(host.c_str())){
@@ -174,7 +177,11 @@ uint16_t HTTP::URL::getDefaultPort() const{
 
 /// Returns the file extension of the URL, or an empty string if none.
 std::string HTTP::URL::getExt() const{
+  //No dot? No extension.
   if (path.rfind('.') == std::string::npos){return "";}
+  //No dot before directory change? No extension.
+  if (path.rfind('/') != std::string::npos && path.rfind('/') > path.rfind('.')){return "";}
+  //Otherwise, anything behind the last dot
   return path.substr(path.rfind('.') + 1);
 }
 
@@ -187,7 +194,11 @@ std::string HTTP::URL::getUrl() const{
     ret = "//";
   }
   if (user.size() || pass.size()){
-    ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+    if (!pass.size()){
+      ret += Encodings::URL::encode(user) + "@";
+    }else{
+      ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+    }
   }
   if (IPv6Addr){
     ret += "[" + host + "]";
@@ -196,13 +207,7 @@ std::string HTTP::URL::getUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (protocol == "rtsp"){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
-  }else if (isLocalPath()){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
-  }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
-  }
+  ret += getEncodedPath();
   if (args.size()){ret += "?" + args;}
   if (frag.size()){ret += "#" + Encodings::URL::encode(frag, "/:=@[]#?&");}
   return ret;
@@ -211,6 +216,17 @@ std::string HTTP::URL::getUrl() const{
 /// Returns the full file path, in case this is a local file URI
 std::string HTTP::URL::getFilePath() const{
   return "/" + path;
+}
+
+std::string HTTP::URL::getEncodedPath() const{
+  if (protocol == "rtsp"){
+    if (path.size()){return Encodings::URL::encode(path, "/:=@[]#?&");}
+  }else if (isLocalPath()){
+    if (path.size()){return Encodings::URL::encode(path, "/:=@[]+ ");}
+  }else{
+    if (path.size()){return Encodings::URL::encode(path, "/:=@[]");}
+  }
+  return "";
 }
 
 /// Returns whether the URL is probably pointing to a local file
@@ -240,13 +256,7 @@ std::string HTTP::URL::getProxyUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (protocol == "rtsp"){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
-  }else if (isLocalPath()){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
-  }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
-  }
+  ret += getEncodedPath();
   if (args.size()){ret += "?" + args;}
   return ret;
 }
@@ -260,7 +270,11 @@ std::string HTTP::URL::getBareUrl() const{
     ret = "//";
   }
   if (user.size() || pass.size()){
-    ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+    if (!pass.size()){
+      ret += Encodings::URL::encode(user) + "@";
+    }else{
+      ret += Encodings::URL::encode(user) + ":" + Encodings::URL::encode(pass) + "@";
+    }
   }
   if (IPv6Addr){
     ret += "[" + host + "]";
@@ -269,13 +283,7 @@ std::string HTTP::URL::getBareUrl() const{
   }
   if (port.size() && getPort() != getDefaultPort()){ret += ":" + port;}
   ret += "/";
-  if (protocol == "rtsp"){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]#?&");}
-  }else if (isLocalPath()){
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]+ ");}
-  }else{
-    if (path.size()){ret += Encodings::URL::encode(path, "/:=@[]");}
-  }
+  ret += getEncodedPath();
   return ret;
 }
 
@@ -288,11 +296,7 @@ std::string HTTP::URL::getBase() const{
     tmpUrl = getBareUrl();
   }
   size_t slashPos = tmpUrl.rfind('/');
-  if (slashPos == std::string::npos){
-    tmpUrl += "/";
-  }else{
-    tmpUrl.erase(slashPos + 1);
-  }
+  tmpUrl.erase(slashPos + 1);
   return tmpUrl;
 }
 

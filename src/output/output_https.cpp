@@ -15,16 +15,16 @@ namespace Mist{
     capa["desc"] = "HTTPS connection handler, provides all enabled HTTP-based outputs";
     capa["provides"] = "HTTP";
     capa["protocol"] = "https://";
-    capa["required"]["cert"]["name"] = "Certificate";
-    capa["required"]["cert"]["help"] = "(Root) certificate(s) file(s) to append to chain";
+    capa["required"]["cert"]["name"] = "Path to certificate";
+    capa["required"]["cert"]["help"] = "Path to the (root) certificate(s) file(s) to append to chain. When multiple certificates are used make sure to start with the server certificate. All given certificates will be used. Each file may contain one or more certificates.";
     capa["required"]["cert"]["option"] = "--cert";
     capa["required"]["cert"]["short"] = "C";
     capa["required"]["cert"]["default"] = "";
     capa["required"]["cert"]["type"] = "inputlist";
     capa["required"]["cert"]["input"]["type"] = "browse";
 
-    capa["required"]["key"]["name"] = "Key";
-    capa["required"]["key"]["help"] = "Private key for SSL";
+    capa["required"]["key"]["name"] = "Path to key";
+    capa["required"]["key"]["help"] = "Path to private key for SSL";
     capa["required"]["key"]["option"] = "--key";
     capa["required"]["key"]["short"] = "K";
     capa["required"]["key"]["default"] = "";

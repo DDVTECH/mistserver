@@ -43,7 +43,7 @@ namespace Util{
 
   void nameThread(const std::string & name);
 
-  void hexDump(std::ostream & ostrm, const char *ptr, size_t len, size_t indent = 0);
+  void hexDump(std::ostream & ostrm, const char *ptr, size_t len, size_t indent = 0, bool newLineOnStartCode = false);
 
   /// Parses a resolution string to integers by reference, returning true if parsing succeeded.
   bool parseResolutionString(const std::string & resStr, uint32_t & width, uint32_t & height);

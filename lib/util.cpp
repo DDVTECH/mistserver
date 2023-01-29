@@ -1604,9 +1604,17 @@ namespace Util{
 #endif
   }
 
-  void hexDump(std::ostream & o, const char *ptr, size_t len, size_t indent) {
+  void hexDump(std::ostream & o, const char *ptr, size_t len, size_t indent, bool newLineOnStartCode) {
+    size_t lastNL = 0;
     for (size_t i = 0; i < len; ++i) {
       if (!(i % 32)) { o << std::endl << std::string(indent, ' '); }
+      if (newLineOnStartCode && lastNL + 3 < i &&
+          ((i + 2 < len && !ptr[i] && !ptr[i + 1] && ptr[i + 2] == 1) ||
+           (i + 3 < len && !ptr[i] && !ptr[i + 1] && !ptr[i + 2] && ptr[i + 3] == 1))) {
+        // Start code, insert newline and indent to match rest of data
+        o << std::endl << std::string(indent + ((i % 32) * 3.25), ' ');
+        lastNL = i;
+      }
       o << std::hex << std::setw(2) << std::setfill('0') << (size_t)ptr[i] << " ";
       if ((i % 4) == 3) { o << " "; }
     }

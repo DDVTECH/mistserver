@@ -273,6 +273,8 @@ const char *FLV::Tag::getAudioCodec() const {
     }
     case 0xA0: return "AAC";
     case 0xB0: return "Speex";
+    case 0xC0: return "Unknown (12)";
+    case 0xD0: return "Unknown (13)";
     case 0xE0: return "MP3";
     case 0xF0: return "DeviceSpecific";
     default: return "unknown";

@@ -2219,8 +2219,9 @@ namespace DTSC{
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
-      const char * pageName = trackList.getPointer(trackPageField, trackIdx);
-      resizeLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
+      std::string pageName = "/";
+      pageName += trackList.getPointer(trackPageField, trackIdx);
+      resizeLock.open(pageName.c_str(), O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!resizeLock.tryWait()){
         MEDIUM_MSG("Metadata is busy, delaying deletion of key a bit");
         resizeLock.close();

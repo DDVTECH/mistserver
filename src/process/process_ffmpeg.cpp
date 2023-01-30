@@ -807,8 +807,8 @@ namespace Mist{
     std::string min_rate;
     std::string max_rate;
 
-    if (opt.isMember("bitrate") && opt["bitrate"].isString()){
-      b_rate = opt["bitrate"].asString();
+    if (opt.isMember("rate") && opt["rate"].isString()){
+      b_rate = opt["rate"].asString();
     }
 
     if (opt.isMember("min_bitrate") && opt["min_bitrate"].isString()){

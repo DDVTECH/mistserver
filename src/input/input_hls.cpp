@@ -485,7 +485,7 @@ namespace Mist{
         lastFileIndex = fileNo + 1;
         ++count;
       }
-      nextUTC = 0;
+      nextUTC += f * 1000.0;
       ++fileNo;
     }
 
@@ -532,6 +532,7 @@ namespace Mist{
     entry.bytePos = totalBytes;
     entry.duration = duration;
     entry.mUTC = nextUTC;
+    entry.timeOffset = 0;
 
     if (key.size() && iv.size()){
       memcpy(entry.ivec, iv.data(), 16);
@@ -680,6 +681,7 @@ namespace Mist{
                 if (idx != INVALID_TRACK_ID){
                   meta.setMinKeepAway(idx, globalWaitTime * 2000);
                   VERYHIGH_MSG("setting minKeepAway = %" PRIu32 " for track: %zu", globalWaitTime * 2000, idx);
+                  ++pidCounter;
                 }
               }
             }
@@ -1062,7 +1064,7 @@ namespace Mist{
         Bit::htobl(thisPacket.getData() + 8, tid);
         Bit::htobll(thisPacket.getData() + 12, packetTime);
         thisTime = packetTime;
-        thisIdx = tid;
+        thisIdx = M.trackIDToIndex(tid);
         return; // Success!
       }
 
@@ -1565,7 +1567,7 @@ namespace Mist{
     // Only one selected? Immediately return the right playlist.
     if (!streamIsLive){return getMappedTrackPlaylist(M.getID(userSelect.begin()->first));}
     uint64_t firstTimeStamp = 0;
-    int tmpId = -1;
+    int tmpId = 0;
     int segCount = 0;
 
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
@@ -1574,7 +1576,7 @@ namespace Mist{
       segCount += pListIt->second.size();
       if (pListIt->second.size()){
         INSANE_MSG("Playlist %u contains %zu segments, with the earliest segment starting @%" PRIu64 " ms", pListIt->first, pListIt->second.size(), firstTimeStamp);
-        if (pListIt->second.front().timestamp < firstTimeStamp || tmpId < 0){
+        if (pListIt->second.front().timestamp < firstTimeStamp || tmpId == 0){
           firstTimeStamp = pListIt->second.front().timestamp;
           tmpId = pListIt->first;
         }

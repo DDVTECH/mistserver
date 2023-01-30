@@ -21,6 +21,9 @@
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
+#ifdef __FreeBSD__
+#include <sys/sysctl.h> // for sysctl() to get path to executable
+#endif
 #include "procs.h"
 #include <dirent.h> //for getMyExec
 #include <errno.h>
@@ -731,11 +734,21 @@ std::string Util::getMyPath(){
   char mypath[500];
 #ifdef __CYGWIN__
   GetModuleFileName(0, mypath, 500);
-#else
-#ifdef __APPLE__
+#elif defined(__APPLE__)
   memset(mypath, 0, 500);
   unsigned int refSize = 500;
   _NSGetExecutablePath(mypath, &refSize);
+#elif defined(__FreeBSD__)
+	// the sysctl should also work when /proc/ is not mounted (which seems to
+	// be common on FreeBSD), so use it..
+	int name[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+	size_t len = PATH_MAX-1;
+	int ret = sysctl(name, sizeof(name)/sizeof(name[0]), mypath, &len, NULL, 0);
+	if(ret != 0)
+	{
+		// an error occured, clear path
+		mypath[0] = '\0';
+	}
 #else
   int ret = readlink("/proc/self/exe", mypath, 500);
   if (ret != -1){
@@ -743,7 +756,6 @@ std::string Util::getMyPath(){
   }else{
     mypath[0] = 0;
   }
-#endif
 #endif
   std::string tPath = mypath;
   size_t slash = tPath.rfind('/');

@@ -432,6 +432,15 @@ namespace Mist{
         return 2;
       }
       HIGH_MSG("Waiting for child for stream %s", streamName.c_str());
+
+      // The reaping made in config.cpp makes this call to waitpid fail, exiting as uncleanly when it is not.
+      // In linux seems to works fine. In FreeBSD and MacOS fails. This is due to the unknown value held by "status" variable (uninitialized).
+      // resetting default action on SIGCHLD signal works fine everytime everywhere.
+      struct sigaction sig_action;
+      sig_action.sa_handler = SIG_DFL;
+      sigemptyset(&sig_action.sa_mask);
+      sigaction(SIGCHLD, &sig_action, NULL);
+      
       // wait for the process to exit
       int status;
       while (waitpid(pid, &status, 0) != pid && errno == EINTR){

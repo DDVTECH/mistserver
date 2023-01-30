@@ -46,7 +46,7 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #define PRIu32 "lu"
 #endif
 
-#if !defined(__APPLE__) && !defined(__MACH__) && defined(__GNUC__)
+#if !defined(__APPLE__) && !defined(__MACH__) && !defined(__FreeBSD__) && defined(__GNUC__)
 #include <errno.h>
 
 #if DEBUG >= DLVL_DEVEL
@@ -78,7 +78,7 @@ static const char *DBG_LVL_LIST[] ={"NONE", "FAIL",     "ERROR",   "WARN",   "IN
 #endif
 #endif
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__FreeBSD__)
 static inline void show_stackframe(){}
 #else
 #include <execinfo.h>

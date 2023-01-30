@@ -75,7 +75,10 @@ namespace IPC{
   ///\param mode The mode in which to create the semaphore, if O_CREAT is given in oflag, ignored
   /// otherwise \param value The initial value of the semaphore if O_CREAT is given in oflag,
   /// ignored otherwise
-  void semaphore::open(const char *sname, int oflag, mode_t mode, unsigned int value, bool noWait){
+
+  // Calls to sem_open with flags other than O_CREAT or O_EXCL fails only in FreeBSD.
+  // Anyway, no other flag is valid in any platform, so would be better to modify the calls instead of do this...
+  void semaphore::open(const char *name, int oflag, mode_t mode, unsigned int value, bool noWait){
     close();
     char *name = (char*)sname;
     if (strlen(sname) >= IPC_MAX_LEN) {
@@ -113,17 +116,17 @@ namespace IPC{
       }
 #else
       if (oflag & O_CREAT){
-        mySem = sem_open(name, oflag, mode, value);
-#if defined(__APPLE__)
+        mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);
+#if defined(__APPLE__) || defined(__FreeBSD__)
         if (!(*this)){
           if (sem_unlink(name) == 0){
             INFO_MSG("Deleted in-use semaphore: %s", name);
-            mySem = sem_open(name, oflag, mode, value);
+            mySem = sem_open(name, oflag & (O_CREAT | O_EXCL), mode, value);
           }
         }
 #endif
       }else{
-        mySem = sem_open(name, oflag);
+        mySem = sem_open(name, oflag & (O_CREAT | O_EXCL));
       }
       if (!(*this)){
         if (errno == ENOENT && !noWait){

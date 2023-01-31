@@ -82,6 +82,8 @@ void parseThread(Mist::InputTS *input){
       meta.reInit(globalStreamName, false);
       if (!meta){
         //Meta init failure, retry later
+        //Clear packet buffers so we don't use infinite memory while waiting
+        while (liveStream.hasPacket(tid)){liveStream.getPacket(tid, pack);}
         Util::sleep(100);
         continue;
       }
@@ -93,6 +95,8 @@ void parseThread(Mist::InputTS *input){
       }
       //Any kind of failure? Retry later.
       if (idx == INVALID_TRACK_ID || !meta.trackValid(idx)){
+        //Clear packet buffers so we don't use infinite memory while waiting
+        while (liveStream.hasPacket(tid)){liveStream.getPacket(tid, pack);}
         Util::sleep(100);
         continue;
       }

@@ -2326,12 +2326,13 @@ namespace Mist{
   bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
     int outFile = -1;
     if (!conn) {conn = &myConn;}
+    bool isFileTarget = HTTP::URL(file).isLocalPath();
     if (!Util::genericWriter(file, outFile, append)){return false;}
-    if (*conn) {
+    if (*conn && isFileTarget) {
       flock(conn->getSocket(), LOCK_UN | LOCK_NB);
     }
     // Lock the file in exclusive mode to ensure no other processes write to it
-    if(flock(outFile, LOCK_EX | LOCK_NB)){
+    if(isFileTarget && flock(outFile, LOCK_EX | LOCK_NB)){
       ERROR_MSG("Failed to lock file %s, error: %s", file.c_str(), strerror(errno));
       return false;
     }

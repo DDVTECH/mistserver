@@ -311,6 +311,11 @@ target_link_libraries(mist
   -lpthread 
   ${LIBRT}
 )
+EXEC_PROGRAM(uname OUTPUT_VARIABLE SYSTEM_NAME)
+IF(SYSTEM_NAME STREQUAL "FreeBSD")
+  target_link_libraries(mist -lexecinfo)
+endif()
+
 if (NOT NOSSL)
   find_library(MBEDTLS_LIB mbedtls)
   find_library(MBEDX509_LIB mbedx509)

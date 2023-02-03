@@ -1252,8 +1252,8 @@ namespace Mist{
     std::string uid = "?";
     bool statIsKeyOnly = false;
     uint64_t startingTime = Util::bootMS();
-    size_t statPlaytime = 0, statLogs = 0, statErrors = 0, statFirstFrame = 0, statWaits = 0, statWaitTime = 0, statStalls = 0, statStallTime = 0, ttff = 0;
-    int64_t statPlaytimeAdj = 0, statLogsAdj = 0, statErrorsAdj = 0, statWaitsAdj = 0, statWaitTimeAdj = 0, statStallsAdj = 0, statStallTimeAdj = 0;
+    size_t statPlaytime = 0, statLogs = 0, statErrors = 0, statFirstFrame = 0, statWaits = 0, statWaitTime = 0, statStalls = 0, statStallTime = 0, ttff = 0, preloadTime = 0;
+    int64_t statPlaytimeAdj = 0, statLogsAdj = 0, statErrorsAdj = 0, statWaitsAdj = 0, statWaitTimeAdj = 0, statStallsAdj = 0, statStallTimeAdj = 0, preloadTimeAdj = 0;
     uint64_t currHeight = 0;
     uint64_t maxHeight = 0;
     uint64_t lastHeightChange = 0;
@@ -1327,6 +1327,7 @@ namespace Mist{
               onlyIncrease(incData, "nStalled", statStalls, statStallsAdj);
               onlyIncrease(incData, "timeStalled", statStallTime, statStallTimeAdj);
               onlyIncrease(incData, "timeUnpaused", statPlaytime, statPlaytimeAdj);
+              onlyIncrease(incData, "preloadTime", preloadTime, preloadTimeAdj);
               onlyIncrease(incData, "nError", statErrors, statErrorsAdj);
               onlyIncrease(incData, "nLog", statLogs, statLogsAdj);
               if (pUX){
@@ -1437,6 +1438,8 @@ namespace Mist{
       // V4_adj: V4_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis
       // V5: V5, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid
       // V5_adj: V5_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid
+      // V6: V6, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime
+      // V6_adj: V6_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime, diff
       size_t chars = 0;
       uint64_t maxHeightMillis = 0;
       uint64_t nomaxHeightMillis = 0;
@@ -1453,10 +1456,10 @@ namespace Mist{
         }
       }
       }
-      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj){
-        chars = snprintf(logLine, 2048, "V5_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %" PRId64 ", %zu, %s, %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s\n", (size_t)getpid(), timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statPlaytimeAdj, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitsAdj, statWaitTime, statWaitTimeAdj, statStalls, statStallsAdj, statStallTime, statStallTimeAdj, statLogs, statLogsAdj, statErrors, statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str());
+      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
+        chars = snprintf(logLine, 2048, "V6_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %" PRId64 ", %zu, %s, %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s, %zu, %" PRId64 "\n", (size_t)getpid(), timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statPlaytimeAdj, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitsAdj, statWaitTime, statWaitTimeAdj, statStalls, statStallsAdj, statStallTime, statStallTimeAdj, statLogs, statLogsAdj, statErrors, statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str(), preloadTime, preloadTimeAdj);
       }else{
-        chars = snprintf(logLine, 2048, "V5, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %zu, %s, %zu, %zu, %zu, %zu, %zu, %zu, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s\n", timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitTime, statStalls, statStallTime, statLogs, statErrors, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str());
+        chars = snprintf(logLine, 2048, "V5, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %zu, %s, %zu, %zu, %zu, %zu, %zu, %zu, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s, %zu\n", timeStr, myConn.getHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitTime, statStalls, statStallTime, statLogs, statErrors, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str(), preloadTime);
       }
       //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
       write(plog, logLine, chars);

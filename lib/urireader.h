@@ -52,6 +52,7 @@ namespace HTTP{
     void onProgress(bool (*progressCallback)(uint8_t));
     /// Sets minimum and maximum buffer size for read calls that use callbacks
     void setBounds(size_t minLen = 0, size_t maxLen = 0);
+    void setQuiet(bool quiet);
 
     // Static getters
     bool isSeekable() const; ///< Returns true if seeking is possible in this URI.
@@ -91,6 +92,7 @@ namespace HTTP{
     URIType stateType;       ///< Holds the type of URI this is, for internal processing purposes.
     HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
+    bool quietMode; ///< Doesn't print an error message if opening the URI fails
   };
 
   HTTP::URL localURIResolver();

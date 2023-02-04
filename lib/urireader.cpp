@@ -87,6 +87,7 @@ namespace HTTP{
     clearPointer = true;
     curPos = 0;
     bufPos = 0;
+    quietMode = false;
   }
 
   URIReader::URIReader(){init();}
@@ -207,8 +208,10 @@ namespace HTTP{
       // Send HEAD request to determine range request is supported, and get total length
       if (userAgentOverride.size()){downer.setHeader("User-Agent", userAgentOverride);}
       if (!downer.head(myURI) || !downer.isOk()){
-        FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
-                 downer.getStatusCode(), downer.getStatusText().c_str());
+        if (!quietMode){
+          FAIL_MSG("Error getting URI info for '%s': %" PRIu32 " %s", myURI.getUrl().c_str(),
+                  downer.getStatusCode(), downer.getStatusText().c_str());
+        }
         // Close the socket, and clean up the buffer
         downer.getSocket().close();
         downer.getSocket().Received().clear();
@@ -400,6 +403,10 @@ namespace HTTP{
   void URIReader::setBounds(size_t newMinLen, size_t newMaxLen){
     minLen = newMinLen;
     maxLen = newMaxLen;
+  }
+
+  void URIReader::setQuiet(bool quiet){
+    quietMode = quiet;
   }
 
   bool URIReader::isSeekable() const{

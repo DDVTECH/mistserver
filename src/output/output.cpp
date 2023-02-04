@@ -1474,7 +1474,9 @@ namespace Mist{
           maxEntries = 0;
           targetAge = 0;
           // Check if there is an existing playlist at the target location
-          HTTP::URIReader outFile(playlistLocationString);
+          HTTP::URIReader outFile;
+          outFile.setQuiet(true);
+          outFile.open(playlistLocationString);
           if (outFile){
             // If so, init the buffer with remote data
             if (targetParams.count("append")){

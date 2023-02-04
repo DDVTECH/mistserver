@@ -480,6 +480,9 @@ namespace Comms{
     dataAccX.addField("pktcount", RAX_64UINT);
     dataAccX.addField("pktloss", RAX_64UINT);
     dataAccX.addField("pktretrans", RAX_64UINT);
+    dataAccX.addField("pktrecover", RAX_64UINT);
+    dataAccX.addField("rtt", RAX_16UINT);
+    dataAccX.addField("latency", RAX_16UINT);
   }
 
   void Connections::nullFields(){
@@ -495,6 +498,9 @@ namespace Comms{
     setPacketCount(0);
     setPacketLostCount(0);
     setPacketRetransmitCount(0);
+    setPacketRecoverCount(0);
+    setRoundTripTime(0);
+    setLatency(0);
   }
 
   void Connections::fieldAccess(){
@@ -510,6 +516,9 @@ namespace Comms{
     pktcount = dataAccX.getFieldAccX("pktcount");
     pktloss = dataAccX.getFieldAccX("pktloss");
     pktretrans = dataAccX.getFieldAccX("pktretrans");
+    pktrecover = dataAccX.getFieldAccX("pktrecover");
+    rtt = dataAccX.getFieldAccX("rtt");
+    latency = dataAccX.getFieldAccX("latency");
   }
 
   uint64_t Connections::getNow() const{return now.uint(index);}
@@ -622,6 +631,48 @@ namespace Comms{
   void Connections::setPacketRetransmitCount(uint64_t _retrans, size_t idx){
     if (!master){return;}
     pktretrans.set(_retrans, idx);
+  }
+
+  uint64_t Connections::getPacketRecoverCount() const {
+    return pktrecover.uint(index);
+  }
+  uint64_t Connections::getPacketRecoverCount(size_t idx) const {
+    return master ? pktrecover.uint(idx) : 0;
+  }
+  void Connections::setPacketRecoverCount(uint64_t _recover) {
+    pktrecover.set(_recover, index);
+  }
+  void Connections::setPacketRecoverCount(uint64_t _recover, size_t idx) {
+    if (!master) { return; }
+    pktrecover.set(_recover, idx);
+  }
+
+  uint16_t Connections::getRoundTripTime() const {
+    return rtt.uint(index);
+  }
+  uint16_t Connections::getRoundTripTime(size_t idx) const {
+    return master ? rtt.uint(idx) : 0;
+  }
+  void Connections::setRoundTripTime(uint16_t _rtt) {
+    rtt.set(_rtt, index);
+  }
+  void Connections::setRoundTripTime(uint16_t _rtt, size_t idx) {
+    if (!master) { return; }
+    rtt.set(_rtt, idx);
+  }
+
+  uint16_t Connections::getLatency() const {
+    return latency.uint(index);
+  }
+  uint16_t Connections::getLatency(size_t idx) const {
+    return master ? latency.uint(idx) : 0;
+  }
+  void Connections::setLatency(uint16_t _latency) {
+    latency.set(_latency, index);
+  }
+  void Connections::setLatency(uint16_t _latency, size_t idx) {
+    if (!master) { return; }
+    latency.set(_latency, idx);
   }
 
   /// \brief Generates a session ID which is unique per viewer

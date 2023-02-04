@@ -26,6 +26,9 @@ uint64_t globalUp = 0;
 uint64_t globalPktcount = 0;
 uint64_t globalPktloss = 0;
 uint64_t globalPktretrans = 0;
+uint64_t globalPktrecover = 0;
+uint16_t globalRTT = 0;
+uint16_t globalLatency = 0;
 // Stores last values of each connection
 std::map<size_t, uint64_t> connTime;
 std::map<size_t, uint64_t> connDown;
@@ -33,6 +36,9 @@ std::map<size_t, uint64_t> connUp;
 std::map<size_t, uint64_t> connPktcount;
 std::map<size_t, uint64_t> connPktloss;
 std::map<size_t, uint64_t> connPktretrans;
+std::map<size_t, uint64_t> connPktrecover;
+std::map<size_t, uint16_t> connRTT;
+std::map<size_t, uint16_t> connLatency;
 // Counts the duration a connector has been active
 std::map<std::string, uint64_t> connectorCount;
 std::map<std::string, uint64_t> connectorLastActive;
@@ -93,12 +99,17 @@ void userOnActive(Comms::Connections &connections, size_t idx){
     MEDIUM_MSG("Connection packets retransmitted should be a counter, but has decreased in value");
     connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
   }
+  if (connections.getPacketRecoverCount(idx) < connPktrecover[idx]) {
+    WARN_MSG("Connection packets recovered should be a counter, but has decreased in value");
+    connPktrecover[idx] = connections.getPacketRecoverCount(idx);
+  }
   // Add increase in stats to global stats
   globalDown += connections.getDown(idx) - connDown[idx];
   globalUp += connections.getUp(idx) - connUp[idx];
   globalPktcount += connections.getPacketCount(idx) - connPktcount[idx];
   globalPktloss += connections.getPacketLostCount(idx) - connPktloss[idx];
   globalPktretrans += connections.getPacketRetransmitCount(idx) - connPktretrans[idx];
+  globalPktrecover += connections.getPacketRecoverCount(idx) - connPktrecover[idx];
   // Set last values of this connection
   connTime[idx]++;
   connDown[idx] = connections.getDown(idx);
@@ -106,6 +117,9 @@ void userOnActive(Comms::Connections &connections, size_t idx){
   connPktcount[idx] = connections.getPacketCount(idx);
   connPktloss[idx] = connections.getPacketLostCount(idx);
   connPktretrans[idx] = connections.getPacketRetransmitCount(idx);
+  connPktrecover[idx] = connections.getPacketRecoverCount(idx);
+  connRTT[idx] = connections.getRoundTripTime(idx);
+  connLatency[idx] = connections.getLatency(idx);
 }
 
 /// \brief Remove mappings of inactive connections
@@ -116,6 +130,9 @@ void userOnDisconnect(Comms::Connections & connections, size_t idx){
   connPktcount.erase(idx);
   connPktloss.erase(idx);
   connPktretrans.erase(idx);
+  connPktrecover.erase(idx);
+  connRTT.erase(idx);
+  connLatency.erase(idx);
 }
 
 int main(int argc, char **argv){
@@ -304,6 +321,31 @@ int main(int argc, char **argv){
         lastSeen = now;
       }
 
+      // Calculate new RTT, if any value is known
+      if (connRTT.size()) {
+        uint64_t tmpRTT = 0;
+        size_t gCnt = 0;
+        for (std::map<size_t, uint16_t>::iterator it = connRTT.begin(); it != connRTT.end(); ++it) {
+          if (it->second) {
+            tmpRTT += it->second;
+            ++gCnt;
+          }
+        }
+        if (gCnt) { globalRTT = tmpRTT / gCnt; }
+      }
+
+      // Calculate new Latency, if any value is known
+      if (connLatency.size()) {
+        uint64_t tmpLatency = 0;
+        size_t lCnt = 0;
+        for (std::map<size_t, uint16_t>::iterator it = connLatency.begin(); it != connLatency.end(); ++it) {
+          if (it->second) {
+            tmpLatency += it->second;
+            ++lCnt;
+          }
+        }
+        if (lCnt) { globalLatency = tmpLatency / lCnt; }
+      }
 
       sessions.setTime(globalTime);
       sessions.setDown(globalDown);
@@ -311,6 +353,9 @@ int main(int argc, char **argv){
       sessions.setPacketCount(globalPktcount);
       sessions.setPacketLostCount(globalPktloss);
       sessions.setPacketRetransmitCount(globalPktretrans);
+      sessions.setPacketRecoverCount(globalPktrecover);
+      sessions.setRoundTripTime(globalRTT);
+      sessions.setLatency(globalLatency);
       sessions.setLastSecond(lastSecond);
       sessions.setNow(now);
 

@@ -76,6 +76,9 @@ namespace Socket{
     uint64_t packetCount();
     uint64_t packetLostCount();
     uint64_t packetRetransmitCount();
+    uint64_t packetRecoverCount();
+    uint16_t RTT();
+    uint16_t Latency();
 
     std::string direction;
 

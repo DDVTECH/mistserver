@@ -846,6 +846,9 @@ namespace Mist {
     statComm.setPacketCount(srtConn->packetCount());
     statComm.setPacketLostCount(srtConn->packetLostCount());
     statComm.setPacketRetransmitCount(srtConn->packetRetransmitCount());
+    statComm.setPacketRecoverCount(srtConn->packetRecoverCount());
+    statComm.setRoundTripTime(srtConn->RTT());
+    statComm.setLatency(srtConn->Latency());
   }
 
   bool OutTSSRT::listenMode(Util::Config *config) {

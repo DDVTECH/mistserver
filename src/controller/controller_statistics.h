@@ -35,6 +35,9 @@ namespace Controller{
     uint64_t pktCount;
     uint64_t pktLost;
     uint64_t pktRetransmit;
+    uint64_t pktRecover;
+    uint16_t rtt;
+    uint16_t latency;
     std::string streamName;
     std::string host;
     std::string connectors;
@@ -92,6 +95,12 @@ namespace Controller{
     uint64_t getPktLost(uint64_t time);
     uint64_t getPktRetransmit();
     uint64_t getPktRetransmit(uint64_t time);
+    uint64_t getPktRecover();
+    uint64_t getPktRecover(uint64_t time);
+    uint16_t getRTT();
+    uint16_t getRTT(uint64_t time);
+    uint16_t getLatency();
+    uint16_t getLatency(uint64_t time);
     uint64_t getBpsDown(uint64_t time);
     uint64_t getBpsUp(uint64_t time);
     uint64_t getBpsDown(uint64_t start, uint64_t end);

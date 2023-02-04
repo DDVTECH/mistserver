@@ -599,8 +599,22 @@ namespace Socket{
   }
 
   uint64_t SRTConnection::packetRetransmitCount(){
-    //\todo This should be updated with pktRcvRetransTotal on the retrieving end once srt has implemented this.
-    return (direction == "output" ? performanceMonitor.pktRetransTotal : 0);
+    return direction == "output" ? performanceMonitor.pktRetransTotal : performanceMonitor.pktRcvRetrans;
+  }
+
+  /// Returns count of packets recovered by FEC. Only available on receiver side.
+  uint64_t SRTConnection::packetRecoverCount() {
+    return direction == "output" ? 0 : performanceMonitor.pktRcvFilterSupplyTotal;
+  }
+
+  /// Returns calculated estimate of current RTT.
+  uint16_t SRTConnection::RTT() {
+    return performanceMonitor.msRTT;
+  }
+
+  /// Returns negotiated latency.
+  uint16_t SRTConnection::Latency() {
+    return performanceMonitor.msSndTsbPdDelay;
   }
 
   void SRTConnection::initializeEmpty(){

@@ -38,8 +38,11 @@
 #define STAT_CLI_PKTCOUNT 0x400
 #define STAT_CLI_PKTLOST 0x800
 #define STAT_CLI_PKTRETRANSMIT 0x1000
-#define STAT_CLI_TAGS 0x2000
-#define STAT_CLI_ALL 0xFFFF
+#define STAT_CLI_PKTRECOVER 0x2000
+#define STAT_CLI_RTT 0x4000
+#define STAT_CLI_LATENCY 0x8000
+#define STAT_CLI_TAGS 0x10000
+#define STAT_CLI_ALL 0xFFFFFF
 // These are used to store "totals" field requests in a bitfield for speedup.
 #define STAT_TOT_CLIENTS 0x1
 #define STAT_TOT_BPS_DOWN 0x2
@@ -48,6 +51,7 @@
 #define STAT_TOT_OUTPUTS 0x10
 #define STAT_TOT_PERCLOST 0x20
 #define STAT_TOT_PERCRETRANS 0x40
+#define STAT_TOT_PERCRECOVER 0x80
 #define STAT_TOT_ALL 0xFF
 
 // Mapping of sessId -> session statistics
@@ -86,7 +90,7 @@ class tagQueueItem{
 std::map<std::string, tagQueueItem> tagQueue;
 
 const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0 ,0 ,0, "", nullAddress, ""};
+static Controller::statLog emptyLogEntry = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", nullAddress, ""};
 bool notEmpty(const Controller::statLog & dta){
   return dta.time || dta.firstActive || dta.lastSecond || dta.down || dta.up || dta.streamName.size() || dta.connectors.size();
 }
@@ -95,6 +99,10 @@ bool notEmpty(const Controller::statLog & dta){
 struct streamTotals{
   uint64_t upBytes;
   uint64_t downBytes;
+  uint64_t upBytes_in;
+  uint64_t downBytes_in;
+  uint64_t upBytes_out;
+  uint64_t downBytes_out;
   uint64_t inputs;
   uint64_t outputs;
   uint64_t viewers;
@@ -109,6 +117,25 @@ struct streamTotals{
   uint64_t packSent;
   uint64_t packLoss;
   uint64_t packRetrans;
+  uint64_t packRecover;
+  uint64_t packSent_in;
+  uint64_t packLoss_in;
+  uint64_t packRetrans_in;
+  uint64_t packRecover_in;
+  uint64_t packSent_out;
+  uint64_t packLoss_out;
+  uint64_t packRetrans_out;
+  uint64_t packRecover_out;
+  uint16_t rtt;
+  uint16_t rtt_in;
+  uint16_t rtt_out;
+  uint16_t latency_in;
+  uint16_t latency_out;
+  uint16_t rtt_count;
+  uint16_t rtt_in_count;
+  uint16_t rtt_out_count;
+  uint16_t latency_in_count;
+  uint16_t latency_out_count;
   std::set<std::string> tags;
 };
 
@@ -127,6 +154,7 @@ static uint64_t servSeconds = 0;
 static uint64_t servPackSent = 0;
 static uint64_t servPackLoss = 0;
 static uint64_t servPackRetrans = 0;
+static uint64_t servPackRecover = 0;
 // Total time watched for all sessions which are no longer active
 static uint64_t viewSecondsTotal = 0;
 // Mapping of streamName -> summary of stream-wide statistics
@@ -138,6 +166,10 @@ static void createEmptyStatsIfNeeded(const std::string & streamName){
   streamTotals & sT = streamStats[streamName];
   sT.upBytes = 0;
   sT.downBytes = 0;
+  sT.upBytes_in = 0;
+  sT.downBytes_in = 0;
+  sT.upBytes_out = 0;
+  sT.downBytes_out = 0;
   sT.inputs = 0;
   sT.outputs = 0;
   sT.viewers = 0;
@@ -152,6 +184,25 @@ static void createEmptyStatsIfNeeded(const std::string & streamName){
   sT.packSent = 0;
   sT.packLoss = 0;
   sT.packRetrans = 0;
+  sT.packRecover = 0;
+  sT.packSent_in = 0;
+  sT.packLoss_in = 0;
+  sT.packRetrans_in = 0;
+  sT.packRecover_in = 0;
+  sT.packSent_out = 0;
+  sT.packLoss_out = 0;
+  sT.packRetrans_out = 0;
+  sT.packRecover_out = 0;
+  sT.rtt = 0;
+  sT.rtt_in = 0;
+  sT.rtt_out = 0;
+  sT.latency_in = 0;
+  sT.latency_out = 0;
+  sT.rtt_count = 0;
+  sT.rtt_in_count = 0;
+  sT.rtt_out_count = 0;
+  sT.latency_in_count = 0;
+  sT.latency_out_count = 0;
 }
 
 /// Convert bandwidth config into memory format
@@ -461,13 +512,27 @@ size_t Controller::runStats() {
       servPackSent = 0;
       servPackLoss = 0;
       servPackRetrans = 0;
+      servPackRecover = 0;
       for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin(); it != streamStats.end(); ++it) {
         it->second.upBytes = 0;
         it->second.downBytes = 0;
+        it->second.upBytes_in = 0;
+        it->second.downBytes_in = 0;
+        it->second.upBytes_out = 0;
+        it->second.downBytes_out = 0;
         it->second.viewSeconds = 0;
         it->second.packSent = 0;
         it->second.packLoss = 0;
         it->second.packRetrans = 0;
+        it->second.packRecover = 0;
+        it->second.packSent_in = 0;
+        it->second.packLoss_in = 0;
+        it->second.packRetrans_in = 0;
+        it->second.packRecover_in = 0;
+        it->second.packSent_out = 0;
+        it->second.packLoss_out = 0;
+        it->second.packRetrans_out = 0;
+        it->second.packRecover_out = 0;
       }
       Util::RelAccX *strmStats = streamsAccessor();
       if (!strmStats || !strmStats->isReady()) { strmStats = 0; }
@@ -506,6 +571,16 @@ size_t Controller::runStats() {
         it.second.currOuts = 0;
         it.second.currUnspecified = 0;
         it.second.currSessions = 0;
+        it.second.rtt = 0;
+        it.second.rtt_in = 0;
+        it.second.rtt_out = 0;
+        it.second.latency_in = 0;
+        it.second.latency_out = 0;
+        it.second.rtt_count = 0;
+        it.second.rtt_in_count = 0;
+        it.second.rtt_out_count = 0;
+        it.second.latency_in_count = 0;
+        it.second.latency_out_count = 0;
       }
     }
     // wipe old statistics and set session type counters
@@ -530,21 +605,58 @@ size_t Controller::runStats() {
           continue;
         }
         if (strm.size()) {
+          streamTotals & ss = streamStats[it.second.getStreamName()];
           // Recount input, output and viewer type sessions
           switch (it.second.getSessType()) {
             case SESS_UNSET: break;
             case SESS_VIEWER:
-              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currViews++; }
+              if (it.second.hasDataFor(tOut)) {
+                ss.currViews++;
+                if (it.second.getRTT()) {
+                  ss.rtt += it.second.getRTT();
+                  ss.rtt_out += it.second.getRTT();
+                  ss.rtt_count++;
+                  ss.rtt_out_count++;
+                }
+                if (it.second.getLatency()) {
+                  ss.latency_out += it.second.getLatency();
+                  ss.latency_out_count++;
+                }
+              }
               servSeconds += it.second.getConnTime();
               break;
             case SESS_INPUT:
-              if (it.second.hasDataFor(tIn)) { streamStats[it.second.getStreamName()].currIns++; }
+              if (it.second.hasDataFor(tIn)) {
+                ss.currIns++;
+                if (it.second.getRTT()) {
+                  ss.rtt += it.second.getRTT();
+                  ss.rtt_in += it.second.getRTT();
+                  ss.rtt_count++;
+                  ss.rtt_in_count++;
+                }
+                if (it.second.getLatency()) {
+                  ss.latency_in += it.second.getLatency();
+                  ss.latency_in_count++;
+                }
+              }
               break;
             case SESS_OUTPUT:
-              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currOuts++; }
+              if (it.second.hasDataFor(tOut)) {
+                ss.currOuts++;
+                if (it.second.getRTT()) {
+                  ss.rtt += it.second.getRTT();
+                  ss.rtt_out += it.second.getRTT();
+                  ss.rtt_count++;
+                  ss.rtt_out_count++;
+                }
+                if (it.second.getLatency()) {
+                  ss.latency_out += it.second.getLatency();
+                  ss.latency_out_count++;
+                }
+              }
               break;
             case SESS_UNSPECIFIED:
-              if (it.second.hasDataFor(tOut)) { streamStats[it.second.getStreamName()].currUnspecified++; }
+              if (it.second.hasDataFor(tOut)) { ss.currUnspecified++; }
               break;
           }
         }
@@ -721,7 +833,9 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
   uint64_t prevPktSent = getPktCount();
   uint64_t prevPktLost = getPktLost();
   uint64_t prevPktRetrans = getPktRetransmit();
+  uint64_t prevPktRecover = getPktRecover();
   uint64_t prevFirstActive = getFirstActive();
+  uint64_t prevConnTime = getConnTime();
 
   curData.update(statComm, index);
   const std::string& streamName = getStreamName();
@@ -736,12 +850,14 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
     statComm.setTags("", index);
   }
   
-  uint64_t secIncr = prevFirstActive ? (statComm.getNow(index) - prevNow) : 0;
   long long currDown = getDown();
   long long currUp = getUp();
   uint64_t currPktSent = getPktCount();
   uint64_t currPktLost = getPktLost();
   uint64_t currPktRetrans = getPktRetransmit();
+  uint64_t currPktRecover = getPktRecover();
+  uint64_t currConnTime = getConnTime();
+  uint64_t secIncr = prevFirstActive ? (currConnTime - prevConnTime) : 0;
   if (currUp - prevUp < 0 || currDown - prevDown < 0){
     INFO_MSG("Negative data usage! %lldu/%lldd (u%lld->%lld) in %s over %s, #%" PRIu64, currUp - prevUp,
              currDown - prevDown, prevUp, currUp, streamName.c_str(), curData.log.rbegin()->second.connectors.c_str(), index);
@@ -772,6 +888,7 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
       servPackSent += currPktSent - prevPktSent;
       servPackLoss += currPktLost - prevPktLost;
       servPackRetrans += currPktRetrans - prevPktRetrans;
+      servPackRecover += currPktRecover - prevPktRecover;
     }
   }
   if (!prevFirstActive && streamName.size()){
@@ -806,7 +923,24 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
     sT.packSent += currPktSent - prevPktSent;
     sT.packLoss += currPktLost - prevPktLost;
     sT.packRetrans += currPktRetrans - prevPktRetrans;
+    sT.packRecover += currPktRecover - prevPktRecover;
     if (sessionType == SESS_VIEWER){sT.viewSeconds += secIncr;}
+    if (sessionType == SESS_VIEWER || sessionType == SESS_OUTPUT) {
+      sT.upBytes_out += currUp - prevUp;
+      sT.downBytes_out += currDown - prevDown;
+      sT.packSent_out += currPktSent - prevPktSent;
+      sT.packLoss_out += currPktLost - prevPktLost;
+      sT.packRetrans_out += currPktRetrans - prevPktRetrans;
+      sT.packRecover_out += currPktRecover - prevPktRecover;
+    }
+    if (sessionType == SESS_INPUT) {
+      sT.upBytes_in += currUp - prevUp;
+      sT.downBytes_in += currDown - prevDown;
+      sT.packSent_in += currPktSent - prevPktSent;
+      sT.packLoss_in += currPktLost - prevPktLost;
+      sT.packRetrans_in += currPktRetrans - prevPktRetrans;
+      sT.packRecover_in += currPktRecover - prevPktRecover;
+    }
   }
 }
 
@@ -1041,6 +1175,39 @@ uint64_t Controller::statSession::getPktRetransmit(){
   return 0;
 }
 
+uint64_t Controller::statSession::getPktRecover(uint64_t t) {
+  if (hasDataFor(t)) { return curData.getDataFor(t).pktRecover; }
+  return 0;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint64_t Controller::statSession::getPktRecover() {
+  if (curData.log.size()) { return curData.log.rbegin()->second.pktRecover; }
+  return 0;
+}
+
+uint16_t Controller::statSession::getRTT(uint64_t t) {
+  if (hasDataFor(t)) { return curData.getDataFor(t).rtt; }
+  return 0;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint16_t Controller::statSession::getRTT() {
+  if (curData.log.size()) { return curData.log.rbegin()->second.rtt; }
+  return 0;
+}
+
+uint16_t Controller::statSession::getLatency(uint64_t t) {
+  if (hasDataFor(t)) { return curData.getDataFor(t).latency; }
+  return 0;
+}
+
+/// Returns the cumulative uploaded bytes for this session at timestamp t.
+uint16_t Controller::statSession::getLatency() {
+  if (curData.log.size()) { return curData.log.rbegin()->second.latency; }
+  return 0;
+}
+
 /// Returns the cumulative downloaded bytes per second for this session at timestamp t.
 uint64_t Controller::statSession::getBpsDown(uint64_t t){
   uint64_t aTime = t - 5;
@@ -1089,6 +1256,9 @@ void Controller::statStorage::update(Comms::Sessions &statComm, size_t index){
   tmp.pktCount = statComm.getPacketCount(index);
   tmp.pktLost = statComm.getPacketLostCount(index);
   tmp.pktRetransmit = statComm.getPacketRetransmitCount(index);
+  tmp.pktRecover = statComm.getPacketRecoverCount(index);
+  tmp.rtt = statComm.getRoundTripTime(index);
+  tmp.latency = statComm.getLatency(index);
   tmp.connectors = statComm.getConnector(index);
   tmp.streamName = statComm.getStream(index);
   tmp.host = statComm.getHost(index);
@@ -1255,7 +1425,7 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   // at this point, we have the absolute timestamp in bootsecs.
   rep["time"] = reqTime + (Controller::systemBoot/1000); // fill the absolute timestamp
 
-  unsigned int fields = 0;
+  uint32_t fields = 0;
   // next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
     jsonForEach(req["fields"], it){
@@ -1273,6 +1443,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if ((*it).asStringRef() == "pktlost"){fields |= STAT_CLI_PKTLOST;}
       if ((*it).asStringRef() == "pktretransmit"){fields |= STAT_CLI_PKTRETRANSMIT;}
       if ((*it).asStringRef() == "tags") { fields |= STAT_CLI_TAGS; }
+      if ((*it).asStringRef() == "pktrecover") { fields |= STAT_CLI_PKTRECOVER; }
+      if ((*it).asStringRef() == "rtt") { fields |= STAT_CLI_RTT; }
+      if ((*it).asStringRef() == "latency") { fields |= STAT_CLI_LATENCY; }
     }
   }
   // select all, if none selected
@@ -1324,6 +1497,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
   if (fields & STAT_CLI_PKTCOUNT){rep["fields"].append("pktcount");}
   if (fields & STAT_CLI_PKTLOST){rep["fields"].append("pktlost");}
   if (fields & STAT_CLI_PKTRETRANSMIT){rep["fields"].append("pktretransmit");}
+  if (fields & STAT_CLI_PKTRECOVER) { rep["fields"].append("pktrecover"); }
+  if (fields & STAT_CLI_RTT) { rep["fields"].append("rtt"); }
+  if (fields & STAT_CLI_LATENCY) { rep["fields"].append("latency"); }
   if (fields & STAT_CLI_TAGS) { rep["fields"].append("tags"); }
   // output the data itself
   rep["data"].null();
@@ -1345,6 +1521,9 @@ void Controller::fillClients(JSON::Value &req, JSON::Value &rep){
       if (fields & STAT_CLI_PKTCOUNT) { d.append(S.getPktCount(time)); }
       if (fields & STAT_CLI_PKTLOST) { d.append(S.getPktLost(time)); }
       if (fields & STAT_CLI_PKTRETRANSMIT) { d.append(S.getPktRetransmit(time)); }
+      if (fields & STAT_CLI_PKTRECOVER) { d.append(S.getPktRecover(time)); }
+      if (fields & STAT_CLI_RTT) { d.append(S.getRTT(time)); }
+      if (fields & STAT_CLI_LATENCY) { d.append(S.getLatency(time)); }
       if (fields & STAT_CLI_TAGS) {
         JSON::Value & O = d.append();
         for (const std::string & T : S.tags) { O.append(T); }
@@ -1497,16 +1676,34 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
       fields.append("views");
       fields.append("viewseconds");
       fields.append("upbytes");
+      fields.append("upbytes_in");
+      fields.append("upbytes_out");
       fields.append("downbytes");
+      fields.append("downbytes_in");
+      fields.append("downbytes_out");
       fields.append("packsent");
       fields.append("packloss");
       fields.append("packretrans");
+      fields.append("packrecover");
+      fields.append("packsent_in");
+      fields.append("packloss_in");
+      fields.append("packretrans_in");
+      fields.append("packrecover_in");
+      fields.append("packsent_out");
+      fields.append("packloss_out");
+      fields.append("packretrans_out");
+      fields.append("packrecover_out");
       fields.append("firstms");
       fields.append("lastms");
       //fields.append("zerounix");
       fields.append("health");
       fields.append("pid");
       fields.append("tags");
+      fields.append("rtt");
+      fields.append("rtt_in");
+      fields.append("rtt_out");
+      fields.append("latency_in");
+      fields.append("latency_out");
     }
   }
   // collect the data first
@@ -1558,12 +1755,48 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
           F = it->second.upBytes;
         } else if (j->asStringRef() == "downbytes") {
           F = it->second.downBytes;
+        } else if (j->asStringRef() == "upbytes_in") {
+          F = it->second.upBytes_in;
+        } else if (j->asStringRef() == "downbytes_in") {
+          F = it->second.downBytes_in;
+        } else if (j->asStringRef() == "upbytes_out") {
+          F = it->second.upBytes_out;
+        } else if (j->asStringRef() == "downbytes_out") {
+          F = it->second.downBytes_out;
         } else if (j->asStringRef() == "packsent") {
           F = it->second.packSent;
         } else if (j->asStringRef() == "packloss") {
           F = it->second.packLoss;
         } else if (j->asStringRef() == "packretrans") {
           F = it->second.packRetrans;
+        } else if (j->asStringRef() == "packrecover") {
+          F = it->second.packRecover;
+        } else if (j->asStringRef() == "packsent_in") {
+          F = it->second.packSent_in;
+        } else if (j->asStringRef() == "packloss_in") {
+          F = it->second.packLoss_in;
+        } else if (j->asStringRef() == "packretrans_in") {
+          F = it->second.packRetrans_in;
+        } else if (j->asStringRef() == "packrecover_in") {
+          F = it->second.packRecover_in;
+        } else if (j->asStringRef() == "packsent_out") {
+          F = it->second.packSent_out;
+        } else if (j->asStringRef() == "packloss_out") {
+          F = it->second.packLoss_out;
+        } else if (j->asStringRef() == "packretrans_out") {
+          F = it->second.packRetrans_out;
+        } else if (j->asStringRef() == "packrecover_out") {
+          F = it->second.packRecover_out;
+        } else if (j->asStringRef() == "rtt" && it->second.rtt_count) {
+          F = it->second.rtt / it->second.rtt_count;
+        } else if (j->asStringRef() == "rtt_in" && it->second.rtt_in_count) {
+          F = it->second.rtt_in / it->second.rtt_in_count;
+        } else if (j->asStringRef() == "rtt_out" && it->second.rtt_out_count) {
+          F = it->second.rtt_out / it->second.rtt_out_count;
+        } else if (j->asStringRef() == "latency_in" && it->second.latency_in_count) {
+          F = it->second.latency_in / it->second.latency_in_count;
+        } else if (j->asStringRef() == "latency_out" && it->second.latency_out_count) {
+          F = it->second.latency_out / it->second.latency_out_count;
         } else if (j->asStringRef() == "firstms") {
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
@@ -1655,8 +1888,10 @@ public:
     pktCount = 0;
     pktLost = 0;
     pktRetransmit = 0;
+    pktRecover = 0;
   }
-  void add(uint64_t down, uint64_t up, Controller::sessType sT, uint64_t pCount, uint64_t pLost, uint64_t pRetransmit){
+  void add(uint64_t down, uint64_t up, Controller::sessType sT, uint64_t pCount, uint64_t pLost, uint64_t pRetransmit,
+           uint64_t pRecover) {
     switch (sT){
     case Controller::SESS_VIEWER: clients++; break;
     case Controller::SESS_INPUT: inputs++; break;
@@ -1669,6 +1904,7 @@ public:
     pktCount += pCount;
     pktLost += pLost;
     pktRetransmit += pRetransmit;
+    pktRecover += pRecover;
   }
   uint64_t clients;
   uint64_t inputs;
@@ -1679,6 +1915,7 @@ public:
   uint64_t pktCount;
   uint64_t pktLost;
   uint64_t pktRetransmit;
+  uint64_t pktRecover;
 };
 
 /// This takes a "totals" request, and fills in the response data.
@@ -1723,6 +1960,7 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
       if ((*it).asStringRef() == "perc_lost"){fields |= STAT_TOT_PERCLOST;}
       if ((*it).asStringRef() == "perc_retrans"){fields |= STAT_TOT_PERCRETRANS;}
+      if ((*it).asStringRef() == "perc_recover") { fields |= STAT_TOT_PERCRECOVER; }
     }
   }
   // select all, if none selected
@@ -1760,6 +1998,7 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
   if (fields & STAT_TOT_BPS_UP){rep["fields"].append("upbps");}
   if (fields & STAT_TOT_PERCLOST){rep["fields"].append("perc_lost");}
   if (fields & STAT_TOT_PERCRETRANS){rep["fields"].append("perc_retrans");}
+  if (fields & STAT_TOT_PERCRECOVER) { rep["fields"].append("perc_recover"); }
   // start data collection
   std::map<uint64_t, totalsData> totalsCount;
   // loop over all sessions
@@ -1773,8 +2012,8 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       if (!hasEntry(hosts, it.second.getStrHost(), 0)) { continue; }
       for (unsigned long long i = reqStart; i <= reqEnd; ++i) {
         if (it.second.hasDataFor(i)) {
-          totalsCount[i].add(it.second.getBpsDown(i), it.second.getBpsUp(i), it.second.getSessType(),
-                             it.second.getPktCount(), it.second.getPktLost(), it.second.getPktRetransmit());
+          totalsCount[i].add(it.second.getBpsDown(i), it.second.getBpsUp(i), it.second.getSessType(), it.second.getPktCount(),
+                             it.second.getPktLost(), it.second.getPktRetransmit(), it.second.getPktRecover());
         }
       }
     }
@@ -1813,6 +2052,13 @@ void Controller::fillTotals(JSON::Value &req, JSON::Value &rep){
       if (it->second.pktCount > 0){
         d.append((it->second.pktRetransmit*100)/it->second.pktCount);
       }else{
+        d.append(0);
+      }
+    }
+    if (fields & STAT_TOT_PERCRECOVER) {
+      if (it->second.pktLost > 0) {
+        d.append((it->second.pktRecover * 100) / it->second.pktLost);
+      } else {
         d.append(0);
       }
     }
@@ -1946,6 +2192,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     response << "mist_packets_total{pkttype=\"sent\"}" << servPackSent << "\n";
     response << "mist_packets_total{pkttype=\"lost\"}" << servPackLoss << "\n";
     response << "mist_packets_total{pkttype=\"retrans\"}" << servPackRetrans << "\n";
+    response << "mist_packets_total{pkttype=\"recover\"}" << servPackRecover << "\n";
 
     if (outputs.size()){
       response << "# HELP mist_outputs Number of viewers active right now, server-wide, by output type.\n";
@@ -1991,9 +2238,49 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         response << "mist_viewseconds{stream=\"" << it->first << "\"} " << it->second.viewSeconds << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"up\"}" << it->second.upBytes << "\n";
         response << "mist_bw{stream=\"" << it->first << "\",direction=\"down\"}" << it->second.downBytes << "\n";
+        response << "mist_bw_dir{stream=\"" << it->first << "\",direction=\"in,up\"}" << it->second.upBytes_in << "\n";
+        response << "mist_bw_dir{stream=\"" << it->first << "\",direction=\"in,down\"}" << it->second.downBytes_in << "\n";
+        response << "mist_bw_dir{stream=\"" << it->first << "\",direction=\"out,up\"}" << it->second.upBytes_out << "\n";
+        response << "mist_bw_dir{stream=\"" << it->first << "\",direction=\"out,down\"}" << it->second.downBytes_out << "\n";
         response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"sent\"}" << it->second.packSent << "\n";
         response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"lost\"}" << it->second.packLoss << "\n";
         response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"retrans\"}" << it->second.packRetrans << "\n";
+        response << "mist_packets{stream=\"" << it->first << "\",pkttype=\"recover\"}" << it->second.packRecover << "\n";
+
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"sent\",direction=\"in\"}"
+                 << it->second.packSent_in << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"lost\",direction=\"in\"}"
+                 << it->second.packLoss_in << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"retrans\",direction=\"in\"}"
+                 << it->second.packRetrans_in << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"recover\",direction=\"in\"}"
+                 << it->second.packRecover_in << "\n";
+
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"sent\",direction=\"out\"}"
+                 << it->second.packSent_out << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"lost\",direction=\"out\"}"
+                 << it->second.packLoss_out << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"retrans\",direction=\"out\"}"
+                 << it->second.packRetrans_out << "\n";
+        response << "mist_packets_dir{stream=\"" << it->first << "\",pkttype=\"recover\",direction=\"out\"}"
+                 << it->second.packRecover_out << "\n";
+
+        if (it->second.rtt_in_count) {
+          response << "mist_rtt{stream=\"" << it->first << "\",direction=\"in\"}"
+                   << it->second.rtt_in / it->second.rtt_in_count << "\n";
+        }
+        if (it->second.rtt_out_count) {
+          response << "mist_rtt{stream=\"" << it->first << "\",direction=\"out\"}"
+                   << it->second.rtt_out / it->second.rtt_out_count << "\n";
+        }
+        if (it->second.latency_in_count) {
+          response << "mist_latency{stream=\"" << it->first << "\",direction=\"in\"}"
+                   << it->second.latency_in / it->second.latency_in_count << "\n";
+        }
+        if (it->second.latency_out_count) {
+          response << "mist_latency{stream=\"" << it->first << "\",direction=\"out\"}"
+                   << it->second.latency_out / it->second.latency_out_count << "\n";
+        }
       }
 
       if (Controller::triggerStats.size()){
@@ -2036,6 +2323,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
     resp["pkts"].append(servPackSent);
     resp["pkts"].append(servPackLoss);
     resp["pkts"].append(servPackRetrans);
+    resp["pkts"].append(servPackRecover);
     resp["bwlimit"] = bwLimit;
     {// Scope for shortest possible blocking of statsMutex
       std::lock_guard<std::recursive_mutex> guard(statsMutex);
@@ -2077,6 +2365,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         strm["pkts"].append(it->second.packSent);
         strm["pkts"].append(it->second.packLoss);
         strm["pkts"].append(it->second.packRetrans);
+        strm["pkts"].append(it->second.packRecover);
         if (it->second.tags.count("replicated")) { strm["rep"] = true; }
       }
       for (std::map<std::string, uint32_t>::iterator it = outputs.begin(); it != outputs.end(); ++it){

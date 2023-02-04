@@ -2815,7 +2815,7 @@ namespace Mist{
         pData["active_seconds"] = (thisBootMs - outputStartMs) / 1000;
         pData["active_ms"] = thisBootMs - outputStartMs;
         pData["current_target"] = currentTarget;
-        if (M && buffer.size()) { pData["latency"] = endTime() - currentTime(); }
+        if (M && buffer.size() && currentTime() <= endTime()) { pData["latency"] = endTime() - currentTime(); }
         for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
           pData["tracks"].append((uint64_t)it->first);
         }
@@ -2831,6 +2831,8 @@ namespace Mist{
             if (pktCntDiff) { pData["pkt_loss_perc"] = (pktLosDiff * 100) / pktCntDiff; }
             pData["pkt_loss_count"] = pktLosNow;
             pData["pkt_retrans_count"] = statComm.getPacketRetransmitCount();
+            if (statComm.getRoundTripTime()) { pData["protocol_rtt"] = statComm.getRoundTripTime(); }
+            if (statComm.getLatency()) { pData["protocol_latency"] = statComm.getLatency(); }
             prevPktCount = pktCntNow;
             prevLosCount = pktLosNow;
           }

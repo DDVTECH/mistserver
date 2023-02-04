@@ -149,6 +149,21 @@ namespace Comms{
     void setPacketRetransmitCount(uint64_t _retransmit);
     void setPacketRetransmitCount(uint64_t _retransmit, size_t idx);
 
+    uint64_t getPacketRecoverCount() const;
+    uint64_t getPacketRecoverCount(size_t idx) const;
+    void setPacketRecoverCount(uint64_t _recover);
+    void setPacketRecoverCount(uint64_t _recover, size_t idx);
+
+    uint16_t getRoundTripTime() const;
+    uint16_t getRoundTripTime(size_t idx) const;
+    void setRoundTripTime(uint16_t _rtt);
+    void setRoundTripTime(uint16_t _rtt, size_t idx);
+
+    uint16_t getLatency() const;
+    uint16_t getLatency(size_t idx) const;
+    void setLatency(uint16_t _rtt);
+    void setLatency(uint16_t _rtt, size_t idx);
+
   protected:
     Util::FieldAccX now;
     Util::FieldAccX time;
@@ -163,6 +178,9 @@ namespace Comms{
     Util::FieldAccX pktcount;
     Util::FieldAccX pktloss;
     Util::FieldAccX pktretrans;
+    Util::FieldAccX pktrecover;
+    Util::FieldAccX rtt;
+    Util::FieldAccX latency;
   };
 
   class Users : public Comms{

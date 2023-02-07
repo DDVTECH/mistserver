@@ -284,8 +284,18 @@ void HTTP::Parser::StartResponse(std::string code, std::string message, const HT
   protocol = prot;
   if (sendingChunks){
     SetHeader("Transfer-Encoding", "chunked");
+    //Chunked encoding does not allow a Content-Length, so convert to Content-Range instead
+    if (headers.count("Content-Length")){
+      uint32_t len = atoi(headers["Content-Length"].c_str());
+      if (len && !headers.count("Content-Range")){
+        std::stringstream rangeReply;
+        rangeReply << "bytes 0-" << (len-1) << "/" << len;
+        SetHeader("Content-Range", rangeReply.str());
+      }
+      headers.erase("Content-Length");
+    }
   }else{
-    SetHeader("Connection", "close");
+    if (!headers.count("Content-Length")){SetHeader("Connection", "close");}
   }
   bufferChunks = bufferAllChunks;
   if (!bufferAllChunks){SendResponse(code, message, conn);}

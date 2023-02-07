@@ -24,6 +24,7 @@ namespace Mist{
 
   struct playListEntries{
     std::string filename;
+    std::string relative_filename;
     uint64_t bytePos;
     uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
     float duration;
@@ -73,12 +74,13 @@ namespace Mist{
     Playlist(const std::string &uriSrc = "");
     bool isUrl() const;
     bool reload();
-    void addEntry(const std::string &filename, float duration, uint64_t &totalBytes,
+    void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &totalBytes,
                   const std::string &key, const std::string &keyIV);
     bool isSupportedFile(const std::string filename);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;
+    std::string relurl;
 
     uint64_t reloadNext;
 
@@ -162,7 +164,7 @@ namespace Mist{
 
     bool readIndex();
     bool initPlaylist(const std::string &uri, bool fullInit = true);
-    bool readPlaylist(const HTTP::URL &uri, bool fullInit = true);
+    bool readPlaylist(const HTTP::URL &uri, const std::string & relurl, bool fullInit = true);
     bool readNextFile();
 
     void parseStreamHeader();

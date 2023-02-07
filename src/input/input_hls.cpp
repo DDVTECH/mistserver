@@ -106,6 +106,7 @@ namespace Mist{
   std::map<uint64_t, uint64_t> parsedSegments;
   /// Mutex for accesses to listEntries
   tthread::mutex entryMutex;
+  JSON::Value playlist_urls; ///< Relative URLs to the various playlists
 
   static unsigned int plsTotalCount = 0; /// Total playlists active
   static unsigned int plsInitCount = 0;  /// Count of playlists fully inited
@@ -167,11 +168,18 @@ namespace Mist{
     MEDIUM_MSG("Downloader thread for '%s' exiting", pls.uri.c_str());
   }
 
-  Playlist::Playlist(const std::string &uriSrc){
+  Playlist::Playlist(const std::string &uriSource){
     nextUTC = 0;
     id = 0; // to be set later
     //If this is the copy constructor, just be silent.
-    if (uriSrc.size()){INFO_MSG("Adding variant playlist: %s", uriSrc.c_str());}
+    std::string uriSrc;
+    if (uriSource.find('\n') != std::string::npos){
+      uriSrc = uriSource.substr(0, uriSource.find('\n'));
+      relurl = uriSource.substr(uriSource.find('\n') + 1);
+    }else{
+      uriSrc = uriSource;
+    }
+    if (uriSrc.size()){INFO_MSG("Adding variant playlist: %s -> %s", relurl.c_str(), uriSrc.c_str());}
     lastFileIndex = 0;
     waitTime = 2;
     playlistEnd = false;
@@ -473,7 +481,6 @@ namespace Mist{
       DONTEVEN_MSG("Current file has index #%" PRIu64 ", last index was #%" PRIu64 "", fileNo, lastFileIndex);
       if (fileNo >= lastFileIndex){
         cleanLine(filename);
-        filename = root.link(filename).getUrl();
         char ivec[16];
         if (keyIV.size()){
           parseKey(keyIV, ivec, 16);
@@ -481,7 +488,7 @@ namespace Mist{
           memset(ivec, 0, 16);
           Bit::htobll(ivec + 8, fileNo);
         }
-        addEntry(filename, f, totalBytes, keys[keyUri], std::string(ivec, 16));
+        addEntry(root.link(filename).getUrl(), filename, f, totalBytes, keys[keyUri], std::string(ivec, 16));
         lastFileIndex = fileNo + 1;
         ++count;
       }
@@ -519,7 +526,7 @@ namespace Mist{
   }
 
   /// Adds playlist segments to be processed
-  void Playlist::addEntry(const std::string &filename, float duration, uint64_t &totalBytes,
+  void Playlist::addEntry(const std::string &absolute_filename, const std::string &filename, float duration, uint64_t &totalBytes,
                           const std::string &key, const std::string &iv){
     // if (!isSupportedFile(filename)){
     //  WARN_MSG("Ignoring unsupported file: %s", filename.c_str());
@@ -527,7 +534,8 @@ namespace Mist{
     //}
 
     playListEntries entry;
-    entry.filename = filename;
+    entry.filename = absolute_filename;
+    entry.relative_filename = filename;
     cleanLine(entry.filename);
     entry.bytePos = totalBytes;
     entry.duration = duration;
@@ -558,6 +566,7 @@ namespace Mist{
       // The mutex assures we have a unique count/number.
       if (!id){id = listEntries.size() + 1;}
       HIGH_MSG("Adding entry '%s' to ID %u", filename.c_str(), id);
+      playlist_urls[JSON::Value(id).asString()] = relurl;
       listEntries[id].push_back(entry);
     }
   }
@@ -718,18 +727,25 @@ namespace Mist{
       INFO_MSG("Header needs update as it contains no playlist entries, regenerating");
       return false;
     }
+    if (!M.inputLocalVars.isMember("playlist_urls")){
+      INFO_MSG("Header needs update as it contains no playlist URLs, regenerating");
+      return false;
+    }
     if (!M.inputLocalVars.isMember("pidMappingR")){
       INFO_MSG("Header needs update as it contains no packet id mappings, regenerating");
       return false;
     }
     // Recover playlist entries
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
+    HTTP::URL root(config->getString("input"));
     jsonForEachConst(M.inputLocalVars["playlistEntries"], i){
+      uint64_t plNum = JSON::Value(i.key()).asInt();
       std::deque<playListEntries> newList;
       jsonForEachConst(*i, j){
         const JSON::Value & thisEntry = *j;
         playListEntries newEntry;
-        newEntry.filename = thisEntry[0u].asString();
+        newEntry.relative_filename = thisEntry[0u].asString();
+        newEntry.filename = root.link(M.inputLocalVars["playlist_urls"][i.key()]).link(thisEntry[0u].asString()).getUrl();
         newEntry.bytePos = thisEntry[1u].asInt();
         newEntry.mUTC = thisEntry[2u].asInt();
         newEntry.duration = thisEntry[3u].asDouble();
@@ -745,7 +761,7 @@ namespace Mist{
         }
         newList.push_back(newEntry);
       }
-      listEntries[JSON::Value(i.key()).asInt()] = newList;
+      listEntries[plNum] = newList;
     }
     // Recover pidMappings
     jsonForEachConst(M.inputLocalVars["pidMappingR"], i){
@@ -867,7 +883,7 @@ namespace Mist{
       for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
          entryIt != pListIt->second.end(); entryIt++){
         JSON::Value thisEntries;
-        thisEntries.append(entryIt->filename);
+        thisEntries.append(entryIt->relative_filename);
         thisEntries.append(entryIt->bytePos);
         thisEntries.append(entryIt->mUTC);
         thisEntries.append(entryIt->duration);
@@ -880,6 +896,7 @@ namespace Mist{
       }
       allEntries[JSON::Value(pListIt->first).asString()] = thisPlaylist;
     }
+    meta.inputLocalVars["playlist_urls"] = playlist_urls;
     meta.inputLocalVars["playlistEntries"] = allEntries;
     meta.inputLocalVars["streamoffset"] = streamOffset;
 
@@ -1413,7 +1430,7 @@ namespace Mist{
 
         if (codecSupported){
 
-          ret = readPlaylist(playlistRootPath.link(line), fullInit);
+          ret = readPlaylist(playlistRootPath.link(line), line, fullInit);
         }else{
           INFO_MSG("skipping variant playlist %s, none of the codecs are supported",
                    playlistRootPath.link(line).getUrl().c_str());
@@ -1429,7 +1446,7 @@ namespace Mist{
           int pos = line.find("URI");
           if (pos != std::string::npos){
             mediafile = line.substr(pos + 5, line.length() - pos - 6);
-            ret = readPlaylist(playlistRootPath.link(mediafile), fullInit);
+            ret = readPlaylist(playlistRootPath.link(mediafile), mediafile, fullInit);
           }
         }
 
@@ -1455,7 +1472,7 @@ namespace Mist{
     }
 
     if (isRegularPls){
-      ret = readPlaylist(playlistRootPath.getUrl(), fullInit);
+      ret = readPlaylist(playlistRootPath.getUrl(), "", fullInit);
     }
 
     if (!isUrl){fileSource.close();}
@@ -1479,14 +1496,14 @@ namespace Mist{
   }
 
   /// Function for reading every playlist.
-  bool inputHLS::readPlaylist(const HTTP::URL &uri, bool fullInit){
+  bool inputHLS::readPlaylist(const HTTP::URL &uri, const  std::string & relurl, bool fullInit){
     std::string urlBuffer;
     // Wildcard streams can have a ' ' in the name, which getUrl converts to a '+'
     if (uri.isLocalPath()){
-      urlBuffer = (fullInit ? "" : ";") + uri.getFilePath();
+      urlBuffer = (fullInit ? "" : ";") + uri.getFilePath() + "\n" + relurl;
     }
     else{
-      urlBuffer = (fullInit ? "" : ";") + uri.getUrl();
+      urlBuffer = (fullInit ? "" : ";") + uri.getUrl() + "\n" + relurl;
     }
     INFO_MSG("Adding playlist(s): %s", urlBuffer.c_str());
     tthread::thread runList(playlistRunner, (void *)urlBuffer.data());

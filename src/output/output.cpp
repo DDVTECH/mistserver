@@ -1668,7 +1668,7 @@ namespace Mist{
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
                       connectToFile(playlistLocationString, false, &plsConn);
                     }
-                    // Else we are in a sliding window playlist, so it will already get overwritten
+                    // Else we are in a sliding window playlist, so it will automatically get overwritten
                   }
                   // Remove older entries in the playlist
                   if (maxEntries || targetAge){
@@ -1759,8 +1759,8 @@ namespace Mist{
     onFinish();
     // Write last segment
     if (targetParams.count("m3u8")){
-      // If this is VOD, we can finally open up the connection to the playlist file
-      if (M.getVod()){connectToFile(playlistLocationString, false, &plsConn);}
+      // If this is a non-live source, we can finally open up the connection to the playlist file
+      if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
       if (plsConn){
         std::string segment = HTTP::URL(currentTarget).getLinkFrom(playlistLocation);
         if (M.getLive()){

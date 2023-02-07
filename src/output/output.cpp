@@ -1656,7 +1656,7 @@ namespace Mist{
                     if (!M.getLive()){
                       uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                    }else if (!maxEntries && !targetAge){
+                    }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
                       // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
                       HTTP::URIReader inFile(playlistLocationString);
                       char *newBuffer;

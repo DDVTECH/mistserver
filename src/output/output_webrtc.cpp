@@ -1228,9 +1228,9 @@ namespace Mist{
       int len = udp.data.size();
       if (srtpReader.unprotectRtp((uint8_t *)(char*)udp.data, &len) != 0){
         if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTP decrypt failure" << std::endl;}
-        FAIL_MSG("Failed to unprotect a RTP packet.");
         return;
       }
+      if (!len){return;}
       lastRecv = Util::bootMS();
       RTP::Packet unprotPack(udp.data, len);
       DONTEVEN_MSG("%s", unprotPack.toString().c_str());
@@ -1262,9 +1262,9 @@ namespace Mist{
       if (doDTLS){
         if (srtpReader.unprotectRtcp((uint8_t *)(char*)udp.data, &len) != 0){
           if (packetLog.is_open()){packetLog << "[" << Util::bootMS() << "]" << "RTCP decrypt failure" << std::endl;}
-          FAIL_MSG("Failed to unprotect RTCP.");
           return;
         }
+        if (!len){return;}
       }
 
       lastRecv = Util::bootMS();

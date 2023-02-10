@@ -139,7 +139,7 @@ size_t Util::streamCustomVariables(std::string &str){
   for (size_t i = 0; i < varAccX.getEndPos(); i++){
     // Replace $thisName with $thisVal
     if (varAccX.getPointer("name", i)){
-      std::string thisName = "$" + std::string(varAccX.getPointer("name", i));
+      std::string thisName = std::string(varAccX.getPointer("name", i));
       std::string thisVal = std::string(varAccX.getPointer("lastVal", i));
       count += replaceVar(str, thisName, thisVal);
     }

@@ -1297,7 +1297,7 @@ void Controller::fillHasStats(JSON::Value &req, JSON::Value &rep){
       jsonForEach(req, j){
         if (j->asStringRef() == "clients"){rep[*it].append(clients[*it]);}
         if (j->asStringRef() == "lastms"){
-          DTSC::Meta M(*it, false);
+          DTSC::Meta M(*it, false, false);
           if (M){
             uint64_t lms = 0;
             std::set<size_t> validTracks = M.getValidTracks();

@@ -196,7 +196,7 @@ def binaries_pipeline(context, platform):
                 "name": "binaries",
                 "commands": [
                     'export CI_PATH="$(realpath ..)"',
-                    "echo {} | tee VERSION".format(version),
+                    "echo {} | tee BUILD_VERSION".format(version),
                     "meson setup -DLOAD_BALANCE=true -DNORIST=true -DNORIST=true -Dprefix=$CI_PATH --default-library static build",
                     "cd build/",
                     "ninja && ninja install",

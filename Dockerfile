@@ -9,82 +9,41 @@ ENV	DEBIAN_FRONTEND=noninteractive
 WORKDIR	/src
 
 RUN	apt update -yq \
-	&& apt install -yqq build-essential cmake git
-
-RUN	git clone https://github.com/cisco/libsrtp.git \
-	&& mkdir -p libsrtp/build \
-	&& cd libsrtp/build \
-	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
-	&& make -j$(nproc) install \
-	&& cd /src \
-	&& git clone -b dtls_srtp_support --depth=1 https://github.com/livepeer/mbedtls.git \
-	&& cd mbedtls \
-	&& mkdir build \
-	&& cd build \
-	&& cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D CMAKE_C_FLAGS="-fPIC" .. \
-	&& make -j$(nproc) install \
-	&& cd /src \
-	&& git clone https://github.com/Haivision/srt.git \
-	&& mkdir -p srt/build \
-	&& cd srt/build \
-	&& cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/src/compiled -D USE_ENCLIB=mbedtls -D ENABLE_SHARED=false -D CMAKE_POSITION_INDEPENDENT_CODE=on \
-	&& make -j$(nproc) install
-
-ENV	LD_LIBRARY_PATH="/src/compiled/lib" \
-	C_INCLUDE_PATH="/src/compiled/include"
+	&& apt install -yqq build-essential cmake git python3-pip \
+	&& pip3 install -U meson ninja
 
 COPY	.	.
 
 ARG	BUILD_VERSION
 ENV	BUILD_VERSION="${BUILD_VERSION}"
 
-RUN	mkdir -p /src/build/ \
-	&& cd /src/build/ \
-	&& echo "${BUILD_VERSION}" > BUILD_VERSION
+RUN	echo "${BUILD_VERSION}" > VERSION
 
 FROM	mist-base	as	mist-static-build
 
-WORKDIR	/src/build
+WORKDIR	/src
 
-RUN	cmake \
-	  -DPERPETUAL=1 \
-	  -DDEBUG=3 \
-	  -DLOAD_BALANCE=1 \
-	  -DNOLLHLS=1 \
-	  -DCMAKE_C_FLAGS="-fPIC" \
-	  -DCMAKE_INSTALL_PREFIX=/opt \
-	  -DCMAKE_PREFIX_PATH=/src/compiled \
-	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DNORIST=yes \
-	  .. \
-	&& make -j$(nproc) \
-	&& make install
+RUN	meson setup -DNORIST=true -DLOAD_BALANCE=true -Dprefix=/opt --default-library static build \
+	&& cd build \
+	&& ninja \
+	&& ninja install
 
 ARG	STRIP_BINARIES
 
-RUN	if [ "$STRIP_BINARIES" = "true" ]; then strip -s /opt/bin/*; fi
+RUN	if [ "$STRIP_BINARIES" = "true" ]; then find /opt/bin /opt/lib -type f -executable -exec strip -s {} \+; fi
 
 FROM	mist-base	as	mist-shared-build
 
-WORKDIR	/src/build
+WORKDIR	/src
 
-RUN	cmake \
-	  -DPERPETUAL=1 \
-	  -DLOAD_BALANCE=1 \
-	  -DNOLLHLS=1 \
-	  -DCMAKE_INSTALL_PREFIX=/opt \
-	  -DCMAKE_PREFIX_PATH=/src/compiled \
-	  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DBUILD_SHARED_LIBS=yes \
-	  -DCMAKE_C_FLAGS="-fPIC" \
-	  -DNORIST=yes \
-	  .. \
-	&& make -j$(nproc) \
-	&& make install
+RUN	meson setup -DNORIST=true -DLOAD_BALANCE=true -Dprefix=/opt build \
+	&& cd build \
+	&& ninja \
+	&& ninja install && ls -lhaR /opt
 
 ARG	STRIP_BINARIES
 
-RUN	if [ "$STRIP_BINARIES" = "true" ]; then strip -s /opt/bin/* /opt/lib/*; fi
+RUN	if [ "$STRIP_BINARIES" = "true" ]; then find /opt/bin /opt/lib -type f -executable -exec strip -s {} \+; fi
 
 FROM	mist-${BUILD_TARGET}-build	as	mist-build
 

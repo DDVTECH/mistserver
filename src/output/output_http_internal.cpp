@@ -352,13 +352,13 @@ namespace Mist{
     std::string uAgent = req.GetHeader("User-Agent");
 
     std::string forceType = "";
-    if (H.GetVar("forcetype").size()){
+    if (req.GetVar("forcetype").size()){
       forceType = ",forceType:\"" + req.GetVar("forcetype") + "\"";
     }
 
     std::string devSkin = "";
     if (req.GetVar("dev").size()){devSkin = ",skin:\"dev\"";}
-    devSkin += ",urlappend:\"" + H.allVars() + "\"";
+    devSkin += ",urlappend:\"" + req.allVars() + "\"";
     H.SetVar("stream", streamName);
 
     std::string seekTo = "";
@@ -384,6 +384,7 @@ namespace Mist{
       }
     }
     
+    H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");
     if (headersOnly){

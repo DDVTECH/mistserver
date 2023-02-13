@@ -27,8 +27,8 @@ namespace HTTP{
     void clearHeader(const std::string &i);
     uint8_t getPercentage() const;
     const std::string &GetVar(const std::string &i) const;
-    std::string getUrl();
-    std::string allVars();
+    std::string getUrl() const;
+    std::string allVars() const;
     void SetHeader(std::string i, std::string v);
     void SetHeader(std::string i, long long v);
     void setCORSHeaders();

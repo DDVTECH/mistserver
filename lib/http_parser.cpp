@@ -423,7 +423,7 @@ void HTTP::Parser::SetBody(const char *buffer, int len){
 }
 
 /// Returns header i, if set.
-std::string HTTP::Parser::getUrl(){
+std::string HTTP::Parser::getUrl() const{
   if (url.find('?') != std::string::npos){
     return url.substr(0, url.find('?'));
   }else{
@@ -463,10 +463,10 @@ const std::string &HTTP::Parser::GetVar(const std::string &i) const{
   }
 }
 
-std::string HTTP::Parser::allVars(){
+std::string HTTP::Parser::allVars() const{
   std::string ret;
   if (!vars.size()){return ret;}
-  for (std::map<std::string, std::string>::iterator it = vars.begin(); it != vars.end(); ++it){
+  for (std::map<std::string, std::string>::const_iterator it = vars.begin(); it != vars.end(); ++it){
     if (!it->second.size()){continue;}
     if (ret.size() > 1){
       ret += "&";

@@ -17,7 +17,7 @@ COPY	.	.
 ARG	BUILD_VERSION
 ENV	BUILD_VERSION="${BUILD_VERSION}"
 
-RUN	echo "${BUILD_VERSION}" > VERSION
+RUN	echo "${BUILD_VERSION}" > BUILD_VERSION
 
 FROM	mist-base	as	mist-static-build
 
@@ -39,7 +39,7 @@ WORKDIR	/src
 RUN	meson setup -DNORIST=true -DLOAD_BALANCE=true -Dprefix=/opt build \
 	&& cd build \
 	&& ninja \
-	&& ninja install && ls -lhaR /opt
+	&& ninja install
 
 ARG	STRIP_BINARIES
 

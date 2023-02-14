@@ -5,6 +5,15 @@ function usage() {
   exit 1
 }
 
+function get_mimetype() {
+  local filepath="$1"
+  if command -v mimetype &>/dev/null; then
+    echo "$(mimetype --brief "${filepath}")"
+  elif command -v file &>/dev/null; then
+    echo "$(file --brief --mime-type "${filepath}")"
+  fi
+}
+
 FORCE=0
 BUCKET_ROOT=0
 BUCKET_KEY="${CI_COMMIT_SHA}"
@@ -53,7 +62,7 @@ function main() {
     BUCKET_PATH="${PROJECT}/${FILE_NAME}"
   fi
   RESOURCE="/${BUCKET}/${BUCKET_PATH}"
-  CONTENT_TYPE="$(mimetype --brief "${FILE_DIR}/${FILE_NAME}")"
+  CONTENT_TYPE="$(get_mimetype "${FILE_DIR}/${FILE_NAME}")"
   DATE="$(date -R)"
 
   stringToSign="PUT\n\n${CONTENT_TYPE}\n${DATE}\n${RESOURCE}"

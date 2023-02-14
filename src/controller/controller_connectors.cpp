@@ -17,6 +17,8 @@
 #include <iostream>
 #include <unistd.h>
 
+#define MAX_ARGS 256
+
 ///\brief Holds everything unique to the controller.
 namespace Controller{
 
@@ -169,7 +171,7 @@ namespace Controller{
 
     // used for building args
     int err = fileno(stderr);
-    char *argarr[256]; // approx max # of args (with a wide margin)
+    char *argarr[MAX_ARGS]; // approx max # of args (with a wide margin)
     int i;
 
     std::string tmp;
@@ -264,7 +266,7 @@ namespace Controller{
         Log("CONF", "Starting connector: " + *runningConns.begin());
         action = true;
         // clear out old args
-        for (i = 0; i < 15; i++){argarr[i] = 0;}
+        for (i = 0; i < MAX_ARGS; i++){argarr[i] = 0;}
         // get args for this connector
         JSON::Value p = JSON::fromString(*runningConns.begin());
         buildPipedArguments(p, (char **)&argarr, capabilities);

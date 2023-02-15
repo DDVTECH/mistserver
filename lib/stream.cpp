@@ -137,11 +137,8 @@ size_t Util::streamCustomVariables(std::string &str){
   // Extract variables
   Util::RelAccX varAccX(variablePage.mapped, false);
   for (size_t i = 0; i < varAccX.getEndPos(); i++){
-    // Replace $thisName with $thisVal
     if (varAccX.getPointer("name", i)){
-      std::string thisName = std::string(varAccX.getPointer("name", i));
-      std::string thisVal = std::string(varAccX.getPointer("lastVal", i));
-      count += replaceVar(str, thisName, thisVal);
+      count += replaceVar(str, varAccX.getPointer("name", i), varAccX.getPointer("lastVal", i));
     }
   }
   return count;
@@ -173,17 +170,17 @@ size_t Util::streamVariables(std::string &str, const std::string &streamname, co
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));
     std::string strext = streamname.substr(streamname.find('+') + 1);
-    replaced += Util::replace(str, "basename", strbase);
-    replaced += Util::replace(str, "wildcard", strext);
+    replaced += replaceVar(str, "basename", strbase);
+    replaced += replaceVar(str, "wildcard", strext);
     if (strext.size()){
-      replaced += Util::replace(str, "pluswildcard", "+" + strext);
+      replaced += replaceVar(str, "pluswildcard", "+" + strext);
     }else{
-      replaced += Util::replace(str, "pluswildcard", "");
+      replaced += replaceVar(str, "pluswildcard", "");
     }
   }else{
-    replaced += Util::replace(str, "basename", streamname);
-    replaced += Util::replace(str, "wildcard", "");
-    replaced += Util::replace(str, "pluswildcard", "");
+    replaced += replaceVar(str, "basename", streamname);
+    replaced += replaceVar(str, "wildcard", "");
+    replaced += replaceVar(str, "pluswildcard", "");
   }
   // Continue recursively if we've replaced a variable which exposed another variable to be replaced
   if (replaced && str.find('$') != std::string::npos){replaced += streamVariables(str, streamName, source, ++depth);}

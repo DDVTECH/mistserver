@@ -16,7 +16,6 @@ namespace Mist{
     std::string spsInfo;
     uint64_t frameCount;
     // Empty defaults
-    bool readHeader(){return true;}
     bool openStreamSource();
     void closeStreamSource(){}
     void parseStreamHeader();

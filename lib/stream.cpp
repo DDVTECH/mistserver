@@ -12,6 +12,7 @@
 #include "procs.h"
 #include "shared_memory.h"
 #include "socket.h"
+#include "url.h"
 #include "stream.h"
 #include "triggers.h" //LTS
 #include <semaphore.h>
@@ -673,6 +674,25 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   for (unsigned int i = 0; i < input_size; ++i){
     DTSC::Scan tmp_input = inputs.getIndice(i);
 
+    // if name prefix based match, always force 99 priority
+    if (tmp_input.getMember("name")){
+      std::string inPrefix = tmp_input.getMember("name").asString() + ":";
+      if (tmpFn.size() > inPrefix.size()){
+        Util::stringToLower(inPrefix);
+        std::string fnPrefix = tmpFn.substr(0, inPrefix.size());
+        Util::stringToLower(fnPrefix);
+        if (inPrefix == fnPrefix){
+          if (tmp_input.getMember("non-provider") && !isProvider){
+            noProviderNoPick = true;
+            continue;
+          }
+          curPrio = 99;
+          selected = true;
+          input = tmp_input;
+        }
+      }
+    }
+
     // if match voor current stream && priority is hoger dan wat we al hebben
     if (tmp_input.getMember("source_match") && curPrio < tmp_input.getMember("priority").asInt()){
       if (tmp_input.getMember("source_match").getSize()){
@@ -769,18 +789,43 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
           std::string back = tar_match.substr(tar_match.find('*') + 1);
           MEDIUM_MSG("Checking output %s: %s (%s)", outputs.getIndiceName(i).c_str(),
                      output.getMember("name").asString().c_str(), checkTarget.c_str());
-
           if (checkTarget.substr(0, front.size()) == front &&
               checkTarget.substr(checkTarget.size() - back.size()) == back){
             output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
             break;
+          }
+          //Check for external writer support
+          if (front == "/" && back.size() && checkTarget.substr(checkTarget.size() - back.size()) == back){
+            HTTP::URL tUri(target);
+            // If it is a remote target, we might need to spawn an external binary
+            if (tUri.isLocalPath()){continue;}
+            // Read configured external writers
+            IPC::sharedPage extwriPage(EXTWRITERS, 0, false, false);
+            if (extwriPage.mapped){
+              Util::RelAccX extWri(extwriPage.mapped, false);
+              if (extWri.isReady()){
+                for (uint64_t i = 0; i < extWri.getEndPos(); i++){
+                  Util::RelAccX protocols = Util::RelAccX(extWri.getPointer("protocols", i));
+                  uint8_t protocolCount = protocols.getPresent();
+                  JSON::Value protocolArray;
+                  for (uint8_t idx = 0; idx < protocolCount; idx++){
+                    if (tUri.protocol == protocols.getPointer("protocol", idx)){
+                      output_bin = Util::getMyPath() + "MistOut" + output.getMember("name").asString();
+                      break;
+                    }
+                    if (output_bin.size()){break;}
+                  }
+                  if (output_bin.size()){break;}
+                }
+              }
+            }
           }
         }
       }
     }
   }
 
-  if (output_bin == ""){
+  if (!output_bin.size()){
     FAIL_MSG("No output found for target %s, aborting push.", target.c_str());
     return 0;
   }

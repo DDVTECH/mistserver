@@ -40,6 +40,7 @@ namespace Mist{
     virtual bool checkArguments() = 0;
     virtual bool readHeader();
     virtual bool needHeader(){return !readExistingHeader();}
+    virtual void postHeader(){};
     virtual bool preRun(){return true;}
     virtual bool isThread(){return false;}
     virtual bool isSingular(){return !config->getBool("realtime");}

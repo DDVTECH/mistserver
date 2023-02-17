@@ -309,6 +309,45 @@ namespace Mist{
 
     INFO_MSG("Input booting");
 
+    //Check if the input uses the name-based-override, and strip it
+    {
+      std::string input = config->getString("input");
+      std::string prefix = capa["name"].asStringRef() + ":";
+      Util::stringToLower(prefix);
+      if (input.size() > prefix.size()){
+        std::string match = input.substr(0, prefix.size());
+        Util::stringToLower(match);
+        if (prefix == match){
+          //We have a prefix match - make sure we don't _also_ have a proper source_match
+          bool source_match = false;
+          if (capa["source_match"].size()){
+            jsonForEach(capa["source_match"], it){
+              const std::string & source = it->asStringRef();
+              std::string front = source.substr(0, source.find('*'));
+              std::string back = source.substr(source.find('*') + 1);
+
+              if (input.size() > front.size()+back.size() && input.substr(0, front.size()) == front && input.substr(input.size() - back.size()) == back){
+                source_match = true;
+                break;
+              }
+            }
+          }else{
+            const std::string & source = capa["source_match"].asStringRef();
+            std::string front = source.substr(0, source.find('*'));
+            std::string back = source.substr(source.find('*') + 1);
+
+            if (input.size() > front.size()+back.size() && input.substr(0, front.size()) == front && input.substr(input.size() - back.size()) == back){
+              source_match = true;
+            }
+          }
+          //Only if no source_match, strip the prefix from the input string
+          if (!source_match){
+            config->getOption("input", true).append(input.substr(prefix.size()));
+          }
+        }
+      }
+    }
+
     if (!checkArguments()){
       FAIL_MSG("Setup failed - exiting");
       return 0;
@@ -505,16 +544,19 @@ namespace Mist{
     Comms::sessionConfigCache();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
     checkHeaderTimes(config->getString("input"));
+    //needHeader internally calls readExistingHeader which in turn attempts to read header cache
     if (needHeader()){
-      uint64_t timer = Util::bootMS();
-      bool headerSuccess = readHeader();
-      if (!headerSuccess || (!M && needsLock())){
+      uint64_t timer = Util::getMicros();
+      if (!readHeader() || (!M && needsLock())){
         FAIL_MSG("Reading header for '%s' failed.", config->getString("input").c_str());
         return 0;
       }
-      timer = Util::bootMS() - timer;
-      INFO_MSG("Read header in %" PRIu64 "ms (%zu tracks)", timer, M?M.trackCount():(size_t)0);
+      timer = Util::getMicros(timer);
+      INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
+      //Write header to file for caching purposes
+      M.toFile(config->getString("input") + ".dtsh");
     }
+    postHeader();
     if (config->getBool("headeronly")){return 0;}
     if (M && M.getVod()){
       meta.removeEmptyTracks();
@@ -1089,10 +1131,12 @@ namespace Mist{
     return r.str();
   }
 
+  /// Attempts to create a header.
+  /// Returns true on success.
+  /// Default implementation fails and prints a warning.
   bool Input::readHeader(){
-    INFO_MSG("Empty header created by default readHeader handler");
-    meta.reInit(streamName);
-    return true;
+    WARN_MSG("Default readHeader implementation called - this is not expected to happen");
+    return false;
   }
 
   void Input::parseHeader(){
@@ -1476,25 +1520,18 @@ namespace Mist{
   }
 
   bool Input::readExistingHeader(){
-    if (config->getBool("realtime")){
-      meta.reInit("", config->getString("input") + ".dtsh");
-      if (!meta){return false;}
-      if (meta.version != DTSH_VERSION){
-        INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
-        return false;
-      }
-      return meta;
-    }
-    char pageName[NAME_BUFFER_SIZE];
-    snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
-    IPC::sharedPage sp(pageName, 0, false, false);
-    if (sp){
-      sp.close();
-      meta.reInit(config->getString("streamname"), false);
-      if (meta){
-        meta.setMaster(true);
-        INFO_MSG("Read existing header");
-        return true;
+    if (!config->getBool("realtime")){
+      char pageName[NAME_BUFFER_SIZE];
+      snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_META, config->getString("streamname").c_str());
+      IPC::sharedPage sp(pageName, 0, false, false);
+      if (sp){
+        sp.close();
+        meta.reInit(config->getString("streamname"), false);
+        if (meta){
+          meta.setMaster(true);
+          INFO_MSG("Read existing header");
+          return true;
+        }
       }
     }
     // Try to read any existing DTSH file
@@ -1509,7 +1546,7 @@ namespace Mist{
     if (!fileSize){return false;}
     DTSC::Packet pkt(scanBuf, fileSize, true);
     HIGH_MSG("Retrieved header of %lu bytes", fileSize);
-    meta.reInit(streamName, pkt.getScan());
+    meta.reInit(config->getBool("realtime") ? "" : streamName, pkt.getScan());
 
     if (meta.version != DTSH_VERSION){
       INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);

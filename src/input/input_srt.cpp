@@ -57,9 +57,6 @@ namespace Mist{
       meta.update(thisPacket);
       getNext();
     }
-
-    // outputting dtsh file
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

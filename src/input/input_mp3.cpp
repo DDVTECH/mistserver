@@ -85,7 +85,6 @@ namespace Mist{
 
     fseek(inFile, 0, SEEK_SET);
     timestamp = 0;
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

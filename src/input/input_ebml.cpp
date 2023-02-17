@@ -194,13 +194,6 @@ namespace Mist{
 
   bool InputEBML::readExistingHeader(){
     if (!Input::readExistingHeader()){return false;}
-    std::set<size_t> validTracks = M.getValidTracks();
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-      if (M.getCodec(*it) == "PCMLE"){
-        meta.setCodec(*it, "PCM");
-        swapEndianness.insert(*it);
-      }
-    }
     if (M.inputLocalVars.isMember("timescale")){
       timeScale = ((double)M.inputLocalVars["timescale"].asInt()) / 1000000.0;
     }
@@ -213,8 +206,6 @@ namespace Mist{
 
   bool InputEBML::readHeader(){
     if (!inFile){return false;}
-    // Create header file from file
-    uint64_t bench = Util::getMicros();
     if (!meta || (needsLock() && isSingular())){
       meta.reInit(isSingular() ? streamName : "");
     }
@@ -462,12 +453,13 @@ namespace Mist{
     }
 
     meta.inputLocalVars["version"] = 2;
-    bench = Util::getMicros(bench);
-    INFO_MSG("Header generated in %" PRIu64 " ms", bench / 1000);
     clearPredictors();
     bufferedPacks = 0;
-    M.toFile(config->getString("input") + ".dtsh");
+    return true;
+  }
 
+  void InputEBML::postHeader(){
+    //Record PCMLE tracks as being PCM with swapped endianness
     std::set<size_t> validTracks = M.getValidTracks();
     for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
       if (M.getCodec(*it) == "PCMLE"){
@@ -475,7 +467,6 @@ namespace Mist{
         swapEndianness.insert(*it);
       }
     }
-    return true;
   }
 
   void InputEBML::fillPacket(packetData &C){

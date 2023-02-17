@@ -420,33 +420,10 @@ namespace Controller{
     return ret;
   }
 
-  bool isMatch(const std::string &source, const std::string &match){
-    std::string front = match.substr(0, match.find('*'));
-    std::string back = match.substr(match.find('*') + 1);
-    // if the length of the source is smaller than the front and back matching parts together, it can never match
-    if (source.size() < front.size() + back.size()){return false;}
-    return (source.substr(0, front.size()) == front && source.substr(source.size() - back.size()) == back);
-  }
-
   void checkParameters(JSON::Value &streamObj){
-    JSON::Value &inpt = Controller::capabilities["inputs"];
-    std::string match;
-    jsonForEach(inpt, it){
-      if ((*it)["source_match"].isArray()){
-        jsonForEach((*it)["source_match"], subIt){
-          if (isMatch(streamObj["source"].asStringRef(), (*subIt).asStringRef())){
-            match = (*it)["name"].asString();
-          }
-        }
-      }
-      if ((*it)["source_match"].isString()){
-        if (isMatch(streamObj["source"].asStringRef(), (*it)["source_match"].asStringRef())){
-          match = (*it)["name"].asString();
-        }
-      }
-    }
-    if (match != ""){
-      jsonForEach(inpt[match]["hardcoded"], it){streamObj[it.key()] = *it;}
+    JSON::Value in = Util::getInputBySource(streamObj["source"].asStringRef(), true);
+    if (in){
+      jsonForEach(in["hardcoded"], it){streamObj[it.key()] = *it;}
     }
   }
 

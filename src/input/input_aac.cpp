@@ -204,8 +204,6 @@ namespace Mist{
     if (!inFile.seek(0))
       ERROR_MSG("Could not seek back to position 0!");
     thisTime = 0;
-    M.toFile(config->getString("input") + ".dtsh");
-
     return true;
   }
   

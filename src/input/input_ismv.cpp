@@ -87,7 +87,6 @@ namespace Mist{
       }
       curBytePos = ftell(inFile);
     }
-    M.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

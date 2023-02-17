@@ -282,6 +282,17 @@ namespace Controller{
           WARN_MSG("Input %s version mismatch (%s != " PACKAGE_VERSION ")", entryName.c_str(),
                    capabilities["inputs"][entryName]["version"].asStringRef().c_str());
           capabilities["inputs"].removeMember(entryName);
+        }else{
+          JSON::Value & inRef = capabilities["inputs"][entryName];
+          if (inRef.isMember("source_match") && inRef.isMember("name")){
+            if (!inRef["source_match"].isArray()){
+              std::string m = inRef["source_match"].asString();
+              inRef["source_match"].append(m);
+            }
+            std::string n = inRef["name"].asString();
+            Util::stringToLower(n);
+            inRef["source_match"].append(n+":*");
+          }
         }
       }
     }

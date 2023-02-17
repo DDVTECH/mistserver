@@ -143,7 +143,7 @@ namespace Mist{
         meta.setType(idx, "audio");
         meta.setRate(idx, strm->codecpar->sample_rate);
         meta.setSize(idx, strm->codecpar->frame_size);
-        meta.setChannels(idx, strm->codecpar->channels);
+        meta.setChannels(idx, strm->codecpar->ch_layout.nb_channels);
       }
     }
 

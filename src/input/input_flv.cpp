@@ -79,7 +79,6 @@ namespace Mist{
 
   bool inputFLV::readHeader(){
     if (!inFile){return false;}
-    if (readExistingHeader()){return true;}
     meta.reInit(isSingular() ? streamName : "");
     // Create header file from FLV data
     Util::fseek(inFile, 13, SEEK_SET);
@@ -107,7 +106,6 @@ namespace Mist{
       FLV::Parse_Error = false;
       ERROR_MSG("Stopping at FLV parse error @%" PRIu64 ": %s", lastBytePos, FLV::Error_Str.c_str());
     }
-    M.toFile(config->getString("input") + ".dtsh");
     Util::fseek(inFile, 13, SEEK_SET);
     return true;
   }

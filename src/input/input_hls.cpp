@@ -763,7 +763,6 @@ namespace Mist{
 
   bool inputHLS::readHeader(){
     if (streamIsLive && !isLiveDVR){return true;}
-    if (readExistingHeader()){return true;}
     // to analyse and extract data
     TS::Packet packet; 
     char *data;
@@ -891,10 +890,6 @@ namespace Mist{
       thisMappingsR[JSON::Value(pidIt->first).asString()] = pidIt->second;
     }
     meta.inputLocalVars["pidMappingR"] = thisMappingsR;
-
-    INFO_MSG("write header file...");
-    M.toFile((config->getString("input") + ".dtsh").c_str());
-
     return true;
   }
 

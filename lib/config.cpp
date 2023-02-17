@@ -785,6 +785,28 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["append"]["format"] = "set_or_unset";
   pp["append"]["sort"] = "bf";
 
+  pp["split"]["name"] = "Split interval";
+  pp["split"]["help"] = "Performs a gapless restart of the recording every this many seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable. When set to zero (the default) will not split at all.";
+  pp["split"]["type"] = "int";
+  pp["split"]["unit"] = "s";
+  pp["split"]["sort"] = "bh";
+
+  pp["m3u8"]["name"] = "Playlist path (relative to segments)";
+  pp["m3u8"]["help"] = "If set, will write a m3u8 playlist file for the segments to the given path (relative from the first segment path). When this parameter is used, at least one of the variables $segmentCounter or $currentMediaTime must be part of the segment path (to keep segments from overwriting each other). The \"Split interval\" parameter will default to 60 seconds when using this option.";
+  pp["m3u8"]["type"] = "string";
+  pp["m3u8"]["sort"] = "apa";
+
+  pp["targetAge"]["name"] = "Playlist target age";
+  pp["targetAge"]["help"] = "When writing a playlist, delete segment entries that are more than this many seconds old from the playlist (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+  pp["targetAge"]["type"] = "int";
+  pp["targetAge"]["unit"] = "s";
+  pp["targetAge"]["sort"] = "apb";
+
+  pp["maxEntries"]["name"] = "Playlist max entries";
+  pp["maxEntries"]["help"] = "When writing a playlist, delete oldest segment entries once this entry count has been reached (and, if possible, also delete said segments themselves). When set to 0 or left empty, does not delete.";
+  pp["maxEntries"]["type"] = "int";
+  pp["maxEntries"]["sort"] = "apc";
+
   pp["pushdelay"]["name"] = "Push delay";
   pp["pushdelay"]["help"] = "Ensures the stream is always delayed by at least this many seconds. Internally overrides the \"realtime\" and \"start\" parameters";
   pp["pushdelay"]["type"] = "int";
@@ -792,12 +814,6 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["pushdelay"]["disable"].append("realtime");
   pp["pushdelay"]["disable"].append("start");
   pp["pushdelay"]["sort"] = "bg";
-
-  pp["split"]["name"] = "Split interval";
-  pp["split"]["help"] = "Performs a gapless restart of the recording every this may seconds. Always aligns to the next keyframe after this duration, to ensure each recording is fully playable";
-  pp["split"]["type"] = "int";
-  pp["split"]["unit"] = "s";
-  pp["split"]["sort"] = "bh";
 
   pp["duration"]["name"] = "Duration of push";
   pp["duration"]["help"] = "How much media time to push, in seconds. Internally overrides \"recstop\"";

@@ -222,8 +222,6 @@ namespace Mist{
       meta.update(thisPacket);
       getNext();
     }
-
-    meta.toFile(config->getString("input") + ".dtsh");
     return true;
   }
 

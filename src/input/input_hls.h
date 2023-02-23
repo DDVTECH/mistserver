@@ -50,19 +50,23 @@ namespace Mist{
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
 
-  class SegmentDownloader{
+  class SegmentDownloader: public Util::DataCallback{
   public:
     SegmentDownloader();
     HTTP::URIReader segDL;
     char *packetPtr;
     bool loadSegment(const playListEntries &entry);
     bool readNext();
+    virtual void dataCallback(const char *ptr, size_t size);
     void close();
     bool atEnd() const;
 
   private:
     bool encrypted;
+    bool buffered;
+    size_t offset;
     Util::ResizeablePointer outData;
+    Util::ResizeablePointer * currBuf;
     size_t encOffset;
     unsigned char tmpIvec[16];
     mbedtls_aes_context aes;

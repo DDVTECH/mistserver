@@ -20,6 +20,20 @@ namespace Mist{
     uint32_t curPart;
   };
 
+  struct trackKey{
+    size_t track;
+    size_t key;
+    trackKey(){track = 0; key = 0;}
+    trackKey(size_t t, size_t k){
+      track = t;
+      key = k;
+    }
+  };
+
+  inline bool operator< (const trackKey a, const trackKey b){
+    return a.track < b.track || (a.track == b.track && a.key < b.key);
+  }
+
   class Input : public InOutBase{
   public:
     Input(Util::Config *cfg);
@@ -79,6 +93,7 @@ namespace Mist{
     JSON::Value capa;
 
     std::map<size_t, std::set<uint64_t> > keyTimes;
+    std::map<trackKey, uint64_t> keyLoadPriority;
 
     // Create server for user pages
     Comms::Users users;

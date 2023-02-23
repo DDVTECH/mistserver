@@ -19,7 +19,11 @@
 namespace Mist{
   Util::Config *Input::config = NULL;
 
-  void Input::userLeadIn(){connectedUsers = 0;}
+  void Input::userLeadIn(){
+    connectedUsers = 0;
+    keyLoadPriority.clear();
+  }
+
   void Input::userOnActive(size_t id){
     ++connectedUsers;
     size_t track = users.getTrack(id);
@@ -36,12 +40,47 @@ namespace Mist{
     //But! What if our current key is 20+ seconds long? HAVE YOU THOUGHT OF THAT?!
     //Exactly! I thought not! So, if the end key number == the first, we increase by one.
     if (endKey == key){++endKey;}
+    if (endKey > key + 1000){endKey = key + 1000;}
     DONTEVEN_MSG("User with ID:%zu is on key %zu->%zu (timestamp %" PRIu64 ")", id, key, endKey, time);
-    for (size_t i = key; i <= endKey; i++){bufferFrame(track, i);}
+    for (size_t i = key; i <= endKey; ){
+
+
+      const Util::RelAccX &tPages = M.pages(track);
+      if (!tPages.getEndPos()){return;}
+      DTSC::Keys keys(M.keys(track));
+      if (i > keys.getValidCount()){return;}
+      uint64_t pageIdx = 0;
+      for (uint64_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
+        if (tPages.getInt("firstkey", j) > i) break;
+        pageIdx = j;
+      }
+      uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+      if (i == key){
+        INFO_MSG("Track %zu key %zu is on page %" PRIu32, track, key, pageNumber);
+        keyLoadPriority[trackKey(track, pageNumber)] += 10000;
+      }else{
+        keyLoadPriority[trackKey(track, pageNumber)] += 1000 - (key - i);
+      }
+      uint64_t cnt = tPages.getInt("keycount", pageIdx);
+      if (pageNumber + cnt <= i){return;}
+      i = pageNumber + cnt;
+    }
     //Now, we can rest assured that the next ~120 seconds or so is pre-buffered in RAM.
   }
   void Input::userOnDisconnect(size_t id){}
-  void Input::userLeadOut(){}
+  void Input::userLeadOut(){
+    INFO_MSG("Wanna load %zu keys", keyLoadPriority.size());
+    if (!keyLoadPriority.size()){return;}
+    //Make reverse mapping
+    std::multimap<uint64_t, trackKey> reverse;
+    for (std::map<trackKey, uint64_t>::iterator i = keyLoadPriority.begin(); i != keyLoadPriority.end(); ++i){
+      reverse.insert(std::pair<uint64_t, trackKey>(i->second, i->first));
+    }
+    uint64_t timer = Util::bootMS();
+    for (std::multimap<uint64_t, trackKey>::reverse_iterator i = reverse.rbegin(); i != reverse.rend() && Util::bootMS() < timer + 500; ++i){
+      bufferFrame(i->second.track, i->second.key);
+    }
+  }
 
   void Input::reloadClientMeta(){
     if (M.getStreamName() != "" && M.getMaster()){return;}
@@ -674,10 +713,10 @@ namespace Mist{
       // Initialize meta page
       meta.reInit(streamName, true);
     }else{
-      std::set<size_t> validTracks = M.getValidTracks(true);
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
-        bufferFrame(*it, 0);
-      }
+      //std::set<size_t> validTracks = M.getValidTracks(true);
+      //for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+      //  bufferFrame(*it, 0);
+      //}
     }
     meta.setSource(config->getString("input"));
 
@@ -699,6 +738,7 @@ namespace Mist{
     activityCounter = Util::bootSecs();
     // main serve loop
     while (keepRunning()){
+      uint64_t preMs = Util::bootMS();
       // load pages for connected clients on request
       userLeadIn();
       COMM_LOOP(users, userOnActive(id), userOnDisconnect(id))
@@ -726,7 +766,12 @@ namespace Mist{
         }
       }
       // if not shutting down, wait 1 second before looping
-      if (config->is_active){Util::wait(INPUT_USER_INTERVAL);}
+      preMs = Util::bootMS() - preMs;
+      uint64_t waitMs = INPUT_USER_INTERVAL;
+      if (preMs >= waitMs){waitMs = 0;}else{waitMs -= preMs;}
+      if (config->is_active && waitMs){
+        Util::wait(waitMs);
+      }
     }
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_SHUTDOWN;}

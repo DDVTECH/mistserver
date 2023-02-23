@@ -229,7 +229,7 @@ namespace Mist{
 
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
-    if (!capa.isMember("codecs")){return true;}
+    if (!capa.isMember("codecs") || !capa["codecs"].size() || !capa["codecs"].isArray() || !capa["codecs"][0u].size()){return true;}
     if (!isInitialized){return false;}
     meta.reloadReplacedPagesIfNeeded();
     if (getSupportedTracks().size()){
@@ -808,6 +808,10 @@ namespace Mist{
     std::set<size_t> seekTracks;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       seekTracks.insert(it->first);
+    }
+    //Seek all seek positions, first
+    for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
+      userSelect[*it].setKeyNum(M.getKeyNumForTime(*it, pos));
     }
     bool ret = seekTracks.size();
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){

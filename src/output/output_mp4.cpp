@@ -1452,7 +1452,7 @@ namespace Mist{
     fragSeqNum = 0;
     idleInterval = 1000;
     maxSkipAhead = 0;
-    dataWaitTimeout = 450;
+    if (M.getLive()){dataWaitTimeout = 450;}
   }
 
   void OutMP4::onWebsocketFrame() {
@@ -1735,7 +1735,7 @@ namespace Mist{
       if (jitter < M.getMinKeepAway(it->first)){jitter = M.getMinKeepAway(it->first);}
     }
     r["data"]["jitter"] = jitter;
-    if (dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
+    if (M.getLive() && dataWaitTimeout < jitter*1.5){dataWaitTimeout = jitter*1.5;}
     if (capa["maxdelay"].asInt() < jitter*1.5){capa["maxdelay"] = jitter*1.5;}
     webSock->sendFrame(r.toString());
   }

@@ -1012,6 +1012,7 @@ namespace Mist{
 
   /// \brief Override userLeadOut to buffer new data as live packets
   void inputHLS::userLeadOut(){
+    Input::userLeadOut();
     if (!isLiveDVR){
       return;
     }

@@ -122,7 +122,7 @@ namespace Mist{
     capa["provides"] = "HTTP";
     capa["protocol"] = "http://";
     capa["url_rel"] = "/$.html";
-    capa["codecs"][0u][0u].append("+*");
+    capa["codecs"][0u].null();
     capa["url_match"].append("/crossdomain.xml");
     capa["url_match"].append("/clientaccesspolicy.xml");
     capa["url_match"].append("/$.html");

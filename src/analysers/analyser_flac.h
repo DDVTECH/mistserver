@@ -12,7 +12,6 @@ public:
   bool readMeta();
 
 private:
-  int64_t a;
   uint64_t neededBytes();
   void newFrame(char *data);
   bool headerParsed;
@@ -24,6 +23,8 @@ private:
   bool forceFill;
 
   char *ptr;
+  uint64_t sampleNo;
+  uint64_t sampleRate;
   bool stopProcessing;
 
   char *start; // = &flacBuffer[0];

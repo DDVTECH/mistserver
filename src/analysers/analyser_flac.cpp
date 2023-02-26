@@ -10,7 +10,6 @@
 #include <mist/flac.h>
 
 AnalyserFLAC::AnalyserFLAC(Util::Config &conf) : Analyser(conf){
-  a = conf.getInteger("filter");
   headerParsed = false;
   curPos = 0;
   bufferSize = 0;
@@ -19,89 +18,76 @@ AnalyserFLAC::AnalyserFLAC(Util::Config &conf) : Analyser(conf){
   prev_header_size = 0;
   pos = NULL;
   forceFill = false;
+  sampleNo = 0;
+  sampleRate = 1;
 }
 
 bool AnalyserFLAC::readMagicPacket(){
   char magic[4];
   if (fread(magic, 4, 1, stdin) != 1){
-    std::cout << "Could not read magic word - aborting!" << std::endl;
+    FAIL_MSG("Could not read magic word - aborting!");
     return false;
   }
-  if (FLAC::is_header(magic)){
-    std::cout << "Found magic packet" << std::endl;
-    curPos = 4;
-    return true;
+  if (!FLAC::is_header(magic)){
+    FAIL_MSG("Not a FLAC file - aborting!");
+    return false;
   }
-  std::cout << "Not a FLAC file - aborting!" << std::endl;
-  return false;
+  curPos = 4;
+  return true;
 }
 
 void AnalyserFLAC::init(Util::Config &conf){
   Analyser::init(conf);
-  JSON::Value opt;
-  opt["long"] = "filter";
-  opt["short"] = "F";
-  opt["arg"] = "num";
-  opt["default"] = "0";
-  opt["help"] =
-      "Only print information about this tag type (8 = audio, 9 = video, 18 = meta, 0 = all)";
-  conf.addOption("filter", opt);
-  opt.null();
-
-  if (feof(stdin)){
-    WARN_MSG("cannot open stdin");
-    return;
-  }
 }
 
 bool AnalyserFLAC::readMeta(){
   if (!readMagicPacket()){return false;}
-
   bool lastMeta = false;
-  char metahead[4];
+  Util::ResizeablePointer flacmeta;
+  flacmeta.allocate(4);
   while (!feof(stdin) && !lastMeta){
-    if (fread(metahead, 4, 1, stdin) != 1){
-      std::cout << "Could not read metadata block header - aborting!" << std::endl;
+    flacmeta.truncate(0);
+    if (fread(flacmeta, 4, 1, stdin) != 1){
+      FAIL_MSG("Could not read metadata block header - aborting!");
       return 1;
     }
+    flacmeta.append(0, 4);
     curPos += 4;
 
-    lastMeta = (metahead[0] & 0x80); // check for last metadata block flag
-    std::string mType;
-    switch (metahead[0] & 0x7F){
-    case 0: mType = "STREAMINFO"; break;
-    case 1: mType = "PADDING"; break;
-    case 2: mType = "APPLICATION"; break;
-    case 3: mType = "SEEKTABLE"; break;
-    case 4: mType = "VORBIS_COMMENT"; break;
-    case 5: mType = "CUESHEET"; break;
-    case 6: mType = "PICTURE"; break;
-    case 127: mType = "INVALID"; break;
-    default: mType = "UNKNOWN"; break;
+    lastMeta = FLAC::MetaBlock(flacmeta, 4).getLast(); // check for last metadata block flag
+    std::string mType = FLAC::MetaBlock(flacmeta, 4).getType();
+    flacmeta.allocate(FLAC::MetaBlock(flacmeta, 4).getSize() + 4);
+
+    // This variable is not created earlier because flacmeta.allocate updates the pointer and would invalidate it
+    FLAC::MetaBlock mb(flacmeta, 4);
+
+    if (fread(((char *)flacmeta) + 4, mb.getSize(), 1, stdin) != 1){
+      FAIL_MSG("Could not read metadata block contents: %s", strerror(errno));
+      return false;
     }
-    unsigned int bytes = Bit::btoh24(metahead + 1);
-    curPos += bytes;
-    fseek(stdin, bytes, SEEK_CUR);
-    std::cout << "Found metadata block of type " << mType << ", skipping " << bytes << " bytes" << std::endl;
-    if (mType == "STREAMINFO"){FAIL_MSG("streaminfo");}
+    flacmeta.append(0, mb.getSize());
+    curPos += mb.getSize();
+
+    if (mType == "STREAMINFO"){
+      FLAC::StreamInfo si(flacmeta, flacmeta.size());
+      sampleRate = si.getSampleRate();
+      si.toPrettyString(std::cout);
+    }else if (mType == "VORBIS_COMMENT"){
+      FLAC::VorbisComment(flacmeta, flacmeta.size()).toPrettyString(std::cout);
+    }else if (mType == "PICTURE"){
+      FLAC::Picture(flacmeta, flacmeta.size()).toPrettyString(std::cout);
+    }else{
+      mb.toPrettyString(std::cout);
+    }
   }
-  INFO_MSG("last metadata");
   headerParsed = true;
   return true;
 }
 
 bool AnalyserFLAC::parsePacket(){
-  if (feof(stdin) && flacBuffer.size() < 100){
-    stop();
-    return false;
-  }
+  if (feof(stdin) && flacBuffer.size() < 100){return false;}
+  if (!headerParsed && !readMeta()){return false;}
 
-  if (!headerParsed){
-    if (!readMeta()){
-      stop();
-      return false;
-    }
-  }
   uint64_t needed = 40000;
 
   // fill up buffer as we go
@@ -114,7 +100,7 @@ bool AnalyserFLAC::parsePacket(){
       flacBuffer += tmp;
 
       if (!std::cin.good()){
-        WARN_MSG("End, process remaining buffer data: %zu bytes", flacBuffer.size());
+        INFO_MSG("End, process remaining buffer data: %zu bytes", flacBuffer.size());
 
         if (flacBuffer.size() < 1){
           FAIL_MSG("eof");
@@ -141,11 +127,11 @@ bool AnalyserFLAC::parsePacket(){
       int utfv = FLAC::utfVal(start + 4); // read framenumber
 
       if (utfv + 1 != FLAC::utfVal(a + 4)){
-        FAIL_MSG("framenr: %d, end framenr: %d, size: %zu curPos: %" PRIu64, FLAC::utfVal(start + 4),
-                 FLAC::utfVal(a + 4), (size_t)(pos - start), curPos);
+        HIGH_MSG("framenr: %d, end framenr: %d, size: %zu curPos: %" PRIu64,
+                 FLAC::utfVal(start + 4), FLAC::utfVal(a + 4), (size_t)(pos - start), curPos);
       }else{
-        INFO_MSG("framenr: %d, end framenr: %d, size: %zu curPos: %" PRIu64, FLAC::utfVal(start + 4),
-                 FLAC::utfVal(a + 4), (size_t)(pos - start), curPos);
+        DONTEVEN_MSG("framenr: %d, end framenr: %d, size: %zu curPos: %" PRIu64,
+                     FLAC::utfVal(start + 4), FLAC::utfVal(a + 4), (size_t)(pos - start), curPos);
       }
 
       int skip = FLAC::utfBytes(u);
@@ -154,7 +140,7 @@ bool AnalyserFLAC::parsePacket(){
       if (checksum::crc8(0, pos, prev_header_size) == *(a + prev_header_size)){
         // checksum pass, valid startframe found
         if (((utfv + 1 != FLAC::utfVal(a + 4))) && (utfv != 0)){
-          WARN_MSG("error frame, found: %d, expected: %d, ignore.. ", FLAC::utfVal(a + 4), utfv + 1);
+          HIGH_MSG("error frame, found: %d, expected: %d, ignore.. ", FLAC::utfVal(a + 4), utfv + 1);
         }else{
 
           FLAC::Frame f(start);
@@ -164,10 +150,13 @@ bool AnalyserFLAC::parsePacket(){
           start = &flacBuffer[0];
           end = &flacBuffer[flacBuffer.size()];
           pos = start + 2;
+          std::cout << f.toPrettyString();
+          sampleNo += f.samples();
+          mediaTime = sampleNo / (sampleRate / 10);
           return true;
         }
       }else{
-        WARN_MSG("Checksum mismatch! %x - %x, curPos: %" PRIu64, *(a + prev_header_size),
+        HIGH_MSG("Checksum mismatch! %x - %x, curPos: %" PRIu64, *(a + prev_header_size),
                  checksum::crc8(0, pos, prev_header_size), curPos + (pos - start));
       }
     }

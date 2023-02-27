@@ -575,7 +575,7 @@ namespace Mist{
       // The current line should be a segment path at this point
       // If we are above the max segment count or age, ignore this segment and reset info fields
       if (maxEntries && (segmentCount - segmentsRemoved >= maxEntries)){
-        HIGH_MSG("Dropping segment #%lu from the playlist due to the playlist reaching it's max size of %lu segments", segmentsRemoved, maxEntries);
+        HIGH_MSG("Dropping segment #%" PRIu64 " from the playlist due to the playlist reaching it's max size of %" PRIu64 " segments", segmentsRemoved, maxEntries);
         curDateString = "";
         curDurationString = "";
         segmentsRemoved++;
@@ -590,7 +590,7 @@ namespace Mist{
       if (targetAge && curDateString.size() > 25){
         uint64_t segmentDiff = Util::getUTCTimeDiff(curDateString.substr(25), curTime);
         if (segmentDiff > targetAge){
-          HIGH_MSG("Dropping segment #%lu from the playlist due to old age (%lu s)", segmentsRemoved, segmentDiff);
+          HIGH_MSG("Dropping segment #%" PRIu64 " from the playlist due to old age (%" PRIu64 " s)", segmentsRemoved, segmentDiff);
           // If the segment is too old, ignore and reset fields
           curDurationString = "";
           curDateString = "";
@@ -1425,7 +1425,7 @@ namespace Mist{
               }
               playlistBuffer += "#EXT-X-DISCONTINUITY\n";
               INFO_MSG("Appending to existing local playlist file '%s'", playlistLocationString.c_str());
-              INFO_MSG("Found %lu prior segments", segmentCount);
+              INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
             }else{
               // Remove all segments referenced in the playlist
               while (std::getline(inFile, line)) {
@@ -1475,7 +1475,7 @@ namespace Mist{
                 playlistBuffer += line + '\n';
               }
               playlistBuffer += "#EXT-X-DISCONTINUITY\n";
-              INFO_MSG("Found %lu prior segments", segmentCount);
+              INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
               INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());
             }else{
               WARN_MSG("Overwriting existing remote playlist file '%s'", playlistLocationString.c_str());
@@ -1660,7 +1660,7 @@ namespace Mist{
                     uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
                     playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
                   }
-                  INFO_MSG("Adding new segment `%s` of %lums to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+                  INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
                   // Append duration & TS filename to playlist file
                   std::stringstream tmp;
                   double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
@@ -1670,7 +1670,7 @@ namespace Mist{
                   if (segmentDuration > atoll(targetDuration.c_str())){
                     // Set the new targetDuration to the ceil of the segment duration
                     targetDuration = JSON::Value(uint64_t(segmentDuration) + 1).asString();
-                    WARN_MSG("Segment #%lu has a longer duration than the target duration. Adjusting the targetDuration to %s seconds", segmentCount, targetDuration.c_str());
+                    WARN_MSG("Segment #%" PRIu64 " has a longer duration than the target duration. Adjusting the targetDuration to %s seconds", segmentCount, targetDuration.c_str());
                     // Round the target split time down to ensure we split on the keyframe for very long keyframe intervals
                     targetParams["split"] = JSON::Value(uint64_t(segmentDuration)).asString();
                     // Modify the buffer to contain the new targetDuration
@@ -1790,7 +1790,7 @@ namespace Mist{
           uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
           playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
         }
-        INFO_MSG("Adding final segment `%s` of %lums to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+        INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
         // Append duration & TS filename to playlist file
         std::stringstream tmp;
         tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";

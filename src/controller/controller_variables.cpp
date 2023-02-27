@@ -372,7 +372,7 @@ namespace Controller{
     uint64_t lastRun = Util::epoch();
     Util::stringTrim(newVal);
     if (newVal.size() > 127){
-      WARN_MSG("Truncating response of custom variable %s to 127 bytes (received %lu bytes)", name.c_str(), newVal.size());
+      WARN_MSG("Truncating response of custom variable %s to 127 bytes (received %zu bytes)", name.c_str(), newVal.size());
       newVal = newVal.substr(0, 127);
     }
     // Modify config

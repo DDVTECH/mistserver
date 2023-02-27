@@ -1538,14 +1538,14 @@ namespace Mist{
     std::string fileName = config->getString("input") + ".dtsh";
     HIGH_MSG("Loading metadata for stream '%s' from file '%s'", streamName.c_str(), fileName.c_str());
     char *scanBuf;
-    uint64_t fileSize;
+    size_t fileSize;
     HTTP::URIReader inFile(fileName);
     if (!inFile){return false;}
     inFile.readAll(scanBuf, fileSize);
     inFile.close();
     if (!fileSize){return false;}
     DTSC::Packet pkt(scanBuf, fileSize, true);
-    HIGH_MSG("Retrieved header of %lu bytes", fileSize);
+    HIGH_MSG("Retrieved header of %zu bytes", fileSize);
     meta.reInit(config->getBool("realtime") ? "" : streamName, pkt.getScan());
 
     if (meta.version != DTSH_VERSION){

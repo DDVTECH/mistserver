@@ -254,7 +254,7 @@ std::string Util::Procs::getOutputOf(char *const *argv, uint64_t maxWait){
       }
     }else{
       if (maxWait && waitedFor > maxWait){
-        WARN_MSG("Timeout while getting output of '%s', returning %luB of data",  (char *)argv, ret.size());
+        WARN_MSG("Timeout while getting output of '%s', returning %zuB of data",  (char *)argv, ret.size());
         break;
       }
       else if(maxWait){
@@ -297,7 +297,7 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
       }
     }else{
       if (waitedFor > maxWait){
-        WARN_MSG("Reached timeout of %lu ms. Killing process with command %s...", maxWait, fullCmd.c_str());
+        WARN_MSG("Reached timeout of %" PRIu64 " ms. Killing process with command %s...", maxWait, fullCmd.c_str());
         break;
       }
       else {
@@ -307,7 +307,7 @@ std::string Util::Procs::getLimitedOutputOf(char *const *argv, uint64_t maxWait,
       }
     }
     if (ret.size() > maxValBytes){
-      WARN_MSG("Have a limit of %uB, but received %luB of data. Killing process with command %s...",  maxValBytes, ret.size(), fullCmd.c_str());
+      WARN_MSG("Have a limit of %" PRIu32 "B, but received %zuB of data. Killing process with command %s...",  maxValBytes, ret.size(), fullCmd.c_str());
       break;
     }
   }

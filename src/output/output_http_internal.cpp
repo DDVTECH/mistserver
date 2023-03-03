@@ -1176,12 +1176,12 @@ namespace Mist{
   }
 
   /// Helper function that checks if a value is set, follows increases and ignores decreases with a WARN message.
-  void onlyIncrease(const JSON::Value & data, const char * memberName, size_t & counterVar, int64_t & offsetVar){
+  void onlyIncrease(const JSON::Value & data, const char * memberName, JSON::Value & counterVar, int64_t & offsetVar){
     if (data.isMember(memberName)){
-      if (data[memberName].asInt()+offsetVar < counterVar || data[memberName].asInt()+offsetVar > counterVar+6000){
-        if (data[memberName].asInt() > counterVar){
+      if (!counterVar.isNull() && (data[memberName].asInt()+offsetVar < counterVar.asInt() || data[memberName].asInt()+offsetVar > counterVar.asInt()+6000)){
+        if (data[memberName].asInt() > counterVar.asInt()){
           //WARN_MSG("%s increased from %zu to %" PRIu64 "..? Adjusted.", memberName, counterVar, data[memberName].asInt());
-          offsetVar -= (data[memberName].asInt() - counterVar);
+          offsetVar -= (data[memberName].asInt() - counterVar.asInt());
           //if (data.isMember("logs") && data["logs"].size()){WARN_MSG("Related logs: %s", data["logs"].toString().c_str());}
         }else{
           //WARN_MSG("%s decreased from %zu to %" PRIu64 "..? Adjusted.", memberName, counterVar, data[memberName].asInt());
@@ -1243,16 +1243,10 @@ namespace Mist{
     uint8_t prevStatePerc = 0, newStatePerc = 0;
     std::set<size_t> prevTracks;
     prevState = newState = STRMSTAT_INVALID;
-    std::string statPlayer = "?";
-    std::string statProto = "?";
-    std::string statURL = "?";
-    std::string statUnload = "?";
-    std::string statPage = "?";
-    std::string statAutoplay = "No";
-    std::string uid = "?";
+    JSON::Value statPlayer, statProto, statURL, statUnload, statPage, statAutoplay, uid;
     bool statIsKeyOnly = false;
     uint64_t startingTime = Util::bootMS();
-    size_t statPlaytime = 0, statLogs = 0, statErrors = 0, statFirstFrame = 0, statWaits = 0, statWaitTime = 0, statStalls = 0, statStallTime = 0, ttff = 0, preloadTime = 0;
+    JSON::Value statPlaytime, statLogs, statErrors, statFirstFrame, statWaits, statWaitTime, statStalls, statStallTime, ttff, preloadTime;
     int64_t statPlaytimeAdj = 0, statLogsAdj = 0, statErrorsAdj = 0, statWaitsAdj = 0, statWaitTimeAdj = 0, statStallsAdj = 0, statStallTimeAdj = 0, preloadTimeAdj = 0;
     uint64_t currHeight = 0;
     uint64_t maxHeight = 0;
@@ -1305,22 +1299,30 @@ namespace Mist{
             JSON::Value incData = JSON::fromString(ws.data, ws.data.size());
             if (incData){
               //Log these members at most once, ignore further changes
-              if (!statFirstFrame && incData.isMember("firstPlayback")){statFirstFrame = incData["firstPlayback"].asInt();}
-              if (!ttff && incData.isMember("ttff")){ttff = incData["ttff"].asInt();}
-              if (incData.isMember("player") && statPlayer == "?"){statPlayer = incData["player"].toString();}
-              if (incData.isMember("uid") && uid == "?"){uid = incData["uid"].toString();}
-              if (incData.isMember("sourceType") && statProto == "?"){
-                statProto = incData["sourceType"].toString();
+              if (!statFirstFrame && incData.isMember("firstPlayback")){statFirstFrame = incData["firstPlayback"];}
+              if (!ttff && incData.isMember("ttff")){ttff = incData["ttff"];}
+              if (incData.isMember("player") && !statPlayer){statPlayer = incData["player"];}
+              if (incData.isMember("uid") && !uid){uid = incData["uid"];}
+              if (incData.isMember("sourceType") && !statProto){
+                statProto = incData["sourceType"];
                 if (pUX){
-                  std::string prot = incData["sourceType"].asStringRef();
+                  std::string prot = incData["sourceType"].asString();
                   Util::sanitizeName(prot);
                   pUX.setProto(prot);
                 }
               }
-              if (incData.isMember("sourceUrl") && statURL == "?"){statURL = incData["sourceUrl"].toString();}
-              if (incData.isMember("pageUrl") && statPage == "?"){statPage = incData["pageUrl"].toString();}
-              if (incData.isMember("unload") && statUnload == "?"){statUnload = incData["unload"].toString();}
-              if (incData.isMember("autoplay") && statAutoplay == "No"){statAutoplay = incData["autoplay"].toString();}
+              if (incData.isMember("protocol") && !statProto){
+                statProto = incData["protocol"];
+                if (pUX){
+                  std::string prot = incData["protocol"].asString();
+                  Util::sanitizeName(prot);
+                  pUX.setProto(prot);
+                }
+              }
+              if (incData.isMember("sourceUrl") && !statURL){statURL = incData["sourceUrl"];}
+              if (incData.isMember("pageUrl") && !statPage){statPage = incData["pageUrl"];}
+              if (incData.isMember("unload") && !statUnload){statUnload = incData["unload"];}
+              if (incData.isMember("autoplay") && !statAutoplay){statAutoplay = incData["autoplay"];}
               //These members can only increase, use helper function to check them one by one.
               onlyIncrease(incData, "nWaiting", statWaits, statWaitsAdj);
               onlyIncrease(incData, "timeWaiting", statWaitTime, statWaitTimeAdj);
@@ -1331,16 +1333,16 @@ namespace Mist{
               onlyIncrease(incData, "nError", statErrors, statErrorsAdj);
               onlyIncrease(incData, "nLog", statLogs, statLogsAdj);
               if (pUX){
-                if (pUX.getBadness() < statErrors+statStalls+statWaits){
+                if (pUX.getBadness() < statErrors.asInt()+statStalls.asInt()+statWaits.asInt()){
                   currScore /= 2;
                   pUX.setExperience(currScore);
                 }
-                pUX.setBadness(statErrors+statStalls+statWaits);
+                pUX.setBadness(statErrors.asInt()+statStalls.asInt()+statWaits.asInt());
                 if (M && M.mainTrack() != INVALID_TRACK_ID){
-                  pUX.setPercWatch(std::min((size_t)((statPlaytime*100)/M.getDuration(M.mainTrack())), (size_t)100));
+                  pUX.setPercWatch(std::min((size_t)((statPlaytime.asInt()*100)/M.getDuration(M.mainTrack())), (size_t)100));
                 }else{
                   //No known duration; fallback to playback duration in seconds because whelp
-                  pUX.setPercWatch(std::min(statPlaytime/1000, (size_t)100));
+                  pUX.setPercWatch(std::min(statPlaytime.asInt()/1000, (int64_t)100));
                 }
               }
               //current status related
@@ -1359,15 +1361,15 @@ namespace Mist{
                 }
                 if (currHeight){
                   if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
-                  heightTimes[currHeight] += (statPlaytime - lastHeightChange);
+                  heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
                 }
                 currHeight = incData["videoHeight"].asInt();
-                lastHeightChange = statPlaytime;
+                lastHeightChange = statPlaytime.asInt();
               }
               if (incData.isMember("keyonly")){statIsKeyOnly = incData["keyonly"].asBool();}
               //These members indicate some event has happened, print a log message about it.
               if (incData.isMember("lastError")){
-                WARN_MSG("Playback error (%s, %s): %s", statPlayer.c_str(), statProto.c_str(), incData["lastError"].asStringRef().c_str());
+                WARN_MSG("Playback error (%s, %s): %s", statPlayer.toString().c_str(), statProto.toString().c_str(), incData["lastError"].toString().c_str());
               }
               if (pUX && statFirstFrame && incData.isMember("playbackScore")){
                 trueScore = incData["playbackScore"].asDouble()*100;
@@ -1405,7 +1407,7 @@ namespace Mist{
       }
     }
     startingTime = Util::bootMS() - startingTime;
-    INFO_MSG("Closed info socket: %s (%s) was playing in %s over %s via %s for %" PRIu64 "ms. Playing for %zums, %zu logs, %zu errors, time to first frame %zu. There were %zu waits for a combined time of %zums (= %.1f%%). There were %zu stalls for a combined time of %zums. Unload reason was %s", useragent.c_str(), getConnectedHost().c_str(), statPlayer.c_str(), statProto.c_str(), statURL.c_str(), startingTime, statPlaytime, statLogs, statErrors, statFirstFrame, statWaits, statWaitTime, (statWaitTime*100.0) / (double)statPlaytime, statStalls, statStallTime, statUnload.c_str());
+    INFO_MSG("Closed info socket: %s (%s) was playing in %s over %s via %s for %" PRIu64 "ms. Playing for %" PRId64 "ms, %" PRId64 " logs, %" PRId64 " errors, time to first frame %" PRId64 ". There were %" PRId64 " waits for a combined time of %" PRId64 "ms (= %.1f%%). There were %" PRId64 " stalls for a combined time of %" PRId64 "ms. Unload reason was %s", useragent.c_str(), getConnectedHost().c_str(), statPlayer.toString().c_str(), statProto.toString().c_str(), statURL.toString().c_str(), startingTime, statPlaytime.asInt(), statLogs.asInt(), statErrors.asInt(), statFirstFrame.asInt(), statWaits.asInt(), statWaitTime.asInt(), (statWaitTime.asInt()*100.0) / (double)statPlaytime.asInt(), statStalls.asInt(), statStallTime.asInt(), statUnload.toString().c_str());
     if (config->getString("playbacklog").size()){
       std::string logFile = config->getString("playbacklog");
       if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || statIsKeyOnly){
@@ -1443,9 +1445,9 @@ namespace Mist{
       size_t chars = 0;
       uint64_t maxHeightMillis = 0;
       uint64_t nomaxHeightMillis = 0;
-      if (currHeight && statPlaytime > lastHeightChange){
+      if (currHeight && statPlaytime.asInt() > lastHeightChange){
         if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
-        heightTimes[currHeight] += (statPlaytime - lastHeightChange);
+        heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
       }
       if (heightTimes.size()){
       for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
@@ -1457,9 +1459,9 @@ namespace Mist{
       }
       }
       if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
-        chars = snprintf(logLine, 2048, "V6_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %" PRId64 ", %zu, %s, %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %zu, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s, %zu, %" PRId64 "\n", (size_t)getpid(), timeStr, getConnectedHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statPlaytimeAdj, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitsAdj, statWaitTime, statWaitTimeAdj, statStalls, statStallsAdj, statStallTime, statStallTimeAdj, statLogs, statLogsAdj, statErrors, statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str(), preloadTime, preloadTimeAdj);
+        chars = snprintf(logLine, 2048, "V7_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %s, %" PRId64 ", %s, %s, %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %s, %s, %s, %" PRId64 "\n", (size_t)getpid(), timeStr, getConnectedHost().c_str(), statProto.toString().c_str(), statPlayer.toString().c_str(), streamName.c_str(), startingTime, statPlaytime.toString().c_str(), statPlaytimeAdj, statFirstFrame.toString().c_str(), statAutoplay.toString().c_str(), statWaits.toString().c_str(), statWaitsAdj, statWaitTime.toString().c_str(), statWaitTimeAdj, statStalls.toString().c_str(), statStallsAdj, statStallTime.toString().c_str(), statStallTimeAdj, statLogs.toString().c_str(), statLogsAdj, statErrors.toString().c_str(), statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.toString().c_str(), statPage.toString().c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff.toString().c_str(), uid.toString().c_str(), preloadTime.toString().c_str(), preloadTimeAdj);
       }else{
-        chars = snprintf(logLine, 2048, "V6, %s, %s, %s, %s, %s, %" PRIu64 ", %zu, %zu, %s, %zu, %zu, %zu, %zu, %zu, %zu, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %zu, %s, %zu\n", timeStr, getConnectedHost().c_str(), statProto.c_str(), statPlayer.c_str(), streamName.c_str(), startingTime, statPlaytime, statFirstFrame, statAutoplay.c_str(), statWaits, statWaitTime, statStalls, statStallTime, statLogs, statErrors, statIsKeyOnly?"keyonly":"plain", statUnload.c_str(), statPage.c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff, uid.c_str(), preloadTime);
+        chars = snprintf(logLine, 2048, "V7, %s, %s, %s, %s, %s, %" PRIu64 ", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %s, %s, %s\n", timeStr, getConnectedHost().c_str(), statProto.toString().c_str(), statPlayer.toString().c_str(), streamName.c_str(), startingTime, statPlaytime.toString().c_str(), statFirstFrame.toString().c_str(), statAutoplay.toString().c_str(), statWaits.toString().c_str(), statWaitTime.toString().c_str(), statStalls.toString().c_str(), statStallTime.toString().c_str(), statLogs.toString().c_str(), statErrors.toString().c_str(), statIsKeyOnly?"keyonly":"plain", statUnload.toString().c_str(), statPage.toString().c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff.toString().c_str(), uid.toString().c_str(), preloadTime.toString().c_str());
       }
       //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
       write(plog, logLine, chars);

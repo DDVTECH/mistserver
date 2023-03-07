@@ -393,13 +393,6 @@ namespace Mist{
           }
           continue;
         }
-        if ((*it)["type"].asStringRef() == "str" && !p[it.key()].isString()){
-          p[it.key()] = p[it.key()].asString();
-        }
-        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
-            (*it)["type"].asStringRef() == "debug"){
-          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
-        }
         if ((*it)["type"].asStringRef() == "inputlist" && p[it.key()].isArray()){
           jsonForEach(p[it.key()], iVal){
             (*iVal) = iVal->asString();
@@ -407,6 +400,12 @@ namespace Mist{
             argarr[argnum++] = (char *)((*iVal).c_str());
           }
           continue;
+        }
+        if ((*it)["type"].asStringRef() == "uint" || (*it)["type"].asStringRef() == "int" ||
+            (*it)["type"].asStringRef() == "debug"){
+          p[it.key()] = JSON::Value(p[it.key()].asInt()).asString();
+        }else{
+          p[it.key()] = p[it.key()].asString();
         }
         if (p[it.key()].asStringRef().size() > 0){
           argarr[argnum++] = (char *)((*it)["option"].c_str());

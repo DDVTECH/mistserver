@@ -132,6 +132,8 @@ namespace Mist{
     virtual void sendHeader();
     virtual void sendNext();
     virtual void onWebsocketFrame();
+    virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    virtual void preHTTP(){}
     virtual void preWebsocketConnect();
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
     void onIdle();
@@ -145,8 +147,10 @@ namespace Mist{
     void onRTPPacketizerHasRTPPacket(const char *data, size_t nbytes);
     void onRTPPacketizerHasRTCPPacket(const char *data, uint32_t nbytes);
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
-
+    inline virtual bool keepGoing(){return config->is_active && (noSignalling || myConn);}
+    virtual void requestHandler();
   private:
+    bool noSignalling;
     uint64_t lastRecv;
     uint64_t lastPackMs;
     uint64_t totalPkts;

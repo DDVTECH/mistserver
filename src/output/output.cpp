@@ -187,7 +187,7 @@ namespace Mist{
     }
     Util::logExitReason(msg.c_str());
     isInitialized = false;
-    wantRequest = true;
+    wantRequest = false;
     parseData = false;
     myConn.close();
   }

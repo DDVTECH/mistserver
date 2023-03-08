@@ -2758,7 +2758,8 @@ var UI = {
           debug: mist.data.config.debug,
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
-          defaultStream: mist.data.config.defaultStream
+          defaultStream: mist.data.config.defaultStream,
+          trustedproxy: mist.data.config.trustedproxy
         };
         var s_sessions = {
           sessionViewerMode: mist.data.config.sessionViewerMode,
@@ -2766,8 +2767,7 @@ var UI = {
           sessionOutputMode: mist.data.config.sessionOutputMode,
           sessionUnspecifiedMode: mist.data.config.sessionUnspecifiedMode,
           tknMode: mist.data.config.tknMode,
-          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode,
-          trustedproxy: mist.data.config.trustedproxy
+          sessionStreamInfoMode: mist.data.config.sessionStreamInfoMode
         };
         var s_balancer = {
           location: "location" in mist.data.config ? mist.data.config.location : {}
@@ -2852,7 +2852,7 @@ var UI = {
             label: "Trusted proxies",
             help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
             pointer: {
-              main: s,
+              main: s_general,
               index: "trustedproxy"
             }
           },{
@@ -2865,10 +2865,27 @@ var UI = {
             },
             help: "When this is set, if someone attempts to view a stream that does not exist, or is offline, they will be redirected to this stream instead. $stream may be used to refer to the original stream name.",
             LTSonly: true
-          },
+          },{
+            type: 'buttons',
+            buttons: [{
+              type: 'save',
+              label: 'Save',
+              'function': function(ele){
+                $(ele).text("Saving..");
+
+                var save = {config: s_general};
+                                
+                mist.send(function(){
+                  UI.navto('General');
+                },save)
+              }
+            }]
+          }
+        ]));
 
 
 
+        $main.append(UI.buildUI([
           $("<h3>").text("Sessions"),
           {
             type: 'bitmask',
@@ -2954,15 +2971,6 @@ var UI = {
               index: "tknMode"
             },
             help: "Change the way the session token gets passed to and from MistServer, which can be set as a cookie or URL parameter named `tkn`. Reading the session token as a URL parameter takes precedence over reading from the cookie.<br>Default: all"
-          },{
-            type: "inputlist",
-            label: "Trusted proxies",
-            help: "List of proxy server addresses that are allowed to override the viewer IP address to arbitrary values.<br>You may use a hostname or IP address.",
-            LTSonly: true,
-            pointer: {
-              main: s_sessions,
-              index: "trustedproxy"
-            }
           },{
             type: 'buttons',
             buttons: [{
@@ -3269,7 +3277,31 @@ var UI = {
               type: "inputlist",
               label: "URI protocols handled",
               help: "URI protocols which the external writer will be handling.",
-              validate: ['required'],
+              validate: ['required',function(val){
+                for (var i in val) {
+                  var v = val[i];
+                  if (v.match(/^([a-z\d\+\-\.])+?$/) === null) {
+                    return {
+                      classes: ["red"],
+                      msg: "There was a problem with the protocol URI '"+function(s){ return $("<div>").text(s).html() }(v)+"':<br>A protocol URI may only contain lower case letters, digits, and the following special characters . + and -"
+                    }
+                    break;
+                  }
+                }
+              }],
+              input: {
+                type: "str",
+                unit: "://",
+                validate: [function(v){//cijfers lowercase letters az + - .
+                  if (v.indexOf("://") != -1) {
+                    return {
+                      classes: ["red"],
+                      msg: "Don't include '://' here.",
+                      "break": true
+                    };
+                  }
+                }]
+              },
               pointer: {
                 main: saveas,
                 index: "protocols"

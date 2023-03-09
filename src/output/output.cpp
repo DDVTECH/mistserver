@@ -2085,23 +2085,6 @@ namespace Mist{
         thisPacket.null();
         return true;
       }
-      //every ~16 seconds, reconnect to metadata
-      if (emptyCount % 1600 == 0){
-        INFO_MSG("Reconnecting to input; track %zu key %" PRIu32 " is on page %" PRIu32 " and we're currently serving %" PRIu32 " from %" PRIu32, nxt.tid, thisKey+1, nextKeyPage, thisKey, currentPage[nxt.tid]);
-        reconnect();
-        if (!meta){
-          onFail("Could not connect to stream data", true);
-          thisPacket.null();
-          return true;
-        }
-        // if we don't have a connection to the metadata here, this means the stream has gone offline in the meanwhile.
-        if (!meta){
-          Util::logExitReason("Attempted reconnect to source failed");
-          thisPacket.null();
-          return true;
-        }
-        return false;//no sleep after reconnect
-      }
       
       //Fine! We didn't want a packet, anyway. Let's try again later.
       playbackSleep(10);

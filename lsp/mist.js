@@ -3219,10 +3219,11 @@ var UI = {
                 ).append(
                   $("<button>").text("Remove").click(function(){
                     var i = $(this).closest("tr").attr("data-name");
-                    if (confirm("Are you sure you want to remove the Uploader '"+i+"'?")) {
+                    var name = d.external_writer_list[i][0];
+                    if (confirm("Are you sure you want to remove the Uploader '"+name+"'?")) {
                       mist.send(function(){
                         UI.showTab("General");
-                      },{external_writer_remove:i});
+                      },{external_writer_remove:name});
                     }
                   })
                 )
@@ -3311,9 +3312,13 @@ var UI = {
                   label: 'Save',
                   'function': function(){
                     var o = {external_writer_add:saveas};
+                    var prev_name = null;
+                    if ((other != "") && (other in mist.data.external_writer_list)) { 
+                      prev_name = mist.data.external_writer_list[other][0]; 
+                    }
 
-                    if (saveas.name != other) {
-                      o.external_writer_remove = other;
+                    if ((prev_name !== null) && (saveas.name != prev_name)) {
+                      o.external_writer_remove = prev_name;
                     }
                     mist.send(function(){
                       UI.navto('General');

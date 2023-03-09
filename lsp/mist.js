@@ -3291,16 +3291,7 @@ var UI = {
               }],
               input: {
                 type: "str",
-                unit: "://",
-                validate: [function(v){//cijfers lowercase letters az + - .
-                  if (v.indexOf("://") != -1) {
-                    return {
-                      classes: ["red"],
-                      msg: "Don't include '://' here.",
-                      "break": true
-                    };
-                  }
-                }]
+                unit: "://"
               },
               pointer: {
                 main: saveas,

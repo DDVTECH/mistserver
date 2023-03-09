@@ -825,13 +825,21 @@ namespace Mist{
     meta.reInit(isSingular() ? streamName : "");
 
     tthread::lock_guard<tthread::mutex> guard(entryMutex);
+
+    size_t totalSegments = 0, currentSegment = 0;
     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
          pListIt != listEntries.end(); pListIt++){
+      totalSegments += pListIt->second.size();
+    }
+
+    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
+         pListIt != listEntries.end() && config->is_active; pListIt++){
       tsStream.clear();
       uint32_t entId = 0;
 
       for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
-           entryIt != pListIt->second.end(); entryIt++){
+           entryIt != pListIt->second.end() && config->is_active; entryIt++){
+        ++currentSegment;
         tsStream.partialClear();
 
         if (!segDowner.loadSegment(*entryIt)){
@@ -840,7 +848,7 @@ namespace Mist{
         }
         entId++;
         allowRemap = true;
-        while (!segDowner.atEnd()){
+        while (!segDowner.atEnd() && config->is_active){
           // Wait for packets on each track to make sure the offset is set based on the earliest packet
           hasPacket = tsStream.hasPacketOnEachTrack() || (segDowner.atEnd() && tsStream.hasPacket());
           if (hasPacket){
@@ -902,8 +910,14 @@ namespace Mist{
           std::deque<playListEntries> &curList = listEntries[pListIt->first];
           curList.at(entId-1).timeOffset = 0;
         }
+
+        //Set progress counter
+        if (streamStatus && streamStatus.len > 1){
+          streamStatus.mapped[1] = (255 * currentSegment) / totalSegments;
+        }
       }
     }
+    if (!config->is_active){return false;}
 
     // set bootMsOffset in order to display the program time correctly in the player
     if (meta.getLive()){meta.setUTCOffset(streamOffset + (Util::unixMS() - Util::bootMS()));}

@@ -437,6 +437,7 @@ namespace Mist{
       json_resp["redirected"].append(streamName);
     }
     uint8_t streamStatus = Util::getStreamStatus(streamName);
+    uint8_t streamStatusPerc = Util::getStreamStatusPercentage(streamName);
     if (streamStatus != STRMSTAT_READY){
       // If we haven't rewritten the stream name yet to a fallback, attempt to do so
       if (origStreamName == streamName){
@@ -488,6 +489,7 @@ namespace Mist{
       case STRMSTAT_INVALID: json_resp["error"] = "Stream status is invalid?!"; break;
       default: json_resp["error"] = "Stream status is unknown?!"; break;
       }
+      if (streamStatusPerc){json_resp["perc"] = ((double)streamStatusPerc)/2.55;}
       return json_resp;
     }
     initialize();
@@ -806,7 +808,6 @@ namespace Mist{
       if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
       std::string response;
       std::string rURL = req.url;
-      if (headersOnly){initialize();}
       if (rURL.substr(0, 6) != "/json_"){
         H.SetHeader("Content-Type", "application/javascript");
       }else{
@@ -1125,26 +1126,30 @@ namespace Mist{
     if (!ws){return false;}
     setBlocking(false);
     // start the stream, if needed
-    Util::startInput(streamName, "", true, false);
+    Util::sanitizeName(streamName);
+    if (!Util::streamAlive(streamName)){Util::startInput(streamName, "", true, false);}
 
     char pageName[NAME_BUFFER_SIZE];
     std::string currStreamName;
     currStreamName = streamName;
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-    IPC::sharedPage streamStatus(pageName, 1, false, false);
+    IPC::sharedPage streamStatus(pageName, 2, false, false);
     uint8_t prevState, newState, pingCounter = 0;
+    uint8_t prevStatePerc = 0, newStatePerc = 0;
     std::set<size_t> prevTracks;
     prevState = newState = STRMSTAT_INVALID;
     while (keepGoing()){
-      if (!streamStatus || !streamStatus.exists()){streamStatus.init(pageName, 1, false, false);}
+      if (!streamStatus || !streamStatus.exists()){streamStatus.init(pageName, 2, false, false);}
       if (!streamStatus){
         newState = STRMSTAT_OFF;
+        newStatePerc = 0;
       }else{
         newState = streamStatus.mapped[0];
+        if (streamStatus.len > 1){newStatePerc = streamStatus.mapped[1];}
       }
 
       if (meta){meta.reloadReplacedPagesIfNeeded();}
-      if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks() != prevTracks)){
+      if (newState != prevState || (newState == STRMSTAT_READY && M.getValidTracks() != prevTracks) || (newState != STRMSTAT_READY && newStatePerc != prevStatePerc)){
         if (newState == STRMSTAT_READY){
           thisError = "";
           reconnect();
@@ -1170,6 +1175,7 @@ namespace Mist{
         }
         ws.sendFrame(resp.toString());
         prevState = newState;
+        prevStatePerc = newStatePerc;
       }else{
         if (newState == STRMSTAT_READY){stats();}
         if (myConn.spool() && ws.readFrame()){

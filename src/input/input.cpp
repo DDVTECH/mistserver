@@ -56,7 +56,6 @@ namespace Mist{
       }
       uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
       if (i == key){
-        INFO_MSG("Track %zu key %zu is on page %" PRIu32, track, key, pageNumber);
         keyLoadPriority[trackKey(track, pageNumber)] += 10000;
       }else{
         keyLoadPriority[trackKey(track, pageNumber)] += 1000 - (key - i);
@@ -69,7 +68,6 @@ namespace Mist{
   }
   void Input::userOnDisconnect(size_t id){}
   void Input::userLeadOut(){
-    INFO_MSG("Wanna load %zu keys", keyLoadPriority.size());
     if (!keyLoadPriority.size()){return;}
     //Make reverse mapping
     std::multimap<uint64_t, trackKey> reverse;
@@ -412,7 +410,7 @@ namespace Mist{
         //Set stream status to STRMSTAT_INIT, then close the page in non-master mode to keep it around
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, true, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         streamStatus.master = false;
         streamStatus.close();
@@ -459,7 +457,7 @@ namespace Mist{
         // Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, true, false);
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
@@ -469,7 +467,7 @@ namespace Mist{
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, true, false);
         streamStatus.close();
       }
       playerLock.unlink();
@@ -490,7 +488,7 @@ namespace Mist{
           // Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-          streamStatus.init(pageName, 1, true, false);
+          streamStatus.init(pageName, 2, true, false);
           streamStatus.master = false;
           if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         }
@@ -528,7 +526,7 @@ namespace Mist{
       if (playerLock){
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 1, true, false);
+        streamStatus.init(pageName, 2, true, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
       }
 #if DEBUG >= DLVL_DEVEL
@@ -559,7 +557,7 @@ namespace Mist{
       pidPage.close();
       //Clear stream state
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-      streamStatus.init(pageName, 1, true, false);
+      streamStatus.init(pageName, 2, true, false);
       streamStatus.close();
       //Delete lock
       playerLock.unlink();

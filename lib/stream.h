@@ -27,6 +27,7 @@ namespace Util{
   JSON::Value getGlobalConfig(const std::string &optionName);
   JSON::Value getInputBySource(const std::string &filename, bool isProvider = false);
   uint8_t getStreamStatus(const std::string &streamname);
+  uint8_t getStreamStatusPercentage(const std::string &streamname);
   bool checkException(const JSON::Value &ex, const std::string &useragent);
   std::string codecString(const std::string &codec, const std::string &initData = "");
 

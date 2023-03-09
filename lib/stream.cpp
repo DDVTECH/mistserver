@@ -850,9 +850,17 @@ pid_t Util::startPush(const std::string &streamname, std::string &target, int de
 uint8_t Util::getStreamStatus(const std::string &streamname){
   char pageName[NAME_BUFFER_SIZE];
   snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
-  IPC::sharedPage streamStatus(pageName, 1, false, false);
+  IPC::sharedPage streamStatus(pageName, 2, false, false);
   if (!streamStatus){return STRMSTAT_OFF;}
   return streamStatus.mapped[0];
+}
+
+uint8_t Util::getStreamStatusPercentage(const std::string &streamname){
+  char pageName[NAME_BUFFER_SIZE];
+  snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamname.c_str());
+  IPC::sharedPage streamStatus(pageName, 2, false, false);
+  if (!streamStatus || streamStatus.len < 2){return 0;}
+  return streamStatus.mapped[1];
 }
 
 /// Checks if a given user agent is allowed according to the given exception.

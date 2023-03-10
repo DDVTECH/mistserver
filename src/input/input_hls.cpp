@@ -249,7 +249,7 @@ namespace Mist{
   bool SegmentDownloader::atEnd() const{
     if (!isOpen || !currBuf){return true;}
     if (buffered){return currBuf->size() <= offset + 188;}
-    return segDL.isEOF();
+    return segDL.isEOF() && currBuf->size() <= offset + 188;
     // return (packetPtr - segDL.const_data().data() + 188) > segDL.const_data().size();
   }
 
@@ -1079,7 +1079,9 @@ namespace Mist{
     // Update all playlists to make sure listEntries contains all live segments
     for (std::map<uint64_t, Playlist>::iterator pListIt = playlistMapping.begin();
          pListIt != playlistMapping.end(); pListIt++){
-      pListIt->second.reload();
+      if (pListIt->second.reloadNext < Util::bootSecs()){
+        pListIt->second.reload();
+      }
     }
 
     HIGH_MSG("Current playlist has parsed %zu/%" PRIu64 " entries", listEntries[currentPlaylist].size(), parsedSegments[currentPlaylist]);
@@ -1444,9 +1446,8 @@ namespace Mist{
         // skip empty lines in the playlist
         continue;
       }
-      if (line.compare(0, 26, "#EXT-X-PLAYLIST-TYPE:EVENT") == 0){
-        isLiveDVR = true;
-      }
+      if (line.compare(0, 26, "#EXT-X-PLAYLIST-TYPE:EVENT") == 0){isLiveDVR = true;}
+      if (line.compare(0, 14, "#EXT-X-ENDLIST") == 0){isLiveDVR = false;}
       if (line.compare(0, 17, "#EXT-X-STREAM-INF") == 0){
         // this is a variant playlist file.. next line is an uri to a playlist
         // file

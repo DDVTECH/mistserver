@@ -2080,10 +2080,16 @@ namespace Mist{
         return false;
       }
       //every ~1 second, check if the stream is not offline
-      if (emptyCount % 100 == 0 && M.getLive() && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
-        Util::logExitReason("Stream source shut down");
-        thisPacket.null();
-        return true;
+      if (emptyCount % 100 == 0 && Util::getStreamStatus(streamName) == STRMSTAT_OFF){
+        if (M.getLive()){
+          Util::logExitReason("Live stream source shut down");
+          thisPacket.null();
+          return true;
+        }else if (!Util::startInput(streamName)){
+          Util::logExitReason("VoD stream source shut down and could not be restarted");
+          thisPacket.null();
+          return true;
+        }
       }
       
       //Fine! We didn't want a packet, anyway. Let's try again later.

@@ -65,6 +65,7 @@ namespace Mist{
     bool encrypted;
     bool buffered;
     size_t offset;
+    bool firstPacket;
     Util::ResizeablePointer outData;
     Util::ResizeablePointer * currBuf;
     size_t encOffset;

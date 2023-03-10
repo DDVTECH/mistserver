@@ -1135,6 +1135,13 @@ namespace TS{
         }
       }
       MEDIUM_MSG("Initialized track %zu as %s %s", idx, codec.c_str(), type.c_str());
+      if (tid != INVALID_TRACK_ID){return;}
+    }
+    if (tid != INVALID_TRACK_ID){
+      WARN_MSG("Could not init track %zu!", tid);
+      for (std::map<size_t, uint32_t>::const_iterator it = pidToCodec.begin(); it != pidToCodec.end(); it++){
+        INFO_MSG("Track %zu (%" PRIu32 ") no match", it->first, it->second);
+      }
     }
   }
 

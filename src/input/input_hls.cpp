@@ -324,7 +324,12 @@ namespace Mist{
         }
         if (currBuf->size() < offset + 188 + 188){return false;}
       }
-      offset += 188;
+      // First packet is at offset 0, not 188. Skip increment for this one.
+      if (!firstPacket){
+        offset += 188;
+      }else{
+        firstPacket = false;
+      }
       packetPtr = *currBuf + offset;
       if (!packetPtr || packetPtr[0] != 0x47){
         FAIL_MSG("Not a valid TS packet: first byte %" PRIu8, packetPtr?(uint8_t)packetPtr[0]:0);
@@ -354,14 +359,16 @@ namespace Mist{
                hexIvec.c_str());
 
     offset = 0;
+    firstPacket = true;
     buffered = segBufs.count(entry.filename);
     if (!buffered){
+      INFO_MSG("Reading non-cache: %s", entry.filename.c_str());
       if (!segDL.open(entry.filename)){
         FAIL_MSG("Could not open %s", entry.filename.c_str());
         return false;
       }
       if (!segDL){return false;}
-      if (segBufs.size() > 60){
+      if (segBufs.size() > 30){
         segBufs.erase(segBufAccs.back());
         segBufAccs.pop_back();
       }
@@ -848,7 +855,7 @@ namespace Mist{
         }
         entId++;
         allowRemap = true;
-        while (!segDowner.atEnd() && config->is_active){
+        while ((!segDowner.atEnd() || tsStream.hasPacket()) && config->is_active){
           // Wait for packets on each track to make sure the offset is set based on the earliest packet
           hasPacket = tsStream.hasPacketOnEachTrack() || (segDowner.atEnd() && tsStream.hasPacket());
           if (hasPacket){
@@ -868,7 +875,7 @@ namespace Mist{
               // keyframe data exists, so always add 19 bytes keyframedata.
               uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
               size_t packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-              VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
+              DONTEVEN_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
               meta.update(packetTime, packOffset, idx, dataLen, entId, headerPack.hasMember("keyframe"), packSendSize);
               tsStream.getEarliestPacket(headerPack);
             }
@@ -884,7 +891,7 @@ namespace Mist{
         DTSC::Packet headerPack;
         tsStream.getEarliestPacket(headerPack);
         while (headerPack){
-          int tmpTrackId = headerPack.getTrackId();
+          size_t tmpTrackId = headerPack.getTrackId();
           uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
           uint64_t packetTime = getPacketTime(headerPack.getTime(), tmpTrackId, pListIt->first, entryIt->mUTC);
           size_t idx = M.trackIDToIndex(packetId, getpid());
@@ -897,7 +904,7 @@ namespace Mist{
           // keyframe data exists, so always add 19 bytes keyframedata.
           uint32_t packOffset = headerPack.hasMember("offset") ? headerPack.getInt("offset") : 0;
           size_t packSendSize = 24 + (packOffset ? 17 : 0) + (entId >= 0 ? 15 : 0) + 19 + dataLen + 11;
-          VERYHIGH_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
+          DONTEVEN_MSG("Adding packet (%zuB) at %" PRIu64 " with an offset of %" PRIu32 " on track %zu", dataLen, packetTime, packOffset, idx);
           meta.update(packetTime, packOffset, idx, dataLen, entId, headerPack.hasMember("keyframe"), packSendSize);
           tsStream.getEarliestPacket(headerPack);
         }

@@ -109,6 +109,11 @@ namespace Mist{
   /// Order of adding/accessing for local RAM buffer of segments
   std::deque<std::string> segBufAccs;
 
+  /// Order of adding/accessing sizes for local RAM buffer of segments
+  std::deque<size_t> segBufSize;
+
+  size_t segBufTotalSize = 0;
+
   /// Track which segment numbers have been parsed
   std::map<uint64_t, uint64_t> parsedSegments;
 
@@ -249,7 +254,7 @@ namespace Mist{
   bool SegmentDownloader::atEnd() const{
     if (!isOpen || !currBuf){return true;}
     if (buffered){return currBuf->size() <= offset + 188;}
-    return segDL.isEOF() && currBuf->size() <= offset + 188;
+    return !segDL && currBuf->size() <= offset + 188;
     // return (packetPtr - segDL.const_data().data() + 188) > segDL.const_data().size();
   }
 
@@ -318,9 +323,25 @@ namespace Mist{
         if (atEnd()){return false;}
       }else{
         if (!currBuf){return false;}
+        size_t retries = 0;
         while (segDL && currBuf->size() < offset + 188 + 188){
-          segDL.readSome(188, *this);
-          if (currBuf->size() < offset + 188 + 188){Util::sleep(50);}
+          segDL.readSome(offset + 188 + 188 - currBuf->size(), *this);
+          if (currBuf->size() < offset + 188 + 188){
+            if (!segDL){
+              if (!segDL.isSeekable()){return false;}
+              // Only retry/resume if seekable and allocated size greater than current size
+              if (currBuf->rsize() > currBuf->size()){
+                // Seek to current position to resume
+                ++retries;
+                if (retries > 5){
+                  segDL.close();
+                  return false;
+                }
+                segDL.seek(currBuf->size());
+              }
+            }
+            Util::sleep(50);
+          }
         }
         if (currBuf->size() < offset + 188 + 188){return false;}
       }
@@ -332,7 +353,13 @@ namespace Mist{
       }
       packetPtr = *currBuf + offset;
       if (!packetPtr || packetPtr[0] != 0x47){
-        FAIL_MSG("Not a valid TS packet: first byte %" PRIu8, packetPtr?(uint8_t)packetPtr[0]:0);
+        std::stringstream packData;
+        if (packetPtr){
+          for (uint64_t i = 0; i < 188; ++i){
+            packData << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)packetPtr[i];
+          }
+        }
+        FAIL_MSG("Not a valid TS packet: byte %zu is not 0x47: %s", offset, packData.str().c_str());
         return false;
       }
       return true;
@@ -341,7 +368,13 @@ namespace Mist{
 
   void SegmentDownloader::dataCallback(const char *ptr, size_t size){
     currBuf->append(ptr, size);
+    //Overwrite the current segment size
+    segBufTotalSize -= segBufSize.front();
+    segBufSize.front() = currBuf->size();
+    segBufTotalSize += segBufSize.front();
   }
+
+  size_t SegmentDownloader::getDataCallbackPos() const{return currBuf->size();}
 
   /// Attempts to read a single TS packet from the current segment, setting packetPtr on success
   void SegmentDownloader::close(){
@@ -362,21 +395,54 @@ namespace Mist{
     firstPacket = true;
     buffered = segBufs.count(entry.filename);
     if (!buffered){
-      INFO_MSG("Reading non-cache: %s", entry.filename.c_str());
+      HIGH_MSG("Reading non-cache: %s", entry.filename.c_str());
       if (!segDL.open(entry.filename)){
         FAIL_MSG("Could not open %s", entry.filename.c_str());
         return false;
       }
       if (!segDL){return false;}
-      if (segBufs.size() > 30){
+      //Remove cache entries while above 16MiB in total size, unless we only have 1 entry (we keep two at least at all times)
+      while (segBufTotalSize > 16 * 1024 * 1024 && segBufs.size() > 1){
+        HIGH_MSG("Dropping from segment cache: %s", segBufAccs.back().c_str());
         segBufs.erase(segBufAccs.back());
+        segBufTotalSize -= segBufSize.back();
         segBufAccs.pop_back();
+        segBufSize.pop_back();
       }
       segBufAccs.push_front(entry.filename);
+      segBufSize.push_front(0);
+      currBuf = &(segBufs[entry.filename]);
     }else{
-      INFO_MSG("Reading from segment cache: %s", entry.filename.c_str());
+      HIGH_MSG("Reading from segment cache: %s", entry.filename.c_str());
+      currBuf = &(segBufs[entry.filename]);
+      if (currBuf->rsize() != currBuf->size()){
+        MEDIUM_MSG("Cache was incomplete (%zu/%" PRIu32 "), resuming", currBuf->size(), currBuf->rsize());
+        buffered = false;
+        // We only re-open and seek if the opened URL doesn't match what we want already
+        HTTP::URL A = segDL.getURI();
+        HTTP::URL B = HTTP::localURIResolver().link(entry.filename);
+        if (A != B){
+          if (!segDL.open(entry.filename)){
+            FAIL_MSG("Could not open %s", entry.filename.c_str());
+            return false;
+          }
+          if (!segDL){return false;}
+          //Seek to current position in segment for resuming
+          currBuf->truncate(currBuf->size() / 188 * 188);
+          MEDIUM_MSG("Seeking to %zu", currBuf->size());
+          segDL.seek(currBuf->size());
+        }
+      }
     }
-    currBuf = &(segBufs[entry.filename]);
+    if (!buffered){
+      // Allocate full size if known
+      if (segDL.getSize() != std::string::npos){currBuf->allocate(segDL.getSize());}
+      // Download full segment if not seekable, pretend it was cached all along
+      if (!segDL.isSeekable()){
+        segDL.readAll(*this);
+        buffered = true;
+      }
+    }
 
     encrypted = false;
     outData.truncate(0);
@@ -1221,7 +1287,7 @@ namespace Mist{
 
     currentIndex = plistEntry - 1;
     currentPlaylist = getMappedTrackPlaylist(trackId);
-    INFO_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
+    VERYHIGH_MSG("Seeking to index %zu on playlist %" PRIu64, currentIndex, currentPlaylist);
 
     {// Lock mutex for listEntries
       tthread::lock_guard<tthread::mutex> guard(entryMutex);

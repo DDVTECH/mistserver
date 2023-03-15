@@ -861,6 +861,7 @@ namespace Mist{
     }
     uint64_t actualKeyTime = keys.getTime(keyNum);
     HIGH_MSG("Seeking to track %zu key %" PRIu32 " => time %" PRIu64, tid, keyNum, pos);
+    emptyCount = 0;
     if (actualKeyTime > pos){
       pos = actualKeyTime;
       userSelect[tid].setKeyNum(keyNum);
@@ -2076,6 +2077,8 @@ namespace Mist{
 
       // in sync mode, after ~25 seconds, give up and drop the track.
       if (++emptyCount >= dataWaitTimeout){
+        //curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen()
+        WARN_MSG("Waiting at %s byte %zu", curPage[nxt.tid].name.c_str(), nxt.offset + preLoad.getDataLen());
         dropTrack(nxt.tid, "EOP: data wait timeout");
         return false;
       }

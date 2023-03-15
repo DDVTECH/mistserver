@@ -30,6 +30,7 @@ namespace Util{
     virtual void dataCallback(const char *ptr, size_t size){
       INFO_MSG("default callback, size: %zu", size);
     }
+    virtual size_t getDataCallbackPos() const{return 0;}
     virtual ~DataCallback(){};
   };
 

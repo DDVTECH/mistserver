@@ -34,6 +34,8 @@ namespace HTTP{
     std::string pass; ///< Password, if it was present
     URL link(const std::string &l) const;
     bool IPv6Addr;
+    bool operator==(const URL& rhs) const;
+    bool operator!=(const URL& rhs) const;
   };
 
 }// namespace HTTP

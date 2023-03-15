@@ -156,6 +156,7 @@ namespace Mist{
   }
 
   void inputMP4::dataCallback(const char *ptr, size_t size){readBuffer.append(ptr, size);}
+  size_t inputMP4::getDataCallbackPos() const{return readPos + readBuffer.size();}
 
   bool inputMP4::needHeader(){
     //Attempt to read cache, but force calling of the readHeader function anyway

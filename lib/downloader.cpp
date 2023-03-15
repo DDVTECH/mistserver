@@ -71,6 +71,14 @@ namespace HTTP{
     return S;
   }
 
+  void Downloader::clean(){
+    H.headerOnly = false;
+    H.Clean();
+    getSocket().close();
+    getSocket().Received().clear();
+    extraHeaders.clear();
+  }
+
   ///Sets an override to use the given socket
   void Downloader::setSocket(Socket::Connection * socketPtr){
     sPtr = socketPtr;
@@ -187,10 +195,7 @@ namespace HTTP{
           if (progressCallback != 0){
             if (!progressCallback()){
               WARN_MSG("Download aborted by callback");
-              H.headerOnly = false;
-              H.Clean();
-              getSocket().close();
-              getSocket().Received().clear();
+              clean();
               return false;
             }
           }
@@ -203,10 +208,7 @@ namespace HTTP{
 
           // If the return status code is invalid, close the socket, wipe all buffers, and return false
           if(!getStatusCode()){
-            H.headerOnly = false;
-            getSocket().close();
-            getSocket().Received().clear();
-            H.Clean();
+            clean();
             return false;
           }
 
@@ -233,10 +235,7 @@ namespace HTTP{
           if (progressCallback != 0){
             if (!progressCallback()){
               WARN_MSG("Download aborted by callback");
-              H.headerOnly = false;
-              H.Clean();
-              getSocket().close();
-              getSocket().Received().clear();
+              clean();
               return false;
             }
           }
@@ -246,11 +245,9 @@ namespace HTTP{
           }
         }
       }
-      H.headerOnly = false;
 
       if (getSocket()){
         FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
-        getSocket().close();
       }else{
         if (loop > 1){
           INFO_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
@@ -258,8 +255,7 @@ namespace HTTP{
           MEDIUM_MSG("Lost connection while retrieving %s (%zu/%" PRIu32 ")", link.getUrl().c_str(), loop, retryCount);
         }
       }
-      H.Clean();
-      getSocket().Received().clear();
+      clean();
       Util::sleep(100); // wait a bit before retrying
     }
     FAIL_MSG("Could not retrieve %s", link.getUrl().c_str());
@@ -309,6 +305,7 @@ namespace HTTP{
     nbMaxRecursiveDepth = maxRecursiveDepth;
     nbLoop = retryCount + 1; // max 5 attempts
     isComplete = false;
+    extraHeaders.erase("Range");
     doRequest(nbLink);
     nbReqTime = Util::bootSecs();
     nbLastOff = getSocket().dataDown();
@@ -343,28 +340,17 @@ namespace HTTP{
         }
 
         if (H.hasHeader("Accept-Ranges") && getHeader("Accept-Ranges").size() > 0){
-          getRangeNonBlocking(nbLink, H.currentLength, 0, cb);
-          return true;
+          getRangeNonBlocking(nbLink, cb.getDataCallbackPos(), 0, cb);
+          continue;
         }else{
           doRequest(nbLink);
         }
 
-        if (!getSocket()){
-          WARN_MSG("Aborting download: could not open connection");
-          return true;
-        }
         nbReqTime = Util::bootSecs();
         nbLastOff = getSocket().dataDown();
       }
 
-      if (Util::bootSecs() >= nbReqTime + dataTimeout){
-        FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", nbLink.getUrl().c_str(),
-                 retryCount - nbLoop + 1, retryCount);
-        getSocket().close();
-        return false; // because we may have retries left
-      }
-
-      // No data? Wait for a second or so.
+      // No data? Return false to indicate retry later.
       if (!getSocket().spool() && getSocket()){
         if (progressCallback != 0){
           if (!progressCallback()){
@@ -372,9 +358,30 @@ namespace HTTP{
             return true;
           }
         }
+        if (Util::bootSecs() >= nbReqTime + dataTimeout){
+          FAIL_MSG("Timeout while retrieving %s (%zu/%" PRIu32 ")", nbLink.getUrl().c_str(),
+                   retryCount - nbLoop + 1, retryCount);
+          getSocket().close();
+          return false; // Retry on next attempt
+        }
         return false;
       }
-      // Data! Check if we can parse it...
+
+      // Reset the data timeout
+      if (nbReqTime != Util::bootSecs()){
+        if (progressCallback != 0){
+          if (!progressCallback()){
+            WARN_MSG("Download aborted by callback");
+            return true;
+          }
+        }
+        if (getSocket().dataDown() > nbLastOff + 25600){
+          nbReqTime = Util::bootSecs();
+          nbLastOff = getSocket().dataDown();
+        }
+      }
+
+      //Attempt to parse the data we received
       if (H.Read(getSocket(), cb)){
         if (shouldContinue()){
           if (nbMaxRecursiveDepth == 0){
@@ -393,21 +400,7 @@ namespace HTTP{
         isComplete = true; // Success
         return true;
       }
-      // reset the data timeout
-      if (nbReqTime != Util::bootSecs()){
-        if (progressCallback != 0){
-          if (!progressCallback()){
-            WARN_MSG("Download aborted by callback");
-            return true;
-          }
-        }
-        if (getSocket().dataDown() > nbLastOff + 25600){
-          nbReqTime = Util::bootSecs();
-          nbLastOff = getSocket().dataDown();
-        }
-      }
     }
-    WARN_MSG("Invalid connection state for HTTP request");
     return false; // we should never get here
   }
 

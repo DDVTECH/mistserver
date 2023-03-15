@@ -17,7 +17,7 @@ namespace HTTP{
   void parseVars(const std::string &data, std::map<std::string, std::string> &storage, const std::string & separator = "&");
 
   /// Simple class for reading and writing HTTP 1.0 and 1.1.
-  class Parser : public Util::DataCallback{
+  class Parser{
   public:
     Parser();
     bool Read(Socket::Connection &conn, Util::DataCallback &cb = Util::defaultDataCallback);

@@ -345,3 +345,13 @@ HTTP::URL HTTP::URL::link(const std::string &l) const{
   DONTEVEN_MSG("Relative link: %s+%s", base.c_str(), l.c_str());
   return URL(base + l);
 }
+
+/// Returns true if the URL matches, ignoring username, password and fragment
+bool HTTP::URL::operator==(const URL& rhs) const{
+  return (host == rhs.host && getPort() == rhs.getPort() && protocol == rhs.protocol && path == rhs.path && args == rhs.args);
+}
+
+/// Returns false if the URL matches, ignoring username, password and fragment.
+/// Simply calls == internally, and negates the result.
+bool HTTP::URL::operator!=(const URL& rhs) const{return !(*this == rhs);}
+

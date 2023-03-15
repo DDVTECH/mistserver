@@ -60,7 +60,8 @@ namespace HTTP{
     size_t getSize() const; ///< Returns the size of the currently open URI, if known. Returns std::string::npos if unknown size.
 
     void (*httpBodyCallback)(const char *ptr, size_t size);
-    void dataCallback(const char *ptr, size_t size);
+    virtual void dataCallback(const char *ptr, size_t size);
+    virtual size_t getDataCallbackPos() const;
 
     std::string userAgentOverride;
 
@@ -86,4 +87,6 @@ namespace HTTP{
     HTTP::Downloader downer; ///< For HTTP(S)-based URIs, the Downloader instance used for the download.
     void init();
   };
+
+  HTTP::URL localURIResolver();
 }// namespace HTTP

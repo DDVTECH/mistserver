@@ -58,7 +58,7 @@ namespace Mist{
       if (i == key){
         keyLoadPriority[trackKey(track, pageNumber)] += 10000;
       }else{
-        keyLoadPriority[trackKey(track, pageNumber)] += 1000 - (key - i);
+        keyLoadPriority[trackKey(track, pageNumber)] += 1000 - (i - key);
       }
       uint64_t cnt = tPages.getInt("keycount", pageIdx);
       if (pageNumber + cnt <= i){return;}
@@ -73,6 +73,7 @@ namespace Mist{
     std::multimap<uint64_t, trackKey> reverse;
     for (std::map<trackKey, uint64_t>::iterator i = keyLoadPriority.begin(); i != keyLoadPriority.end(); ++i){
       reverse.insert(std::pair<uint64_t, trackKey>(i->second, i->first));
+      VERYHIGH_MSG("Key priority for %zu:%zu = %" PRIu64, i->first.track, i->first.key, i->second);
     }
     uint64_t timer = Util::bootMS();
     for (std::multimap<uint64_t, trackKey>::reverse_iterator i = reverse.rbegin(); i != reverse.rend() && Util::bootMS() < timer + 500; ++i){
@@ -1543,12 +1544,21 @@ namespace Mist{
     }
     bufferFinalize(idx, page);
     bufferTimer = Util::bootMS() - bufferTimer;
-    INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
-             idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
-    INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
-             tPages.getInt("parts", pageIdx), byteCounter);
-    pageCounter[idx][pageNumber] = Util::bootSecs();
-    return true;
+    if (packCounter != tPages.getInt("parts", pageIdx)){
+      FAIL_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) NOT FULLY buffered in %" PRIu64 "ms",
+               idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
+      INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
+               tPages.getInt("parts", pageIdx), byteCounter);
+      pageCounter[idx][pageNumber] = Util::bootSecs();
+      return false;
+    }else{
+      INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
+               idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
+      INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
+               tPages.getInt("parts", pageIdx), byteCounter);
+      pageCounter[idx][pageNumber] = Util::bootSecs();
+      return true;
+    }
   }
 
   bool Input::atKeyFrame(){

@@ -58,6 +58,7 @@ namespace Mist{
     bool loadSegment(const playListEntries &entry);
     bool readNext();
     virtual void dataCallback(const char *ptr, size_t size);
+    virtual size_t getDataCallbackPos() const;
     void close();
     bool atEnd() const;
 

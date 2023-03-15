@@ -65,13 +65,17 @@ namespace HTTP{
     return url;
   }
 
+  HTTP::URL localURIResolver(){
+    char workDir[512];
+    getcwd(workDir, 512);
+    return HTTP::URL(std::string("file://") + workDir + "/");
+  }
 
   void URIReader::init(){
     handle = -1;
     mapped = 0;
-    char workDir[512];
-    getcwd(workDir, 512);
-    myURI = HTTP::URL(std::string("file://") + workDir + "/");
+    myURI = localURIResolver();
+    originalUrl = myURI;
     cbProgress = 0;
     minLen = 1;
     maxLen = std::string::npos;
@@ -97,10 +101,12 @@ namespace HTTP{
     open(reluri);
   }
 
-  bool URIReader::open(const std::string &reluri){return open(myURI.link(reluri));}
+  bool URIReader::open(const std::string &reluri){return open(originalUrl.link(reluri));}
 
   /// Internal callback function, used to buffer data.
   void URIReader::dataCallback(const char *ptr, size_t size){allData.append(ptr, size);}
+
+  size_t URIReader::getDataCallbackPos() const{return allData.size();}
 
   bool URIReader::open(const HTTP::URL &uri){
     close();
@@ -247,14 +253,13 @@ namespace HTTP{
 
     //HTTP-based needs to do a range request
     if (stateType == HTTP::HTTP && supportRangeRequest){
-      downer.getSocket().close();
-      downer.getSocket().Received().clear();
+      downer.clean();
+      curPos = pos;
       injectHeaders(originalUrl, "GET", downer);
-      if (!downer.getRangeNonBlocking(myURI.getUrl(), pos, 0)){
+      if (!downer.getRangeNonBlocking(myURI, pos, 0)){
         FAIL_MSG("Error making range request");
         return false;
       }
-      curPos = pos;
       return true;
     }
     return false;
@@ -354,9 +359,7 @@ namespace HTTP{
     allData.truncate(0);
     bufPos = 0;
     // Close downloader socket if open
-    downer.getSocket().close();
-    downer.getSocket().Received().clear();
-    downer.getHTTP().Clean();
+    downer.clean();
     // Unmap file if mapped
     if (mapped){
       munmap(mapped, totalSize);
@@ -408,7 +411,7 @@ namespace HTTP{
 
   uint64_t URIReader::getPos(){return curPos;}
 
-  const HTTP::URL &URIReader::getURI() const{return myURI;}
+  const HTTP::URL &URIReader::getURI() const{return originalUrl;}
 
   size_t URIReader::getSize() const{return totalSize;}
 

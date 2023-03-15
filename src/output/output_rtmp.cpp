@@ -11,6 +11,14 @@
 #include <mist/util.h>
 #include <sys/stat.h>
 
+const char * trackType(char ID){
+  if (ID == 8){return "audio";}
+  if (ID == 9){return "video";}
+  if (ID == 18){return "metadata";}
+  return "unknown";
+}
+
+
 namespace Mist{
   OutRTMP::OutRTMP(Socket::Connection &conn) : Output(conn){
     lastSilence = 0;
@@ -1680,6 +1688,7 @@ namespace Mist{
       case 18:{// meta data
         static std::map<size_t, AMF::Object> pushMeta;
         static std::map<size_t, uint64_t> lastTagTime;
+        static std::map<size_t, int64_t> trackOffset;
         static std::map<size_t, size_t> reTrackToID;
         if (!isInitialized || !meta){
           MEDIUM_MSG("Received useless media data");
@@ -1712,18 +1721,48 @@ namespace Mist{
             rtmpOffset = (Util::bootMS() - tagTime) - M.getBootMsOffset() + timeOffset;
             setRtmpOffset = true;
           }
-          tagTime += rtmpOffset;
+          tagTime += rtmpOffset + trackOffset[reTrack];
           uint64_t &ltt = lastTagTime[reTrack];
           if (tagTime < ltt){
-            WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (decreased): rewriting timestamps for continuity", ltt, tagTime);
-            rtmpOffset += (ltt-tagTime) + 1;
-            tagTime += (ltt-tagTime) + 1;
-          }else{
-            if (tagTime > ltt + 600000){
-              WARN_MSG("Timestamps went from %" PRIu64 " to %" PRIu64 " (increased): rewriting timestamps for continuity", ltt, tagTime);
-              rtmpOffset -= (tagTime - ltt) - 1;
-              tagTime -= (tagTime - ltt) - 1;
+            uint64_t diff = ltt - tagTime;
+            // Round to 24-bit rollover if within 0xfff of it on either side.
+            // Round to 32-bit rollover if within 0xfff of it on either side.
+            // Make sure time increases by 1ms if neither applies.
+            if (diff > 0xfff000ull && diff < 0x1000fffull){
+              diff = 0x1000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by 24-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else if (diff > 0xfffff000ull && diff < 0x100000fffull){
+              diff = 0x100000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by 32-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else{
+              diff += 1;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (decreased by %" PRIu64 "): compensating", trackType(next.msg_type_id), ltt, tagTime, diff);
             }
+            trackOffset[reTrack] += diff;
+            tagTime += diff;
+          }else if (tagTime > ltt + 600000){
+            uint64_t diff = tagTime - ltt;
+            // Round to 24-bit rollover if within 0xfff of it on either side.
+            // Round to 32-bit rollover if within 0xfff of it on either side.
+            // Make sure time increases by 1ms if neither applies.
+            if (diff > 0xfff000ull && diff < 0x1000fffull){
+              diff = 0x1000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by 24-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else if (diff > 0xfffff000ull && diff < 0x100000fffull){
+              diff = 0x100000000ull;
+              WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by 32-bit rollover): compensating", trackType(next.msg_type_id), ltt, tagTime);
+            }else{
+              diff -= 1;
+              if (ltt){
+                WARN_MSG("Timestamp for %s went from %" PRIu64 " to %" PRIu64 " (increased by %" PRIu64 "): compensating", trackType(next.msg_type_id), ltt, tagTime, diff);
+              }
+            }
+            if (ltt){
+              trackOffset[reTrack] -= diff;
+            }else{
+              rtmpOffset -= diff;
+            }
+            tagTime -= diff;
           }
           size_t idx = reTrackToID[reTrack];
           if (idx != INVALID_TRACK_ID && !userSelect.count(idx)){

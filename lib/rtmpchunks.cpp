@@ -453,10 +453,10 @@ bool RTMPStream::Chunk::Parse(Socket::Buffer &buffer){
       return false;
     }// can't read timestamp
     indata = buffer.copy(i + 4);
-    timestamp += indata[i++] * 256 * 256 * 256;
+    timestamp = indata[i++] * 256 * 256 * 256;
     timestamp += indata[i++] * 256 * 256;
     timestamp += indata[i++] * 256;
-    timestamp = indata[i++];
+    timestamp += indata[i++];
     ts_delta = timestamp;
     DONTEVEN_MSG("Extended timestamp: %" PRIu64, timestamp);
   }

@@ -1320,6 +1320,10 @@ namespace Mist{
       if (thisIdx != getMainSelectedTrack() || (!thisPacket.getFlag("keyframe") && M.getType(thisIdx) == "video")){
         return false;
       }
+      // If splitting would result in a tiny segment at the end, do not split
+      if (M.getVod() && (endTime() - lastPacketTime) < (atoll(targetParams["split"].c_str()) * 500)){
+        return false;
+      }
       // is this a split point?
       if (targetParams.count("nxt-split") && atoll(targetParams["nxt-split"].c_str()) <= lastPacketTime){
         INFO_MSG("Split point reached");
@@ -1358,6 +1362,7 @@ namespace Mist{
     uint64_t targetAge = 0;
     std::string targetDuration;
     bool reInitPlaylist = false;
+    bool autoAdjustSplit = false;
     Socket::Connection plsConn;
     uint64_t systemBoot;
 
@@ -1398,6 +1403,9 @@ namespace Mist{
     }
     if (targetParams.count("targetAge")){
       targetAge = atoll(targetParams["targetAge"].c_str());
+    }
+    if (targetParams.count("adjustSplit")){
+      autoAdjustSplit = true;
     }
     // When segmenting to a playlist, handle any existing files and init some data
     if (targetParams.count("m3u8")){
@@ -1671,13 +1679,15 @@ namespace Mist{
                   double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
                   tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << segmentDuration <<  ",\n"+ segment + "\n";
                   playlistBuffer += tmp.str();
-                  // Check if the targetDuration is still valid
-                  if (segmentDuration > atoll(targetDuration.c_str())){
+                  // Adjust split time up to half a segment duration
+                  if (autoAdjustSplit && (segmentDuration / 2) > atoll(targetParams["split"].c_str())){
+                    targetParams["split"] = JSON::Value(segmentDuration / 2).asString();
+                  }
+                  // Always adjust the targetDuration in the playlist upwards
+                  if (segmentDuration > JSON::Value(targetDuration).asDouble()){
                     // Set the new targetDuration to the ceil of the segment duration
-                    targetDuration = JSON::Value(uint64_t(segmentDuration) + 1).asString();
-                    WARN_MSG("Segment #%" PRIu64 " has a longer duration than the target duration. Adjusting the targetDuration to %s seconds", segmentCount, targetDuration.c_str());
-                    // Round the target split time down to ensure we split on the keyframe for very long keyframe intervals
-                    targetParams["split"] = JSON::Value(uint64_t(segmentDuration)).asString();
+                    WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
+                    targetDuration = JSON::Value((uint64_t)segmentDuration + 1).asString();
                     // Modify the buffer to contain the new targetDuration
                     if (!M.getLive()){
                       uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;

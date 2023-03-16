@@ -186,6 +186,7 @@ set(libHeaders
   lib/dtls_srtp_handshake.h
   lib/dtsc.h
   lib/encryption.h
+  lib/flac.h
   lib/flv_tag.h
   lib/h264.h
   lib/h265.h
@@ -253,6 +254,7 @@ add_library (mist
   lib/dtls_srtp_handshake.cpp
   lib/dtsc.cpp
   lib/encryption.cpp
+  lib/flac.cpp
   lib/flv_tag.cpp
   lib/h264.cpp
   lib/h265.cpp

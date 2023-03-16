@@ -3,7 +3,7 @@
 #include <sstream>
 #include <string>
 #include <unistd.h> //for stat
-#include <util.h>
+#include "util.h"
 
 namespace FLAC{
   bool is_header(const char *header); ///< Checks the first 4 bytes for the string "flaC".

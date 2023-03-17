@@ -164,16 +164,24 @@ namespace Mist{
           }
           /*LTS-END*/
         }
-        while (i + 4 < (unsigned int)dataLen){
-          ThisNaluSize = Bit::btohl(dataPointer + i);
-          if (ThisNaluSize + i + 4 > dataLen){
+        size_t lenSize = 4;
+        if (codec == "H264"){lenSize = (M.getInit(thisIdx)[4] & 3) + 1;}
+        while (i + lenSize < (unsigned int)dataLen){
+          if (lenSize == 4){
+            ThisNaluSize = Bit::btohl(dataPointer + i);
+          }else if (lenSize == 2){
+            ThisNaluSize = Bit::btohs(dataPointer + i);
+          }else{
+            ThisNaluSize = dataPointer[i];
+          }
+          if (ThisNaluSize + i + lenSize > dataLen){
             WARN_MSG("Too big NALU detected (%" PRIu32 " > %zu) - skipping!",
                      ThisNaluSize + i + 4, dataLen);
             break;
           }
           fillPacket("\000\000\000\001", 4, firstPack, video, keyframe, pkgPid, contPkg);
-          fillPacket(dataPointer + i + 4, ThisNaluSize, firstPack, video, keyframe, pkgPid, contPkg);
-          i += ThisNaluSize + 4;
+          fillPacket(dataPointer + i + lenSize, ThisNaluSize, firstPack, video, keyframe, pkgPid, contPkg);
+          i += ThisNaluSize + lenSize;
         }
       }else{
         uint64_t offset = thisPacket.getInt("offset") * 90;

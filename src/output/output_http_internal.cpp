@@ -1418,9 +1418,6 @@ namespace Mist{
         WARN_MSG("Could not write playback log to %s: %s", config->getString("playbacklog").c_str(), strerror(errno));
         return true;
       }
-      //sanitize user agent
-      useragent = JSON::Value(useragent).toString();
-      char logLine[2048];
       //prepare time
       time_t rawtime;
       struct tm *timeinfo;
@@ -1429,6 +1426,67 @@ namespace Mist{
       time(&rawtime);
       timeinfo = gmtime_r(&rawtime, &timetmp);
       strftime(timeStr, 100, "%F %H:%M:%S", timeinfo);
+
+      uint64_t maxHeightMillis = 0;
+      uint64_t nomaxHeightMillis = 0;
+      if (currHeight && statPlaytime.asInt() > lastHeightChange){
+        if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
+        heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
+      }
+      if (heightTimes.size()){
+        for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
+          if (it->first == maxHeight){
+            maxHeightMillis += it->second;
+          }else{
+            nomaxHeightMillis += it->second;
+          }
+        }
+      }
+
+      JSON::Value playLog;
+      playLog["log_type"] = "playback-log";
+      playLog["pid"] = getpid();
+      playLog["time"] = timeStr;
+      playLog["ip"] = getConnectedHost();
+      playLog["protocol"] = statProto;
+      playLog["player"] = statPlayer;
+      playLog["streamname"] = streamName;
+      playLog["conn_time"] = startingTime;
+      playLog["play_time"] = statPlaytime;
+      playLog["firstframe"] = statFirstFrame;
+      playLog["autoplay"] = statAutoplay;
+      playLog["waits"] = statWaits;
+      playLog["wait_time"] = statWaitTime;
+      playLog["stalls"] = statStalls;
+      playLog["stall_time"] = statStallTime;
+      playLog["logs"] = statLogs;
+      playLog["errors"] = statErrors;
+      if (statIsKeyOnly){playLog["keyonly"] = true;}
+      playLog["unload_reason"] = statUnload;
+      playLog["page_url"] = statPage;
+      playLog["source_url"] = statURL;
+      playLog["user_agent"] = useragent.c_str();
+      playLog["max_height_ms"] = maxHeightMillis;
+      playLog["not_max_height_ms"] = nomaxHeightMillis;
+      playLog["ttff"] = ttff;
+      playLog["uid"] = uid;
+      playLog["preload_time"] = preloadTime;
+      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
+        playLog["log_type"] = "adj-playback-log";
+        playLog["waits_adj"] = statWaitsAdj;
+        playLog["wait_time_adj"] = statWaitTimeAdj;
+        playLog["stalls_adj"] = statStallsAdj;
+        playLog["stall_time_adj"] = statStallTimeAdj;
+        playLog["play_time_adj"] = statPlaytimeAdj;
+        playLog["errors_adj"] = statErrorsAdj;
+        playLog["logs_adj"] = statLogsAdj;
+        playLog["preload_time_adj"] = preloadTimeAdj;
+      }
+      //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
+      std::string logLine = playLog.toString() + "\n";
+      write(plog, logLine.c_str(), logLine.size());
+      close(plog);
+
       //write log line:
       // V1: time, ip, protocol, player, streamname, playtime, firstframe, waits, waittime, stalls, stalltime, logs, errors, unloadreason, useragent
       // V2: V2, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, unloadreason, pageUrl, useragent
@@ -1442,30 +1500,9 @@ namespace Mist{
       // V5_adj: V5_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid
       // V6: V6, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime
       // V6_adj: V6_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime, diff
-      size_t chars = 0;
-      uint64_t maxHeightMillis = 0;
-      uint64_t nomaxHeightMillis = 0;
-      if (currHeight && statPlaytime.asInt() > lastHeightChange){
-        if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
-        heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
-      }
-      if (heightTimes.size()){
-      for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
-        if (it->first == maxHeight){
-          maxHeightMillis += it->second;
-        }else{
-          nomaxHeightMillis += it->second;
-        }
-      }
-      }
-      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
-        chars = snprintf(logLine, 2048, "V7_adj, %zu, %s, %s, %s, %s, %s, %" PRIu64 ", %s, %" PRId64 ", %s, %s, %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %" PRId64 ", %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %s, %s, %s, %" PRId64 "\n", (size_t)getpid(), timeStr, getConnectedHost().c_str(), statProto.toString().c_str(), statPlayer.toString().c_str(), streamName.c_str(), startingTime, statPlaytime.toString().c_str(), statPlaytimeAdj, statFirstFrame.toString().c_str(), statAutoplay.toString().c_str(), statWaits.toString().c_str(), statWaitsAdj, statWaitTime.toString().c_str(), statWaitTimeAdj, statStalls.toString().c_str(), statStallsAdj, statStallTime.toString().c_str(), statStallTimeAdj, statLogs.toString().c_str(), statLogsAdj, statErrors.toString().c_str(), statErrorsAdj, statIsKeyOnly?"keyonly":"plain", statUnload.toString().c_str(), statPage.toString().c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff.toString().c_str(), uid.toString().c_str(), preloadTime.toString().c_str(), preloadTimeAdj);
-      }else{
-        chars = snprintf(logLine, 2048, "V7, %s, %s, %s, %s, %s, %" PRIu64 ", %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %" PRIu64 ", %" PRIu64 ", %s, %s, %s\n", timeStr, getConnectedHost().c_str(), statProto.toString().c_str(), statPlayer.toString().c_str(), streamName.c_str(), startingTime, statPlaytime.toString().c_str(), statFirstFrame.toString().c_str(), statAutoplay.toString().c_str(), statWaits.toString().c_str(), statWaitTime.toString().c_str(), statStalls.toString().c_str(), statStallTime.toString().c_str(), statLogs.toString().c_str(), statErrors.toString().c_str(), statIsKeyOnly?"keyonly":"plain", statUnload.toString().c_str(), statPage.toString().c_str(), useragent.c_str(), maxHeightMillis, nomaxHeightMillis, ttff.toString().c_str(), uid.toString().c_str(), preloadTime.toString().c_str());
-      }
-      //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
-      write(plog, logLine, chars);
-      close(plog);
+      // V7 (JSON-based types): V7, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime
+      // V7_adj (JSON-based types): V7_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime, diff
+      // After V7 switched to JSON object instead
     }
     return true;
   }

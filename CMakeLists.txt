@@ -483,7 +483,7 @@ makeInput(Folder folder)#LTS
 makeInput(Playlist playlist)#LTS
 makeInput(Balancer balancer)#LTS
 makeInput(RTSP rtsp)#LTS
-makeInput(SRT srt)#LTS
+makeInput(SubRip srt)#LTS
 makeInput(SDP sdp)
 
 if(SRT_LIB)
@@ -559,7 +559,7 @@ makeOutput(AAC aac             http)
 makeOutput(MP3 mp3             http)
 makeOutput(H264 h264           http)
 makeOutput(HDS hds             http)
-makeOutput(SRT srt             http)
+makeOutput(SubRip srt             http)
 makeOutput(JSON json           http)
 option(WITH_JPG "Build JPG thumbnailer output support")
 if (WITH_JPG)

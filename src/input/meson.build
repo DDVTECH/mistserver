@@ -14,7 +14,7 @@ inputs = [
     {'name' : 'Playlist', 'format' : 'playlist'},
     {'name' : 'Balancer', 'format' : 'balancer'},
     {'name' : 'RTSP', 'format' : 'rtsp'},
-    {'name' : 'SRT', 'format' : 'srt'},
+    {'name' : 'SubRip', 'format' : 'srt'},
     {'name' : 'SDP', 'format' : 'sdp'},
     {'name' : 'AAC', 'format' : 'aac'},
     {'name' : 'FLAC', 'format' : 'flac'},

@@ -545,6 +545,14 @@ int main_loop(int argc, char **argv){
         continue;
       }
 
+      if ((*it)["connector"].asStringRef() == "SRT"){
+        edit = true;
+        JSON::Value newSubRip = *it;
+        newSubRip["connector"] = "SubRip";
+        newVal.append(newSubRip);
+        continue;
+      }
+
       if ((*it)["connector"].asStringRef() == "CMAF"){foundCMAF = true;}
       newVal.append(*it);
     }

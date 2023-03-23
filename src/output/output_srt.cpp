@@ -10,8 +10,8 @@ namespace Mist{
 
   void OutSRT::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
-    capa["name"] = "SRT";
-    capa["friendly"] = "SubRip/WebVTT over HTTP";
+    capa["name"] = "SubRip";
+    capa["friendly"] = "SubRip (SRT/WebVTT) over HTTP";
     capa["desc"] = "Pseudostreaming in SubRip Text (SRT) and WebVTT formats over HTTP";
     capa["url_match"].append("/$.srt");
     capa["url_match"].append("/$.vtt");

@@ -215,9 +215,11 @@ namespace Mist{
       activityCounter = Util::bootSecs();
       //Skip to next box
       if (readBuffer.size() > boxSize){
+        INFO_MSG("Shifting by %" PRIu64 " bytes to reach next box after %s", boxSize, boxType.c_str());
         readBuffer.shift(boxSize);
         readPos += boxSize;
       }else{
+        INFO_MSG("Seeking to %" PRIu64 " bytes to reach next box after %s", readPos+boxSize, boxType.c_str());
         readBuffer.truncate(0);
         if (!inFile.seek(readPos + boxSize)){
           FAIL_MSG("Seek to %" PRIu64 " failed! Aborting load", readPos+boxSize);

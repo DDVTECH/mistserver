@@ -338,8 +338,9 @@ namespace HTTP{
           return;
         }
       }
-      std::string buf = downer.getSocket().Received().remove(s);
-      cb.dataCallback(buf.data(), s);
+      Util::ResizeablePointer buf;
+      downer.getSocket().Received().remove(buf, s);
+      cb.dataCallback(buf, s);
     }
   }
 

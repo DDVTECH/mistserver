@@ -534,6 +534,7 @@ namespace Mist{
     bool hasStarted = false;
     cfgPointer = config;
     globalStreamName = streamName;
+    Util::ResizeablePointer newData;
     unsigned long long threadCheckTimer = Util::bootSecs();
     while (config->is_active){
       if (tcpCon){
@@ -543,10 +544,11 @@ namespace Mist{
               tcpCon.Received().remove(1);
             }
             if (tcpCon.Received().available(188) && tcpCon.Received().get()[0] == 0x47){
-              std::string newData = tcpCon.Received().remove(188);
+              newData.truncate(0);
+              tcpCon.Received().remove(newData, 188);
               if (rawMode){
                 keepAlive();
-                rawBuffer.append(newData);
+                rawBuffer.append(newData, newData.size());
                 if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
                   if (rawIdx == INVALID_TRACK_ID){
                     rawIdx = meta.addTrack();
@@ -562,7 +564,7 @@ namespace Mist{
                   rawBuffer.truncate(0);
                 }
               }else {
-                tsBuf.FromPointer(newData.data());
+                tsBuf.FromPointer(newData);
                 liveStream.add(tsBuf);
                 if (!liveStream.isDataTrack(tsBuf.getPID())){liveStream.parse(tsBuf.getPID());}
               }

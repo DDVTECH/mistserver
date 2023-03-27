@@ -26,6 +26,8 @@
 #include "mbedtls/ssl.h"
 #endif
 
+#include "util.h"
+
 // for being friendly with Socket::Connection down below
 namespace Buffer{
   class user;
@@ -68,6 +70,7 @@ namespace Socket{
     bool available(unsigned int count);
     bool available(unsigned int count) const;
     std::string remove(unsigned int count);
+    void remove(Util::ResizeablePointer & ptr, unsigned int count);
     std::string copy(unsigned int count);
     void clear();
   };

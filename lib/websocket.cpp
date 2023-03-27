@@ -156,19 +156,17 @@ namespace HTTP{
         return false;
       }
       C.Received().remove(headSize); // delete the header
-      std::string pl = C.Received().remove(payLen);
-      if (masked){
-        // If masked, apply the mask to the payload
-        const char *mask = head.data() + headSize - 4; // mask is last 4 bytes of header
-        for (uint32_t i = 0; i < payLen; ++i){pl[i] ^= mask[i % 4];}
-      }
       if ((head[0] & 0xF)){
         // Non-continuation
         frameType = (head[0] & 0xF);
-        data.assign(pl.data(), pl.size());
-      }else{
-        // Continuation
-        data.append(pl.data(), pl.size());
+        data.truncate(0);
+      }
+      size_t preSize = data.size();
+      C.Received().remove(data, payLen);
+      if (masked){
+        // If masked, apply the mask to the payload
+        const char *mask = head.data() + headSize - 4; // mask is last 4 bytes of header
+        for (uint32_t i = 0; i < payLen; ++i){data[i+preSize] ^= mask[i % 4];}
       }
       if (head[0] & 0x80){
         // FIN

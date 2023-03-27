@@ -30,11 +30,15 @@ AnalyserDTSC::AnalyserDTSC(Util::Config &conf) : Analyser(conf){
 
 bool AnalyserDTSC::parsePacket(){
   if (headLess){
+    Util::ResizeablePointer dataBuf;
     while (conn){
-      if (!conn.spool()){Util::sleep(50);}
+      if (conn.spool()){
+        conn.Received().remove(dataBuf, conn.Received().bytes(0xFFFFFFFFul));
+      }else{
+        Util::sleep(50);
+      }
     }
-    std::string dataBuf = conn.Received().remove(conn.Received().bytes(0xFFFFFFFFul));
-    DTSC::Scan S((char *)dataBuf.data(), dataBuf.size());
+    DTSC::Scan S(dataBuf, dataBuf.size());
     std::cout << S.toPrettyString() << std::endl;
     return false;
   }

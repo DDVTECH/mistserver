@@ -130,20 +130,23 @@ namespace DTSC{
   void Packet::reInit(Socket::Connection &src){
     int sleepCount = 0;
     null();
-    int toReceive = 0;
+    Util::ResizeablePointer ptr;
     while (src.connected()){
-      if (!toReceive && src.Received().available(8)){
+      if (!ptr.rsize() && src.Received().available(8)){
         if (src.Received().copy(2) != "DT"){
           WARN_MSG("Invalid DTSC Packet header encountered (%s)",
                    Encodings::Hex::encode(src.Received().copy(4)).c_str());
           break;
         }
-        toReceive = Bit::btohl(src.Received().copy(8).data() + 4);
+        ptr.allocate(Bit::btohl(src.Received().copy(8).data() + 4) + 8);
       }
-      if (toReceive && src.Received().available(toReceive + 8)){
-        std::string dataBuf = src.Received().remove(toReceive + 8);
-        reInit(dataBuf.data(), dataBuf.size());
-        return;
+      unsigned int readable = src.Received().bytes(ptr.rsize() - ptr.size());
+      if (ptr.rsize() && readable){
+        src.Received().remove(ptr, readable);
+        if (ptr.size() == ptr.rsize()){
+          reInit(ptr, ptr.size());
+          return;
+        }
       }
       if (!src.spool()){
         if (sleepCount++ > 750){

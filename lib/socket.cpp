@@ -473,6 +473,25 @@ std::string Socket::Buffer::remove(unsigned int count){
   return ret;
 }
 
+/// Removes count bytes from the buffer, appending them to the given ptr.
+/// Does nothing if not all count bytes are available.
+void Socket::Buffer::remove(Util::ResizeablePointer & ptr, unsigned int count){
+  size();
+  if (!available(count)){return;}
+  unsigned int i = 0;
+  for (std::deque<std::string>::reverse_iterator it = data.rbegin(); it != data.rend(); ++it){
+    if (i + (*it).size() < count){
+      ptr.append(*it);
+      i += (*it).size();
+      (*it).clear();
+    }else{
+      ptr.append(it->data(), count - i);
+      (*it).erase(0, count - i);
+      break;
+    }
+  }
+}
+
 /// Copies count bytes from the buffer, returning them by value.
 /// Returns an empty string if not all count bytes are available.
 std::string Socket::Buffer::copy(unsigned int count){

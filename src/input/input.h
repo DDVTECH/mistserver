@@ -51,6 +51,12 @@ namespace Mist{
     virtual bool publishesTracks(){return true;}
 
   protected:
+    bool internalOnly;
+    bool isBuffer;
+    Comms::Connections statComm;
+    uint64_t startTime;
+    uint64_t lastStats;
+
     virtual bool checkArguments() = 0;
     virtual bool readHeader();
     virtual bool needHeader(){return !readExistingHeader();}
@@ -71,6 +77,7 @@ namespace Mist{
     virtual void removeUnused();
     virtual void convert();
     virtual void serve();
+    virtual void inputServeStats();
     virtual void stream();
     virtual std::string getConnectedBinHost(){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\001", 16);}
     virtual size_t streamByteCount(){

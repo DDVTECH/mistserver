@@ -220,6 +220,10 @@ namespace Mist{
     srtTrack = 0;
     lastBufferCheck = 0;
     bufferPid = 0;
+    internalOnly = false;
+    isBuffer = false;
+    startTime = Util::bootSecs();
+    lastStats = 0;
   }
 
   void Input::checkHeaderTimes(std::string streamFile){
@@ -705,8 +709,7 @@ namespace Mist{
   /// ~~~~~~~~~~~~~~~
   void Input::serve(){
     users.reload(streamName, true);
-    Comms::Connections statComm;
-    uint64_t startTime = Util::bootSecs();
+    startTime = Util::bootSecs();
 
     if (!M){
       // Initialize meta page
@@ -719,8 +722,8 @@ namespace Mist{
     }
     meta.setSource(config->getString("input"));
 
-    bool internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
-    bool isBuffer = (capa["name"].asStringRef() == "Buffer");
+    internalOnly = (config->getString("input").find("INTERNAL_ONLY") != std::string::npos);
+    isBuffer = (capa["name"].asStringRef() == "Buffer");
 
     /*LTS-START*/
     if (Triggers::shouldTrigger("STREAM_READY", config->getString("streamname"))){
@@ -752,18 +755,8 @@ namespace Mist{
       }else{
         if (connectedUsers && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
       }
-      // Connect to stats for INPUT detection
-      if (!internalOnly && !isBuffer){
-        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
-        if (statComm){
-          uint64_t now = Util::bootSecs();
-          statComm.setNow(now);
-          statComm.setStream(streamName);
-          statComm.setTime(now - startTime);
-          statComm.setLastSecond(0);
-          connStats(statComm);
-        }
-      }
+
+      inputServeStats();
       // if not shutting down, wait 1 second before looping
       preMs = Util::bootMS() - preMs;
       uint64_t waitMs = INPUT_USER_INTERVAL;
@@ -781,6 +774,23 @@ namespace Mist{
     userSelect.clear();
     if (!isThread()){
       if (streamStatus){streamStatus.mapped[0] = STRMSTAT_OFF;}
+    }
+  }
+
+  void Input::inputServeStats(){
+    uint64_t now = Util::bootSecs();
+    if (now != lastStats){
+      if (!internalOnly && !isBuffer){
+        if (!statComm){statComm.reload(streamName, getConnectedBinHost(), JSON::Value(getpid()).asString(), "INPUT:" + capa["name"].asStringRef(), "");}
+        if (statComm){
+          statComm.setNow(now);
+          statComm.setStream(streamName);
+          statComm.setTime(now - startTime);
+          statComm.setLastSecond(0);
+          connStats(statComm);
+        }
+      }
+      lastStats = now;
     }
   }
 
@@ -1424,6 +1434,8 @@ namespace Mist{
 
     uint64_t keyTime = keys.getTime(keyNum);
 
+    inputServeStats();
+
     bool isSrt = (hasSrt && idx == srtTrack);
     if (isSrt){
       srtSource.clear();
@@ -1523,6 +1535,7 @@ namespace Mist{
           byteCounter += thisPacket.getDataLen();
           lastBuffered = thisTime;
         }
+        inputServeStats();
         getNext(sourceIdx);
       }
       //Sanity check: are we matching the key's data size?

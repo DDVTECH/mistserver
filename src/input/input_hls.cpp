@@ -325,6 +325,7 @@ namespace Mist{
         if (!currBuf){return false;}
         size_t retries = 0;
         while (segDL && currBuf->size() < offset + 188 + 188){
+          size_t preSize = currBuf->size();
           segDL.readSome(offset + 188 + 188 - currBuf->size(), *this);
           if (currBuf->size() < offset + 188 + 188){
             if (!segDL){
@@ -340,7 +341,7 @@ namespace Mist{
                 segDL.seek(currBuf->size());
               }
             }
-            Util::sleep(50);
+            if (currBuf->size() <= preSize){Util::sleep(50);}
           }
         }
         if (currBuf->size() < offset + 188 + 188){return false;}

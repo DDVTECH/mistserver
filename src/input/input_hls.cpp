@@ -1308,6 +1308,7 @@ namespace Mist{
       if (entry.timeOffset){
         HIGH_MSG("Setting time offset of this TS segment to %" PRId64, entry.timeOffset);
         plsTimeOffset[currentPlaylist] = entry.timeOffset;
+        allowRemap = false;
       }
     }
 
@@ -1690,6 +1691,7 @@ namespace Mist{
     // If we have an offset, load it
     if (ntry.timeOffset){
       plsTimeOffset[currentPlaylist] = ntry.timeOffset;
+      allowRemap = false;
     // Else allow of the offset to be set by getPacketTime
     }else{
       nUTC = ntry.mUTC;

@@ -139,6 +139,9 @@ MistSkins["default"] = {
                     {
                       type: "fullscreen",
                       classes: ["mistvideo-pointer"]
+                    },{
+                      type: "picture-in-picture",
+                      classes: ["mistvideo-pointer"]
                     }]
                   }
                 },
@@ -207,6 +210,10 @@ MistSkins["default"] = {
             },
             {
               type: "fullscreen",
+              classes: ["mistvideo-pointer"]
+            },
+            {
+              type: "picture-in-picture",
               classes: ["mistvideo-pointer"]
             }]
           }
@@ -279,6 +286,10 @@ MistSkins["default"] = {
       fullscreen: {
         size: 45,
         svg: '<path d="m2.5 10.928v8.5898l4.9023-2.8008 9.6172 5.7832-9.6172 5.7832-4.9023-2.8008v8.5898h15.031l-4.9004-2.8008 9.8691-5.6387 9.8691 5.6387-4.9004 2.8008h15.031v-8.5898l-4.9023 2.8008-9.6172-5.7832 9.6172-5.7832 4.9023 2.8008v-8.5898h-15.033l4.9023 2.8008-9.8691 5.6387-9.8691-5.6387 4.9023-2.8008z" class="fill">'
+      },
+      pip: {
+        size: 45,
+        svg: '<rect x="5.25" y="12.25" width="34.5" height="19.5" ry="2" class="stroke semiFill toggle"/><rect x="20" y="21" width="17" height="8" rx="2" ry="2" class="semiFill toggle stroke"/>'
       },
       loop: {
         size: 45,
@@ -1468,6 +1479,42 @@ MistSkins["default"] = {
         MistVideo.player.resizeAll();
       },button);
       
+      return button;
+    },
+    "picture-in-picture": function(){
+      if ((!("setSize" in this.player)) || (!this.info.hasVideo) || (this.source.type.split("/")[1] == "audio") || (!document.pictureInPictureEnabled)) { return; }
+      
+      var MistVideo = this;
+      if (!("requestPictureInPicture" in MistVideo.video)) { return; }
+      
+      var button = this.skin.icons.build("pip");
+      button.set = function(){
+        if (document.pictureInPictureElement) {
+          MistUtil.class.remove(this,"off");
+        }
+        else {
+          MistUtil.class.add(this,"off");
+        }
+      };
+      MistUtil.event.addListener(button,"click",function(){
+        var promise;
+        if (document.pictureInPictureElement) {
+          promise = document.exitPictureInPicture();
+        }
+        else {
+          promise = MistVideo.video.requestPictureInPicture();
+        }
+        if (promise) {
+          promise.then(function(){
+            button.set();
+          });
+        }
+        else {
+          button.set();
+        }
+      });
+      button.set();
+
       return button;
     },
     tracks: function(){

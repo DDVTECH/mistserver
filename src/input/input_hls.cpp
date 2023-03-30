@@ -341,7 +341,9 @@ namespace Mist{
                 segDL.seek(currBuf->size());
               }
             }
-            if (currBuf->size() <= preSize){Util::sleep(50);}
+            if (currBuf->size() <= preSize){
+              Util::sleep(5);
+            }
           }
         }
         if (currBuf->size() < offset + 188 + 188){return false;}
@@ -1608,14 +1610,14 @@ namespace Mist{
 
     uint32_t maxWait = 0;
     unsigned int lastCount = 9999;
-    while (plsTotalCount != plsInitCount && ++maxWait < 50){
+    while (plsTotalCount != plsInitCount && ++maxWait < 1000){
       if (plsInitCount != lastCount){
         lastCount = plsInitCount;
         INFO_MSG("Waiting for variant playlists to load... %u/%u", lastCount, plsTotalCount);
       }
-      Util::sleep(1000);
+      Util::sleep(50);
     }
-    if (maxWait >= 50){
+    if (maxWait >= 1000){
       WARN_MSG("Timeout waiting for variant playlists (%u/%u)", plsInitCount, plsTotalCount);
     }
     plsInitCount = 0;

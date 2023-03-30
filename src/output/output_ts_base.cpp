@@ -61,6 +61,15 @@ namespace Mist{
   }
 
   void TSOutput::sendNext(){
+    static uint64_t lastMeta = 0;
+    if (Util::epoch() > lastMeta + 5){
+      lastMeta = Util::epoch();
+      if (selectDefaultTracks()){
+        INFO_MSG("Track selection changed - resending headers and continuing");
+        packCounter = 0;
+        return;
+      }
+    }
     // Get ready some data to speed up accesses
     std::string type = M.getType(thisIdx);
     std::string codec = M.getCodec(thisIdx);

@@ -7955,6 +7955,12 @@ var mist = {
             obj.type = 'unix';
             break;
           }
+          case 'json':
+          case 'debug':
+          case 'inputlist': {
+            obj.type = ele.type;
+            break;
+          }
           default:
             obj.type = 'str';
         }

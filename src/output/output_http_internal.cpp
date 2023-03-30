@@ -1071,7 +1071,7 @@ namespace Mist{
       H.Clean();
       return;
     }
-    if (H.url == "/libde265.js"){
+    if (req.url == "/libde265.js"){
       std::string response;
       H.Clean();
       H.SetHeader("Server", "MistServer/" PACKAGE_VERSION);

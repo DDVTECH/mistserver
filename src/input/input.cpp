@@ -76,7 +76,7 @@ namespace Mist{
       VERYHIGH_MSG("Key priority for %zu:%zu = %" PRIu64, i->first.track, i->first.key, i->second);
     }
     uint64_t timer = Util::bootMS();
-    for (std::multimap<uint64_t, trackKey>::reverse_iterator i = reverse.rbegin(); i != reverse.rend() && Util::bootMS() < timer + 500; ++i){
+    for (std::multimap<uint64_t, trackKey>::reverse_iterator i = reverse.rbegin(); i != reverse.rend() && Util::bootMS() < timer + INPUT_USER_INTERVAL; ++i){
       bufferFrame(i->second.track, i->second.key);
     }
   }

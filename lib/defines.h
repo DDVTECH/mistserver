@@ -216,7 +216,7 @@ static inline void show_stackframe(){}
 #define SHM_TRACK_DATA "MstData%s@%zu_%" PRIu32 //%s stream name, %zu track ID, %PRIu32 page #
 // End new meta
 
-#define INPUT_USER_INTERVAL 1000
+#define INPUT_USER_INTERVAL 250
 
 #define SHM_STREAM_STATE "MstSTATE%s" //%s stream name
 #define SHM_STREAM_CONF "MstSCnf%s"   //%s stream name

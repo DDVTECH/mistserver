@@ -270,8 +270,17 @@ namespace HTTP{
     }else{
       sprintf(tmp, "bytes=%zu-%zu", byteStart, byteEnd - 1);
     }
+    extraHeaders.erase("Range");
     setHeader("Range", tmp);
-    return getNonBlocking(link, 6);
+    if (!canRequest(link)){return false;}
+    nbLink = link;
+    nbMaxRecursiveDepth = 6;
+    nbLoop = retryCount + 1; // max 5 attempts
+    isComplete = false;
+    doRequest(nbLink);
+    nbReqTime = Util::bootSecs();
+    nbLastOff = getSocket().dataDown();
+    return true;
   }
 
   bool Downloader::getRange(const HTTP::URL &link, size_t byteStart, size_t byteEnd, Util::DataCallback &cb){

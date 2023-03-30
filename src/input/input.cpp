@@ -1526,7 +1526,15 @@ namespace Mist{
           size_t dataLen;
           thisPacket.getString("data", data, dataLen);
           if (dataLen != parts.getSize(partNo)){
-            INFO_MSG("Part %zu (@%" PRIu64 ") size mismatch: %zu (actual) != %zu (expected)", partNo, thisTime, dataLen, parts.getSize(partNo));
+            if (partNo && dataLen == parts.getSize(partNo-1)){
+              FAIL_MSG("Part size for part %zu (%" PRIu64 "ms) matches part before it, instead. Aborting page load!", partNo, thisTime);
+              break;
+            }else if (dataLen == parts.getSize(partNo+1)){
+              FAIL_MSG("Part size for part %zu (%" PRIu64 "ms) matches part after it, instead. Aborting page load!", partNo, thisTime);
+              break;
+            }else{
+              INFO_MSG("Part %zu (@%" PRIu64 ") size mismatch: %zu (actual) != %zu (expected)", partNo, thisTime, dataLen, parts.getSize(partNo));
+            }
           }
           ++partNo;
           HIGH_MSG("Buffering VoD packet (%zuB) @%" PRIu64 " ms on track %zu with offset %" PRIu64, dataLen, thisTime, idx, thisPacket.getInt("offset"));
@@ -1559,15 +1567,16 @@ namespace Mist{
     bufferFinalize(idx, page);
     bufferTimer = Util::bootMS() - bufferTimer;
     if (packCounter != tPages.getInt("parts", pageIdx)){
-      FAIL_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) NOT FULLY buffered in %" PRIu64 "ms",
-               idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
+      FAIL_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") NOT FULLY buffered in %" PRIu64 "ms - erasing for later retry",
+               idx, pageNumber, PRETTY_ARG_MSTIME(tPages.getInt("firsttime", pageIdx)), PRETTY_ARG_MSTIME(thisTime), bufferTimer);
       INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
                tPages.getInt("parts", pageIdx), byteCounter);
-      pageCounter[idx][pageNumber] = Util::bootSecs();
+      pageCounter[idx].erase(pageNumber);
+      bufferRemove(idx, pageNumber);
       return false;
     }else{
-      INFO_MSG("Track %zu, page %" PRIu32 " (%" PRIu64 " - %" PRIu64 " ms) buffered in %" PRIu64 "ms",
-               idx, pageNumber, tPages.getInt("firsttime", pageIdx), thisTime, bufferTimer);
+      INFO_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") buffered in %" PRIu64 "ms",
+               idx, pageNumber, PRETTY_ARG_MSTIME(tPages.getInt("firsttime", pageIdx)), PRETTY_ARG_MSTIME(thisTime), bufferTimer);
       INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
                tPages.getInt("parts", pageIdx), byteCounter);
       pageCounter[idx][pageNumber] = Util::bootSecs();

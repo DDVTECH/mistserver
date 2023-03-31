@@ -3183,8 +3183,10 @@ namespace DTSC{
   void Meta::getHealthJSON(JSON::Value &retRef) const{
     // clear the reference of old data, first
     retRef.null();
-    bool hasH264 = false;
-    bool hasAAC = false;
+    bool hasGoodVideo = false;
+    bool hasGoodAudio = false;
+    bool hasVideo = false;
+    bool hasAudio = false;
     std::stringstream issues;
     std::set<size_t> validTracks = getValidTracks();
     uint64_t jitter = 0;
@@ -3236,42 +3238,60 @@ namespace DTSC{
       }else{
         if (jitter < minKeep){jitter = minKeep;}
         if (longest_prt > 500){
-          issues << "unstable connection (" << longest_prt << "ms " << codec << " frame)! ";
+          retRef["human_issues"].append("There is a large (over half a second) gap between some frames in the stream. This is usually a sign that the broadcast machine does not have enough bandwidth or CPU power to provide the stream at the given quality level. Lowering the quality and/or broadcast resolution may be needed to compensate.");
         }
         if (shrtest_cnt < 6){
-          issues << "unstable connection (" << shrtest_cnt << " " << codec << " frame(s) in key)! ";
+          retRef["human_issues"].append("There are 5 or less frames in between key frames. This is usually a sign that the broadcast machine does not have enough bandwidth or CPU power to provide the stream at the given quality level. Lowering the quality and/or broadcast resolution may be needed to compensate. It is also possible the key frame interval and/or frame rate is set extremely low.");
         }
-        if (longest_key > shrtest_key*1.30){
-          issues << "unstable key interval (" << (uint32_t)(((longest_key/shrtest_key)-1)*100) << "% " << codec << " variance)! ";
+        if (type == "video"){
+          if (longest_key > shrtest_key){
+            retRef["human_issues"].append("The stream's key frame interval is not constant, which can have various negative side effects. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
+          }
+          if (longest_key > 10000){
+            retRef["human_issues"].append("The stream's key frame interval is over 10 seconds. This will have a negative effect on end-to-end latency for some playback methods. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
+          }
+          if (shrtest_key < 1000){
+            retRef["human_issues"].append("The stream's key frame interval is under 1 second. This will have a negative effect on encoding efficiency. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
+          }
         }
       }
       if (buffer < trBuffer){buffer = trBuffer;}
-      if (codec == "AAC"){hasAAC = true;}
-      if (codec == "H264"){hasH264 = true;}
+      if (codec == "AAC"){hasGoodAudio = true;}
+      if (codec == "H264"){hasGoodVideo = true;}
+      if (codec == "JPEG"){hasGoodVideo = true;}
       if (type == "video"){
+        hasVideo = true;
         track["width"] = getWidth(i);
         track["height"] = getHeight(i);
         track["fpks"] = getFpks(i);
         track["bframes"] = hasBFrames(i);
       }
       if (type == "audio"){
+        hasAudio = true;
         track["rate"] = getRate(i);
         track["channels"] = getChannels(i);
       }
     }
     if (jitter > 500){
-      issues << "High jitter (" << jitter << "ms)! ";
+      retRef["human_issues"].append("There is a lot ("+JSON::Value(jitter).asString()+" ms) of jitter in the incoming data. This is usually a sign the quality of the stream is too high for either the connection speed and/or the broadcasting device's capabilities. Lowering your resolution and/or bitrate may be needed to get the jitter to go down and provide the best experience.");
     }
     retRef["jitter"] = jitter;
     retRef["buffer"] = buffer;
     if (getMaxKeepAway()){
       retRef["maxkeepaway"] = getMaxKeepAway();
     }
-    if ((hasAAC || hasH264) && validTracks.size() > 1){
-      if (!hasAAC){issues << "HLS no audio!";}
-      if (!hasH264){issues << "HLS no video!";}
+    if (hasAudio && !hasGoodAudio){
+      retRef["human_issues"].append("There is no AAC audio track in this stream, which means some people may not be able tohear the audio. AAC is the most widely compatible audio format today, and recommended to always be present to ensure everyone can hear the stream.");
     }
-    if (issues.str().size()){retRef["issues"] = issues.str();}
+    if (hasVideo && !hasGoodVideo){
+      retRef["human_issues"].append("There is no H264 or (M)JPEG video track in this stream, which means some people may not be able to see the video. H264 and (M)JPEG are the most widely compatible video formats today, and at least one of them should be present to ensure everyone can see the stream.");
+    }
+    if (retRef.isMember("human_issues") && retRef["human_issues"].size()){
+      retRef["issues"] = "There are " + JSON::Value(retRef["human_issues"].size()).asString() + " potential issues with this stream.";
+    }else{
+      retRef.removeMember("human_issues");
+      retRef.removeMember("issues");
+    }
     // return is by reference
   }
 

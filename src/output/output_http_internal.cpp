@@ -1238,7 +1238,7 @@ namespace Mist{
     std::string currStreamName;
     currStreamName = streamName;
     snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-    IPC::sharedPage streamStatus(pageName, 2, false, false);
+    IPC::sharedPage streamStatus(pageName, STRMSTAT_LEN, false, false);
     uint8_t prevState, newState, pingCounter = 0;
     uint8_t prevStatePerc = 0, newStatePerc = 0;
     std::set<size_t> prevTracks;

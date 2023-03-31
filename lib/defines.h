@@ -230,6 +230,7 @@ static inline void show_stackframe(){}
 #define STRMSTAT_READY 4
 #define STRMSTAT_SHUTDOWN 5
 #define STRMSTAT_INVALID 255
+#define STRMSTAT_LEN 3
 
 #define SHM_TRIGGER "MstTRGR%s" //%s trigger name
 #define SEM_LIVE "/MstLIVE%s"   //%s stream name

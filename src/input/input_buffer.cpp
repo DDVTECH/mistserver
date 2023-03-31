@@ -226,25 +226,37 @@ namespace Mist{
       }
     }
     if (config->getString("input").find("INTERNAL_ONLY:dtsc") == std::string::npos){
-      if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull && Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
+      if (fragCount >= FRAG_BOOT && fragCount != 0xFFFFull){
         JSON::Value stream_details;
         M.getHealthJSON(stream_details);
-        if (lastFragCount == 0xFFFFull){
-          std::string payload = streamName + "\nFULL\n" + stream_details.toString();
-          Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-        }else{
-          if (stream_details.isMember("issues") != wentDry){
-            if (stream_details.isMember("issues")){
-              std::string payload = streamName + "\nDRY\n" + stream_details.toString();
-              Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-            }else{
-              std::string payload = streamName + "\nRECOVER\n" + stream_details.toString();
-              Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
-            }
+        // If we have a streamStatus of 3+ bytes, write the type of stream and issue count
+        if (streamStatus && streamStatus.len > 2){
+          if (stream_details.isMember("human_issues") && stream_details["human_issues"].size()){
+            streamStatus.mapped[1] = stream_details["human_issues"].size();
+            streamStatus.mapped[2] = 1;
+          }else{
+            streamStatus.mapped[1] = 0;
+            streamStatus.mapped[2] = 1;
           }
         }
-        wentDry = stream_details.isMember("issues");
-        lastFragCount = fragCount;
+        if (Triggers::shouldTrigger("STREAM_BUFFER", streamName)){
+          if (lastFragCount == 0xFFFFull){
+            std::string payload = streamName + "\nFULL\n" + stream_details.toString();
+            Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+          }else{
+            if (stream_details.isMember("issues") != wentDry){
+              if (stream_details.isMember("issues")){
+                std::string payload = streamName + "\nDRY\n" + stream_details.toString();
+                Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+              }else{
+                std::string payload = streamName + "\nRECOVER\n" + stream_details.toString();
+                Triggers::doTrigger("STREAM_BUFFER", payload, streamName);
+              }
+            }
+          }
+          wentDry = stream_details.isMember("issues");
+          lastFragCount = fragCount;
+        }
       }
     }
     /*LTS-END*/

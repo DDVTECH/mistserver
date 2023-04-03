@@ -324,6 +324,9 @@ function MistVideo(streamName,options) {
         MistVideo.log(e);
         e = d.on_error;
       }
+      else if ("perc" in d) {
+        e += " ("+Math.round(d.perc*10)/10+"%)";
+      }
       MistVideo.showError(e,{reload:true,hideTitle:true});
       return;
     }
@@ -1265,6 +1268,9 @@ function MistVideo(streamName,options) {
           if ("on_error" in data) {
             MistVideo.log(e);
             e = data.on_error;
+          }
+          else if ("perc" in data) {
+            e += " ("+Math.round(data.perc*10)/10+"%)";
           }
           MistVideo.state = data.error;
           var buttons;

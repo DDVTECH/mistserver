@@ -790,7 +790,7 @@ namespace Mist{
     }
     tag.DTSCMetaInit(meta, selectedTracks);
     if (tag.len){
-      tag.tagTime(currentTime());
+      tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
 
@@ -798,13 +798,13 @@ namespace Mist{
       std::string type = M.getType(*it);
       if (type == "video"){
         if (tag.DTSCVideoInit(meta, *it)){
-          tag.tagTime(currentTime());
+          tag.tagTime(currentTime() - rtmpOffset);
           myConn.SendNow(RTMPStream::SendMedia(tag));
         }
       }
       if (type == "audio"){
         if (tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
-          tag.tagTime(currentTime());
+          tag.tagTime(currentTime() - rtmpOffset);
           myConn.SendNow(RTMPStream::SendMedia(tag));
         }
       }
@@ -855,7 +855,7 @@ namespace Mist{
       //                   Type -sample-chnl-000
       //                   AACLC-44100 -2   -000
       INFO_MSG("Inserting silence track init data");
-      tag.tagTime(currentTime());
+      tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
     }
     if (hasCustomAudio){

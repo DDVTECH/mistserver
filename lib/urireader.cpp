@@ -108,6 +108,18 @@ namespace HTTP{
 
   size_t URIReader::getDataCallbackPos() const{return allData.size();}
 
+  bool URIReader::open(const int fd){
+    close();
+    myURI = HTTP::URL("file://-");
+    originalUrl = myURI;
+    downer.getSocket().open(-1, fd);
+    stateType = HTTP::Stream;
+    startPos = 0;
+    endPos = std::string::npos;
+    totalSize = std::string::npos;
+    return true;
+  }
+
   bool URIReader::open(const HTTP::URL &uri){
     close();
     myURI = uri;
@@ -317,15 +329,17 @@ namespace HTTP{
     }else if (stateType == HTTP::HTTP){
       downer.continueNonBlocking(cb);
     }else{// streaming mode
-      int s;
-      if ((downer.getSocket() && downer.getSocket().spool())){// || downer.getSocket().Received().size() > 0){
-        s = downer.getSocket().Received().bytes(wantedLen);
-        std::string buf = downer.getSocket().Received().remove(s);
-
-        cb.dataCallback(buf.data(), s);
-      }else{
-        Util::sleep(50);
+      int s = downer.getSocket().Received().bytes(wantedLen);
+      if (!s){
+        if (downer.getSocket() && downer.getSocket().spool()){
+          s = downer.getSocket().Received().bytes(wantedLen);
+        }else{
+          Util::sleep(50);
+          return;
+        }
       }
+      std::string buf = downer.getSocket().Received().remove(s);
+      cb.dataCallback(buf.data(), s);
     }
   }
 

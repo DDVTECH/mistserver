@@ -41,7 +41,7 @@ namespace Mist{
     //Exactly! I thought not! So, if the end key number == the first, we increase by one.
     if (endKey == key){++endKey;}
     if (endKey > key + 1000){endKey = key + 1000;}
-    DONTEVEN_MSG("User with ID:%zu is on key %zu->%zu (timestamp %" PRIu64 ")", id, key, endKey, time);
+    DONTEVEN_MSG("User with ID:%zu is on %zu:%zu -> %zu (timestamp %" PRIu64 ")", id, track, key, endKey, time);
     for (size_t i = key; i <= endKey; ){
 
 
@@ -55,10 +55,11 @@ namespace Mist{
         pageIdx = j;
       }
       uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
-      if (i == key){
+      uint64_t pageTime = M.getTimeForKeyIndex(track, pageNumber);
+      if (pageTime < time){
         keyLoadPriority[trackKey(track, pageNumber)] += 10000;
       }else{
-        keyLoadPriority[trackKey(track, pageNumber)] += 1000 - (i - key);
+        keyLoadPriority[trackKey(track, pageNumber)] += 600 - (pageTime - time) / 1000;
       }
       uint64_t cnt = tPages.getInt("keycount", pageIdx);
       if (pageNumber + cnt <= i){return;}

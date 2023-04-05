@@ -59,7 +59,7 @@ namespace Mist{
       }
     }
     void setInFile(int stdin_val){
-      inFile = fdopen(stdin_val, "r");
+      inFile.open(stdin_val);
       streamName = opt["sink"].asString();
       if (!streamName.size()){streamName = opt["source"].asString();}
       Util::streamVariables(streamName, opt["source"].asString());

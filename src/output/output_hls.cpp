@@ -319,15 +319,17 @@ namespace Mist{
         }
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);
+        targetParams["video"] = JSON::Value(vidTrack).asString();
+        targetParams["audio"] = "none";
       }else{
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);
         userSelect[audTrack].reload(streamName, audTrack);
+        targetParams["video"] = JSON::Value(vidTrack).asString();
+        targetParams["audio"] = JSON::Value(audTrack).asString();
       }
-      std::set<size_t> validTracks = getSupportedTracks();
-      for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-        if (M.getCodec(*it) == "ID3"){userSelect[*it].reload(streamName, *it);}
-      }
+      targetParams["meta"] = "none";
+      targetParams["subtitle"] = "none";
 
       if (M.getLive() && from < M.getFirstms(vidTrack)){
         H.Clean();

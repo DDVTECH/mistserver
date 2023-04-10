@@ -1588,9 +1588,9 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
       totUnspecified++;
     }else if (thisSessId[0] == 'O'){
       totOutputs++;
-      outputs[statComm.getConnector(idx)]++;
     }else{
       totViewers++;
+      outputs[statComm.getConnector(idx)]++;
     }
   }
 

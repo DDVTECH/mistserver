@@ -67,6 +67,9 @@ namespace HTTP{
 
     std::string userAgentOverride;
 
+    std::string getHost() const; ///< Gets hostname for connection, or [::] if local.
+    std::string getBinHost() const; ///< Gets binary form hostname for connection, or [::] if local.
+
   private:
     // Internal state variables
     bool (*cbProgress)(uint8_t); ///< The progress callback, if any. Not called if set to a null pointer.

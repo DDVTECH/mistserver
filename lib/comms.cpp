@@ -357,7 +357,7 @@ namespace Comms{
       dataPage.init(userPageName, 0, false, false);
       if (!dataPage){
         std::string host;
-        Socket::hostBytesToStr(ip.data(), 16, host);
+        Socket::hostBytesToStr(ip.data(), ip.size(), host);
         pid_t thisPid;
         std::deque<std::string> args;
         args.push_back(Util::getMyPath() + "MistSession");

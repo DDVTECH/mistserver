@@ -134,7 +134,7 @@ namespace Socket{
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
     std::string getHost() const; ///< Gets hostname for connection, if available.
-    std::string getBinHost();
+    std::string getBinHost() const;
     void setHost(std::string host); ///< Sets hostname for connection manually.
     std::string getBoundAddress() const;
     int getSocket();        ///< Returns internal socket number.
@@ -216,6 +216,7 @@ namespace Socket{
     int getSock();
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
     void setBlocking(bool blocking);
+    void allocateDestination();
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);
     std::string getBinDestination();

@@ -836,7 +836,7 @@ namespace Mist{
     }
 
     // this is necessary so that we can get the remote IP when creating STUN replies.
-    udp.SetDestination("0.0.0.0", 4444);
+    udp.allocateDestination();
 
     // we set parseData to `true` to start the data flow. Is also
     // used to break out of our loop in `onHTTP()`.
@@ -1153,7 +1153,7 @@ namespace Mist{
   // function. The `webRTCInputOutputThreadFunc()` is basically empty
   // and all work for the thread is done here.
   void OutWebRTC::handleWebRTCInputOutputFromThread(){
-    udp.SetDestination("0.0.0.0", 4444);
+    udp.allocateDestination();
     while (keepGoing()){
       if (!handleWebRTCInputOutput()){Util::sleep(20);}
     }

@@ -277,6 +277,16 @@ namespace HTTP{
     return false;
   }
 
+  std::string URIReader::getHost() const{
+    if (stateType == HTTP::File){return "";}
+    return downer.getSocket().getHost();
+  }
+
+  std::string URIReader::getBinHost() const{
+    if (stateType == HTTP::File){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
+    return downer.getSocket().getBinHost();
+  }
+
   void URIReader::readAll(size_t (*dataCallback)(const char *data, size_t len)){
     while (!isEOF()){readSome(dataCallback, 419430);}
   }
@@ -306,42 +316,37 @@ namespace HTTP{
   // readsome with callback
   void URIReader::readSome(size_t wantedLen, Util::DataCallback &cb){
     if (isEOF()){return;}
+    // Files read from the memory-mapped file
     if (stateType == HTTP::File){
-      //      dataPtr = mapped + curPos;
-      uint64_t dataLen = 0;
-
-      if (wantedLen < totalSize){
-        if ((wantedLen + curPos) > totalSize){
-          dataLen = totalSize - curPos; // restant
-          // INFO_MSG("file curpos: %llu, dataLen: %llu, totalSize: %llu ", curPos, dataLen, totalSize);
-        }else{
-          dataLen = wantedLen;
-        }
-      }else{
-        dataLen = totalSize;
-      }
-
-      std::string t = std::string(mapped + curPos, dataLen);
-      cb.dataCallback(t.c_str(), dataLen);
-
+      // Simple bounds check, don't read beyond the end of the file
+      uint64_t dataLen = ((wantedLen + curPos) > totalSize) ? totalSize - curPos : wantedLen;
+      cb.dataCallback(mapped + curPos, dataLen);
       curPos += dataLen;
-
-    }else if (stateType == HTTP::HTTP){
-      downer.continueNonBlocking(cb);
-    }else{// streaming mode
-      int s = downer.getSocket().Received().bytes(wantedLen);
-      if (!s){
-        if (downer.getSocket() && downer.getSocket().spool()){
-          s = downer.getSocket().Received().bytes(wantedLen);
-        }else{
-          Util::sleep(50);
-          return;
-        }
-      }
-      Util::ResizeablePointer buf;
-      downer.getSocket().Received().remove(buf, s);
-      cb.dataCallback(buf, s);
+      return;
     }
+    // HTTP-based read from the Downloader
+    if (stateType == HTTP::HTTP){
+      // Note: this function returns true if the full read was completed only.
+      // It's the reason this function returns void rather than bool.
+      downer.continueNonBlocking(cb);
+      return;
+    }
+    // Everything else uses the socket directly
+    int s = downer.getSocket().Received().bytes(wantedLen);
+    if (!s){
+      // Only attempt to read more if nothing was in the buffer
+      if (downer.getSocket() && downer.getSocket().spool()){
+        s = downer.getSocket().Received().bytes(wantedLen);
+      }else{
+        Util::sleep(50);
+        return;
+      }
+    }
+    // Future optimization: augment the Socket::Buffer to handle a Util::DataCallback as argument.
+    // Would remove the need for this extra copy here.
+    Util::ResizeablePointer buf;
+    downer.getSocket().Received().remove(buf, s);
+    cb.dataCallback(buf, s);
   }
 
   /// Readsome blocking function.

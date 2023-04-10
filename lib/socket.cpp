@@ -1221,7 +1221,7 @@ std::string Socket::Connection::getBoundAddress() const{
 
 /// Gets binary IPv6 address for connection, if available.
 /// Guaranteed to be either empty or 16 bytes long.
-std::string Socket::Connection::getBinHost(){
+std::string Socket::Connection::getBinHost() const{
   return getIPv6BinAddr(remoteaddr);
 }
 
@@ -1726,6 +1726,22 @@ void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
   family = AF_TYPE;
 }
 
+/// Allocates enough space for the largest type of address we support, so that receive calls can write to it.
+void Socket::UDPConnection::allocateDestination(){
+  if (destAddr && destAddr_size < sizeof(sockaddr_in6)){
+    free(destAddr);
+    destAddr = 0;
+  }
+  if (!destAddr){
+    destAddr = malloc(sizeof(sockaddr_in6));
+    if (destAddr){
+      destAddr_size = sizeof(sockaddr_in6);
+      memset(destAddr, 0, sizeof(sockaddr_in6));
+      ((struct sockaddr_in *)destAddr)->sin_family = AF_UNSPEC;
+    }
+  }
+}
+
 /// Stores the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
@@ -1824,8 +1840,9 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
 /// Gets the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 std::string Socket::UDPConnection::getBinDestination(){
-  std::string binList = getIPv6BinAddr(*(sockaddr_in6*)destAddr);
-  if (binList.size() < 16){ return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16); }
+  std::string binList;
+  if (destAddr && destAddr_size){binList = getIPv6BinAddr(*(sockaddr_in6*)destAddr);}
+  if (binList.size() < 16){return std::string("\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000", 16);}
   return binList.substr(0, 16);
 }// Socket::UDPConnection GetDestination
 
@@ -2081,12 +2098,14 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
 bool Socket::UDPConnection::Receive(){
   if (sock == -1){return false;}
   data.truncate(0);
-  socklen_t destsize = destAddr_size;
-  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)destAddr, &destsize);
+  sockaddr_in6 addr;
+  socklen_t destsize = sizeof(addr);
+  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)&addr, &destsize);
   if (r == -1){
     if (errno != EAGAIN){INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));}
     return false;
   }
+  if (destAddr && destsize && destAddr_size >= destsize){memcpy(destAddr, &addr, destsize);}
   data.append(0, r);
   down += r;
   //Handle UDP packets that are too large

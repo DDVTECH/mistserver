@@ -6,8 +6,6 @@ resolvetest = executable('resolvetest', 'resolve.cpp', header_tgts, dependencies
 streamstatustest = executable('streamstatustest', 'status.cpp', header_tgts, dependencies: libmist_dep)
 websockettest = executable('websockettest', 'websocket.cpp', header_tgts, dependencies: libmist_dep)
 
-
-
 # Actual unit tests
 test('Redirecting log messages produces no error', exec_tgts.get('MistUtilLog'), suite:'Logs', args: ['BadBinary'], should_fail: true)
 
@@ -200,6 +198,8 @@ test('Simple HTTP response, no length, lingering connection', httpparsertest, su
 test('Chunked HTTP response, closed connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n1\nt\n3\nest\n0\n\n', 'T_COUNT':'1'})
 test('Chunked HTTP response, lingering connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n1\nt\n3\nest\n0\n\n', 'T_LINGER':'1', 'T_COUNT':'1'})
 
+amftest = executable('amftest', 'amf.cpp', header_tgts, dependencies: libmist_dep)
+test('AMF parser', amftest, suite: 'AMF parser', protocol:'tap')
 
 #abst_test = executable('abst_test', 'abst_test.cpp', dependencies: libmist_dep)
 #test('MP4::ABST Test', abst_test)

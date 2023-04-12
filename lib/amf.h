@@ -2,7 +2,6 @@
 /// Holds all headers for the AMF namespace.
 
 #pragma once
-#include <iostream>
 #include <string>
 #include <vector>
 #include "json.h"
@@ -56,41 +55,56 @@ namespace AMF{
   /// container type.
   class Object{
   public:
-    std::string Indice() const;
-    obj0type GetType();
+    const std::string & Indice() const;
+    obj0type GetType() const;
     double NumValue();
-    std::string StrValue();
+    std::string & StrValue();
     const char *Str();
     int hasContent();
     Object *addContent(const AMF::Object & c);
+    Object *addContent(const std::string & strVal);
+    Object *addContent(const double dblVal);
+    Object *addContent(const obj0type objTyp);
+    Object *addContent(const std::string & indice, const std::string & strVal);
+    Object *addContent(const std::string & indice, const double dblVal);
+    Object *addContent(const std::string & indice, const obj0type objTyp);
     Object *getContentP(unsigned int i);
     Object getContent(unsigned int i);
     Object *getContentP(std::string s);
     Object getContent(std::string s);
     Object();
+    Object(obj0type objTyp);
     Object(std::string indice, double val, obj0type setType = AMF0_NUMBER);
-    Object(std::string indice, std::string val, obj0type setType = AMF0_STRING);
-    Object(std::string indice, const char *val, obj0type setType = AMF0_STRING);
+    Object(std::string indice, const std::string & val, obj0type setType = AMF0_STRING);
     Object(std::string indice, obj0type setType = AMF0_OBJECT);
     std::string Print(std::string indent = "");
     std::string Pack();
     JSON::Value toJSON() const;
+    std::deque<Object>::iterator begin() { return contents.begin(); }
+    std::deque<Object>::iterator end() { return contents.end(); }
 
   protected:
     std::string myIndice;         ///< Holds this objects indice, if any.
     obj0type myType;              ///< Holds this objects AMF0 type.
     std::string strval;           ///< Holds this objects string value, if any.
     double numval;                ///< Holds this objects numeric value, if any.
-    std::vector<Object> contents; ///< Holds this objects contents, if any (for container types).
+    std::deque<Object> contents; ///< Holds this objects contents, if any (for container types).
   };
   // AMFType
 
   /// Parses a C-string to a valid AMF::Object.
-  Object parse(const unsigned char *data, unsigned int len);
+  Object parse(const char *data, unsigned int len);
   /// Parses a std::string to a valid AMF::Object.
   Object parse(std::string data);
   /// Parses a single AMF0 type - used recursively by the AMF::parse() functions.
-  Object parseOne(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name);
+  Object parseOne(const char *& data, unsigned int & len, unsigned int & i, std::string name);
+
+  /// Converts a buffer with JSON data into a AMF::Object.
+  Object fromJSON(const char *data, unsigned int len, bool root = true);
+  /// Converts a std::string with JSON data into a AMF::Object.
+  Object fromJSON(const std::string & jsonStr, bool root = true);
+  /// Converts a JSON::Value object into a AMF::Object (the other AMF::fromJSON functions use this internally).
+  Object fromJSON(const JSON::Value & jsonObj, const std::string & indice = "", bool root = true);
 
   /// Recursive class that holds AMF3 objects.
   /// It supports all AMF3 types (defined in AMF::obj3type), adding support for a special DDVTECH
@@ -129,10 +143,10 @@ namespace AMF{
   // AMFType
 
   /// Parses a C-string to a valid AMF::Object3.
-  Object3 parse3(const unsigned char *data, unsigned int len);
+  Object3 parse3(const char *data, unsigned int len);
   /// Parses a std::string to a valid AMF::Object3.
   Object3 parse3(std::string data);
   /// Parses a single AMF3 type - used recursively by the AMF::parse3() functions.
-  Object3 parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name);
+  Object3 parseOne3(const char *& data, unsigned int & len, unsigned int & i, std::string name);
 
 }// namespace AMF

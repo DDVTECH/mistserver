@@ -1942,16 +1942,11 @@ namespace Mist {
       case 16: MEDIUM_MSG("Received AMF3 shared object"); break;
       case 17:{
         MEDIUM_MSG("Received AMF3 command message");
-        if (next.data[0] != 0){
-          next.data = next.data.substr(1);
-          amf3data = AMF::parse3(next.data);
-          MEDIUM_MSG("AMF3: %s", amf3data.Print().c_str());
-        }else{
-          MEDIUM_MSG("Received AMF3-0 command message");
-          next.data = next.data.substr(1);
-          amfdata = AMF::parse(next.data);
+        if (next.data[0] == 0) {
+          MEDIUM_MSG("Received AMF3 command message");
+          amfdata = AMF::parse(next.data.c_str() + 1, next.data.size() - 1);
           parseAMFCommand(amfdata, 17, next.msg_stream_id);
-        }// parsing AMF0-style
+        } // parsing AMF0-style
       }break;
       case 19: MEDIUM_MSG("Received AMF0 shared object"); break;
       case 20:{// AMF0 command message

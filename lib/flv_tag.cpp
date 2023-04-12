@@ -218,7 +218,7 @@ std::string FLV::Tag::tagType(){
     break;
   case 0x12:{
     R << "(meta)data: ";
-    AMF::Object metadata = AMF::parse((unsigned char *)data + 11, len - 15);
+    AMF::Object metadata = AMF::parse(data + 11, len - 15);
     R << metadata.Print();
     break;
   }
@@ -835,7 +835,7 @@ void FLV::Tag::toMeta(DTSC::Meta &meta, AMF::Object &amf_storage, size_t &reTrac
   if (data[0] == 0x12){
     meta.setType(reTrack, "meta");
     meta.setCodec(reTrack, "JSON");
-    AMF::Object meta_in = AMF::parse((unsigned char *)data + 11, len - 15);
+    AMF::Object meta_in = AMF::parse(data + 11, len - 15);
     AMF::Object *tmp = 0;
     if (meta_in.getContentP(1) && meta_in.getContentP(0) && (meta_in.getContentP(0)->StrValue() == "onMetaData")){
       tmp = meta_in.getContentP(1);

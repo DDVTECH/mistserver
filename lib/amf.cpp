@@ -9,12 +9,12 @@ AMF::Object nullPtr("error", AMF::AMF0_DDV_CONTAINER);
 
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
-std::string AMF::Object::Indice() const{
+const std::string & AMF::Object::Indice() const {
   return myIndice;
 }
 
 /// Returns the AMF::obj0type AMF0 object type for this object.
-AMF::obj0type AMF::Object::GetType(){
+AMF::obj0type AMF::Object::GetType() const {
   return myType;
 }
 
@@ -26,7 +26,7 @@ double AMF::Object::NumValue(){
 
 /// Returns the std::string value of this object, if available.
 /// If this object holds no string value, an empty string is returned.
-std::string AMF::Object::StrValue(){
+std::string & AMF::Object::StrValue() {
   return strval;
 }
 
@@ -42,11 +42,40 @@ int AMF::Object::hasContent(){
   return contents.size();
 }
 
-/// Adds an AMF::Object to this object. Works for all types, but only makes sense for container
-/// types.
+/// Adds an AMF::Object as contents, only makes sense for object-based types.
 AMF::Object *AMF::Object::addContent(const AMF::Object & c) {
   contents.push_back(c);
   return &*contents.rbegin();
+}
+
+/// Adds a string as contents, only makes sense for array-based types.
+AMF::Object *AMF::Object::addContent(const std::string & strVal) {
+  return addContent(AMF::Object("", strVal));
+}
+
+/// Adds a double as contents, only makes sense for array-based types.
+AMF::Object *AMF::Object::addContent(const double dblVal) {
+  return addContent(AMF::Object("", dblVal));
+}
+
+/// Adds an empty object of the given type as contents, only makes sense for array-based types.
+AMF::Object *AMF::Object::addContent(const obj0type objTyp) {
+  return addContent(AMF::Object("", objTyp));
+}
+
+/// Adds a string as contents, only makes sense for object-based types.
+AMF::Object *AMF::Object::addContent(const std::string & indice, const std::string & strVal) {
+  return addContent(AMF::Object(indice, strVal));
+}
+
+/// Adds a double as contents, only makes sense for object-based types.
+AMF::Object *AMF::Object::addContent(const std::string & indice, const double dblVal) {
+  return addContent(AMF::Object(indice, dblVal));
+}
+
+/// Adds an empty object of the given type as contents, only makes sense for object-based types.
+AMF::Object *AMF::Object::addContent(const std::string & indice, const obj0type objTyp) {
+  return addContent(AMF::Object(indice, objTyp));
 }
 
 /// Returns a pointer to the object held at indice i.
@@ -68,9 +97,9 @@ AMF::Object AMF::Object::getContent(unsigned int i){
 /// Returns a pointer to the object held at indice s.
 /// Returns NULL if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object *AMF::Object::getContentP(std::string s){
-  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){return &(*it);}
+AMF::Object *AMF::Object::getContentP(std::string s) {
+  for (auto & it : contents) {
+    if (it.Indice() == s) { return &it; }
   }
   return &nullPtr;
 }
@@ -78,18 +107,26 @@ AMF::Object *AMF::Object::getContentP(std::string s){
 /// Returns a copy of the object held at indice s.
 /// Returns a AMF::AMF0_DDV_CONTAINER of indice "error" if no object is held at this indice.
 /// \param s The indice of the object in this container.
-AMF::Object AMF::Object::getContent(std::string s){
-  for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-    if (it->Indice() == s){return *it;}
+AMF::Object AMF::Object::getContent(std::string s) {
+  for (auto & it : contents) {
+    if (it.Indice() == s) { return it; }
   }
   return AMF::Object("error", AMF0_DDV_CONTAINER);
 }
 
 /// Default constructor.
-/// Simply fills the data with AMF::Object("error", AMF0_DDV_CONTAINER)
+/// Creates an empty AMF0_DDV_CONTAINER object.
 AMF::Object::Object(){
-  *this = AMF::Object("error", AMF0_DDV_CONTAINER);
-}// default constructor
+  myType = AMF::AMF0_DDV_CONTAINER;
+  numval = 0;
+} // default constructor
+
+/// Contructor for container-type (or null) objects
+/// Sets the given type.
+AMF::Object::Object(obj0type objTyp) {
+  myType = objTyp;
+  numval = 0;
+} // default constructor
 
 /// Constructor for numeric objects.
 /// The object type is by default AMF::AMF0_NUMBER, but this can be forced to a different value.
@@ -99,7 +136,6 @@ AMF::Object::Object(){
 AMF::Object::Object(std::string indice, double val, AMF::obj0type setType){// num type initializer
   myIndice = indice;
   myType = setType;
-  strval = "";
   numval = val;
 }
 
@@ -109,22 +145,7 @@ AMF::Object::Object(std::string indice, double val, AMF::obj0type setType){// nu
 /// automatically. \param indice The string indice of this object in its container, or empty string
 /// if none. Numeric indices are automatic. \param val The string value of this object. \param
 /// setType The object type to force this object to.
-AMF::Object::Object(std::string indice, std::string val,
-                    AMF::obj0type setType){// str type initializer
-  myIndice = indice;
-  myType = setType;
-  strval = val;
-  numval = 0;
-}
-
-/// Constructor for string objects.
-/// The object type is by default AMF::AMF0_STRING, but this can be forced to a different value.
-/// There is no need to manually change the type to AMF::AMF0_LONGSTRING, this will be done
-/// automatically. \param indice The string indice of this object in its container, or empty string
-/// if none. Numeric indices are automatic. \param val The string value of this object. \param
-/// setType The object type to force this object to.
-AMF::Object::Object(std::string indice, const char *val,
-                    AMF::obj0type setType){// str type initializer
+AMF::Object::Object(std::string indice, const std::string & val, AMF::obj0type setType) {
   myIndice = indice;
   myType = setType;
   strval = val;
@@ -186,58 +207,44 @@ std::string AMF::Object::Print(std::string indent){
   }
   st << std::endl;
   // if I hold other objects, print those too, recursively.
-  if (contents.size() > 0){
-    for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-      st << it->Print(indent + "  ");
-    }
-  }
+  for (auto & it : contents) { st << it.Print(indent + "  "); }
   return st.str();
 }// print
 
-JSON::Value AMF::Object::toJSON() const{
-  switch (myType){
-  case AMF::AMF0_NUMBER:
-  case AMF::AMF0_DATE:
-  case AMF::AMF0_REFERENCE:
-    return numval;
-  case AMF::AMF0_BOOL:
-    return (bool)numval;
-  case AMF::AMF0_STRING:
-  case AMF::AMF0_LONGSTRING:
-  case AMF::AMF0_XMLDOC: // is always a longstring
-    return strval;
-  case AMF::AMF0_TYPED_OBJ: // is an object, with the classname first
-  case AMF::AMF0_OBJECT:
-  case AMF::AMF0_ECMA_ARRAY:{
-    JSON::Value ret;
-    if (contents.size() > 0){
-      for (std::vector<AMF::Object>::const_iterator it = contents.begin(); it != contents.end(); it++){
-        ret[it->Indice()] = it->toJSON();
-      }
+JSON::Value AMF::Object::toJSON() const {
+  switch (myType) {
+    case AMF::AMF0_NUMBER:
+    case AMF::AMF0_DATE:
+    case AMF::AMF0_REFERENCE:
+      if (numval == (int64_t)numval) return (int64_t)numval;
+      return numval;
+    case AMF::AMF0_BOOL: return (bool)numval;
+    case AMF::AMF0_STRING:
+    case AMF::AMF0_LONGSTRING:
+    case AMF::AMF0_XMLDOC: // is always a longstring
+      return strval;
+    case AMF::AMF0_TYPED_OBJ: // is an object, with the classname first
+    case AMF::AMF0_OBJECT:
+    case AMF::AMF0_ECMA_ARRAY: {
+      JSON::Value ret;
+      for (auto & it : contents) { ret[it.Indice()] = it.toJSON(); }
+      return ret;
     }
-    return ret;
-  }
-  case AMF::AMF0_MOVIECLIP:
-  case AMF::AMF0_OBJ_END:
-  case AMF::AMF0_UPGRADE:
-  case AMF::AMF0_NULL:
-  case AMF::AMF0_UNDEFINED:
-  case AMF::AMF0_RECORDSET:
-  case AMF::AMF0_UNSUPPORTED:
-    // no data to add
-    return JSON::Value();
-  case AMF::AMF0_DDV_CONTAINER: // only send contents
-  case AMF::AMF0_STRICT_ARRAY:{
-    JSON::Value ret;
-    if (contents.size() > 0){
-      for (std::vector<AMF::Object>::const_iterator it = contents.begin(); it != contents.end(); it++){
-        ret.append(it->toJSON());
-      }
+    case AMF::AMF0_DDV_CONTAINER: // only send contents
+    case AMF::AMF0_STRICT_ARRAY: {
+      JSON::Value ret;
+      for (auto & it : contents) { ret.append(it.toJSON()); }
+      return ret;
     }
-    return ret;
+    case AMF::AMF0_MOVIECLIP:
+    case AMF::AMF0_OBJ_END:
+    case AMF::AMF0_UPGRADE:
+    case AMF::AMF0_NULL:
+    case AMF::AMF0_UNDEFINED:
+    case AMF::AMF0_RECORDSET:
+    case AMF::AMF0_UNSUPPORTED:
+    default: return JSON::Value(); // no data to add
   }
-  }
-  return JSON::Value();
 }
 
 /// Packs the AMF object to a std::string for transfer over the network.
@@ -295,11 +302,11 @@ std::string AMF::Object::Pack(){
   /* no break */
   case AMF::AMF0_OBJECT:
     if (contents.size() > 0){
-      for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-        r += it->Indice().size() / 256;
-        r += it->Indice().size() % 256;
-        r += it->Indice();
-        r += it->Pack();
+      for (auto & it : contents) {
+        r += it.Indice().size() / 256;
+        r += it.Indice().size() % 256;
+        r += it.Indice();
+        r += it.Pack();
       }
     }
     r += (char)0;
@@ -327,11 +334,11 @@ std::string AMF::Object::Pack(){
       r += arrlen / (256 * 256);
       r += arrlen / 256;
       r += arrlen % 256;
-      for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-        r += it->Indice().size() / 256;
-        r += it->Indice().size() % 256;
-        r += it->Indice();
-        r += it->Pack();
+      for (auto & it : contents) {
+        r += it.Indice().size() / 256;
+        r += it.Indice().size() % 256;
+        r += it.Indice();
+        r += it.Pack();
       }
     }else{
       r += (char)0;
@@ -351,9 +358,7 @@ std::string AMF::Object::Pack(){
       r += arrlen / (256 * 256);
       r += arrlen / 256;
       r += arrlen % 256;
-      for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-        r += it->Pack();
-      }
+      for (auto & it : contents) { r += it.Pack(); }
     }else{
       r += (char)0;
       r += (char)0;
@@ -362,11 +367,7 @@ std::string AMF::Object::Pack(){
     }
   }break;
   case AMF::AMF0_DDV_CONTAINER: // only send contents
-    if (contents.size() > 0){
-      for (std::vector<AMF::Object>::iterator it = contents.begin(); it != contents.end(); it++){
-        r += it->Pack();
-      }
-    }
+    for (auto & it : contents) { r += it.Pack(); }
     break;
   }
   return r;
@@ -379,11 +380,14 @@ std::string AMF::Object::Pack(){
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object, parsed from the raw data.
-AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name){
+AMF::Object AMF::parseOne(const char *& data, unsigned int & len, unsigned int & i, std::string name) {
+  // Prevent accesses outside of the AMF data section
+  if (i >= len) { return AMF::Object(); }
+
   std::string tmpstr;
   unsigned int tmpi = 0;
-  unsigned char tmpdbl[8];
-  double *d; // hack to work around strict aliasing
+  char tmpdbl[8];
+  double d; // hack to work around strict aliasing
   switch (data[i]){
   case AMF::AMF0_NUMBER:
     if (i + 8 < len){
@@ -395,12 +399,12 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
       tmpdbl[2] = data[i + 6];
       tmpdbl[1] = data[i + 7];
       tmpdbl[0] = data[i + 8];
-      d = (double *)tmpdbl;
+      d = *(double *)tmpdbl;
     }else{
       d = 0;
     }
     i += 9; // skip 8(a double)+1 forwards
-    return AMF::Object(name, *d, AMF::AMF0_NUMBER);
+    return AMF::Object(name, d, AMF::AMF0_NUMBER);
     break;
   case AMF::AMF0_DATE:
     if (i + 8 < len){
@@ -412,12 +416,12 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
       tmpdbl[2] = data[i + 6];
       tmpdbl[1] = data[i + 7];
       tmpdbl[0] = data[i + 8];
-      d = (double *)tmpdbl;
+      d = *(double *)tmpdbl;
     }else{
       d = 0;
     }
     i += 11; // skip 8(a double)+1+timezone(2) forwards
-    return AMF::Object(name, *d, AMF::AMF0_DATE);
+    return AMF::Object(name, d, AMF::AMF0_DATE);
     break;
   case AMF::AMF0_BOOL:
     i += 2; // skip bool+1 forwards
@@ -525,12 +529,12 @@ AMF::Object AMF::parseOne(const unsigned char *&data, unsigned int &len, unsigne
   ERROR_MSG("Error: Unimplemented AMF type %hhx - returning.", data[i]);
   i = len;
   return AMF::Object("error", AMF::AMF0_DDV_CONTAINER);
-}// parseOne
+} // parseOne
 
 /// Parses a C-string to a valid AMF::Object.
 /// This function will find all AMF objects in the string and return
 /// them all packed in a single AMF::AMF0_DDV_CONTAINER AMF::Object.
-AMF::Object AMF::parse(const unsigned char *data, unsigned int len){
+AMF::Object AMF::parse(const char *data, unsigned int len) {
   AMF::Object ret("returned", AMF::AMF0_DDV_CONTAINER); // container type
   unsigned int i = 0, j = 0;
   while (i < len){
@@ -542,14 +546,46 @@ AMF::Object AMF::parse(const unsigned char *data, unsigned int len){
     }
   }
   return ret;
-}// parse
+} // parse
 
 /// Parses a std::string to a valid AMF::Object.
 /// This function will find all AMF objects in the string and return
 /// them all packed in a single AMF::AMF0_DDV_CONTAINER AMF::Object.
 AMF::Object AMF::parse(std::string data){
-  return AMF::parse((const unsigned char *)data.c_str(), data.size());
+  return AMF::parse((const char *)data.c_str(), data.size());
 }// parse
+
+// Helper which converts raw JSON bytes into a AMF::Object.
+AMF::Object AMF::fromJSON(const char *data, unsigned int len, bool root) {
+  if (!data || !len) { return AMF::Object(); }
+  return AMF::fromJSON(JSON::fromString(data, len), "", root);
+}
+
+// Helper which convert a JSON string into a AMF::Object.
+AMF::Object AMF::fromJSON(const std::string & jsonStr, bool root) {
+  return AMF::fromJSON((const char *)jsonStr.data(), jsonStr.size(), root);
+}
+
+// Converts the JSON object into a AMF0 object
+AMF::Object AMF::fromJSON(const JSON::Value & J, const std::string & indice, bool root) {
+  if (J.isNull()) return AMF::Object(indice, AMF::AMF0_NULL);
+  if (J.isBool()) return AMF::Object(indice, (double)((J.asBool()) ? 1.0 : 0.0), AMF::AMF0_BOOL);
+  if (J.isDouble()) return AMF::Object(indice, J.asDouble());
+  if (J.isInt()) return AMF::Object(indice, (double)J.asInt());
+  if (J.isString()) return AMF::Object(indice, J.asString());
+  if (J.isObject()) {
+    AMF::Object amf = AMF::Object(indice, AMF::AMF0_ECMA_ARRAY);
+    jsonForEachConst (J, it) { amf.addContent(AMF::fromJSON(*it, it.key(), false)); }
+    return amf;
+  }
+  if (J.isArray()) {
+    AMF::Object amf = AMF::Object(indice, root ? AMF::AMF0_DDV_CONTAINER : AMF::AMF0_STRICT_ARRAY);
+    jsonForEachConst (J, it) { amf.addContent(AMF::fromJSON(*it, "", false)); }
+    return amf;
+  }
+  ERROR_MSG("Unhandled JSON type");
+  return AMF::Object();
+}
 
 /// Returns the std::string Indice for the current object, if available.
 /// Returns an empty string if no indice exists.
@@ -777,11 +813,11 @@ JSON::Value AMF::Object3::toJSON() const{
 /// \param i Current parsing position in the raw data.
 /// \param name Indice name for any new object created.
 /// \returns A single AMF::Object3, parsed from the raw data.
-AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsigned int &i, std::string name){
+AMF::Object3 AMF::parseOne3(const char *& data, unsigned int & len, unsigned int & i, std::string name) {
   std::string tmpstr;
   unsigned int tmpi = 0;
   unsigned int arrsize = 0;
-  unsigned char tmpdbl[8];
+  char tmpdbl[8];
   double *d; // hack to work around strict aliasing
   switch (data[i]){
   case AMF::AMF3_UNDEFINED:
@@ -1115,15 +1151,15 @@ AMF::Object3 AMF::parseOne3(const unsigned char *&data, unsigned int &len, unsig
     return ret;
   }break;
   }
-  ERROR_MSG("Error: Unimplemented AMF3 type %hhx - returning.", data[i]);
+  ERROR_MSG("Error: Unimplemented AMF3 type %hhx at byte %u/%u - returning.", data[i], i, len);
   i = len;
   return AMF::Object3("error", AMF::AMF3_DDV_CONTAINER);
-}// parseOne
+} // parseOne
 
 /// Parses a C-string to a valid AMF::Object3.
 /// This function will find all AMF3 objects in the string and return
 /// them all packed in a single AMF::AMF3_DDV_CONTAINER AMF::Object3.
-AMF::Object3 AMF::parse3(const unsigned char *data, unsigned int len){
+AMF::Object3 AMF::parse3(const char *data, unsigned int len) {
   AMF::Object3 ret("returned", AMF::AMF3_DDV_CONTAINER); // container type
   unsigned int i = 0, j = 0;
   while (i < len){
@@ -1135,11 +1171,11 @@ AMF::Object3 AMF::parse3(const unsigned char *data, unsigned int len){
     }
   }
   return ret;
-}// parse
+} // parse
 
 /// Parses a std::string to a valid AMF::Object3.
 /// This function will find all AMF3 objects in the string and return
 /// them all packed in a single AMF::AMF3_DDV_CONTAINER AMF::Object3.
 AMF::Object3 AMF::parse3(std::string data){
-  return AMF::parse3((const unsigned char *)data.c_str(), data.size());
+  return AMF::parse3((const char *)data.c_str(), data.size());
 }// parse

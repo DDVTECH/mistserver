@@ -669,7 +669,7 @@ namespace Mist{
 
     // Handle certbot validations
     if (req.url.substr(0, 28) == "/.well-known/acme-challenge/"){
-      std::string cbToken = H.url.substr(28);
+      std::string cbToken = req.url.substr(28);
       jsonForEach(config->getOption("certbot", true), it){
         if (it->asStringRef().substr(0, cbToken.size() + 1) == cbToken + ":"){
           H.SetHeader("Content-Type", "text/plain");

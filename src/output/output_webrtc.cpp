@@ -309,7 +309,7 @@ namespace Mist{
       if (!parseData){udp.sendPaced(10000);}
       //After 10s of no packets, abort
       if (Util::bootMS() > lastRecv + 10000){
-        Util::logExitReason("received no data for 10+ seconds");
+        Util::logExitReason(ER_CLEAN_INACTIVE, "received no data for 10+ seconds");
         config->is_active = false;
       }
       return;

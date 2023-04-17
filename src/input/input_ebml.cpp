@@ -733,7 +733,7 @@ namespace Mist{
         }
       }
       if (seekPos > readPos + readBuffer.size()){
-        Util::logExitReason("Input file seek abort");
+        Util::logExitReason(ER_READ_START_FAILURE, "Input file seek abort");
         config->is_active = false;
         readBufferOffset = 0;
         return;

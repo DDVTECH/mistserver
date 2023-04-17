@@ -240,6 +240,12 @@ namespace Controller{
     trgs["LIVEPEER_SEGMENT_REJECTED"]["payload"] = "transcode options (json string)\nraw segment that was rejected (base64 encoded)\ninformation about the source track (json string)\nfirst attempted broadcaster URL\nsecond attempted broadcaster URL or the text \"N/A\" if no secondary was available";
     trgs["LIVEPEER_SEGMENT_REJECTED"]["response"] = "ignored";
     trgs["LIVEPEER_SEGMENT_REJECTED"]["response_action"] = "None.";
+
+    trgs["PLAYBACK_LOG"]["when"] = "Whenever a playback log entry is ready";
+    trgs["PLAYBACK_LOG"]["stream_specific"] = false;
+    trgs["PLAYBACK_LOG"]["payload"] = "log entry (json string)\n";
+    trgs["PLAYBACK_LOG"]["response"] = "ignored";
+    trgs["PLAYBACK_LOG"]["response_action"] = "None.";
   }
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.

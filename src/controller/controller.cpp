@@ -570,6 +570,22 @@ int main_loop(int argc, char **argv){
     }
   }
 
+  // Insert defaults
+  {
+    // If we have no external writers, add the default S3 writer
+    if (!Controller::Storage.isMember("extwriters") || !Controller::Storage["extwriters"]){
+      JSON::Value s3;
+      s3[0u] = "s3";
+      s3[1u] = "livepeer-catalyst-uploader -t 2592000s";
+      s3[2u].append("s3");
+      s3[2u].append("s3+http");
+      s3[2u].append("s3+https");
+      s3[2u].append("ipfs");
+      Controller::Storage["extwriters"].append(s3);
+      Controller::Log("CONF", "Inserted livepeer-catalyst-uploader entry in external writers");
+    }
+  }
+
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){
     srand(mix(clock(), time(0), getpid()));

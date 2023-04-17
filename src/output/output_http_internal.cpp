@@ -1202,6 +1202,7 @@ namespace Mist{
     if (!useragent.size()){useragent = req.GetHeader("User-Agent");}
     std::string upgradeHeader = req.GetHeader("Upgrade");
 
+    std::string country, timezone, region, subregion;
     double lat = 0;
     double lon = 0;
     if (H.GetVar("lat") != ""){
@@ -1214,6 +1215,10 @@ namespace Mist{
     }
     if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
     if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
+    if (H.hasHeader("X-City-Country-Code")){country = H.GetHeader("X-City-Country-Code").c_str();}
+    if (H.hasHeader("X-Time-Zone")){timezone = H.GetHeader("X-Time-Zone").c_str();}
+    if (H.hasHeader("X-Region-Code")){region = H.GetHeader("X-Region-Code").c_str();}
+    if (H.hasHeader("X-Subregion-Code")){subregion = H.GetHeader("X-Subregion-Code").c_str();}
 
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){return false;}
@@ -1462,6 +1467,11 @@ namespace Mist{
     playLog["ttff"] = ttff;
     playLog["uid"] = uid;
     playLog["preload_time"] = preloadTime;
+    if (lat || lon){playLog["geo"]["hash"] = geohash(lat, lon);}
+    if (country.size()){playLog["geo"]["cc"] = country;}
+    if (timezone.size()){playLog["geo"]["tz"] = timezone;}
+    if (region.size()){playLog["geo"]["reg"] = region;}
+    if (subregion.size()){playLog["geo"]["subreg"] = subregion;}
     if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
       playLog["log_type"] = "adj-playback-log";
       playLog["waits_adj"] = statWaitsAdj;

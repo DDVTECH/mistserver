@@ -52,7 +52,13 @@ namespace Triggers{
       return "true";
     }
     INFO_MSG("Executing %s trigger: %s (%s)", trigger.c_str(), value.c_str(), sync ? "blocking" : "asynchronous");
-    if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
+    if (value.substr(0, 6) == "udp://"){ // Send data to UDP address and port
+      HTTP::URL url(value);
+      Socket::UDPConnection uSock;
+      uSock.SetDestination(url.host, url.getPort());
+      uSock.SendNow(payload);
+      return defaultResponse;
+    }else if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
       HTTP::Downloader DL;
       DL.setHeader("X-Trigger", trigger);
       DL.setHeader("Content-Type", "text/plain");

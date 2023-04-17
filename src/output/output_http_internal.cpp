@@ -1408,7 +1408,77 @@ namespace Mist{
     }
     startingTime = Util::bootMS() - startingTime;
     INFO_MSG("Closed info socket: %s (%s) was playing in %s over %s via %s for %" PRIu64 "ms. Playing for %" PRId64 "ms, %" PRId64 " logs, %" PRId64 " errors, time to first frame %" PRId64 ". There were %" PRId64 " waits for a combined time of %" PRId64 "ms (= %.1f%%). There were %" PRId64 " stalls for a combined time of %" PRId64 "ms. Unload reason was %s", useragent.c_str(), getConnectedHost().c_str(), statPlayer.toString().c_str(), statProto.toString().c_str(), statURL.toString().c_str(), startingTime, statPlaytime.asInt(), statLogs.asInt(), statErrors.asInt(), statFirstFrame.asInt(), statWaits.asInt(), statWaitTime.asInt(), (statWaitTime.asInt()*100.0) / (double)statPlaytime.asInt(), statStalls.asInt(), statStallTime.asInt(), statUnload.toString().c_str());
-    if (config->getString("playbacklog").size()){
+
+    //prepare time
+    time_t rawtime;
+    struct tm *timeinfo;
+    struct tm timetmp;
+    char timeStr[100];
+    time(&rawtime);
+    timeinfo = gmtime_r(&rawtime, &timetmp);
+    strftime(timeStr, 100, "%F %H:%M:%S", timeinfo);
+
+    uint64_t maxHeightMillis = 0;
+    uint64_t nomaxHeightMillis = 0;
+    if (currHeight && statPlaytime.asInt() > lastHeightChange){
+      if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
+      heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
+    }
+    if (heightTimes.size()){
+      for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
+        if (it->first == maxHeight){
+          maxHeightMillis += it->second;
+        }else{
+          nomaxHeightMillis += it->second;
+        }
+      }
+    }
+
+    JSON::Value playLog;
+    playLog["log_type"] = "playback-log";
+    playLog["pid"] = getpid();
+    playLog["time"] = timeStr;
+    playLog["ip"] = getConnectedHost();
+    playLog["protocol"] = statProto;
+    playLog["player"] = statPlayer;
+    playLog["streamname"] = streamName;
+    playLog["conn_time"] = startingTime;
+    playLog["play_time"] = statPlaytime;
+    playLog["firstframe"] = statFirstFrame;
+    playLog["autoplay"] = statAutoplay;
+    playLog["waits"] = statWaits;
+    playLog["wait_time"] = statWaitTime;
+    playLog["stalls"] = statStalls;
+    playLog["stall_time"] = statStallTime;
+    playLog["logs"] = statLogs;
+    playLog["errors"] = statErrors;
+    if (statIsKeyOnly){playLog["keyonly"] = true;}
+    playLog["unload_reason"] = statUnload;
+    playLog["page_url"] = statPage;
+    playLog["source_url"] = statURL;
+    playLog["user_agent"] = useragent.c_str();
+    playLog["max_height_ms"] = maxHeightMillis;
+    playLog["not_max_height_ms"] = nomaxHeightMillis;
+    playLog["ttff"] = ttff;
+    playLog["uid"] = uid;
+    playLog["preload_time"] = preloadTime;
+    if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
+      playLog["log_type"] = "adj-playback-log";
+      playLog["waits_adj"] = statWaitsAdj;
+      playLog["wait_time_adj"] = statWaitTimeAdj;
+      playLog["stalls_adj"] = statStallsAdj;
+      playLog["stall_time_adj"] = statStallTimeAdj;
+      playLog["play_time_adj"] = statPlaytimeAdj;
+      playLog["errors_adj"] = statErrorsAdj;
+      playLog["logs_adj"] = statLogsAdj;
+      playLog["preload_time_adj"] = preloadTimeAdj;
+    }
+    //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
+    std::string logLine = playLog.toString() + "\n";
+
+    if (Triggers::shouldTrigger("PLAYBACK_LOG")){
+      Triggers::doTrigger("PLAYBACK_LOG", logLine);
+    }else if (config->getString("playbacklog").size()){
       std::string logFile = config->getString("playbacklog");
       if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || statIsKeyOnly){
         logFile += "_adj";
@@ -1418,91 +1488,8 @@ namespace Mist{
         WARN_MSG("Could not write playback log to %s: %s", config->getString("playbacklog").c_str(), strerror(errno));
         return true;
       }
-      //prepare time
-      time_t rawtime;
-      struct tm *timeinfo;
-      struct tm timetmp;
-      char timeStr[100];
-      time(&rawtime);
-      timeinfo = gmtime_r(&rawtime, &timetmp);
-      strftime(timeStr, 100, "%F %H:%M:%S", timeinfo);
-
-      uint64_t maxHeightMillis = 0;
-      uint64_t nomaxHeightMillis = 0;
-      if (currHeight && statPlaytime.asInt() > lastHeightChange){
-        if (!heightTimes.count(currHeight)){heightTimes[currHeight] = 0;}
-        heightTimes[currHeight] += (statPlaytime.asInt() - lastHeightChange);
-      }
-      if (heightTimes.size()){
-        for (std::map<uint64_t, uint64_t>::iterator it = heightTimes.begin(); it != heightTimes.end(); ++it){
-          if (it->first == maxHeight){
-            maxHeightMillis += it->second;
-          }else{
-            nomaxHeightMillis += it->second;
-          }
-        }
-      }
-
-      JSON::Value playLog;
-      playLog["log_type"] = "playback-log";
-      playLog["pid"] = getpid();
-      playLog["time"] = timeStr;
-      playLog["ip"] = getConnectedHost();
-      playLog["protocol"] = statProto;
-      playLog["player"] = statPlayer;
-      playLog["streamname"] = streamName;
-      playLog["conn_time"] = startingTime;
-      playLog["play_time"] = statPlaytime;
-      playLog["firstframe"] = statFirstFrame;
-      playLog["autoplay"] = statAutoplay;
-      playLog["waits"] = statWaits;
-      playLog["wait_time"] = statWaitTime;
-      playLog["stalls"] = statStalls;
-      playLog["stall_time"] = statStallTime;
-      playLog["logs"] = statLogs;
-      playLog["errors"] = statErrors;
-      if (statIsKeyOnly){playLog["keyonly"] = true;}
-      playLog["unload_reason"] = statUnload;
-      playLog["page_url"] = statPage;
-      playLog["source_url"] = statURL;
-      playLog["user_agent"] = useragent.c_str();
-      playLog["max_height_ms"] = maxHeightMillis;
-      playLog["not_max_height_ms"] = nomaxHeightMillis;
-      playLog["ttff"] = ttff;
-      playLog["uid"] = uid;
-      playLog["preload_time"] = preloadTime;
-      if (statWaitsAdj || statWaitTimeAdj || statStallsAdj || statStallTimeAdj || statPlaytimeAdj || statErrorsAdj || statLogsAdj || preloadTimeAdj){
-        playLog["log_type"] = "adj-playback-log";
-        playLog["waits_adj"] = statWaitsAdj;
-        playLog["wait_time_adj"] = statWaitTimeAdj;
-        playLog["stalls_adj"] = statStallsAdj;
-        playLog["stall_time_adj"] = statStallTimeAdj;
-        playLog["play_time_adj"] = statPlaytimeAdj;
-        playLog["errors_adj"] = statErrorsAdj;
-        playLog["logs_adj"] = statLogsAdj;
-        playLog["preload_time_adj"] = preloadTimeAdj;
-      }
-      //We first snprintf and then write to an O_APPEND file, so that it is atomic and there won't be any mid-line interleaving.
-      std::string logLine = playLog.toString() + "\n";
       write(plog, logLine.c_str(), logLine.size());
       close(plog);
-
-      //write log line:
-      // V1: time, ip, protocol, player, streamname, playtime, firstframe, waits, waittime, stalls, stalltime, logs, errors, unloadreason, useragent
-      // V2: V2, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, unloadreason, pageUrl, useragent
-      // V2_adj: V2_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, unloadreason, pageUrl, useragent
-      // V3: V3, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent
-      // V3_adj: V3_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent
-      // Starting with V4, time is UTC instead of local
-      // V4: V4, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis
-      // V4_adj: V4_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis
-      // V5: V5, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid
-      // V5_adj: V5_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid
-      // V6: V6, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime
-      // V6_adj: V6_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime, diff
-      // V7 (JSON-based types): V7, time, ip, protocol, player, streamname, conntime, playtime, firstframe, autoplayStatus, waits, waittime, stalls, stalltime, logs, errors, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime
-      // V7_adj (JSON-based types): V7_adj, pid, time, ip, protocol, player, streamname, conntime, playtime, diff, firstframe, autoplayStatus, waits, diff, waittime, diff, stalls, diff, stalltime, diff, logs, diff, errors, diff, keymode, unloadreason, pageUrl, useragent, maxheightmillis, nomaxheightmillis, ttff, uid, preloadtime, diff
-      // After V7 switched to JSON object instead
     }
     return true;
   }

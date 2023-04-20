@@ -13,6 +13,7 @@
 const JSON::Value empty;
 
 namespace Util{
+  size_t replaceVar(std::string & input, const std::string & var, const std::string & rep);
   size_t streamCustomVariables(std::string &str);
   size_t streamVariables(std::string &str, const std::string &streamname, const std::string &source = "", uint8_t depth = 0);
   std::string getTmpFolder();

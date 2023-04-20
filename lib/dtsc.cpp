@@ -5,6 +5,7 @@
 
 #include "adts.h"
 #include "bitfields.h"
+#include "config.h"
 #include "defines.h"
 #include "encode.h"
 #include "h264.h"
@@ -1073,6 +1074,7 @@ namespace DTSC{
 
     setVod(src.hasMember("vod") && src.getMember("vod").asInt());
     setLive(src.hasMember("live") && src.getMember("live").asInt());
+    setUUID(src.hasMember("uuid") ? src.getMember("uuid").asString() : "");
 
     version = src.getMember("version").asInt();
 
@@ -1281,6 +1283,7 @@ namespace DTSC{
       stream.addField("live", RAX_UINT);
       stream.addField("tracks", RAX_NESTED, META_TRACK_OFFSET + (trackCount * META_TRACK_RECORDSIZE));
       stream.addField("source", RAX_STRING, 512);
+      stream.addField("uuid", RAX_STRING, 64);
       stream.addField("maxkeepaway", RAX_16UINT);
       stream.addField("bufferwindow", RAX_64UINT);
       stream.addField("bootmsoffset", RAX_64INT);
@@ -1429,6 +1432,7 @@ namespace DTSC{
     }
     trackList = Util::RelAccX(stream.getPointer(streamTracksField), false);
     preloadTrackFields();
+    Util::setUUID(getUUID());
     for (size_t i = 0; i < trackList.getPresent(); i++){
       if (trackList.getInt(trackValidField, i) == 0){continue;}
       if (tracks.count(i)){continue;}
@@ -2767,6 +2771,15 @@ namespace DTSC{
     return (!isLimited || limitMax == 0xFFFFFFFFFFFFFFFFull) && stream.getInt(streamLiveField);
   }
 
+  void Meta::setUUID(std::string uuid) {
+    stream.setString("uuid", uuid);
+    Util::setUUID(uuid);
+  }
+
+  std::string Meta::getUUID() const {
+    return stream.getPointer("uuid");
+  }
+
   bool Meta::hasBFrames(size_t idx) const{
     std::set<size_t> vTracks = getValidTracks();
     for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); it++){
@@ -3528,6 +3541,7 @@ namespace DTSC{
       dataLen += 13 + sourceURI.size();
     }
     */
+    if (getUUID().size()) { dataLen += 11 + getUUID().size(); }
     return dataLen + 8; // add 8 bytes header
   }
 
@@ -3729,6 +3743,7 @@ namespace DTSC{
     } else {
       if (getUTCOffset()) { res["unixoffset"] = getUTCOffset(); }
     }
+    if (getUUID().size()) { res["uuid"] = getUUID(); }
     res["version"] = DTSH_VERSION;
     if (getBufferWindow()){res["buffer_window"] = getBufferWindow();}
     if (getSource() != ""){res["source"] = getSource();}
@@ -3773,6 +3788,11 @@ namespace DTSC{
       conn.SendNow("\000\016inputLocalVars\002", 17);
       conn.SendNow(c32(lVars.size()), 4);
       conn.SendNow(lVars.data(), lVars.size());
+    }
+    if (getUUID().size()) {
+      conn.SendNow("\000\004uuid\002", 7);
+      conn.SendNow(c32(getUUID().size()), 4);
+      conn.SendNow(getUUID().data(), getUUID().size());
     }
     conn.SendNow("\000\006tracks\340", 9);
     for (std::set<size_t>::const_iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){

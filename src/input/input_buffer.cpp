@@ -705,7 +705,11 @@ namespace Mist{
       resumeMode = tmpNum;
     }
 
-    if (!meta){return true;}//abort the rest if we can't write metadata
+    if (!meta) { return true; } // abort the rest if we can't write metadata
+
+    // No UUID yet? Generate one.
+    if (meta.getUUID().empty()) { meta.setUUID(Util::generateUUID()); }
+
     lastReTime = Util::epoch(); /*LTS*/
 
     //Check if segmentsize setting is correct

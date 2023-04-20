@@ -199,6 +199,7 @@ size_t Util::streamVariables(std::string &str, const std::string &streamname, co
   replaced += replaceVar(str, "wday", strftime_now("%u")); // weekday, 1-7, monday=1
   replaced += replaceVar(str, "yday", strftime_now("%j")); // yearday, 001-366
   replaced += replaceVar(str, "week", strftime_now("%V")); // week number, 01-53
+  if (Util::UUID[0]) { replaced += replaceVar(str, "uuid", Util::UUID); }
   replaced += replaceVar(str, "stream", streamname);
   if (streamname.find('+') != std::string::npos){
     std::string strbase = streamname.substr(0, streamname.find('+'));

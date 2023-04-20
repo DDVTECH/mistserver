@@ -19,6 +19,7 @@
 #include "triggers.h"
 
 #include "bitfields.h" //for strToBool
+#include "config.h"
 #include "defines.h" //for FAIL_MSG and INFO_MSG
 #include "downloader.h" //for sending http request
 #include "ev.h"
@@ -70,6 +71,7 @@ namespace Triggers{
       DL.setHeader("X-Trigger-UUID", getenv("MIST_TUUID"));
       DL.setHeader("X-Trigger-UnixMillis", getenv("MIST_TIME"));
       DL.setHeader("Date", getenv("MIST_DATE"));
+      if (Util::UUID[0]) { DL.setHeader("X-UUID", Util::UUID); }
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
@@ -101,12 +103,14 @@ namespace Triggers{
         setenv("MIST_NAME", hrn.c_str(), 1);
       }
       uint64_t startTime = Util::bootMS();
+      setenv("MIST_UUID", Util::UUID, 1);
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, 0); // start new process and return stdin file desc.
       unsetenv("MIST_TRIGGER");
       unsetenv("MIST_TRIG_DEF");
       unsetenv("MIST_PID");
       unsetenv("MIST_INSTANCE");
       unsetenv("MIST_NAME");
+      unsetenv("MIST_UUID");
       if (fdIn == -1 || fdOut == -1 || !myProc) {
         FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
         submitTriggerStat(trigger, tStartMs, false);

@@ -719,6 +719,7 @@ namespace Mist{
         return exitAndLogReason();
       }
       timer = Util::getMicros(timer);
+      if (meta.getUUID().empty()) { meta.setUUID(Util::generateUUID()); }
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
       //Write header to file for caching purposes
       M.toFile(config->getString("input") + ".dtsh");
@@ -1791,8 +1792,15 @@ namespace Mist{
     HIGH_MSG("Retrieved header of %zu bytes", fileSize);
     meta.reInit(config->getBool("realtime") ? "" : streamName, pkt.getScan());
 
+    if (meta.getUUID().empty()) {
+      INFO_MSG("Updating header file without UUID");
+      meta.clear();
+      return false;
+    }
+
     if (meta.version != DTSH_VERSION){
       INFO_MSG("Updating wrong version header file from version %u to %u", meta.version, DTSH_VERSION);
+      meta.clear();
       return false;
     }
     return meta;

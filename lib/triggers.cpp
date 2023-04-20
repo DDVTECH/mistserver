@@ -24,6 +24,7 @@
 #include "timing.h"
 #include "triggers.h"
 #include "util.h"
+#include "config.h"
 #include "json.h"
 #include "stream.h"
 #include <string.h> //for strncmp
@@ -61,6 +62,7 @@ namespace Triggers{
     }else if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
       HTTP::Downloader DL;
       DL.setHeader("X-Trigger", trigger);
+      if (Util::UUID[0]){DL.setHeader("X-UUID", Util::UUID);}
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
@@ -82,9 +84,11 @@ namespace Triggers{
       argv[2] = NULL;
       setenv("MIST_TRIGGER", trigger.c_str(), 1);
       setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
+      setenv("MIST_UUID", Util::UUID, 1);
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
       unsetenv("MIST_TRIGGER");
       unsetenv("MIST_TRIG_DEF");
+      unsetenv("MIST_UUID");
       if (fdIn == -1 || fdOut == -1 || myProc == -1){
         FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
         submitTriggerStat(trigger, tStartMs, false);

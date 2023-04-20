@@ -144,37 +144,6 @@ void statusMonitor(void *np){
   }
 }
 
-static unsigned long mix(unsigned long a, unsigned long b, unsigned long c){
-  a = a - b;
-  a = a - c;
-  a = a ^ (c >> 13);
-  b = b - c;
-  b = b - a;
-  b = b ^ (a << 8);
-  c = c - a;
-  c = c - b;
-  c = c ^ (b >> 13);
-  a = a - b;
-  a = a - c;
-  a = a ^ (c >> 12);
-  b = b - c;
-  b = b - a;
-  b = b ^ (a << 16);
-  c = c - a;
-  c = c - b;
-  c = c ^ (b >> 5);
-  a = a - b;
-  a = a - c;
-  a = a ^ (c >> 3);
-  b = b - c;
-  b = b - a;
-  b = b ^ (a << 10);
-  c = c - a;
-  c = c - b;
-  c = c ^ (b >> 15);
-  return c;
-}
-
 void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
   Controller::Log("CONF", "USR1 received - restarting controller");
   Util::Config::is_restarting = true;
@@ -516,7 +485,7 @@ int main_loop(int argc, char **argv){
 
   // Generate instanceId once per boot.
   if (Controller::instanceId == ""){
-    srand(mix(clock(), time(0), getpid()));
+    srand(Util::mix(clock(), time(0), getpid()));
     do{
       Controller::instanceId += (char)(64 + rand() % 62);
     }while (Controller::instanceId.size() < 16);

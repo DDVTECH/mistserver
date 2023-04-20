@@ -16,6 +16,8 @@ namespace Util{
   extern uint32_t printDebugLevel;
   extern __thread char streamName[256]; ///< Used by debug messages to identify the stream name
   void setStreamName(const std::string & sn);
+  extern __thread char UUID[64]; ///< Used by triggers to pass through the UUID for streams
+  void setUUID(const std::string & UUID);
   extern __thread char exitReason[256];
   extern __thread char* mRExitReason;
   void logExitReason(const char* shortString, const char *format, ...);

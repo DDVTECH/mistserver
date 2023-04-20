@@ -129,7 +129,7 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
 }
 
 /// Local-only helper function that replaces a variable and returns the amount of replacements done
-size_t replaceVar(std::string & input, const std::string & var, const std::string & rep){
+size_t Util::replaceVar(std::string & input, const std::string & var, const std::string & rep){
   size_t count = 0;
   const std::string withBraces = "${"+var+"}";
   const std::string noBraces = "$"+var;

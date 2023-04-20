@@ -1403,7 +1403,9 @@ namespace Mist{
       }else{
         tmpTarget = origTarget;
       }
-      if (tmpTarget.find("$currentMediaTime") == std::string::npos && tmpTarget.find("$segmentCounter") == std::string::npos){
+      if (tmpTarget.find("$currentMediaTime") == std::string::npos && tmpTarget.find("$segmentCounter") == std::string::npos &&
+          tmpTarget.find("${currentMediaTime}") == std::string::npos && tmpTarget.find("${segmentCounter}") == std::string::npos
+         ){
         FAIL_MSG("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", tmpTarget.c_str());
         Util::logExitReason("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", tmpTarget.c_str());
         return 1;
@@ -1560,8 +1562,9 @@ namespace Mist{
       }
       currentStartTime = currentTime();
       std::string newTarget = origTarget;
-      Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
-      Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
+      Util::replaceVar(newTarget, "currentMediaTime", JSON::Value(currentStartTime).asString());
+      Util::replaceVar(newTarget, "segmentCounter", JSON::Value(segmentCount).asString());
+      Util::replaceVar(newTarget, "uuid", Util::UUID);
       Util::streamVariables(newTarget, streamName);
       currentTarget = newTarget;
       if (newTarget == "-"){
@@ -1750,8 +1753,9 @@ namespace Mist{
                 }
                 currentStartTime = lastPacketTime;
                 segmentCount++;
-                Util::replace(newTarget, "$currentMediaTime", JSON::Value(currentStartTime).asString());
-                Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
+                Util::replaceVar(newTarget, "currentMediaTime", JSON::Value(currentStartTime).asString());
+                Util::replaceVar(newTarget, "segmentCounter", JSON::Value(segmentCount).asString());
+                Util::replaceVar(newTarget, "uuid", Util::UUID);
                 Util::streamVariables(newTarget, streamName);
                 if (newTarget.rfind('?') != std::string::npos){
                   newTarget.erase(newTarget.rfind('?'));

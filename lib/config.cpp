@@ -42,12 +42,17 @@ bool Util::Config::is_restarting = false;
 static Socket::Server *serv_sock_pointer = 0;
 uint32_t Util::printDebugLevel = DEBUG;
 __thread char Util::streamName[256] = {0};
+__thread char Util::UUID[64] = {0};
 __thread char Util::exitReason[256] = {0};
 __thread char* Util::mRExitReason = (char*)ER_UNKNOWN;
 
 
 void Util::setStreamName(const std::string & sn){
   strncpy(Util::streamName, sn.c_str(), 256);
+}
+
+void Util::setUUID(const std::string & UUID){
+  strncpy(Util::UUID, UUID.c_str(), 64);
 }
 
 void Util::logExitReason(const char* shortString, const char *format, ...){

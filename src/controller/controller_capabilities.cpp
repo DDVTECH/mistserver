@@ -246,6 +246,12 @@ namespace Controller{
     trgs["PLAYBACK_LOG"]["payload"] = "log entry (json string)\n";
     trgs["PLAYBACK_LOG"]["response"] = "ignored";
     trgs["PLAYBACK_LOG"]["response_action"] = "None.";
+
+    trgs["UUID_GENERATE"]["when"] = "Whenever a UUID is being generated for a live stream";
+    trgs["UUID_GENERATE"]["stream_specific"] = true;
+    trgs["UUID_GENERATE"]["payload"] = "generated UUID (string)\nstream name (string)\nactive stream source (string)";
+    trgs["UUID_GENERATE"]["response"] = "always";
+    trgs["UUID_GENERATE"]["response_action"] = "The generated UUID is replaced with the response value, if non-blank. May be any string that fits within 64 bytes.";
   }
 
   /// Aquire list of available protocols, storing in global 'capabilities' JSON::Value.

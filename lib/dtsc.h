@@ -420,6 +420,9 @@ namespace DTSC{
     void setLive(bool live);
     bool getLive() const;
 
+    void setUUID(std::string uuid);
+    std::string getUUID() const;
+
     bool hasBFrames(size_t idx = INVALID_TRACK_ID) const;
 
     void setBufferWindow(uint64_t bufferWindow);

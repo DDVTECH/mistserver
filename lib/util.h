@@ -26,6 +26,8 @@ namespace Util{
 
   bool sysSetNrOpenFiles(int n);
 
+  unsigned long mix(unsigned long a, unsigned long b, unsigned long c);
+
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){

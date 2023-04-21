@@ -916,7 +916,7 @@ int main(int argc, char *argv[]){
     //send transcode request
     dl.setHeader("Content-Type", "application/json");
     dl.setHeader("Authorization", "Bearer "+Mist::opt["access_token"].asStringRef());
-    if (!dl.post(HTTP::URL(api_url+"/stream"), pl.toString())){
+    if (!dl.post(HTTP::URL(api_url+"/stream?sessionId="+M.getUUID()), pl.toString())){
       FAIL_MSG("Livepeer API responded negatively to encode request");
       return 1;
     }

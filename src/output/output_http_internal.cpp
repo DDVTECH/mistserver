@@ -1213,10 +1213,10 @@ namespace Mist{
     }
     if (req.hasHeader("X-Latitude")){lat = atof(req.GetHeader("X-Latitude").c_str());}
     if (req.hasHeader("X-Longitude")){lon = atof(req.GetHeader("X-Longitude").c_str());}
-    if (req.hasHeader("X-City-Country-Code")){country = req.GetHeader("X-City-Country-Code").c_str();}
-    if (req.hasHeader("X-Time-Zone")){timezone = req.GetHeader("X-Time-Zone").c_str();}
-    if (req.hasHeader("X-Region-Code")){region = req.GetHeader("X-Region-Code").c_str();}
-    if (req.hasHeader("X-Subregion-Code")){subregion = req.GetHeader("X-Subregion-Code").c_str();}
+    if (req.hasHeader("X-City-Country-Code")){country = req.GetHeader("X-City-Country-Code");}
+    if (req.hasHeader("X-Time-Zone")){timezone = req.GetHeader("X-Time-Zone");}
+    if (req.hasHeader("X-Region-Code")){region = req.GetHeader("X-Region-Code");}
+    if (req.hasHeader("X-Subregion-Code")){subregion = req.GetHeader("X-Subregion-Code");}
 
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){return false;}

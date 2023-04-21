@@ -1205,20 +1205,18 @@ namespace Mist{
     std::string country, timezone, region, subregion;
     double lat = 0;
     double lon = 0;
-    if (H.GetVar("lat") != ""){
-      lat = atof(H.GetVar("lat").c_str());
-      H.SetVar("lat", "");
+    if (req.GetVar("lat") != ""){
+      lat = atof(req.GetVar("lat").c_str());
     }
-    if (H.GetVar("lon") != ""){
-      lon = atof(H.GetVar("lon").c_str());
-      H.SetVar("lon", "");
+    if (req.GetVar("lon") != ""){
+      lon = atof(req.GetVar("lon").c_str());
     }
-    if (H.hasHeader("X-Latitude")){lat = atof(H.GetHeader("X-Latitude").c_str());}
-    if (H.hasHeader("X-Longitude")){lon = atof(H.GetHeader("X-Longitude").c_str());}
-    if (H.hasHeader("X-City-Country-Code")){country = H.GetHeader("X-City-Country-Code").c_str();}
-    if (H.hasHeader("X-Time-Zone")){timezone = H.GetHeader("X-Time-Zone").c_str();}
-    if (H.hasHeader("X-Region-Code")){region = H.GetHeader("X-Region-Code").c_str();}
-    if (H.hasHeader("X-Subregion-Code")){subregion = H.GetHeader("X-Subregion-Code").c_str();}
+    if (req.hasHeader("X-Latitude")){lat = atof(req.GetHeader("X-Latitude").c_str());}
+    if (req.hasHeader("X-Longitude")){lon = atof(req.GetHeader("X-Longitude").c_str());}
+    if (req.hasHeader("X-City-Country-Code")){country = req.GetHeader("X-City-Country-Code").c_str();}
+    if (req.hasHeader("X-Time-Zone")){timezone = req.GetHeader("X-Time-Zone").c_str();}
+    if (req.hasHeader("X-Region-Code")){region = req.GetHeader("X-Region-Code").c_str();}
+    if (req.hasHeader("X-Subregion-Code")){subregion = req.GetHeader("X-Subregion-Code").c_str();}
 
     Util::stringToLower(upgradeHeader);
     if (upgradeHeader != "websocket"){return false;}

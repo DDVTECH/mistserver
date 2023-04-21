@@ -1415,6 +1415,11 @@ namespace Mist{
     if (targetParams.count("adjustSplit")){
       autoAdjustSplit = true;
     }
+    Comms::sessionConfigCache();
+    if (isFileTarget()){
+      isRecordingToFile = true;
+      initialize();
+    }
     // When segmenting to a playlist, handle any existing files and init some data
     if (targetParams.count("m3u8")){
       // Load system boot time from the global config
@@ -1423,9 +1428,13 @@ namespace Mist{
       if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
       // Create a new or connect to an existing playlist file
       if (!plsConn){
-        std::string plsRel = targetParams["m3u8"];
-        Util::streamVariables(plsRel, streamName);
-        playlistLocation = HTTP::URL(config->getString("target")).link(plsRel);
+        playlistLocation = HTTP::URL(origTarget).link(targetParams["m3u8"]);
+        { // Update playlist location with UUID replaced
+          std::string plsStr = playlistLocation.getUrl();
+          Util::streamVariables(plsStr, streamName);
+          Util::replaceVar(plsStr, "uuid", Util::UUID);
+          playlistLocation = HTTP::URL(plsStr);
+        }
         if (playlistLocation.isLocalPath()){
           playlistLocationString = playlistLocation.getFilePath();
           INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
@@ -1516,17 +1525,13 @@ namespace Mist{
       }
       targetDuration = targetParams["split"];
     }
-    Comms::sessionConfigCache();
-    /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
-      isRecordingToFile = true;
       if (!streamName.size()){
         WARN_MSG("Recording unconnected %s output to file! Cancelled.", capa["name"].asString().c_str());
         onFail("Unconnected recording output", true);
         return 2;
       }
-      initialize();
       if (!M.getValidTracks().size() || !userSelect.size() || !keepGoing()){
         INFO_MSG("Stream not available - aborting");
         onFail("Stream not available for recording", true);

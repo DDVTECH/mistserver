@@ -320,7 +320,7 @@ namespace Mist{
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);
         targetParams["video"] = JSON::Value(vidTrack).asString();
-        targetParams["video"] = JSON::Value(vidTrack).asString();
+        targetParams["audio"] = JSON::Value(vidTrack).asString();
       }else{
         userSelect.clear();
         userSelect[vidTrack].reload(streamName, vidTrack);

@@ -1417,7 +1417,7 @@ namespace Mist{
       if (!plsConn){
         std::string plsRel = targetParams["m3u8"];
         Util::streamVariables(plsRel, streamName);
-        playlistLocation = HTTP::URL(config->getString("target")).link(plsRel);
+        playlistLocation = HTTP::localURIResolver().link(config->getString("target")).link(plsRel);
         if (playlistLocation.isLocalPath()){
           playlistLocationString = playlistLocation.getFilePath();
           INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
@@ -1551,7 +1551,6 @@ namespace Mist{
       Util::replace(newTarget, "$segmentCounter", JSON::Value(segmentCount).asString());
       Util::streamVariables(newTarget, streamName);
       currentTarget = newTarget;
-      config->getOption("target", true).append(currentTarget);
       if (newTarget == "-"){
         INFO_MSG("Outputting %s to stdout with %s format", streamName.c_str(),
                  capa["name"].asString().c_str());
@@ -1668,7 +1667,7 @@ namespace Mist{
                     Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
                     break;
                   }
-                  std::string segment = HTTP::URL(currentTarget).getLinkFrom(playlistLocation);
+                  std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
                   if (M.getLive()){
                     uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
                     playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
@@ -1800,7 +1799,7 @@ namespace Mist{
       // If this is a non-live source, we can finally open up the connection to the playlist file
       if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
       if (plsConn){
-        std::string segment = HTTP::URL(currentTarget).getLinkFrom(playlistLocation);
+        std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
         if (M.getLive()){
           uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
           playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
@@ -2296,7 +2295,7 @@ namespace Mist{
   bool Output::connectToFile(std::string file, bool append, Socket::Connection *conn){
     int outFile = -1;
     if (!conn) {conn = &myConn;}
-    bool isFileTarget = HTTP::URL(file).isLocalPath();
+    bool isFileTarget = HTTP::localURIResolver().link(file).isLocalPath();
     if (!Util::externalWriter(file, outFile, append)){return false;}
     if (*conn && isFileTarget) {
       flock(conn->getSocket(), LOCK_UN | LOCK_NB);

@@ -8,6 +8,7 @@
 #include "timing.h"
 #include "util.h"
 #include "url.h"
+#include "urireader.h"
 #include <errno.h> // errno, ENOENT, EEXIST
 #include <iomanip>
 #include <iostream>
@@ -215,7 +216,7 @@ namespace Util{
   /// \param outFile file descriptor which will be used to send data
   /// \param append whether to open this connection in truncate or append mode
   bool externalWriter(const std::string & uri, int &outFile, bool append){
-    HTTP::URL target(uri);
+    HTTP::URL target = HTTP::localURIResolver().link(uri);
     // If it is a remote target, we might need to spawn an external binary
     if (!target.isLocalPath()){
       bool matchedProtocol = false;

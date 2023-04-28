@@ -227,38 +227,45 @@ namespace Mist{
     lastStats = 0;
   }
 
-  void Input::checkHeaderTimes(std::string streamFile){
-    struct stat bufStream;
-    struct stat bufHeader;
-    struct stat srtStream;
+  void Input::checkHeaderTimes(const HTTP::URL & streamFile){
 
-    std::string srtFile = streamFile + ".srt";
-    if (stat(srtFile.c_str(), &srtStream) == 0){
-      hasSrt = true;
-      srtSource.open(srtFile.c_str());
-      INFO_MSG("File %s opened as srt source", srtFile.c_str());
+    /// \TODO Implement remote URLs?
+
+    if (streamFile.isLocalPath()){
+      const std::string & f = streamFile.getFilePath();
+
+      struct stat bufStream;
+      struct stat bufHeader;
+      struct stat srtStream;
+      std::string srtFile = f + ".srt";
+      if (stat(srtFile.c_str(), &srtStream) == 0){
+        hasSrt = true;
+        srtSource.open(srtFile.c_str());
+        INFO_MSG("File %s opened as srt source", srtFile.c_str());
+      }
+
+      if (stat(f.c_str(), &bufStream) != 0){
+        INSANE_MSG("Source is not a file - ignoring header check");
+        return;
+      }
+      std::string headerFile = f + ".dtsh";
+      if (stat(headerFile.c_str(), &bufHeader) != 0){
+        INSANE_MSG("No header exists to compare - ignoring header check");
+        return;
+      }
+      // the same second is not enough - add a 15 second window where we consider it too old
+      if (bufHeader.st_mtime < bufStream.st_mtime + 15){
+        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+        remove(headerFile.c_str());
+      }
+
+      // the same second is not enough - add a 15 second window where we consider it too old
+      if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15){
+        INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
+        remove(headerFile.c_str());
+      }
     }
 
-    if (stat(streamFile.c_str(), &bufStream) != 0){
-      INSANE_MSG("Source is not a file - ignoring header check");
-      return;
-    }
-    std::string headerFile = streamFile + ".dtsh";
-    if (stat(headerFile.c_str(), &bufHeader) != 0){
-      INSANE_MSG("No header exists to compare - ignoring header check");
-      return;
-    }
-    // the same second is not enough - add a 15 second window where we consider it too old
-    if (bufHeader.st_mtime < bufStream.st_mtime + 15){
-      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-      remove(headerFile.c_str());
-    }
-
-    // the same second is not enough - add a 15 second window where we consider it too old
-    if (hasSrt && bufHeader.st_mtime < srtStream.st_mtime + 15){
-      INFO_MSG("Overwriting outdated DTSH header file: %s ", headerFile.c_str());
-      remove(headerFile.c_str());
-    }
   }
 
   void Input::readSrtHeader(){
@@ -586,7 +593,7 @@ namespace Mist{
   int Input::run(){
     Comms::sessionConfigCache();
     if (streamStatus){streamStatus.mapped[0] = STRMSTAT_BOOT;}
-    checkHeaderTimes(config->getString("input"));
+    checkHeaderTimes(HTTP::localURIResolver().link(config->getString("input")));
     //needHeader internally calls readExistingHeader which in turn attempts to read header cache
     if (needHeader()){
       uint64_t timer = Util::getMicros();
@@ -597,7 +604,7 @@ namespace Mist{
       timer = Util::getMicros(timer);
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
       //Write header to file for caching purposes
-      M.toFile(config->getString("input") + ".dtsh");
+      M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
     }
     postHeader();
     if (config->getBool("headeronly")){return 0;}

@@ -9,6 +9,7 @@
 #include <mist/json.h>
 #include <mist/shared_memory.h>
 #include <mist/timing.h>
+#include <mist/url.h>
 #include <set>
 
 #include "../io.h"
@@ -73,7 +74,7 @@ namespace Mist{
     virtual bool openStreamSource(){return readHeader();}
     virtual void closeStreamSource(){}
     virtual void parseStreamHeader(){}
-    void checkHeaderTimes(std::string streamFile);
+    void checkHeaderTimes(const HTTP::URL & streamFile);
     virtual void removeUnused();
     virtual void convert();
     virtual void serve();

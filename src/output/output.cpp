@@ -1321,7 +1321,7 @@ namespace Mist{
         return false;
       }
       // If splitting would result in a tiny segment at the end, do not split
-      if (M.getVod() && (endTime() - lastPacketTime) < (atoll(targetParams["split"].c_str()) * 500)){
+      if (!M.getLive() && (endTime() - lastPacketTime) < (atoll(targetParams["split"].c_str()) * 500)){
         return false;
       }
       // is this a split point?

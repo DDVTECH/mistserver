@@ -188,27 +188,7 @@ namespace Mist{
     char exec_cmd[10240];
     strncpy(exec_cmd, tmpCmd.c_str(), 10240);
     INFO_MSG("Executing command: %s", exec_cmd);
-    uint8_t argCnt = 0;
-    char *startCh = 0;
-    char *args[1280];
-    for (char *i = exec_cmd; i - exec_cmd < 10240; ++i){
-      if (!*i){
-        if (startCh){args[argCnt++] = startCh;}
-        break;
-      }
-      if (*i == ' '){
-        if (startCh){
-          args[argCnt++] = startCh;
-          startCh = 0;
-          *i = 0;
-        }
-      }else{
-        if (!startCh){startCh = i;}
-      }
-    }
-    args[argCnt] = 0;
-
-    execd_proc = Util::Procs::StartPiped(args, &pipein[0], &pipeout[1], &ffer);
+    execd_proc = Util::Procs::StartPipedShell(exec_cmd, &pipein[0], &pipeout[1], &ffer);
 
     uint64_t lastProcUpdate = Util::bootSecs();
     {

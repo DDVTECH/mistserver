@@ -345,6 +345,22 @@ std::string Util::Procs::getOutputOf(std::deque<std::string> &argDeq, uint64_t m
   return ret;
 }
 
+pid_t Util::Procs::StartPipedShell(const char *cmd, int *fdin, int *fdout, int *fderr){
+  const char *argv[] = {
+#if defined(__CYGWIN__) || defined(_WIN32)
+    "cmd",
+    "/C",
+#else
+    "/usr/bin/sh",
+    "-c",
+#endif
+    cmd,
+    NULL
+  };
+  pid_t ret = Util::Procs::StartPiped(argv, fdin, fdout, fderr);
+  return ret;
+}
+
 pid_t Util::Procs::StartPiped(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr){
   pid_t ret;
   char *const *argv = dequeToArgv(argDeq); // Note: Do not edit deque before executing command

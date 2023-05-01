@@ -211,31 +211,31 @@ namespace Controller{
   void deinitState(bool leaveBehind){
     tthread::lock_guard<tthread::mutex> guard(logMutex);
     if (!leaveBehind){
-      rlxLogs->setExit();
-      shmLogs->master = true;
-      rlxAccs->setExit();
-      shmAccs->master = true;
-      rlxStrm->setExit();
-      shmStrm->master = true;
+      if (rlxLogs){rlxLogs->setExit();}
+      if (shmLogs){shmLogs->master = true;}
+      if (rlxAccs){rlxAccs->setExit();}
+      if (shmAccs){shmAccs->master = true;}
+      if (rlxStrm){rlxStrm->setExit();}
+      if (shmStrm){shmStrm->master = true;}
     }else{
-      shmLogs->master = false;
-      shmAccs->master = false;
-      shmStrm->master = false;
+      if (shmLogs){shmLogs->master = false;}
+      if (shmAccs){shmAccs->master = false;}
+      if (shmStrm){shmStrm->master = false;}
     }
     Util::RelAccX *tmp = rlxLogs;
     rlxLogs = 0;
-    delete tmp;
-    delete shmLogs;
+    if (tmp){delete tmp;}
+    if (shmLogs){delete shmLogs;}
     shmLogs = 0;
     tmp = rlxAccs;
     rlxAccs = 0;
-    delete tmp;
-    delete shmAccs;
+    if (tmp){delete tmp;}
+    if (shmAccs){delete shmAccs;}
     shmAccs = 0;
     tmp = rlxStrm;
     rlxStrm = 0;
-    delete tmp;
-    delete shmStrm;
+    if (tmp){delete tmp;}
+    if (shmStrm){delete shmStrm;}
     shmStrm = 0;
   }
 

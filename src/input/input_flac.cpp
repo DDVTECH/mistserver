@@ -190,7 +190,7 @@ namespace Mist{
     meta.setRate(tNum, sampleRate);
     meta.setChannels(tNum, channels);
     meta.setInit(tNum, tmpInit, tmpInit.size());
-    meta.inputLocalVars["blockSize"] = blockSize;
+    meta.inputLocalVars["blockSize"] = (uint64_t)blockSize;
 
     getNext();
     while (thisPacket){

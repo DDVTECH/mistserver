@@ -2165,7 +2165,7 @@ namespace Mist{
       // in sync mode, after ~25 seconds, give up and drop the track.
       if (++emptyCount >= dataWaitTimeout){
         //curPage[nxt.tid].mapped + nxt.offset + preLoad.getDataLen()
-        WARN_MSG("Waiting at %s byte %zu", curPage[nxt.tid].name.c_str(), nxt.offset + preLoad.getDataLen());
+        WARN_MSG("Waiting at %s byte %" PRIu64, curPage[nxt.tid].name.c_str(), nxt.offset + preLoad.getDataLen());
         dropTrack(nxt.tid, "EOP: data wait timeout");
         return false;
       }

@@ -3,6 +3,7 @@
 
 #include "defines.h"
 #include "procs.h"
+#include "stream.h"
 #include <signal.h>
 #include <string.h>
 #include <sys/types.h>
@@ -465,9 +466,7 @@ pid_t Util::Procs::StartPiped(const char *const *argv, int *fdin, int *fdout, in
       ERROR_MSG("%s trigger failed to execute %s: %s", trggr, argv[0], strerror(errno));
       JSON::Value j;
       j["trigger_fail"] = trggr;
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(j.toString());
+      Util::sendUDPApi(j);
       std::cout << getenv("MIST_TRIG_DEF");
       _exit(42);
     }

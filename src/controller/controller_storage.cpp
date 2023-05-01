@@ -16,6 +16,7 @@ namespace Controller{
   std::string instanceId; /// instanceId (previously uniqId) is set in controller.cpp
   std::string prometheus;
   std::string accesslog;
+  std::string udpApiBindAddr;
   Util::Config conf;
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
@@ -444,7 +445,9 @@ namespace Controller{
              || !globAccX.getFieldAccX("sessionOutputMode")
              || !globAccX.getFieldAccX("sessionUnspecifiedMode")
              || !globAccX.getFieldAccX("sessionStreamInfoMode")
-             || !globAccX.getFieldAccX("tknMode")){
+             || !globAccX.getFieldAccX("tknMode")
+             || !globAccX.getFieldAccX("udpApi")
+             ){
             globAccX.setReload();
             globCfg.master = true;
             globCfg.close();
@@ -461,6 +464,7 @@ namespace Controller{
           globAccX.addField("sessionUnspecifiedMode", RAX_64UINT);
           globAccX.addField("sessionStreamInfoMode", RAX_64UINT);
           globAccX.addField("tknMode", RAX_64UINT);
+          globAccX.addField("udpApi", RAX_128STRING);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
@@ -472,6 +476,7 @@ namespace Controller{
         globAccX.setInt("sessionUnspecifiedMode", Storage["config"]["sessionUnspecifiedMode"].asInt());
         globAccX.setInt("sessionStreamInfoMode", Storage["config"]["sessionStreamInfoMode"].asInt());
         globAccX.setInt("tknMode", Storage["config"]["tknMode"].asInt());
+        globAccX.setString("udpApi", udpApiBindAddr);
         globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
       }

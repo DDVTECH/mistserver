@@ -441,12 +441,22 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
 
 void Controller::handleUDPAPI(void *np){
   Socket::UDPConnection uSock(true);
-  if (!uSock.bind(UDP_API_PORT, UDP_API_HOST)){
+  uint16_t boundPort = uSock.bind(UDP_API_PORT, UDP_API_HOST);
+  if (!boundPort){
     FAIL_MSG("Could not open local API UDP socket - not all functionality will be available");
     return;
   }
+  HTTP::URL boundAddr;
+  boundAddr.protocol = "udp";
+  boundAddr.setPort(boundPort);
+  boundAddr.host = uSock.getBoundAddress();
+  {
+    tthread::lock_guard<tthread::mutex> guard(configMutex);
+    udpApiBindAddr = boundAddr.getUrl();
+    Controller::writeConfig();
+  }
   Util::Procs::socketList.insert(uSock.getSock());
-  uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
+  uSock.allocateDestination();
   while (Controller::conf.is_active){
     if (uSock.Receive()){
       MEDIUM_MSG("UDP API: %s", (const char*)uSock.data);

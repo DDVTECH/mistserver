@@ -948,9 +948,7 @@ int main(int argc, char *argv[]){
         tthread::lock_guard<tthread::mutex> guard(broadcasterMutex);
         pData["ainfo"]["bc"] = Mist::currBroadAddr;
       }
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(pStat.toString());
+      Util::sendUDPApi(pStat);
       lastProcUpdate = Util::bootSecs();
     }
   }

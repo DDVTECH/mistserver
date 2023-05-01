@@ -59,8 +59,6 @@ int main(int argc, char **argv){
     std::string cbPath = getenv("RENEWED_LINEAGE");
     std::string cbCert = cbPath + "/fullchain.pem";
     std::string cbKey = cbPath + "/privkey.pem";
-    Socket::UDPConnection uSock;
-    uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
     Util::DTSCShmReader rProto(SHM_PROTO);
     DTSC::Scan prtcls = rProto.getScan();
     unsigned int pro_cnt = prtcls.getSize();
@@ -76,11 +74,11 @@ int main(int argc, char **argv){
         cmd["updateprotocol"][1u]["cert"] = cbCert;
         cmd["updateprotocol"][1u]["key"] = cbKey;
         INFO_MSG("Executing: %s", cmd.toString().c_str());
-        uSock.SendNow(cmd.toString());
+        Util::sendUDPApi(cmd);
         Util::wait(500);
-        uSock.SendNow(cmd.toString());
+        Util::sendUDPApi(cmd);
         Util::wait(500);
-        uSock.SendNow(cmd.toString());
+        Util::sendUDPApi(cmd);
       }
     }
     if (!found){
@@ -91,11 +89,11 @@ int main(int argc, char **argv){
       cmd["addprotocol"]["cert"] = cbCert;
       cmd["addprotocol"]["key"] = cbKey;
       INFO_MSG("Executing: %s", cmd.toString().c_str());
-      uSock.SendNow(cmd.toString());
+      Util::sendUDPApi(cmd);
       Util::wait(500);
-      uSock.SendNow(cmd.toString());
+      Util::sendUDPApi(cmd);
       Util::wait(500);
-      uSock.SendNow(cmd.toString());
+      Util::sendUDPApi(cmd);
     }
     Util::wait(5000);
     return 0;
@@ -119,15 +117,13 @@ int main(int argc, char **argv){
       cmd["addprotocol"]["connector"] = "HTTP";
       cmd["addprotocol"]["port"] = 80;
       cmd["addprotocol"]["certbot"] = cbCombo;
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(cmd.toString());
+      Util::sendUDPApi(cmd);
       Util::wait(1000);
       int counter = 10;
       while (--counter && ((foundHTTP80 = checkPort80(currConf)) == -1 ||
                            currConf["certbot"].asStringRef() != cbCombo)){
         INFO_MSG("Waiting for Controller to pick up new config...");
-        uSock.SendNow(cmd.toString());
+        Util::sendUDPApi(cmd);
         Util::wait(1000);
       }
       if (!counter){
@@ -146,15 +142,13 @@ int main(int argc, char **argv){
       cmd["updateprotocol"].append(currConf);
       cmd["updateprotocol"].append(currConf);
       cmd["updateprotocol"][1u]["certbot"] = cbCombo;
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(cmd.toString());
+      Util::sendUDPApi(cmd);
       Util::wait(1000);
       int counter = 10;
       while (--counter && ((foundHTTP80 = checkPort80(currConf)) == -1 ||
                            currConf["certbot"].asStringRef() != cbCombo)){
         INFO_MSG("Waiting for Controller to pick up new config...");
-        uSock.SendNow(cmd.toString());
+        Util::sendUDPApi(cmd);
         Util::wait(1000);
       }
       if (!counter){

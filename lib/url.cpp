@@ -4,6 +4,7 @@
 #include "defines.h"
 #include "encode.h"
 #include "url.h"
+#include <sstream>
 
 /// Helper function to check if the given c-string is numeric or not
 static bool is_numeric(const char *str){
@@ -159,6 +160,13 @@ HTTP::URL::URL(const std::string &url){
 uint16_t HTTP::URL::getPort() const{
   if (!port.size()){return getDefaultPort();}
   return atoi(port.c_str());
+}
+
+/// Sets the port in numeric format
+void HTTP::URL::setPort(uint16_t newPort){
+  std::stringstream st;
+  st << newPort;
+  port = st.str();
 }
 
 /// Returns the default port for the protocol in numeric format

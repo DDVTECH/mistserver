@@ -25,6 +25,7 @@
 #include "triggers.h"
 #include "util.h"
 #include "json.h"
+#include "stream.h"
 #include <string.h> //for strncmp
 
 namespace Triggers{
@@ -34,9 +35,7 @@ namespace Triggers{
     j["trigger_stat"]["name"] = trigger;
     j["trigger_stat"]["ms"] = Util::bootMS() - millis;
     j["trigger_stat"]["ok"] = ok;
-    Socket::UDPConnection uSock;
-    uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-    uSock.SendNow(j.toString());
+    Util::sendUDPApi(j);
   }
 
   ///\brief Handles a trigger by sending a payload to a destination.

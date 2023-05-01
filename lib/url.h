@@ -14,6 +14,7 @@ namespace HTTP{
   public:
     URL(const std::string &url = "");
     uint16_t getPort() const;
+    void setPort(uint16_t newPort);
     uint16_t getDefaultPort() const;
     std::string getExt() const;
     std::string getUrl() const;

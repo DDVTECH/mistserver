@@ -226,9 +226,7 @@ namespace Mist{
         pData["active_seconds"] = (Util::bootSecs() - startTime);
         pData["ainfo"]["sourceTime"] = statSourceMs;
         pData["ainfo"]["sinkTime"] = statSinkMs;
-        Socket::UDPConnection uSock;
-        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-        uSock.SendNow(pStat.toString());
+        Util::sendUDPApi(pStat);
         lastProcUpdate = Util::bootSecs();
       }
     }

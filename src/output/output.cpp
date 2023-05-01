@@ -2199,9 +2199,7 @@ namespace Mist{
           prevLosCount = pktLosNow;
         }
         pData["active_seconds"] = statComm.getTime();
-        Socket::UDPConnection uSock;
-        uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-        uSock.SendNow(pStat.toString());
+        Util::sendUDPApi(pStat);
         lastPushUpdate = now;
       }
     }
@@ -2240,11 +2238,9 @@ namespace Mist{
     /*LTS-START*/
     // Tag the session with the user agent
     if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
-      std::string APIcall =
-          "{\"tag_sessid\":{\"" + statComm.sessionId + "\":" + JSON::string_escape("UA:" + UA) + "}}";
-      Socket::UDPConnection uSock;
-      uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
-      uSock.SendNow(APIcall);
+      JSON::Value APIcall;
+      APIcall["tag_sessid"][statComm.sessionId] = "UA:"+UA;
+      Util::sendUDPApi(APIcall);
       newUA = false;
     }
     /*LTS-END*/

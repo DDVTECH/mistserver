@@ -744,6 +744,18 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
   return ret;
 }
 
+/// Sends a message to the local UDP API port
+void Util::sendUDPApi(JSON::Value & cmd){
+  HTTP::URL UDPAddr(getGlobalConfig("udpApi").asStringRef());
+  if (UDPAddr.protocol != "udp"){
+    FAIL_MSG("Local UDP API address not defined; can't send command to MistController!");
+    return;
+  }
+  Socket::UDPConnection uSock;
+  uSock.SetDestination(UDPAddr.host, UDPAddr.getPort());
+  uSock.SendNow(cmd.toString());
+}
+
 /// Attempt to start a push for streamname to target.
 /// streamname MUST be pre-sanitized
 /// target gets variables replaced and may be altered by the PUSH_OUT_START trigger response.

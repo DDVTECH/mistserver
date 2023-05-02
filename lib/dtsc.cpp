@@ -1081,6 +1081,7 @@ namespace DTSC{
       setWidth(tIdx, trak.getMember("width").asInt());
       setHeight(tIdx, trak.getMember("height").asInt());
       setFpks(tIdx, trak.getMember("fpks").asInt());
+      setEfpks(tIdx, trak.getMember("efpks").asInt());
 
     }else if (trak.getMember("type").asString() == "audio"){
       // rate channels size
@@ -1376,6 +1377,7 @@ namespace DTSC{
       t.trackWidthField = t.track.getFieldData("width");
       t.trackHeightField = t.track.getFieldData("height");
       t.trackFpksField = t.track.getFieldData("fpks");
+      t.trackEfpksField = t.track.getFieldData("efpks");
       t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
       if (t.track.hasField("frames")){
@@ -1489,6 +1491,7 @@ namespace DTSC{
         t.trackWidthField = t.track.getFieldData("width");
         t.trackHeightField = t.track.getFieldData("height");
         t.trackFpksField = t.track.getFieldData("fpks");
+        t.trackEfpksField = t.track.getFieldData("efpks");
         t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
         if (t.track.hasField("frames")){
@@ -1576,6 +1579,7 @@ namespace DTSC{
       setBps(newIdx, M.getBps(*it));
       setMaxBps(newIdx, M.getMaxBps(*it));
       setFpks(newIdx, M.getFpks(*it));
+      setEfpks(newIdx, M.getEfpks(*it));
       setMissedFragments(newIdx, M.getMissedFragments(*it));
       setMinKeepAway(newIdx, M.getMinKeepAway(*it));
       setSourceTrack(newIdx, M.getSourceTrack(*it));
@@ -1708,6 +1712,7 @@ namespace DTSC{
     t.track.setInt(t.trackWidthField, origAccess.getInt("width"));
     t.track.setInt(t.trackHeightField, origAccess.getInt("height"));
     t.track.setInt(t.trackFpksField, origAccess.getInt("fpks"));
+    t.track.setInt(t.trackEfpksField, origAccess.getInt("efpks"));
     t.track.setInt(t.trackMissedFragsField, origAccess.getInt("missedFrags"));
 
     if (frameSize){
@@ -2020,6 +2025,7 @@ namespace DTSC{
     t.track.addField("width", RAX_32UINT);
     t.track.addField("height", RAX_32UINT);
     t.track.addField("fpks", RAX_16UINT);
+    t.track.addField("efpks", RAX_16UINT);
     t.track.addField("missedFrags", RAX_32UINT);
     if (!frameSize){
       t.track.addField("parts", RAX_NESTED, TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount));
@@ -2053,6 +2059,7 @@ namespace DTSC{
     t.trackWidthField = t.track.getFieldData("width");
     t.trackHeightField = t.track.getFieldData("height");
     t.trackFpksField = t.track.getFieldData("fpks");
+    t.trackEfpksField = t.track.getFieldData("efpks");
     t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
 
@@ -2322,6 +2329,15 @@ namespace DTSC{
   uint64_t Meta::getFpks(size_t trackIdx) const{
     const DTSC::Track &t = tracks.at(trackIdx);
     return t.track.getInt(t.trackFpksField);
+  }
+
+  void Meta::setEfpks(size_t trackIdx, uint64_t bps){
+    DTSC::Track &t = tracks.at(trackIdx);
+    t.track.setInt(t.trackEfpksField, bps);
+  }
+  uint64_t Meta::getEfpks(size_t trackIdx) const{
+    const DTSC::Track &t = tracks.at(trackIdx);
+    return t.track.getInt(t.trackEfpksField);
   }
 
   void Meta::setMissedFragments(size_t trackIdx, uint32_t bps){
@@ -2725,6 +2741,7 @@ namespace DTSC{
     if (isKeyframe || newKeyNum == 0 ||
         (getType(tNumber) != "video" && packTime >= AUDIO_KEY_INTERVAL &&
          packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1) >= AUDIO_KEY_INTERVAL)){
+      //keyframe, or non-video packet beyond AUDIO_KEY_INTERVAL
       if ((newKeyNum - t.keys.getDeleted()) >= t.keys.getRCount()){
         resizeTrack(tNumber, t.fragments.getRCount(), t.keys.getRCount() * 2, t.parts.getRCount(), t.pages.getRCount(), "not enough keys");
       }
@@ -2740,8 +2757,9 @@ namespace DTSC{
                           t.keys.getInt(t.keyPartsField, newKeyNum - 1),
                       newKeyNum);
         // Update duration of previous key too
-        t.keys.setInt(t.keyDurationField, packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1),
-                      newKeyNum - 1);
+        uint64_t prevKeyDuration = packTime - t.keys.getInt(t.keyTimeField, newKeyNum - 1);
+        t.keys.setInt(t.keyDurationField, prevKeyDuration, newKeyNum - 1);
+        setEfpks(tNumber, prevKeyDuration * 1000 / t.keys.getInt(t.keyPartsField, newKeyNum - 1));
       }else{
         t.keys.setInt(t.keyFirstPartField, 0, newKeyNum);
       }
@@ -2786,6 +2804,7 @@ namespace DTSC{
                            t.fragments.getInt(t.fragmentKeysField, newFragNum - 1) + 1, newFragNum - 1);
       }
     }else{
+      //not a keyframe
       uint64_t lastKeyNum = t.keys.getEndPos() - 1;
       t.keys.setInt(t.keyDurationField,
                     t.keys.getInt(t.keyDurationField, lastKeyNum) +
@@ -3047,7 +3066,7 @@ namespace DTSC{
         if (getType(it->first) == "audio"){
           dataLen += 49;
         }else if (getType(it->first) == "video"){
-          dataLen += 48;
+          dataLen += 64;
         }
       }
     }
@@ -3129,6 +3148,7 @@ namespace DTSC{
         trackJSON["width"] = getWidth(*it);
         trackJSON["height"] = getHeight(*it);
         trackJSON["fpks"] = getFpks(*it);
+        trackJSON["efpks"] = getEfpks(*it);
         if (hasBFrames(*it)){
           bframes = true;
           trackJSON["bframes"] = 1;
@@ -3313,6 +3333,8 @@ namespace DTSC{
         conn.SendNow(c64(track.getInt("height")), 8);
         conn.SendNow("\000\004fpks\001", 7);
         conn.SendNow(c64(track.getInt("fpks")), 8);
+        conn.SendNow("\000\005efpks\001", 8);
+        conn.SendNow(c64(track.getInt("efpks")), 8);
       }
       conn.SendNow("\000\000\356", 3); // End this track Object
     }
@@ -3662,6 +3684,7 @@ namespace DTSC{
         track["width"] = getWidth(i);
         track["height"] = getHeight(i);
         track["fpks"] = getFpks(i);
+        track["efpks"] = getEfpks(i);
         track["bframes"] = hasBFrames(i);
       }
       if (type == "audio"){

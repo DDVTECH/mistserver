@@ -217,6 +217,7 @@ namespace DTSC{
     Util::RelAccXFieldData trackWidthField;
     Util::RelAccXFieldData trackHeightField;
     Util::RelAccXFieldData trackFpksField;
+    Util::RelAccXFieldData trackEfpksField;
     Util::RelAccXFieldData trackMissedFragsField;
 
     Util::RelAccXFieldData partSizeField;
@@ -423,6 +424,9 @@ namespace DTSC{
 
     void setFpks(size_t trackIdx, uint64_t bps);
     uint64_t getFpks(size_t trackIdx) const;
+
+    void setEfpks(size_t trackIdx, uint64_t bps);
+    uint64_t getEfpks(size_t trackIdx) const;
 
     void setMissedFragments(size_t trackIdx, uint32_t missedFragments);
     uint32_t getMissedFragments(size_t trackIdx) const;

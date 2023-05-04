@@ -51,10 +51,13 @@ namespace Buffer{
 /// Holds Socket tools.
 namespace Socket{
 
+  std::string sockaddrToString(const sockaddr* A);
   void hostBytesToStr(const char *bytes, size_t len, std::string &target);
   bool isBinAddress(const std::string &binAddr, std::string matchTo);
   bool matchIPv6Addr(const std::string &A, const std::string &B, uint8_t prefix);
+  bool compareAddress(const sockaddr* A, const sockaddr* B);
   std::string getBinForms(std::string addr);
+  std::deque<std::string> getAddrs(std::string addr, uint16_t port, int family = AF_UNSPEC);
   /// Returns true if given human-readable address (address, not hostname) is a local address.
   bool isLocal(const std::string &host);
   /// Returns true if given human-readable hostname is a local address.
@@ -215,14 +218,12 @@ namespace Socket{
   class UDPConnection{
   private:
     void init(bool nonblock, int family = AF_INET6);
-    int sock;                   ///< Internally saved socket number.
+    int sock;                   ///< Internally saved socket number
     std::string remotehost;     ///< Stores remote host address
-    void *destAddr;             ///< Destination address pointer.
-    unsigned int destAddr_size; ///< Size of the destination address pointer.
-    void *recvAddr;             ///< Destination address pointer.
-    unsigned int recvAddr_size; ///< Size of the destination address pointer.
-    unsigned int up;            ///< Amount of bytes transferred up.
-    unsigned int down;          ///< Amount of bytes transferred down.
+    Util::ResizeablePointer destAddr; ///< Destination address
+    Util::ResizeablePointer recvAddr; ///< Local address
+    unsigned int up;            ///< Amount of bytes transferred up
+    unsigned int down;          ///< Amount of bytes transferred down
     int family;                 ///< Current socket address family
     std::string boundAddr, boundMulti;
     int boundPort;
@@ -233,6 +234,7 @@ namespace Socket{
     bool hasReceiveData;
     bool isBlocking;
     bool isConnected;
+    bool ignoreSendErrors;
     bool pretendReceive; ///< If true, will pretend to have just received the current data buffer on new Receive() call
     bool onData();
    
@@ -254,6 +256,7 @@ namespace Socket{
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
     ~UDPConnection();
+    void assimilate(int sock);
     bool operator==(const UDPConnection& b) const;
     operator bool() const;
 #ifdef SSL
@@ -269,14 +272,18 @@ namespace Socket{
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
     bool connect();
     void setBlocking(bool blocking);
+    void setIgnoreSendErrors(bool ign);
     void allocateDestination();
     void SetDestination(std::string hostname, uint32_t port);
+    bool setDestination(sockaddr * addr, size_t size);
+    const Util::ResizeablePointer & getRemoteAddr() const;
     void GetDestination(std::string &hostname, uint32_t &port);
     void GetLocalDestination(std::string &hostname, uint32_t &port);
     std::string getBinDestination();
     const void * getDestAddr(){return destAddr;}
-    size_t getDestAddrLen(){return destAddr_size;}
+    size_t getDestAddrLen(){return destAddr.size();}
     std::string getBoundAddress();
+    uint16_t getBoundPort() const;
     uint32_t getDestPort() const;
     bool Receive();
     void SendNow(const std::string &data);

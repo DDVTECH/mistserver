@@ -361,6 +361,20 @@ namespace Util{
     maxSize = 0;
   }
 
+  ResizeablePointer::ResizeablePointer(const ResizeablePointer & rhs){
+    currSize = 0;
+    ptr = 0;
+    maxSize = 0;
+    append(rhs, rhs.size());
+  }
+
+  ResizeablePointer& ResizeablePointer::operator= (const ResizeablePointer& rhs){
+    if (this == &rhs){return *this;}
+    truncate(0);
+    append(rhs, rhs.size());
+    return *this;
+  }
+
   void ResizeablePointer::shift(size_t byteCount){
     //Shifting the entire buffer is easy, we do nothing and set size to zero
     if (byteCount >= currSize){
@@ -370,6 +384,20 @@ namespace Util{
     //Shifting partial needs a memmove and size change
     memmove(ptr, ((char*)ptr)+byteCount, currSize-byteCount);
     currSize -= byteCount;
+  }
+
+  /// Takes another ResizeablePointer as argument and swaps their pointers around,
+  /// thus exchanging them without needing to copy anything.
+  void ResizeablePointer::swap(ResizeablePointer & rhs){
+    void * tmpPtr = ptr;
+    size_t tmpCurrSize = currSize;
+    size_t tmpMaxSize = maxSize;
+    ptr = rhs.ptr;
+    currSize = rhs.currSize;
+    maxSize = rhs.maxSize;
+    rhs.ptr = tmpPtr;
+    rhs.currSize = tmpCurrSize;
+    rhs.maxSize = tmpMaxSize;
   }
 
   bool ResizeablePointer::assign(const void *p, uint32_t l){
@@ -406,12 +434,7 @@ namespace Util{
 
   bool ResizeablePointer::allocate(uint32_t l){
     if (l > maxSize){
-      void *tmp = 0;
-      if (!ptr){
-        tmp = malloc(l);
-      }else{
-        tmp = realloc(ptr, l);
-      }
+      void *tmp = realloc(ptr, l);
       if (!tmp){
         FAIL_MSG("Could not allocate %" PRIu32 " bytes of memory", l);
         return false;

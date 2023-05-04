@@ -213,7 +213,7 @@ namespace Secure{
   }
 
   /// Calculates a SHA256 digest as per NSAs SHA-2, returning it as binary.
-  /// Assumes output is big enough to contain 16 bytes of data.
+  /// Assumes output is big enough to contain 32 bytes of data.
   void sha256bin(const char *input, const unsigned int in_len, char *output){
     // Initialize the hash, according to MD5 spec.
     uint32_t hash[] ={0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,

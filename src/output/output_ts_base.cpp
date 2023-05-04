@@ -8,6 +8,7 @@ namespace Mist{
     setBlocking(true);
     sendRepeatingHeaders = 0;
     lastHeaderTime = 0;
+    maxSkipAhead = 0;
   }
 
   void TSOutput::fillPacket(char const *data, size_t dataLen, bool &firstPack, bool video,
@@ -70,6 +71,8 @@ namespace Mist{
         return;
       }
     }
+    if (liveSeek(true)){return;}
+    if (!M.trackLoaded(thisIdx)){return;}
     // Get ready some data to speed up accesses
     std::string type = M.getType(thisIdx);
     std::string codec = M.getCodec(thisIdx);

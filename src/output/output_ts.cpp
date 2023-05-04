@@ -74,7 +74,7 @@ namespace Mist{
       udpSize = 7;
       if (targetParams.count("tracks")){tracks = targetParams["tracks"];}
       if (targetParams.count("pkts")){udpSize = atoi(targetParams["pkts"].c_str());}
-      packetBuffer.reserve(188 * udpSize);
+      packetBuffer.allocate(188 * udpSize);
       if (target.path.size()){
         if (!pushSock.bind(0, target.path)){
           disconnect();
@@ -230,7 +230,7 @@ namespace Mist{
         if (wrapRTP){
           // Send RTP packet itself
           if (rand() % 100 >= dropPercentage){
-            tsOut.sendTS(&pushSock, packetBuffer.c_str(), packetBuffer.size());
+            tsOut.sendTS(&pushSock, packetBuffer, packetBuffer.size());
             myConn.addUp(tsOut.getHsize() + tsOut.getPayloadSize());
           } else {
             INFO_MSG("Dropping RTP packet in order to simulate packet loss");
@@ -239,15 +239,14 @@ namespace Mist{
           if (sendFEC){
             // Send FEC packet if available
             uint64_t bytesSent = 0;
-            tsOut.parseFEC(&fecColumnSock, &fecRowSock, bytesSent, packetBuffer.c_str(), packetBuffer.size());
+            tsOut.parseFEC(&fecColumnSock, &fecRowSock, bytesSent, packetBuffer, packetBuffer.size());
             myConn.addUp(bytesSent);
           }
         }else{
-          pushSock.SendNow(packetBuffer);
+          pushSock.SendNow(packetBuffer, packetBuffer.size());
           myConn.addUp(packetBuffer.size());
         }
-        packetBuffer.clear();
-        packetBuffer.reserve(udpSize * len);
+        packetBuffer.truncate(0);
         curFilled = 0;
       }
       packetBuffer.append(tsData, len);

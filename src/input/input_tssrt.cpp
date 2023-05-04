@@ -1,8 +1,10 @@
 #include "input_tssrt.h"
+#include <string>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <sys/stat.h>
 #include <mist/defines.h>
 #include <mist/downloader.h>
 #include <mist/flv_tag.h>
@@ -13,11 +15,9 @@
 #include <mist/timing.h>
 #include <mist/ts_packet.h>
 #include <mist/util.h>
-#include <string>
-
+#include <mist/auth.h>
 #include <mist/procs.h>
 #include <mist/tinythread.h>
-#include <sys/stat.h>
 
 Util::Config *cfgPointer = NULL;
 std::string baseStreamName;
@@ -33,7 +33,6 @@ void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   }
 }
 
-
 // We use threads here for multiple input pushes, because of the internals of the SRT Library
 static void callThreadCallbackSRT(void *socknum){
   // use the accepted socket as the second parameter
@@ -47,6 +46,8 @@ namespace Mist{
   /// \arg cfg Util::Config that contains all current configurations.
   InputTSSRT::InputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
+    udpInit = 0;
+    srtConn = 0;
     lastRawPacket = 0;
     bootMSOffsetCalculated = false;
     assembler.setLive();
@@ -136,16 +137,17 @@ namespace Mist{
 
     // Setup if we are called form with a thread for push-based input.
     if (s.connected()){
-      srtConn = s;
+      srtConn = new Socket::SRTConnection(s);
       streamName = baseStreamName;
-      std::string streamid = srtConn.getStreamName();
+      std::string streamid = srtConn->getStreamName();
       int64_t acc = config->getInteger("acceptable");
       if (acc == 0){
         if (streamid.size()){streamName += "+" + streamid;}
       }else if(acc == 2){
         if (streamName != streamid){
           FAIL_MSG("Stream ID '%s' does not match stream name, push blocked", streamid.c_str());
-          srtConn.close();
+          srtConn->close();
+          srtConn = 0;
         }
       }
       Util::setStreamName(streamName);
@@ -169,46 +171,49 @@ namespace Mist{
     Socket::SRT::libraryInit();
     rawMode = config->getBool("raw");
     if (rawMode){INFO_MSG("Entering raw mode");}
-    if (srtConn.getSocket() == -1){
-      std::string source = config->getString("input");
-      standAlone = false;
-      HTTP::URL u(source);
-      INFO_MSG("Parsed url: %s", u.getUrl().c_str());
-      if (Socket::interpretSRTMode(u) == "listener"){
-        std::map<std::string, std::string> arguments;
-        HTTP::parseVars(u.args, arguments);
-        sSock = Socket::SRTServer(u.getPort(), u.host, arguments, false);
-        struct sigaction new_action;
-        struct sigaction cur_action;
-        new_action.sa_sigaction = signal_handler;
-        sigemptyset(&new_action.sa_mask);
-        new_action.sa_flags = SA_SIGINFO;
-        sigaction(SIGINT, &new_action, &cur_action);
-        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-          oldSignal = cur_action.sa_sigaction;
-        }
-        sigaction(SIGHUP, &new_action, &cur_action);
-        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-          oldSignal = cur_action.sa_sigaction;
-        }
-        sigaction(SIGTERM, &new_action, &cur_action);
-        if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-          if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-          oldSignal = cur_action.sa_sigaction;
-        }
-      }else{
-        std::map<std::string, std::string> arguments;
-        HTTP::parseVars(u.args, arguments);
-        size_t connectCnt = 0;
-        do{
-          srtConn.connect(u.host, u.getPort(), "input", arguments);
-          if (!srtConn){Util::sleep(1000);}
-          ++connectCnt;
-        }while (!srtConn && connectCnt < 10);
-        if (!srtConn){WARN_MSG("Connecting to %s timed out", u.getUrl().c_str());}
+    if (srtConn && *srtConn){return true;}
+    std::string source = config->getString("input");
+    standAlone = false;
+    HTTP::URL u(source);
+    INFO_MSG("Parsed url: %s", u.getUrl().c_str());
+    if (Socket::interpretSRTMode(u) == "listener"){
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(u.args, arguments);
+      sSock = Socket::SRTServer(u.getPort(), u.host, arguments, false);
+      struct sigaction new_action;
+      struct sigaction cur_action;
+      new_action.sa_sigaction = signal_handler;
+      sigemptyset(&new_action.sa_mask);
+      new_action.sa_flags = SA_SIGINFO;
+      sigaction(SIGINT, &new_action, &cur_action);
+      if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+        if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+        oldSignal = cur_action.sa_sigaction;
       }
+      sigaction(SIGHUP, &new_action, &cur_action);
+      if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+        if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+        oldSignal = cur_action.sa_sigaction;
+      }
+      sigaction(SIGTERM, &new_action, &cur_action);
+      if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
+        if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
+        oldSignal = cur_action.sa_sigaction;
+      }
+    }else{
+      std::map<std::string, std::string> arguments;
+      HTTP::parseVars(u.args, arguments);
+
+      std::string addData;
+      if (arguments.count("streamid")){addData = arguments["streamid"];}
+      size_t connectCnt = 0;
+      do{
+        if (!srtConn){srtConn = new Socket::SRTConnection();}
+        srtConn->connect(u.host, u.getPort(), "input", arguments);
+        if (!*srtConn){Util::sleep(1000);}
+        ++connectCnt;
+      }while (!*srtConn && connectCnt < 10);
+      if (!*srtConn){WARN_MSG("Connecting to %s timed out", u.getUrl().c_str());}
     }
     return true;
   }
@@ -217,13 +222,13 @@ namespace Mist{
   void InputTSSRT::getNext(size_t idx){
     thisPacket.null();
     bool hasPacket = tsStream.hasPacket();
-    while (!hasPacket && srtConn && config->is_active){
+    while (!hasPacket && srtConn && *srtConn && config->is_active){
 
-      size_t recvSize = srtConn.RecvNow();
+      size_t recvSize = srtConn->RecvNow();
       if (recvSize){
         if (rawMode){
           keepAlive();
-          rawBuffer.append(srtConn.recvbuf, recvSize);
+          rawBuffer.append(srtConn->recvbuf, recvSize);
           if (rawBuffer.size() >= 1316 && (lastRawPacket == 0 || lastRawPacket != Util::bootMS())){
             if (rawIdx == INVALID_TRACK_ID){
               rawIdx = meta.addTrack();
@@ -240,8 +245,8 @@ namespace Mist{
           }
           continue;
         }
-        if (assembler.assemble(tsStream, srtConn.recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
-      }else if (srtConn){
+        if (assembler.assemble(tsStream, srtConn->recvbuf, recvSize, true)){hasPacket = tsStream.hasPacket();}
+      }else if (srtConn && *srtConn){
         // This should not happen as the SRT socket is read blocking and won't return until there is
         // data. But if it does, wait before retry
         Util::sleep(10);
@@ -250,7 +255,7 @@ namespace Mist{
     if (hasPacket){tsStream.getEarliestPacket(thisPacket);}
 
     if (!thisPacket){
-      if (srtConn){
+      if (srtConn && *srtConn){
         INFO_MSG("Could not getNext TS packet!");
         Util::logExitReason(ER_FORMAT_SPECIFIC, "internal TS parser error");
       }else{
@@ -286,7 +291,7 @@ namespace Mist{
 
   void InputTSSRT::streamMainLoop(){
     // If we do not have a srtConn here, we are the main thread and should start accepting pushes.
-    if (srtConn.getSocket() == -1){
+    if (!srtConn || !*srtConn){
       cfgPointer = config;
       baseStreamName = streamName;
       while (config->is_active && sSock.connected()){
@@ -304,7 +309,7 @@ namespace Mist{
     }
     // If we are here: we have a proper connection (either accepted or pull input) and should start parsing it as such
     Input::streamMainLoop();
-    srtConn.close();
+    srtConn->close();
     Socket::SRT::libraryCleanup();
   }
 
@@ -313,11 +318,11 @@ namespace Mist{
   void InputTSSRT::setSingular(bool newSingular){singularFlag = newSingular;}
 
   void InputTSSRT::connStats(Comms::Connections &statComm){
-    statComm.setUp(srtConn.dataUp());
-    statComm.setDown(srtConn.dataDown());
-    statComm.setPacketCount(srtConn.packetCount());
-    statComm.setPacketLostCount(srtConn.packetLostCount());
-    statComm.setPacketRetransmitCount(srtConn.packetRetransmitCount());
+    statComm.setUp(srtConn->dataUp());
+    statComm.setDown(srtConn->dataDown());
+    statComm.setPacketCount(srtConn->packetCount());
+    statComm.setPacketLostCount(srtConn->packetLostCount());
+    statComm.setPacketRetransmitCount(srtConn->packetRetransmitCount());
   }
 
 }// namespace Mist

@@ -21,7 +21,7 @@ namespace Mist{
     bool wrapRTP;
     bool sendFEC;
     void onRTP(void *socket, const char *data, size_t nbytes);
-    std::string packetBuffer;
+    Util::ResizeablePointer packetBuffer;
     Socket::UDPConnection pushSock;
     Socket::UDPConnection fecColumnSock;
     Socket::UDPConnection fecRowSock;

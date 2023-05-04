@@ -36,7 +36,7 @@
 
 bool Util::Config::is_active = false;
 bool Util::Config::is_restarting = false;
-static Socket::Server *serv_sock_pointer = 0;
+static int serv_sock_fd = -1;
 uint32_t Util::printDebugLevel = DEBUG;
 __thread char Util::streamName[256] = {0};
 __thread char Util::exitReason[256] = {0};
@@ -521,7 +521,7 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
     return 1;
   }
   Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
-  serv_sock_pointer = &server_socket;
+  serv_sock_fd = server_socket.getSocket();
   activate();
   if (server_socket.getSocket()){
     int oldSock = server_socket.getSocket();
@@ -531,7 +531,7 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)){
     }
   }
   int r = threadServer(server_socket, callback);
-  serv_sock_pointer = 0;
+  serv_sock_fd = -1;
   return r;
 }
 
@@ -549,7 +549,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
     return 1;
   }
   Socket::getSocketName(server_socket.getSocket(), Util::listenInterface, Util::listenPort);
-  serv_sock_pointer = &server_socket;
+  serv_sock_fd = server_socket.getSocket();
   activate();
   if (server_socket.getSocket()){
     int oldSock = server_socket.getSocket();
@@ -559,7 +559,7 @@ int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection &S)){
     }
   }
   int r = forkServer(server_socket, callback);
-  serv_sock_pointer = 0;
+  serv_sock_fd = -1;
   return r;
 }
 
@@ -601,6 +601,10 @@ void Util::Config::setMutexAborter(void * mutex){
   mutabort = (tthread::mutex*)mutex;
 }
 
+void Util::Config::setServerFD(int fd){
+  serv_sock_fd = fd;
+}
+
 /// Basic signal handler. Sets is_active to false if it receives
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
@@ -610,7 +614,7 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   case SIGHUP:
   case SIGTERM:
     if (!mutabort || mutabort->try_lock()){
-      if (serv_sock_pointer){serv_sock_pointer->close();}
+      if (serv_sock_fd != -1){close(serv_sock_fd);}
       if (mutabort){mutabort->unlock();}
     }
 #if DEBUG >= DLVL_DEVEL

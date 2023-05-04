@@ -4,7 +4,6 @@
 #include <mist/socket_srt.h>
 #include <mist/ts_packet.h>
 #include <mist/ts_stream.h>
-#include <set>
 #include <string>
 
 namespace Mist{
@@ -16,7 +15,7 @@ namespace Mist{
     void setSingular(bool newSingular);
     virtual bool needsLock();
     virtual std::string getConnectedBinHost(){
-      if (srtConn){return srtConn.getBinHost();}
+      if (srtConn && *srtConn){return srtConn->getBinHost();}
       return Input::getConnectedBinHost();
     }
 
@@ -38,7 +37,8 @@ namespace Mist{
     int64_t timeStampOffset;
     uint64_t lastTimeStamp;
 
-    Socket::SRTConnection srtConn;
+    Socket::SRTConnection * srtConn;
+    Socket::UDPConnection * udpInit;
     bool singularFlag;
     virtual void connStats(Comms::Connections &statComm);
 

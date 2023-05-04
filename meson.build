@@ -100,6 +100,9 @@ message('Building release @0@ for version @1@ @ debug level @2@'.format(release,
 
 mist_deps = []
 ccpp = meson.get_compiler('cpp')
+if ccpp.has_header_symbol('netinet/in.h', 'IPV6_RECVPKTINFO') and ccpp.has_header_symbol('netinet/in.h', 'IP_PKTINFO')
+  option_defines += '-DHASPKTINFO'
+endif
 
 if usessl
   mbedtls = ccpp.find_library('mbedtls', required: false)

@@ -1,5 +1,5 @@
 #include "defines.h"
-#include "lib/http_parser.h"
+#include "http_parser.h"
 #include "socket_srt.h"
 #include "json.h"
 #include "timing.h"
@@ -8,6 +8,15 @@
 #include <sstream>
 
 #define INVALID_SRT_SOCKET -1
+
+/// Calls gai_strerror with the given argument, calling regular strerror on the global errno as needed
+static const char *gai_strmagic(int errcode){
+  if (errcode == EAI_SYSTEM){
+    return strerror(errno);
+  }else{
+    return gai_strerror(errcode);
+  }
+}
 
 namespace Socket{
   namespace SRT{
@@ -26,6 +35,7 @@ namespace Socket{
 
     bool libraryCleanup(){
       if (isInited){
+        alarm(2);
         srt_cleanup();
         isInited = false;
       }
@@ -41,17 +51,36 @@ namespace Socket{
 
   sockaddr_in createInetAddr(const std::string &_host, int _port){
     sockaddr_in res;
-    memset(&res, 9, sizeof res);
-    res.sin_family = AF_INET;
-    res.sin_port = htons(_port);
+    memset(&res, 0, sizeof res);
+    struct addrinfo *result, *rp, hints;
+    std::stringstream ss;
+    ss << _port;
 
-    if (_host != ""){
-      if (inet_pton(AF_INET, _host.c_str(), &res.sin_addr) == 1){return res;}
-      hostent *he = gethostbyname(_host.c_str());
-      if (!he || he->h_addrtype != AF_INET){ERROR_MSG("Host not found %s", _host.c_str());}
-      res.sin_addr = *(in_addr *)he->h_addr_list[0];
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_ADDRCONFIG | AI_ALL;
+    hints.ai_protocol = IPPROTO_UDP;
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+    int s = getaddrinfo(_host.c_str(), ss.str().c_str(), &hints, &result);
+    if (s != 0){
+      hints.ai_family = AF_UNSPEC;
+      s = getaddrinfo(_host.c_str(), ss.str().c_str(), &hints, &result);
+      if (s != 0){
+        FAIL_MSG("Could not connect SRT socket to %s:%i! Error: %s", _host.c_str(), _port, gai_strmagic(s));
+        return res;
+      }
     }
 
+    for (rp = result; rp != NULL; rp = rp->ai_next){
+      size_t maxSize = rp->ai_addrlen;
+      if (maxSize > sizeof(res)){maxSize = sizeof(res);}
+      memcpy(&res, rp->ai_addr, maxSize);
+      break;
+    }
+    freeaddrinfo(result);
     return res;
   }
 
@@ -91,9 +120,9 @@ namespace Socket{
     direction = rhs.direction;
     remotehost = rhs.remotehost;
     sock = rhs.sock;
+    HIGH_MSG("COPIED SRT socket %d", sock);
     performanceMonitor = rhs.performanceMonitor;
     host = rhs.host;
-    outgoing_port = rhs.outgoing_port;
     prev_pktseq = rhs.prev_pktseq;
     lastGood = rhs.lastGood;
     chunkTransmitSize = rhs.chunkTransmitSize;
@@ -110,17 +139,94 @@ namespace Socket{
 
   SRTConnection::SRTConnection(const std::string &_host, int _port, const std::string &_direction,
                                const std::map<std::string, std::string> &_params){
+    initializeEmpty();
     connect(_host, _port, _direction, _params);
+  }
+
+  SRTConnection::SRTConnection(Socket::UDPConnection & _udpsocket, const std::string &_direction, const paramList &_params){
+    initializeEmpty();
+    direction = "output";
+    handleConnectionParameters("", _params);
+    HIGH_MSG("Opening SRT connection in %s mode (%s) on socket %d", modeName.c_str(), direction.c_str(), _udpsocket.getSock());
+
+    // Copy address from UDP socket
+    memcpy(&remoteaddr, _udpsocket.getDestAddr(), _udpsocket.getDestAddrLen());
+    static char addrconv[INET6_ADDRSTRLEN];
+    if (remoteaddr.sin6_family == AF_INET6){
+      remotehost = inet_ntop(AF_INET6, &(remoteaddr.sin6_addr), addrconv, INET6_ADDRSTRLEN);
+      HIGH_MSG("IPv6 addr [%s]", remotehost.c_str());
+    }
+    if (remoteaddr.sin6_family == AF_INET){
+      remotehost = inet_ntop(AF_INET, &(((sockaddr_in *)&remoteaddr)->sin_addr), addrconv, INET6_ADDRSTRLEN);
+      HIGH_MSG("IPv4 addr [%s]", remotehost.c_str());
+    }
+
+    sock = srt_create_socket();
+    HIGH_MSG("Opened SRT socket %d", sock);
+
+    if (_direction == "rendezvous"){
+      bool v = true;
+      srt_setsockopt(sock, 0, SRTO_RENDEZVOUS, &v, sizeof v);
+    }
+
+    if (preConfigureSocket() == SRT_ERROR){
+      ERROR_MSG("Error configuring SRT socket");
+      return;
+    }
+
+    srt_bind_acquire(sock, _udpsocket.getSock());
+    if (sock == SRT_INVALID_SOCK){
+      ERROR_MSG("Error creating an SRT socket from bound UDP socket");
+      return;
+    }
+
+    lastGood = Util::bootMS();
+    if (_direction == "rendezvous"){return;}
+
+    srt_listen(sock, 1);
+    SRTSOCKET tmpSock = srt_accept_bond(&sock, 1, 10000);
+    HIGH_MSG("Opened SRT socket %d", tmpSock);
+    close();
+    sock = tmpSock;
+
+    if (sock == SRT_INVALID_SOCK){
+      FAIL_MSG("SRT error: %s", srt_getlasterror_str());
+      return;
+    }
+
+    if (postConfigureSocket() == SRT_ERROR){
+      ERROR_MSG("Error during postconfigure socket");
+      return;
+    }
+    HIGH_MSG("UDP to SRT socket conversion %" PRId32 ": %s", sock, getStateStr());
+  }
+
+  const char * SRTConnection::getStateStr(){
+    if (sock == INVALID_SRT_SOCKET){return "invalid / closed";}
+    int state = srt_getsockstate(sock);
+    switch (state){
+      case SRTS_INIT: return "init";
+      case SRTS_OPENED: return "opened";
+      case SRTS_LISTENING: return "listening";
+      case SRTS_CONNECTING: return "connecting";
+      case SRTS_CONNECTED: return "connected";
+      case SRTS_BROKEN: return "broken";
+      case SRTS_CLOSING: return "closing";
+      case SRTS_CLOSED: return "closed";
+      case SRTS_NONEXIST: return "does not exist";
+    }
+    return "unknown";
   }
 
   SRTConnection::SRTConnection(SRTSOCKET alreadyConnected){
     initializeEmpty();
     sock = alreadyConnected;
+    HIGH_MSG("COPIED SRT socket %d", sock);
   }
 
   std::string SRTConnection::getStreamName(){
     int sNameLen = 512;
-    char sName[sNameLen];
+    char sName[512];
     int optRes = srt_getsockflag(sock, SRTO_STREAMID, (void *)sName, &sNameLen);
     if (optRes != -1 && sNameLen){return sName;}
     return "";
@@ -158,8 +264,8 @@ namespace Socket{
       }
       if (err == SRT_ENOCONN){
         if (Util::bootMS() > lastGood + 5000){
-          ERROR_MSG("SRT connection timed out - closing");
-          close();
+          ERROR_MSG("SRT connection timed out");
+          timedOut = true;
         }
         return 0;
       }
@@ -169,6 +275,7 @@ namespace Socket{
     }
     if (receivedBytes == 0){
       close();
+      return 0;
     }else{
       lastGood = Util::bootMS();
     }
@@ -188,13 +295,14 @@ namespace Socket{
       int err = srt_getlasterror(0);
       if (err == SRT_EASYNCRCV){return 0;}
       if (err == SRT_ECONNLOST){
+        INFO_MSG("SRT connection %d lost", sock);
         close();
         return 0;
       }
       if (err == SRT_ENOCONN){
         if (Util::bootMS() > lastGood + 5000){
           ERROR_MSG("SRT connection timed out - closing");
-          close();
+          timedOut = true;
         }
         return 0;
       }
@@ -203,7 +311,9 @@ namespace Socket{
       return 0;
     }
     if (receivedBytes == 0){
+      INFO_MSG("SRT connection %d closed", sock);
       close();
+      return 0;
     }else{
       lastGood = Util::bootMS();
     }
@@ -213,51 +323,43 @@ namespace Socket{
 
   void SRTConnection::connect(const std::string &_host, int _port, const std::string &_direction,
                               const std::map<std::string, std::string> &_params){
-    initializeEmpty();
-
     direction = _direction;
-
+    timedOut = false;
     handleConnectionParameters(_host, _params);
-
     HIGH_MSG("Opening SRT connection %s in %s mode on %s:%d", modeName.c_str(), direction.c_str(),
              _host.c_str(), _port);
 
-    sock = srt_create_socket();
-    if (sock == SRT_ERROR){
-      ERROR_MSG("Error creating an SRT socket");
-      return;
-    }
-    if (modeName == "rendezvous"){
-      bool v = true;
-      srt_setsockopt(sock, 0, SRTO_RENDEZVOUS, &v, sizeof v);
-    }
-    if (preConfigureSocket() == SRT_ERROR){
-      ERROR_MSG("Error configuring SRT socket");
-      return;
+    if (sock == SRT_INVALID_SOCK){
+      sock = srt_create_socket();
+      HIGH_MSG("Opened SRT socket %d", sock);
+      if (sock == SRT_INVALID_SOCK){
+        ERROR_MSG("Error creating an SRT socket");
+        return;
+      }
+      if (preConfigureSocket() == SRT_ERROR){
+        ERROR_MSG("Error configuring SRT socket");
+        return;
+      }
     }
 
     if (modeName == "caller"){
-      if (outgoing_port){setupAdapter("", outgoing_port);}
+      std::deque<std::string> addrs = Socket::getAddrs(_host, _port);
+      for (std::deque<std::string>::iterator it = addrs.begin(); it != addrs.end(); ++it){
+        size_t maxSize = it->size();
+        if (maxSize > sizeof(remoteaddr)){maxSize = sizeof(remoteaddr);}
+        memcpy(&remoteaddr, it->data(), maxSize);
 
-      sockaddr_in sa = createInetAddr(_host, _port);
-      memcpy(&remoteaddr, &sa, sizeof(sockaddr_in));
-      sockaddr *psa = (sockaddr *)&sa;
-
-      HIGH_MSG("Going to connect sock %d", sock);
-      if (srt_connect(sock, psa, sizeof sa) == SRT_ERROR){
-        srt_close(sock);
-        sock = -1;
-        ERROR_MSG("Can't connect SRT Socket");
-        return;
+        sockaddr *psa = (sockaddr *)&remoteaddr;
+        HIGH_MSG("Going to connect sock %d", sock);
+        if (srt_connect(sock, psa, sizeof remoteaddr) != SRT_ERROR){
+          if (postConfigureSocket() == SRT_ERROR){ERROR_MSG("Error during postconfigure socket");}
+          INFO_MSG("Caller SRT socket %" PRId32 " success targetting %s:%u", sock, _host.c_str(), _port);
+          lastGood = Util::bootMS();
+          return;
+        }
       }
-      HIGH_MSG("Connected sock %d", sock);
-
-      if (postConfigureSocket() == SRT_ERROR){
-        ERROR_MSG("Error during postconfigure socket");
-        return;
-      }
-      INFO_MSG("Caller SRT socket %" PRId32 " success targetting %s:%u", sock, _host.c_str(), _port);
-      lastGood = Util::bootMS();
+      close();
+      ERROR_MSG("Can't connect SRT socket to any address for %s", _host.c_str());
       return;
     }
     if (modeName == "listener"){
@@ -267,61 +369,19 @@ namespace Socket{
       sockaddr *psa = (sockaddr *)&sa;
 
       if (srt_bind(sock, psa, sizeof sa) == SRT_ERROR){
-        srt_close(sock);
-        sock = -1;
+        close();
         ERROR_MSG("Can't connect SRT Socket: %s", srt_getlasterror_str());
         return;
       }
       if (srt_listen(sock, 100) == SRT_ERROR){
-        srt_close(sock);
-        sock = -1;
+        close();
         ERROR_MSG("Can not listen on Socket");
       }
       INFO_MSG("Listener SRT socket success @ %s:%u", _host.c_str(), _port);
       lastGood = Util::bootMS();
       return;
     }
-    if (modeName == "rendezvous"){
-      int outport = (outgoing_port ? outgoing_port : _port);
-      HIGH_MSG("Going to bind a server on %s:%u", _host.c_str(), _port);
-
-      sockaddr_in sa = createInetAddr(_host, outport);
-      sockaddr *psa = (sockaddr *)&sa;
-
-      if (srt_bind(sock, psa, sizeof sa) == SRT_ERROR){
-        srt_close(sock);
-        sock = -1;
-        ERROR_MSG("Can't connect SRT Socket");
-        return;
-      }
-
-      sockaddr_in sb = createInetAddr(_host, outport);
-      sockaddr *psb = (sockaddr *)&sb;
-
-      if (srt_connect(sock, psb, sizeof sb) == SRT_ERROR){
-        srt_close(sock);
-        sock = -1;
-        ERROR_MSG("Can't connect SRT Socket");
-        return;
-      }
-
-      if (postConfigureSocket() == SRT_ERROR){
-        ERROR_MSG("Error during postconfigure socket");
-        return;
-      }
-      INFO_MSG("Rendezvous SRT socket success @ %s:%u", _host.c_str(), _port);
-      lastGood = Util::bootMS();
-      return;
-    }
-    ERROR_MSG("Invalid mode parameter. Use 'client' or 'server'");
-  }
-
-  void SRTConnection::setupAdapter(const std::string &_host, int _port){
-    sockaddr_in localsa = createInetAddr(_host, _port);
-    sockaddr *psa = (sockaddr *)&localsa;
-    if (srt_bind(sock, psa, sizeof localsa) == SRT_ERROR){
-      ERROR_MSG("Unable to bind socket to %s:%u", _host.c_str(), _port);
-    }
+    ERROR_MSG("Invalid mode parameter. Use 'caller' or 'listener'");
   }
 
   void SRTConnection::SendNow(const std::string &data){SendNow(data.data(), data.size());}
@@ -338,14 +398,17 @@ namespace Socket{
         return;
       }
       if (err == SRT_ENOCONN){
-        if (Util::bootMS() > lastGood + 5000){
+        if (Util::bootMS() > lastGood + 10000){
           ERROR_MSG("SRT connection timed out - closing");
-          close();
+          timedOut = true;
         }
         return;
       }
 //      ERROR_MSG("Unable to send data over socket %" PRId32 ": %s", sock, srt_getlasterror_str());
-      if (srt_getsockstate(sock) != SRTS_CONNECTED){close();}
+      if (srt_getsockstate(sock) != SRTS_CONNECTED){
+        close();
+        return;
+      }
     }else{
       lastGood = Util::bootMS();
     }
@@ -378,9 +441,9 @@ namespace Socket{
     memset(&performanceMonitor, 0, sizeof(performanceMonitor));
     prev_pktseq = 0;
     sock = SRT_INVALID_SOCK;
-    outgoing_port = 0;
     chunkTransmitSize = 1316;
     blocking = false;
+    timedOut = false;
     timeout = 0;
   }
 
@@ -397,9 +460,9 @@ namespace Socket{
   void SRTConnection::handleConnectionParameters(const std::string &_host,
                                                  const std::map<std::string, std::string> &_params){
     params = _params;
-    DONTEVEN_MSG("SRT Received parameters: ");
+    VERYHIGH_MSG("SRT Received parameters: ");
     for (std::map<std::string, std::string>::const_iterator it = params.begin(); it != params.end(); it++){
-      DONTEVEN_MSG("  %s: %s", it->first.c_str(), it->second.c_str());
+      VERYHIGH_MSG("  %s: %s", it->first.c_str(), it->second.c_str());
     }
 
     adapter = (params.count("adapter") ? params.at("adapter") : "");
@@ -416,8 +479,6 @@ namespace Socket{
     if (adapter == "" && modeName == "listener"){adapter = _host;}
 
     tsbpdMode = (params.count("tsbpd") && JSON::Value(params.at("tsbpd")).asBool());
-
-    outgoing_port = (params.count("port") ? strtol(params.at("port").c_str(), 0, 0) : 0);
 
     if ((!params.count("transtype") || params.at("transtype") != "file") && chunkTransmitSize > SRT_LIVE_DEF_PLSIZE){
       if (chunkTransmitSize > SRT_LIVE_MAX_PLSIZE){
@@ -439,12 +500,10 @@ namespace Socket{
     }
     if (srt_setsockopt(sock, 0, SRTO_RCVSYN, &no, sizeof no) == -1){return -1;}
 
-    if (params.count("linger")){
-      linger lin;
-      lin.l_linger = atoi(params.at("linger").c_str());
-      lin.l_onoff = lin.l_linger > 0 ? 1 : 0;
-      srt_setsockopt(sock, 0, SRTO_LINGER, &lin, sizeof(linger));
-    }
+    linger lin;
+    lin.l_linger = params.count("linger") ? atoi(params.at("linger").c_str()) : 0;
+    lin.l_onoff = lin.l_linger ? 1 : 0;
+    srt_setsockopt(sock, 0, SRTO_LINGER, &lin, sizeof(linger));
 
     std::string errMsg = configureSocketLoop(SRT::SockOpt::PRE);
     if (errMsg.size()){
@@ -490,9 +549,11 @@ namespace Socket{
   }
 
   void SRTConnection::close(){
-    if (sock != -1){
+    if (sock != INVALID_SRT_SOCKET){
+      HIGH_MSG("Closing SRT socket %d", sock);
+      setBlocking(true);
       srt_close(sock);
-      sock = -1;
+      sock = INVALID_SRT_SOCKET;
     }
   }
 

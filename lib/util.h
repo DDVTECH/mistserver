@@ -48,6 +48,8 @@ namespace Util{
   class ResizeablePointer{
   public:
     ResizeablePointer();
+    ResizeablePointer(const ResizeablePointer & rhs);
+    ResizeablePointer& operator= (const ResizeablePointer& rhs);
     ~ResizeablePointer();
     inline size_t &size(){return currSize;}
     inline const size_t size() const{return currSize;}
@@ -57,6 +59,7 @@ namespace Util{
     bool append(const std::string &str);
     bool allocate(uint32_t l);
     void shift(size_t byteCount);
+    void swap(ResizeablePointer & rhs);
     uint32_t rsize();
     void truncate(const size_t newLen);
     inline operator char *(){return (char *)ptr;}

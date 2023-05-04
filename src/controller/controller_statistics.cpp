@@ -174,13 +174,23 @@ void Controller::updateBandwidthConfig(){
 /// This function is ran whenever a stream becomes active.
 void Controller::streamStarted(std::string stream){
   INFO_MSG("Stream %s became active", stream.c_str());
-  if (tagQueue.count(stream)){
-    tagQueueItem & q = tagQueue[stream];
-    for (std::set<std::string>::iterator it = q.tags.begin(); it != q.tags.end(); ++it){
-      streamStats[stream].tags.insert(*it);
+  {
+    streamTotals & sT = streamStats[stream];
+    JSON::Value strCnf = Util::getStreamConfig(stream);
+    if (strCnf.isMember("tags")){
+      jsonForEachConst(strCnf["tags"], it){
+        sT.tags.insert(it->asString());
+      }
+      INFO_MSG("Applied %" PRIu32 " tags to stream %s from config",strCnf["tags"].size() , stream.c_str());
     }
-    INFO_MSG("Applied %zu tags to stream %s retroactively",q.tags.size() , stream.c_str());
-    tagQueue.erase(stream);
+    if (tagQueue.count(stream)){
+      tagQueueItem & q = tagQueue[stream];
+      for (std::set<std::string>::iterator it = q.tags.begin(); it != q.tags.end(); ++it){
+        sT.tags.insert(*it);
+      }
+      INFO_MSG("Applied %zu tags to stream %s retroactively",q.tags.size() , stream.c_str());
+      tagQueue.erase(stream);
+    }
   }
   Controller::doAutoPush(stream);
 }
@@ -425,7 +435,7 @@ void Controller::SharedMemStats(void *config){
           for (uint64_t cPos = startPos; cPos < endPos; ++cPos){
             std::string strm = strmStats->getPointer("stream", cPos);
             std::string tags = strmStats->getPointer("tags", cPos);
-            if (tags.size() && streamStats.count(strm)){
+            if (strm.size() && tags.size() && streamStats.count(strm)){
               INFO_MSG("Restoring stream tags: %s -> %s", strm.c_str(), tags.c_str());
               streamTotals & st = streamStats[strm];
               while (tags.size()){
@@ -468,7 +478,8 @@ void Controller::SharedMemStats(void *config){
           cutOffPoint = 0;
         }
         for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
-          streamStats[it->second.getStreamName()].currSessions++;
+          std::string strm = it->second.getStreamName();
+          if (strm.size()){streamStats[strm].currSessions++;}
           // This part handles ending sessions, keeping them in cache for now
           if (it->second.getEnd() < cutOffPoint){
             viewSecondsTotal += it->second.getConnTime();
@@ -476,30 +487,32 @@ void Controller::SharedMemStats(void *config){
             // Don't count this session as a viewer
             continue;
           }
-          // Recount input, output and viewer type sessions
-          switch (it->second.getSessType()){
-          case SESS_UNSET: break;
-          case SESS_VIEWER:
-            if (it->second.hasDataFor(tOut)){
-              streamStats[it->second.getStreamName()].currViews++;
+          if (strm.size()){
+            // Recount input, output and viewer type sessions
+            switch (it->second.getSessType()){
+            case SESS_UNSET: break;
+            case SESS_VIEWER:
+              if (it->second.hasDataFor(tOut)){
+                streamStats[it->second.getStreamName()].currViews++;
+              }
+              servSeconds += it->second.getConnTime();
+              break;
+            case SESS_INPUT:
+              if (it->second.hasDataFor(tIn)){
+                streamStats[it->second.getStreamName()].currIns++;
+              }
+              break;
+            case SESS_OUTPUT:
+              if (it->second.hasDataFor(tOut)){
+                streamStats[it->second.getStreamName()].currOuts++;
+              }
+              break;
+            case SESS_UNSPECIFIED:
+              if (it->second.hasDataFor(tOut)){
+                streamStats[it->second.getStreamName()].currUnspecified++;
+              }
+              break;
             }
-            servSeconds += it->second.getConnTime();
-            break;
-          case SESS_INPUT:
-            if (it->second.hasDataFor(tIn)){
-              streamStats[it->second.getStreamName()].currIns++;
-            }
-            break;
-          case SESS_OUTPUT:
-            if (it->second.hasDataFor(tOut)){
-              streamStats[it->second.getStreamName()].currOuts++;
-            }
-            break;
-          case SESS_UNSPECIFIED:
-            if (it->second.hasDataFor(tOut)){
-              streamStats[it->second.getStreamName()].currUnspecified++;
-            }
-            break;
           }
         }
         while (mustWipe.size()){
@@ -753,14 +766,15 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
     }
   }
   // Only count connections that are countable
-  if (noBWCount != 2){ 
+  if (noBWCount != 2 && streamName.size()){ 
     createEmptyStatsIfNeeded(streamName);
-    streamStats[streamName].upBytes += currUp - prevUp;
-    streamStats[streamName].downBytes += currDown - prevDown;
-    streamStats[streamName].packSent += currPktSent - prevPktSent;
-    streamStats[streamName].packLoss += currPktLost - prevPktLost;
-    streamStats[streamName].packRetrans += currPktRetrans - prevPktRetrans;
-    if (sessionType == SESS_VIEWER){streamStats[streamName].viewSeconds += secIncr;}
+    streamTotals & sT = streamStats[streamName];
+    sT.upBytes += currUp - prevUp;
+    sT.downBytes += currDown - prevDown;
+    sT.packSent += currPktSent - prevPktSent;
+    sT.packLoss += currPktLost - prevPktLost;
+    sT.packRetrans += currPktRetrans - prevPktRetrans;
+    if (sessionType == SESS_VIEWER){sT.viewSeconds += secIncr;}
   }
 }
 

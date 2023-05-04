@@ -93,6 +93,7 @@ namespace Mist{
 
   Output::Output(Socket::Connection &conn) : myConn(conn){
     dataWaitTimeout = 2500;
+    thisBootMs = Util::bootMS();
     pushing = false;
     recursingSync = false;
     firstTime = Util::bootMS();

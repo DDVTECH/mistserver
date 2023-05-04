@@ -37,12 +37,14 @@ namespace Socket{
     SRTConnection(SRTSOCKET alreadyConnected);
     SRTConnection(const std::string &_host, int _port, const std::string &_direction = "input",
                   const paramList &_params = paramList());
+    SRTConnection(Socket::UDPConnection & _udpsocket, const std::string &_direction, const paramList &_params);
 
     void connect(const std::string &_host, int _port, const std::string &_direction = "input",
                  const paramList &_params = paramList());
     void close();
-    bool connected() const{return sock != -1;}
+    bool connected() const{return (sock != -1) && !timedOut;}
     operator bool() const{return connected();}
+    const char * getStateStr();
 
     void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
     bool isBlocking(); ///< Check if this socket is blocking (true) or nonblocking (false).
@@ -77,9 +79,9 @@ namespace Socket{
     CBytePerfMon performanceMonitor;
 
     std::string host;
-    int outgoing_port;
     int32_t prev_pktseq;
     uint64_t lastGood;
+    bool timedOut;
 
     uint32_t chunkTransmitSize;
 
@@ -94,7 +96,6 @@ namespace Socket{
     void handleConnectionParameters(const std::string &_host, const paramList &_params);
     int preConfigureSocket();
     std::string configureSocketLoop(SRT::SockOpt::Binding _binding);
-    void setupAdapter(const std::string &_host, int _port);
 
     bool blocking;
   };

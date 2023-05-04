@@ -37,7 +37,7 @@ if have_librist
 endif
 
 if have_srt
-  outputs += {'name' : 'TSSRT', 'format' : 'tssrt', 'extra': ['ts', 'debased', 'with_srt']}
+  outputs += {'name' : 'TSSRT', 'format' : 'tssrt', 'extra': ['ts', 'with_srt']}
 endif
 
 if get_option('WITH_SANITY')

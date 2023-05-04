@@ -6,11 +6,13 @@
 #include <mist/encode.h>
 #include <mist/stream.h>
 #include <mist/triggers.h>
+#include <mist/auth.h>
 
 bool allowStreamNameOverride = true;
 
 namespace Mist{
-  OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection & _srtSock) : TSOutput(conn), srtConn(_srtSock){
+  OutTSSRT::OutTSSRT(Socket::Connection &conn, Socket::SRTConnection * _srtSock) : TSOutput(conn){
+    srtConn = _srtSock;
     // NOTE: conn is useless for SRT, as it uses a different socket type.
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     streamName = config->getString("streamname");
@@ -18,9 +20,14 @@ namespace Mist{
     pushOut = false;
     bootMSOffsetCalculated = false;
     assembler.setLive();
+    udpInit = 0;
     // Push output configuration
     if (config->getString("target").size()){
+      Socket::SRT::libraryInit();
       target = HTTP::URL(config->getString("target"));
+      HTTP::parseVars(target.args, targetParams);
+      std::string addData;
+      if (targetParams.count("streamid")){addData = targetParams["streamid"];}
       if (target.protocol != "srt"){
         FAIL_MSG("Target %s must begin with srt://, aborting", target.getUrl().c_str());
         onFail("Invalid srt target: doesn't start with srt://", true);
@@ -32,28 +39,27 @@ namespace Mist{
         return;
       }
       pushOut = true;
-      HTTP::parseVars(target.args, targetParams);
       size_t connectCnt = 0;
       do{
-        srtConn.connect(target.host, target.getPort(), "output", targetParams);
-        if (!srtConn){
+        if (!srtConn){srtConn = new Socket::SRTConnection();}
+        if (srtConn){srtConn->connect(target.host, target.getPort(), "output", targetParams);}
+        if (!*srtConn){
           Util::sleep(1000);
         }else{
-          INFO_MSG("Connect success on attempt %zu", connectCnt+1);
+          INFO_MSG("SRT socket %s on attempt %zu", srtConn->getStateStr(), connectCnt+1);
           break;
         }
         ++connectCnt;
-      }while (!srtConn && connectCnt < 5);
+      }while ((!srtConn || !*srtConn) && connectCnt < 5);
       if (!srtConn){
         FAIL_MSG("Failed to connect to '%s'!", config->getString("target").c_str());
       }
       wantRequest = false;
       parseData = true;
-      initialize();
     }else{
       // Pull output configuration, In this case we have an srt connection in the second constructor parameter.
       // Handle override / append of streamname options
-      std::string sName = srtConn.getStreamName();
+      std::string sName = srtConn->getStreamName();
       if (allowStreamNameOverride){
         if (sName != ""){
           streamName = sName;
@@ -61,18 +67,19 @@ namespace Mist{
           Util::setStreamName(streamName);
         }
       }
+      myConn.setHost(srtConn->remotehost);
 
       int64_t accTypes = config->getInteger("acceptable");
       if (accTypes == 0){//Allow both directions
-        srtConn.setBlocking(false);
+        srtConn->setBlocking(false);
         //Try to read the socket 10 times. If any reads succeed, assume they are pushing in
         size_t retries = 60;
-        while (!accTypes && srtConn && retries){
-          size_t recvSize = srtConn.Recv();
+        while (!accTypes && *srtConn && retries){
+          size_t recvSize = srtConn->Recv();
           if (recvSize){
             accTypes = 2;
             INFO_MSG("Connection put into ingest mode");
-            assembler.assemble(tsIn, srtConn.recvbuf, recvSize, true);
+            assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true);
           }else{
             Util::sleep(50);
           }
@@ -85,14 +92,14 @@ namespace Mist{
         }
       }
       if (accTypes == 1){// Only allow outgoing
-        srtConn.setBlocking(true);
-        srtConn.direction = "output";
+        srtConn->setBlocking(true);
+        srtConn->direction = "output";
         parseData = true;
         wantRequest = false;
         initialize();
       }else if (accTypes == 2){//Only allow incoming
-        srtConn.setBlocking(false);
-        srtConn.direction = "input";
+        srtConn->setBlocking(false);
+        srtConn->direction = "input";
         if (Triggers::shouldTrigger("PUSH_REWRITE")){
           HTTP::URL reqUrl;
           reqUrl.protocol = "srt";
@@ -115,7 +122,11 @@ namespace Mist{
             Util::sanitizeName(streamName);
           }
         }
-        myConn.setHost(srtConn.remotehost);
+        if (!streamName.size()){
+          Util::logExitReason(ER_FORMAT_SPECIFIC, "Push from %s rejected - there is no stream name set", getConnectedHost().c_str());
+          onFinish();
+          return;
+        }
         if (!allowPush("")){
           onFinish();
           return;
@@ -128,17 +139,48 @@ namespace Mist{
       }
 
     }
+    lastWorked = Util::bootSecs();
     lastTimeStamp = 0;
     timeStampOffset = 0;
   }
 
   bool OutTSSRT::onFinish(){
-    myConn.close();
-    srtConn.close();
+    config->is_active = false;
     return false;
   }
 
-  OutTSSRT::~OutTSSRT(){}
+  OutTSSRT::~OutTSSRT(){
+    if(srtConn){
+      srtConn->close();
+      delete srtConn;
+      srtConn = 0;
+    }
+    Socket::SRT::libraryCleanup();
+  }
+
+  // Override initialSeek to go to last possible position for live streams
+  void OutTSSRT::initialSeek(bool dryRun){
+    if (!meta){return;}
+    meta.removeLimiter();
+
+    uint64_t seekPos = 0;
+
+    std::set<size_t> validTracks = M.getValidTracks();
+    if (M.getLive() && validTracks.size()){
+      if (userSelect.size()){
+        for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+          if (M.trackValid(it->first) && (M.getNowms(it->first) < seekPos || !seekPos)){
+            seekPos = meta.getNowms(it->first);
+          }
+        }
+      }else{
+        for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); it++){
+          if (meta.getNowms(*it) < seekPos || !seekPos){seekPos = meta.getNowms(*it);}
+        }
+      }
+    }
+    seek(seekPos);
+  }
 
   static void addIntOpt(JSON::Value & pp, const std::string & param, const std::string & name, const std::string & help, size_t def = 0){
     pp[param]["name"] = name;
@@ -189,14 +231,6 @@ namespace Mist{
     capa["optional"]["streamname"]["option"] = "--stream";
     capa["optional"]["streamname"]["short"] = "s";
     capa["optional"]["streamname"]["default"] = "";
-
-    capa["optional"]["filelimit"]["name"] = "Open file descriptor limit";
-    capa["optional"]["filelimit"]["help"] = "Increase open file descriptor to this value if current system value is lower. A higher value may be needed for handling many concurrent SRT connections.";
-
-    capa["optional"]["filelimit"]["type"] = "int";
-    capa["optional"]["filelimit"]["option"] = "--filelimit";
-    capa["optional"]["filelimit"]["short"] = "l";
-    capa["optional"]["filelimit"]["default"] = "1024";
 
     capa["optional"]["acceptable"]["name"] = "Acceptable connection types";
     capa["optional"]["acceptable"]["help"] =
@@ -313,32 +347,81 @@ namespace Mist{
     opt["default"] = "";
     opt["help"] = "Which parser to use for data tracks";
     config->addOption("datatrack", opt);
+
+    capa["optional"]["passphrase"]["name"] = "Passphrase";
+    capa["optional"]["passphrase"]["help"] = "If set, requires a SRT passphrase to connect";
+    capa["optional"]["passphrase"]["type"] = "string";
+    capa["optional"]["passphrase"]["option"] = "--passphrase";
+    capa["optional"]["passphrase"]["short"] = "P";
+    capa["optional"]["passphrase"]["default"] = "";
+
+    opt.null();
+    opt["long"] = "passphrase";
+    opt["short"] = "P";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "If set, requires a SRT passphrase to connect";
+    config->addOption("passphrase", opt);
+
+    capa["optional"]["sockopts"]["name"] = "SRT socket options";
+    capa["optional"]["sockopts"]["help"] = "Any additional SRT socket options to apply";
+    capa["optional"]["sockopts"]["type"] = "string";
+    capa["optional"]["sockopts"]["option"] = "--sockopts";
+    capa["optional"]["sockopts"]["short"] = "O";
+    capa["optional"]["sockopts"]["default"] = "";
+
+    opt.null();
+    opt["long"] = "sockopts";
+    opt["short"] = "O";
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["help"] = "Any additional SRT socket options to apply";
+    config->addOption("sockopts", opt);
+
+
   }
 
   // Buffers TS packets and sends after 7 are buffered.
   void OutTSSRT::sendTS(const char *tsData, size_t len){
     packetBuffer.append(tsData, len);
     if (packetBuffer.size() >= 1316){//7 whole TS packets
-      if (!srtConn){
+      if (!*srtConn){
         if (config->getString("target").size()){
+          if (lastWorked + 5 < Util::bootSecs()){
+            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed, no reconnect success after 5s");
+            config->is_active = false;
+            parseData = false;
+            return;
+          }
           INFO_MSG("Reconnecting...");
-          srtConn.connect(target.host, target.getPort(), "output", targetParams);
-          if (!srtConn){Util::sleep(500);}
+          if (srtConn){
+            srtConn->close();
+            delete srtConn;
+          }
+          if (udpInit){
+            srtConn = new Socket::SRTConnection(*udpInit, "rendezvous", targetParams);
+          }else{
+            srtConn = new Socket::SRTConnection();
+          }
+          srtConn->connect(target.host, target.getPort(), "output", targetParams);
+          if (!*srtConn){Util::sleep(500);}
         }else{
-          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
-          myConn.close();
+          Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (mid-send)");
+          config->is_active = false;
           parseData = false;
           return;
         }
       }
-      if (srtConn){
-        srtConn.SendNow(packetBuffer, packetBuffer.size());
-        if (!srtConn){
+      if (*srtConn){
+        srtConn->SendNow(packetBuffer, packetBuffer.size());
+        if (!*srtConn){
           if (!config->getString("target").size()){
-            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed");
-            myConn.close();
+            Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection closed (post-send)");
+            config->is_active = false;
             parseData = false;
           }
+        }else{
+          lastWorked = Util::bootSecs();
         }
       }
       packetBuffer.assign(0,0);
@@ -346,11 +429,12 @@ namespace Mist{
   }
 
   void OutTSSRT::requestHandler(){
-    size_t recvSize = srtConn.Recv();
+    size_t recvSize = srtConn->Recv();
     if (!recvSize){
-      if (!srtConn){
-        myConn.close();
-        srtConn.close();
+      if (!*srtConn){
+        Util::logExitReason(ER_CLEAN_REMOTE_CLOSE, "SRT connection %s (in request handler)", srtConn->getStateStr());
+        config->is_active = false;
+        srtConn->close();
         wantRequest = false;
       }else{
         Util::sleep(50);
@@ -358,13 +442,13 @@ namespace Mist{
       return;
     }
     lastRecv = Util::bootSecs();
-    if (!assembler.assemble(tsIn, srtConn.recvbuf, recvSize, true)){return;}
+    if (!assembler.assemble(tsIn, srtConn->recvbuf, recvSize, true)){return;}
     while (tsIn.hasPacket()){
       tsIn.getEarliestPacket(thisPacket);
       if (!thisPacket){
-        INFO_MSG("Could not get TS packet");
-        myConn.close();
-        srtConn.close();
+        Util::logExitReason(ER_FORMAT_SPECIFIC, "Could not get TS packet");
+        config->is_active = false;
+        srtConn->close();
         wantRequest = false;
         return;
       }
@@ -380,7 +464,7 @@ namespace Mist{
       size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
       if (thisIdx == INVALID_TRACK_ID){return;}
       if (!userSelect.count(thisIdx)){
-        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_ACTIVE | COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
       uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
@@ -406,164 +490,126 @@ namespace Mist{
 
   bool OutTSSRT::dropPushTrack(uint32_t trackId, const std::string & dropReason){
     Util::logExitReason(ER_SHM_LOST, "track dropped by buffer");
-    myConn.close();
-    srtConn.close();
+    config->is_active = false;
+    if (srtConn){srtConn->close();}
     return Output::dropPushTrack(trackId, dropReason);
   }
 
   void OutTSSRT::connStats(uint64_t now, Comms::Connections &statComm){
-    if (!srtConn){return;}
-    statComm.setUp(srtConn.dataUp());
-    statComm.setDown(srtConn.dataDown());
-    statComm.setTime(now - srtConn.connTime());
-    statComm.setPacketCount(srtConn.packetCount());
-    statComm.setPacketLostCount(srtConn.packetLostCount());
-    statComm.setPacketRetransmitCount(srtConn.packetRetransmitCount());
+    if (!srtConn || !*srtConn){return;}
+    statComm.setUp(srtConn->dataUp());
+    statComm.setDown(srtConn->dataDown());
+    statComm.setTime(now - srtConn->connTime());
+    statComm.setPacketCount(srtConn->packetCount());
+    statComm.setPacketLostCount(srtConn->packetLostCount());
+    statComm.setPacketRetransmitCount(srtConn->packetRetransmitCount());
   }
 
-}// namespace Mist
 
-
-
-Socket::SRTServer server_socket;
-static uint64_t sockCount = 0;
-
-void (*oldSignal)(int, siginfo_t *,void *) = 0;
-void signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
-  server_socket.close();
-  if (oldSignal){
-    oldSignal(signum, sigInfo, ignore);
+  bool OutTSSRT::listenMode(){
+    std::string tgt = config->getString("target");
+    return (!tgt.size() || (tgt.size() >= 6 && tgt.substr(0, 6) == "srt://" && Socket::interpretSRTMode(HTTP::URL(tgt)) == "listener"));
   }
-}
 
-void handleUSR1(int signum, siginfo_t *sigInfo, void *ignore){
-  if (!sockCount){
-    INFO_MSG("USR1 received - triggering rolling restart (no connections active)");
-    Util::Config::is_restarting = true;
-    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, no connections");
-    server_socket.close();
-    Util::Config::is_active = false;
-  }else{
-    INFO_MSG("USR1 received - triggering rolling restart when connection count reaches zero");
-    Util::Config::is_restarting = true;
-    Util::logExitReason(ER_CLEAN_SIGNAL, "signal USR1, after disconnect wait");
-  }
-}
-
-// Callback for SRT-serving threads
-static void callThreadCallbackSRT(void *srtPtr){
-  sockCount++;
-  Socket::SRTConnection & srtSock = *(Socket::SRTConnection*)srtPtr;
-  int fds[2];
-  pipe(fds);
-  Socket::Connection Sconn(fds[0], fds[1]);
-  HIGH_MSG("Started thread for socket %i", srtSock.getSocket());
-  mistOut tmp(Sconn,srtSock);
-  tmp.run();
-  HIGH_MSG("Closing thread for socket %i", srtSock.getSocket());
-  Sconn.close();
-  srtSock.close();
-  delete &srtSock;
-  sockCount--;
-  if (!sockCount && Util::Config::is_restarting){
-    server_socket.close();
-    Util::Config::is_active = false;
-    INFO_MSG("Last active connection closed; triggering rolling restart now!");
-  }
-}
-
-int main(int argc, char *argv[]){
-  Socket::SRT::libraryInit();
-  DTSC::trackValidMask = TRACK_VALID_EXT_HUMAN;
-  Util::redirectLogsIfNeeded();
-  Util::Config conf(argv[0]);
-  Util::Config::binaryType = Util::OUTPUT;
-  mistOut::init(&conf);
-  if (conf.parseArgs(argc, argv)){
-    if (conf.getBool("json")){
-      mistOut::capa["version"] = PACKAGE_VERSION;
-      std::cout << mistOut::capa.toString() << std::endl;
-      return -1;
+  void initSRTConnection(Socket::UDPConnection & s, std::map<std::string, std::string> & arguments, bool listener = true){
+    Socket::SRT::libraryInit();
+    Socket::SRTConnection * tmpSock = new Socket::SRTConnection(s, listener?"output":"rendezvous", arguments);
+    if (!*tmpSock){
+      delete tmpSock;
+      return;
     }
-    conf.activate();
+    if (!listener){
+      std::string host;
+      uint32_t port;
+      s.GetDestination(host, port);
+      tmpSock->connect(host, port, "output", arguments);
+      INFO_MSG("UDP to SRT socket conversion: %s", tmpSock->getStateStr());
+    }
+    Socket::Connection S(1, 0);
+    mistOut tmp(S, tmpSock);
+    tmp.run();
+  }
 
-    int filelimit = conf.getInteger("filelimit");
-    Util::sysSetNrOpenFiles(filelimit);
-
+  void OutTSSRT::listener(Util::Config &conf, int (*callback)(Socket::Connection &S)){
+    // Check SRT options/arguments first
     std::string target = conf.getString("target");
-    if (!mistOut::listenMode() && (!target.size() || Socket::interpretSRTMode(HTTP::URL(target)) != "listener")){
-      Socket::Connection S(fileno(stdout), fileno(stdin));
-      Socket::SRTConnection tmpSock;
-      mistOut tmp(S, tmpSock);
-      return tmp.run();
-    }
-    {
-      struct sigaction new_action;
-      new_action.sa_sigaction = handleUSR1;
-      sigemptyset(&new_action.sa_mask);
-      new_action.sa_flags = 0;
-      sigaction(SIGUSR1, &new_action, NULL);
-    }
+    std::map<std::string, std::string> arguments;
     if (target.size()){
       //Force acceptable option to 1 (outgoing only), since this is a push output and we can't accept incoming connections
       conf.getOption("acceptable", true).append((uint64_t)1);
       //Disable overriding streamname with streamid parameter on other side
       allowStreamNameOverride = false;
       HTTP::URL tgt(target);
-      std::map<std::string, std::string> arguments;
       HTTP::parseVars(tgt.args, arguments);
-      server_socket = Socket::SRTServer(tgt.getPort(), tgt.host, arguments, false, "output");
+      conf.getOption("interface", true).append(tgt.host);
+      conf.getOption("port", true).append((uint64_t)tgt.getPort());
       conf.getOption("target", true).append("");
     }else{
-      std::map<std::string, std::string> arguments;
-      server_socket = Socket::SRTServer(conf.getInteger("port"), conf.getString("interface"), arguments, false, "output");
+      HTTP::parseVars(conf.getString("sockopts"), arguments);
+      std::string opt = conf.getString("passphrase");
+      if (opt.size()){arguments["passphrase"] = opt;}
     }
-    if (!server_socket.connected()){
-      DEVEL_MSG("Failure to open socket");
-      return 1;
+
+    uint16_t localPort;
+    // Either re-use socket 0 or bind a new socket
+    Socket::UDPConnection udpSrv;
+    if (Socket::checkTrueSocket(0)){
+      udpSrv.assimilate(0);
+      localPort = udpSrv.getBoundPort();
+    }else{
+      localPort = udpSrv.bind(conf.getInteger("port"), conf.getString("interface"));
     }
-    struct sigaction new_action;
-    struct sigaction cur_action;
-    new_action.sa_sigaction = signal_handler;
-    sigemptyset(&new_action.sa_mask);
-    new_action.sa_flags = SA_SIGINFO;
-    sigaction(SIGINT, &new_action, &cur_action);
-    if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-      if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-      oldSignal = cur_action.sa_sigaction;
-    }
-    sigaction(SIGHUP, &new_action, &cur_action);
-    if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-      if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-      oldSignal = cur_action.sa_sigaction;
-    }
-    sigaction(SIGTERM, &new_action, &cur_action);
-    if (cur_action.sa_sigaction && cur_action.sa_sigaction != oldSignal){
-      if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
-      oldSignal = cur_action.sa_sigaction;
-    }
-    Comms::defaultCommFlags = COMM_STATUS_NOKILL;
-    Util::Procs::socketList.insert(server_socket.getSocket());
-    while (conf.is_active && server_socket.connected()){
-      Socket::SRTConnection S = server_socket.accept(false, "output");
-      if (S.connected()){// check if the new connection is valid
-        // spawn a new thread for this connection
-        tthread::thread T(callThreadCallbackSRT, (void *)new Socket::SRTConnection(S));
-        // detach it, no need to keep track of it anymore
-        T.detach();
-      }else{
-        Util::sleep(10); // sleep 10ms
+    // Ensure socket zero is now us
+    if (udpSrv.getSock()){
+      int oldSock = udpSrv.getSock();
+      if (!dup2(oldSock, 0)){
+        udpSrv.assimilate(0);
       }
     }
-    Util::Procs::socketList.erase(server_socket.getSocket());
-    server_socket.close();
-    if (conf.is_restarting){
-      INFO_MSG("Reloading input...");
-      execvp(argv[0], argv);
-      FAIL_MSG("Error reloading: %s", strerror(errno));
+    if (!udpSrv){
+      Util::logExitReason(ER_READ_START_FAILURE, "Failure to open listening socket");
+      conf.is_active = false;
+      return;
+    }
+    Util::Config::setServerFD(0);
+    udpSrv.allocateDestination();
+
+    Util::Procs::socketList.insert(udpSrv.getSock());
+    int maxFD = udpSrv.getSock();
+    while (conf.is_active && udpSrv){
+
+      fd_set rfds;
+      FD_ZERO(&rfds);
+      FD_SET(maxFD, &rfds);
+
+      struct timeval T;
+      T.tv_sec = 2;
+      T.tv_usec = 0;
+      int r = select(maxFD + 1, &rfds, NULL, NULL, &T);
+      if (r){
+        while(udpSrv.Receive()){
+          // Ignore if it's not an SRT handshake packet
+          if (udpSrv.data.size() >= 4 && udpSrv.data[0] == 0x80 && !udpSrv.data[1] && !udpSrv.data[2] && !udpSrv.data[3]){
+            bool rendezvous = false;
+            if (udpSrv.data.size() >= 40){
+              rendezvous = (!udpSrv.data[36] && !udpSrv.data[37] && !udpSrv.data[38] && !udpSrv.data[39]);
+            }
+            std::string remoteIP, localIP;
+            uint32_t remotePort, localPort;
+            udpSrv.GetDestination(remoteIP, remotePort);
+            udpSrv.GetLocalDestination(localIP, localPort);
+            INFO_MSG("SRT handshake from %s:%" PRIu32 "! Spawning child process to handle it...", remoteIP.c_str(), remotePort);
+            if (!fork()){
+              Socket::UDPConnection s(udpSrv);
+              udpSrv.close();
+              if (!s.connect()){return;}
+              return initSRTConnection(s, arguments, !rendezvous);
+            }
+          }
+        }
+      }
     }
   }
-  INFO_MSG("Exit reason: %s", Util::exitReason);
-  Socket::SRT::libraryCleanup();
-  return 0;
-}
+
+}// namespace Mist
+

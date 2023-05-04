@@ -437,6 +437,7 @@ public:
 /// Fixed-size struct for holding a host's name and details pointer
 struct hostEntry{
   uint8_t state; // 0 = off, 1 = booting, 2 = running, 3 = requesting shutdown, 4 = requesting clean
+  uint8_t requestState; // Same, but never written to by the thread
   char name[HOSTNAMELEN];          // host+port for server
   hostDetails *details;    /// hostDetails pointer
   tthread::thread *thread; /// thread pointer
@@ -816,7 +817,7 @@ void handleServer(void *hostEntryPointer){
 
   HTTP::Downloader DL;
 
-  while (cfg->is_active && (entry->state != STATE_GODOWN)){
+  while (cfg->is_active && (entry->requestState != STATE_GODOWN)){
     if (DL.get(url) && DL.isOk()){
       JSON::Value servData = JSON::fromString(DL.data());
       if (!servData){
@@ -994,6 +995,7 @@ void initHost(hostEntry &H, const std::string &N){
   // Cancel if this host has no name set
   if (!N.size()){return;}
   H.state = STATE_BOOT;
+  H.requestState = STATE_OFF;
   H.details = new hostDetails();
   memset(H.name, 0, HOSTNAMELEN);
   memcpy(H.name, N.data(), N.size());
@@ -1005,6 +1007,7 @@ void cleanupHost(hostEntry &H){
   // Cancel if this host has no name set
   if (!H.name[0]){return;}
   H.state = STATE_GODOWN;
+  H.requestState = STATE_GODOWN;
   INFO_MSG("Stopping monitoring %s", H.name);
   // Clean up thread
   H.thread->join();
@@ -1015,4 +1018,5 @@ void cleanupHost(hostEntry &H){
   H.details = 0;
   memset(H.name, 0, HOSTNAMELEN);
   H.state = STATE_OFF;
+  H.requestState = STATE_OFF;
 }

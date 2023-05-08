@@ -127,13 +127,13 @@ int main(int argc, char **argv){
         Util::wait(1000);
       }
       if (!counter){
-        FAIL_MSG("Timed out!");
+        FAIL_MSG("Timed out! Is " APPNAME " running, and is certbot being ran under the same system user " APPNAME " is running under?");
         return 1;
       }
       INFO_MSG("Success!");
       Util::wait(5000);
     }else{
-      if (currConf["certbot"].asStringRef() == cbCombo){
+      if (currConf.isMember("certbot") && currConf["certbot"].asStringRef() == cbCombo){
         INFO_MSG("Config already good - no changes needed");
         return 0;
       }
@@ -152,7 +152,7 @@ int main(int argc, char **argv){
         Util::wait(1000);
       }
       if (!counter){
-        FAIL_MSG("Timed out!");
+        FAIL_MSG("Timed out! Is " APPNAME " running, and is certbot being ran under the same system user " APPNAME " is running under?");
         return 1;
       }
       INFO_MSG("Success!");

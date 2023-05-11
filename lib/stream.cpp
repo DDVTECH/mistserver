@@ -703,7 +703,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
           MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                      tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-          if (tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+          if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
             if (tmp_input.getMember("non-provider") && !isProvider){
               noProviderNoPick = true;
               continue;
@@ -720,7 +720,7 @@ JSON::Value Util::getInputBySource(const std::string &filename, bool isProvider)
         MEDIUM_MSG("Checking input %s: %s (%s)", inputs.getIndiceName(i).c_str(),
                    tmp_input.getMember("name").asString().c_str(), source.c_str());
 
-        if (tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+        if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
           if (tmp_input.getMember("non-provider") && !isProvider){
             noProviderNoPick = true;
             continue;

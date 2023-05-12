@@ -612,6 +612,7 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
           currentLength = 0;
           body.clear();
           knownLength = false;
+          length = 0;
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
             if (!bodyCallback && !onData && body.capacity() < length) { body.reserve(length); }
@@ -631,7 +632,10 @@ bool HTTP::Parser::parse(std::string & HTTPbuffer, std::function<void(const char
       }
     }
     if (seenHeaders){
-      if (headerOnly){return true;}
+      if (headerOnly) {
+        if (!length && !getChunks) { possiblyComplete = true; }
+        return true;
+      }
       //Check if we have a response code that may never have a body
       if (url.size() && url[0] >= '0' && url[0] <= '9'){
         unsigned int code = atoi(url.data());

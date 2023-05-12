@@ -49,22 +49,16 @@ namespace Mist{
           }
         }
       }
-      static bool recurse = false;
-      if (recurse){return InputEBML::getNext(idx);}
-      recurse = true;
       InputEBML::getNext(idx);
-      recurse = false;
-      uint64_t pTime = thisPacket.getTime();
       if (thisPacket){
         if (!getFirst){
-          packetTimeDiff = sendPacketTime - pTime;
+          packetTimeDiff = sendPacketTime - thisTime;
           getFirst = true;
         }
-        pTime += packetTimeDiff;
+        thisTime += packetTimeDiff;
+        thisPacket.setTime(thisTime);
         // change packettime
-        char *data = thisPacket.getData();
-        Bit::htobll(data + 12, pTime);
-        if (pTime >= statSinkMs){statSinkMs = pTime;}
+        if (thisTime >= statSinkMs) { statSinkMs = thisTime; }
         if (meta && meta.getBootMsOffset() != bootMsOffset){meta.setBootMsOffset(bootMsOffset);}
       }
     }

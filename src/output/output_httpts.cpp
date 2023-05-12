@@ -4,6 +4,7 @@
 #include <mist/http_parser.h>
 #include <mist/procs.h>
 #include <mist/stream.h>
+#include <mist/triggers.h>
 #include <mist/ts_packet.h>
 #include <mist/ts_stream.h>
 #include <mist/url.h>
@@ -14,6 +15,8 @@
 namespace Mist{
   OutHTTPTS::OutHTTPTS(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
     : TSOutput(conn, _cfg, _capa) {
+    seenTime = false;
+    timeOffset = 0;
     sendRepeatingHeaders = 500; // PAT/PMT every 500ms (DVB spec)
     HTTP::URL target(config->getString("target"));
     // Detect youtube-style URL
@@ -114,6 +117,91 @@ namespace Mist{
   }
 
   bool OutHTTPTS::isRecording(){return config->getString("target").size();}
+
+  void OutHTTPTS::dataCallback(const char *ptr, size_t size) {
+    if (!pushing) { return; }
+    static TS::Stream tsIn;
+    char *tmpPtr = (char *)ptr;
+    while (size + bodyData.size() >= 188) {
+      while (bodyData.size()) {
+        if (bodyData.size() < 188) {
+          size_t diff = 188 - bodyData.size();
+          bodyData.append(tmpPtr, diff);
+          tmpPtr += diff;
+          size -= diff;
+        }
+        tsIn.parse(bodyData, 0);
+        bodyData.shift(188);
+      }
+      if (size >= 188) {
+        tsIn.parse(tmpPtr, 0);
+        tmpPtr += 188;
+        size -= 188;
+      }
+      while (tsIn.hasPacketOnEachTrack()) {
+        tsIn.getEarliestPacket(thisPacket);
+        if (!thisPacket) {
+          FAIL_MSG("Could not getNext TS packet!");
+          return;
+        }
+        thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+        if (M.trackIDToIndex(thisIdx == INVALID_TRACK_ID) || !M.getCodec(thisIdx).size()) {
+          tsIn.initializeMetadata(meta);
+          thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
+        }
+        if (thisIdx == INVALID_TRACK_ID) { continue; }
+        if (!userSelect.count(thisIdx)) {
+          userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        }
+        thisTime = thisPacket.getTime();
+        if (!seenTime) {
+          if (!M.getBootMsOffset()) {
+            meta.setBootMsOffset(Util::bootMS() - thisTime);
+          } else {
+            timeOffset = (Util::bootMS() - thisTime) - M.getBootMsOffset();
+          }
+          seenTime = true;
+        }
+        bufferLivePacket(DTSC::RetimedPacket(thisTime + timeOffset, thisPacket));
+        stats();
+      }
+    }
+    if (size) { bodyData.append(tmpPtr, size); }
+  }
+
+  void OutHTTPTS::preHTTP() {
+    if (H.method != "PUT" && H.method != "POST") {
+      HTTPOutput::preHTTP();
+      return;
+    }
+
+    char *rawStream = getenv("stream_raw");
+    if (rawStream) { streamName = rawStream; }
+    if (checkStreamKey()) {
+      if (!streamName.size()) {
+        onFail("Stream key rejected for push");
+        return;
+      }
+    } else {
+      if (Triggers::shouldTrigger("PUSH_REWRITE")) {
+        std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()) {
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(),
+                   reqUrl.c_str());
+          onFail("Pushing not allowed");
+        } else {
+          streamName = newStream;
+        }
+      }
+      if (!allowPush(H.GetVar("password"))) {
+        onFail("Pushing not allowed");
+        return;
+      }
+    }
+    H.headerOnly = false;
+  }
 
   void OutHTTPTS::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     HTTPOutput::respondHTTP(req, headersOnly);

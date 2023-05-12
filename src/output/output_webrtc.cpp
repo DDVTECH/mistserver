@@ -873,6 +873,10 @@ namespace Mist{
     }
   }
 
+  void OutWebRTC::preHTTP() {
+    H.headerOnly = false;
+  }
+
   void OutWebRTC::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     // Generic header/parameter handling
     HTTPOutput::respondHTTP(req, headersOnly);
@@ -923,7 +927,7 @@ namespace Mist{
         externalAddr = tmpUrl.host;
 
         SDP::Session sdpParser;
-        const std::string &offerStr = req.body;
+        const std::string offerStr(bodyData, bodyData.size());
         if (config && config->hasOption("packetlog") && config->getBool("packetlog")){
           std::string fileName = "/tmp/wrtc_http_" + JSON::Value(getpid()).asString();
           packetLog.open(fileName.c_str());

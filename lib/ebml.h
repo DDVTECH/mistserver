@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include <string>
 
@@ -82,6 +83,8 @@ namespace EBML{
     EID_UNKNOWN = 0
   };
 
+  class Block;
+
   class Element{
   public:
     static uint64_t needBytes(const char *p, uint64_t availBytes, bool minimal = false);
@@ -103,15 +106,17 @@ namespace EBML{
     std::string getValStringUntrimmed() const;
     const Element findChild(uint32_t id) const;
 
-  private:
+  protected:
     const char *data;
     bool minimalMode; ///< If set, ELEM_MASTER elements will not access payload data when
                       /// pretty-printing.
+    friend class Block;
   };
 
   class Block : public Element{
   public:
     Block(const char *p = 0) : Element(p){}
+    Block(const Element & E) : Element(E.data) {}
     uint64_t getTrackNum() const;
     int16_t getTimecode() const;
     bool isKeyframe() const;

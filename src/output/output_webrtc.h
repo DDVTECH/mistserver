@@ -103,7 +103,7 @@ namespace Mist{
     virtual void onWebsocketFrame();
     void setIceHeaders(HTTP::Parser & H);
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
-    virtual void preHTTP(){}
+    virtual void preHTTP();
     virtual void preWebsocketConnect();
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
     void handleWebsocketIdle();

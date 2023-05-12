@@ -1,6 +1,8 @@
 #pragma once
 #include "output_http.h"
 
+#include <mist/ebml_socketglue.h>
+
 namespace Mist{
   class OutEBML : public HTTPOutput{
   public:
@@ -10,6 +12,8 @@ namespace Mist{
     void sendNext();
     void sendHeader();
     size_t clusterSize(uint64_t start, uint64_t end);
+    void preHTTP();
+    virtual void dataCallback(const char *ptr, size_t size);
 
   protected:
     virtual bool inlineRestartCapable() const{return true;}
@@ -20,6 +24,14 @@ namespace Mist{
     int64_t subtractTime;
 
   private:
+    // For PUT input
+    EBML::toDTSC parser;
+    Util::ResizeablePointer readBuffer;
+    size_t readPos;
+    bool seenTime;
+    int64_t timeOffset;
+    size_t getDataCallbackPos() const { return readPos + readBuffer.size(); }
+
     std::string doctype;
     void sendElemTrackEntry(size_t idx);
     size_t sizeElemTrackEntry(size_t idx);

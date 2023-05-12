@@ -8,10 +8,16 @@ namespace Mist{
     ~OutHTTPTS();
     static void init(Util::Config *cfg, JSON::Value & capa);
     void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    void preHTTP();
     void sendTS(const char *tsData, size_t len = 188);
     void initialSeek(bool dryRun = false);
 
+    virtual void dataCallback(const char *ptr, size_t size);
+
   private:
+    bool seenTime;
+    int64_t timeOffset;
+
     bool isRecording();
     bool isFileTarget(){
       HTTP::URL target(config->getString("target"));

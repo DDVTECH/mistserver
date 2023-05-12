@@ -1,9 +1,12 @@
 #include "output_ebml.h"
+
 #include <mist/ebml_socketglue.h>
 #include <mist/opus.h>
-#include <mist/riff.h>
-#include <sstream>
 #include <mist/procs.h>
+#include <mist/riff.h>
+#include <mist/triggers.h>
+
+#include <sstream>
 
 namespace Mist{
   OutEBML::OutEBML(Socket::Connection & conn, Util::Config & _cfg, JSON::Value & _capa)
@@ -18,6 +21,9 @@ namespace Mist{
     seekheadSize = 0;
     seekSize = 0;
     doctype = "matroska";
+    readPos = 0;
+    seenTime = false;
+    timeOffset = 0;
     if (config->getString("target").size()){
       if (config->getString("target").substr(0, 9) == "mkv-exec:"){
         std::deque<std::string> args;
@@ -252,6 +258,79 @@ namespace Mist{
     if (codec == "NV12"){return "V_UNCOMPRESSED";}
     if (codec == "UYVY"){return "V_UNCOMPRESSED";}
     return "E_UNKNOWN";
+  }
+
+  void OutEBML::dataCallback(const char *ptr, size_t size) {
+    if (!pushing) { return; }
+    readBuffer.append(ptr, size);
+
+    bool readingMinimal = true;
+    uint64_t needed = EBML::Element::needBytes(readBuffer, readBuffer.size(), readingMinimal);
+    while (readBuffer.size() >= needed) {
+      // Make sure TrackEntry types are read whole
+      if (readingMinimal && EBML::Element(readBuffer).getID() == EBML::EID_TRACKENTRY) {
+        readingMinimal = false;
+        needed = EBML::Element::needBytes(readBuffer, readBuffer.size(), readingMinimal);
+        continue;
+      }
+
+      EBML::Element E(readBuffer);
+      parser.parseElement(E, 0, meta);
+      while (parser.fillPacket(M, thisIdx, thisTime, thisPacket)) {
+        if (thisIdx == INVALID_TRACK_ID) { continue; }
+        if (!userSelect.count(thisIdx)) {
+          userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
+        }
+        if (!seenTime) {
+          if (!M.getBootMsOffset()) {
+            meta.setBootMsOffset(Util::bootMS() - thisTime);
+          } else {
+            timeOffset = (Util::bootMS() - thisTime) - M.getBootMsOffset();
+          }
+          seenTime = true;
+        }
+        bufferLivePacket(DTSC::RetimedPacket(thisTime + timeOffset, thisPacket));
+      }
+      readBuffer.shift(needed);
+
+      readingMinimal = true;
+      needed = EBML::Element::needBytes(readBuffer, readBuffer.size(), readingMinimal);
+    }
+    stats();
+  }
+
+  void OutEBML::preHTTP() {
+    if (H.method != "PUT" && H.method != "POST") {
+      HTTPOutput::preHTTP();
+      return;
+    }
+
+    char *rawStream = getenv("stream_raw");
+    if (rawStream) { streamName = rawStream; }
+    if (checkStreamKey()) {
+      if (!streamName.size()) {
+        onFail("Stream key rejected for push");
+        return;
+      }
+    } else {
+      if (Triggers::shouldTrigger("PUSH_REWRITE")) {
+        std::string payload = reqUrl + "\n" + getConnectedHost() + "\n" + streamName;
+        std::string newStream = streamName;
+        Triggers::doTrigger("PUSH_REWRITE", payload, "", false, newStream);
+        if (!newStream.size()) {
+          FAIL_MSG("Push from %s to URL %s rejected - PUSH_REWRITE trigger blanked the URL", getConnectedHost().c_str(),
+                   reqUrl.c_str());
+          onFail("Pushing not allowed");
+        } else {
+          streamName = newStream;
+        }
+      }
+      if (!allowPush(H.GetVar("password"))) {
+        onFail("Pushing not allowed");
+        return;
+      }
+    }
+    H.headerOnly = false;
   }
 
   void OutEBML::sendElemTrackEntry(size_t idx){

@@ -34,8 +34,12 @@ namespace Mist{
     if (config->getString("ip").size()){
       myConn.setHost(config->getString("ip"));
     }
-    if (config->getString("prequest").size()) { myConn.Received().append(config->getString("prequest")); }
+    if (config->getString("prequest").size()) {
+      myConn.Received().append(Encodings::Base64::decode(config->getString("prequest")));
+    }
     config->activate();
+    // Start only reading headers from requests
+    H.headerOnly = true;
   }
 
   void HTTPOutput::onCommandSend(const std::string & data){
@@ -316,8 +320,16 @@ namespace Mist{
     // Read new data, if any
     if (readable){myConn.spool();}
     //Attempt to read a HTTP request, regardless of data being available
-    while (H.Read(myConn)){
+    auto cb = [&](const char *ptr, size_t len) { dataCallback(ptr, len); };
+    while (H.Read(myConn, cb)) {
+      // If this is not a PUT or POST, we want the whole request.
+      if (H.method != "PUT" && H.method != "POST") {
+        // So, abort if we can't read the whole request here in that case.
+        H.headerOnly = false;
+        if (!H.Read(myConn, cb)) { break; }
+      }
       lastHTTPRequest = Util::bootSecs();
+
       //First, figure out which handler we need to use
       std::string handler = getHandler();
       if (handler != capa["name"].asStringRef() || streamName != safenv("stream")) {
@@ -493,7 +505,9 @@ namespace Mist{
         return;
       }
       responded = false;
+      bool wasHeaderOnly = H.headerOnly;
       preHTTP();
+      if (wasHeaderOnly && !H.headerOnly) { continue; }
       if (!myConn){return;}
       onHTTP();
       stats(true);
@@ -501,6 +515,7 @@ namespace Mist{
       // Prevent the clean as well as the loop when we're in the middle of handling a request now
       if (!wantRequest){return;}
       H.Clean();
+      H.headerOnly = true;
     }
   }
 
@@ -1070,7 +1085,12 @@ namespace Mist{
     args.push_back(streamName);
     if (H.url.size()) {
       args.push_back("--prequest");
-      args.push_back(H.BuildRequest());
+      H.body.assign(bodyData, bodyData.size());
+      while (myConn.Received().size()) {
+        H.body.append(myConn.Received().get());
+        myConn.Received().get().clear();
+      }
+      args.push_back(Encodings::Base64::encode(H.BuildRequest()));
     }
     // set the debug level if non-default
     if (Util::printDebugLevel != DEBUG){

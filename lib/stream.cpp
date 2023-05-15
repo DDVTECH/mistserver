@@ -1021,6 +1021,40 @@ std::set<size_t> Util::pickTracks(const DTSC::Meta &M, const std::set<size_t> tr
     return result;
   }
 
+  //Select first track
+  if (trackLow == "first"){
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
+      if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+        result.insert(*it);
+        return result;
+      }
+    }
+    return result;
+  }
+
+  //Select last track
+  if (trackLow == "last"){
+    for (std::set<size_t>::reverse_iterator it = trackList.rbegin(); it != trackList.rend(); it++){
+      if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+        result.insert(*it);
+        return result;
+      }
+    }
+    return result;
+  }
+
+  //Select source track
+  if (trackLow == "source"){
+    for (std::set<size_t>::iterator it = trackList.begin(); it != trackList.end(); it++){
+      if (!trackType.size() || M.getType(*it) == trackType || M.getCodec(*it) == trackType){
+        if (M.getSourceTrack(*it) == INVALID_TRACK_ID) {
+          result.insert(*it);
+        }
+      }
+    }
+    return result;
+  }
+
   //Select highest bit rate in trackList of given type
   if (trackLow == "highbps" || trackLow == "bestbps" || trackLow == "maxbps"){
     size_t currVal = INVALID_TRACK_ID;

@@ -7,7 +7,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
     void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     void sendNext();
-    void initialSeek();
+    void initialSeek(bool dryRun = false);
 
   private:
     virtual bool inlineRestartCapable() const{return true;}

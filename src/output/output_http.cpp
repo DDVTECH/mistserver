@@ -352,6 +352,7 @@ namespace Mist{
       if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
       if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
       if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
+      if (H.GetVar("duration") != ""){targetParams["duration"] = H.GetVar("duration");}
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (H.GetVar("buffer") != ""){

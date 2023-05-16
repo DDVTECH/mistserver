@@ -15,6 +15,7 @@ namespace Mist{
     uint64_t time;
     uint64_t byteOffset; // Stores relative bpos for fragmented MP4
     uint64_t index;
+    uint64_t firstIndex;
     size_t sampleSize;
     uint16_t sampleDuration;
     uint16_t sampleOffset;

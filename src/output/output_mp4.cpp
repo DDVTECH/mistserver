@@ -152,7 +152,7 @@ namespace Mist{
   uint64_t OutMP4::estimateFileSize() const{
     uint64_t retVal = 0;
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      DTSC::Keys keys(M.keys(it->first));
+      DTSC::Keys keys = M.getKeys(it->first);
       size_t endKey = keys.getEndValid();
       for (size_t i = 0; i < endKey; i++){
         retVal += keys.getSize(i); // Handle number as index, faster for VoD
@@ -178,9 +178,8 @@ namespace Mist{
          subIt != userSelect.end(); subIt++){
       tmpRes += 8 + 20; // TRAF + TFHD Box
 
-      DTSC::Keys keys(M.keys(subIt->first));
+      DTSC::Keys keys = M.getKeys(subIt->first);
       DTSC::Parts parts(M.parts(subIt->first));
-      DTSC::Fragments fragments(M.fragments(subIt->first));
 
       uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
       uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
@@ -233,8 +232,9 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       const std::string tType = M.getType(it->first);
       uint64_t tmpRes = 0;
+      DTSC::Keys keys = M.getKeys(it->first);
       DTSC::Parts parts(M.parts(it->first));
-      uint64_t partCount = parts.getValidCount();
+      uint64_t partCount = keys.getTotalPartCount();
 
       tmpRes += 8 + 92                                        // TRAK + TKHD Boxes
                 + 36                                          // EDTS Box
@@ -260,7 +260,6 @@ namespace Mist{
                   + 16                               // PASP
                   + 8 + M.getInit(it->first).size(); // avcC
         if (!fragmented){
-          DTSC::Keys keys(M.keys(it->first));
           tmpRes += 16 + (keys.getValidCount() * 4); // STSS
         }
       }
@@ -283,16 +282,17 @@ namespace Mist{
       if (!fragmented){
         // Unfortunately, for our STTS and CTTS boxes, we need to loop through all parts of the
         // track
+        size_t firstPart = keys.getFirstPart(keys.getFirstValid());
         uint64_t sttsCount = 1;
-        uint64_t prevDur = parts.getDuration(0);
-        uint64_t prevOffset = parts.getOffset(0);
+        uint64_t prevDur = parts.getDuration(firstPart);
+        uint64_t prevOffset = parts.getOffset(firstPart);
         uint64_t cttsCount = 1;
-        fileSize += parts.getSize(0);
+        fileSize += parts.getSize(firstPart);
         bool isMeta = (tType == "meta");
         for (unsigned int part = 1; part < partCount; ++part){
-          uint64_t partDur = parts.getDuration(part);
-          uint64_t partOffset = parts.getOffset(part);
-          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
+          uint64_t partDur = parts.getDuration(firstPart + part);
+          uint64_t partOffset = parts.getOffset(firstPart + part);
+          uint64_t partSize = parts.getSize(firstPart + part)+(isMeta?2:0);
           if (prevDur != partDur){
             prevDur = partDur;
             ++sttsCount;
@@ -397,7 +397,8 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       if (prevVidTrack != INVALID_TRACK_ID && it->first == prevVidTrack){continue;}
       DTSC::Parts parts(M.parts(it->first));
-      size_t partCount = parts.getValidCount();
+      DTSC::Keys keys = M.getKeys(it->first);
+      size_t partCount = keys.getTotalPartCount();
       uint64_t tDuration = M.getLastms(it->first) - M.getFirstms(it->first);
       std::string tType = M.getType(it->first);
 
@@ -522,26 +523,28 @@ namespace Mist{
         MP4::CTTS cttsBox;
         cttsBox.setVersion(0);
 
+        size_t firstPart = keys.getFirstPart(keys.getFirstValid());
+
         size_t totalEntries = 0;
         MP4::CTTSEntry tmpEntry;
         tmpEntry.sampleCount = 0;
-        tmpEntry.sampleOffset = parts.getOffset(0);
+        tmpEntry.sampleOffset = parts.getOffset(firstPart);
 
         size_t sttsCounter = 0;
         MP4::STTSEntry sttsEntry;
         sttsEntry.sampleCount = 0;
-        sttsEntry.sampleDelta = parts.getSize(0);;
+        sttsEntry.sampleDelta = parts.getSize(firstPart);
 
         //Calculate amount of entries for CTTS/STTS boxes so we can set the last entry first
         //Our MP4 box implementations dynamically reallocate to fit the data you put inside them,
         //Which means setting the last entry first prevents constant reallocs and slowness.
         for (size_t part = 0; part < partCount; ++part){
-          uint64_t partOffset = parts.getOffset(part);
+          uint64_t partOffset = parts.getOffset(firstPart + part);
           if (partOffset != tmpEntry.sampleOffset){
             ++totalEntries;
             tmpEntry.sampleOffset = partOffset;
           }
-          uint64_t partDur = parts.getDuration(part);
+          uint64_t partDur = parts.getDuration(firstPart + part);
           if (partDur != sttsEntry.sampleDelta){
             ++sttsCounter;
             sttsEntry.sampleDelta = partDur;
@@ -562,14 +565,14 @@ namespace Mist{
         //Reset the values we just used, first.
         totalEntries = 0;
         tmpEntry.sampleCount = 0;
-        tmpEntry.sampleOffset = parts.getOffset(0);
+        tmpEntry.sampleOffset = parts.getOffset(firstPart);
         sttsCounter = 0;
         sttsEntry.sampleCount = 0;
-        sttsEntry.sampleDelta = parts.getDuration(0);
+        sttsEntry.sampleDelta = parts.getDuration(firstPart);
         
         bool isMeta = (tType == "meta");
         for (size_t part = 0; part < partCount; ++part){
-          uint64_t partDur = parts.getDuration(part);
+          uint64_t partDur = parts.getDuration(firstPart + part);
           if (sttsEntry.sampleDelta != partDur){
             // If the duration of this and previous part differ, write current values and reset
             sttsBox.setSTTSEntry(sttsEntry, sttsCounter++);
@@ -578,12 +581,12 @@ namespace Mist{
           }
           sttsEntry.sampleCount++;
 
-          uint64_t partSize = parts.getSize(part)+(isMeta?2:0);
+          uint64_t partSize = parts.getSize(firstPart + part)+(isMeta?2:0);
           stszBox.setEntrySize(partSize, part);
           size += partSize;
           
           if (hasCTTS){
-            uint64_t partOffset = parts.getOffset(part);
+            uint64_t partOffset = parts.getOffset(firstPart + part);
             if (partOffset != tmpEntry.sampleOffset){
               // If the offset of this and previous part differ, write current values and reset
               cttsBox.setCTTSEntry(tmpEntry, totalEntries++);
@@ -610,11 +613,10 @@ namespace Mist{
       if (tType == "video" && !fragmented){
         MP4::STSS stssBox(0);
         size_t tmpCount = 0;
-        DTSC::Keys keys(M.keys(it->first));
-        uint32_t firstKey = keys.getFirstValid();
-        uint32_t endKey = keys.getEndValid();
+        size_t firstKey = keys.getFirstValid();
+        size_t endKey = keys.getEndValid();
         for (size_t i = firstKey; i < endKey; ++i){
-          stssBox.setSampleNumber(tmpCount + 1, i);
+          stssBox.setSampleNumber(tmpCount + 1, i-firstKey);
           tmpCount += keys.getParts(i);
         }
         stblBox.setContent(stssBox, stblOffset++);
@@ -714,8 +716,11 @@ namespace Mist{
         if (prevVidTrack != INVALID_TRACK_ID && subIt->first == prevVidTrack){continue;}
         keyPart temp;
         temp.trackID = subIt->first;
-        temp.time = M.getFirstms(subIt->first);
-        temp.index = 0;
+
+        DTSC::Keys keys = M.getKeys(subIt->first);
+        temp.time = keys.getTime(keys.getFirstValid());
+        temp.index = keys.getFirstPart(keys.getFirstValid());
+        temp.firstIndex = temp.index;
         sortSet.insert(temp);
       }
       while (!sortSet.empty()){
@@ -727,16 +732,15 @@ namespace Mist{
         DTSC::Parts & parts = *tL.parts;
         // setting the right STCO size in the STCO box
         if (useLargeBoxes){// Re-using the previously defined boolean for speedup
-          tL.co64Box.setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.co64Box.setChunkOffset(dataOffset + dataSize, temp.index - temp.firstIndex);
         }else{
-          tL.stcoBox.setChunkOffset(dataOffset + dataSize, temp.index);
+          tL.stcoBox.setChunkOffset(dataOffset + dataSize, temp.index - temp.firstIndex);
         }
         dataSize += parts.getSize(temp.index);
 
         if (M.getType(temp.trackID) == "meta"){dataSize += 2;}
-        // add next keyPart to sortSet
-        if (temp.index + 1 < parts.getEndValid()){// Only create new element, when there are new
-                                                    // elements to be added
+        // add next keyPart to sortSet, if we have not yet reached the end time
+        if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){
           temp.time += parts.getDuration(temp.index);
           ++temp.index;
           sortSet.insert(temp);
@@ -762,7 +766,6 @@ namespace Mist{
   /// Calculate a seekPoint, based on byteStart, metadata, tracks and headerSize.
   /// The seekPoint will be set to the timestamp of the first packet to send.
   void OutMP4::findSeekPoint(uint64_t byteStart, uint64_t &seekPoint, uint64_t headerSize){
-    seekPoint = 0;
     // if we're starting in the header, seekPoint is always zero.
     if (byteStart <= headerSize){return;}
     // okay, we're past the header. Substract the headersize from the starting postion.
@@ -792,7 +795,7 @@ namespace Mist{
       // otherwise, set currPos to where we are now and continue
       currPos += partSize;
 
-      if (temp.index + 1 < parts.getEndValid()){// only insert when there are parts left
+      if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){// only insert when there are parts left
         temp.time += parts.getDuration(temp.index);
         ++temp.index;
         sortSet.insert(temp);
@@ -924,9 +927,8 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
-      DTSC::Keys keys(M.keys(subIt->first));
+      DTSC::Keys keys = M.getKeys(subIt->first);
       DTSC::Parts parts(M.parts(subIt->first));
-      DTSC::Fragments fragments(M.fragments(subIt->first));
 
       uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
       uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
@@ -1063,6 +1065,7 @@ namespace Mist{
   void OutMP4::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //Set global defaults, first
     HTTPOutput::respondHTTP(req, headersOnly);
+    initialSeek();
 
     H.SetHeader("Content-Type", "video/MP4");
     if (!M.getLive()){H.SetHeader("Accept-Ranges", "bytes, parsec");}
@@ -1077,50 +1080,13 @@ namespace Mist{
       return;
     }
 
-    DTSC::Fragments fragments(M.fragments(mainTrack));
-
-    if (req.GetVar("startfrag") != ""){
-      realTime = 0;
-      size_t startFrag = JSON::Value(req.GetVar("startfrag")).asInt();
-      if (startFrag >= fragments.getFirstValid() && startFrag < fragments.getEndValid()){
-        startTime = M.getTimeForFragmentIndex(mainTrack, startFrag);
-
-        // Set endTime to one fragment further, can receive override from next parameter check
-        if (startFrag + 1 < fragments.getEndValid()){
-          endTime = M.getTimeForFragmentIndex(mainTrack, startFrag + 1);
-        }else{
-          endTime = M.getLastms(mainTrack);
-        }
-
-      }else{
-        startTime = M.getLastms(mainTrack);
-      }
-    }
-
-    if (req.GetVar("endfrag") != ""){
-      size_t endFrag = JSON::Value(req.GetVar("endfrag")).asInt();
-      if (endFrag < fragments.getEndValid()){
-        endTime = M.getTimeForFragmentIndex(mainTrack, endFrag);
-      }else{
-        endTime = M.getLastms(mainTrack);
-      }
-    }
-
-    if (req.GetVar("starttime") != ""){
-      startTime = std::max((uint64_t)JSON::Value(req.GetVar("starttime")).asInt(), M.getFirstms(mainTrack));
-    }
-
-    if (req.GetVar("endtime") != ""){
-      endTime = std::min((uint64_t)JSON::Value(req.GetVar("endtime")).asInt(), M.getLastms(mainTrack));
-    }
-
     // Check if the url contains .3gp --> if yes, we will send a 3gp header
-    sending3GP = (H.url.find(".3gp") != std::string::npos);
+    sending3GP = (req.url.find(".3gp") != std::string::npos);
 
     fileSize = 0;
     headerSize = mp4HeaderSize(fileSize, M.getLive());
 
-    seekPoint = 0;
+    seekPoint = Output::startTime();
     // for live we use fragmented mode
     if (M.getLive()){fragSeqNum = 0;}
 
@@ -1129,8 +1095,9 @@ namespace Mist{
          subIt != userSelect.end(); subIt++){
       keyPart temp;
       temp.trackID = subIt->first;
-      temp.time = M.getFirstms(subIt->first);
-      temp.index = 0;
+      DTSC::Keys keys = M.getKeys(subIt->first);
+      temp.time = keys.getTime(keys.getFirstValid());
+      temp.index = keys.getFirstPart(keys.getFirstValid());
       sortSet.insert(temp);
     }
 
@@ -1314,7 +1281,7 @@ namespace Mist{
       keyPart temp = *sortSet.begin();
       sortSet.erase(sortSet.begin());
       currPos += parts.getSize(temp.index);
-      if (temp.index + 1 < parts.getEndValid()){// only insert when there are parts left
+      if (temp.time + parts.getDuration(temp.index) < M.getLastms(temp.trackID)){// only insert when there are parts left
         temp.time += parts.getDuration(temp.index);
         ++temp.index;
         sortSet.insert(temp);

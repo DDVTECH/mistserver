@@ -10,7 +10,7 @@ namespace Mist{
 
   private:
     void generate();
-    void initialSeek();
+    void initialSeek(bool dryRun = false);
     void NoFFMPEG();
     std::string cachedir;
     uint64_t cachetime;

@@ -30,6 +30,14 @@ namespace Mist{
     }
     std::string tknStr;
     if (tkn.size() && Comms::tknMode & 0x04){tknStr = "?tkn=" + tkn;}
+    if (targetParams.count("start")){
+      if (tknStr.size()){ tknStr += "&"; }else{ tknStr = "?"; }
+      tknStr += "start="+targetParams["start"];
+    }
+    if (targetParams.count("stop")){
+      if (tknStr.size()){ tknStr += "&"; }else{ tknStr = "?"; }
+      tknStr += "stop="+targetParams["stop"];
+    }
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); ++it){
       if (M.getType(it->first) == "video"){
         ++vidTracks;
@@ -102,6 +110,9 @@ namespace Mist{
       size_t keyNumber = fragments.getFirstKey(i);
       uint64_t startTime = keys.getTime(keyNumber);
       if (!duration){duration = M.getLastms(timingTid) - startTime;}
+      if (startTime + duration < M.getFirstms(timingTid)){continue;}
+      if (startTime >= M.getLastms(timingTid)){continue;}
+      if (startTime + duration > M.getLastms(timingTid)){duration = M.getLastms(timingTid) - startTime;}
       double floatDur = (double)duration / 1000;
       char lineBuf[400];
 
@@ -373,6 +384,7 @@ namespace Mist{
       ts_from = from;
     }else{
       initialize();
+      initialSeek(true);
       std::string request = H.url.substr(H.url.find("/", 5) + 1);
       H.setCORSHeaders();
       H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");

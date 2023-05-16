@@ -9,7 +9,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
     void onHTTP();
     void sendTS(const char *tsData, size_t len = 188);
-    void initialSeek();
+    void initialSeek(bool dryRun = false);
 
   private:
     bool isRecording();

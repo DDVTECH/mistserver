@@ -26,13 +26,14 @@ namespace Mist{
     cfg->addOption("target", opt);
   }
 
-  void OutAAC::initialSeek(){
+  void OutAAC::initialSeek(bool dryRun){
     if (!meta){return;}
     maxSkipAhead = 30000;
     if (targetParams.count("buffer")){
       maxSkipAhead = atof(targetParams["buffer"].c_str())*1000;
     }
-    Output::initialSeek();
+    Output::initialSeek(dryRun);
+    if (dryRun){return;}
     uint64_t cTime = currentTime();
     if (M.getLive() && cTime > maxSkipAhead){
       seek(cTime-maxSkipAhead);

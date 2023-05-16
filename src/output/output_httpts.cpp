@@ -52,10 +52,10 @@ namespace Mist{
 
   OutHTTPTS::~OutHTTPTS(){}
 
-  void OutHTTPTS::initialSeek(){
+  void OutHTTPTS::initialSeek(bool dryRun){
     // Adds passthrough support to the regular initialSeek function
     if (targetParams.count("passthrough")){selectAllTracks();}
-    Output::initialSeek();
+    Output::initialSeek(dryRun);
   }
 
   void OutHTTPTS::init(Util::Config *cfg){

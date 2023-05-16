@@ -64,9 +64,11 @@ namespace Mist{
             for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin();
                  it != userSelect.end(); it++){
               if (M.getType(it->first) == "video" && tag.DTSCVideoInit(meta, it->first)){
+                tag.tagTime(thisTime);
                 myConn.SendNow(tag.data, tag.len);
               }
               if (M.getType(it->first) == "audio" && tag.DTSCAudioInit(meta.getCodec(it->first), meta.getRate(it->first), meta.getSize(it->first), meta.getChannels(it->first), meta.getInit(it->first))){
+                tag.tagTime(thisTime);
                 myConn.SendNow(tag.data, tag.len);
               }
             }
@@ -114,12 +116,15 @@ namespace Mist{
       selectedTracks.insert(it->first);
     }
     tag.DTSCMetaInit(M, selectedTracks);
+    tag.tagTime(startTime());
     myConn.SendNow(tag.data, tag.len);
     for (std::set<size_t>::iterator it = selectedTracks.begin(); it != selectedTracks.end(); it++){
       if (M.getType(*it) == "video" && tag.DTSCVideoInit(meta, *it)){
+        tag.tagTime(startTime());
         myConn.SendNow(tag.data, tag.len);
       }
       if (M.getType(*it) == "audio" && tag.DTSCAudioInit(meta.getCodec(*it), meta.getRate(*it), meta.getSize(*it), meta.getChannels(*it), meta.getInit(*it))){
+        tag.tagTime(startTime());
         myConn.SendNow(tag.data, tag.len);
       }
     }

@@ -191,8 +191,27 @@ namespace DTSC{
     void setSize(size_t idx, size_t _size);
     size_t getSize(size_t idx) const;
 
+    uint64_t getTotalPartCount();
+    uint32_t getIndexForTime(uint64_t timestamp);
+
+    void applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p);
+
   private:
     bool isConst;
+    bool isLimited;
+    size_t limMin;
+    size_t limMax;
+    //Overrides for max key
+    size_t limMaxParts;
+    uint64_t limMaxDuration;
+    size_t limMaxSize;
+    //Overrides for min key
+    size_t limMinParts;
+    size_t limMinFirstPart;
+    uint64_t limMinDuration;
+    uint64_t limMinTime;
+    size_t limMinSize;
+
     Util::RelAccX empty;
 
     Util::RelAccX &keys;
@@ -477,6 +496,8 @@ namespace DTSC{
     Util::RelAccX &pages(size_t idx);
     const Util::RelAccX &pages(size_t idx) const;
 
+    const Keys getKeys(size_t trackIdx) const;
+
     std::string toPrettyString() const;
 
     void remap(const std::string &_streamName = "");
@@ -495,6 +516,9 @@ namespace DTSC{
 
     void getHealthJSON(JSON::Value & returnReference) const;
 
+    void removeLimiter();
+    void applyLimiter(uint64_t min, uint64_t max);
+
   protected:
     void sBufMem(size_t trackCount = DEFAULT_TRACK_COUNT);
     void sBufShm(const std::string &_streamName, size_t trackCount = DEFAULT_TRACK_COUNT, bool master = true, bool autoBackOff = true);
@@ -509,6 +533,9 @@ namespace DTSC{
     std::map<size_t, IPC::sharedPage> tM;
 
     bool isMaster;
+    uint64_t limitMin;
+    uint64_t limitMax;
+    bool isLimited;
 
     char *streamMemBuf;
     bool isMemBuf;

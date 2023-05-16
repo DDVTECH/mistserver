@@ -216,10 +216,10 @@ namespace Mist{
     config->addOption("datatrack", opt);
   }
 
-  void OutTS::initialSeek(){
+  void OutTS::initialSeek(bool dryRun){
     // Adds passthrough support to the regular initialSeek function
     if (targetParams.count("passthrough")){selectAllTracks();}
-    Output::initialSeek();
+    Output::initialSeek(dryRun);
   }
 
   void OutTS::sendTS(const char *tsData, size_t len){

@@ -917,8 +917,9 @@ namespace Mist{
   /// For live, it seeks to the last sync'ed keyframe of the main track, no closer than
   /// needsLookAhead+minKeepAway ms from the end. Unless lastms < 5000, then it seeks to the first
   /// keyframe of the main track. Aborts if there is no main track or it has no keyframes.
-  void Output::initialSeek(){
+  void Output::initialSeek(bool dryRun){
     if (!meta){return;}
+    meta.removeLimiter();
     uint64_t seekPos = 0;
     if (meta.getLive() && buffer.getSyncMode()){
       size_t mainTrack = getMainSelectedTrack();
@@ -967,28 +968,59 @@ namespace Mist{
         MEDIUM_MSG("Stream currently contains data from %" PRIu64 " ms to %" PRIu64 " ms", startTime(), endTime());
       }
       // Overwrite recstart/recstop with recstartunix/recstopunix if set
-      if (M.getLive() &&
-          (targetParams.count("recstartunix") || targetParams.count("recstopunix"))){
-        uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
-        if (targetParams.count("recstartunix")){
-          uint64_t startUnix = atoll(targetParams["recstartunix"].c_str());
-          if (startUnix < unixStreamBegin){
-            WARN_MSG("Recording start time is earlier than stream begin - starting earliest possible");
-            targetParams["recstart"] = "-1";
+      if (M.getLive() && (
+          targetParams.count("recstartunix") || targetParams.count("recstopunix") ||
+          targetParams.count("startunix") || targetParams.count("stopunix") ||
+          targetParams.count("unixstart") || targetParams.count("unixstop")
+      )){
+        uint64_t zUTC = M.getUTCOffset();
+        if (!zUTC){
+          if (!M.getLive()){
+            WARN_MSG("Attempting to set unix-based start/stop time for a VoD asset without known UTC timestamp! This will likely not work as you expect, since we have nothing to base the timestamps on");
           }else{
-            targetParams["recstart"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
+            zUTC = M.getBootMsOffset() + Util::getGlobalConfig("systemBoot").asInt();
           }
+        }
+        if (targetParams.count("recstartunix")){
+          int64_t startUnix = atoll(targetParams["recstartunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (startUnix <= 36000000){startUnix += Util::unixMS();}
+          targetParams["recstart"] = JSON::Value(startUnix - zUTC).asString();
         }
         if (targetParams.count("recstopunix")){
-          uint64_t stopUnix = atoll(targetParams["recstopunix"].c_str());
-          if (stopUnix < unixStreamBegin){
-            onFail("Recording stop time is earlier than stream begin - aborting", true);
-            return;
-          }else{
-            targetParams["recstop"] = JSON::Value((stopUnix - unixStreamBegin) * 1000).asString();
-          }
+          int64_t stopUnix = atoll(targetParams["recstopunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (stopUnix <= 36000000){stopUnix += Util::unixMS();}
+          targetParams["recstop"] = JSON::Value(stopUnix - zUTC).asString();
+        }
+        if (targetParams.count("unixstart")){
+          int64_t startUnix = atoll(targetParams["unixstart"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (startUnix <= 36000000){startUnix += Util::unixMS();}
+          targetParams["recstart"] = JSON::Value(startUnix - zUTC).asString();
+        }
+        if (targetParams.count("unixstop")){
+          int64_t stopUnix = atoll(targetParams["unixstop"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (stopUnix <= 36000000){stopUnix += Util::unixMS();}
+          targetParams["recstop"] = JSON::Value(stopUnix - zUTC).asString();
+        }
+        if (targetParams.count("startunix")){
+          int64_t startUnix = atoll(targetParams["startunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (startUnix <= 36000000){startUnix += Util::unixMS();}
+          targetParams["recstart"] = JSON::Value(startUnix - zUTC).asString();
+        }
+        if (targetParams.count("stopunix")){
+          int64_t stopUnix = atoll(targetParams["stopunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (stopUnix <= 36000000){stopUnix += Util::unixMS();}
+          targetParams["recstop"] = JSON::Value(stopUnix - zUTC).asString();
         }
       }
+      //Autoconvert start/stop to recstart/recstop to improve usability
+      if (targetParams.count("start") && !targetParams.count("recstart")){targetParams["recstart"] = targetParams["start"];}
+      if (targetParams.count("stop") && !targetParams.count("recstop")){targetParams["recstop"] = targetParams["stop"];}
       // Check recstart/recstop for correctness
       if (targetParams.count("recstop")){
         uint64_t endRec = atoll(targetParams["recstop"].c_str());
@@ -1012,7 +1044,15 @@ namespace Mist{
                    " ms instead", atoll(targetParams["recstart"].c_str()), startRec);
           targetParams["recstart"] = JSON::Value(startRec).asString();
         }
-        seekPos = startRec;
+        size_t mainTrack = getMainSelectedTrack();
+        if (M.getType(mainTrack) == "video"){
+          seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, startRec));
+          if (seekPos != startRec){
+            INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", startRec, seekPos);
+          }
+        }else{
+          seekPos = startRec;
+        }
       }
       
       if (targetParams.count("split")){
@@ -1020,10 +1060,15 @@ namespace Mist{
         INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
         targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
       }
-      // Duration to record in seconds. Oversides recstop.
+      // Duration to record in seconds. Overrides recstop.
       if (targetParams.count("duration")){
-        long long endRec = atoll(targetParams["duration"].c_str()) * 1000;
-        targetParams["recstop"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
+        int64_t endRec;
+        if (targetParams.count("recstart")){
+          endRec = atoll(targetParams["recstart"].c_str()) + atoll(targetParams["duration"].c_str()) * 1000;
+        }else{
+          endRec = seekPos + atoll(targetParams["duration"].c_str()) * 1000;
+        }
+        targetParams["recstop"] = JSON::Value(endRec).asString();
         // Recheck recording end time
         endRec = atoll(targetParams["recstop"].c_str());
         if (endRec < 0 || endRec < startTime()){
@@ -1034,8 +1079,7 @@ namespace Mist{
       // Print calculated start and stop time
       if (targetParams.count("recstart")){
         INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
-      }
-      else{
+      } else{
         INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime()); 
       }
       if (targetParams.count("recstop")){
@@ -1055,6 +1099,14 @@ namespace Mist{
             lastUpdated = Util::getMS();
           }
         }
+      }
+      // If we have a stop position and it's within available range,
+      // apply a limiter to the stream to make it appear like a VoD asset
+      if (targetParams.count("recstop") || !M.getLive()){
+        size_t mainTrack = getMainSelectedTrack();
+        uint64_t stopPos = M.getLastms(mainTrack);
+        if (targetParams.count("recstop")){stopPos = atoll(targetParams["recstop"].c_str());}
+        if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){meta.applyLimiter(seekPos, stopPos);}
       }
     }else{
       if (M.getLive() && targetParams.count("pushdelay")){
@@ -1082,50 +1134,27 @@ namespace Mist{
         targetParams["realtime"] = "1"; //force real-time speed
         maxSkipAhead = 1;
       }
-      if (M.getLive() && (targetParams.count("startunix") || targetParams.count("stopunix"))){
-        uint64_t unixStreamBegin = Util::epoch() - endTime()/1000;
-        size_t mainTrack = getMainSelectedTrack();
-        int64_t streamAvail = M.getNowms(mainTrack);
-        if (targetParams.count("startunix")){
-          int64_t startUnix = atoll(targetParams["startunix"].c_str());
-          if (startUnix < 0){
-            int64_t origStartUnix = startUnix;
-            startUnix += Util::epoch();
-            if (startUnix < unixStreamBegin){
-              INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
-              while (startUnix < Util::epoch() - (endTime() / 1000) && keepGoing()){
-                Util::wait(1000);
-                stats();
-                startUnix = origStartUnix + Util::epoch();
-                HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
-              }
-            }
-          }
-          if (startUnix < unixStreamBegin){
-            WARN_MSG("Start time (%" PRId64 ") is earlier than stream begin (%" PRId64 ") - starting earliest possible", startUnix, unixStreamBegin);
-            targetParams["start"] = "-1";
+      if (targetParams.count("startunix") || targetParams.count("stopunix")){
+        uint64_t zUTC = M.getUTCOffset();
+        if (!zUTC){
+          if (!M.getLive()){
+            WARN_MSG("Attempting to set unix-based start/stop time for a VoD asset without known UTC timestamp! This will likely not work as you expect, since we have nothing to base the timestamps on");
           }else{
-            targetParams["start"] = JSON::Value((startUnix - unixStreamBegin) * 1000).asString();
+            zUTC = M.getBootMsOffset() + Util::getGlobalConfig("systemBoot").asInt();
           }
+        }
+        if (targetParams.count("startunix")){
+          int64_t startUnix = atoll(targetParams["startunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (startUnix <= 36000000){startUnix += Util::unixMS();}
+          targetParams["start"] = JSON::Value(startUnix - zUTC).asString();
         }
         if (targetParams.count("stopunix")){
-          int64_t stopUnix = atoll(targetParams["stopunix"].c_str());
-          if (stopUnix < 0){stopUnix += Util::epoch();}
-          if (stopUnix < unixStreamBegin){
-            onFail("Stop time is earlier than stream begin - aborting", true);
-            return;
-          }else{
-            targetParams["stop"] = JSON::Value((stopUnix - unixStreamBegin) * 1000).asString();
-          }
+          int64_t stopUnix = atoll(targetParams["stopunix"].c_str()) * 1000;
+          // If the time is before the first 10 hours of unix epoch, assume relative time
+          if (stopUnix <= 36000000){stopUnix += Util::unixMS();}
+          targetParams["stop"] = JSON::Value(stopUnix - zUTC).asString();
         }
-      }
-      if (targetParams.count("stop")){
-        int64_t endRec = atoll(targetParams["stop"].c_str());
-        if (endRec < 0 || endRec < startTime()){
-          onFail("Entire range is in the past", true);
-          return;
-        }
-        INFO_MSG("Playback will stop at %" PRIu64, endRec);
       }
       if (targetParams.count("start") && atoll(targetParams["start"].c_str()) != 0){
         size_t mainTrack = getMainSelectedTrack();
@@ -1137,11 +1166,11 @@ namespace Mist{
           }
           int64_t streamAvail = M.getNowms(mainTrack);
           int64_t lastUpdated = Util::getMS();
-          INFO_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
+          INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
           while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
             Util::sleep(500);
             if (M.getNowms(mainTrack) > streamAvail){
-              HIGH_MSG("Waiting for stream to reach playback starting point. Current last ms is '%" PRIu64 "'", streamAvail);
+              HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
               stats();
               streamAvail = M.getNowms(mainTrack);
               lastUpdated = Util::getMS();
@@ -1154,10 +1183,54 @@ namespace Mist{
                    startRec, startTime());
           startRec = startTime();
         }
-        INFO_MSG("Playback will start at %" PRIu64, startRec);
-        seekPos = startRec;
+        if (M.getType(mainTrack) == "video"){
+          seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, startRec));
+          if (seekPos != startRec){
+            INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", startRec, seekPos);
+          }
+        }else{
+          seekPos = startRec;
+        }
+        INFO_MSG("Playback will start at %" PRIu64, seekPos);
+      }
+      // Duration to record in seconds. Overrides stop.
+      if (targetParams.count("duration")){
+        int64_t endRec;
+        if (targetParams.count("start")){
+          endRec = atoll(targetParams["start"].c_str()) + atoll(targetParams["duration"].c_str()) * 1000;
+        }else{
+          endRec = seekPos + atoll(targetParams["duration"].c_str()) * 1000;
+        }
+        targetParams["stop"] = JSON::Value(endRec).asString();
+      }
+      if (targetParams.count("stop")){
+        int64_t endRec = atoll(targetParams["stop"].c_str());
+        if (endRec < 0 || endRec < startTime()){
+          onFail("Entire range is in the past", true);
+          return;
+        }
+        INFO_MSG("Playback will stop at %" PRIu64, endRec);
+      }
+      // If we have a stop position and it's within available range,
+      // apply a limiter to the stream to make it appear like a VoD asset
+      if (targetParams.count("stop") || !M.getLive()){
+        size_t mainTrack = getMainSelectedTrack();
+        uint64_t stopPos = M.getLastms(mainTrack);
+        if (targetParams.count("stop")){stopPos = atoll(targetParams["stop"].c_str());}
+        if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){
+          meta.applyLimiter(seekPos, stopPos);
+        }else{
+          // End point past end of track? Don't limit the end point.
+          meta.applyLimiter(seekPos, 0xFFFFFFFFFFFFFFFFull);
+        }
+      }else{
+        // No stop point, only apply limiter if a start point is set, and never limit the end point.
+        if (targetParams.count("start")){
+          meta.applyLimiter(seekPos, 0xFFFFFFFFFFFFFFFFull);
+        }
       }
     }
+    if (dryRun){return;}
     /*LTS-END*/
     if (!keepGoing()){
       ERROR_MSG("Aborting seek to %" PRIu64 " since the stream is no longer active", seekPos);
@@ -1581,11 +1654,11 @@ namespace Mist{
             break;
           }
         }
+        if (!sought){initialSeek();}
         if (!sentHeader && keepGoing()){
           DONTEVEN_MSG("sendHeader");
           sendHeader();
         }
-        if (!sought){initialSeek();}
         if (prepareNext()){
           if (thisPacket){
             lastPacketTime = thisTime;

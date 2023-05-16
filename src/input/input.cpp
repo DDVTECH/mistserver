@@ -1656,7 +1656,7 @@ namespace Mist{
     }
     bufferFinalize(idx, page);
     bufferTimer = Util::bootMS() - bufferTimer;
-    if (packCounter != tPages.getInt("parts", pageIdx)){
+    if (packCounter < tPages.getInt("parts", pageIdx)){
       FAIL_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") NOT FULLY buffered in %" PRIu64 "ms - erasing for later retry",
                idx, pageNumber, PRETTY_ARG_MSTIME(tPages.getInt("firsttime", pageIdx)), PRETTY_ARG_MSTIME(thisTime), bufferTimer);
       INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,

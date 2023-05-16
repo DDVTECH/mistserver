@@ -60,7 +60,7 @@ namespace Mist{
   /// Pretends the stream is always ready to play - we don't care about waiting times or whatever
   bool OutJPG::isReadyForPlay(){return true;}
 
-  void OutJPG::initialSeek(){
+  void OutJPG::initialSeek(bool dryRun){
     size_t mainTrack = getMainSelectedTrack();
     if (mainTrack == INVALID_TRACK_ID){return;}
     INFO_MSG("Doing initial seek");

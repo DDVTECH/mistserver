@@ -635,6 +635,12 @@ namespace Mist{
         HIGH_MSG("Input for stream %s shut down cleanly", streamName.c_str());
         break;
       }
+      if (WIFSIGNALED(status)) {
+        WARN_MSG("Input for stream %s shut down by signal %d", streamName.c_str(), WTERMSIG(status));
+      }
+      if (WIFSTOPPED(status)) {
+        WARN_MSG("Input for stream %s stopped by signal %d", streamName.c_str(), WSTOPSIG(status));
+      }
       if (playerLock){
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());

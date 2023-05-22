@@ -18,7 +18,10 @@ bool AnalyserMP4::parsePacket(){
     for (uint64_t i = mp4Buffer.size(); i < needed; ++i){
       mp4Buffer += std::cin.get();
       ++curPos;
-      if (!std::cin.good()){mp4Buffer.erase(mp4Buffer.size() - 1, 1);}
+      if (!std::cin.good()){
+        mp4Buffer.erase(mp4Buffer.size() - 1, 1);
+        break;
+      }
     }
   }
 

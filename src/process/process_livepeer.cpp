@@ -886,6 +886,7 @@ int main(int argc, char *argv[]){
     }
     INFO_MSG("Profile parsed: %s", prof->toString().c_str());
   }
+  Mist::opt["target_profiles"] = pl["profiles"];
  
   //Connect to livepeer API
   HTTP::Downloader dl;

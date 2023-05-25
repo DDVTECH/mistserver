@@ -994,6 +994,8 @@ namespace Mist{
 
   /// Default implementation of preHTTP simply calls selectDefaultTracks.
   void HTTPOutput::preHTTP(){
+    targetParams.clear();
+    meta.removeLimiter();
     selectDefaultTracks();
   }
 

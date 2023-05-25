@@ -813,6 +813,7 @@ void HTTP::Parser::Chunkify(const char *data, unsigned int size, Socket::Connect
       body.append(data, size);
     }else{
       SetHeader("Content-Length", body.length());
+      SetHeader("Connection", "keep-alive");
       SendResponse("200", "OK", conn);
       Clean();
     }

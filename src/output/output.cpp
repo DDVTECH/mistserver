@@ -515,6 +515,9 @@ namespace Mist{
     std::map<size_t, uint64_t> seekTargets;
     buffer.getTrackList(seekTargets);
 
+    // Also insert the selected tracks without current seek point, for e.g. HLS playlists
+    for (const auto & it : userSelect) { oldSelects.insert(it.first); }
+
     //No changes? Abort and return false;
     if (oldSelects == newSelects){return false;}
 

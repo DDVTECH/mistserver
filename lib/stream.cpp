@@ -1794,7 +1794,7 @@ std::set<size_t> Util::wouldSelect(const DTSC::Meta &M, const std::map<std::stri
               }
               if (problems){break;}
               found = true;
-              INFO_MSG("Selected manually: %s", M.getTrackIdentifier(*itd, true).c_str());
+              VERYHIGH_MSG("Selected manually: %s", M.getTrackIdentifier(*itd, true).c_str());
               break;
             }
           }

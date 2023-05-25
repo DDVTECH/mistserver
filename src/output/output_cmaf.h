@@ -33,7 +33,8 @@ namespace Mist{
     OutCMAF(Socket::Connection & conn, Util::Config & cfg, JSON::Value & capa);
     ~OutCMAF();
     static void init(Util::Config *cfg, JSON::Value & capa);
-    void onHTTP();
+    virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
+    virtual bool onFinish();
     void sendNext();
     void sendHeader(){};
     bool isReadyForPlay();
@@ -41,7 +42,6 @@ namespace Mist{
   protected:
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
     void onTrackEnd(size_t idx);
-    bool hasSessionIDs(){return !config->getBool("mergesessions");}
 
     void sendDashManifest();
     void dashAdaptationSet(size_t id, size_t idx, std::stringstream &r);
@@ -51,17 +51,11 @@ namespace Mist{
     std::string dashTime(uint64_t time);
     std::string dashManifest(bool checkAlignment = true);
 
-    void sendHlsManifest(const std::string url);
-    void sendHlsMasterManifest();
-    void sendHlsMediaManifest(const size_t requestTid);
-
     void sendSmoothManifest();
     std::string smoothManifest(bool checkAlignment = true);
     void smoothAdaptation(const std::string &type, std::set<size_t> tracks, std::stringstream &r);
 
-    void generateSegmentlist(size_t idx, std::stringstream &s,
-                             void callBack(uint64_t, uint64_t, std::stringstream &, bool));
-    bool tracksAligned(const std::set<size_t> &trackList);
+    void generateSegmentlist(size_t idx, std::stringstream & s, void callBack(uint64_t, uint64_t, std::stringstream &, bool));
     std::string buildNalUnit(size_t len, const char *data);
     uint64_t targetTime;
 

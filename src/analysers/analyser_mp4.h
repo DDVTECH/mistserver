@@ -8,7 +8,13 @@ public:
   bool parsePacket();
 
 private:
+  Util::ResizeablePointer moof;
+  Util::ResizeablePointer moov;
+  uint64_t moovPos;
+  uint64_t moofPos;
+  uint64_t mdatPos;
   uint64_t neededBytes();
+  void analyseData(MP4::Box & mdatBox);
   std::string mp4Buffer;
   MP4::Box mp4Data;
   uint64_t curPos;

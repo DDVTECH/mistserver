@@ -181,6 +181,9 @@ namespace Mist{
     uint64_t getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC = 0);
     uint64_t getPacketID(uint64_t currentPlaylist, uint64_t trackId);
     size_t getEntryId(uint32_t playlistId, uint64_t bytePos);
+    virtual void finish();
+    void injectLocalVars();
+    virtual void checkHeaderTimes(const HTTP::URL & streamFile);
   };
 }// namespace Mist
 

@@ -23,7 +23,7 @@ namespace Mist{
     void bufferFinalize(size_t idx, IPC::sharedPage & page);
     void liveFinalize(size_t idx);
     bool isCurrentLivePage(size_t idx, uint32_t pageNumber);
-    void bufferRemove(size_t idx, uint32_t pageNumber);
+    void bufferRemove(size_t idx, uint32_t pageNumber, uint32_t pageIdx = INVALID_KEY_NUM);
     void bufferLivePacket(const DTSC::Packet &packet);
 
     void bufferNext(uint64_t packTime, int64_t packOffset, uint32_t packTrack, const char *packData,

@@ -35,8 +35,15 @@ static uint64_t ISO8601toUnixmillis(const std::string &ts){
   }
   const size_t Z = ts.find_first_of("Z+-", T);
   const std::string date = ts.substr(0, T);
-  const std::string time = ts.substr(T + 1, Z - T - 1);
-  const std::string zone = ts.substr(Z);
+  std::string time;
+  std::string zone;
+  if (Z == std::string::npos){
+    WARN_MSG("HLS segment timestamp is missing timezone information! Assumed to be UTC.");
+    time = ts.substr(T + 1);
+  }else{
+    time = ts.substr(T + 1, Z - T - 1);
+    zone = ts.substr(Z);
+  }
   unsigned long year, month, day;
   if (sscanf(date.c_str(), "%lu-%lu-%lu", &year, &month, &day) != 3){
     ERROR_MSG("Could not parse date: %s", date.c_str());
@@ -516,6 +523,7 @@ namespace Mist{
 
     DONTEVEN_MSG("Reloading playlist '%s'", uri.c_str());
     while (std::getline(input, line)){
+      if (input.eof()){break;} // Skip last line, might be incomplete
       DONTEVEN_MSG("Parsing line '%s'", line.c_str());
       cleanLine(line);
       if (line.empty()){continue;}// skip empty lines
@@ -653,6 +661,9 @@ namespace Mist{
     cleanLine(entry.filename);
     entry.bytePos = totalBytes;
     entry.duration = duration;
+    if (entry.duration * 1000 > DTSC::veryUglyJitterOverride){
+      DTSC::veryUglyJitterOverride = entry.duration * 1000;
+    }
     entry.mUTC = nextUTC;
 
     if (key.size() && iv.size()){
@@ -663,12 +674,12 @@ namespace Mist{
       memset(entry.keyAES, 0, 16);
     }
 
-      if (!isUrl()){
-        std::ifstream fileSource;
-        std::string test = root.link(entry.filename).getFilePath();
-        fileSource.open(test.c_str(), std::ios::ate | std::ios::binary);
-        if (!fileSource.good()){WARN_MSG("file: %s, error: %s", test.c_str(), strerror(errno));}
-        totalBytes += fileSource.tellg();
+    if (!isUrl()){
+      std::ifstream fileSource;
+      std::string test = root.link(entry.filename).getFilePath();
+      fileSource.open(test.c_str(), std::ios::ate | std::ios::binary);
+      if (!fileSource.good()){WARN_MSG("file: %s, error: %s", test.c_str(), strerror(errno));}
+      totalBytes += fileSource.tellg();
     }
 
     entry.timestamp = lastTimestamp + startTime;
@@ -747,8 +758,15 @@ namespace Mist{
 
     // If the playlist is of event type, init the amount of segments in the playlist
     if (isLiveDVR){
+
       // Set the previousSegmentIndex by quickly going through the existing PLS files
-      setParsedSegments();
+      for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
+          pListIt != listEntries.end();
+          pListIt++){
+        parsedSegments[pListIt->first] = 0;
+        INFO_MSG("Playlist %" PRIu32 " contains %zu segments", pListIt->first, pListIt->second.size());
+      }
+
       meta.setLive(true);
       meta.setVod(true);
       streamIsLive = true;
@@ -758,69 +776,71 @@ namespace Mist{
   }
 
   void inputHLS::parseStreamHeader(){
-    if (!initPlaylist(config->getString("input"))){
+    if (!readExistingHeader()){
+      if (!initPlaylist(config->getString("input"))){
       Util::logExitReason(ER_UNKNOWN, "Failed to load HLS playlist, aborting");
-      return;
-    }
-    uint64_t oldBootMsOffset = M.getBootMsOffset();
-    meta.reInit(isSingular() ? streamName : "", false);
-    meta.setUTCOffset(zUTC);
-    meta.setBootMsOffset(oldBootMsOffset);
-    INFO_MSG("Parsing live stream to create header...");
-    TS::Packet packet; // to analyse and extract data
-    int pidCounter = 1;
+        return;
+      }
+      uint64_t oldBootMsOffset = M.getBootMsOffset();
+      meta.reInit(isSingular() ? streamName : "", false);
+      meta.setUTCOffset(zUTC);
+      meta.setBootMsOffset(oldBootMsOffset);
+      INFO_MSG("Parsing live stream to create header...");
+      TS::Packet packet; // to analyse and extract data
+      int pidCounter = 1;
 
-    tthread::lock_guard<tthread::mutex> guard(entryMutex);
-    for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end(); pListIt++){
-      // Skip empty playlists
-      if (!pListIt->second.size()){continue;}
-      int prepidCounter = pidCounter;
-      tsStream.clear();
+      tthread::lock_guard<tthread::mutex> guard(entryMutex);
+      for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
+           pListIt != listEntries.end(); pListIt++){
+        // Skip empty playlists
+        if (!pListIt->second.size()){continue;}
+        int prepidCounter = pidCounter;
+        tsStream.clear();
 
-      for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
-           entryIt != pListIt->second.end(); ++entryIt){
-        keepAlive();
-        if (!segDowner.loadSegment(*entryIt)){
-          WARN_MSG("Skipping segment that could not be loaded in an attempt to recover");
-          tsStream.clear();
-          continue;
-        }
-
-        do{
-          if (!segDowner.readNext() || !packet.FromPointer(segDowner.packetPtr)){
-            WARN_MSG("Could not load TS packet from %s, aborting segment parse", entryIt->filename.c_str());
+        for (std::deque<playListEntries>::iterator entryIt = pListIt->second.begin();
+             entryIt != pListIt->second.end(); ++entryIt){
+          keepAlive();
+          if (!segDowner.loadSegment(*entryIt)){
+            WARN_MSG("Skipping segment that could not be loaded in an attempt to recover");
             tsStream.clear();
-            break; // Abort load
+            continue;
           }
-          tsStream.parse(packet, entryIt->bytePos);
 
-          if (tsStream.hasPacketOnEachTrack()){
-            while (tsStream.hasPacket()){
-              DTSC::Packet headerPack;
-              tsStream.getEarliestPacket(headerPack);
-              int tmpTrackId = headerPack.getTrackId();
-              uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
+          do{
+            if (!segDowner.readNext() || !packet.FromPointer(segDowner.packetPtr)){
+              WARN_MSG("Could not load TS packet from %s, aborting segment parse", entryIt->filename.c_str());
+              tsStream.clear();
+              break; // Abort load
+            }
+            tsStream.parse(packet, entryIt->bytePos);
 
-              size_t idx = M.trackIDToIndex(packetId, getpid());
-              if ((idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
-                tsStream.initializeMetadata(meta, tmpTrackId, packetId);
-                idx = M.trackIDToIndex(packetId, getpid());
-                if (idx != INVALID_TRACK_ID){
-                  meta.setMinKeepAway(idx, globalWaitTime * 2000);
-                  VERYHIGH_MSG("setting minKeepAway = %" PRIu32 " for track: %zu", globalWaitTime * 2000, idx);
+            if (tsStream.hasPacketOnEachTrack()){
+              while (tsStream.hasPacket()){
+                DTSC::Packet headerPack;
+                tsStream.getEarliestPacket(headerPack);
+                int tmpTrackId = headerPack.getTrackId();
+                uint64_t packetId = getPacketID(pListIt->first, tmpTrackId);
+
+                size_t idx = M.trackIDToIndex(packetId, getpid());
+                if ((idx == INVALID_TRACK_ID || !M.getCodec(idx).size())){
+                  tsStream.initializeMetadata(meta, tmpTrackId, packetId);
+                  idx = M.trackIDToIndex(packetId, getpid());
+                  if (idx != INVALID_TRACK_ID){
+                    meta.setMinKeepAway(idx, globalWaitTime * 2000);
+                    VERYHIGH_MSG("setting minKeepAway = %" PRIu32 " for track: %zu", globalWaitTime * 2000, idx);
+                  }
                 }
               }
+              break; // we have all tracks discovered, next playlist!
             }
-            break; // we have all tracks discovered, next playlist!
+          }while (!segDowner.atEnd());
+          if (!segDowner.atEnd()){
+            segDowner.close();
+            tsStream.clear();
           }
-        }while (!segDowner.atEnd());
-        if (!segDowner.atEnd()){
-          segDowner.close();
-          tsStream.clear();
-        }
 
-        if (prepidCounter < pidCounter){break;}// We're done reading this playlist!
+          if (prepidCounter < pidCounter){break;}// We're done reading this playlist!
+        }
       }
     }
     tsStream.clear();
@@ -839,10 +859,6 @@ namespace Mist{
       return false;
     }
     // Check if the DTSH file contains all expected data
-    if (!M.inputLocalVars.isMember("streamoffset")){
-      INFO_MSG("Header needs update as it contains no streamoffset, regenerating");
-      return false;
-    }
     if (!M.inputLocalVars.isMember("playlistEntries")){
       INFO_MSG("Header needs update as it contains no playlist entries, regenerating");
       return false;
@@ -869,6 +885,9 @@ namespace Mist{
         newEntry.bytePos = thisEntry[1u].asInt();
         newEntry.mUTC = thisEntry[2u].asInt();
         newEntry.duration = thisEntry[3u].asDouble();
+        if (newEntry.duration * 1000 > DTSC::veryUglyJitterOverride){
+          DTSC::veryUglyJitterOverride = newEntry.duration * 1000;
+        }
         newEntry.timestamp = thisEntry[4u].asInt();
         newEntry.timeOffset = thisEntry[5u].asInt();
         newEntry.wait = thisEntry[6u].asInt();
@@ -889,6 +908,16 @@ namespace Mist{
       uint64_t val = i->asInt();
       pidMappingR[key] = val;
       pidMapping[val] = key;
+    }
+    if (M.inputLocalVars.isMember("parsedSegments")){
+      jsonForEachConst(M.inputLocalVars["parsedSegments"], i){
+        uint64_t key = JSON::Value(i.key()).asInt();
+        uint64_t val = i->asInt();
+        parsedSegments[key] = val;
+        playlistMapping[key].lastFileIndex = val;
+        INFO_MSG("Playlist %" PRIu64 " already parsed %" PRIu64 " segments", key, val);
+      }
+
     }
     // Set bootMsOffset in order to display the program time correctly in the player
     zUTC = M.inputLocalVars["zUTC"].asInt();
@@ -1004,9 +1033,15 @@ namespace Mist{
     // set bootMsOffset in order to display the program time correctly in the player
     meta.setUTCOffset(zUTC);
     if (M.getLive()){meta.setBootMsOffset(streamOffset);}
-    if (streamIsLive || isLiveDVR){return true;}
+    if (streamIsLive && !isLiveDVR){return true;}
 
-    // Set local vars used for parsing existing headers
+    injectLocalVars();
+    return true;
+  }
+
+  /// Sets inputLocalVars based on data ingested
+  void inputHLS::injectLocalVars(){
+    meta.inputLocalVars.null();
     meta.inputLocalVars["version"] = 4;
 
     // Write playlist entry info
@@ -1029,6 +1064,7 @@ namespace Mist{
         thisPlaylist.append(thisEntries);
       }
       allEntries[JSON::Value(pListIt->first).asString()] = thisPlaylist;
+      meta.inputLocalVars["parsedSegments"][JSON::Value(pListIt->first).asString()] = pListIt->second.size();
     }
     meta.inputLocalVars["playlist_urls"] = playlist_urls;
     meta.inputLocalVars["playlistEntries"] = allEntries;
@@ -1041,7 +1077,6 @@ namespace Mist{
       thisMappingsR[JSON::Value(pidIt->first).asString()] = pidIt->second;
     }
     meta.inputLocalVars["pidMappingR"] = thisMappingsR;
-    return true;
   }
 
   bool inputHLS::needsLock(){
@@ -1151,21 +1186,23 @@ namespace Mist{
       return;
     }
 
+    uint64_t maxTime = Util::bootMS() + 500;
     // Update all playlists to make sure listEntries contains all live segments
     for (std::map<uint64_t, Playlist>::iterator pListIt = playlistMapping.begin();
          pListIt != playlistMapping.end(); pListIt++){
       if (pListIt->second.reloadNext < Util::bootSecs()){
         pListIt->second.reload();
       }
-    }
-
-    HIGH_MSG("Current playlist has parsed %zu/%" PRIu64 " entries", listEntries[currentPlaylist].size(), parsedSegments[currentPlaylist]);
-    for(uint64_t entryIt = parsedSegments[currentPlaylist]; entryIt < listEntries[currentPlaylist].size(); entryIt++){
-      MEDIUM_MSG("Adding entry #%" PRIu64 " as live data", entryIt);
-      if (parseSegmentAsLive(entryIt)){
-        parsedSegments[currentPlaylist]++;
-      }else{
-        break;
+      currentPlaylist = pListIt->first;
+      if (listEntries[currentPlaylist].size() != parsedSegments[currentPlaylist]){
+        INFO_MSG("Current playlist has parsed %" PRIu64 "/%zu entries", parsedSegments[currentPlaylist], listEntries[currentPlaylist].size());
+      }
+      for(uint64_t entryIt = parsedSegments[currentPlaylist]; entryIt < listEntries[currentPlaylist].size(); entryIt++){
+        INFO_MSG("Adding entry #%" PRIu64 " as live data", entryIt+1);
+        if (parseSegmentAsLive(entryIt)){
+          parsedSegments[currentPlaylist]++;
+        }
+        if (Util::bootMS() > maxTime){return;}
       }
     }
   }
@@ -1449,11 +1486,6 @@ namespace Mist{
   /// \brief Sets parsedSegments for all playlists, specifying how many segments
   ///        have already been parsed. Additional segments can then be parsed as live data
   void inputHLS::setParsedSegments(){
-     for (std::map<uint32_t, std::deque<playListEntries> >::iterator pListIt = listEntries.begin();
-         pListIt != listEntries.end(); pListIt++){
-      parsedSegments[pListIt->first] = pListIt->second.size();
-      INFO_MSG("Playlist %" PRIu32 " already contains %" PRIu64 " VOD segments", pListIt->first, parsedSegments[pListIt->first]);
-    }
   }
 
   /// Parses the main playlist, possibly containing variants.
@@ -1735,5 +1767,20 @@ namespace Mist{
     MEDIUM_MSG("Active playlist: %d (%d segments total in queue)", tmpId, segCount);
     return tmpId;
   }
+
+  void inputHLS::finish(){
+    if (isLiveDVR){
+      INFO_MSG("Writing updated header to disk");
+      injectLocalVars();
+      M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
+    }
+    Input::finish();
+  }
+
+  void inputHLS::checkHeaderTimes(const HTTP::URL & streamFile){
+    if (isLiveDVR){return;}
+    Input::checkHeaderTimes(streamFile);
+  }
+
 
 }// namespace Mist

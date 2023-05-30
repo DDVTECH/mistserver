@@ -74,7 +74,7 @@ namespace Mist{
     virtual bool openStreamSource(){return readHeader();}
     virtual void closeStreamSource(){}
     virtual void parseStreamHeader(){}
-    void checkHeaderTimes(const HTTP::URL & streamFile);
+    virtual void checkHeaderTimes(const HTTP::URL & streamFile);
     virtual void removeUnused();
     virtual void convert();
     virtual void serve();

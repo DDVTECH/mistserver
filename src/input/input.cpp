@@ -1226,42 +1226,23 @@ namespace Mist{
   }
 
   void Input::removeUnused(){
+    uint64_t timeout = config->getInteger("pagetimeout") * 1000;
     uint64_t cTime = Util::bootSecs();
-    std::set<size_t> validTracks = M.getValidTracks();
-    std::map<size_t, std::set<uint32_t> > checkedPages;
-    for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
-      Util::RelAccX &tPages = meta.pages(*it);
-      for (size_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
-        uint64_t pageNum = tPages.getInt("firstkey", i);
-        checkedPages[*it].insert(pageNum);
-        if (pageCounter[*it].count(pageNum)){
-          // If the page is still being written to, reset the counter rather than potentially unloading it
-          if (isCurrentLivePage(*it, pageNum)){
-            pageCounter[*it][pageNum] = cTime;
-            continue;
-          }
-          if (cTime > pageCounter[*it][pageNum] + DEFAULT_PAGE_TIMEOUT){
-            pageCounter[*it].erase(pageNum);
-            bufferRemove(*it, pageNum);
-          }
-        }else{
-          pageCounter[*it][pageNum] = cTime;
-        }
-      }
-    }
-    //Check pages we buffered but forgot about
     for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
+      std::set<uint32_t> deletedEntries;
       for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
-        if (!checkedPages.count(it->first) || !checkedPages[it->first].count(it2->first)){
-          INFO_MSG("Deleting forgotten page %zu:%" PRIu32, it->first, it2->first);
+        if (isRecentLivePage(it->first, it2->first, timeout)){continue;}
+        if (cTime > it2->second + DEFAULT_PAGE_TIMEOUT){
+          deletedEntries.insert(it2->first);
           bufferRemove(it->first, it2->first);
-          it->second.erase(it2);
-          it2 = it->second.begin();
         }
       }
+      while (deletedEntries.size()){
+        it->second.erase(*(deletedEntries.begin()));
+        deletedEntries.erase(deletedEntries.begin());
+      }
     }
-
   }
 
   std::string formatGUID(const std::string &val){
@@ -1509,9 +1490,9 @@ namespace Mist{
       pageIdx = i;
     }
     uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+    pageCounter[idx][pageNumber] = Util::bootSecs();
     if (isBuffered(idx, pageNumber, meta)){
       // Mark the page as still actively requested
-      pageCounter[idx][pageNumber] = Util::bootSecs();
       DONTEVEN_MSG("Track %zu, key %" PRIu32 " is already buffered in page %" PRIu32
                    ". Cancelling bufferFrame",
                    idx, keyNum, pageNumber);
@@ -1666,7 +1647,7 @@ namespace Mist{
       INFO_MSG("  (%" PRIu32 "/%" PRIu64 " parts, %" PRIu64 " bytes)", packCounter,
                tPages.getInt("parts", pageIdx), byteCounter);
       pageCounter[idx].erase(pageNumber);
-      bufferRemove(idx, pageNumber);
+      bufferRemove(idx, pageNumber, pageIdx);
       return false;
     }else{
       INFO_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") buffered in %" PRIu64 "ms",

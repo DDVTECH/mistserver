@@ -127,17 +127,19 @@ namespace Mist{
   /// Does not do anything if the process is not standalone, in this case the master process will have an overloaded version of this function.
   ///\param tid The trackid to remove the page from
   ///\param pageNumber The number of the page to remove
-  void InOutBase::bufferRemove(size_t idx, uint32_t pageNumber){
+  void InOutBase::bufferRemove(size_t idx, uint32_t pageNumber, uint32_t pageIdx){
     if (!standAlone){// A different process will handle this for us
       return;
     }
     Util::RelAccX &tPages = meta.pages(idx);
+    Util::RelAccXFieldData firstKey = tPages.getFieldData("firstkey");
 
-    uint32_t pageIdx = INVALID_KEY_NUM;
-    for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
-      if (tPages.getInt("firstkey", i) == pageNumber){
-        pageIdx = i;
-        break;
+    if (pageIdx == INVALID_KEY_NUM){
+      for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+        if (tPages.getInt(firstKey, i) == pageNumber){
+          pageIdx = i;
+          break;
+        }
       }
     }
     // If the given pagenumber is not a valid page on this track, do nothing

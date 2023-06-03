@@ -5,7 +5,7 @@
 #include <string>
 
 namespace Controller{
-  extern std::string instanceId; ///< global storage of instanceId (previously uniqID) is set in controller.cpp
+  extern std::string instanceId;     ///< global storage of instanceId (previously uniqID) is set in controller.cpp
   extern std::string prometheus;     ///< Prometheus access string
   extern std::string accesslog;      ///< Where to write the access log
   extern std::string udpApiBindAddr; ///< Bound address where the UDP API listens
@@ -13,11 +13,14 @@ namespace Controller{
   extern JSON::Value Storage;        ///< Global storage of data.
   extern tthread::mutex logMutex;    ///< Mutex for log thread.
   extern tthread::mutex configMutex; ///< Mutex for server config access.
-  extern bool configChanged;         ///< Bool that indicates config must be written to SHM.
   extern bool isTerminal;            ///< True if connected to a terminal and not a log file.
   extern bool isColorized;           ///< True if we colorize the output
   extern uint64_t logCounter;        ///< Count of logged messages since boot
   extern uint64_t systemBoot;        ///< Unix time in milliseconds of system boot
+  extern uint64_t lastConfigChange;  ///< Unix time in seconds of last configuration change
+  extern uint64_t lastConfigWrite;   ///< Unix time in seconds of last time configuration was written to disk
+  extern JSON::Value lastConfigWriteAttempt; ///< Contents of last attempted config write
+  extern JSON::Value lastConfigSeen; ///< Contents of config last time we looked at it. Used to check for changes.
 
   Util::RelAccX *logAccessor();
   Util::RelAccX *accesslogAccessor();
@@ -34,7 +37,10 @@ namespace Controller{
 
   /// Write contents to Filename.
   bool WriteFile(std::string Filename, std::string contents);
-  void writeConfigToDisk();
+
+  void getConfigAsWritten(JSON::Value & conf);
+  void writeConfigToDisk(bool forceWrite = false);
+  void readConfigFromDisk();
 
   void handleMsg(void *err);
   void initState();

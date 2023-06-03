@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <sys/time.h> //for gettimeofday
+#include <sys/stat.h>
 #include <time.h>     //for time and nanosleep
 #include <sstream>
 #include <stdlib.h>
@@ -166,3 +167,13 @@ std::string Util::getDateString(uint64_t epoch){
   strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S %z", timeinfo);
   return std::string(buffer);
 }
+
+/// Gets unix time of last file modification, or 0 if this information is not available for any reason
+uint64_t Util::getFileUnixTime(const std::string & filename){
+  struct stat fInfo;
+  if (stat(filename.c_str(), &fInfo) == 0){
+    return fInfo.st_mtime;
+  }
+  return 0;
+}
+

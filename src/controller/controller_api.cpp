@@ -552,6 +552,11 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
     Response["config_backup"].assignFrom(Controller::Storage, skip);
   }
 
+  if (Request.isMember("config_reload")){
+    INFO_MSG("Reloading configuration from disk on request");
+    Controller::readConfigFromDisk();
+  }
+
   if (Request.isMember("config_restore")){
     std::set<std::string> skip;
     skip.insert("log");
@@ -1222,11 +1227,10 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   }
 
   Controller::writeConfig();
-  Controller::configChanged = false;
 
   if (Request.isMember("save")){
     Controller::Log("CONF", "Writing config to file on request through API");
-    Controller::writeConfigToDisk();
+    Controller::writeConfigToDisk(true);
   }
 
 }

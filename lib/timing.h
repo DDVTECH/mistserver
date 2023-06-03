@@ -21,4 +21,5 @@ namespace Util{
   uint64_t getMSFromUTCString(std::string UTCString);
   uint64_t getUTCTimeDiff(std::string UTCString, uint64_t epochMillis);
   std::string getDateString(uint64_t epoch = 0);
+  uint64_t getFileUnixTime(const std::string & filename);
 }// namespace Util

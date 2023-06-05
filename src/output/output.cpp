@@ -1863,21 +1863,25 @@ namespace Mist{
     }
     onFinish();
     // Write last segment
-    if (targetParams.count("m3u8")){
+    if (targetParams.count("m3u8") && (firstPacketTime != 0xFFFFFFFFFFFFFFFFull) && (lastPacketTime - firstPacketTime > 0)){
       // If this is a non-live source, we can finally open up the connection to the playlist file
       if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
       if (plsConn){
-        std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-        if (M.getLive()){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-          playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+
+        if (lastPacketTime - currentStartTime > 0){
+          std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
+          INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+          if (M.getLive()){
+            uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+            playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+          }
+          // Append duration & TS filename to playlist file
+          std::stringstream tmp;
+          tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
+          playlistBuffer += tmp.str();
         }
-        INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-        // Append duration & TS filename to playlist file
-        std::stringstream tmp;
-        tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
-        if (!M.getLive() || (!maxEntries && !targetAge)){tmp << "#EXT-X-ENDLIST\n";}
-        playlistBuffer += tmp.str();
+
+        if (!M.getLive() || (!maxEntries && !targetAge)){playlistBuffer += "#EXT-X-ENDLIST\n";}
         // Remove older entries in the playlist
         if (maxEntries || targetAge){
           uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
@@ -1890,7 +1894,7 @@ namespace Mist{
         }else if(connectToFile(playlistLocationString, false, &plsConn)){
           plsConn.SendNow(playlistBuffer);
         }
-        playlistBuffer = "";
+        playlistBuffer.clear();
       }else{
         FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
         Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());

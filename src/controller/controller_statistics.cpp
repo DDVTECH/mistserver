@@ -1857,18 +1857,20 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         }
 
         DTSC::Meta M(it->first, false, false);
-        if (M && M.getSource().find("INTERNAL_ONLY:dtsc")){
-          std::set<size_t> trks = M.getValidTracks(true);
-          if (trks.size()){
-            uint64_t lms = 0;
-            for (std::set<size_t>::iterator it = trks.begin(); it != trks.end(); ++it){
-              if (M.getLastms(*it) > lms){lms = M.getLastms(*it);}
+        if (M){
+          std::string host = M.getSource();
+          if (M.getSource().find("INTERNAL_ONLY:dtsc:") != std::string::npos){
+            std::set<size_t> trks = M.getValidTracks(true);
+            if (trks.size()){
+              uint64_t lms = 0;
+              for (std::set<size_t>::iterator it = trks.begin(); it != trks.end(); ++it){
+                if (M.getLastms(*it) > lms){lms = M.getLastms(*it);}
+              }
+              int64_t lateDiff = Util::bootMS() - (M.getBootMsOffset() + lms);
+              host = host.substr(host.find("dtsc:"));
+              host = HTTP::URL(host).host;
+              response << "mist_latency{stream=\"" << it->first << "\",source=\"" << host << "\"}" << lateDiff << "\n";
             }
-            int64_t lateDiff = Util::bootMS() - (M.getBootMsOffset() + lms);
-            std::string host = M.getSource();
-            host = host.substr(host.find("dtsc:"));
-            host = HTTP::URL(host).host;
-            response << "mist_latency{stream=\"" << it->first << "\",source=\"" << host << "\"}" << lateDiff << "\n";
           }
         }
       }

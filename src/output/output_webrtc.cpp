@@ -78,9 +78,9 @@ namespace Mist{
     udpPort = 0;
     SSRC = generateSSRC();
     rtcpTimeoutInMillis = 0;
-    rtcpKeyFrameDelayInMillis = 2000;
+    rtcpKeyFrameDelayInMillis = 1000;
     rtcpKeyFrameTimeoutInMillis = 0;
-    videoBitrate = 6 * 1000 * 1000;
+    videoBitrate = 4 * 1000 * 1000;
     videoConstraint = videoBitrate;
     RTP::MAX_SEND = 1350 - 28;
     didReceiveKeyFrame = false;

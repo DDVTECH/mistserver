@@ -51,6 +51,7 @@ namespace Mist{
   inputTSSRT::inputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
+    assembler.setLive();
     capa["name"] = "TSSRT";
     capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams. Use mode=listener "
                    "for push input.";

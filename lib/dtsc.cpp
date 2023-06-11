@@ -5,8 +5,9 @@
 #include "defines.h"
 #include "dtsc.h"
 #include "encode.h"
-#include "lib/shared_memory.h"
-#include "lib/util.h"
+#include "shared_memory.h"
+#include "util.h"
+#include "stream.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -2710,6 +2711,7 @@ namespace DTSC{
       std::string type = getType(*it);
 
       trackJSON["codec"] = getCodec(*it);
+      trackJSON["codecstring"] = Util::codecString(getCodec(*it), getInit(*it));
       trackJSON["type"] = type;
       trackJSON["idx"] = (uint64_t)*it;
       trackJSON["trackid"] = (uint64_t)getID(*it);

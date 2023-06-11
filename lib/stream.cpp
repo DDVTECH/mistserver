@@ -105,6 +105,26 @@ std::string Util::codecString(const std::string &codec, const std::string &initD
   if (codec == "AAC"){return "mp4a.40.2";}
   if (codec == "MP3"){return "mp4a.40.34";}
   if (codec == "AC3"){return "mp4a.a5";}
+  if (codec == "AV1"){
+    if (initData.size() < 4){return "av01";}// Can't determine properties. :-(
+    std::stringstream r;
+    r << "av01.";
+    r << (int)((initData[1] & 0b11100000) >> 5); //profile
+    r << ".";
+    r << std::setw(2) << std::setfill('0') << (int)(initData[1] & 0b00011111); //level
+    r << ((initData[2] & 0b10000000)?"H":"M"); //tier
+    r << ".";
+    switch (initData[2] & 0b01100000){
+      case 0b00000000: r << "08"; break;
+      case 0b01000000: r << "10"; break;
+      case 0b01100000: r << "12"; break;
+      case 0b00100000: r << "??"; break;
+    }
+    /// \TODO Implement the full descriptor as in https://aomediacodec.github.io/av1-isobmff/#codecsparam
+    /// Init data follows this format:
+    /// https://aomediacodec.github.io/av1-isobmff/#av1codecconfigurationbox-syntax
+    return r.str();
+  }
   return "";
 }
 

@@ -799,6 +799,70 @@ namespace MP4{
     return r.str();
   }
 
+
+  AV1C::AV1C(){
+    memcpy(data + 4, "av1C", 4);
+    setInt8(0b10000001, 0); // Marker 1, version 1: 0b10000001
+  }
+
+  std::string AV1C::toPrettyString(uint32_t indent){
+    std::stringstream r;
+    r << std::string(indent, ' ') << "[av1C] AV1 Init Data (" << boxedSize() << ")" << std::endl;
+    r << std::string(indent + 1, ' ') << "Marker: " << (int)((getInt8(0) & 0b10000000) >> 7) << std::endl;
+    r << std::string(indent + 1, ' ') << "Version: " << (int)(getInt8(0) & 0b01111111) << std::endl;
+    r << std::string(indent + 1, ' ') << "Profile: " << (int)((getInt8(1) & 0b11100000) >> 5) << std::endl;
+    r << std::string(indent + 1, ' ') << "Level: " << (int)(getInt8(1) & 0b00011111) << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Tier: " << (int)((getInt8(2) & 0b10000000) >> 7) << std::endl;
+
+
+    r << std::string(indent + 1, ' ') << "Bit depth: ";
+    switch ((getInt8(2) & 0b01100000)){
+      case 0b00000000: r << "8"; break;
+      case 0b01000000: r << "10"; break;
+      case 0b01100000: r << "12"; break;
+      case 0b00100000: r << "Unknown"; break;
+    }
+    r << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Subsampling format: ";
+    switch ((getInt8(2) & 0b00011100)){
+      case 0b00000000: r << "YUV 4:4:4"; break;
+      case 0b00001000: r << "YUV 4:2:2"; break;
+      case 0b00001100: r << "YUV 4:2:0"; break;
+      case 0b00011100: r << "Monochrome 4:0:0"; break;
+      default: r << "Unknown";
+    }
+    r << std::endl;
+
+    r << std::string(indent + 1, ' ') << "Subsampling position: ";
+    switch ((getInt8(2) & 0b00000011)){
+      case 0: r << "Unknown"; break;
+      case 1: r << "Vertical"; break;
+      case 2: r << "Co-located"; break;
+      case 3: r << "Reserved"; break;
+    }
+    r << std::endl;
+
+    if (getInt8(3) & 0b00010000){
+      r << std::string(indent + 1, ' ') << "Initial presentation delay: " << (int)(getInt8(3) & 0b00001111) + 1 << std::endl;
+    }else{
+      r << std::string(indent + 1, ' ') << "Initial presentation delay: 0" << std::endl;
+    }
+
+    r << std::string(indent + 1, ' ') << (payloadSize() - 4) << "b of OBU initialization data" << std::endl;
+
+    return r.str();
+  }
+
+  void AV1C::setPayload(std::string newPayload){
+    if (!reserve(0, payloadSize(), newPayload.size())){
+      ERROR_MSG("Cannot allocate enough memory for payload");
+      return;
+    }
+    memcpy((char *)payload(), (char *)newPayload.c_str(), newPayload.size());
+  }
+
   Descriptor::Descriptor(){
     data = (char *)malloc(2);
     data[0] = 0;
@@ -2692,22 +2756,26 @@ namespace MP4{
       avccBox.setPayload(M.getInit(idx));
       setCLAP(avccBox);
     }
-    /*LTS-START*/
     if (tCodec == "HEVC"){
       setCodec("hev1");
       MP4::HVCC hvccBox;
       hvccBox.setPayload(M.getInit(idx));
       setCLAP(hvccBox);
     }
-    /*LTS-END*/
+    if (tCodec == "AV1"){
+      setCodec("av01");
+      MP4::AV1C av1cBox;
+      av1cBox.setPayload(M.getInit(idx));
+      setCLAP(av1cBox);
+    }
     MP4::PASP paspBox;
     setPASP(paspBox);
   }
 
   void VisualSampleEntry::initialize(){
     memcpy(data + 4, "erro", 4);
-    setHorizResolution(0x00480000);
-    setVertResolution(0x00480000);
+    setHorizResolution(72);
+    setVertResolution(72);
     setFrameCount(1);
     setCompressorName("");
     setDepth(0x0018);
@@ -2726,17 +2794,17 @@ namespace MP4{
 
   uint16_t VisualSampleEntry::getHeight(){return getInt16(26);}
 
-  void VisualSampleEntry::setHorizResolution(uint32_t newHorizResolution){
-    setInt32(newHorizResolution, 28);
+  void VisualSampleEntry::setHorizResolution(double newHorizResolution){
+    setInt32(newHorizResolution * 65536.0, 28);
   }
 
-  uint32_t VisualSampleEntry::getHorizResolution(){return getInt32(28);}
+  double VisualSampleEntry::getHorizResolution(){return getInt32(28) / 65536.0;}
 
-  void VisualSampleEntry::setVertResolution(uint32_t newVertResolution){
-    setInt32(newVertResolution, 32);
+  void VisualSampleEntry::setVertResolution(double newVertResolution){
+    setInt32(newVertResolution * 65536.0, 32);
   }
 
-  uint32_t VisualSampleEntry::getVertResolution(){return getInt32(32);}
+  double VisualSampleEntry::getVertResolution(){return getInt32(32) / 65536.0;}
 
   void VisualSampleEntry::setFrameCount(uint16_t newFrameCount){setInt16(newFrameCount, 40);}
 
@@ -2839,8 +2907,8 @@ namespace MP4{
     r << toPrettySampleString(indent);
     r << std::string(indent + 1, ' ') << "Width: " << getWidth() << std::endl;
     r << std::string(indent + 1, ' ') << "Height: " << getHeight() << std::endl;
-    r << std::string(indent + 1, ' ') << "HorizResolution: " << getHorizResolution() << std::endl;
-    r << std::string(indent + 1, ' ') << "VertResolution: " << getVertResolution() << std::endl;
+    r << std::string(indent + 1, ' ') << "HorizResolution: " << getHorizResolution() << " DPI" << std::endl;
+    r << std::string(indent + 1, ' ') << "VertResolution: " << getVertResolution() << " DPI" << std::endl;
     r << std::string(indent + 1, ' ') << "FrameCount: " << getFrameCount() << std::endl;
     r << std::string(indent + 1, ' ') << "CompressorName: " << getCompressorName() << std::endl;
     r << std::string(indent + 1, ' ') << "Depth: " << getDepth() << std::endl;
@@ -3247,6 +3315,12 @@ namespace MP4{
 
   std::string H264::toPrettyString(uint32_t indent){
     return toPrettyVisualString(indent, "[h264] H.264/MPEG-4 AVC");
+  }
+
+  AV01::AV01(){memcpy(data + 4, "av01", 4);}
+
+  std::string AV01::toPrettyString(uint32_t indent){
+    return toPrettyVisualString(indent, "[av01] AV1 Video");
   }
 
   FIEL::FIEL(){memcpy(data + 4, "fiel", 4);}

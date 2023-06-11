@@ -127,6 +127,7 @@ namespace Mist{
     capa["url_match"][2u] = "/$.fmp4";
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("HEVC");
+    capa["codecs"][0u][0u].append("AV1");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("MP3");
     capa["codecs"][0u][1u].append("AC3");

@@ -118,6 +118,7 @@ namespace Mist{
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("H263");
     capa["codecs"]["video"].append("VP6");
+    capa["codecs"]["video"].append("AV1");
     capa["codecs"]["audio"].append("AAC");
     capa["codecs"]["audio"].append("AC3");
     capa["codecs"]["audio"].append("MP3");
@@ -257,7 +258,7 @@ namespace Mist{
       MP4::Box sEntryBox = stsdBox.getEntry(0);
       std::string sType = sEntryBox.getType();
 
-      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g")){
+      if (!(sType == "avc1" || sType == "h264" || sType == "mp4v" || sType == "hev1" || sType == "hvc1" || sType == "mp4a" || sType == "aac " || sType == "ac-3" || sType == "tx3g" || sType == "av01")){
         INFO_MSG("Unsupported track type: %s", sType.c_str());
         continue;
       }
@@ -317,6 +318,23 @@ namespace Mist{
         }
         initBox = vEntryBox.getPASP();
         if (initBox.isType("hvcC")){
+          meta.setInit(tNumber, initBox.payload(), initBox.payloadSize());
+        }
+      }
+      if (sType == "av01"){
+        MP4::VisualSampleEntry &vEntryBox = (MP4::VisualSampleEntry &)sEntryBox;
+        meta.setType(tNumber, "video");
+        meta.setCodec(tNumber, "AV1");
+        if (!meta.getWidth(tNumber)){
+          meta.setWidth(tNumber, vEntryBox.getWidth());
+          meta.setHeight(tNumber, vEntryBox.getHeight());
+        }
+        MP4::Box initBox = vEntryBox.getCLAP();
+        if (initBox.isType("av1C")){
+          meta.setInit(tNumber, initBox.payload(), initBox.payloadSize());
+        }
+        initBox = vEntryBox.getPASP();
+        if (initBox.isType("av1C")){
           meta.setInit(tNumber, initBox.payload(), initBox.payloadSize());
         }
       }

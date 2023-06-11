@@ -22,6 +22,7 @@ mistplayers.mews = {
 
     //check (and save) codec compatibility
     function translateCodec(track) {
+      if (track.codecstring){return track.codecstring;}
       function bin2hex(index) {
         return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
       }

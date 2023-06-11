@@ -35,6 +35,7 @@ mistplayers.html5 = {
       shortmime = shortmime.join("/");
       //works for mp4 but not for webm
       function translateCodec(track) {
+        if (track.codecstring){return track.codecstring;}
         function bin2hex(index) {
           return ("0"+track.init.charCodeAt(index).toString(16)).slice(-2);
         }

@@ -1712,8 +1712,8 @@ namespace Mist{
       onIdle();
     }
 
-    if (M.getLive() && stayLive && lastTimeSync + 666 < thisPacket.getTime()){
-      lastTimeSync = thisPacket.getTime();
+    if (M.getLive() && stayLive && lastTimeSync + 666 < thisTime){
+      lastTimeSync = thisTime;
       if (liveSeek()){return;}
     }
 
@@ -1760,9 +1760,9 @@ namespace Mist{
     // This checks if we have a whole integer multiplier, and if so,
     // ensures only integer math is used to prevent rounding errors
     if (mult == (uint64_t)mult){
-      rtcTrack.rtpPacketizer.setTimestamp(thisPacket.getTime() * (uint64_t)mult);
+      rtcTrack.rtpPacketizer.setTimestamp(thisTime * (uint64_t)mult);
     }else{
-      rtcTrack.rtpPacketizer.setTimestamp(thisPacket.getTime() * mult);
+      rtcTrack.rtpPacketizer.setTimestamp(thisTime * mult);
     }
 
     bool isKeyFrame = thisPacket.getFlag("keyframe");
@@ -1798,7 +1798,7 @@ namespace Mist{
     //If this track hasn't sent yet, actually sent
     if (mustSendSR.count(thisIdx)){
       mustSendSR.erase(thisIdx);
-      rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, onRTPPacketizerHasRTCPDataCallback);
+      rtcTrack.rtpPacketizer.sendRTCP_SR((void *)&udp, 0, onRTPPacketizerHasRTCPDataCallback);
     }
   }
 

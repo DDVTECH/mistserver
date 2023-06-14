@@ -148,25 +148,25 @@ namespace Mist{
     if (sdpState.tracks[thisIdx].channel == -1){// UDP connection
       socket = &sdpState.tracks[thisIdx].data;
       callBack = sendUDP;
-      if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
-        sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
-        sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, sendUDP);
-      }
     }else{
       socket = &myConn;
       callBack = sendTCP;
-      if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
-        sdpState.tracks[thisIdx].pack.setTimestamp(timestamp * SDP::getMultiplier(&M, thisIdx));
-        sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
-        sdpState.tracks[thisIdx].pack.sendRTCP_SR(socket, sendTCP);
-      }
     }
 
     uint64_t offset = thisPacket.getInt("offset");
     sdpState.tracks[thisIdx].pack.setTimestamp((timestamp + offset) * SDP::getMultiplier(&M, thisIdx));
     sdpState.tracks[thisIdx].pack.sendData(socket, callBack, dataPointer, dataLen,
                                            sdpState.tracks[thisIdx].channel, meta.getCodec(thisIdx));
+
+
+    if (Util::bootSecs() != sdpState.tracks[thisIdx].rtcpSent){
+      if (sdpState.tracks[thisIdx].channel == -1){// UDP connection
+        sdpState.tracks[thisIdx].pack.sendRTCP_SR(&sdpState.tracks[thisIdx].rtcp, 0, callBack);
+      }else{
+        sdpState.tracks[thisIdx].pack.sendRTCP_SR(socket, sdpState.tracks[thisIdx].channel, callBack);
+      }
+      sdpState.tracks[thisIdx].rtcpSent = Util::bootSecs();
+    }
 
     static uint64_t lastAnnounce = Util::bootSecs();
     if (reqUrl.size() && lastAnnounce + 5 < Util::bootSecs()){

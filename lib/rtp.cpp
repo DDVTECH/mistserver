@@ -22,6 +22,11 @@ namespace RTP{
   }
 
   unsigned int Packet::getPayloadSize() const{
+    // If there is more padding than content, ignore the packet
+    if (getHsize() + (getPadding() ? data[maxDataLen - 1] : 0) >= maxDataLen){
+      WARN_MSG("Packet has more padding than payload; ignoring packet");
+      return 0;
+    }
     return maxDataLen - getHsize() - (getPadding() ? data[maxDataLen - 1] : 0);
   }
 
@@ -273,7 +278,6 @@ namespace RTP{
 
   void Packet::sendH264(void *socket, void callBack(void *, const char *, size_t, uint8_t),
                         const char *payload, uint32_t payloadlen, uint32_t channel, bool lastOfAccesUnit){
-    if ((payload[0] & 0x1F) == 12){return;}
     /// \todo This function probably belongs in DMS somewhere.
     if (payloadlen + getHsize() + 2 <= maxDataLen){
       data[1] &= 0x7F; // setting the RTP marker bit to 0
@@ -446,12 +450,22 @@ namespace RTP{
                         unsigned int payloadlen, unsigned int channel, std::string codec){
     if (codec == "H264"){
       unsigned long sent = 0;
+      const char * lastPtr = 0;
+      size_t lastLen = 0;
       while (sent < payloadlen){
         unsigned long nalSize = ntohl(*((unsigned long *)(payload + sent)));
-        sendH264(socket, callBack, payload + sent + 4, nalSize, channel,
-                 (sent + nalSize + 4) >= payloadlen ? true : false);
+        // Since we skip filler data, we need to delay sending by one NAL unit to reliably
+        // detect the end of the access unit.
+        if ((payload[sent + 4] & 0x1F) != 12){
+          // If we have a pointer stored, we know it's not the last one, so send it as non-last.
+          if (lastPtr){sendH264(socket, callBack, lastPtr, lastLen, channel, false);}
+          lastPtr = payload + sent + 4;
+          lastLen = nalSize;
+        }
         sent += nalSize + 4;
       }
+      // Still a pointer stored? That means it was the last one. Mark it as such and send.
+      if (lastPtr){sendH264(socket, callBack, lastPtr, lastLen, channel, true);}
       return;
     }
     if (codec == "VP8"){
@@ -512,7 +526,7 @@ namespace RTP{
     increaseSequence();
   }
 
-  void Packet::sendRTCP_SR(void *socket, void callBack(void *, const char *, size_t, uint8_t)){
+  void Packet::sendRTCP_SR(void *socket, uint8_t channel, void callBack(void *, const char *, size_t, uint8_t)){
     char *rtcpData = (char *)malloc(32);
     if (!rtcpData){
       FAIL_MSG("Could not allocate 32 bytes. Something is seriously messed up.");
@@ -529,7 +543,7 @@ namespace RTP{
     //*((int *)(rtcpData+16) ) = htonl(getTimeStamp());//rtpts
     Bit::htobl(rtcpData + 20, sentPackets); // packet
     Bit::htobl(rtcpData + 24, sentBytes);   // octet
-    callBack(socket, (char *)rtcpData, 28, 0);
+    callBack(socket, (char *)rtcpData, 28, channel);
     free(rtcpData);
   }
 
@@ -867,6 +881,10 @@ namespace RTP{
   /// Adds an RTP packet to the converter, outputting DTSC packets and/or updating init data,
   /// as-needed.
   void toDTSC::addRTP(const RTP::Packet &pkt){
+    if (pkt.getPayloadType() >= 72 && pkt.getPayloadType() <= 76){
+      INFO_MSG("RTCP packet, ignoring for decoding");
+      return;
+    }
     if (codec.empty()){
       MEDIUM_MSG("Unknown codec - ignoring RTP packet.");
       return;
@@ -908,17 +926,17 @@ namespace RTP{
     // From here on, there is codec-specific parsing. We call handler functions for each codec,
     // except for the trivial codecs.
     if (codec == "H264"){
-      return handleH264(msTime, pl, plSize, missed, (pkt.getPadding() == 1) ? true : false);
+      return handleH264(msTime, pl, plSize, missed, false);
     }
     if (codec == "AAC"){return handleAAC(msTime, pl, plSize);}
     if (codec == "MP2" || codec == "MP3"){return handleMP2(msTime, pl, plSize);}
     if (codec == "HEVC"){return handleHEVC(msTime, pl, plSize, missed);}
     if (codec == "MPEG2"){return handleMPEG2(msTime, pl, plSize);}
     if (codec == "VP8"){
-      return handleVP8(msTime, pl, plSize, missed, (pkt.getPadding() == 1) ? true : false);
+      return handleVP8(msTime, pl, plSize, missed, false);
     }
     if (codec == "VP9"){
-      return handleVP8(msTime, pl, plSize, missed, (pkt.getPadding() == 1) ? true : false);
+      return handleVP8(msTime, pl, plSize, missed, false);
     }
     // Trivial codecs just fill a packet with raw data and continue. Easy peasy, lemon squeezy.
     if (codec == "ALAW" || codec == "opus" || codec == "PCM" || codec == "ULAW"){

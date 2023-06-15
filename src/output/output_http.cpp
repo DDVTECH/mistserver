@@ -61,6 +61,7 @@ namespace Mist{
       H.Clean(); // make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
+      H.SetHeader("Error", msg);
       H.SetBody("Could not retrieve stream: " + msg);
       H.SendResponse("404", "Error opening stream", myConn);
       responded = true;

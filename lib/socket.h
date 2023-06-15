@@ -206,6 +206,8 @@ namespace Socket{
     std::string boundAddr, boundMulti;
     int boundPort;
     void checkRecvBuf();
+    std::deque<Util::ResizeablePointer> paceQueue;
+    uint64_t lastPace;
 
   public:
     Util::ResizeablePointer data;
@@ -228,6 +230,8 @@ namespace Socket{
     void SendNow(const std::string &data);
     void SendNow(const char *data);
     void SendNow(const char *data, size_t len);
+    void sendPaced(const char * data, size_t len);
+    void sendPaced(uint64_t uSendWindow);
     void setSocketFamily(int AF_TYPE);
   };
 }// namespace Socket

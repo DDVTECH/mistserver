@@ -1608,6 +1608,7 @@ int Socket::Server::getSocket(){
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
+  lastPace = 0;
   boundPort = 0;
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -1680,6 +1681,7 @@ void Socket::UDPConnection::checkRecvBuf(){
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection &o){
+  lastPace = 0;
   boundPort = 0;
   family = AF_INET6;
   sock = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -1890,6 +1892,53 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
   }else{
     FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
   }
+}
+
+void Socket::UDPConnection::sendPaced(const char *sdata, size_t len){
+  if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
+    SendNow(sdata, len);
+    lastPace = Util::getMicros();
+  }else{
+    paceQueue.push_back(Util::ResizeablePointer());
+    paceQueue.back().assign(sdata, len);
+    // Try to send a packet, if time allows
+    //sendPaced(0);
+  }
+}
+
+/// Spends uSendWindow microseconds either sending paced packets or sleeping, whichever is more appropriate
+void Socket::UDPConnection::sendPaced(uint64_t uSendWindow){
+  uint64_t currPace = Util::getMicros();
+  do{
+    uint64_t uTime = Util::getMicros();
+    uint64_t sleepTime = uTime - currPace;
+    if (sleepTime > uSendWindow){
+      sleepTime = 0;
+    }else{
+      sleepTime = uSendWindow - sleepTime;
+    }
+    uint64_t paceWait = uTime - lastPace;
+    size_t qSize = paceQueue.size();
+    // If the queue is complete, wait out the remainder of the time
+    if (!qSize){
+      Util::usleep(sleepTime);
+      return;
+    }
+    // Otherwise, target clearing the queue in 25ms at most.
+    uint64_t targetTime = 25000 / qSize;
+    // If this slows us to below 1 packet per 5ms, go that speed instead.
+    if (targetTime > 5000){targetTime = 5000;}
+    // If the wait is over, send now.
+    if (paceWait >= targetTime){
+      SendNow(*paceQueue.begin(), paceQueue.begin()->size());
+      paceQueue.pop_front();
+      lastPace = uTime;
+      continue;
+    }
+    // Otherwise, wait for the smaller of remaining wait time or remaining send window time.
+    if (targetTime - paceWait < sleepTime){sleepTime = targetTime - paceWait;}
+    Util::usleep(sleepTime);
+  }while(Util::getMicros(currPace) < uSendWindow);
 }
 
 std::string Socket::UDPConnection::getBoundAddress(){

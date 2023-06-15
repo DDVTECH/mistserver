@@ -148,6 +148,8 @@ namespace Mist{
     virtual void connStats(uint64_t now, Comms::Connections &statComm);
     inline virtual bool keepGoing(){return config->is_active && (noSignalling || myConn);}
     virtual void requestHandler();
+  protected:
+    virtual void idleTime(uint64_t ms){udp.sendPaced(ms*1000);}
   private:
     bool noSignalling;
     uint64_t lastRecv;

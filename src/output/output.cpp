@@ -1607,7 +1607,7 @@ namespace Mist{
                      keepGoing()){
                 uint64_t amount = thisPacket.getTime() - (((Util::bootMS() - firstTime) * 1000) / realTime + maxSkipAhead);
                 if (amount > 1000){amount = 1000;}
-                Util::sleep(amount);
+                idleTime(amount);
                 //Make sure we stay responsive to requests and stats while waiting
                 if (wantRequest){
                   requestHandler();

@@ -456,6 +456,7 @@ namespace Mist{
     H.setCORSHeaders();
     H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
     H.SetHeader("Cache-Control", "no-cache");
+    H.SetHeader("Error", msg);
     H.SetBody("#EXTM3U\r\n#EXT-X-ERROR: " + msg + "\r\n#EXT-X-ENDLIST\r\n");
     H.SendResponse("200", "OK", myConn);
     Output::onFail(msg, critical);

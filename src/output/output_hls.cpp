@@ -68,11 +68,18 @@ namespace Mist{
                << "\r\n";
       }
     }
-    if (!vidTracks && audioId != INVALID_TRACK_ID){
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
-      result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
-      result << "\r\n";
-      result << audioId << "/index.m3u8" << tknStr << "\r\n";
+
+    if (!vidTracks){
+      if (audioId != INVALID_TRACK_ID){
+        // Audio only playlist
+        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
+        result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
+        result << "\r\n";
+        result << audioId << "/index.m3u8" << tknStr << "\r\n";
+      }else{
+        // No compatible tracks at all
+        return "";
+      }
     }
     return result.str();
   }
@@ -260,7 +267,12 @@ namespace Mist{
       H.SetHeader("Content-Type", "text/xml");
       H.SetHeader("Server", APPIDENT);
       H.setCORSHeaders();
-      if (method == "OPTIONS" || method == "HEAD"){
+      if (method == "OPTIONS"){
+        H.SendResponse("204", "No content", myConn);
+        responded = true;
+        return;
+      }
+      if (method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
         responded = true;
         return;
@@ -274,19 +286,20 @@ namespace Mist{
       return;
     }// crossdomain.xml
 
-    if (H.method == "OPTIONS"){
+    if (method == "OPTIONS"){
       bool isTS = (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u");
+      H.Clean();
       H.setCORSHeaders();
       if (isTS){
         H.SetHeader("Content-Type", "video/mp2t");
       }else{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
-      if (isTS && (!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
+      if (isTS && !(!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
         uint64_t dura = 120000;
         if (M && M.getValidTracks().size()){
           size_t mTrk = M.mainTrack();
-          if (mTrk != INVALID_TRACK_ID){dura = M.getDuration(dura);}
+          if (mTrk != INVALID_TRACK_ID){dura = M.getDuration(mTrk);}
         }
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
@@ -298,7 +311,7 @@ namespace Mist{
         H.SetHeader("Cache-Control", "no-store");
       }
       H.SetBody("");
-      H.SendResponse("200", "OK", myConn);
+      H.SendResponse("204", "No content", myConn);
       responded = true;
       return;
     }
@@ -374,14 +387,14 @@ namespace Mist{
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
       if (!(Comms::tknMode & 0x04) || config->getOption("chunkpath")){
-        H.SetHeader("Cache-Control", "no-store");
-      }else{
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
                         JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
                         ", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
+      }else{
+        H.SetHeader("Cache-Control", "no-store");
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
@@ -418,6 +431,10 @@ namespace Mist{
       std::string manifest;
       if (request.find("/") == std::string::npos){
         manifest = liveIndex();
+        if (manifest == ""){
+          onFail("No HLS compatible tracks found");
+          return;
+        }
       }else{
         size_t idx = atoi(request.substr(0, request.find("/")).c_str());
         if (!M.getValidTracks().count(idx)){

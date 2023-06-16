@@ -426,17 +426,6 @@ namespace Mist{
               "src=\"player.js\"></script><script>var mv ={reference:false}; mistPlay('" +
               streamName + "',{host:'" + fullURL.getUrl() + "',target:document.getElementById('" + streamName +
               "'),MistVideoObject:mv" + forceType + devSkin + "});" + seekTo + "</script></div></body></html>");
-    if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) ||
-        (uAgent.find("iPhone") != std::string::npos)){
-      if (uAgent.find("OS 11") == std::string::npos && uAgent.find("OS 12") == std::string::npos &&
-          uAgent.find("OS 13") == std::string::npos && uAgent.find("OS 14") == std::string::npos &&
-          uAgent.find("OS 15") == std::string::npos && uAgent.find("OS 16") == std::string::npos){
-        H.SetHeader("Location", hlsUrl);
-        H.SendResponse("307", "HLS redirect", myConn);
-        responded = true;
-        return;
-      }
-    }
     H.SendResponse("200", "OK", myConn);
     responded = true;
     H.Clean();

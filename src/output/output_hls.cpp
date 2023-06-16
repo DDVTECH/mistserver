@@ -60,11 +60,18 @@ namespace Mist{
                << "\r\n";
       }
     }
-    if (!vidTracks && audioId != INVALID_TRACK_ID){
-      result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
-      result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
-      result << "\r\n";
-      result << audioId << "/index.m3u8" << tknStr << "\r\n";
+
+    if (!vidTracks){
+      if (audioId != INVALID_TRACK_ID){
+        // Audio only playlist
+        result << "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=" << (M.getBps(audioId) * 8);
+        result << ",CODECS=\"" << Util::codecString(M.getCodec(audioId), M.getInit(audioId)) << "\"";
+        result << "\r\n";
+        result << audioId << "/index.m3u8" << tknStr << "\r\n";
+      }else{
+        // No compatible tracks at all
+        return "";
+      }
     }
     return result.str();
   }
@@ -395,6 +402,10 @@ namespace Mist{
       std::string manifest;
       if (request.find("/") == std::string::npos){
         manifest = liveIndex();
+        if (manifest == ""){
+          onFail("No HLS compatible tracks found");
+          return;
+        }
       }else{
         size_t idx = atoi(request.substr(0, request.find("/")).c_str());
         if (!M.getValidTracks().count(idx)){

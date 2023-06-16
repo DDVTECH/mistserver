@@ -101,6 +101,7 @@ struct streamTotals{
   uint64_t currOuts;
   uint64_t currViews;
   uint64_t currUnspecified;
+  uint64_t currSessions;
   uint8_t status;
   uint64_t viewSeconds;
   uint64_t packSent;
@@ -142,6 +143,7 @@ static void createEmptyStatsIfNeeded(const std::string & streamName){
   sT.currIns = 0;
   sT.currOuts = 0;
   sT.currUnspecified = 0;
+  sT.currSessions = 0;
   sT.currViews = 0;
   sT.status = 0;
   sT.viewSeconds = 0;
@@ -377,7 +379,6 @@ void Controller::SharedMemStats(void *config){
   HIGH_MSG("Starting stats thread");
   statComm.reload(true);
   statCommActive = true;
-  std::set<std::string> inactiveStreams;
   Controller::initState();
   bool shiftWrites = true;
   bool firstRun = true;
@@ -466,6 +467,7 @@ void Controller::SharedMemStats(void *config){
           it->second.currIns = 0;
           it->second.currOuts = 0;
           it->second.currUnspecified = 0;
+          it->second.currSessions = 0;
         }
       }
       // wipe old statistics and set session type counters
@@ -480,6 +482,7 @@ void Controller::SharedMemStats(void *config){
           cutOffPoint = 0;
         }
         for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
+          streamStats[it->second.getStreamName()].currSessions++;
           // This part handles ending sessions, keeping them in cache for now
           if (it->second.getEnd() < cutOffPoint){
             viewSecondsTotal += it->second.getConnTime();
@@ -529,20 +532,25 @@ void Controller::SharedMemStats(void *config){
           strmPos = strmStats->getDeleted();
         }
       }
+      std::set<std::string> inactiveStreams;
       if (streamStats.size()){
         for (std::map<std::string, struct streamTotals>::iterator it = streamStats.begin();
              it != streamStats.end(); ++it){
-          uint8_t newState = Util::getStreamStatus(it->first);
-          uint8_t oldState = it->second.status;
-          if (newState != oldState){
-            it->second.status = newState;
-            if (newState == STRMSTAT_READY){
-              streamStarted(it->first);
-            }else{
-              if (oldState == STRMSTAT_READY){streamStopped(it->first);}
+          // Ignore blank stream name; these are generic and we don't track stream status for them
+          if (it->first.size()){
+            uint8_t newState = Util::getStreamStatus(it->first);
+            uint8_t oldState = it->second.status;
+            if (newState != oldState){
+              it->second.status = newState;
+              if (newState == STRMSTAT_READY){
+                streamStarted(it->first);
+              }else{
+                if (oldState == STRMSTAT_READY){streamStopped(it->first);}
+              }
             }
+            // No active sessions? Mark it as inactive for cleanup.
+            if (!it->second.currSessions){inactiveStreams.insert(it->first);}
           }
-          if (newState == STRMSTAT_OFF){inactiveStreams.insert(it->first);}
           if (strmStats){
             if (shiftWrites){strmStats->setString("stream", it->first, strmPos);}
             strmStats->setInt("status", it->second.status, strmPos);

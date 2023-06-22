@@ -1,3 +1,4 @@
+
 #include "json.h"
 #include "mp4.h"
 #include "mp4_adobe.h"
@@ -693,7 +694,12 @@ namespace MP4{
     unsigned int tempLoc = 4;
     while (tempLoc < boxedSize() - 8){
       res++;
-      tempLoc += getBoxLen(tempLoc);
+      size_t len = getBoxLen(tempLoc);
+      if (len < 8) {
+        WARN_MSG("Invalid box of size %zu; aborting reading rest of box contents", len);
+        break;
+      }
+      tempLoc += len;
     }
     return res;
   }

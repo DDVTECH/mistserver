@@ -1372,7 +1372,8 @@ namespace Mist{
     uint64_t maxEntries = 0;
     uint64_t targetAge = 0;
     std::string targetDuration;
-    bool reInitPlaylist = false;
+    bool reInitPlaylist = false; //< Reinit the playlist if we aren't appending to an existing one
+    bool hasInitialSegment = false; //< Open the playlist once, after segmenting the first segment
     bool autoAdjustSplit = false;
     Socket::Connection plsConn;
     uint64_t systemBoot;
@@ -1545,28 +1546,6 @@ namespace Mist{
         return 3;
       }
       initialSeek();
-      // Initialises the playlist if we are segmenting the output with a playlist
-      if (targetParams.count("m3u8")){
-        if (reInitPlaylist){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-          reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-        }
-        // Do not open the playlist just yet if this is a non-live source
-        if (M.getLive()){
-          connectToFile(playlistLocationString, false, &plsConn);
-          // Write initial contents to the playlist file
-          if (!plsConn){
-            FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
-            Util::logExitReason("Failed to open a connection to playlist file `%s`  for segmenting", playlistLocationString.c_str());
-            return 1;
-          }else if (playlistBuffer.size()){
-            // Do not write to the playlist intermediately if we are outputting a VOD playlist
-            plsConn.SendNow(playlistBuffer);
-            // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
-            if (!maxEntries && !targetAge) {playlistBuffer = "";}
-          }
-        }
-      }
       currentStartTime = currentTime();
       std::string newTarget = origTarget;
       Util::replaceVar(newTarget, "currentMediaTime", JSON::Value(currentStartTime).asString());
@@ -1683,6 +1662,41 @@ namespace Mist{
               if (inlineRestartCapable() && !reachedPlannedStop()){
                 // Write the segment to the playlist if applicable
                 if (targetParams.count("m3u8")){
+                  // Initialises the playlist if we are segmenting the output with a playlist
+                  if (reInitPlaylist){
+                    // Last chance to modify the target duration for append-only playlists
+                    double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
+                    if (segmentDuration > JSON::Value(targetDuration).asDouble()){
+                      // Round up if there are decimals
+                      if (segmentDuration != (uint64_t)segmentDuration){
+                        segmentDuration = (uint64_t)segmentDuration + 1;
+                      }
+                      WARN_MSG("The first segment is longer than the target duration. Adjusting the targetDuration from %s to %f s", targetDuration.c_str(), segmentDuration);
+                      targetDuration = JSON::Value(segmentDuration).asString();
+                    }
+                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+                    reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
+                    reInitPlaylist = false;
+                  }
+                  // Open the playlist after we have the first segment
+                  if (!hasInitialSegment){
+                    // Do not open the playlist just yet if this is a non-live source
+                    if (M.getLive()){
+                      connectToFile(playlistLocationString, false, &plsConn);
+                      // Write initial contents to the playlist file
+                      if (!plsConn){
+                        FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
+                        Util::logExitReason("Failed to open a connection to playlist file `%s`  for segmenting", playlistLocationString.c_str());
+                        return 1;
+                      }else if (playlistBuffer.size()){
+                        // Do not write to the playlist intermediately if we are outputting a VOD playlist
+                        plsConn.SendNow(playlistBuffer);
+                        // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
+                        if (!maxEntries && !targetAge) {playlistBuffer = "";}
+                      }
+                    }
+                    hasInitialSegment = true;
+                  }
                   // We require an active connection to the playlist
                   // except for VOD, where we connect and write at the end of segmenting
                   if (!plsConn && M.getLive()){
@@ -1707,9 +1721,13 @@ namespace Mist{
                   }
                   // Always adjust the targetDuration in the playlist upwards
                   if (segmentDuration > JSON::Value(targetDuration).asDouble()){
+                    // Round up if there are decimals
+                    if (segmentDuration != (uint64_t)segmentDuration){
+                      segmentDuration = (uint64_t)segmentDuration + 1;
+                    }
                     // Set the new targetDuration to the ceil of the segment duration
                     WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
-                    targetDuration = JSON::Value((uint64_t)segmentDuration + 1).asString();
+                    targetDuration = JSON::Value(segmentDuration).asString();
                     // Modify the buffer to contain the new targetDuration
                     if (!M.getLive()){
                       uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;

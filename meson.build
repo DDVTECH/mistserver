@@ -15,7 +15,7 @@ release = release.strip()
 # Falls back to a file called "VERSION" or the string "Unknown" otherwise
 git = find_program('git', required: false)
 if git.found()
-  rv = run_command(git, 'describe', '--tags', check: false)
+  rv = run_command(git, 'describe', check: false)
   version = rv.stdout().strip()
   if rv.returncode() != 0
     fs = import('fs') 

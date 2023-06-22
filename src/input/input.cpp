@@ -761,7 +761,7 @@ namespace Mist{
         uint64_t currLastUpdate = M.getLastUpdated();
         if (currLastUpdate > activityCounter){activityCounter = currLastUpdate;}
       }else{
-        if (connectedUsers && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
+        if ((connectedUsers || isAlwaysOn()) && M.getValidTracks().size()){activityCounter = Util::bootSecs();}
       }
 
       inputServeStats();
@@ -813,10 +813,6 @@ namespace Mist{
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
     bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT);
-    if (!ret && config->is_active && isAlwaysOn()){
-      ret = true;
-      activityCounter = Util::bootSecs();
-    }
     /*LTS-START*/
     if (!ret){
       if (Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
@@ -1489,7 +1485,7 @@ namespace Mist{
       for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
       DTSC::Parts parts(M.parts(idx));
       while (thisPacket && thisTime < stopTime){
-        if (connectedUsers){activityCounter = Util::bootSecs();}
+        if (connectedUsers || isAlwaysOn()){activityCounter = Util::bootSecs();}
         if (thisTime >= lastBuffered){
           if (sourceIdx != idx){
             if (encryption.find(":") != std::string::npos || M.getEncryption(idx).find(":") != std::string::npos){

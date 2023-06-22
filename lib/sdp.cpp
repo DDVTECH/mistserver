@@ -511,6 +511,11 @@ namespace SDP{
         nope = true;
         tid = myMeta->addTrack();
 
+        if (tid == INVALID_TRACK_ID){
+          WARN_MSG("Could not add new track, skipping");
+          continue;
+        }
+
         // Strip m=
         std::stringstream words(to.substr(2));
         std::string item;

@@ -1683,13 +1683,13 @@ namespace DTSC{
       trackLock.open(pageName, O_CREAT | O_RDWR, ACCESSPERMS, 1);
       if (!trackLock){
         FAIL_MSG("Could not open semaphore to add track!");
-        return -1;
+        return INVALID_TRACK_ID;
       }
       trackLock.wait();
       if (stream.isExit()){
         trackLock.post();
         FAIL_MSG("Not adding track: stream is shutting down");
-        return -1;
+        return INVALID_TRACK_ID;
       }
     }
 

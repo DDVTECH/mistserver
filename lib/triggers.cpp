@@ -69,7 +69,8 @@ namespace Triggers{
         submitTriggerStat(trigger, tStartMs, true);
         return DL.data();
       }
-      FAIL_MSG("Trigger failed to execute (%s), using default response: %s",
+      FAIL_MSG("%s trigger: %s (%s) failed to execute (%s), using default response: %s",
+               trigger.c_str(), value.c_str(), sync ? "blocking" : "asynchronous",
                DL.getStatusText().c_str(), defaultResponse.c_str());
       submitTriggerStat(trigger, tStartMs, false);
       return defaultResponse;

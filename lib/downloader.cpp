@@ -445,6 +445,7 @@ namespace HTTP{
           }
           if (Util::bootMS() >= bodyActive + dataTimeout*1000){
             uint64_t postrequest = Util::getMicros();
+            H.method = "Timeout";
             FAIL_MSG("Timeout during sending of POST body after %u bytes and %.2fms!", payOff, (postrequest-prerequest)/1000.0);
             s.close();
           }
@@ -467,6 +468,7 @@ namespace HTTP{
           if (progressCallback != 0){
             if (!progressCallback()){
               WARN_MSG("Download aborted by callback");
+              H.method = "Aborted";
               s.close();
               return false;
             }
@@ -481,6 +483,7 @@ namespace HTTP{
           HIGH_MSG("Post to %s completed in %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
           if (shouldContinue()){
             if (maxRecursiveDepth == 0){
+              H.method = "Maximum depth reached";
               FAIL_MSG("Maximum recursion depth reached");
               return false;
             }
@@ -498,6 +501,7 @@ namespace HTTP{
           if (progressCallback != 0){
             if (!progressCallback()){
               uint64_t postresponse = Util::getMicros();
+              H.method = "Aborted";
               WARN_MSG("Post to %s aborted by callback after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
               s.close();
               return false;
@@ -512,11 +516,13 @@ namespace HTTP{
       if (!preresponse){preresponse = Util::getMicros();}
       if (s){
         uint64_t postresponse = Util::getMicros();
+        H.method = "Timed out";
         FAIL_MSG("Post to %s timed out after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
         s.close();
         continue;
       }
       uint64_t postresponse = Util::getMicros();
+      H.method = "Connection closed";
       WARN_MSG("Post to %s failed after %.2f ms (%.2f ms upload, %.2f ms wait, %.2f ms download)", link.getUrl().c_str(), (postresponse-prerequest)/1000.0, (postrequest-prerequest)/1000.0, (preresponse-postrequest)/1000.0, (postresponse-preresponse)/1000.0);
       Util::sleep(100); // wait a bit before retrying
     }
@@ -524,13 +530,18 @@ namespace HTTP{
   }
 
   bool Downloader::canRequest(const HTTP::URL &link){
-    if (!link.host.size()){return false;}
+    if (!link.host.size()){
+      H.method = "Missing host";
+      return false;
+    }
     if (link.protocol != "http" && link.protocol != "https" && link.protocol != "ws" && link.protocol != "wss"){
+      H.method = "Unsupported protocol " + link.protocol;
       FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
       return false;
     }
 #ifndef SSL
     if (link.protocol == "https" || link.protocol == "wss"){
+      H.method = "Unsupported protocol " + link.protocol;
       FAIL_MSG("Protocol not supported: %s", link.protocol.c_str());
       return false;
     }
@@ -554,10 +565,12 @@ namespace HTTP{
       if (H.hasHeader("WWW-Authenticate")){authStr = H.GetHeader("WWW-Authenticate");}
       if (H.hasHeader("Www-Authenticate")){authStr = H.GetHeader("Www-Authenticate");}
       if (!authStr.size()){
+        H.method = "Missing Authentication header";
         FAIL_MSG("Authentication required but no WWW-Authenticate header present");
         return false;
       }
       if (!link.user.size() && !link.pass.size()){
+        H.method = "Missing Authentication in URL";
         FAIL_MSG("Authentication required but not included in URL");
         return false;
       }
@@ -568,10 +581,12 @@ namespace HTTP{
       // retry with authentication
       if (H.hasHeader("Proxy-Authenticate")){proxyAuthStr = H.GetHeader("Proxy-Authenticate");}
       if (!proxyAuthStr.size()){
+        H.method = "Missing Proxy-Authenticate header";
         FAIL_MSG("Proxy authentication required but no Proxy-Authenticate header present");
         return false;
       }
       if (!proxyUrl.user.size() && !proxyUrl.pass.size()){
+        H.method = "Missing proxy authentication in URL";
         FAIL_MSG("Proxy authentication required but not included in URL");
         return false;
       }

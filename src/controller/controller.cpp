@@ -73,6 +73,11 @@ void createAccount(std::string account){
   }
 }
 
+/// Bitmask:
+/// 1 = Auto-read config from disk
+/// 2 = Auto-write config to disk
+static int configrw;
+
 /// Status monitoring thread.
 /// Checks status of "protocols" (listening outputs)
 /// Updates config from disk when changed
@@ -102,18 +107,22 @@ void statusMonitor(void *np){
         Controller::lastConfigSeen = currConfig;
       }
     }
-    // Read from disk if they are newer than our last read
-    if (confTime && confTime > lastConfRead){
-      INFO_MSG("Configuration files changed - reloading configuration from disk");
-      tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      Controller::readConfigFromDisk();
-      lastConfRead = Controller::lastConfigChange;
+    if (configrw & 1){
+      // Read from disk if they are newer than our last read
+      if (confTime && confTime > lastConfRead){
+        INFO_MSG("Configuration files changed - reloading configuration from disk");
+        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        Controller::readConfigFromDisk();
+        lastConfRead = Controller::lastConfigChange;
+      }
     }
-    // Write to disk if we have made no changes in the last 60 seconds and the files are older than the last change
-    if (Controller::lastConfigChange > Controller::lastConfigWrite && Controller::lastConfigChange < Util::epoch() - 60){
-      tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
-      Controller::writeConfigToDisk();
-      if (lastConfRead < Controller::lastConfigWrite){lastConfRead = Controller::lastConfigWrite;}
+    if (configrw & 2){
+      // Write to disk if we have made no changes in the last 60 seconds and the files are older than the last change
+      if (Controller::lastConfigChange > Controller::lastConfigWrite && Controller::lastConfigChange < Util::epoch() - 60){
+        tthread::lock_guard<tthread::mutex> guard(Controller::configMutex);
+        Controller::writeConfigToDisk();
+        if (lastConfRead < Controller::lastConfigWrite){lastConfRead = Controller::lastConfigWrite;}
+      }
     }
 
     { // this scope prevents the configMutex from being locked constantly
@@ -294,6 +303,10 @@ int main_loop(int argc, char **argv){
       "configFile", JSON::fromString("{\"long\":\"config\", \"short\":\"c\", \"arg\":\"string\" "
                                      "\"default\":\"config.json\", \"help\":\"Specify a config "
                                      "file other than default.\"}"));
+
+  Controller::conf.addOption(
+      "configrw", JSON::fromString("{\"long\":\"configrw\", \"short\":\"C\", \"arg\":\"string\" "
+                                     "\"default\":\"rw\", \"help\":\"If 'r', read config changes from disk. If 'w', writes them to disk after 60 seconds of no changes. If 'rw', does both (default). In all other cases does neither.\"}"));
 #ifdef UPDATER
   Controller::conf.addOption(
       "update", JSON::fromString("{\"default\":0, \"help\":\"Check for and install updates before "
@@ -500,6 +513,18 @@ int main_loop(int argc, char **argv){
     do{
       Controller::instanceId += (char)(64 + rand() % 62);
     }while (Controller::instanceId.size() < 16);
+  }
+
+  // Set configrw to correct value
+  {
+    configrw = 0;
+    if (Controller::conf.getString("configrw") == "r"){
+      configrw = 1;
+    }else if (Controller::conf.getString("configrw") == "w"){
+      configrw = 2;
+    }else if (Controller::conf.getString("configrw") == "rw"){
+      configrw = 3;
+    }
   }
 
   // start stats thread

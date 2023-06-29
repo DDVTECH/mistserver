@@ -346,6 +346,15 @@ namespace Mist{
       targetParams["meta"] = "none";
       targetParams["subtitle"] = "none";
 
+      std::set<size_t> vTrks = M.getValidTracks(true);
+      if (!vTrks.count(vidTrack)){
+        H.Clean();
+        H.setCORSHeaders();
+        H.SetBody("Track not valid.\n");
+        myConn.SendNow(H.BuildResponse("404", "Track not valid"));
+        WARN_MSG("Requested invalid track ID %zu", vidTrack);
+        return;
+      }
       if (M.getLive() && from < M.getFirstms(vidTrack)){
         H.Clean();
         H.setCORSHeaders();

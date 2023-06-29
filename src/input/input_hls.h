@@ -16,9 +16,8 @@
 
 namespace Mist{
 
-  enum PlaylistType{VOD, LIVE, EVENT};
-
-  extern bool streamIsLive;
+  extern bool streamIsLive; //< Playlist can be sliding window or get new segments appended
+  extern bool streamIsVOD; //< Playlist segments do not disappear
   extern uint32_t globalWaitTime; // largest waitTime for any playlist we're loading - used to update minKeepAway
   void parseKey(std::string key, char *newKey, unsigned int len);
 
@@ -80,7 +79,7 @@ namespace Mist{
     Playlist(const std::string &uriSrc = "");
     bool isUrl() const;
     bool reload();
-    void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &totalBytes,
+    void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
                   const std::string &key, const std::string &keyIV);
     bool isSupportedFile(const std::string filename);
 
@@ -93,15 +92,16 @@ namespace Mist{
     uint32_t id;
     bool playlistEnd;
     int noChangeCount;
-    uint64_t lastFileIndex;
 
     uint64_t waitTime;
-    PlaylistType playlistType;
     uint64_t lastTimestamp;
     uint64_t startTime;
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];
     std::map<std::string, std::string> keys;
+    uint64_t firstIndex; //< the index of the first segment in the playlist
+    uint64_t lastSegment;
+    std::map<size_t, bool> tracks;
   };
 
   void playlistRunner(void *ptr);
@@ -110,7 +110,7 @@ namespace Mist{
   public:
     inputHLS(Util::Config *cfg);
     ~inputHLS();
-    bool needsLock();
+    bool needsLock(){return !config->getBool("realtime");}
     bool openStreamSource();
     bool callback();
 
@@ -119,7 +119,6 @@ namespace Mist{
     uint64_t nUTC; ///< Next packet timestamp in UTC unix time millis
     int64_t streamOffset; ///< bootMsOffset we need to set once we have parsed the header
     unsigned int startTime;
-    PlaylistType playlistType;
     SegmentDownloader segDowner;
     int version;
     int targetDuration;
@@ -145,14 +144,12 @@ namespace Mist{
     // Used to map packetId of packets in pidMapping
     int pidCounter;
 
-    /// HLS live VoD stream, set if: #EXT-X-PLAYLIST-TYPE:EVENT
-    bool isLiveDVR;
     // Override userLeadOut to buffer new data as live packets
     void userLeadOut();
+    // Removes any metadata which is no longer and the playlist or buffered in memory
+    void updateMeta();
     /// Tries to add as much live packets from a TS file at the given location
     bool parseSegmentAsLive(uint64_t segmentIndex);
-    // Updates parsedSegmentIndex for all playlists
-    void setParsedSegments();
     // index of last playlist entry finished parsing
     long previousSegmentIndex;
 
@@ -174,16 +171,19 @@ namespace Mist{
     bool readNextFile();
 
     void parseStreamHeader();
+    void parseLivePoint();
+    void streamMainLoop();
 
     uint32_t getMappedTrackId(uint64_t id);
     uint32_t getMappedTrackPlaylist(uint64_t id);
     uint64_t getOriginalTrackId(uint32_t playlistId, uint32_t id);
     uint64_t getPacketTime(uint64_t packetTime, uint64_t tid, uint64_t currentPlaylist, uint64_t nUTC = 0);
     uint64_t getPacketID(uint64_t currentPlaylist, uint64_t trackId);
-    size_t getEntryId(uint32_t playlistId, uint64_t bytePos);
     virtual void finish();
     void injectLocalVars();
     virtual void checkHeaderTimes(const HTTP::URL & streamFile);
+    // Used to immediately mark pages for removal when we're bursting through segments on initial boot
+    bool isInitialRun;
   };
 }// namespace Mist
 

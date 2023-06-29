@@ -22,7 +22,7 @@ namespace Mist{
     bool bufferStart(size_t idx, uint32_t pageNumber, IPC::sharedPage & page, DTSC::Meta & aMeta);
     void bufferFinalize(size_t idx, IPC::sharedPage & page);
     void liveFinalize(size_t idx);
-    bool isCurrentLivePage(size_t idx, uint32_t pageNumber);
+    bool isRecentLivePage(size_t idx, uint32_t pageNumber, uint64_t maxAge);
     void bufferRemove(size_t idx, uint32_t pageNumber, uint32_t pageIdx = INVALID_KEY_NUM);
     void bufferLivePacket(const DTSC::Packet &packet);
 
@@ -50,6 +50,13 @@ namespace Mist{
     const DTSC::Meta &M;
 
     std::map<size_t, Comms::Users> userSelect;
+
+    size_t getCurrentLivePage(uint32_t trackIdx){
+      if (!curPageNum.count(trackIdx)){
+        return INVALID_KEY_NUM;
+      }
+      return curPageNum[trackIdx];
+    };
 
   private:
     std::map<uint32_t, IPC::sharedPage> livePage;

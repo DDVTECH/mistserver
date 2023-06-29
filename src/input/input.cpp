@@ -48,10 +48,11 @@ namespace Mist{
       const Util::RelAccX &tPages = M.pages(track);
       if (!tPages.getEndPos()){return;}
       DTSC::Keys keys(M.keys(track));
-      if (i > keys.getValidCount()){return;}
+      if (i > keys.getEndValid()){return;}
       uint64_t pageIdx = 0;
       for (uint64_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
-        if (tPages.getInt("firstkey", j) > i) break;
+        uint64_t thisKey = tPages.getInt("firstkey", j);
+        if (thisKey > i) break;
         pageIdx = j;
       }
       uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
@@ -210,7 +211,19 @@ namespace Mist{
     capa["optional"]["realtime"]["name"] = "Simulated Live";
     capa["optional"]["realtime"]["help"] = "Make this input run as a simulated live stream";
     capa["optional"]["realtime"]["option"] = "--realtime";
+
     option.null();
+    option["short"] = "P";
+    option["long"] = "pagetimeout";
+    option["arg"] = "integer";
+    option["value"].append(DEFAULT_PAGE_TIMEOUT);
+    option["help"] = "For bufferless or live inputs like HLS, set the timeout in seconds for old, inactive pages to be deleted. A longer value results in more memory usage, but ensures that recently buffered data stays in memory for longer";
+    config->addOption("pagetimeout", option);
+    capa["optional"]["pagetimeout"]["name"] = "Memory page timeout";
+    capa["optional"]["pagetimeout"]["help"] = "For bufferless or live inputs like HLS, set the timeout in seconds for old, inactive pages to be deleted. A longer value results in more memory usage, but ensures that recently buffered data stays in memory for longer";
+    capa["optional"]["pagetimeout"]["option"] = "--pagetimeout";
+    capa["optional"]["pagetimeout"]["type"] = "uint";
+    capa["optional"]["pagetimeout"]["default"] = DEFAULT_PAGE_TIMEOUT;
 
     /*LTS-END*/
     capa["optional"]["debug"]["name"] = "debug";
@@ -1226,16 +1239,21 @@ namespace Mist{
   }
 
   void Input::removeUnused(){
-    uint64_t timeout = config->getInteger("pagetimeout") * 1000;
+    uint64_t timeout = config->getInteger("pagetimeout");
+    uint64_t bufferTime = timeout * 1000;
+    if (config->hasOption("bufferTime")){
+      bufferTime = config->getInteger("bufferTime");
+    }
     uint64_t cTime = Util::bootSecs();
     for (std::map<size_t, std::map<uint32_t, uint64_t> >::iterator it = pageCounter.begin();
          it != pageCounter.end(); it++){
       std::set<uint32_t> deletedEntries;
       for (std::map<uint32_t, uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++){
-        if (isRecentLivePage(it->first, it2->first, timeout)){continue;}
-        if (cTime > it2->second + DEFAULT_PAGE_TIMEOUT){
+        if (isRecentLivePage(it->first, it2->first, bufferTime)){continue;}
+        if (cTime > it2->second + timeout){
           deletedEntries.insert(it2->first);
           bufferRemove(it->first, it2->first);
+          HIGH_MSG("Unloading page %u track %lu", it2->first, it->first);
         }
       }
       while (deletedEntries.size()){
@@ -1470,19 +1488,26 @@ namespace Mist{
 
     const Util::RelAccX &tPages = M.pages(idx);
     DTSC::Keys keys(M.keys(idx));
-    uint32_t keyCount = keys.getValidCount();
+    uint64_t firstKey = keys.getFirstValid();
+    if (keyNum < firstKey){
+      HIGH_MSG("Key %" PRIu32 " on track %zu no longer seekable (earliest requestable key is %" PRIu64
+                "). Cancelling buffering.",
+                keyNum, idx, firstKey);
+      return true;
+    }
+    uint64_t lastKey = keys.getEndValid();
+    if (keyNum > lastKey){
+      // End of movie here, returning true to avoid various error messages
+      if (keyNum > lastKey + 1){
+        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (latest key is %" PRIu64
+                 "). Cancelling buffering.",
+                 keyNum, idx, lastKey);
+      }
+      return true;
+    }
     if (!tPages.getEndPos()){
       WARN_MSG("No pages for track %zu found! Cancelling bufferFrame", idx);
       return false;
-    }
-    if (keyNum > keyCount){
-      // End of movie here, returning true to avoid various error messages
-      if (keyNum > keyCount + 1){
-        WARN_MSG("Key %" PRIu32 " on track %zu is higher than total (%" PRIu32
-                 "). Cancelling buffering.",
-                 keyNum, idx, keyCount);
-      }
-      return true;
     }
     uint64_t pageIdx = 0;
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -1553,8 +1578,7 @@ namespace Mist{
       }
     }else{
       size_t prevPos = 0;
-      size_t partNo = 0;
-      for (size_t i = 0; i < keyNum; ++i){partNo += keys.getParts(i);}
+      size_t partNo = keys.getFirstPart(keyNum);
       DTSC::Parts parts(M.parts(idx));
       while (thisPacket && thisTime < stopTime){
         if (connectedUsers || isAlwaysOn()){activityCounter = Util::bootSecs();}

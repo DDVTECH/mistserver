@@ -107,15 +107,21 @@ namespace Mist{
     return true;
   }
 
-  /// Checks whether a given page is currently being written to
-  /// \return True if the page is the current live page, and thus not safe to remove
-  bool InOutBase::isCurrentLivePage(size_t idx, uint32_t pageNumber){
+  /// Checks whether a given page was recently being written to
+  /// \return True if the page is in the current live window, and thus not safe to remove
+  bool InOutBase::isRecentLivePage(size_t idx, uint32_t pageNumber, uint64_t maxAge){
     // Base case: for nonlive situations no new data will be added
     if (!M.getLive()){
       return false;
     }
     // All pages at or after the current live page should not get removed
     if (curPageNum[idx] && curPageNum[idx] <= pageNumber){
+      return true;
+    }
+    // Compare last timestamp on the track with the time of the first key of the page
+    uint64_t lastMs = meta.getNowms(idx);
+    uint64_t thisTime = meta.getTimeForKeyIndex(idx, pageNumber);
+    if (lastMs - thisTime < maxAge) {
       return true;
     }
     // If there is no set curPageNum we are definitely not writing to it
@@ -166,7 +172,32 @@ namespace Mist{
     IPC::releasePage(pageName);
 #endif
     toErase.master = true;
-    // Remove the page from the tracks index page
+    // Update the page on the tracks index page if needed
+    uint64_t firstKeyNum = tPages.getInt("firstkey", pageIdx);
+    uint64_t keyCount = tPages.getInt("keycount", pageIdx);
+    uint64_t partCount = tPages.getInt("parts", pageIdx);
+    uint64_t newFirstKey = M.getKeys(idx).getFirstValid();
+    if (firstKeyNum + keyCount <= newFirstKey){
+      INFO_MSG("Page %" PRIu64 " track %zu has expired during the time it was kept cached in memory (contains up to key %lu, but the earliest key is %lu). Removing it now", firstKeyNum, idx, firstKeyNum + keyCount, newFirstKey);
+      tPages.setInt("keycount", 0, pageIdx); //< Force removal by having avail and keycount both 0
+    }else if (firstKeyNum < newFirstKey){
+      uint64_t newPartCount = 0;
+      DTSC::Keys keys = M.getKeys(idx);
+      for (uint32_t i = newFirstKey; i < firstKeyNum + keyCount; i++){
+        newPartCount += keys.getParts(i);
+      }
+      MEDIUM_MSG("Adjusting meta info for page %lu track %lu before unloading it. First key %lu -> %lu. Key count %lu -> %lu. Part count %lu -> %lu", firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
+      tPages.setInt("keycount", keyCount - (newFirstKey - firstKeyNum), pageIdx);
+      tPages.setInt("parts", newPartCount, pageIdx);
+      tPages.setInt("firstkey", newFirstKey, pageIdx);
+    }
+    // Delete pages from the tracks index page that will never contain any more
+    for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
+      if (tPages.getInt("keycount", i) || tPages.getInt("avail", i)){
+        break;
+      }
+      tPages.deleteRecords(1);
+    }
     // Leaving scope here, the page will now be destroyed
   }
 
@@ -188,8 +219,7 @@ namespace Mist{
       uint64_t pageNum = tPages.getInt("firstkey", i);
       if (pageNum > keyNum) continue;
       uint64_t keyCount = tPages.getInt("keycount", i);
-      if (pageNum + keyCount - 1 < keyNum) continue;
-      if (keyCount && pageNum + keyCount - 1 < keyNum) continue;
+      if (!keyCount || pageNum + keyCount - 1 < keyNum) continue;
       uint64_t avail = tPages.getInt("avail", i);
       return avail ? pageNum : INVALID_KEY_NUM;
     }
@@ -445,13 +475,22 @@ namespace Mist{
           if ((tPages.getEndPos() - tPages.getDeleted()) >= tPages.getRCount()){
             aMeta.resizeTrack(packTrack, aMeta.fragments(packTrack).getRCount(), aMeta.keys(packTrack).getRCount(), aMeta.parts(packTrack).getRCount(), tPages.getRCount() * 2, "not enough pages");
           }
-
+          // Finalize part count of the previous live page
+          uint64_t newPartCount = 0;
+          DTSC::Keys keys = M.getKeys(packTrack);
+          uint64_t lastKey = tPages.getInt("firstkey", curPage) + tPages.getInt("keycount", curPage);
+          for (uint32_t i = tPages.getInt("firstkey", curPage); i < lastKey; i++){
+            newPartCount += keys.getParts(i);
+          }
+          tPages.setInt("parts", newPartCount, curPage);
           curPage = endPage;
           tPages.setInt("firstkey", curPageNum[packTrack], endPage);
           tPages.setInt("firsttime", packTime, endPage);
           tPages.setInt("size", DEFAULT_DATA_PAGE_SIZE, endPage);
           tPages.setInt("keycount", 0, endPage);
           tPages.setInt("avail", 0, endPage);
+          tPages.setInt("parts", 0, endPage);
+          tPages.setInt("lastkeytime", 0, endPage);
           tPages.addRecords(1);
           if (livePage[packTrack]){bufferFinalize(packTrack, livePage[packTrack]);}
           DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);

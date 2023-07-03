@@ -148,6 +148,21 @@ test('DTSC Sizing Test', dtsc_sizing_test)
 bitwritertest = executable('bitwritertest', 'bitwriter.cpp', dependencies: libmist_dep)
 test('bitWriter Test', bitwritertest)
 
+httpparsertest = executable('httpparsertest', 'http_parser.cpp', dependencies: libmist_dep)
+test('GET request for /', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'GET / HTTP/1.1\n\n', 'T_COUNT':'1'})
+test('GET request for / with carriage returns', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'GET / HTTP/1.1\r\n\r\n', 'T_COUNT':'1'})
+test('POST request to /, raw body', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'POST / HTTP/1.1\nContent-Length: 4\nContent-Type: text/plain\n\ntest', 'T_COUNT':'1'})
+test('POST request to /, urlencoded body', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'POST / HTTP/1.1\nContent-Length: 28\nContent-Type: application/x-www-form-urlencoded\n\nfoo=bar&banana=sauce&cookies', 'T_COUNT':'1'})
+test('Blank HTTP response, closed connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\nContent-Length: 0\n\n', 'T_COUNT':'1'})
+test('Blank HTTP response, lingering connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\nContent-Length: 0\n\n', 'T_LINGER':'1', 'T_COUNT':'1'})
+test('Simple HTTP response, closed connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\nContent-Length: 4\n\ntest', 'T_COUNT':'1'})
+test('Simple HTTP response, lingering connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\nContent-Length: 4\n\ntest', 'T_LINGER':'1', 'T_COUNT':'1'})
+test('Simple HTTP response, no length, closed connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\n\ntest', 'T_COUNT':'1'})
+test('Simple HTTP response, no length, lingering connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nDate: Thu, 15 Jun 2023 21:34:06 GMT\n\ntest', 'T_LINGER':'1', 'T_COUNT':'0'})
+test('Chunked HTTP response, closed connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n1\nt\n3\nest\n0\n\n', 'T_COUNT':'1'})
+test('Chunked HTTP response, lingering connection', httpparsertest, suite: 'HTTP parser', env: {'T_HTTP':'HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n1\nt\n3\nest\n0\n\n', 'T_LINGER':'1', 'T_COUNT':'1'})
+
+
 #abst_test = executable('abst_test', 'abst_test.cpp', dependencies: libmist_dep)
 #test('MP4::ABST Test', abst_test)
 

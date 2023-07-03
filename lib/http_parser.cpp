@@ -45,6 +45,7 @@ void HTTP::Parser::CleanPreserveHeaders(){
   protocol = "HTTP/1.1";
   body.clear();
   length = 0;
+  knownLength = false;
   vars.clear();
 }
 
@@ -619,11 +620,13 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         if (tmpA.size() == 0){
           seenHeaders = true;
           body.clear();
+          knownLength = false;
           if (GetHeader("Content-Length") != ""){
             length = atoi(GetHeader("Content-Length").c_str());
             if (!bodyCallback && (&cb == &Util::defaultDataCallback) && body.capacity() < length){
               body.reserve(length);
             }
+            knownLength = true;
           }
           if (GetHeader("Transfer-Encoding") == "chunked"){
             getChunks = true;
@@ -645,7 +648,7 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
         unsigned int code = atoi(url.data());
         if ((code >= 100 && code < 200) || code == 204 || code == 304){return true;}
       }
-      if (length > 0 && !getChunks){
+      if (knownLength && !getChunks){
         unsigned int toappend = length - body.length();
 
         // limit the amount of bytes that will be appended to the amount there
@@ -673,8 +676,8 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           currentLength += toappend;
         }
         if (length == body.length()){
-          // parse POST variables
-          if (method == "POST"){parseVars(body, vars);}
+          // parse POST body if the content type is URLEncoded
+          if (method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded"){parseVars(body, vars);}
           return true;
         }else{
           return false;

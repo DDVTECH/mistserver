@@ -57,6 +57,7 @@ namespace HTTP{
     std::string url;
     std::string protocol;
     unsigned int length;
+    bool knownLength;
     unsigned int currentLength;
     bool headerOnly; ///< If true, do not parse body if the length is a known size.
     bool bufferChunks;

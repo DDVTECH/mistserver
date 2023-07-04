@@ -77,11 +77,11 @@ def docker_image_pipeline(arch, release, stripped, context):
             {
                 "name": "login",
                 "commands": [
-                    "docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD",
+                    "docker login -u $CI_DOCKERHUB_USERNAME -p $CI_DOCKERHUB_TOKEN",
                 ],
                 "environment": get_environment(
-                    "DOCKERHUB_USERNAME",
-                    "DOCKERHUB_PASSWORD",
+                    "CI_DOCKERHUB_USERNAME",
+                    "CI_DOCKERHUB_TOKEN",
                 ),
             },
             {
@@ -153,11 +153,11 @@ def docker_manifest_pipeline(release, stripped, context):
             {
                 "name": "login",
                 "commands": [
-                    "docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD",
+                    "docker login -u $CI_DOCKERHUB_USERNAME -p $CI_DOCKERHUB_TOKEN",
                 ],
                 "environment": get_environment(
-                    "DOCKERHUB_USERNAME",
-                    "DOCKERHUB_PASSWORD",
+                    "CI_DOCKERHUB_USERNAME",
+                    "CI_DOCKERHUB_TOKEN",
                 ),
             },
             {

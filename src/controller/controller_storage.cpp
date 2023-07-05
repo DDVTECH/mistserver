@@ -617,6 +617,8 @@ namespace Controller{
              || !globAccX.getFieldAccX("sessionStreamInfoMode")
              || !globAccX.getFieldAccX("tknMode")
              || !globAccX.getFieldAccX("udpApi")
+             || !globAccX.getFieldAccX("iid")
+             || !globAccX.getFieldAccX("hrn")
              ){
             globAccX.setReload();
             globCfg.master = true;
@@ -635,6 +637,8 @@ namespace Controller{
           globAccX.addField("sessionStreamInfoMode", RAX_64UINT);
           globAccX.addField("tknMode", RAX_64UINT);
           globAccX.addField("udpApi", RAX_128STRING);
+          globAccX.addField("iid", RAX_64STRING);
+          globAccX.addField("hrn", RAX_128STRING);
           globAccX.setRCount(1);
           globAccX.setEndPos(1);
           globAccX.setReady();
@@ -648,6 +652,8 @@ namespace Controller{
         globAccX.setInt("tknMode", Storage["config"]["tknMode"].asInt());
         globAccX.setString("udpApi", udpApiBindAddr);
         globAccX.setInt("systemBoot", systemBoot);
+        globAccX.setString("iid", instanceId);
+        globAccX.setString("hrn", Storage["config"]["serverid"].asString());
         globCfg.master = false; // leave the page after closing
         addShmPage(SHM_GLOBAL_CONF);
       }

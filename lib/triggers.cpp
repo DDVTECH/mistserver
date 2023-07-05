@@ -55,6 +55,14 @@ namespace Triggers{
     if (value.substr(0, 7) == "http://" || value.substr(0, 8) == "https://"){// interpret as url
       HTTP::Downloader DL;
       DL.setHeader("X-Trigger", trigger);
+      std::string iid = Util::getGlobalConfig("iid").asString();
+      if (iid.size()){
+        DL.setHeader("X-Instance", iid);
+      }
+      std::string hrn = Util::getGlobalConfig("hrn").asString();
+      if (hrn.size()){
+        DL.setHeader("X-Name", hrn);
+      }
       DL.setHeader("Content-Type", "text/plain");
       HTTP::URL url(value);
       if (DL.post(url, payload, sync) && (!sync || DL.isOk())){
@@ -76,9 +84,19 @@ namespace Triggers{
       argv[2] = NULL;
       setenv("MIST_TRIGGER", trigger.c_str(), 1);
       setenv("MIST_TRIG_DEF", defaultResponse.c_str(), 1);
+      std::string iid = Util::getGlobalConfig("iid").asString();
+      if (iid.size()){
+        setenv("MIST_INSTANCE", iid.c_str(), 1);
+      }
+      std::string hrn = Util::getGlobalConfig("hrn").asString();
+      if (hrn.size()){
+        setenv("MIST_NAME", hrn.c_str(), 1);
+      }
       pid_t myProc = Util::Procs::StartPiped(argv, &fdIn, &fdOut, &fdErr); // start new process and return stdin file desc.
       unsetenv("MIST_TRIGGER");
       unsetenv("MIST_TRIG_DEF");
+      unsetenv("MIST_INSTANCE");
+      unsetenv("MIST_NAME");
       if (fdIn == -1 || fdOut == -1 || myProc == -1){
         FAIL_MSG("Could not execute trigger executable: %s", strerror(errno));
         submitTriggerStat(trigger, tStartMs, false);

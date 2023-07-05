@@ -111,6 +111,7 @@ namespace Mist{
     startTime = 0;
     endTime = 0xffffffffffffffffull;
     realBaseOffset = 1;
+    timeOffset = 0;
   }
   OutMP4::~OutMP4(){}
 
@@ -154,7 +155,7 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin(); it != userSelect.end(); it++){
       DTSC::Keys keys = M.getKeys(it->first);
       size_t endKey = keys.getEndValid();
-      for (size_t i = 0; i < endKey; i++){
+      for (size_t i = keys.getFirstValid(); i < endKey; i++){
         retVal += keys.getSize(i); // Handle number as index, faster for VoD
       }
     }
@@ -176,7 +177,7 @@ namespace Mist{
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
-      tmpRes += 8 + 20; // TRAF + TFHD Box
+      tmpRes += 8 + 20 + 20; // TRAF + TFHD + TFDT Box
 
       DTSC::Keys keys = M.getKeys(subIt->first);
       DTSC::Parts parts(M.parts(subIt->first));
@@ -377,7 +378,7 @@ namespace Mist{
 
     uint64_t firstms = 0xFFFFFFFFFFFFFFull;
     // Construct with duration of -1, as this is the default for fragmented
-    MP4::MVHD mvhdBox(-1);
+    MP4::MVHD mvhdBox(0);
     // Then override it when we are not sending a VoD asset
     if (!M.getLive()){
       // calculating longest duration
@@ -428,7 +429,7 @@ namespace Mist{
         elstBox.setMediaRateFraction(1, 0);
       }else{
         elstBox.setCount(1);
-        elstBox.setSegmentDuration(0, fragmented ? -1 : tDuration);
+        elstBox.setSegmentDuration(0, fragmented ? 0 : tDuration);
         elstBox.setMediaTime(0, 0);
         elstBox.setMediaRateInteger(0, 1);
         elstBox.setMediaRateFraction(0, 0);
@@ -441,7 +442,7 @@ namespace Mist{
 
       // Add the mandatory MDHD and HDLR boxes to the MDIA
       MP4::MDHD mdhdBox(tDuration);
-      if (fragmented){mdhdBox.setDuration(-1);}
+      if (fragmented){mdhdBox.setDuration(0);}
       mdhdBox.setLanguage(M.getLang(it->first));
       mdiaBox.setContent(mdhdBox, mdiaOffset++);
       MP4::HDLR hdlrBox(tType, M.getTrackIdentifier(it->first));
@@ -661,7 +662,7 @@ namespace Mist{
       MP4::MVEX mvexBox;
       size_t curBox = 0;
       MP4::MEHD mehdBox;
-      mehdBox.setFragmentDuration(M.getDuration(mainTrack));
+      mehdBox.setFragmentDuration(0);
 
       mvexBox.setContent(mehdBox, curBox++);
       for (std::map<size_t, Comms::Users>::const_iterator it = userSelect.begin();
@@ -868,7 +869,7 @@ namespace Mist{
     trafBox.setContent(tfdtBox, 1);
 
     MP4::TRUN trunBox;
-    trunBox.setFirstSampleFlags(MP4::isIPicture | MP4::isKeySample);
+    trunBox.setFirstSampleFlags(thisPacket.getFlag("keyframe") ? (MP4::isIPicture | MP4::isKeySample) : (MP4::noIPicture | MP4::noKeySample));
     trunBox.setFlags(MP4::trundataOffset | MP4::trunfirstSampleFlags | MP4::trunsampleSize |
                      MP4::trunsampleDuration | MP4::trunsampleOffsets);
 
@@ -916,6 +917,7 @@ namespace Mist{
     sortSet.clear();
 
     std::set<keyPart> trunOrder;
+    std::set<size_t> keyParts;
     std::deque<size_t> sortedTracks;
 
     if (endFragmentTime == 0){
@@ -951,6 +953,11 @@ namespace Mist{
             temp.time = timeStamp;
             temp.index = p;
             trunOrder.insert(temp);
+
+            uint64_t keyTime = M.getTimeForKeyIndex(subIt->first, M.getKeyIndexForTime(subIt->first, timeStamp));
+            if (keyTime == timeStamp){
+              keyParts.insert(p);
+            }
           }
 
           timeStamp += parts.getDuration(p);
@@ -987,8 +994,6 @@ namespace Mist{
     }
     trunOrder.clear(); // erase the trunOrder set, to keep memory usage down
 
-    bool firstSample = true;
-
     for (std::deque<size_t>::iterator it = sortedTracks.begin(); it != sortedTracks.end(); ++it){
       size_t tid = *it;
       DTSC::Parts parts(M.parts(*it));
@@ -1004,9 +1009,14 @@ namespace Mist{
       tfhdBox.setDefaultSampleSize(444);
       tfhdBox.setDefaultSampleFlags(tid == vidTrack ? (MP4::noIPicture | MP4::noKeySample)
                                                     : (MP4::isIPicture | MP4::isKeySample));
-      trafBox.setContent(tfhdBox, 0);
+      unsigned int trafOffset = 0;
+      trafBox.setContent(tfhdBox, trafOffset++);
 
-      unsigned int trafOffset = 1;
+      MP4::TFDT tfdtBox;
+      tfdtBox.setBaseMediaDecodeTime(startFragmentTime - timeOffset);
+      trafBox.setContent(tfdtBox, trafOffset++);
+
+
       for (std::set<keyPart>::iterator trunIt = sortSet.begin(); trunIt != sortSet.end(); trunIt++){
         if (trunIt->trackID == tid){
           DTSC::Parts parts(M.parts(trunIt->trackID));
@@ -1021,8 +1031,11 @@ namespace Mist{
           // The value set here, will be updated afterwards to the correct value
           trunBox.setDataOffset(trunIt->byteOffset);
 
-          trunBox.setFirstSampleFlags(MP4::isIPicture | (firstSample ? MP4::isKeySample : MP4::noKeySample));
-          firstSample = false;
+          bool isKeyFrame = keyParts.count(trunIt->index);
+          if (M.getType(trunIt->trackID) != "video"){
+            isKeyFrame = true;
+          }
+          trunBox.setFirstSampleFlags(isKeyFrame ? (MP4::isKeySample | MP4::isIPicture) : (MP4::noKeySample | MP4::noIPicture));
 
           MP4::trunSampleInformation sampleInfo;
           sampleInfo.sampleSize = partSize;
@@ -1197,8 +1210,17 @@ namespace Mist{
               return;
             }
           }
-          sendFragmentHeaderTime(thisPacket.getTime(), thisPacket.getTime() + needsLookAhead);
-          nextHeaderTime = thisPacket.getTime() + needsLookAhead;
+
+          nextHeaderTime = thisTime + needsLookAhead;
+          if (targetParams.count("recstop")){
+            uint64_t planStop = atoll(targetParams["recstop"].c_str());
+            if (planStop < nextHeaderTime){nextHeaderTime = planStop;}
+          }
+          if (targetParams.count("stop")){
+            uint64_t planStop = atoll(targetParams["stop"].c_str());
+            if (planStop < nextHeaderTime){nextHeaderTime = planStop;}
+          }
+          if (thisTime < nextHeaderTime){sendFragmentHeaderTime(thisTime, nextHeaderTime);}
         }else{
           if (startTime || endTime != 0xffffffffffffffffull){
             sendFragmentHeaderTime(startTime, endTime);
@@ -1336,6 +1358,7 @@ namespace Mist{
         INFO_MSG("Increased initial lookAhead of %" PRIu64 "ms", needsLookAhead);
         initialSeek();
       }
+      timeOffset = currentTime();
     }else{
       seek(seekPoint);
     }

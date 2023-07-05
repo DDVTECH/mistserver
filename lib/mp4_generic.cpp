@@ -2007,8 +2007,8 @@ namespace MP4{
   TKHD::TKHD(const DTSC::Meta &M, size_t idx){
     initialize();
     setTrackID(idx + 1);
-    setDuration(-1);
-    if (M.getVod()){setDuration(M.getLastms(idx) - M.getFirstms(idx));}
+    setDuration(0);
+    if (!M.getLive()){setDuration(M.getLastms(idx) - M.getFirstms(idx));}
     if (M.getType(idx) == "video"){
       setWidth(M.getWidth(idx));
       setHeight(M.getHeight(idx));
@@ -2757,7 +2757,7 @@ namespace MP4{
       setCLAP(avccBox);
     }
     if (tCodec == "HEVC"){
-      setCodec("hev1");
+      setCodec("hvc1");
       MP4::HVCC hvccBox;
       hvccBox.setPayload(M.getInit(idx));
       setCLAP(hvccBox);

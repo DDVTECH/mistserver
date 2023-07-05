@@ -118,6 +118,7 @@ namespace Mist{
     int64_t leftOver;
     uint64_t currPos;
     uint64_t seekPoint;
+    int64_t timeOffset;
 
     uint64_t nextHeaderTime;
     uint64_t headerSize;

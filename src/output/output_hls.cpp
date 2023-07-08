@@ -128,7 +128,7 @@ namespace Mist{
       lines.push_back(lineBuf);
     }
     size_t skippedLines = 0;
-    if (M.getLive() && lines.size()){
+    if (M.getLive() && lines.size() > 1){
       // only print the last segment when non-live
       lines.pop_back();
       totalDuration -= durations.back();
@@ -283,9 +283,14 @@ namespace Mist{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
       if (isTS && (!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
+        uint64_t dura = 120000;
+        if (M && M.getValidTracks().size()){
+          size_t mTrk = M.mainTrack();
+          if (mTrk != INVALID_TRACK_ID){dura = M.getDuration(dura);}
+        }
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
-                        JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
+                        JSON::Value(dura / 1000).asString() +
                         ", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
@@ -317,7 +322,12 @@ namespace Mist{
     if (!keepGoing()){return;}
 
     if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
-      std::string tmpStr = H.getUrl().substr(5 + streamName.size());
+      std::string tmpStr = H.getUrl();
+      if (tmpStr.find('/', 5) == std::string::npos){
+        tmpStr = "";
+      }else{
+        tmpStr.erase(0, tmpStr.find('/', 5));
+      }
       uint64_t from;
       if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
         if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
@@ -342,6 +352,15 @@ namespace Mist{
       targetParams["meta"] = "none";
       targetParams["subtitle"] = "none";
 
+      std::set<size_t> vTrks = M.getValidTracks(true);
+      if (!vTrks.count(vidTrack)){
+        H.Clean();
+        H.setCORSHeaders();
+        H.SetBody("Track not valid.\n");
+        myConn.SendNow(H.BuildResponse("404", "Track not valid"));
+        WARN_MSG("Requested invalid track ID %zu", vidTrack);
+        return;
+      }
       if (M.getLive() && from < M.getFirstms(vidTrack)){
         H.Clean();
         H.setCORSHeaders();

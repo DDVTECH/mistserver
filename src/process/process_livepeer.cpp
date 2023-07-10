@@ -733,6 +733,21 @@ int main(int argc, char *argv[]){
     capa["ainfo"]["sourceTime"]["name"] = "Source timestamp";
     capa["ainfo"]["percent_done"]["name"] = "Percentage for VoD transcodes";
 
+    capa["optional"]["restart_delay"]["name"] = "Restart delay";
+    capa["optional"]["restart_delay"]["help"] = "The maximum amount of delay in milliseconds between restarts. If set to 0 it will restart immediately";
+    capa["optional"]["restart_delay"]["type"] = "int";
+    capa["optional"]["restart_delay"]["default"] = 0;
+
+    capa["optional"]["restart_type"]["name"] = "Restart behaviour";
+    capa["optional"]["restart_type"]["help"] = "When set to exponential backoff it will increase the delay up to the configured amount for each restart";
+    capa["optional"]["restart_type"]["type"] = "select";
+    capa["optional"]["restart_type"]["select"][0u][0u] = "fixed";
+    capa["optional"]["restart_type"]["select"][0u][1u] = "Fixed Delay";
+    capa["optional"]["restart_type"]["select"][1u][0u] = "backoff";
+    capa["optional"]["restart_type"]["select"][1u][1u] = "Exponential Backoff";
+    capa["optional"]["restart_type"]["select"][2u][0u] = "disabled";
+    capa["optional"]["restart_type"]["select"][2u][1u] = "Disabled";
+    capa["optional"]["restart_type"]["value"] = "fixed";
 
     std::cout << capa.toString() << std::endl;
     return -1;

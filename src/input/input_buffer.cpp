@@ -678,6 +678,7 @@ namespace Mist{
     if (!M.getValidTracks().size()){return;}
     if (config->getString("input").find("INTERNAL_ONLY") != std::string::npos){return;}
     std::set<std::string> newProcs;
+    uint64_t now = Util::bootMS(); //< Used for delayed starts
 
     // used for building args
     int err = fileno(stderr);
@@ -716,6 +717,42 @@ namespace Mist{
           if (inhibited){continue;}
         }
       }
+
+      // Set restart behaviour - default to instant (re)starts
+      std::string restartType = "fixed";
+      uint64_t restartDelay = 0;
+      if (tmp.isMember("restart_type")){
+        restartType = tmp["restart_type"].asString();
+      }
+      if (tmp.isMember("restart_delay")){
+        restartDelay = tmp["restart_delay"].asInt();
+      }
+
+      // Skip if restarts are disabled
+      if (restartType == "disabled" && procBoots[tmp.toString()]){
+        continue;
+      }
+
+      // Set delayed start time if it is not set yet and the process is inactive
+      if (restartDelay && procBoots[tmp.toString()] && !procNextBoot[tmp.toString()] &&
+        (!runningProcs.count(tmp.toString()) || !Util::Procs::isActive(runningProcs[tmp.toString()]))){
+        if (restartType == "fixed"){
+          procNextBoot[tmp.toString()] = now + restartDelay;
+        }else if (restartType == "backoff"){
+          uint64_t thisTries = procBoots[tmp.toString()];
+          if (thisTries > 10){
+            thisTries = 10;
+          }
+          procNextBoot[tmp.toString()] = now + Util::expBackoffMs(thisTries, 10, restartDelay);
+        }
+      }
+
+      // Skip if we have a delayed restart time
+      if (procNextBoot[tmp.toString()] > now){
+        continue;
+      }
+
+      // Mark process as should-be-active
       newProcs.insert(tmp.toString());
     }
 
@@ -729,6 +766,9 @@ namespace Mist{
             Util::Procs::Stop(it->second);
           }
           runningProcs.erase(it);
+          // If we stop a process this way, reset it's counter and delayed start time
+          procBoots.erase(it->first);
+          procNextBoot.erase(it->first);
           if (!runningProcs.size()){break;}
           it = runningProcs.begin();
         }
@@ -759,6 +799,10 @@ namespace Mist{
         allProcsRunning = false;
         INFO_MSG("Starting process: %s %s", argarr[0], argarr[1]);
         runningProcs[*newProcs.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
+        // Increment per-process boot counter
+        procBoots[*newProcs.begin()]++;
+        // Remove the delayed start counter
+        procNextBoot.erase(*newProcs.begin());
       }
       newProcs.erase(newProcs.begin());
     }

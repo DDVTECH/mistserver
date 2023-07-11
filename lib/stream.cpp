@@ -919,7 +919,12 @@ bool Util::checkException(const JSON::Value &ex, const std::string &useragent){
 }
 
 Util::DTSCShmReader::DTSCShmReader(const std::string &pageName){
-  rPage.init(pageName, 0, false, false);
+  size_t attempts = 0;
+  do {
+    rPage.init(pageName, 0, false, false);
+    ++attempts;
+    if (!rPage && attempts < 5){Util::sleep(10);}
+  } while (!rPage && attempts < 5);
   if (rPage){rAcc = Util::RelAccX(rPage.mapped);}
 }
 

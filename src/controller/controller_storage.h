@@ -50,4 +50,7 @@ namespace Controller{
   void writeCapabilities();
   void writeProtocols();
 
+  void addShmPage(const std::string & page);
+  void wipeShmPages();
+
 }// namespace Controller

@@ -423,7 +423,8 @@ namespace Mist{
         //Set stream status to STRMSTAT_INIT, then close the page in non-master mode to keep it around
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 2, true, false);
+        streamStatus.init(pageName, 2, false, false);
+        if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         streamStatus.master = false;
         streamStatus.close();
@@ -470,7 +471,8 @@ namespace Mist{
         // Re-init streamStatus, previously closed
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 2, true, false);
+        streamStatus.init(pageName, 2, false, false);
+        if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
         streamStatus.master = false;
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
       }
@@ -480,8 +482,11 @@ namespace Mist{
         playerLock.unlink();
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 2, true, false);
-        streamStatus.close();
+        streamStatus.init(pageName, 2, false, false);
+        if (streamStatus){
+          streamStatus.master = true;
+          streamStatus.close();
+        }
       }
       playerLock.unlink();
       pullLock.unlink();
@@ -501,7 +506,8 @@ namespace Mist{
           // Re-init streamStatus, previously closed
           char pageName[NAME_BUFFER_SIZE];
           snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-          streamStatus.init(pageName, 2, true, false);
+          streamStatus.init(pageName, 2, false, false);
+          if (!streamStatus){streamStatus.init(pageName, 2, true, false);}
           streamStatus.master = false;
           if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INIT;}
         }
@@ -539,7 +545,7 @@ namespace Mist{
       if (playerLock){
         char pageName[NAME_BUFFER_SIZE];
         snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-        streamStatus.init(pageName, 2, true, false);
+        streamStatus.init(pageName, 2, false, false);
         if (streamStatus){streamStatus.mapped[0] = STRMSTAT_INVALID;}
       }
 #if DEBUG >= DLVL_DEVEL
@@ -566,12 +572,17 @@ namespace Mist{
       char pageName[NAME_BUFFER_SIZE];
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, streamName.c_str());
       pidPage.init(pageName, 8, false, false);
-      pidPage.master = true;
-      pidPage.close();
+      if (pidPage){
+        pidPage.master = true;
+        pidPage.close();
+      }
       //Clear stream state
       snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_STATE, streamName.c_str());
-      streamStatus.init(pageName, 2, true, false);
-      streamStatus.close();
+      streamStatus.init(pageName, 2, false, false);
+      if (streamStatus){
+        streamStatus.master = true;
+        streamStatus.close();
+      }
       //Delete lock
       playerLock.unlink();
     }

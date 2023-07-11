@@ -21,6 +21,8 @@ namespace Controller{
   JSON::Value Storage; ///< Global storage of data.
   tthread::mutex configMutex;
   tthread::mutex logMutex;
+  std::set<std::string> shmList;
+  tthread::mutex shmListMutex;
   uint64_t logCounter = 0;
   uint64_t lastConfigChange = 0;
   uint64_t lastConfigWrite = 0;
@@ -217,6 +219,7 @@ namespace Controller{
       if (shmAccs){shmAccs->master = true;}
       if (rlxStrm){rlxStrm->setExit();}
       if (shmStrm){shmStrm->master = true;}
+      wipeShmPages();
     }else{
       if (shmLogs){shmLogs->master = false;}
       if (shmAccs){shmAccs->master = false;}
@@ -442,6 +445,7 @@ namespace Controller{
       mistCapaOut.close();
     }
     mistCapaOut.init(SHM_CAPA, temp.size() + 100, true, false);
+    addShmPage(SHM_CAPA);
     if (!mistCapaOut.mapped){
       FAIL_MSG("Could not open capabilities config for writing! Is shared memory enabled on your "
                "system?");
@@ -454,6 +458,7 @@ namespace Controller{
     A.setRCount(1);
     A.setEndPos(1);
     A.setReady();
+    mistCapaOut.master = false;
   }
 
   void writeProtocols(){
@@ -473,6 +478,7 @@ namespace Controller{
     if (proxy_written != tmpProxy){
       proxy_written = tmpProxy;
       static IPC::sharedPage mistProxOut(SHM_PROXY, proxy_written.size() + 100, true, false);
+      addShmPage(SHM_PROXY);
       mistProxOut.close();
       mistProxOut.init(SHM_PROXY, proxy_written.size() + 100, false, false);
       if (mistProxOut){
@@ -511,6 +517,7 @@ namespace Controller{
       mistProtoOut.close();
     }
     mistProtoOut.init(SHM_PROTO, temp.size() + 100, true, false);
+    addShmPage(SHM_PROTO);
     if (!mistProtoOut.mapped){
       FAIL_MSG(
           "Could not open protocol config for writing! Is shared memory enabled on your system?");
@@ -526,6 +533,7 @@ namespace Controller{
       A.setEndPos(1);
       A.setReady();
     }
+    mistProtoOut.master = false;
   }
 
   void writeStream(const std::string &sName, const JSON::Value &sConf){
@@ -640,6 +648,7 @@ namespace Controller{
         globAccX.setString("udpApi", udpApiBindAddr);
         globAccX.setInt("systemBoot", systemBoot);
         globCfg.master = false; // leave the page after closing
+        addShmPage(SHM_GLOBAL_CONF);
       }
     }
 
@@ -752,4 +761,23 @@ namespace Controller{
     }
     /*LTS-END*/
   }
+
+
+  void addShmPage(const std::string & page){
+    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    shmList.insert(page);
+  }
+
+  void wipeShmPages(){
+    tthread::lock_guard<tthread::mutex> guard(shmListMutex);
+    if (!shmList.size()){return;}
+    std::set<std::string>::iterator it;
+    for (it = shmList.begin(); it != shmList.end(); ++it){
+      IPC::sharedPage page(*it, 0, false, false);
+      if (page){page.master = true;}
+    }
+    shmList.clear();
+  }
+
+
 }// namespace Controller

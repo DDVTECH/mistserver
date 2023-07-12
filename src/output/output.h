@@ -92,10 +92,6 @@ namespace Mist{
     uint64_t pageNumMax(size_t trackId);
     bool isRecordingToFile;
     uint64_t lastStats; ///< Time of last sending of stats.
-    void reinitPlaylist(std::string &playlistBuffer, uint64_t &maxAge, uint64_t &maxEntries,
-                        uint64_t &segmentCount, uint64_t &segmentsRemoved, uint64_t &curTime,
-                        std::string targetDuration, HTTP::URL &playlistLocation);
-
     Util::packetSorter buffer; ///< A sorted list of next-to-be-loaded packets.
     bool sought;          ///< If a seek has been done, this is set to true. Used for seeking on
                           ///< prepareNext().
@@ -107,6 +103,27 @@ namespace Mist{
     uint64_t lastPushUpdate;
     uint64_t outputStartMs; ///< bootMS() at time of output start (unrelated to media start)
     bool newUA;
+
+    // Segmenter related internal variables and functions
+    void initSegmenter(std::string &origTarget);
+    void reinitPlaylist(uint64_t systemBoot);
+    bool openPlaylist(uint64_t systemBoot);
+    bool onSegmentSplit(uint64_t systemBoot);
+    bool onFinalSegment(uint64_t systemBoot);
+    uint64_t segmentCount; // Count of segments written to the playlist
+    uint64_t segmentsRemoved; // Count of segments removed from sliding window playlists
+    HTTP::URL playlistLocation; // Object containing the target uri/path of the playlist
+    std::string playlistLocationString; // Above but casted to the appropriate string format
+    Socket::Connection plsConn; //< Connection to the playlist file
+    std::string playlistBuffer; //< Contents we are going to write to the playlist next
+    std::string currentTarget; //< Target segment uri/path
+    uint64_t currentStartTime; //< Timestamp of when the output started
+    uint64_t maxEntries; //< Max amount of entries to clip sliding window playlists to
+    uint64_t targetAge; //< Max amount of segment age to clip sliding window playlists to
+    std::string targetDuration; //< Target duration we are writing to the playlist, casted to a string
+    bool reInitPlaylist; //< Reinit the playlist if we aren't appending to an existing one
+    bool hasInitialSegment; //< Open the playlist once, after segmenting the first segment
+    bool autoAdjustSplit; //< Automatically adjust the target segment duration if the requested durations differs too much from the actual keyframe interval
     
   protected:              // these are to be messed with by child classes
     virtual bool inlineRestartCapable() const{

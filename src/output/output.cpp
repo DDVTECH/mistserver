@@ -555,24 +555,124 @@ namespace Mist{
     return highest;
   }
 
+  void Output::initSegmenter(std::string &origTarget){
+    if (targetParams.count("maxEntries")){
+      maxEntries = atoll(targetParams["maxEntries"].c_str());
+    }
+    if (targetParams.count("targetAge")){
+      targetAge = atoll(targetParams["targetAge"].c_str());
+    }
+    if (targetParams.count("adjustSplit")){
+      autoAdjustSplit = true;
+    }
+    // By default split into a new segment after 60 seconds
+    if (!targetParams.count("split")){
+      targetParams["split"] = "60";
+    }
+    targetDuration = targetParams["split"];
+    // Create a new or connect to an existing playlist file
+    std::string plsRel = targetParams["m3u8"];
+    Util::streamVariables(plsRel, streamName);
+    playlistLocation = HTTP::localURIResolver().link(origTarget).link(plsRel);
+    { // Update playlist location with UUID replaced
+      std::string plsStr = playlistLocation.getUrl();
+      Util::streamVariables(plsStr, streamName);
+      Util::replaceVar(plsStr, "uuid", Util::UUID);
+      playlistLocation = HTTP::URL(plsStr);
+    }
+    if (playlistLocation.isLocalPath()){
+      playlistLocationString = playlistLocation.getFilePath();
+      INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
+      // Check if we already have a playlist at the target location
+      std::ifstream inFile(playlistLocationString.c_str());
+      if (inFile.good()){
+        std::string line;
+        // If appending, remove endlist and count segments
+        if (targetParams.count("append")){
+          while (std::getline(inFile, line)) {
+            if (strncmp("#EXTINF", line.c_str(), 7) == 0){
+              segmentCount++;
+            }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
+              INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
+              continue;
+            }
+            playlistBuffer += line + '\n';
+          }
+          playlistBuffer += "#EXT-X-DISCONTINUITY\n";
+          INFO_MSG("Appending to existing local playlist file '%s'", playlistLocationString.c_str());
+          INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
+        }else{
+          // Remove all segments referenced in the playlist
+          while (std::getline(inFile, line)) {
+            if (line[0] == '#'){
+              continue;
+            }else{
+              std::string segPath = playlistLocation.link(line).getFilePath();
+              if(unlink(segPath.c_str())){
+                FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
+              }else{
+                INFO_MSG("Removed segment at '%s'", segPath.c_str());
+              }
+            }
+          }
+          INFO_MSG("Overwriting existing local playlist file '%s'", playlistLocationString.c_str());
+          reInitPlaylist = true;
+        }
+      }else{
+        INFO_MSG("Creating new local playlist file '%s'", playlistLocationString.c_str());
+        reInitPlaylist = true;
+      }
+      config->getOption("target", true).append(playlistLocationString);
+    }else{
+      playlistLocationString = playlistLocation.getUrl();
+      // Disable sliding window playlists, as the current external writer 
+      // implementation requires us to keep a single connection to the playlist open
+      maxEntries = 0;
+      targetAge = 0;
+      // Check if there is an existing playlist at the target location
+      HTTP::URIReader outFile;
+      outFile.setQuiet(true);
+      outFile.open(playlistLocationString);
+      if (outFile){
+        // If so, init the buffer with remote data
+        if (targetParams.count("append")){
+          char *dataPtr;
+          size_t dataLen;
+          outFile.readAll(dataPtr, dataLen);
+          std::string existingBuffer(dataPtr, dataLen);
+          std::istringstream inFile(existingBuffer);
+          std::string line;
+          while (std::getline(inFile, line)) {
+            if (strncmp("#EXTINF", line.c_str(), 7) == 0){
+              segmentCount++;
+            }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
+              INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
+              continue;
+            }
+            playlistBuffer += line + '\n';
+          }
+          playlistBuffer += "#EXT-X-DISCONTINUITY\n";
+          INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
+          INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());
+        }else{
+          WARN_MSG("Overwriting existing remote playlist file '%s'", playlistLocationString.c_str());
+          reInitPlaylist = true;
+        }
+      }else{
+        INFO_MSG("Creating new remote playlist file '%s'", playlistLocationString.c_str());
+        reInitPlaylist = true;
+      }
+    }
+  }
+
   /// \brief Removes entries in the playlist based on age or a maximum number of segments allowed
-  /// \param playlistBuffer: the contents of the playlist file. Will be edited to contain fewer entries if applicable
-  /// \param targetAge: maximum age of a segment in seconds. If 0, will not remove segments based on age
-  /// \param maxEntries: maximum amount of segments that are allowed to appear in the playlist
-  ///                    If 0, will not remove segments based on the segment count
-  /// \param segmentCount: current counter of segments that have been segmented as part of this stream
-  /// \param segmentsRemoved: counter of segments that have been removed previously from the playlist
-  /// \param curTime: the current local timestamp in milliseconds
-  /// \param targetDuration: value to fill in for the EXT-X-TARGETDURATION entry in the playlist
-  /// \param playlistLocation: the location of the playlist, used to find the path to segments when removing them
-  void Output::reinitPlaylist(std::string &playlistBuffer, uint64_t &targetAge, uint64_t &maxEntries,
-                              uint64_t &segmentCount, uint64_t &segmentsRemoved, uint64_t &curTime,
-                              std::string targetDuration, HTTP::URL &playlistLocation){
+  void Output::reinitPlaylist(uint64_t systemBoot){
     std::string newBuffer;
     std::istringstream stream(playlistBuffer);
     std::string line;
     std::string curDateString;
     std::string curDurationString;
+    uint64_t curTime = M.getBootMsOffset() + systemBoot + currentStartTime;
     // Quits early if we have no more segments we need to remove
     bool done = false;
     bool hasSegment = false;
@@ -663,6 +763,148 @@ namespace Mist{
     playlistBuffer += "#EXT-X-TARGETDURATION:" + targetDuration + "\n#EXT-X-MEDIA-SEQUENCE:" + JSON::Value(segmentsRemoved).asString() + "\n";
     // Finally append the rest of the playlist
     playlistBuffer += newBuffer;
+  }
+
+  /// \brief Opens a connection to the playlist file
+  bool Output::openPlaylist(uint64_t systemBoot){
+    // Refresh the playlist buffer if we are overwriting a playlist or creating a new one
+    if (reInitPlaylist){
+      // Last chance to modify the target duration for append-only playlists
+      double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
+      if (segmentDuration > JSON::Value(targetDuration).asDouble()){
+        // Round up if there are decimals
+        if (segmentDuration != (uint64_t)segmentDuration){
+          segmentDuration = (uint64_t)segmentDuration + 1;
+        }
+        WARN_MSG("The first segment is longer than the target duration. Adjusting the targetDuration from %s to %f s", targetDuration.c_str(), segmentDuration);
+        targetDuration = JSON::Value(segmentDuration).asString();
+      }
+      reinitPlaylist(systemBoot);
+      reInitPlaylist = false;
+    }
+    // Wait for the first split point before opening the playlist
+    if (!hasInitialSegment){
+      // For non-live sources the playlist gets opened at the end
+      if (M.getLive()){
+        connectToFile(playlistLocationString, false, &plsConn);
+        // Write initial contents to the playlist file
+        if (!plsConn){
+          FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
+          Util::logExitReason("Failed to open a connection to playlist file `%s`  for segmenting", playlistLocationString.c_str());
+          return false;
+        }else if (playlistBuffer.size()){
+          // Do not write to the playlist intermediately if we are outputting a VOD playlist
+          plsConn.SendNow(playlistBuffer);
+          // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
+          if (!maxEntries && !targetAge) {playlistBuffer = "";}
+        }
+      }
+      hasInitialSegment = true;
+    }
+    return true;
+  }
+
+  /// \brief makes sure the playlist is up to date
+  bool Output::onSegmentSplit(uint64_t systemBoot){
+    // We require an active connection to the playlist
+    // except for VOD, where we connect and write at the end of segmenting
+    if (!plsConn && M.getLive()){
+      FAIL_MSG("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
+      Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
+      return false;
+    }
+    std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
+    if (M.getLive()){
+      uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+      playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+    }
+    INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+    // Append duration & TS filename to playlist file
+    std::stringstream tmp;
+    double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
+    tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << segmentDuration <<  ",\n"+ segment + "\n";
+    playlistBuffer += tmp.str();
+    // Adjust split time up to half a segment duration
+    if (autoAdjustSplit && (segmentDuration / 2) > atoll(targetParams["split"].c_str())){
+      targetParams["split"] = JSON::Value(segmentDuration / 2).asString();
+    }
+    // Always adjust the targetDuration in the playlist upwards
+    if (segmentDuration > JSON::Value(targetDuration).asDouble()){
+      // Round up if there are decimals
+      if (segmentDuration != (uint64_t)segmentDuration){
+        segmentDuration = (uint64_t)segmentDuration + 1;
+      }
+      // Set the new targetDuration to the ceil of the segment duration
+      WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
+      targetDuration = JSON::Value(segmentDuration).asString();
+      // Modify the buffer to contain the new targetDuration
+      if (!M.getLive()){
+        reinitPlaylist(systemBoot);
+      }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
+        // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
+        HTTP::URIReader inFile(playlistLocationString);
+        char *newBuffer;
+        size_t bytesRead;
+        inFile.readAll(newBuffer, bytesRead);
+        playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
+        // Reinit the playlist with the new targetDuration
+        reinitPlaylist(systemBoot);
+        connectToFile(playlistLocationString, false, &plsConn);
+      }
+      // Else we are in a sliding window playlist, so it will automatically get overwritten
+    }
+    // Remove older entries in the playlist
+    if (maxEntries || targetAge){
+      reinitPlaylist(systemBoot);
+    }
+    // Do not write to the playlist intermediately if we are outputting a VOD playlist
+    if (M.getLive()){
+      // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
+      if (!maxEntries && !targetAge) {
+        plsConn.SendNow(playlistBuffer);
+        playlistBuffer = "";
+      // Else re-open the file to force an overwrite
+      }else if(connectToFile(playlistLocationString, false, &plsConn)){
+        plsConn.SendNow(playlistBuffer);
+      }
+    }
+    return true;
+  }
+
+  /// \brief writes out the final segment to the playlist
+  bool Output::onFinalSegment(uint64_t systemBoot){
+    // If this is a non-live source, above function does not open the playlist
+    if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
+    if (plsConn){
+      std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
+      if (M.getLive()){
+        uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+        playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+      }
+      INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+      // Append duration & TS filename to playlist file
+      std::stringstream tmp;
+      tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
+      if (!M.getLive() || (!maxEntries && !targetAge)){tmp << "#EXT-X-ENDLIST\n";}
+      playlistBuffer += tmp.str();
+      // Remove older entries in the playlist
+      if (maxEntries || targetAge){
+        reinitPlaylist(systemBoot);
+      }
+      // Append the final contents to the playlist
+      if (!maxEntries && !targetAge) {
+        plsConn.SendNow(playlistBuffer);
+      // Else re-open the file to force an overwrite
+      }else if(connectToFile(playlistLocationString, false, &plsConn)){
+        plsConn.SendNow(playlistBuffer);
+      }
+      playlistBuffer = "";
+    }else{
+      FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
+      Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
+      return false;
+    }
+    return true;
   }
 
   /// Loads the page for the given trackId and keyNum into memory.
@@ -1388,22 +1630,20 @@ namespace Mist{
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
   int Output::run(){
-    // Variables used for segmenting the output
-    uint64_t segmentCount = 0;
-    uint64_t segmentsRemoved = 0;
-    HTTP::URL playlistLocation;
-    std::string playlistLocationString;
-    std::string playlistBuffer;
-    std::string currentTarget;
-    uint64_t currentStartTime = 0;
-    uint64_t maxEntries = 0;
-    uint64_t targetAge = 0;
-    std::string targetDuration;
-    bool reInitPlaylist = false; //< Reinit the playlist if we aren't appending to an existing one
-    bool hasInitialSegment = false; //< Open the playlist once, after segmenting the first segment
-    bool autoAdjustSplit = false;
-    Socket::Connection plsConn;
-    uint64_t systemBoot;
+    // Init segmenter variables
+    segmentCount = 0;
+    segmentsRemoved = 0;
+    playlistLocationString = "";
+    playlistBuffer = "";
+    currentTarget = "";
+    currentStartTime = 0;
+    maxEntries = 0;
+    targetAge = 0;
+    targetDuration = "";
+    reInitPlaylist = false;
+    hasInitialSegment = false;
+    autoAdjustSplit = false;
+    uint64_t systemBoot = 0; //< Global config variable used for the #EXT-X-PROGRAM-DATE-TIME tag
 
     std::string origTarget;
     const char* origTargetPtr = getenv("MST_ORIG_TARGET");
@@ -1423,8 +1663,14 @@ namespace Mist{
     }else if (config->hasOption("target")){
       origTarget = config->getString("target");
     }
-    // Check if the target segment contains any of the required variables
+    Comms::sessionConfigCache();
+    if (isFileTarget()){
+      isRecordingToFile = true;
+      initialize();
+    }
+    // When segmenting to a playlist, handle cleaning up or resuming from existing files and init the segmenter
     if (targetParams.count("m3u8")){
+      // Check if the target segment contains any of the required variables
       std::string tmpTarget;
       if (targetParams.count("segment")){
         tmpTarget = targetParams["segment"];
@@ -1438,127 +1684,11 @@ namespace Mist{
         Util::logExitReason("Target segmented output does not contain a currentMediaTime or segmentCounter: %s", tmpTarget.c_str());
         return 1;
       }
-    }
-    if (targetParams.count("maxEntries")){
-      maxEntries = atoll(targetParams["maxEntries"].c_str());
-    }
-    if (targetParams.count("targetAge")){
-      targetAge = atoll(targetParams["targetAge"].c_str());
-    }
-    if (targetParams.count("adjustSplit")){
-      autoAdjustSplit = true;
-    }
-    Comms::sessionConfigCache();
-    if (isFileTarget()){
-      isRecordingToFile = true;
-      initialize();
-    }
-    // When segmenting to a playlist, handle any existing files and init some data
-    if (targetParams.count("m3u8")){
       // Load system boot time from the global config
       systemBoot = Util::getGlobalConfig("systemBoot").asInt();
       // fall back to local calculation if loading from global config fails
       if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
-      // Create a new or connect to an existing playlist file
-      if (!plsConn){
-        std::string plsRel = targetParams["m3u8"];
-        Util::streamVariables(plsRel, streamName);
-        playlistLocation = HTTP::localURIResolver().link(config->getString("target")).link(plsRel);
-        { // Update playlist location with UUID replaced
-          std::string plsStr = playlistLocation.getUrl();
-          Util::streamVariables(plsStr, streamName);
-          Util::replaceVar(plsStr, "uuid", Util::UUID);
-          playlistLocation = HTTP::URL(plsStr);
-        }
-        if (playlistLocation.isLocalPath()){
-          playlistLocationString = playlistLocation.getFilePath();
-          INFO_MSG("Segmenting to local playlist '%s'", playlistLocationString.c_str());
-          // Check if we already have a playlist at the target location
-          std::ifstream inFile(playlistLocationString.c_str());
-          if (inFile.good()){
-            std::string line;
-            // If appending, remove endlist and count segments
-            if (targetParams.count("append")){
-              while (std::getline(inFile, line)) {
-                if (strncmp("#EXTINF", line.c_str(), 7) == 0){
-                  segmentCount++;
-                }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
-                  INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
-                  continue;
-                }
-                playlistBuffer += line + '\n';
-              }
-              playlistBuffer += "#EXT-X-DISCONTINUITY\n";
-              INFO_MSG("Appending to existing local playlist file '%s'", playlistLocationString.c_str());
-              INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
-            }else{
-              // Remove all segments referenced in the playlist
-              while (std::getline(inFile, line)) {
-                if (line[0] == '#'){
-                  continue;
-                }else{
-                  std::string segPath = playlistLocation.link(line).getFilePath();
-                  if(unlink(segPath.c_str())){
-                    FAIL_MSG("Failed to remove segment at '%s'. Error: '%s'", segPath.c_str(), strerror(errno));
-                  }else{
-                    INFO_MSG("Removed segment at '%s'", segPath.c_str());
-                  }
-                }
-              }
-              INFO_MSG("Overwriting existing local playlist file '%s'", playlistLocationString.c_str());
-              reInitPlaylist = true;
-            }
-          }else{
-            INFO_MSG("Creating new local playlist file '%s'", playlistLocationString.c_str());
-            reInitPlaylist = true;
-          }
-          config->getOption("target", true).append(playlistLocationString);
-        }else{
-          playlistLocationString = playlistLocation.getUrl();
-          // Disable sliding window playlists, as the current external writer
-          // implementation requires us to keep a single connection to the playlist open
-          maxEntries = 0;
-          targetAge = 0;
-          // Check if there is an existing playlist at the target location
-          HTTP::URIReader outFile;
-          outFile.setQuiet(true);
-          outFile.open(playlistLocationString);
-          if (outFile){
-            // If so, init the buffer with remote data
-            if (targetParams.count("append")){
-              char *dataPtr;
-              size_t dataLen;
-              outFile.readAll(dataPtr, dataLen);
-              std::string existingBuffer(dataPtr, dataLen);
-              std::istringstream inFile(existingBuffer);
-              std::string line;
-              while (std::getline(inFile, line)) {
-                if (strncmp("#EXTINF", line.c_str(), 7) == 0){
-                  segmentCount++;
-                }else if (strcmp("#EXT-X-ENDLIST", line.c_str()) == 0){
-                  INFO_MSG("Stripping line `#EXT-X-ENDLIST`");
-                  continue;
-                }
-                playlistBuffer += line + '\n';
-              }
-              playlistBuffer += "#EXT-X-DISCONTINUITY\n";
-              INFO_MSG("Found %" PRIu64 " prior segments", segmentCount);
-              INFO_MSG("Appending to existing remote playlist file '%s'", playlistLocationString.c_str());
-            }else{
-              WARN_MSG("Overwriting existing remote playlist file '%s'", playlistLocationString.c_str());
-              reInitPlaylist = true;
-            }
-          }else{
-            INFO_MSG("Creating new remote playlist file '%s'", playlistLocationString.c_str());
-            reInitPlaylist = true;
-          }
-        }
-      }
-      // By default split into a new segment after 60 seconds
-      if (!targetParams.count("split")){
-        targetParams["split"] = "60";
-      }
-      targetDuration = targetParams["split"];
+      initSegmenter(origTarget);
     }
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1692,109 +1822,17 @@ namespace Mist{
               if (inlineRestartCapable() && !reachedPlannedStop()){
                 // Write the segment to the playlist if applicable
                 if (targetParams.count("m3u8")){
-                  // Initialises the playlist if we are segmenting the output with a playlist
-                  if (reInitPlaylist){
-                    // Last chance to modify the target duration for append-only playlists
-                    double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
-                    if (segmentDuration > JSON::Value(targetDuration).asDouble()){
-                      // Round up if there are decimals
-                      if (segmentDuration != (uint64_t)segmentDuration){
-                        segmentDuration = (uint64_t)segmentDuration + 1;
-                      }
-                      WARN_MSG("The first segment is longer than the target duration. Adjusting the targetDuration from %s to %f s", targetDuration.c_str(), segmentDuration);
-                      targetDuration = JSON::Value(segmentDuration).asString();
-                    }
-                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                    reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                    reInitPlaylist = false;
+                  // Open a connection to the playlist file if we haven't already
+                  if (!openPlaylist(systemBoot)){
+                    return 1;
                   }
-                  // Open the playlist after we have the first segment
-                  if (!hasInitialSegment){
-                    // Do not open the playlist just yet if this is a non-live source
-                    if (M.getLive()){
-                      connectToFile(playlistLocationString, false, &plsConn);
-                      // Write initial contents to the playlist file
-                      if (!plsConn){
-                        FAIL_MSG("Failed to open a connection to playlist file `%s` for segmenting", playlistLocationString.c_str());
-                        Util::logExitReason("Failed to open a connection to playlist file `%s`  for segmenting", playlistLocationString.c_str());
-                        return 1;
-                      }else if (playlistBuffer.size()){
-                        // Do not write to the playlist intermediately if we are outputting a VOD playlist
-                        plsConn.SendNow(playlistBuffer);
-                        // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
-                        if (!maxEntries && !targetAge) {playlistBuffer = "";}
-                      }
-                    }
-                    hasInitialSegment = true;
-                  }
-                  // We require an active connection to the playlist
-                  // except for VOD, where we connect and write at the end of segmenting
-                  if (!plsConn && M.getLive()){
-                    FAIL_MSG("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
-                    Util::logExitReason("Lost connection to playlist file `%s` during segmenting", playlistLocationString.c_str());
+                  // Add segment to the playlist and adjust variables if needed
+                  if (!onSegmentSplit(systemBoot)){
                     break;
-                  }
-                  std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-                  if (M.getLive()){
-                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                    playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
-                  }
-                  INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-                  // Append duration & TS filename to playlist file
-                  std::stringstream tmp;
-                  double segmentDuration = (lastPacketTime - currentStartTime) / 1000.0;
-                  tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << segmentDuration <<  ",\n"+ segment + "\n";
-                  playlistBuffer += tmp.str();
-                  // Adjust split time up to half a segment duration
-                  if (autoAdjustSplit && (segmentDuration / 2) > atoll(targetParams["split"].c_str())){
-                    targetParams["split"] = JSON::Value(segmentDuration / 2).asString();
-                  }
-                  // Always adjust the targetDuration in the playlist upwards
-                  if (segmentDuration > JSON::Value(targetDuration).asDouble()){
-                    // Round up if there are decimals
-                    if (segmentDuration != (uint64_t)segmentDuration){
-                      segmentDuration = (uint64_t)segmentDuration + 1;
-                    }
-                    // Set the new targetDuration to the ceil of the segment duration
-                    WARN_MSG("Segment #%" PRIu64 " is longer than the target duration. Adjusting the targetDuration from %s to %f s", segmentCount, targetDuration.c_str(), segmentDuration);
-                    targetDuration = JSON::Value(segmentDuration).asString();
-                    // Modify the buffer to contain the new targetDuration
-                    if (!M.getLive()){
-                      uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                      reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                    }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
-                      // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
-                      HTTP::URIReader inFile(playlistLocationString);
-                      char *newBuffer;
-                      size_t bytesRead;
-                      inFile.readAll(newBuffer, bytesRead);
-                      playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
-                      // Reinit the playlist with the new targetDuration
-                      uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                      reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                      connectToFile(playlistLocationString, false, &plsConn);
-                    }
-                    // Else we are in a sliding window playlist, so it will automatically get overwritten
-                  }
-                  // Remove older entries in the playlist
-                  if (maxEntries || targetAge){
-                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                    reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-                  }
-                  // Do not write to the playlist intermediately if we are outputting a VOD playlist
-                  if (M.getLive()){
-                    // Clear the buffer if we will only be appending lines instead of overwriting the entire playlist file
-                    if (!maxEntries && !targetAge) {
-                      plsConn.SendNow(playlistBuffer);
-                      playlistBuffer = "";
-                    // Else re-open the file to force an overwrite
-                    }else if(connectToFile(playlistLocationString, false, &plsConn)){
-                      plsConn.SendNow(playlistBuffer);
-                    }
                   }
                 }
 
-                // Keep track of filenames written, so that they can be added to the playlist file
+                // Switch to the next file target
                 std::string newTarget;
                 if (targetParams.count("segment")){
                   HTTP::URL targetUrl = HTTP::URL(config->getString("target")).link(targetParams["segment"]);
@@ -1872,36 +1910,12 @@ namespace Mist{
     onFinish();
     // Write last segment
     if (targetParams.count("m3u8")){
-      // If this is a non-live source, we can finally open up the connection to the playlist file
-      if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
-      if (plsConn){
-        std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-        if (M.getLive()){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-          playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
-        }
-        INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-        // Append duration & TS filename to playlist file
-        std::stringstream tmp;
-        tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
-        if (!M.getLive() || (!maxEntries && !targetAge)){tmp << "#EXT-X-ENDLIST\n";}
-        playlistBuffer += tmp.str();
-        // Remove older entries in the playlist
-        if (maxEntries || targetAge){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-          reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
-        }
-        // Append the final contents to the playlist
-        if (!maxEntries && !targetAge) {
-          plsConn.SendNow(playlistBuffer);
-        // Else re-open the file to force an overwrite
-        }else if(connectToFile(playlistLocationString, false, &plsConn)){
-          plsConn.SendNow(playlistBuffer);
-        }
-        playlistBuffer = "";
-      }else{
-        FAIL_MSG("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
-        Util::logExitReason("Lost connection to the playlist file `%s` during segmenting", playlistLocationString.c_str());
+      // Open a connection to the playlist file if there were no split points
+      if (!openPlaylist(systemBoot)){
+        return 1;
+      }
+      if (!onFinalSegment(systemBoot)){
+        return 1;
       }
     }
 

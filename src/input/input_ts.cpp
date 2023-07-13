@@ -241,7 +241,7 @@ namespace Mist{
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 1900;
+    capa["optional"]["segmentsize"]["default"] = DEFAULT_FRAGMENT_DURATION;
 
     capa["optional"]["datatrack"]["name"] = "MPEG Data track parser";
     capa["optional"]["datatrack"]["help"] = "Which parser to use for data tracks";

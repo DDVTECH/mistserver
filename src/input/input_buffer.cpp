@@ -105,13 +105,13 @@ namespace Mist{
     option["long"] = "segment-size";
     option["short"] = "S";
     option["help"] = "Target time duration in milliseconds for segments";
-    option["value"].append(1900);
+    option["value"].append(DEFAULT_FRAGMENT_DURATION);
     config->addOption("segmentsize", option);
     capa["optional"]["segmentsize"]["name"] = "Segment size (ms)";
     capa["optional"]["segmentsize"]["help"] = "Target time duration in milliseconds for segments.";
     capa["optional"]["segmentsize"]["option"] = "--segment-size";
     capa["optional"]["segmentsize"]["type"] = "uint";
-    capa["optional"]["segmentsize"]["default"] = 1900;
+    capa["optional"]["segmentsize"]["default"] = DEFAULT_FRAGMENT_DURATION;
 
     capa["optional"]["fallback_stream"]["name"] = "Fallback stream";
     capa["optional"]["fallback_stream"]["help"] =
@@ -131,7 +131,7 @@ namespace Mist{
         "streams from everyone, based on a set password, and/or use hostname/IP whitelisting.";
     bufferTime = 50000;
     cutTime = 0;
-    segmentSize = 1900;
+    segmentSize = DEFAULT_FRAGMENT_DURATION;
     hasPush = false;
     everHadPush = false;
     resumeMode = false;

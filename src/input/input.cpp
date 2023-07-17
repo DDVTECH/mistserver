@@ -615,7 +615,7 @@ namespace Mist{
       timer = Util::getMicros(timer);
       INFO_MSG("Created header in %.3f ms (%zu tracks)", (double)timer/1000.0, M?M.trackCount():(size_t)0);
       //Write header to file for caching purposes
-      M.toFile(HTTP::localURIResolver().link(config->getString("input") + ".dtsh").getUrl());
+      M.toFile(config->getString("input") + ".dtsh");
     }
     postHeader();
     if (config->getBool("headeronly")){return 0;}

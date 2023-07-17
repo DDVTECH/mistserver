@@ -274,13 +274,14 @@ namespace Util{
     }else{
       int flags = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
       int mode = O_RDWR | O_CREAT | (append ? O_APPEND : O_TRUNC);
-      if (!Util::createPathFor(uri)){
-        ERROR_MSG("Cannot not create file %s: could not create parent folder", uri.c_str());
+      std::string path = target.getFilePath();
+      if (!Util::createPathFor(path)){
+        ERROR_MSG("Cannot not create file %s: could not create parent folder", path.c_str());
         return false;
       }
-      outFile = open(uri.c_str(), mode, flags);
+      outFile = open(path.c_str(), mode, flags);
       if (outFile < 0){
-        ERROR_MSG("Failed to open file %s, error: %s", uri.c_str(), strerror(errno));
+        ERROR_MSG("Failed to open file %s, error: %s", path.c_str(), strerror(errno));
         return false;
       }
     }

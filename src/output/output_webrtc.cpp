@@ -1155,7 +1155,7 @@ namespace Mist{
   void OutWebRTC::handleWebRTCInputOutputFromThread(){
     udp.allocateDestination();
     while (keepGoing()){
-      if (!handleWebRTCInputOutput()){Util::sleep(10);}
+      if (!handleWebRTCInputOutput()){udp.sendPaced(10);}
     }
   }
 

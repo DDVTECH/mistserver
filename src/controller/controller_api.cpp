@@ -384,7 +384,13 @@ int Controller::handleAPIConnection(Socket::Connection &conn){
         }
       }
       JSON::Value Response;
-      JSON::Value Request = JSON::fromString(H.GetVar("command"));
+      JSON::Value Request;
+      std::string reqContType = H.GetHeader("Content-Type");
+      if (reqContType == "application/json"){
+        Request = JSON::fromString(H.body);
+      }else{
+        Request = JSON::fromString(H.GetVar("command"));
+      }
       // invalid request? send the web interface, unless requested as "/api"
       if (!Request.isObject() && H.url != "/api" && H.url != "/api2"){
 #include "server.html.h"

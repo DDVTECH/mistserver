@@ -351,6 +351,7 @@ namespace Mist{
           adjustTime = thisPacket.getTime() + timeStampOffset;
         }
       }
+      if (!lastTimeStamp){meta.setBootMsOffset(Util::bootMS() - adjustTime);}
       lastTimeStamp = adjustTime;
       thisPacket.setTime(adjustTime);
       bufferLivePacket(thisPacket);

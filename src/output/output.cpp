@@ -1076,8 +1076,13 @@ namespace Mist{
         uint64_t delayTime = JSON::Value(targetParams["pushdelay"]).asInt()*1000; 
         if (endTime() - startTime() < delayTime){
           uint64_t waitTime = delayTime - (endTime() - startTime());
+          uint64_t waitTarget = Util::bootMS() + waitTime;
           INFO_MSG("Waiting for buffer to fill up: waiting %" PRIu64 "ms", waitTime);
-          Util::wait(waitTime);
+          while (Util::bootMS() < waitTarget && keepGoing()){
+            Util::sleep(250);
+            meta.reloadReplacedPagesIfNeeded();
+            stats();
+          }
           if (endTime() - startTime() < delayTime){
             WARN_MSG("Waited for %" PRIu64 "ms, but buffer still too small for a push delay of %" PRIu64 "ms. Doing the best we can.", waitTime, delayTime);
           }

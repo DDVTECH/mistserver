@@ -335,6 +335,13 @@ namespace Mist{
         return;
       }
 
+      // Reconnect to meta if needed, restart push if needed
+      meta.reloadReplacedPagesIfNeeded();
+      if (!meta && !allowPush("")){
+        onFinish();
+        return;
+      }
+
       tsIn.initializeMetadata(meta);
       size_t thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
       if (thisIdx == INVALID_TRACK_ID){return;}

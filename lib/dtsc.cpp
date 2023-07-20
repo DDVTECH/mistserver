@@ -2278,84 +2278,74 @@ namespace DTSC{
            pack.getFlag("keyframe"), pack.getDataLen());
   }
 
-  /// Helper class that calculates inter-packet jitter
-  class jitterTimer{
-  public:
-    uint64_t trueTime[8]; // Array of bootMS-based measurement points
-    uint64_t packTime[8]; // Array of corresponding packet times
-    uint64_t curJitter;   // Maximum jitter measurement in past 10 seconds
-    unsigned int x;       // Current indice within above two arrays
-    uint64_t maxJitter;   // Highest jitter ever observed by this jitterTimer
-    uint64_t lastTime;    // Last packet used for a measurement point
-    jitterTimer(){
+  jitterTimer::jitterTimer(){
+    for (int i = 0; i < 8; ++i){
+      trueTime[i] = 0;
+      packTime[i] = 0;
+    }
+    maxJitter = 200;
+    lastTime = 0;
+    x = 0;
+  }
+
+  uint64_t jitterTimer::addPack(uint64_t t){
+    if (veryUglyJitterOverride){return veryUglyJitterOverride;}
+    uint64_t curMs = Util::bootMS();
+    if (!x){
+      // First call, set the whole array to this packet
       for (int i = 0; i < 8; ++i){
-        trueTime[i] = 0;
-        packTime[i] = 0;
+        trueTime[i] = curMs;
+        packTime[i] = t;
       }
-      maxJitter = 200;
-      lastTime = 0;
-      x = 0;
+      ++x;
+      trueTime[x % 8] = curMs;
+      packTime[x % 8] = t;
+      lastTime = t;
+      curJitter = 0;
     }
-    uint64_t addPack(uint64_t t){
-      if (veryUglyJitterOverride){return veryUglyJitterOverride;}
-      uint64_t curMs = Util::bootMS();
-      if (!x){
-        // First call, set the whole array to this packet
-        for (int i = 0; i < 8; ++i){
-          trueTime[i] = curMs;
-          packTime[i] = t;
+    if (t > lastTime + 2500){
+      if ((x % 4) == 0){
+        if (maxJitter > 50 && curJitter < maxJitter - 50){
+          MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
+          maxJitter = curJitter;
         }
-        ++x;
-        trueTime[x % 8] = curMs;
-        packTime[x % 8] = t;
-        lastTime = t;
-        curJitter = 0;
+        curJitter = maxJitter*0.90;
       }
-      if (t > lastTime + 2500){
-        if ((x % 4) == 0){
-          if (maxJitter > 50 && curJitter < maxJitter - 50){
-            MEDIUM_MSG("Jitter lowered from %" PRIu64 " to %" PRIu64 " ms", maxJitter, curJitter);
-            maxJitter = curJitter;
-          }
-          curJitter = maxJitter*0.90;
-        }
-        ++x;
-        trueTime[x % 8] = curMs;
-        packTime[x % 8] = t;
-        lastTime = t;
-      }
-      uint64_t realTime = (curMs - trueTime[(x + 1) % 8]);
-      uint64_t arriTime = (t - packTime[(x + 1) % 8]);
-      int64_t jitter = (realTime - arriTime);
-      if (jitter < 0){
-        // Negative jitter = packets arriving too soon.
-        // This is... ehh... not a bad thing? I guess..?
-        // if (jitter < -1000){
-        //  INFO_MSG("Jitter = %" PRId64 " ms (max: %" PRIu64 ")", jitter, maxJitter);
-        //}
-      }else{
-        // Positive jitter = packets arriving too late.
-        // We need to delay playback at least by this amount to account for it.
-        if ((uint64_t)jitter > maxJitter){
-          if (jitter - maxJitter > 420){
-            INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
-          }else{
-            HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
-          }
-          maxJitter = (uint64_t)jitter;
-        }
-        if (curJitter < (uint64_t)jitter){curJitter = (uint64_t)jitter;}
-      }
-      return maxJitter;
+      ++x;
+      trueTime[x % 8] = curMs;
+      packTime[x % 8] = t;
+      lastTime = t;
     }
-  };
+    uint64_t realTime = (curMs - trueTime[(x + 1) % 8]);
+    uint64_t arriTime = (t - packTime[(x + 1) % 8]);
+    int64_t jitter = (realTime - arriTime);
+    if (jitter < 0){
+      // Negative jitter = packets arriving too soon.
+      // This is... ehh... not a bad thing? I guess..?
+      // if (jitter < -1000){
+      //  INFO_MSG("Jitter = %" PRId64 " ms (max: %" PRIu64 ")", jitter, maxJitter);
+      //}
+    }else{
+      // Positive jitter = packets arriving too late.
+      // We need to delay playback at least by this amount to account for it.
+      if ((uint64_t)jitter > maxJitter){
+        if (jitter - maxJitter > 420){
+          INFO_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+        }else{
+          HIGH_MSG("Jitter increased from %" PRIu64 " to %" PRId64 " ms", maxJitter, jitter);
+        }
+        maxJitter = (uint64_t)jitter;
+      }
+      if (curJitter < (uint64_t)jitter){curJitter = (uint64_t)jitter;}
+    }
+    return maxJitter;
+  }
 
   /// Updates the metadata given the packet's properties.
   void Meta::update(uint64_t packTime, int64_t packOffset, uint32_t packTrack, uint64_t packDataSize,
                     uint64_t packBytePos, bool isKeyframe, uint64_t packSendSize){
     ///\todo warning Re-Implement Ivec
     if (getLive()){
-      static std::map<size_t, jitterTimer> theJitters;
       setMinKeepAway(packTrack, theJitters[packTrack].addPack(packTime));
     }
 
@@ -2548,6 +2538,7 @@ namespace DTSC{
   /// Wipes internal structures, also marking as outdated and deleting memory structures if in
   /// master mode.
   void Meta::clear(){
+    theJitters.clear();
     if (isMemBuf){
       isMemBuf = false;
       free(streamMemBuf);

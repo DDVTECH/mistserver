@@ -268,6 +268,19 @@ namespace DTSC{
     Util::RelAccXFieldData fragmentSizeField;
   };
 
+
+  class jitterTimer{
+  public:
+    uint64_t trueTime[8]; // Array of bootMS-based measurement points
+    uint64_t packTime[8]; // Array of corresponding packet times
+    uint64_t curJitter;   // Maximum jitter measurement in past 10 seconds
+    unsigned int x;       // Current indice within above two arrays
+    uint64_t maxJitter;   // Highest jitter ever observed by this jitterTimer
+    uint64_t lastTime;    // Last packet used for a measurement point
+    jitterTimer();
+    uint64_t addPack(uint64_t t);
+  };
+
   class Meta{
   public:
     Meta(const std::string &_streamName, const DTSC::Scan &src);
@@ -499,6 +512,7 @@ namespace DTSC{
     std::map<size_t, size_t> sizeMemBuf;
 
   private:
+    std::map<size_t, jitterTimer> theJitters;
     // Internal buffers so we don't always need to search for everything
     Util::RelAccXFieldData streamVodField;
     Util::RelAccXFieldData streamLiveField;

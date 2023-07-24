@@ -75,36 +75,6 @@ p.prototype.build = function (MistVideo,callback) {
           return this.timestamps[frame]*1e-3;
         }
         return 0;
-
-
-        //get the closest known timestamp for the frame, then correct for the offset using the framerate
-        var last = 0;
-        var last_time = 0;
-        for (var i in this.timestamps) {
-          last = i;
-          last_time = this.timestamps[i];
-          if (i >= frame) {
-            break;
-          }
-        }
-
-        if (clean) {
-          //clear any entries before the entry we're actually using
-          for (var i in this.timestamps) {
-            if (i == last) { break; }
-            delete this.timestamps[i];
-          }
-        }
-
-
-        var framerate = this.framerate();
-        if ((typeof framerate != "undefined") && (framerate > 0)) {
-          return last_time + (frame - last) / framerate;
-        }
-        else {
-          return last_time;
-        }
-        
       },
       history: {
         log: [],

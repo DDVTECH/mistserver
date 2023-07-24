@@ -501,6 +501,7 @@ int main(int argc, char *argv[]){
       if (oldSignal){WARN_MSG("Multiple signal handlers! I can't deal with this.");}
       oldSignal = cur_action.sa_sigaction;
     }
+    Comms::defaultCommFlags = COMM_STATUS_NOKILL;
     Util::Procs::socketList.insert(server_socket.getSocket());
     while (conf.is_active && server_socket.connected()){
       Socket::SRTConnection S = server_socket.accept(false, "output");

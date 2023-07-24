@@ -446,6 +446,7 @@ int main(int argc, char *argv[]){
       sigaction(SIGUSR1, &new_action, NULL);
     }
     if (conf.getInteger("port") && conf.getString("interface").size()){
+      Comms::defaultCommFlags = COMM_STATUS_NOKILL;
 
       if (rist_receiver_create(&rec_ctx, (rist_profile)conf.getInteger("profile"), &Mist::log_settings) != 0){
         FAIL_MSG("Failed to create receiver context");

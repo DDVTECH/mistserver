@@ -141,7 +141,7 @@ int main(int argc, char **argv){
       cleanUsers.setStatus(COMM_STATUS_INVALID, i);
       if (status != COMM_STATUS_INVALID && !(status & COMM_STATUS_DISCONNECT)){
         pid_t pid = cleanUsers.getPid(i);
-        if (pid > 1){
+        if (pid > 1 && !(cleanUsers.getStatus(i) & COMM_STATUS_NOKILL)){
           Util::Procs::Stop(pid);
           checkPids.insert(pid);
         }
@@ -165,3 +165,4 @@ int main(int argc, char **argv){
   nukeSem("/MstPull_%s");
   nukeSem(SEM_TRACKLIST);
 }
+

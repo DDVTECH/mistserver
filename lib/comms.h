@@ -26,6 +26,7 @@ namespace Comms{
   extern uint8_t sessionUnspecifiedMode;
   extern uint8_t sessionStreamInfoMode;
   extern uint8_t tknMode;
+  extern uint8_t defaultCommFlags;
   void sessionConfigCache();
 
   class Comms{

@@ -17,6 +17,7 @@ namespace Comms{
   uint8_t sessionUnspecifiedMode = 0;
   uint8_t sessionStreamInfoMode = SESS_DEFAULT_STREAM_INFO_MODE;
   uint8_t tknMode = SESS_TKN_DEFAULT_MODE;
+  uint8_t defaultCommFlags = 0;
 
   /// \brief Refreshes the session configuration if the last update was more than 5 seconds ago
   void sessionConfigCache(){
@@ -103,7 +104,7 @@ namespace Comms{
       for (size_t i = 0; i < recordCount(); i++){
         if (getStatus(i) == COMM_STATUS_INVALID || (getStatus(i) & COMM_STATUS_DISCONNECT)){continue;}
         uint64_t cPid = getPid(i);
-        if (cPid > 1){
+        if (cPid > 1 && !(getStatus(i) & COMM_STATUS_NOKILL)){
           Util::Procs::Stop(cPid); // soft kill
           keepGoing = true;
         }
@@ -164,7 +165,7 @@ namespace Comms{
           IPC::semGuard G(&sem);
           if (getStatus() != COMM_STATUS_INVALID){continue;}
           nullFields();
-          setStatus(COMM_STATUS_ACTIVE);
+          setStatus(COMM_STATUS_ACTIVE | defaultCommFlags);
           break;
         }
       }
@@ -275,7 +276,7 @@ namespace Comms{
     if (dataPage){
       setTrack(idx);
       setKeyNum(0);
-      setStatus(initialState);
+      setStatus(initialState | defaultCommFlags);
     }
   }
 

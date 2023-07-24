@@ -2221,7 +2221,7 @@ namespace Mist{
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;
-    } 
+    }
 
     lastStats = now;
 

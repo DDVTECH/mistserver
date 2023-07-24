@@ -100,6 +100,7 @@ namespace Mist{
     config = cfg;
     standAlone = true;
     Util::Config::binaryType = Util::INPUT;
+    inputTimeout = INPUT_TIMEOUT;
 
     JSON::Value option;
     option["long"] = "json";
@@ -131,6 +132,19 @@ namespace Mist{
     option["value"].append(0u);
     option["help"] = "Generate .dtsh, then exit";
     config->addOption("headeronly", option);
+    option.null();
+    option["short"] = "i";
+    option["arg"] = "integer";
+    option["long"] = "inputtimeout";
+    option["value"].append(inputTimeout);
+    option["help"] = "Time in seconds to keep the input process loaded without activity";
+    config->addOption("inputtimeout", option);
+    capa["optional"]["inputtimeout"]["name"] = "Input inactivity timeout";
+    capa["optional"]["inputtimeout"]["help"] = "How long the input should remain loaded without activity";
+    capa["optional"]["inputtimeout"]["default"] = inputTimeout;
+    capa["optional"]["inputtimeout"]["unit"] = "s";
+    capa["optional"]["inputtimeout"]["type"] = "uint";
+    capa["optional"]["inputtimeout"]["option"] = "--inputtimeout";
 
     /*LTS-START*/
     /*
@@ -368,6 +382,7 @@ namespace Mist{
   int Input::boot(int argc, char *argv[]){
     if (!(config->parseArgs(argc, argv))){return 1;}
     streamName = config->getString("streamname");
+    inputTimeout = config->getInteger("inputtimeout");
     Util::setStreamName(streamName);
 
     if (config->getBool("json")){
@@ -923,7 +938,7 @@ namespace Mist{
     // We keep running in serve mode if the config is still active AND either
     // - INPUT_TIMEOUT seconds haven't passed yet,
     // - this is a live stream and at least two of the biggest fragment haven't passed yet,
-    bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < INPUT_TIMEOUT);
+    bool ret = config->is_active && ((Util::bootSecs() - activityCounter) < inputTimeout);
     /*LTS-START*/
     if (!ret){
       if (Triggers::shouldTrigger("STREAM_UNLOAD", config->getString("streamname"))){
@@ -936,8 +951,8 @@ namespace Mist{
       }
     }
     /*LTS-END*/
-    if (!ret && ((Util::bootSecs() - activityCounter) >= INPUT_TIMEOUT)){
-      Util::logExitReason(ER_CLEAN_INACTIVE, "no activity for %u seconds", Util::bootSecs() - activityCounter);
+    if (!ret && ((Util::bootSecs() - activityCounter) >= inputTimeout)){
+      Util::logExitReason(ER_CLEAN_INACTIVE, "no activity for %us (> %" PRIu64 "s)", Util::bootSecs() - activityCounter, inputTimeout);
     }
     return ret;
   }

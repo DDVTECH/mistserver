@@ -557,7 +557,13 @@ namespace Mist{
       bufferTime = tmpNum;
     }
 
-    /*LTS-START*/
+    //Check if input timeout setting is correct
+    tmpNum = retrieveSetting(streamCfg, "inputtimeout");
+    if (inputTimeout != tmpNum){
+      DEVEL_MSG("Setting input timeout from %" PRIu64 " to new value of %" PRIu64, inputTimeout, tmpNum);
+      inputTimeout = tmpNum;
+    }
+
     //Check if cutTime setting is correct
     tmpNum = retrieveSetting(streamCfg, "cut");
     // if the new value is different, print a message and apply it
@@ -594,7 +600,6 @@ namespace Mist{
       meta.setMaxKeepAway(tmpNum);
     }
 
-    /*LTS-END*/
     return true;
   }
 

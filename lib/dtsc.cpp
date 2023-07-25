@@ -1163,6 +1163,7 @@ namespace DTSC{
       stream.addField("tracks", RAX_NESTED, META_TRACK_OFFSET + (trackCount * META_TRACK_RECORDSIZE));
       stream.addField("source", RAX_STRING, 512);
       stream.addField("maxkeepaway", RAX_16UINT);
+      stream.addField("resume", RAX_UINT);
       stream.addField("bufferwindow", RAX_64UINT);
       stream.addField("bootmsoffset", RAX_64INT);
       stream.addField("utcoffset", RAX_64INT);
@@ -2050,6 +2051,14 @@ namespace DTSC{
 
   void Meta::setMaxKeepAway(uint64_t maxKeepAway){
     stream.setInt(streamMaxKeepAwayField, maxKeepAway);
+  }
+
+  uint8_t Meta::getResume() const{
+    return stream.getInt("resume");
+  }
+
+  void Meta::setResume(uint8_t resume){
+    stream.setInt("resume", resume);
   }
 
   uint64_t Meta::getMaxKeepAway() const{

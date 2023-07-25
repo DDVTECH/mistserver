@@ -71,19 +71,19 @@ namespace Mist{
     option["arg"] = "integer";
     option["long"] = "resume";
     option["short"] = "R";
-    option["help"] = "Enable resuming support (1) or disable resuming support (0, default)";
+    option["help"] = "Enable resuming support (1) or disable resuming support (0, default) or disable but linger data (2)";
     option["value"].append(0);
     config->addOption("resume", option);
     capa["optional"]["resume"]["name"] = "Resume support";
-    capa["optional"]["resume"]["help"] =
-        "If enabled, the buffer will linger after source disconnect to allow resuming the stream "
-        "later. If disabled, the buffer will instantly close on source disconnect.";
+    capa["optional"]["resume"]["help"] = "How to handle a push input disconnecting.";
     capa["optional"]["resume"]["option"] = "--resume";
     capa["optional"]["resume"]["type"] = "select";
     capa["optional"]["resume"]["select"][0u][0u] = "0";
-    capa["optional"]["resume"]["select"][0u][1u] = "Disabled";
+    capa["optional"]["resume"]["select"][0u][1u] = "No resume, wipe stream data on disconnect";
     capa["optional"]["resume"]["select"][1u][0u] = "1";
-    capa["optional"]["resume"]["select"][1u][1u] = "Enabled";
+    capa["optional"]["resume"]["select"][1u][1u] = "Linger stream data, allow resuming";
+    capa["optional"]["resume"]["select"][2u][0u] = "2";
+    capa["optional"]["resume"]["select"][2u][1u] = "Linger stream data, wipe on reconnect";
     capa["optional"]["resume"]["default"] = 0;
     option.null();
 
@@ -134,7 +134,7 @@ namespace Mist{
     segmentSize = 1900;
     hasPush = false;
     everHadPush = false;
-    resumeMode = false;
+    resumeMode = 0;
   }
 
   inputBuffer::~inputBuffer(){
@@ -484,7 +484,11 @@ namespace Mist{
         meta.reloadReplacedPagesIfNeeded();
         removeTrack(sourcePids[id]);
       }else{
-        INFO_MSG("Track %zu lost its source, keeping it around for resume", sourcePids[id]);
+        if (resumeMode == 1){
+          INFO_MSG("Track %zu lost its source, keeping it around for resume", sourcePids[id]);
+        }else{
+          INFO_MSG("Track %zu lost its source, keeping it around until reconnect or timeout", sourcePids[id]);
+        }
       }
       sourcePids.erase(id);
     }
@@ -556,16 +560,17 @@ namespace Mist{
       cutTime = tmpNum;
     }
 
-    //Check if resume setting is correct
-    tmpNum = retrieveSetting(streamCfg, "resume");
-    if (resumeMode != (bool)tmpNum){
-      INFO_MSG("Setting resume mode from %s to new value of %s",
-               resumeMode ? "enabled" : "disabled", tmpNum ? "enabled" : "disabled");
-      resumeMode = tmpNum;
-    }
-
     if (!meta){return true;}//abort the rest if we can't write metadata
     lastReTime = Util::epoch(); /*LTS*/
+
+    //Check if resume setting is correct
+    tmpNum = retrieveSetting(streamCfg, "resume");
+    if (resumeMode != tmpNum){
+      INFO_MSG("Setting resume mode from %" PRIu8 " to new value of %" PRIu64,
+               resumeMode, tmpNum);
+      resumeMode = tmpNum;
+      meta.setResume(resumeMode);
+    }
 
     //Check if segmentsize setting is correct
     tmpNum = retrieveSetting(streamCfg, "segmentsize");

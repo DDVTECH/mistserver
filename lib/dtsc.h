@@ -439,6 +439,9 @@ namespace DTSC{
     void setUTCOffset(int64_t UTCOffset);
     int64_t getUTCOffset() const;
 
+    void setResume(uint8_t resume);
+    uint8_t getResume() const;
+
     std::set<size_t> getValidTracks(bool skipEmpty = false) const;
     std::set<size_t> getMySourceTracks(size_t pid) const;
 

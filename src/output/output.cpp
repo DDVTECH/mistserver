@@ -2457,28 +2457,54 @@ namespace Mist{
   void Output::waitForStreamPushReady(){
     uint8_t streamStatus = Util::getStreamStatus(streamName);
     MEDIUM_MSG("Current status for %s buffer is %u", streamName.c_str(), streamStatus);
-    if (streamStatus == STRMSTAT_READY){
+    if (streamStatus == STRMSTAT_READY || streamStatus == STRMSTAT_WAIT){
       reconnect();
       std::set<size_t> vTracks = M.getValidTracks(true);
-      INFO_MSG("Stream already active (%zu valid tracks) - check if it's not shutting down...", vTracks.size());
-      uint64_t oneTime = 0;
-      uint64_t twoTime = 0;
-      for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
-        if (M.getLastms(*it) > oneTime){oneTime = M.getLastms(*it);}
-      }
-      Util::wait(2000);
-      for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
-        if (M.getLastms(*it) > twoTime){twoTime = M.getLastms(*it);}
-      }
-      if (twoTime <= oneTime+500){
-        disconnect();
-        INFO_MSG("Waiting for stream reset before attempting push input accept (%" PRIu64 " <= %" PRIu64 "+500)", twoTime, oneTime);
-        while (streamStatus != STRMSTAT_OFF && keepGoing()){
-          userSelect.clear();
-          Util::wait(250);
-          streamStatus = Util::getStreamStatus(streamName);
+      if (vTracks.size()){
+        INFO_MSG("Stream already active (%zu valid tracks) - check if it's not shutting down...", vTracks.size());
+        uint64_t oneTime = 0;
+        uint64_t twoTime = 0;
+        for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
+          if (M.getLastms(*it) > oneTime){oneTime = M.getLastms(*it);}
         }
-        reconnect();
+        Util::wait(2000);
+        for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); ++it){
+          if (M.getLastms(*it) > twoTime){twoTime = M.getLastms(*it);}
+        }
+        // No progress in 2s window; the stream is not active
+        if (twoTime <= oneTime+500){
+          // Retrieve the resume support setting
+          uint8_t resumeSupport = M.getResume();
+
+          disconnect();
+
+          // If resumesupport is 2, attempt to kill the input process
+          if (resumeSupport == 2){
+            // Grab the PID of the input process
+            pid_t iPid = 0;
+            char pageName[NAME_BUFFER_SIZE];
+            snprintf(pageName, NAME_BUFFER_SIZE, SHM_STREAM_IPID, Util::streamName);
+            IPC::sharedPage pidPage(pageName, 8, false, false);
+            if (pidPage){
+              iPid = *(uint64_t*)(pidPage.mapped);
+            }
+            // If we could, kill the input
+            if (iPid){Util::Procs::Stop(iPid);}
+          }
+          
+          // If resuming is not enabled, wait for the stream to shut down before we continue
+          if (resumeSupport != 1){
+            INFO_MSG("Waiting for stream reset before attempting push input accept");
+            while (streamStatus != STRMSTAT_OFF && keepGoing()){
+              userSelect.clear();
+              Util::wait(250);
+              streamStatus = Util::getStreamStatus(streamName);
+            }
+          }
+
+          reconnect();
+
+        }
       }
     }
     while (((streamStatus != STRMSTAT_WAIT && streamStatus != STRMSTAT_READY) || !meta) && keepGoing()){

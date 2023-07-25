@@ -495,8 +495,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   uint8_t streamStat = getStreamStatus(streamname);
   // Wait for a maximum of 240 x 250ms sleeps = 60 seconds
   size_t sleeps = 0;
-  while (++sleeps < 240 && streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY &&
-         (!isProvider || streamStat != STRMSTAT_WAIT)){
+  while (++sleeps < 240 && streamStat != STRMSTAT_OFF && streamStat != STRMSTAT_READY && streamStat != STRMSTAT_WAIT){
     if (streamStat == STRMSTAT_BOOT && overrides.count("throughboot")){break;}
     Util::sleep(250);
     streamStat = getStreamStatus(streamname);

@@ -1446,6 +1446,7 @@ namespace Mist{
     bool autoAdjustSplit = false;
     Socket::Connection plsConn;
     uint64_t systemBoot;
+    bool addEndlist = true;
 
     std::string origTarget; 
     const char* origTargetPtr = getenv("MST_ORIG_TARGET");
@@ -1487,6 +1488,9 @@ namespace Mist{
     }
     if (targetParams.count("adjustSplit")){
       autoAdjustSplit = true;
+    }
+    if (targetParams.count("noendlist")){
+      addEndlist = false;
     }
     // When segmenting to a playlist, handle any existing files and init some data
     if (targetParams.count("m3u8")){
@@ -1897,8 +1901,8 @@ namespace Mist{
           tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
           playlistBuffer += tmp.str();
         }
-
-        if (!M.getLive() || (!maxEntries && !targetAge)){playlistBuffer += "#EXT-X-ENDLIST\n";}
+        // Omit the ENDLIST tag for sliding window live playlists (or when explicitly requested to omit it)
+        if ((!M.getLive() || (!maxEntries && !targetAge)) && addEndlist){playlistBuffer += "#EXT-X-ENDLIST\n";}
         // Remove older entries in the playlist
         if (maxEntries || targetAge){
           uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;

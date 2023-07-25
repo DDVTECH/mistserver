@@ -781,6 +781,12 @@ void Util::Config::addStandardPushCapabilities(JSON::Value &cap){
   pp["maxwaittrackms"]["unit"] = "ms";
   pp["maxwaittrackms"]["sort"] = "be";
 
+  pp["noendlist"]["name"] = "Don't end playlist";
+  pp["noendlist"]["help"] = "If set, does not write #X-EXT-ENDLIST when finalizing the playlist on exit";
+  pp["noendlist"]["type"] = "bool";
+  pp["noendlist"]["format"] = "set_or_unset";
+  pp["noendlist"]["sort"] = "bfa";
+
   pp["append"]["name"] = "Append to file";
   pp["append"]["help"] = "If set to any value, will (if possible) append to an existing file, rather than overwriting it";
   pp["append"]["type"] = "bool";

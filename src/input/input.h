@@ -57,6 +57,7 @@ namespace Mist{
     Comms::Connections statComm;
     uint64_t startTime;
     uint64_t lastStats;
+    uint64_t inputTimeout;
 
     virtual bool checkArguments() = 0;
     virtual bool readHeader();

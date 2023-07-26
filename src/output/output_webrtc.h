@@ -151,6 +151,7 @@ namespace Mist{
   protected:
     virtual void idleTime(uint64_t ms){udp.sendPaced(ms*1000);}
   private:
+    tthread::mutex sendMutex;
     bool noSignalling;
     uint64_t lastRecv;
     uint64_t lastPackMs;

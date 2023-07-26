@@ -3265,13 +3265,13 @@ namespace DTSC{
           retRef["human_issues"].append("There are 5 or less frames in between key frames. This is usually a sign that the broadcast machine does not have enough bandwidth or CPU power to provide the stream at the given quality level. Lowering the quality and/or broadcast resolution may be needed to compensate. It is also possible the key frame interval and/or frame rate is set extremely low.");
         }
         if (type == "video"){
-          if (longest_key > shrtest_key){
+          if (longest_key > shrtest_key * 1.2){
             retRef["human_issues"].append("The stream's key frame interval is not constant, which can have various negative side effects. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
           }
           if (longest_key > 10000){
             retRef["human_issues"].append("The stream's key frame interval is over 10 seconds. This will have a negative effect on end-to-end latency for some playback methods. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
           }
-          if (shrtest_key < 1000){
+          if (shrtest_key < 750){
             retRef["human_issues"].append("The stream's key frame interval is under 1 second. This will have a negative effect on encoding efficiency. If possible, please adjust the key frame interval to a constant value between 1 to 5 seconds for the best experience.");
           }
         }
@@ -3302,7 +3302,7 @@ namespace DTSC{
       retRef["maxkeepaway"] = getMaxKeepAway();
     }
     if (hasAudio && !hasGoodAudio){
-      retRef["human_issues"].append("There is no AAC audio track in this stream, which means some people may not be able tohear the audio. AAC is the most widely compatible audio format today, and recommended to always be present to ensure everyone can hear the stream.");
+      retRef["human_issues"].append("There is no AAC audio track in this stream, which means some people may not be able to hear the audio. AAC is the most widely compatible audio format today, and recommended to always be present to ensure everyone can hear the stream.");
     }
     if (hasVideo && !hasGoodVideo){
       retRef["human_issues"].append("There is no H264 or (M)JPEG video track in this stream, which means some people may not be able to see the video. H264 and (M)JPEG are the most widely compatible video formats today, and at least one of them should be present to ensure everyone can see the stream.");

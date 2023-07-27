@@ -1211,7 +1211,7 @@ namespace Mist{
       if (now >= rtcpTimeoutInMillis){
         std::map<uint64_t, WebRTCTrack>::iterator it;
         for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (M.getType(it->first) != "video"){continue;}//Video-only, at least for now
+          if (!M || M.getType(it->first) != "video"){continue;}//Video-only, at least for now
           sendRTCPFeedbackREMB(it->second);
           sendRTCPFeedbackRR(it->second);
         }
@@ -1222,7 +1222,7 @@ namespace Mist{
       if (now >= rtcpKeyFrameTimeoutInMillis){
         std::map<uint64_t, WebRTCTrack>::iterator it;
         for (it = webrtcTracks.begin(); it != webrtcTracks.end(); ++it){
-          if (M.getType(it->first) != "video"){continue;}//Video-only
+          if (!M || M.getType(it->first) != "video"){continue;}//Video-only
           sendRTCPFeedbackPLI(it->second);
         }
         rtcpKeyFrameTimeoutInMillis = now + rtcpKeyFrameDelayInMillis;

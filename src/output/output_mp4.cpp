@@ -162,7 +162,7 @@ namespace Mist{
     return retVal * 1.1;
   }
 
-  uint64_t OutMP4::mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize) const{
+  uint64_t OutMP4::mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize, std::map<size_t, DTSC::Keys *> & keysCache) const{
     size_t totalCount = 0;
     size_t totalSize = 8;
     uint64_t tmpRes = 8; // moof boxsize
@@ -179,11 +179,11 @@ namespace Mist{
          subIt != userSelect.end(); subIt++){
       tmpRes += 8 + 20 + 20; // TRAF + TFHD + TFDT Box
 
-      DTSC::Keys keys = M.getKeys(subIt->first);
+      DTSC::Keys & keys = *keysCache.at(subIt->first);
       DTSC::Parts parts(M.parts(subIt->first));
 
-      uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
-      uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
+      uint32_t startKey = keys.getIndexForTime(startFragmentTime);
+      uint32_t endKey = keys.getIndexForTime(endFragmentTime) + 1;
 
       size_t thisCount = 0;
 
@@ -926,14 +926,17 @@ namespace Mist{
       endFragmentTime =
           M.getTimeForFragmentIndex(mainTrack, M.getFragmentIndexForTime(mainTrack, startFragmentTime) + 1);
     }
+    
+    std::map<size_t, DTSC::Keys *> keysCache;
 
     for (std::map<size_t, Comms::Users>::const_iterator subIt = userSelect.begin();
          subIt != userSelect.end(); subIt++){
-      DTSC::Keys keys = M.getKeys(subIt->first);
+      keysCache[subIt->first] = new DTSC::Keys(M.getKeys(subIt->first));
+      DTSC::Keys & keys = *keysCache[subIt->first];
       DTSC::Parts parts(M.parts(subIt->first));
 
-      uint32_t startKey = M.getKeyIndexForTime(subIt->first, startFragmentTime);
-      uint32_t endKey = M.getKeyIndexForTime(subIt->first, endFragmentTime) + 1;
+      uint32_t startKey = keys.getIndexForTime(startFragmentTime);
+      uint32_t endKey = keys.getIndexForTime(endFragmentTime) + 1;
 
       for (size_t k = startKey; k < endKey; k++){
 
@@ -954,7 +957,7 @@ namespace Mist{
             temp.index = p;
             trunOrder.insert(temp);
 
-            uint64_t keyTime = M.getTimeForKeyIndex(subIt->first, M.getKeyIndexForTime(subIt->first, timeStamp));
+            uint64_t keyTime = M.getTimeForKeyIndex(subIt->first, keys.getIndexForTime(timeStamp));
             if (keyTime == timeStamp){
               keyParts.insert(p);
             }
@@ -977,7 +980,7 @@ namespace Mist{
       }
     }
 
-    uint64_t relativeOffset = mp4moofSize(startFragmentTime, endFragmentTime, mdatSize) + 8;
+    uint64_t relativeOffset = mp4moofSize(startFragmentTime, endFragmentTime, mdatSize, keysCache) + 8;
 
     // We need to loop over each part and fill a new set, because editing byteOffest might edit
     // relative order, and invalidates the iterator.
@@ -995,6 +998,10 @@ namespace Mist{
     trunOrder.clear(); // erase the trunOrder set, to keep memory usage down
 
     for (std::deque<size_t>::iterator it = sortedTracks.begin(); it != sortedTracks.end(); ++it){
+      //Wipe keys cache, no longer needed
+      delete keysCache[*it];
+      keysCache.erase(*it);
+
       size_t tid = *it;
       DTSC::Parts parts(M.parts(*it));
 

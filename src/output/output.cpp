@@ -2130,6 +2130,7 @@ namespace Mist{
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
         // If so, the next key is our next packet
         nextTime = keys.getTime(thisKey + 1);
+        userSelect[nxt.tid].setKeyNum(thisKey + 1);
 
         //If the next packet should've been before the current packet, something is wrong. Abort, abort!
         if (nextTime < nxt.time){
@@ -2205,7 +2206,7 @@ namespace Mist{
 
     //Update keynum only when the second flips over in the timestamp
     //We do this because DTSC::Keys is pretty CPU-heavy
-    if (nxt.time / 1000 < nextTime/1000){
+    if (nxt.time / 5000 < nextTime/5000){
       uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       userSelect[nxt.tid].setKeyNum(thisKey);
     }
@@ -2398,7 +2399,6 @@ namespace Mist{
       return false;
     }
     close(outFile);
-    realTime = 0;
     return true;
   }
 

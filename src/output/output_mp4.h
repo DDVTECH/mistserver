@@ -94,7 +94,7 @@ namespace Mist{
     uint64_t mp4HeaderSize(uint64_t &fileSize, int fragmented = 0) const;
     bool mp4Header(Util::ResizeablePointer & headOut, uint64_t &size, int fragmented = 0);
 
-    uint64_t mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize) const;
+    uint64_t mp4moofSize(uint64_t startFragmentTime, uint64_t endFragmentTime, uint64_t &mdatSize, std::map<size_t, DTSC::Keys *> & keysCache) const;
     virtual void sendFragmentHeaderTime(uint64_t startFragmentTime,
                                         uint64_t endFragmentTime); // this builds the moof box for fragmented MP4
 

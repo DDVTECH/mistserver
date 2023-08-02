@@ -8,7 +8,6 @@
 namespace Util{
   void wait(int64_t ms);  ///< Sleeps for the indicated amount of milliseconds or longer.
   void sleep(int64_t ms); ///< Sleeps for roughly the indicated amount of milliseconds.
-  void usleep(int64_t us); ///< Sleeps for roughly the indicated amount of microseconds.
   uint64_t getMS();       ///< Gets the current time in milliseconds.
   uint64_t bootSecs();    ///< Gets the current system uptime in seconds.
   uint64_t unixMS();      ///< Gets the current Unix time in milliseconds.

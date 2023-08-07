@@ -303,14 +303,22 @@ namespace Mist{
       /*LTS-END*/
       if (H.hasHeader("User-Agent")){UA = H.GetHeader("User-Agent");}
 
-      if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
-      if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
-      if (H.GetVar("meta") != ""){targetParams["meta"] = H.GetVar("meta");}
-      if (H.GetVar("subtitle") != ""){targetParams["subtitle"] = H.GetVar("subtitle");}
-      if (H.GetVar("start") != ""){targetParams["start"] = H.GetVar("start");}
-      if (H.GetVar("stop") != ""){targetParams["stop"] = H.GetVar("stop");}
-      if (H.GetVar("startunix") != ""){targetParams["startunix"] = H.GetVar("startunix");}
-      if (H.GetVar("stopunix") != ""){targetParams["stopunix"] = H.GetVar("stopunix");}
+#define HTTP_CONVERT(var) if (H.GetVar(var) != ""){targetParams[var] = H.GetVar(var);}
+
+      HTTP_CONVERT("audio");
+      HTTP_CONVERT("video");
+      HTTP_CONVERT("meta");
+      HTTP_CONVERT("subtitle");
+      HTTP_CONVERT("start");
+      HTTP_CONVERT("stop");
+      HTTP_CONVERT("startunix");
+      HTTP_CONVERT("stopunix");
+      HTTP_CONVERT("waittrackcount");
+      HTTP_CONVERT("mintrackms");
+      HTTP_CONVERT("maxtrackms");
+      HTTP_CONVERT("mintrackkeys");
+      HTTP_CONVERT("maxwaittrackms");
+
       // allow setting of max lead time through buffer variable.
       // max lead time is set in MS, but the variable is in integer seconds for simplicity.
       if (H.GetVar("buffer") != ""){
@@ -393,7 +401,7 @@ namespace Mist{
       if (Comms::tknMode & 0x08){
         std::stringstream cookieHeader;
         cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
-        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+        H.SetHeader("Set-Cookie", cookieHeader.str());
       }
     }
     //Set attachment header to force download, if applicable

@@ -109,14 +109,25 @@ namespace Mist{
       }
       OutEBML::dropTrack(trackId, reason, probablyBad);
     }
-    void sendHeader(){
-      if (opt["source_mask"].asBool()){
-        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
-          if (ti->first == INVALID_TRACK_ID){continue;}
-          INFO_MSG("Masking source track %zu", ti->first);
-          meta.validateTrack(ti->first, meta.trackValid(ti->first) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+    virtual void initialSeek(){
+      if (!meta){return;}
+      if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
+        uint64_t sourceMask = opt["source_mask"].asInt();
+        if (userSelect.size()){
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            INFO_MSG("Masking source track %zu to %" PRIu64, it->first, sourceMask);
+            meta.validateTrack(it->first, sourceMask);
+          }
         }
       }
+      if (!meta.getLive() || opt["leastlive"].asBool()){
+        INFO_MSG("Seeking to earliest point in stream");
+        seek(0);
+        return;
+      }
+      Output::initialSeek();
+    }
+    void sendHeader(){
       realTime = 0;
       OutEBML::sendHeader();
     };
@@ -182,7 +193,7 @@ namespace Mist{
     std::string streamName = opt["sink"].asString();
     if (!streamName.size()){streamName = opt["source"].asStringRef();}
     Util::streamVariables(streamName, opt["source"].asStringRef());
-    
+
     //Do variable substitution on command
     std::string tmpCmd = opt["exec"].asStringRef();
     Util::streamVariables(tmpCmd, streamName, opt["source"].asStringRef());
@@ -359,6 +370,11 @@ int main(int argc, char *argv[]){
     capa["optional"]["target_mask"]["select"][8u][0u] = 0;
     capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
     capa["optional"]["target_mask"]["default"] = "";
+
+    capa["optional"]["leastlive"]["name"] = "Start in the past";
+    capa["optional"]["leastlive"]["help"] = "Start the process as far back in the past as possible, instead of at the most-live point of the stream.";
+    capa["optional"]["leastlive"]["type"] = "boolean";
+    capa["optional"]["leastlive"]["default"] = false;
 
     capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";

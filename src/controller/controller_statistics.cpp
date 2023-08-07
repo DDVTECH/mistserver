@@ -615,7 +615,7 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
   } else {
     statComm.setTags("", index);
   }
-  
+
   uint64_t secIncr = prevFirstActive ? (statComm.getNow(index) - prevNow) : 0;
   long long currDown = getDown();
   long long currUp = getUp();
@@ -678,7 +678,7 @@ void Controller::statSession::update(uint64_t index, Comms::Sessions &statComm){
     }
   }
   // Only count connections that are countable
-  if (noBWCount != 2){ 
+  if (noBWCount != 2){
     createEmptyStatsIfNeeded(streamName);
     streamStats[streamName].upBytes += currUp - prevUp;
     streamStats[streamName].downBytes += currDown - prevDown;
@@ -1370,6 +1370,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
       fields.append("lastms");
       //fields.append("zerounix");
       fields.append("health");
+      fields.append("source");
     }
   }
   // collect the data first
@@ -1453,6 +1454,9 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
         }else if (j->asStringRef() == "health"){
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){M.getHealthJSON(F);}
+        }else if (j->asStringRef() == "source"){
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
+          if (M){F = M.getSource();}
         }else if (j->asStringRef() == "tracks"){
           if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){

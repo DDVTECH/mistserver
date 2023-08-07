@@ -118,6 +118,7 @@ namespace Mist{
     Util::Config::binaryType = Util::OUTPUT;
 
     lastRecv = Util::bootSecs();
+    outputStartMs = Util::bootMS();
     if (myConn){
       setBlocking(true);
       //Make sure that if the socket is a non-stdio socket, we close it when forking
@@ -233,33 +234,59 @@ namespace Mist{
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
     if (!capa.isMember("codecs") || !capa["codecs"].size() || !capa["codecs"].isArray() || !capa["codecs"][0u].size()){return true;}
-    if (!isInitialized){return false;}
-    meta.reloadReplacedPagesIfNeeded();
-    if (getSupportedTracks().size()){
-      size_t minTracks = 2;
-      size_t minMs = 5000;
-      if (targetParams.count("waittrackcount")){
-        minTracks = JSON::Value(targetParams["waittrackcount"]).asInt();
-        minMs = 120000;
-      }
-      if (targetParams.count("maxwaittrackms")){
-        minMs = JSON::Value(targetParams["maxwaittrackms"]).asInt();
-      }
-      if (!userSelect.size()){selectDefaultTracks();}
-      size_t mainTrack = getMainSelectedTrack();
-      if (mainTrack != INVALID_TRACK_ID){
-        DTSC::Keys keys(M.getKeys(mainTrack));
-        if (keys.getValidCount() >= minTracks || M.getNowms(mainTrack) - M.getFirstms(mainTrack) > minMs){
-          return true;
-        }
-        HIGH_MSG("NOT READY YET (%zu tracks, main track: %zu, with %zu keys)",
-                 M.getValidTracks().size(), getMainSelectedTrack(), keys.getValidCount());
-      }else{
-        HIGH_MSG("NOT READY YET (%zu tracks)", getSupportedTracks().size());
-      }
-    }else{
-      HIGH_MSG("NOT READY (%zu tracks)", getSupportedTracks().size());
+
+    // Defaults for the below values are configured here, and may be overridden with query parameters:
+    size_t minTracks = 2; // Supported tracks to attempt to wait for
+    size_t minMs = 500; // Minimum time that must be buffered for a track to count as available
+    size_t minKeys = 2; // Minimum keyframes that must be buffered for a track to count as available
+    size_t maxWait = 5000; // Maximum time to wait for tracks
+    size_t maxMs = 20000; // If this much time is buffered in any track, don't wait on anything else anymore
+
+    if (targetParams.count("waittrackcount")){
+      minTracks = JSON::Value(targetParams["waittrackcount"]).asInt();
+      // Non-default wait times get a 2 minute default timeout instead of the usually 5 seconds default.
+      // (May still be overridden)
+      maxWait = 120000;
     }
+    if (targetParams.count("mintrackms")){
+      minMs = JSON::Value(targetParams["mintrackms"]).asInt();
+    }
+    if (targetParams.count("maxtrackms")){
+      maxMs = JSON::Value(targetParams["maxtrackms"]).asInt();
+    }
+    if (targetParams.count("mintrackkeys")){
+      minKeys = JSON::Value(targetParams["mintrackkeys"]).asInt();
+    }
+    if (targetParams.count("maxwaittrackms")){
+      maxWait = JSON::Value(targetParams["maxwaittrackms"]).asInt();
+    }
+
+    if (outputStartMs + maxWait < Util::bootMS()){
+      HIGH_MSG("isReadyForPlay timed out waiting for tracks (%" PRId64 " > %zu); continuing with what we have", Util::bootMS()-outputStartMs, maxWait);
+      return true;
+    }
+
+    //This logic is copied from selectDefaultTracks, and should be kept in sync with it
+    if (!isInitialized){initialize();}
+    meta.reloadReplacedPagesIfNeeded();
+    bool autoSeek = buffer.size();
+    uint64_t seekTarget = buffer.getSyncMode()?currentTime():0;
+    std::set<size_t> trks = Util::wouldSelect(M, targetParams, capa, UA, autoSeek ? seekTarget : 0);
+
+    size_t trkCount = 0;
+    for (std::set<size_t>::iterator it = trks.begin(); it != trks.end(); ++it){
+      DTSC::Keys keys(M.keys(*it));
+      if (keys.getValidCount() >= minKeys || M.getLastms(*it) - M.getFirstms(*it) > minMs){
+        ++trkCount;
+        if (trkCount >= minTracks){return true;}
+      }
+      if (M.getLastms(*it) - M.getFirstms(*it) > maxMs){
+        HIGH_MSG("isReadyForPlay skipping wait because track %zu has %" PRId64 "ms buffered", *it, M.getLastms(*it) - M.getFirstms(*it));
+        return true;
+      }
+    }
+
+    HIGH_MSG("isReadyForPlay waiting for tracks: %zu/%zu/%zu tracks, maxWait %zu, minMs %zu, minKeys %zu", trkCount, trks.size(), minTracks, maxWait, minMs, minKeys);
     return false;
   }
 

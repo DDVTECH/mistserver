@@ -106,6 +106,7 @@ namespace Mist{
     uint32_t seekCount;
     bool firstData;
     uint64_t lastPushUpdate;
+    uint64_t outputStartMs; ///< bootMS() at time of output start (unrelated to media start)
     bool newUA;
     
   protected:              // these are to be messed with by child classes

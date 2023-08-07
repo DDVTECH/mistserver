@@ -86,6 +86,7 @@ namespace Mist{
   class ProcessSource : public OutEBML{
   public:
     bool isRecording(){return false;}
+    bool isReadyForPlay(){return true;}
     ProcessSource(Socket::Connection &c) : OutEBML(c){
       capa["name"] = "MKVExec";
       targetParams["keeptimes"] = true;

@@ -62,15 +62,7 @@ namespace Mist{
   class ProcessSource : public TSOutput{
   public:
     bool isRecording(){return false;}
-    bool isReadyForPlay(){
-      if (!TSOutput::isReadyForPlay()){return false;}
-      size_t mTrk = getMainSelectedTrack();
-      if (mTrk == INVALID_TRACK_ID || M.getType(mTrk) != "video"){
-        HIGH_MSG("NOT READY (non-video main track)");
-        return false;
-      }
-      return true;
-    }
+    bool isReadyForPlay(){return true;}
     ProcessSource(Socket::Connection &c) : TSOutput(c){
       capa["name"] = "Livepeer";
       capa["codecs"][0u][0u].append("+H264");
@@ -883,7 +875,7 @@ int main(int argc, char *argv[]){
     //force width/height to multiples of 16
     (*prof)["width"] = ((*prof)["width"].asInt() / 16) * 16;
     (*prof)["height"] = ((*prof)["height"].asInt() / 16) * 16;
-    
+
     if (prof->isMember("track_inhibit")){
       std::set<size_t> wouldSelect = Util::wouldSelect(
           M, std::string("audio=none&video=none&subtitle=none&") + (*prof)["track_inhibit"].asStringRef());
@@ -902,7 +894,7 @@ int main(int argc, char *argv[]){
     INFO_MSG("Profile parsed: %s", prof->toString().c_str());
   }
   Mist::opt["target_profiles"] = pl["profiles"];
- 
+
   //Connect to livepeer API
   HTTP::Downloader dl;
   if (!Mist::opt.isMember("access_token") || !Mist::opt["access_token"] || !Mist::opt["access_token"].isString()){

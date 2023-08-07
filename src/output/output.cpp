@@ -9,7 +9,7 @@
 #include <iomanip>
 #include <fstream>
 
-#include "output.h" 
+#include "output.h"
 #include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/h264.h>
@@ -384,7 +384,7 @@ namespace Mist{
     if (isPushing()){return;}
 
     //live streams that are no push outputs (recordings), wait for stream to be ready
-    if (!isRecording() && M && M.getLive() && !isReadyForPlay()){
+    if (M && M.getLive() && !isReadyForPlay()){
       uint64_t waitUntil = Util::bootSecs() + 45;
       while (M && M.getLive() && !isReadyForPlay()){
         if (Util::bootSecs() > waitUntil || (!userSelect.size() && Util::bootSecs() > waitUntil)){
@@ -531,7 +531,7 @@ namespace Mist{
     //Return the next key
     return keys.getTime(keyNum+1);
   }
-  
+
   uint64_t Output::pageNumForKey(size_t trackId, size_t keyNum){
     const Util::RelAccX &tPages = M.pages(trackId);
     for (uint64_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
@@ -563,7 +563,7 @@ namespace Mist{
   ///                    If 0, will not remove segments based on the segment count
   /// \param segmentCount: current counter of segments that have been segmented as part of this stream
   /// \param segmentsRemoved: counter of segments that have been removed previously from the playlist
-  /// \param curTime: the current local timestamp in milliseconds 
+  /// \param curTime: the current local timestamp in milliseconds
   /// \param targetDuration: value to fill in for the EXT-X-TARGETDURATION entry in the playlist
   /// \param playlistLocation: the location of the playlist, used to find the path to segments when removing them
   void Output::reinitPlaylist(std::string &playlistBuffer, uint64_t &targetAge, uint64_t &maxEntries,
@@ -695,7 +695,7 @@ namespace Mist{
     while (keepGoing() && pageNum == INVALID_KEY_NUM){
       if (!timeout){HIGH_MSG("Requesting page with key %zu:%zu", trackId, keyNum);}
       ++timeout;
-      //Time out after 15s for live or 30s for vod 
+      //Time out after 15s for live or 30s for vod
       if (timeout > maxTimeout){
         FAIL_MSG("Timeout while waiting for requested key %zu for track %zu. Aborting.", keyNum, trackId);
         curPage.erase(trackId);
@@ -1061,7 +1061,7 @@ namespace Mist{
         }
         seekPos = startRec;
       }
-      
+
       if (targetParams.count("split")){
         long long endRec = atoll(targetParams["split"].c_str()) * 1000;
         INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
@@ -1083,7 +1083,7 @@ namespace Mist{
         INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
       }
       else{
-        INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime()); 
+        INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime());
       }
       if (targetParams.count("recstop")){
         INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
@@ -1091,7 +1091,7 @@ namespace Mist{
       // Wait for the stream to catch up to the starttime
       uint64_t streamAvail = endTime();
       uint64_t lastUpdated = Util::getMS();
-      if (atoll(targetParams["recstart"].c_str()) > streamAvail){       
+      if (atoll(targetParams["recstart"].c_str()) > streamAvail){
         INFO_MSG("Waiting for stream to reach recording starting point. Recording will start in " PRETTY_PRINT_TIME, PRETTY_ARG_TIME((atoll(targetParams["recstart"].c_str()) - streamAvail) / 1000));
         while (Util::getMS() - lastUpdated < 10000 && atoll(targetParams["recstart"].c_str()) > streamAvail && keepGoing()){
           Util::sleep(250);
@@ -1107,7 +1107,7 @@ namespace Mist{
       if (M.getLive() && targetParams.count("pushdelay")){
         INFO_MSG("Converting pushdelay syntax into corresponding recstart+realtime options");
 
-        uint64_t delayTime = JSON::Value(targetParams["pushdelay"]).asInt()*1000; 
+        uint64_t delayTime = JSON::Value(targetParams["pushdelay"]).asInt()*1000;
         if (endTime() - startTime() < delayTime){
           uint64_t waitTime = delayTime - (endTime() - startTime());
           uint64_t waitTarget = Util::bootMS() + waitTime;
@@ -1406,7 +1406,7 @@ namespace Mist{
     Socket::Connection plsConn;
     uint64_t systemBoot;
 
-    std::string origTarget; 
+    std::string origTarget;
     const char* origTargetPtr = getenv("MST_ORIG_TARGET");
     if (origTargetPtr){
       origTarget = origTargetPtr;
@@ -1516,7 +1516,7 @@ namespace Mist{
           config->getOption("target", true).append(playlistLocationString);
         }else{
           playlistLocationString = playlistLocation.getUrl();
-          // Disable sliding window playlists, as the current external writer 
+          // Disable sliding window playlists, as the current external writer
           // implementation requires us to keep a single connection to the playlist open
           maxEntries = 0;
           targetAge = 0;
@@ -2090,7 +2090,7 @@ namespace Mist{
             }
             return false;//no sleep after reconnect
           }
-          
+
           //Fine! We didn't want a packet, anyway. Let's try again later.
           playbackSleep(10);
           return false;
@@ -2188,7 +2188,7 @@ namespace Mist{
 
       //Okay, there's no next page yet, and no next packet on this page either.
       //That means we're waiting for data to show up, somewhere.
-      
+
       //In non-sync mode, shuffle the just-tried packet to the end of queue and retry
       if (!buffer.getSyncMode()){
         buffer.moveFirstToEnd();
@@ -2214,7 +2214,7 @@ namespace Mist{
           return true;
         }
       }
-      
+
       //Fine! We didn't want a packet, anyway. Let's try again later.
       playbackSleep(10);
       return false;
@@ -2462,7 +2462,7 @@ namespace Mist{
     payl << Util::exitReason << '\n';
     return payl.str();
   }
-  
+
   void Output::recEndTrigger(){
     if (config->hasOption("target") && Triggers::shouldTrigger("RECORDING_END", streamName)){
       Triggers::doTrigger("RECORDING_END", getExitTriggerPayload(), streamName);
@@ -2576,7 +2576,7 @@ namespace Mist{
             // If we could, kill the input
             if (iPid){Util::Procs::Stop(iPid);}
           }
-          
+
           // If resuming is not enabled, wait for the stream to shut down before we continue
           if (resumeSupport != 1){
             INFO_MSG("Waiting for stream reset before attempting push input accept");

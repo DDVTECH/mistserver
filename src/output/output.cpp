@@ -1057,8 +1057,8 @@ namespace Mist{
           startRec = startTime();
           WARN_MSG("Record begin at %lld ms not available, starting at %" PRIu64
                    " ms instead", atoll(targetParams["recstart"].c_str()), startRec);
-          targetParams["recstart"] = JSON::Value(startRec).asString();
         }
+        targetParams["recstart"] = JSON::Value(startRec).asString();
         seekPos = startRec;
       }
 
@@ -1080,13 +1080,13 @@ namespace Mist{
       }
       // Print calculated start and stop time
       if (targetParams.count("recstart")){
-        INFO_MSG("Recording will start at timestamp %llu ms", atoll(targetParams["recstart"].c_str()));
+        INFO_MSG("Recording will start at timestamp %lld ms", atoll(targetParams["recstart"].c_str()));
       }
       else{
         INFO_MSG("Recording will start at timestamp %" PRIu64 " ms", endTime());
       }
       if (targetParams.count("recstop")){
-        INFO_MSG("Recording will stop at timestamp %llu ms", atoll(targetParams["recstop"].c_str()));
+        INFO_MSG("Recording will stop at timestamp %lld ms", atoll(targetParams["recstop"].c_str()));
       }
       // Wait for the stream to catch up to the starttime
       uint64_t streamAvail = endTime();

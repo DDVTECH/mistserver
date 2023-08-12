@@ -874,12 +874,14 @@ namespace Mist{
 
   bool OutWebRTC::onFinish(){
     if (parseData){
-      JSON::Value commandResult;
-      commandResult["type"] = "on_stop";
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      webSock->sendFrame(commandResult.toString());
+      if (webSock){
+        JSON::Value commandResult;
+        commandResult["type"] = "on_stop";
+        commandResult["current"] = currentTime();
+        commandResult["begin"] = startTime();
+        commandResult["end"] = endTime();
+        webSock->sendFrame(commandResult.toString());
+      }
       parseData = false;
     }
     return true;

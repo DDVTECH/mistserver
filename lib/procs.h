@@ -35,6 +35,7 @@ namespace Util{
     static std::string getLimitedOutputOf(char *const *argv, uint64_t maxWait, uint32_t maxValBytes);
     static pid_t StartPiped(const char *const *argv, int *fdin, int *fdout, int *fderr);
     static pid_t StartPiped(std::deque<std::string> &argDeq, int *fdin, int *fdout, int *fderr);
+    static pid_t StartPipedShell(const char *cmd, int *fdin, int *fdout, int *fderr);
     static void Stop(pid_t name);
     static void Murder(pid_t name);
     static void StopAll();

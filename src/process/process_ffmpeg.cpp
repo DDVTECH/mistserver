@@ -835,30 +835,6 @@ namespace Mist{
     return false;
   }
 
-  /// prepare ffmpeg command by splitting the arguments before running
-  void OutENC::prepareCommand(){
-    // ffmpeg command
-    MEDIUM_MSG("ffmpeg command: %s", ffcmd);
-    uint8_t argCnt = 0;
-    char *startCh = 0;
-    for (char *i = ffcmd; i - ffcmd < 10240; ++i){
-      if (!*i){
-        if (startCh){args[argCnt++] = startCh;}
-        break;
-      }
-      if (*i == ' '){
-        if (startCh){
-          args[argCnt++] = startCh;
-          startCh = 0;
-          *i = 0;
-        }
-      }else{
-        if (!startCh){startCh = i;}
-      }
-    }
-    args[argCnt] = 0;
-  }
-
   void OutENC::setResolution(uint32_t x, uint32_t y){
     res_x = x;
     res_y = y;
@@ -885,8 +861,8 @@ namespace Mist{
       }
     }
 
-    prepareCommand();
-    ffout = p.StartPiped(args, &pipein[0], &pipeout[1], &ffer);
+    MEDIUM_MSG("ffmpeg command: %s", ffcmd);
+    ffout = p.StartPipedShell(ffcmd, &pipein[0], &pipeout[1], &ffer);
 
     while (conf.is_active && p.isRunning(ffout)){Util::sleep(200);}
 

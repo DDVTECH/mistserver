@@ -128,28 +128,8 @@ namespace Mist{
     if (config->getString("input").substr(0, 9) == "mkv-exec:"){
       standAlone = false;
       std::string input = config->getString("input").substr(9);
-      char *args[128];
-      uint8_t argCnt = 0;
-      char *startCh = 0;
-      for (char *i = (char *)input.c_str(); i <= input.data() + input.size(); ++i){
-        if (!*i){
-          if (startCh){args[argCnt++] = startCh;}
-          break;
-        }
-        if (*i == ' '){
-          if (startCh){
-            args[argCnt++] = startCh;
-            startCh = 0;
-            *i = 0;
-          }
-        }else{
-          if (!startCh){startCh = i;}
-        }
-      }
-      args[argCnt] = 0;
-
       int fin = -1, fout = -1;
-      Util::Procs::StartPiped(args, &fin, &fout, 0);
+      Util::Procs::StartPipedShell(input.c_str(), &fin, &fout, 0);
       if (fout == -1){return false;}
       dup2(fout, 0);
       inFile.open(0);

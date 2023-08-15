@@ -47,7 +47,7 @@ namespace Comms{
   }
 
   Comms::~Comms(){
-    if (index != INVALID_RECORD_INDEX && status){
+    if (dataPage && index != INVALID_RECORD_INDEX && status){
       setStatus(COMM_STATUS_DISCONNECT | getStatus());
     }
     if (master){
@@ -252,7 +252,7 @@ namespace Comms{
 
     Comms::reload(userPageName, COMMS_USERS_INITSIZE, _master, reIssue);
   }
-  
+
   void Users::addFields(){
     Comms::addFields();
     dataAccX.addField("track", RAX_64UINT);

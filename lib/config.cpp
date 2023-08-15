@@ -593,7 +593,6 @@ void Util::Config::signal_handler(int signum, siginfo_t *sigInfo, void *ignore){
   case SIGHUP:
   case SIGTERM:
     if (serv_sock_pointer){serv_sock_pointer->close();}
-    if (stdin){fclose(stdin);}
 #if DEBUG >= DLVL_DEVEL
     static int ctr = 0;
     if (!is_active && ++ctr > 4){BACKTRACE;}

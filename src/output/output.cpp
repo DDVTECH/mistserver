@@ -191,7 +191,6 @@ namespace Mist{
     isInitialized = false;
     wantRequest = false;
     parseData = false;
-    myConn.close();
   }
 
   void Output::initialize(){
@@ -2326,6 +2325,11 @@ namespace Mist{
       statComm.reload(streamName, getConnectedBinHost(), tkn, getStatsName(), reqUrl);
     }
     if (!statComm || statComm.getExit()){
+      if (!statComm){
+        Util::logExitReason(ER_SHM_LOST, "Cannot connect to session");
+      }else{
+        Util::logExitReason(ER_CLEAN_SIGNAL, "Session requested shutdown");
+      }
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;

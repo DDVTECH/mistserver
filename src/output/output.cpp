@@ -445,6 +445,8 @@ namespace Mist{
 
     //No changes? Abort and return false;
     if (oldSelects == newSelects){return false;}
+    //No new tracks? Attempt to continue with old selection
+    if (!newSelects.size()){return false;}
 
     //Temp set holding the differences between old and new track selections
     std::set<size_t> diffs;

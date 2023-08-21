@@ -876,17 +876,21 @@ namespace Mist{
     // If this is a non-live source, above function does not open the playlist
     if (!M.getLive()){connectToFile(playlistLocationString, false, &plsConn);}
     if (plsConn){
-      std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-      if (M.getLive()){
-        uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-        playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+      if (lastPacketTime - currentStartTime == 0){
+        WARN_MSG("Skipping adding final segment of duration 0 to playlist '%s'", playlistLocationString.c_str());
+      }else{
+        std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
+        if (M.getLive()){
+          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+          playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+        }
+        INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
+        // Append duration & TS filename to playlist file
+        std::stringstream tmp;
+        tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
+        playlistBuffer += tmp.str();
       }
-      INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-      // Append duration & TS filename to playlist file
-      std::stringstream tmp;
-      tmp << "#EXTINF:" << std::fixed << std::setprecision(3) << (lastPacketTime - currentStartTime) / 1000.0 <<  ",\n"+ segment + "\n";
-      if (!M.getLive() || (!maxEntries && !targetAge)){tmp << "#EXT-X-ENDLIST\n";}
-      playlistBuffer += tmp.str();
+      if (!M.getLive() || (!maxEntries && !targetAge)){playlistBuffer += "#EXT-X-ENDLIST\n";}
       // Remove older entries in the playlist
       if (maxEntries || targetAge){
         reinitPlaylist(systemBoot);

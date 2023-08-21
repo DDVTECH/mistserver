@@ -625,7 +625,7 @@ namespace Mist{
       config->getOption("target", true).append(playlistLocationString);
     }else{
       playlistLocationString = playlistLocation.getUrl();
-      // Disable sliding window playlists, as the current external writer 
+      // Disable sliding window playlists, as the current external writer
       // implementation requires us to keep a single connection to the playlist open
       maxEntries = 0;
       targetAge = 0;
@@ -1063,6 +1063,7 @@ namespace Mist{
     if (!isInitialized){initialize();}
     buffer.clear();
     thisPacket.null();
+    if (!M){return false;}
     if (toKey){
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack == INVALID_TRACK_ID){

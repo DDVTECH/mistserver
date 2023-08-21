@@ -1207,7 +1207,7 @@ void Controller::fillHasStats(JSON::Value &req, JSON::Value &rep){
       jsonForEach(req, j){
         if (j->asStringRef() == "clients"){rep[*it].append(clients[*it]);}
         if (j->asStringRef() == "lastms"){
-          DTSC::Meta M(*it, false);
+          DTSC::Meta M(*it, false, false);
           if (M){
             uint64_t lms = 0;
             std::set<size_t> validTracks = M.getValidTracks();
@@ -1325,7 +1325,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
         }else if (j->asStringRef() == "packretrans"){
           F = it->second.packRetrans;
         }else if (j->asStringRef() == "firstms"){
-          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             uint64_t fms = 0;
             std::set<size_t> validTracks = M.getValidTracks();
@@ -1335,7 +1335,7 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             F = fms;
           }
         }else if (j->asStringRef() == "lastms"){
-          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             uint64_t lms = 0;
             std::set<size_t> validTracks = M.getValidTracks();
@@ -1345,15 +1345,15 @@ void Controller::fillActive(JSON::Value &req, JSON::Value &rep){
             F = lms;
           }
         }else if (j->asStringRef() == "zerounix"){
-          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M && M.getLive()){
             F = (M.getBootMsOffset() + (Util::unixMS() - Util::bootMS())) / 1000;
           }
         }else if (j->asStringRef() == "health"){
-          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){M.getHealthJSON(F);}
         }else if (j->asStringRef() == "tracks"){
-          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false);}
+          if (!M || M.getStreamName() != it->first){M.reInit(it->first, false, false);}
           if (M){
             F = (uint64_t)M.getValidTracks().size();
           }

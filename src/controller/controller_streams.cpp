@@ -353,7 +353,7 @@ namespace Controller{
       Util::sanitizeName(cleaned);
       std::string strmSource;
       if (Util::getStreamStatus(cleaned) != STRMSTAT_OFF){
-        DTSC::Meta M(cleaned, false);
+        DTSC::Meta M(cleaned, false, false);
         if (M && M.getSource().size()){strmSource = M.getSource();}
       }
       if (!strmSource.size()){

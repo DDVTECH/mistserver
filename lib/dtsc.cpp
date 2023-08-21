@@ -901,13 +901,13 @@ namespace DTSC{
 
   /// Initialize empty metadata, in master or slave mode.
   /// If stream name is empty, slave mode is enforced.
-  Meta::Meta(const std::string &_streamName, bool master){
+  Meta::Meta(const std::string &_streamName, bool master, bool autoBackOff){
     if (!_streamName.size()){master = false;}
     version = DTSH_VERSION;
     streamMemBuf = 0;
     isMemBuf = false;
     isMaster = master;
-    reInit(_streamName, master);
+    reInit(_streamName, master, autoBackOff);
   }
 
   /// Initialize metadata from given DTSH file in master mode.
@@ -926,12 +926,12 @@ namespace DTSC{
   /// Calls clear(), then initializes freshly.
   /// If stream name is set, uses shared memory backing.
   /// If stream name is empty, uses non-shared memory backing.
-  void Meta::reInit(const std::string &_streamName, bool master){
+  void Meta::reInit(const std::string &_streamName, bool master, bool autoBackOff){
     clear();
     if (_streamName == ""){
       sBufMem();
     }else{
-      sBufShm(_streamName, DEFAULT_TRACK_COUNT, master);
+      sBufShm(_streamName, DEFAULT_TRACK_COUNT, master, autoBackOff);
     }
     streamInit();
   }
@@ -1118,7 +1118,7 @@ namespace DTSC{
 
   /// Initializes shared memory backed mode, with enough room for the given track count.
   /// Should not be called repeatedly, nor to switch modes.
-  void Meta::sBufShm(const std::string &_streamName, size_t trackCount, bool master){
+  void Meta::sBufShm(const std::string &_streamName, size_t trackCount, bool master, bool autoBackOff){
     isMaster = master;
     if (isMaster){HIGH_MSG("Creating meta page for stream %s", _streamName.c_str());}
 
@@ -1142,7 +1142,7 @@ namespace DTSC{
       streamPage.master = false;
       stream = Util::RelAccX(streamPage.mapped, false);
     }else{
-      streamPage.init(pageName, bufferSize, false, true);
+      streamPage.init(pageName, bufferSize, false, autoBackOff);
       if (!streamPage.mapped){
         INFO_MSG("Page %s not found", pageName);
         return;

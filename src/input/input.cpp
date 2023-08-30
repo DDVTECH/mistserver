@@ -846,6 +846,10 @@ namespace Mist{
 
       // unload pages that haven't been used for a while
       removeUnused();
+      if (!M){
+        Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
+        break;
+      }
 
       if (M.getLive() && !internalOnly){
         uint64_t currLastUpdate = M.getLastUpdated();

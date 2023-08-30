@@ -187,6 +187,10 @@ namespace Mist{
   /// Detected issues in string format, or empty string if no issues
   /// ~~~~~~~~~~~~~~~
   void inputBuffer::updateMeta(){
+    if (!M){
+      Util::logExitReason(ER_SHM_LOST, "Lost connection to metadata");
+      return;
+    }
     static bool wentDry = false;
     static uint64_t lastFragCount = 0xFFFFull;
     static uint32_t lastBPS = 0; /*LTS*/
@@ -329,6 +333,9 @@ namespace Mist{
 
   void inputBuffer::removeUnused(){
     meta.reloadReplacedPagesIfNeeded();
+    if (!meta){
+      return;
+    }
     // first remove all tracks that have not been updated for too long
     bool changed = true;
     while (changed){

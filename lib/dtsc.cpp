@@ -1298,6 +1298,8 @@ namespace DTSC{
       streamPage.init(pageName, 0, false, true);
       if (!streamPage.mapped){
         INFO_MSG("Page %s not found", pageName);
+        stream = Util::RelAccX();
+        trackList = Util::RelAccX();
         return true;
       }
       stream = Util::RelAccX(streamPage.mapped, true);

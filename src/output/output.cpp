@@ -1089,7 +1089,7 @@ namespace Mist{
     MEDIUM_MSG("Seeking to %" PRIu64 "ms (%s)", pos, toKey ? "sync" : "direct");
     std::set<size_t> seekTracks;
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      seekTracks.insert(it->first);
+      if (M.trackValid(it->first)){seekTracks.insert(it->first);}
     }
     //Seek all seek positions, first
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){

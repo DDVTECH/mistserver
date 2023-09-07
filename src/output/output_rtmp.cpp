@@ -187,6 +187,9 @@ namespace Mist{
     sendCommand(amfReply, 20, 0);
 
     RTMPStream::chunk_snd_max = 65536;                                 // 64KiB
+    if (targetParams.count("chunksize")){
+      RTMPStream::chunk_snd_max = atoi(targetParams["chunksize"].c_str());
+    }
     myConn.SendNow(RTMPStream::SendCTL(1, RTMPStream::chunk_snd_max)); // send chunk size max (msg 1)
     HIGH_MSG("Waiting for server to acknowledge connect request...");
   }

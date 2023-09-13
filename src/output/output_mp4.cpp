@@ -107,6 +107,7 @@ namespace Mist{
 
   OutMP4::OutMP4(Socket::Connection &conn) : HTTPOutput(conn){
     wsCmds = true;
+    sending3GP = false;
     nextHeaderTime = 0xffffffffffffffffull;
     startTime = 0;
     endTime = 0xffffffffffffffffull;
@@ -141,6 +142,17 @@ namespace Mist{
     capa["methods"][1u]["hrn"] = "MP4 WebSocket";
     capa["methods"][1u]["priority"] = 10;
     capa["methods"][1u]["url_rel"] = "/$.mp4";
+
+    capa["push_urls"].append("/*.fmp4");
+    capa["push_urls"].append("/*.mp4");
+
+    JSON::Value opt;
+    opt["arg"] = "string";
+    opt["default"] = "";
+    opt["arg_num"] = 1;
+    opt["help"] = "Target filename to store (f)MP4 file as, or - for stdout.";
+    cfg->addOption("target", opt);
+
     // MP4 live is broken on Apple
     capa["exceptions"]["live"] =
         JSON::fromString("[[\"blacklist\",[\"iPad\",\"iPhone\",\"iPod\",\"Safari\"]], "
@@ -1247,8 +1259,7 @@ namespace Mist{
       if (webSock) {
         /* create packet */
         webBuf.append(dataPointer, len);
-      }
-      else {
+      }else{
         H.Chunkify(dataPointer, len, myConn);
       }
     }
@@ -1293,15 +1304,19 @@ namespace Mist{
       len += 2;
     }
 
-    if (currPos >= byteStart){
-      H.Chunkify(dataPointer, std::min(leftOver, (int64_t)len), myConn);
-
-      leftOver -= len;
+    if (isRecording()){
+      myConn.SendNow(dataPointer, len);
     }else{
-      if (currPos + len > byteStart){
-        H.Chunkify(dataPointer + (byteStart - currPos),
-                   std::min((uint64_t)leftOver, (len - (byteStart - currPos))), myConn);
-        leftOver -= len - (byteStart - currPos);
+      if (currPos >= byteStart){
+        H.Chunkify(dataPointer, std::min(leftOver, (int64_t)len), myConn);
+
+        leftOver -= len;
+      }else{
+        if (currPos + len > byteStart){
+          H.Chunkify(dataPointer + (byteStart - currPos),
+                     std::min((uint64_t)leftOver, (len - (byteStart - currPos))), myConn);
+          leftOver -= len - (byteStart - currPos);
+        }
       }
     }
 
@@ -1345,6 +1360,18 @@ namespace Mist{
       sentHeader = true;
       return;
     }
+
+    // If we're doing piped output or output to file, we still need to write the actual header here...
+    if (!streamName.size() || isFileTarget()){
+      Util::ResizeablePointer headerData;
+      if (!mp4Header(headerData, fileSize, M.getLive())){
+        FAIL_MSG("Could not generate MP4 header!");
+      }else{
+        myConn.SendNow(headerData, headerData.size());
+      }
+      seekPoint = Output::startTime();
+    }
+
         
     vidTrack = getMainSelectedTrack();
 

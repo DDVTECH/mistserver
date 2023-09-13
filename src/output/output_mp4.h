@@ -109,6 +109,7 @@ namespace Mist{
     void onWebsocketFrame();
     virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
   protected:
+    bool isFileTarget(){return isRecording();}
     void sendWebsocketCodecData(const std::string& type);
     bool handleWebsocketSeek(JSON::Value& command);
 

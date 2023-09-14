@@ -97,6 +97,7 @@ namespace Mist{
       result << "\",KEYFORMAT=\"com.apple.streamingkeydelivery" << std::endl;
     }
 
+    uint64_t systemBoot = Util::getGlobalConfig("systemBoot").asInt();
     std::deque<std::string> lines;
     std::deque<uint16_t> durations;
     uint32_t totalDuration = 0;
@@ -110,15 +111,19 @@ namespace Mist{
       uint64_t startTime = keys.getTime(keyNumber);
       if (!duration){duration = M.getLastms(timingTid) - startTime;}
       double floatDur = (double)duration / 1000;
-      char lineBuf[400];
-
-      if (M.getCodec(tid) == "subtitle"){
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n../../../%s.webvtt?meta=%zu&from=%" PRIu64 "&to=%" PRIu64 "\r\n",
-                 (double)duration / 1000, streamName.c_str(), tid, startTime, startTime + duration);
-      }else{
-        snprintf(lineBuf, 400, "#EXTINF:%f,\r\n%s%" PRIu64 "_%" PRIu64 ".ts%s\r\n", floatDur, urlPrefix.c_str(),
-            startTime, startTime + duration, tknStr.c_str());
+      std::string dateTime;
+      if (M.getLive() || M.getUTCOffset()){
+        if (M.getUTCOffset()){
+          uint64_t unixMs = M.getUTCOffset() + startTime;
+          dateTime = "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\r\n";
+        }else{
+          uint64_t unixMs = M.getBootMsOffset() + systemBoot + startTime;
+          dateTime = "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\r\n";
+        }
       }
+      char lineBuf[600];
+      snprintf(lineBuf, 600, "%s#EXTINF:%f,\r\n%" PRIu64 "_%" PRIu64 ".%s%s\r\n", dateTime.c_str(), floatDur,
+          startTime, startTime + duration, "ts", tknStr.c_str());
       totalDuration += duration;
       durations.push_back(duration);
       lines.push_back(lineBuf);
@@ -160,7 +165,7 @@ namespace Mist{
     HIGH_MSG("Sending this index: %s", result.str().c_str());
     return result.str();
   }
-  
+
   bool OutHLS::listenMode(){return !(config->getString("ip").size());}
 
   OutHLS::OutHLS(Socket::Connection &conn) : TSOutput(conn){
@@ -254,7 +259,7 @@ namespace Mist{
       if (Comms::tknMode & 0x08){
         std::stringstream cookieHeader;
         cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
-        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+        H.SetHeader("Set-Cookie", cookieHeader.str());
       }
     }
     std::string method = H.method;

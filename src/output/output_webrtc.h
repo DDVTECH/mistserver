@@ -90,6 +90,7 @@ namespace Mist{
     static void init(Util::Config *cfg);
     virtual void sendNext();
     virtual void onWebsocketFrame();
+    void setIceHeaders(HTTP::Parser & H);
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     virtual void preHTTP(){}
     virtual void preWebsocketConnect();

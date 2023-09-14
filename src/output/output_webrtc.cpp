@@ -317,11 +317,80 @@ namespace Mist{
     HTTPOutput::requestHandler();
   }
 
+  // If ICE headers are configured, sets them on the given HTTP::Parser instance.
+  void OutWebRTC::setIceHeaders(HTTP::Parser & H){
+    if (!config->getString("iceservers").size()){return;}
+    std::deque<std::string> links;
+    JSON::Value iceConf = JSON::fromString(config->getString("iceservers"));
+    jsonForEach(iceConf, i){
+      if (i->isMember("url") && (*i)["url"].isString()){
+        JSON::Value &u = (*i)["url"];
+        std::string str = u.asString()+"; rel=\"ice-server\";";
+        if (i->isMember("username")){
+          str += " username=" + (*i)["username"].toString() + ";";
+        }
+        if (i->isMember("credential")){
+          str += " credential=" + (*i)["credential"].toString() + ";";
+        }
+        if (i->isMember("credentialType")){
+          str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+        }
+        links.push_back(str);
+      }
+      if (i->isMember("urls") && (*i)["urls"].isString()){
+        JSON::Value &u = (*i)["urls"];
+        std::string str = u.asString()+"; rel=\"ice-server\";";
+        if (i->isMember("username")){
+          str += " username=" + (*i)["username"].toString() + ";";
+        }
+        if (i->isMember("credential")){
+          str += " credential=" + (*i)["credential"].toString() + ";";
+        }
+        if (i->isMember("credentialType")){
+          str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+        }
+        links.push_back(str);
+      }
+      if (i->isMember("urls") && (*i)["urls"].isArray()){
+        jsonForEach((*i)["urls"], j){
+          JSON::Value &u = *j;
+          std::string str = u.asString()+"; rel=\"ice-server\";";
+          if (i->isMember("username")){
+            str += " username=" + (*i)["username"].toString() + ";";
+          }
+          if (i->isMember("credential")){
+            str += " credential=" + (*i)["credential"].toString() + ";";
+          }
+          if (i->isMember("credentialType")){
+            str += " credential-type=" + (*i)["credentialType"].toString() + ";";
+          }
+          links.push_back(str);
+        }
+      }
+    }
+    if (links.size()){
+      if (links.size() == 1){
+        H.SetHeader("Link", *links.begin());
+      }else{
+        std::deque<std::string>::iterator it = links.begin();
+        std::string linkHeader = *it;
+        ++it;
+        while (it != links.end()){
+          linkHeader += "\r\nLink: " + *it;
+          ++it;
+        }
+        H.SetHeader("Link", linkHeader);
+      }
+    }
+  }
+
   void OutWebRTC::respondHTTP(const HTTP::Parser & req, bool headersOnly){
-    // Check for WHIP payload
+    // Check for WHIP/WHEP payload
     if (req.method == "OPTIONS"){
       H.setCORSHeaders();
-      H.StartResponse("200", "All good", req, myConn);
+      // Options can be used to get the ICE config, so we should include it in the response
+      setIceHeaders(H);
+      H.StartResponse("200", "All good, have some ICE config", req, myConn);
       H.Chunkify(0, 0, myConn);
     }
     if (req.method == "POST"){
@@ -347,73 +416,10 @@ namespace Mist{
         }
         if (ret){
           noSignalling = true;
+          H.setCORSHeaders();
           H.SetHeader("Content-Type", "application/sdp");
           H.SetHeader("Location", streamName + "/" + JSON::Value(getpid()).asString());
-          if (config->getString("iceservers").size()){
-            std::deque<std::string> links;
-            JSON::Value iceConf = JSON::fromString(config->getString("iceservers"));
-            jsonForEach(iceConf, i){
-              if (i->isMember("url") && (*i)["url"].isString()){
-                JSON::Value &u = (*i)["url"];
-                std::string str = u.asString()+"; rel=\"ice-server\";";
-                if (i->isMember("username")){
-                  str += " username=" + (*i)["username"].toString() + ";";
-                }
-                if (i->isMember("credential")){
-                  str += " credential=" + (*i)["credential"].toString() + ";";
-                }
-                if (i->isMember("credentialType")){
-                  str += " credential-type=" + (*i)["credentialType"].toString() + ";";
-                }
-                links.push_back(str);
-              }
-              if (i->isMember("urls") && (*i)["urls"].isString()){
-                JSON::Value &u = (*i)["urls"];
-                std::string str = u.asString()+"; rel=\"ice-server\";";
-                if (i->isMember("username")){
-                  str += " username=" + (*i)["username"].toString() + ";";
-                }
-                if (i->isMember("credential")){
-                  str += " credential=" + (*i)["credential"].toString() + ";";
-                }
-                if (i->isMember("credentialType")){
-                  str += " credential-type=" + (*i)["credentialType"].toString() + ";";
-                }
-                links.push_back(str);
-              }
-              if (i->isMember("urls") && (*i)["urls"].isArray()){
-                jsonForEach((*i)["urls"], j){
-                  JSON::Value &u = *j;
-                  std::string str = u.asString()+"; rel=\"ice-server\";";
-                  if (i->isMember("username")){
-                    str += " username=" + (*i)["username"].toString() + ";";
-                  }
-                  if (i->isMember("credential")){
-                    str += " credential=" + (*i)["credential"].toString() + ";";
-                  }
-                  if (i->isMember("credentialType")){
-                    str += " credential-type=" + (*i)["credentialType"].toString() + ";";
-                  }
-                  links.push_back(str);
-                }
-              }
-            }
-            if (links.size()){
-              if (links.size() == 1){
-                H.SetHeader("Link", *links.begin());
-              }else{
-                std::deque<std::string>::iterator it = links.begin();
-                std::string linkHeader = *it;
-                ++it;
-                while (it != links.end()){
-                  linkHeader += "\r\nLink: " + *it;
-                  ++it;
-                }
-                H.SetHeader("Link", linkHeader);
-              }
-            }
-          }
-          H.setCORSHeaders();
+          setIceHeaders(H);
           H.StartResponse("201", "Created", req, myConn);
           H.Chunkify(sdpAnswer.toString(), myConn);
           H.Chunkify(0, 0, myConn);

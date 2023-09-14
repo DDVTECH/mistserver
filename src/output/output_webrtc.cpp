@@ -420,6 +420,20 @@ namespace Mist{
           H.SetHeader("Content-Type", "application/sdp");
           H.SetHeader("Location", streamName + "/" + JSON::Value(getpid()).asString());
           setIceHeaders(H);
+          if (!isPushing()){
+            initialSeek();
+            H.SetHeader("Playhead-millis", currentTime());
+            if (M.getLive() || M.getUTCOffset()){
+              uint64_t systemBoot = Util::getGlobalConfig("systemBoot").asInt();
+              uint64_t unixMs;
+              if (M.getUTCOffset()){
+                unixMs = M.getUTCOffset() + currentTime();
+              }else{
+                unixMs = M.getBootMsOffset() + systemBoot + currentTime();
+              }
+              H.SetHeader("Playhead-UTC", Util::getUTCStringMillis(unixMs));
+            }
+          }
           H.StartResponse("201", "Created", req, myConn);
           H.Chunkify(sdpAnswer.toString(), myConn);
           H.Chunkify(0, 0, myConn);

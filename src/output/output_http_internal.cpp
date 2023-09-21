@@ -399,7 +399,7 @@ namespace Mist{
                  streamName + "\").addEventListener(\"initialized\",f);";
       }
     }
-    
+
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");
@@ -498,7 +498,7 @@ namespace Mist{
       return json_resp;
     }
     initialize();
-    if (!myConn){return json_resp;}
+    if (!myConn || !M){return json_resp;}
 
     json_resp["selver"] = 2;
 
@@ -1071,10 +1071,10 @@ namespace Mist{
         H.Clean();
         return;
       }
-      
+
       #include "player_hlsjs.js.h"
       response.append((char*)player_hlsjs_js, (size_t)player_hlsjs_js_len);
-      
+
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -1099,7 +1099,7 @@ namespace Mist{
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
-    } 
+    }
   }
 
   void OutHTTP::sendIcon(bool headersOnly){

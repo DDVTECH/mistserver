@@ -1093,7 +1093,9 @@ namespace Mist{
     }
     //Seek all seek positions, first
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){
-      userSelect[*it].setKeyNum(M.getKeyNumForTime(*it, pos));
+      if (userSelect[*it]){
+        userSelect[*it].setKeyNum(M.getKeyNumForTime(*it, pos));
+      }
     }
     bool ret = seekTracks.size();
     for (std::set<size_t>::iterator it = seekTracks.begin(); it != seekTracks.end(); it++){

@@ -14,7 +14,7 @@ struct Interval {double high; double low;};
 std::string geohash(double lat, double lng, int precision = 3){
   if (lat > 90.0 || lat < -90.0 || lng > 180.0 || lng < -180.0){return "";}
 
-  std::string ret; 
+  std::string ret;
   precision *= 5;
   Interval lat_interval = {90.0, -90.0};
   Interval lng_interval = {180.0, -180.0};
@@ -26,10 +26,10 @@ std::string geohash(double lat, double lng, int precision = 3){
   for(int i = 1; i <= precision; i++) {
     if(is_even) {
       interval = &lng_interval;
-      coord = lng;                
+      coord = lng;
     }else{
       interval = &lat_interval;
-      coord = lat;   
+      coord = lat;
     }
     mid = (interval->low + interval->high) / 2.0;
     hashChar <<= 1;
@@ -444,7 +444,7 @@ namespace Mist{
                  streamName + "\").addEventListener(\"initialized\",f);";
       }
     }
-    
+
     H.Clean();
     H.SetHeader("Content-Type", "text/html");
     H.SetHeader("X-UA-Compatible", "IE=edge");
@@ -554,7 +554,7 @@ namespace Mist{
       return json_resp;
     }
     initialize();
-    if (!myConn){return json_resp;}
+    if (!M){return json_resp;}
 
     json_resp["selver"] = 2;
 
@@ -1126,10 +1126,10 @@ namespace Mist{
         H.Clean();
         return;
       }
-      
+
       #include "player_hlsjs.js.h"
       response.append((char*)player_hlsjs_js, (size_t)player_hlsjs_js_len);
-      
+
       H.SetBody(response);
       H.SendResponse("200", "OK", myConn);
       H.Clean();
@@ -1154,7 +1154,7 @@ namespace Mist{
       H.SendResponse("200", "OK", myConn);
       H.Clean();
       return;
-    } 
+    }
   }
 
   void OutHTTP::sendIcon(bool headersOnly){

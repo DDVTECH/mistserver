@@ -1953,6 +1953,10 @@ namespace Mist{
     // depending on whether this is probably bad and the current debug level, print a message
     size_t printLevel = (probablyBad ? DLVL_WARN : DLVL_INFO);
     //The rest of the operations depends on userSelect, so we ignore it if it doesn't exist.
+    if (!M || !M.getValidTracks().count(trackId)){
+      DEBUG_MSG(printLevel, "Dropping invalid track %zu: %s", trackId, reason.c_str());
+      return;
+    }
     if (!userSelect.count(trackId)){
       DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
                 meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());

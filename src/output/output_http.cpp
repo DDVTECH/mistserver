@@ -385,9 +385,8 @@ namespace Mist{
     respondHTTP(reqH, headersOnly);
   }
 
-  /// Default implementation of preHTTP simply calls initialize and selectDefaultTracks.
+  /// Default implementation of preHTTP simply calls selectDefaultTracks.
   void HTTPOutput::preHTTP(){
-    initialize();
     selectDefaultTracks();
   }
 

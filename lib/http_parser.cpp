@@ -149,7 +149,7 @@ std::string &HTTP::Parser::BuildRequest(){
   /// \todo Include POST variable handling for vars?
   std::map<std::string, std::string>::iterator it;
   if (protocol.size() < 5 || protocol[4] != '/'){protocol = "HTTP/1.0";}
-  if (method != "POST" && vars.size() && url.find('?') == std::string::npos){
+  if (!(method == "POST" && GetHeader("Content-Type") == "application/x-www-form-urlencoded") && vars.size() && url.find('?') == std::string::npos){
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + allVars() + " " + protocol + "\r\n";
   }else{
     builder = method + " " + Encodings::URL::encode(url, "/:=@[]") + " " + protocol + "\r\n";

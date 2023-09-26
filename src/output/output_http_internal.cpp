@@ -1342,7 +1342,8 @@ namespace Mist{
                 }
                 pUX.setBadness(statErrors.asInt()+statStalls.asInt()+statWaits.asInt());
                 if (M && M.mainTrack() != INVALID_TRACK_ID){
-                  pUX.setPercWatch(std::min((size_t)((statPlaytime.asInt()*100)/M.getDuration(M.mainTrack())), (size_t)100));
+                  uint64_t totalLen = M.getDuration(M.mainTrack());
+                  if (totalLen){pUX.setPercWatch(std::min((size_t)((statPlaytime.asInt()*100)/totalLen), (size_t)100));}
                 }else{
                   //No known duration; fallback to playback duration in seconds because whelp
                   pUX.setPercWatch(std::min(statPlaytime.asInt()/1000, (int64_t)100));

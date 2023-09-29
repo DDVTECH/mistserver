@@ -448,7 +448,6 @@ void uploadThread(void * num){
           was422 = false;
           prevURL.clear();
           mySeg.fullyWritten = false;
-          mySeg.fullyRead = true;
           //Wait your turn
           while (myNum != insertTurn && conf.is_active){Util::sleep(100);}
           if (!conf.is_active){return;}//Exit early on shutdown
@@ -458,6 +457,7 @@ void uploadThread(void * num){
             ++statFailParse;
             FAIL_MSG("Non-multipart response received - this version only works with multipart!");
           }
+          mySeg.fullyRead = true;
           insertTurn = (insertTurn + 1) % PRESEG_COUNT;
           break;//Success: no need to retry
         }else if (upper.getStatusCode() == 422){

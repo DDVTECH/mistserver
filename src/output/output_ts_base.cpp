@@ -112,7 +112,7 @@ namespace Mist{
               break;
             default: break;
             }
-            ptr += Bit::btohl(ptr);
+            ptr += Bit::btohl(ptr) + 4;
           }
         }
 

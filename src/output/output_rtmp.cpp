@@ -37,34 +37,6 @@ namespace Mist{
     //Switch realtime tracking system to mode where it never skips ahead, but only changes playback speed
     maxSkipAhead = 0;
     if (config->getString("target").size() && config->getString("target") != "-"){
-      streamName = config->getString("streamname");
-      pushUrl = HTTP::URL(config->getString("target"));
-#ifdef SSL
-      if (pushUrl.protocol != "rtmp" && pushUrl.protocol != "rtmps"){
-        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
-        return;
-      }
-#else
-      if (pushUrl.protocol != "rtmp"){
-        FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
-        return;
-      }
-#endif
-      std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
-      if (pushUrl.args.size()){app += "?" + pushUrl.args;}
-      streamOut = streamName;
-
-      size_t slash = app.find('/');
-      if (slash != std::string::npos){
-        streamOut = app.substr(slash + 1, std::string::npos);
-        app = app.substr(0, slash);
-        if (!streamOut.size()){streamOut = streamName;}
-      }
-      INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
-               pushUrl.host.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
-      myConn.setHost(pushUrl.host);
-      initialize();
-      initialSeek();
       startPushOut("");
     }else{
       setBlocking(true);
@@ -92,9 +64,6 @@ namespace Mist{
 
   void OutRTMP::startPushOut(const char *args){
 
-    myConn.close();
-    myConn.Received().clear();
-
     RTMPStream::chunk_rec_max = 128;
     RTMPStream::chunk_snd_max = 128;
     RTMPStream::rec_window_size = 2500000;
@@ -107,16 +76,66 @@ namespace Mist{
     RTMPStream::lastsend.clear();
     RTMPStream::lastrecv.clear();
 
-    std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
-    size_t slash = app.find('/');
-    if (slash != std::string::npos){app = app.substr(0, slash);}
+    pushUrl = HTTP::URL(config->getString("target"));
+    streamOut = streamName;
 
-    if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
+    // For a push you can specify the `host` query parameter via
+    // the target URL. When specified we will use as this host as
+    // the host to which we connect using the socket. We will
+    // still use the host from the `rtmp://<host>:<port>/` URL
+    // that you've defined for the push target. This allows us to
+    // connect with a differrent host then we use for the `tcUrl`
+    // AMF field (see below).
+    std::string remoteHost = pushUrl.host;
+    if (targetParams.count("host")) {
+      remoteHost = targetParams["host"];
+    }
+
+    std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
+    if (pushUrl.args.size()){app += "?" + pushUrl.args;}
+
+    size_t slash = app.find('/');
+    if (slash != std::string::npos){
+      streamOut = app.substr(slash + 1, std::string::npos);
+      app = app.substr(0, slash);
+      if (!streamOut.size()){streamOut = streamName;}
+    }
+
+    // For a push, you can add the `?app=<name>` to change the
+    // RTMP application name (rtmp://host:port/<app>/stream)
+    if (targetParams.count("app")) {
+      app = targetParams["app"];
+    }
+
+    // You can specify `?stream=<name>` to change the RTMP stream
+    // key, (rmtp://host:port/app/<stream>)
+    if (targetParams.count("stream")) {
+      streamOut = targetParams["stream"];
+    }
+
+    INFO_MSG("About to push stream %s out. Host: %s, port: %d, app: %s, stream: %s", streamName.c_str(),
+             remoteHost.c_str(), pushUrl.getPort(), app.c_str(), streamOut.c_str());
+
+    myConn.setHost(remoteHost);
+    initialize();
+    initialSeek();
+
+    myConn.close();
+    myConn.Received().clear();
+
+    if (pushUrl.protocol == "rtmp"){
+      myConn.open(remoteHost, pushUrl.getPort(), false);
 #ifdef SSL
-    if (pushUrl.protocol == "rtmps"){myConn.open(pushUrl.host, pushUrl.getPort(), false, true);}
+    } else if (pushUrl.protocol == "rtmps"){
+      myConn.open(remoteHost, pushUrl.getPort(), false, true);
 #endif
+    } else {
+      FAIL_MSG("Protocol not supported: %s", pushUrl.protocol.c_str());
+      return;
+    }
+
     if (!myConn){
-      FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
+      FAIL_MSG("Could not connect to %s:%d!", remoteHost.c_str(), pushUrl.getPort());
       return;
     }
     if (config->getBool("logfile")){
@@ -276,6 +295,28 @@ namespace Mist{
     config->addStandardPushCapabilities(capa);
     capa["push_urls"].append("rtmp://*");
     capa["push_urls"].append("rtmps://*");
+
+    JSON::Value & pp = capa["push_parameters"];
+
+    // Specify the <host> part for the `tcUrl` that we use when
+    // connecting with the remote media server, see
+    // https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol
+    pp["host"]["name"] = "Host";
+    pp["host"]["help"] = "Specify the host to which we should connect. When set, we will open a connection to this host instead of the host specified in the RTMP target url as defined above. We will stil use the host value of the RTMP target URL when for the `tcUrl` that is send to the remote server. This option is relevant when you want to manually specify which server to connect to when dealing with CDNs.";
+    pp["host"]["type"] = "string";
+    pp["host"]["sort"] = "1b";
+
+    // Specify the <app> separately for the url rtmp://host:port/<app>/stream
+    pp["app"]["name"] = "Stream app";
+    pp["app"]["help"] = "The value that we should use for the app, this is used to as the rtmp://host:port/&lt;app&gt;/stream. ";
+    pp["app"]["type"] = "string";
+    pp["app"]["sort"] = "1c";
+
+    // Specify the <stream> separately for the url rtmp://host:port/app/<stream>
+    pp["stream"]["name"] = "Stream key";
+    pp["stream"]["help"] = "The value that we should use for the stream key, this is used to as the <code>rtmp://host:port/app/&lt;stream&gt;. ";
+    pp["stream"]["type"] = "string";
+    pp["stream"]["sort"] = "1d";
 
     JSON::Value opt;
     opt["arg"] = "string";

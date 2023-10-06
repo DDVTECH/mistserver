@@ -597,6 +597,8 @@ void Socket::Connection::clear(){
   Error = false;
   Blocking = false;
   skipCount = 0;
+  logUp = -1;
+  logDown = -1;
 #ifdef SSL
   sslConnected = false;
   server_fd = 0;
@@ -605,6 +607,29 @@ void Socket::Connection::clear(){
   ctr_drbg = 0;
   entropy = 0;
 #endif
+}
+
+void Socket::Connection::setLogFiles(const std::string & rx, const std::string & tx){
+  if (logDown != -1){
+    ::close(logDown);
+    logDown = -1;
+  }
+  if (logUp != -1){
+    ::close(logUp);
+    logUp = -1;
+  }
+  if (rx.size()){
+    logDown = ::open(rx.c_str(), O_CREAT | O_WRONLY | O_TRUNC, ACCESSPERMS);
+    if (logDown == -1){
+      WARN_MSG("Could not open rx log file (%s): %s", rx.c_str(), strerror(errno));
+    }
+  }
+  if (tx.size()){
+    logUp = ::open(tx.c_str(), O_CREAT | O_WRONLY | O_TRUNC, ACCESSPERMS);
+    if (logUp == -1){
+      WARN_MSG("Could not open tx log file (%s): %s", tx.c_str(), strerror(errno));
+    }
+  }
 }
 
 /// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
@@ -1015,6 +1040,18 @@ void Socket::Connection::SendNow(const char *data, size_t len){
   while (i < len && connected()){
     i += iwrite(data + i, std::min((long unsigned int)(len - i), SOCKETSIZE));
   }
+  if (logUp != -1){
+    size_t written = 0;
+    while (written < len && logUp != -1){
+      size_t ret = write(logUp, data+written, len-written);
+      if (ret < 1){
+        ::close(logUp);
+        logUp = -1;
+        break;
+      }
+      written += ret;
+    }
+  }
   if (!bing){setBlocking(false);}
 }
 
@@ -1192,6 +1229,18 @@ bool Socket::Connection::iread(Buffer &buffer, int flags){
   char cbuffer[BUFFER_BLOCKSIZE];
   int num = iread(cbuffer, BUFFER_BLOCKSIZE, flags);
   if (num < 1){return false;}
+  if (logDown != -1){
+    size_t written = 0;
+    while (written < num && logDown != -1){
+      size_t ret = write(logDown, cbuffer+written, num-written);
+      if (ret < 1){
+        ::close(logDown);
+        logDown = -1;
+        break;
+      }
+      written += ret;
+    }
+  }
   buffer.append(cbuffer, num);
   return true;
 }// iread

@@ -90,6 +90,8 @@ namespace Socket{
     struct sockaddr_in6 remoteaddr; ///< Stores remote host address.
     uint64_t up;
     uint64_t down;
+    uint64_t logUp;
+    uint64_t logDown;
     long long int conntime;
     Buffer downbuffer;                                ///< Stores temporary data coming in.
     int iread(void *buffer, int len, int flags = 0);  ///< Incremental read call.
@@ -164,6 +166,7 @@ namespace Socket{
     void resetCounter();     ///< Resets the up/down bytes counter to zero.
     void addUp(const uint32_t i);
     void addDown(const uint32_t i);
+    void setLogFiles(const std::string & rx, const std::string & tx);
     friend class Server;
     bool Error;    ///< Set to true if a socket error happened.
     bool Blocking; ///< Set to true if a socket is currently or wants to be blocking.

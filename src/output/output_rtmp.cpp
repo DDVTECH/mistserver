@@ -119,6 +119,14 @@ namespace Mist{
       FAIL_MSG("Could not connect to %s:%d!", pushUrl.host.c_str(), pushUrl.getPort());
       return;
     }
+    if (config->getBool("logfile")){
+      std::string logFileStrIn, logFileStrOut;
+      logFileStrIn = logFileStrOut = config->getString("logfile");
+      Util::streamVariables(logFileStrIn, streamName, "rx");
+      Util::streamVariables(logFileStrOut, streamName, "tx");
+      myConn.setLogFiles(logFileStrIn, logFileStrOut);
+      INFO_MSG("Logging connection data to file(s): %s / %s", logFileStrIn.c_str(), logFileStrOut.c_str());
+    }
     // do handshake
     myConn.SendNow("\003", 1); // protocol version. Always 3
     char *temp = (char *)malloc(3072);
@@ -257,6 +265,12 @@ namespace Mist{
     capa["optional"]["maxkbps"]["short"] = "K";
     capa["optional"]["maxkbps"]["default"] = 0;
     capa["optional"]["maxkbps"]["type"] = "uint";
+    capa["optional"]["logfile"]["name"] = "RTMP log file";
+    capa["optional"]["logfile"]["help"] = "File to log connection data to";
+    capa["optional"]["logfile"]["option"] = "--logfile";
+    capa["optional"]["logfile"]["short"] = "L";
+    capa["optional"]["logfile"]["default"] = false;
+    capa["optional"]["logfile"]["type"] = "string";
     cfg->addConnectorOptions(1935, capa);
     config = cfg;
     config->addStandardPushCapabilities(capa);
@@ -275,23 +289,23 @@ namespace Mist{
   }
 
   void OutRTMP::sendSilence(uint64_t timestamp){
-    /* 
+    /*
     Byte 1:
       SoundFormat     = 4 bits    : AAC   = 10  = 1010
       SoundRate       = 2 bits    : 44Khz = 3   = 11
       SoundSize       = 1 bit     : always 1
       SoundType       = 1 bit     : always 1 (Stereo) for AAC
-    
+
     Byte 2->:
       SoundData
       Since it is an AAC stream SoundData is an AACAUDIODATA object:
         AACPacketType = 8 bits     : always 1 (0 indicates sequence header which is sent in sendHeader)
         Data[N times] = 8 bits     : Raw AAC frame data
-        
+
     tmpData: 10101111 00000001 = af 01 = \257 \001 + raw AAC silence
     */
     const char * tmpData = "\257\001!\020\004`\214\034";
-    
+
     size_t data_len = 8;
 
     char rtmpheader[] ={0,                // byte 0 = cs_id | ch_type
@@ -300,7 +314,7 @@ namespace Mist{
                          0x08,            // byte 7 = msg_type_id
                          1,    0, 0, 0,   // bytes 8-11 = msg_stream_id = 1
                          0,    0, 0, 0};  // bytes 12-15 = extended timestamp
-                         
+
     bool allow_short = RTMPStream::lastsend.count(4);
     RTMPStream::Chunk &prev = RTMPStream::lastsend[4];
     uint8_t chtype = 0x00;
@@ -371,9 +385,9 @@ namespace Mist{
     RTMPStream::snd_cnt += header_len+data_len; // update the sent data counter
     myConn.setBlocking(false);
   }
-  
+
   // Gets next ADTS frame and loops back to 0 is EOF is reached
-  void OutRTMP::calcNextFrameInfo(){ 
+  void OutRTMP::calcNextFrameInfo(){
     // Set iterator to start of next frame
     customAudioIterator += currentFrameInfo.getCompleteSize();
     // Loop the audio
@@ -385,18 +399,18 @@ namespace Mist{
       WARN_MSG("Invalid sync word at start of header. Will probably read garbage...");
     }
 
-    uint64_t frameSize = (((customAudioFile[customAudioIterator + 3] & 0x03) << 11) 
+    uint64_t frameSize = (((customAudioFile[customAudioIterator + 3] & 0x03) << 11)
                         | ( customAudioFile[customAudioIterator + 4] << 3)
                         |(( customAudioFile[customAudioIterator + 5] >> 5) & 0x07));
     aac::adts adtsPack(customAudioFile + customAudioIterator, frameSize);
     if (!adtsPack){
-      WARN_MSG("Could not parse ADTS package. Will probably read garbage..."); 
+      WARN_MSG("Could not parse ADTS package. Will probably read garbage...");
     }
     // Update internal variables
     currentFrameInfo = adtsPack;
     currentFrameTimestamp += (adtsPack.getSampleCount() * 1000) / adtsPack.getFrequency();
   }
-  
+
   // Sends FLV audio tag + raw AAC data
   void OutRTMP::sendLoopedAudio(uint64_t untilTimestamp){
     // ADTS frame can be invalid if there is metadata or w/e in the input file
@@ -410,7 +424,7 @@ namespace Mist{
       customAudioSize = customAudioIterator;
       customAudioIterator = 0;
       // NOTE that we do not reset the timestamp to prevent eternal loops
-      
+
       // Confirm syncword (= FFF)
       if (customAudioFile[customAudioIterator] != 0xFF || ( customAudioFile[customAudioIterator + 1] & 0xF0) != 0xF0 ){
         WARN_MSG("Invalid sync word at start of header. Invalid input file!");
@@ -425,9 +439,9 @@ namespace Mist{
       }
       currentFrameInfo = adtsPack;
     }
-    
+
     // Keep parsing ADTS frames until we reach a frame which starts in the future
-    while (currentFrameTimestamp < untilTimestamp){  
+    while (currentFrameTimestamp < untilTimestamp){
       // Init RTMP header info
       char rtmpheader[] ={0,              // byte 0 = cs_id | ch_type
                           0,    0, 0,     // bytes 1-3 = timestamp
@@ -435,7 +449,7 @@ namespace Mist{
                           0x08,           // byte 7 = msg_type_id
                           1,    0, 0, 0,  // bytes 8-11 = msg_stream_id = 1
                           0,    0, 0, 0}; // bytes 12-15 = extended timestamp
-                          
+
       // Separate timestamp since we store Δtimestamps
       uint64_t rtmpTimestamp = currentFrameTimestamp;
       // Since we have to prepend an FLV audio tag, increase size by 2 bytes
@@ -523,13 +537,13 @@ namespace Mist{
       // Update internal variables
       RTMPStream::snd_cnt += header_len+aacPacketSize;
       myConn.setBlocking(false);
-      
+
       // get next ADTS frame for new raw AAC data
       calcNextFrameInfo();
     }
   }
-  
-  
+
+
   void OutRTMP::sendNext(){
     //Every 5s, check if the track selection should change in live streams, and do it.
     if (M.getLive()){
@@ -579,7 +593,7 @@ namespace Mist{
     }
 
     // NOTE hier ergens fixen dat de audio ook stopt als video wegvalt
-    
+
     // Send looped audio if needed
     if (hasCustomAudio){
       // If there's more than 15s of skip, skip audio as well
@@ -603,7 +617,7 @@ namespace Mist{
     char *tmpData = 0;   // pointer to raw media data
     size_t data_len = 0; // length of processed media data
     thisPacket.getString("data", tmpData, data_len);
-    
+
     std::string type = M.getType(thisIdx);
     std::string codec = M.getCodec(thisIdx);
 
@@ -780,11 +794,11 @@ namespace Mist{
     std::string audioParameter;
     // Indicates position where the previous parameter ended
     int prevPos = 0;
-    // Used to read a custom AAC file 
+    // Used to read a custom AAC file
     HTTP::URIReader inAAC;
     char *tempBuffer;
     size_t bytesRead;
-    
+
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
     }
@@ -821,9 +835,9 @@ namespace Mist{
         audioParameter = audioParameterBuffer.substr(prevPos, i - prevPos);
         HIGH_MSG("Parsing audio parameter %s", audioParameter.c_str());
         // Inc i to skip the ,
-        i++; 
+        i++;
         prevPos = i;
-        
+
         if (audioParameter == "silence" || audioParameter == "silent"){
           hasSilence = true;
           INFO_MSG("Filling audio track with silence");
@@ -867,7 +881,7 @@ namespace Mist{
       }
       // Calculate the starting position of the next frame
       uint64_t frameSize = (((customAudioFile[customAudioIterator + 3] & 0x03) << 11) | ( customAudioFile[customAudioIterator + 4] << 3) | (( customAudioFile[customAudioIterator + 5] >> 5) & 0x07));
-    
+
       // Create ADTS object of frame
       aac::adts adtsPack(customAudioFile + customAudioIterator, frameSize);
       if (!adtsPack){
@@ -876,7 +890,7 @@ namespace Mist{
       }
       currentFrameInfo = adtsPack;
       char *tempInitData = (char*)malloc(2);
-      /* 
+      /*
        * Create AudioSpecificConfig
        * DTSCAudioInit already includes the sequence header at pos 12
        * We need:
@@ -888,7 +902,7 @@ namespace Mist{
       tempInitData[0] = 0x02 + (currentFrameInfo.getAACProfile() << 3);
       tempInitData[1] = 0x10;
       const std::string initData = std::string(tempInitData, 2);
-      
+
       if (tag.DTSCAudioInit("AAC", currentFrameInfo.getFrequency(), currentFrameInfo.getSampleCount(), currentFrameInfo.getChannelCount(), initData)){
         INFO_MSG("Loaded a %" PRIu64 " byte custom audio file as audio loop", customAudioSize);
         myConn.SendNow(RTMPStream::SendMedia(tag));

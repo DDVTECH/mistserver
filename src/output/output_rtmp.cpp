@@ -158,21 +158,41 @@ namespace Mist{
     for (int i = 8; i < 3072; ++i){
       temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
     }//"random" data
-    myConn.SendNow(temp, 3072);
+
+    // Calculate the SHA265 digest over the data, insert it in the "secret" location
+    size_t digest_pos = (temp[9] + temp[10] + temp[11] + temp[12]) % 728 + 12;
+    // Copy data except for the 32 bytes where the digest is stored
+    Util::ResizeablePointer digest_data;
+    digest_data.append(temp+1, digest_pos);
+    digest_data.append(temp+1+digest_pos+32, 1504-digest_pos);
+    Secure::hmac_sha256bin(digest_data, digest_data.size(), "Genuine Adobe Flash Player 001", 30, temp + 1 + digest_pos);
+
+    myConn.SendNow(temp, 1536);
+    while (!myConn.Received().available(1537) && myConn.connected() && config->is_active){
+      myConn.spool();
+    }
+    if (!myConn || !config->is_active){
+      WARN_MSG("Lost connection while waiting for S0/S1 packets!");
+      return;
+    }
+    // Send back copy of S1 (S0 is the first byte, skip it)
+    Util::ResizeablePointer s0s1;
+    myConn.Received().remove(s0s1, 1537);
+    myConn.SendNow(s0s1 + 1, 1536);
     free(temp);
     setBlocking(true);
-    while (!myConn.Received().available(3073) && myConn.connected() && config->is_active){
+    while (!myConn.Received().available(1536) && myConn.connected() && config->is_active){
       myConn.spool();
     }
     if (!myConn || !config->is_active){return;}
-    myConn.Received().remove(3073);
+    myConn.Received().remove(1536);
     RTMPStream::rec_cnt += 3073;
     RTMPStream::snd_cnt += 3073;
     setBlocking(false);
     VERYHIGH_MSG("Push out handshake completed");
-    std::string pushHost = "rtmp://" + pushUrl.host + "/";
+    std::string pushHost = pushUrl.protocol + "://" + pushUrl.host + "/";
     if (pushUrl.getPort() != 1935){
-      pushHost = "rtmp://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
+      pushHost = pushUrl.protocol + "://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
     }
 
     AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);

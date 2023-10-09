@@ -3430,7 +3430,6 @@ namespace DTSC{
   }
 
   void Keys::applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p){
-
     // Determine first and last key available within the limits
     // Note: limMax replaces getEndValid(), and is thus one _past_ the end key index!
     limMin = getFirstValid();

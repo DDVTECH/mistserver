@@ -2145,7 +2145,7 @@ namespace Mist{
       }
 
       // Force valid packet if nowMs is higher than current packet time
-      if (M.getNowms(nxt.tid) > nxt.time){break;}
+      if (!M.getVod() && M.getNowms(nxt.tid) > nxt.time){break;}
 
       //Okay, there's no next page yet, and no next packet on this page either.
       //That means we're waiting for data to show up, somewhere.

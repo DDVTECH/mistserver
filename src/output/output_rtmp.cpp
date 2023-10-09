@@ -109,7 +109,7 @@ namespace Mist{
     RTMPStream::lastrecv.clear();
 
     std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
-    size_t slash = app.find('/');
+    size_t slash = app.rfind('/');
     if (slash != std::string::npos){app = app.substr(0, slash);}
 
     if (pushUrl.protocol == "rtmp"){myConn.open(pushUrl.host, pushUrl.getPort(), false);}
@@ -128,25 +128,45 @@ namespace Mist{
       return;
     }
     *((uint32_t *)temp) = 0;                         // time zero
-    *(((uint32_t *)(temp + 4))) = htonl(0x01020304); // version 1 2 3 4
+    *(((uint32_t *)(temp + 4))) = 0; // version 0
     for (int i = 8; i < 3072; ++i){
       temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
     }//"random" data
-    myConn.SendNow(temp, 3072);
+
+    // Calculate the SHA265 digest over the data, insert it in the "secret" location
+    size_t digest_pos = (temp[9] + temp[10] + temp[11] + temp[12]) % 728 + 12;
+    // Copy data except for the 32 bytes where the digest is stored
+    Util::ResizeablePointer digest_data;
+    digest_data.append(temp+1, digest_pos);
+    digest_data.append(temp+1+digest_pos+32, 1504-digest_pos);
+    Secure::hmac_sha256bin(digest_data, digest_data.size(), "Genuine Adobe Flash Player 001", 30, temp + 1 + digest_pos);
+
+    myConn.SendNow(temp, 1536);
+    while (!myConn.Received().available(1537) && myConn.connected() && config->is_active){
+      myConn.spool();
+    }
+    if (!myConn || !config->is_active){
+      WARN_MSG("Lost connection while waiting for S0/S1 packets!");
+      return;
+    }
+    // Send back copy of S1 (S0 is the first byte, skip it)
+    Util::ResizeablePointer s0s1;
+    myConn.Received().remove(s0s1, 1537);
+    myConn.SendNow(s0s1 + 1, 1536);
     free(temp);
     setBlocking(true);
-    while (!myConn.Received().available(3073) && myConn.connected() && config->is_active){
+    while (!myConn.Received().available(1536) && myConn.connected() && config->is_active){
       myConn.spool();
     }
     if (!myConn || !config->is_active){return;}
-    myConn.Received().remove(3073);
+    myConn.Received().remove(1536);
     RTMPStream::rec_cnt += 3073;
     RTMPStream::snd_cnt += 3073;
     setBlocking(false);
     VERYHIGH_MSG("Push out handshake completed");
-    std::string pushHost = "rtmp://" + pushUrl.host + "/";
+    std::string pushHost = pushUrl.protocol + "://" + pushUrl.host + "/";
     if (pushUrl.getPort() != 1935){
-      pushHost = "rtmp://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
+      pushHost = pushUrl.protocol + "://" + pushUrl.host + ":" + JSON::Value(pushUrl.getPort()).asString() + "/";
     }
 
     AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
@@ -789,7 +809,10 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
     }
-    tag.DTSCMetaInit(meta, selectedTracks);
+    //GO-RTMP can't handle the complexity of our metadata, but also doesn't need it... so let's not.
+    if (UA != "GO-RTMP/0,0,0,0"){
+      tag.DTSCMetaInit(meta, selectedTracks);
+    }
     if (tag.len){
       tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
@@ -1535,6 +1558,10 @@ namespace Mist{
         (amfData.getContentP(0)->StrValue() == "onStatus")){
       if (isRecording() && amfData.getContentP(0)->StrValue() == "_result" &&
           amfData.getContentP(1)->NumValue() == 1){
+        if (amfData.getContentP(2)->GetType() == AMF::AMF0_OBJECT && amfData.getContentP(2)->getContentP("fmsVer")){
+          UA = amfData.getContentP(2)->getContentP("fmsVer")->StrValue();
+          INFO_MSG("Server version: %s", UA.c_str());
+        }
         {
           AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
           amfReply.addContent(AMF::Object("", "releaseStream"));     // command

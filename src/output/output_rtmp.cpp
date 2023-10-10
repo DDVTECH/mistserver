@@ -94,7 +94,7 @@ namespace Mist{
     std::string app = Encodings::URL::encode(pushUrl.path, "/:=@[]");
     if (pushUrl.args.size()){app += "?" + pushUrl.args;}
 
-    size_t slash = app.find('/');
+    size_t slash = app.rfind('/');
     if (slash != std::string::npos){
       streamOut = app.substr(slash + 1, std::string::npos);
       app = app.substr(0, slash);

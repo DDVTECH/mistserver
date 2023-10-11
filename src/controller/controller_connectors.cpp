@@ -140,11 +140,6 @@ namespace Controller{
       tmparg = Util::getMyPath() + p["connector"].asStringRef();
     }
     if (::stat(tmparg.c_str(), &buf) != 0){return;}
-    if (p["connector"].asStringRef().substr(0, 8) == "livepeer") {
-      static std::string logarg = (Util::getMyPath() + "livepeer-log").c_str();
-      argarr[argnum++] = (char *)logarg.c_str();
-      INFO_MSG("added logger for %s", p["connector"].asStringRef().c_str());
-    }
     argarr[argnum++] = (char *)tmparg.c_str();
     const JSON::Value &pipedCapa = capabilities["connectors"][p["connector"].asStringRef()];
     if (pipedCapa.isMember("required")){builPipedPart(p, argarr, argnum, pipedCapa["required"]);}
@@ -260,6 +255,7 @@ namespace Controller{
     }
 
     // start up new/changed connectors
+    static std::string livepeerPrefix = std::string(Util::getMyPath() + "livepeer");
     while (runningConns.size() && conf.is_active){
       if (!currentConnectors.count(*runningConns.begin()) ||
           !Util::Procs::isActive(currentConnectors[*runningConns.begin()])){
@@ -271,7 +267,13 @@ namespace Controller{
         JSON::Value p = JSON::fromString(*runningConns.begin());
         buildPipedArguments(p, (char **)&argarr, capabilities);
         // start piped w/ generated args
-        currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
+        // for livepeer-x binaries, pass stdout/stderr straight through the logger
+        if (strncmp(argarr[0], livepeerPrefix.c_str(), strlen(livepeerPrefix.c_str())) == 0) {
+          int my_stdout = 1;
+          currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, &my_stdout, &my_stdout);
+        }else{
+          currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, 0, 0, &err);
+        }
         Triggers::doTrigger("OUTPUT_START", *runningConns.begin()); // LTS
       }
       runningConns.erase(runningConns.begin());

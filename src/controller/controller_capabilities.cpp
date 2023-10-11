@@ -270,9 +270,7 @@ namespace Controller{
     std::deque<std::string> execs;
     Util::getMyExec(execs);
     std::string arg_one;
-    std::string arg_log = Util::getMyPath() + "livepeer-log";
     char const *conn_args[] ={0, "-j", 0};
-    char const *conn_args_4[] = {arg_log.c_str(), 0, "-j", 0};
     for (std::deque<std::string>::iterator it = execs.begin(); it != execs.end(); it++){
       if ((*it).substr(0, 8) == "MistConn"){
         // skip if an MistOut already existed - MistOut takes precedence!
@@ -301,10 +299,10 @@ namespace Controller{
       }
       if ((*it).substr(0, 8) == "livepeer"){
         arg_one = Util::getMyPath() + (*it);
-        conn_args_4[1] = arg_one.c_str();
+        conn_args[0] = arg_one.c_str();
         std::string entryName = (*it);
         capabilities["connectors"][entryName] =
-            JSON::fromString(Util::Procs::getOutputOf((char **)conn_args_4));
+            JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
         if (capabilities["connectors"][entryName].size() < 1){
           capabilities["connectors"].removeMember(entryName);
         }

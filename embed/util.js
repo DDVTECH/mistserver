@@ -185,7 +185,11 @@ var MistUtil = {
           break;
         }
         case "webrtc": {
-          return "WebRTC";
+          return "WebRTC (WS)";
+          break;
+        }
+        case "whep": {
+          return "WebRTC (WHEP)";
           break;
         }
         case "silverlight": {

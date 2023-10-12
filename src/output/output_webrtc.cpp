@@ -164,6 +164,7 @@ namespace Mist{
   void OutWebRTC::init(Util::Config *cfg){
     HTTPOutput::init(cfg);
     capa["name"] = "WebRTC";
+    capa["friendly"] = "WebRTC";
     capa["desc"] = "Provides WebRTC output";
     capa["url_rel"] = "/webrtc/$";
     capa["url_match"] = "/webrtc/$";
@@ -175,9 +176,15 @@ namespace Mist{
     capa["codecs"][0u][1u].append("ULAW");
     capa["methods"][0u]["handler"] = "ws";
     capa["methods"][0u]["type"] = "webrtc";
-    capa["methods"][0u]["hrn"] = "WebRTC";
+    capa["methods"][0u]["hrn"] = "WebRTC with WebSocket signalling";
     capa["methods"][0u]["priority"] = 2;
     capa["methods"][0u]["nobframes"] = 1;
+
+    capa["methods"][1u]["handler"] = "http";
+    capa["methods"][1u]["type"] = "whep";
+    capa["methods"][1u]["hrn"] = "WebRTC with WHEP signalling";
+    capa["methods"][1u]["priority"] = 5;
+    capa["methods"][1u]["nobframes"] = 1;
 
     capa["optional"]["preferredvideocodec"]["name"] = "Preferred video codecs";
     capa["optional"]["preferredvideocodec"]["help"] =

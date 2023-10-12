@@ -3235,11 +3235,13 @@ namespace DTSC{
         uint64_t kParts = Mkeys.getParts(k);
         if (!kDur){continue;}
         if (kDur > longest_key){longest_key = kDur;}
-        if (kDur < shrtest_key){shrtest_key = kDur;}
         if (kParts > longest_cnt){longest_cnt = kParts;}
-        if (kParts < shrtest_cnt){shrtest_cnt = kParts;}
         if ((kDur / kParts) > longest_prt){longest_prt = (kDur / kParts);}
         if ((kDur / kParts) < shrtest_prt){shrtest_prt = (kDur / kParts);}
+        // Do not check shortest counts for last key, since it's still being updated
+        if (k+2 >= endKey){continue;}
+        if (kDur < shrtest_key){shrtest_key = kDur;}
+        if (kParts < shrtest_cnt){shrtest_cnt = kParts;}
       }
       track["keys"]["ms_min"] = shrtest_key;
       track["keys"]["ms_max"] = longest_key;

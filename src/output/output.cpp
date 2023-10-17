@@ -1955,21 +1955,21 @@ namespace Mist{
     //The rest of the operations depends on userSelect, so we ignore it if it doesn't exist.
     if (!M || !M.getValidTracks().count(trackId)){
       DEBUG_MSG(printLevel, "Dropping invalid track %zu: %s", trackId, reason.c_str());
-      return;
-    }
-    if (!userSelect.count(trackId)){
-      DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
-      return;
-    }
-    const Comms::Users &usr = userSelect.at(trackId);
-    if (!usr){
-      DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
     }else{
-      DEBUG_MSG(printLevel, "Dropping %s track %zu@k%zu (nextP=%" PRIu64 ", lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
-                pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
+      if (!userSelect.count(trackId)){
+        DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+        return;
+      }
+      const Comms::Users &usr = userSelect.at(trackId);
+      if (!usr){
+        DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+      }else{
+        DEBUG_MSG(printLevel, "Dropping %s track %zu@k%zu (nextP=%" PRIu64 ", lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
+                  pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
+      }
     }
     userSelect.erase(trackId);
   }

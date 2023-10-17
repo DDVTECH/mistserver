@@ -866,7 +866,10 @@ namespace Mist{
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
       selectedTracks.insert(it->first);
     }
-    tag.DTSCMetaInit(meta, selectedTracks);
+    //GO-RTMP can't handle the complexity of our metadata, but also doesn't need it... so let's not.
+    if (UA != "GO-RTMP/0,0,0,0"){
+      tag.DTSCMetaInit(meta, selectedTracks);
+    }
     if (tag.len){
       tag.tagTime(currentTime() - rtmpOffset);
       myConn.SendNow(RTMPStream::SendMedia(tag));
@@ -1612,6 +1615,10 @@ namespace Mist{
         (amfData.getContentP(0)->StrValue() == "onStatus")){
       if (isRecording() && amfData.getContentP(0)->StrValue() == "_result" &&
           amfData.getContentP(1)->NumValue() == 1){
+        if (amfData.getContentP(2)->GetType() == AMF::AMF0_OBJECT && amfData.getContentP(2)->getContentP("fmsVer")){
+          UA = amfData.getContentP(2)->getContentP("fmsVer")->StrValue();
+          INFO_MSG("Server version: %s", UA.c_str());
+        }
         {
           AMF::Object amfReply("container", AMF::AMF0_DDV_CONTAINER);
           amfReply.addContent(AMF::Object("", "releaseStream"));     // command

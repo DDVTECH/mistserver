@@ -1291,6 +1291,8 @@ namespace Mist{
   /// Aborts if not live, there is no main track or it has no keyframes.
   bool Output::liveSeek(bool rateOnly){
     if (!realTime){return false;}//Makes no sense when playing in turbo mode
+    if (targetParams.count("start")){return false;} //disable seeking forward if start is given
+    if (targetParams.count("recstart")){return false;} //disable seeking forward for pushes with start time
     if (maxSkipAhead == 1){return false;}//A skipAhead of 1 signifies disabling the skipping/rate control system entirely.
     if (!meta.getLive()){return false;}
     uint64_t seekPos = 0;

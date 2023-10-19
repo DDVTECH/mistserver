@@ -78,13 +78,6 @@ namespace Mist{
     }
   };
 
-  struct fragSet{
-    uint64_t firstPart;
-    uint64_t lastPart;
-    uint64_t firstTime;
-    uint64_t lastTime;
-  };
-
   class OutMP4 : public HTTPOutput{
   public:
     OutMP4(Socket::Connection &conn);
@@ -142,9 +135,6 @@ namespace Mist{
     bool chromeWorkaround;
     int keysOnly;
     uint64_t estimateFileSize() const;
-
-    // This is a dirty solution... but it prevents copying and copying and copying again
-    std::map<size_t, fragSet> currentPartSet;
 
     std::string protectionHeader(size_t idx);
     Util::ResizeablePointer webBuf;

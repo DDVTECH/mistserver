@@ -66,10 +66,9 @@ namespace Mist{
     vidTrack = INVALID_TRACK_ID;
     prevVidTrack = INVALID_TRACK_ID;
     audTrack = INVALID_TRACK_ID;
-    stayLive = true;
-    target_rate = 0.0;
     firstKey = true;
     repeatInit = true;
+    wsCmds = true;
 
     lastTimeSync = 0;
     maxSkipAhead = 0;
@@ -297,6 +296,12 @@ namespace Mist{
     config->addOptionsFromCapabilities(capa);
   }
 
+  void OutWebRTC::onFail(const std::string &msg, bool critical){
+    if (!webSock){return HTTPOutput::onFail(msg, critical);}
+    sendSignalingError("error", msg);
+    Output::onFail(msg, critical);
+  }
+
   void OutWebRTC::preWebsocketConnect(){
     HTTP::URL tmpUrl("http://" + H.GetHeader("Host"));
     externalAddr = tmpUrl.host;
@@ -465,7 +470,6 @@ namespace Mist{
     JSON::Value command = JSON::fromString(webSock->data, webSock->data.size());
     JSON::Value commandResult;
 
-
     if(command.isMember("encrypt")){
       doDTLS = false;
       volkswagenMode = false;
@@ -567,164 +571,6 @@ namespace Mist{
       commandResult["nack"] = RTP::PACKET_REORDER_WAIT;
       commandResult["drop"] = RTP::PACKET_DROP_TIMEOUT;
       webSock->sendFrame(commandResult.toString());
-      return;
-    }
-
-    std::set<size_t> validTracks = M.getValidTracks();
-    if (command["type"] == "tracks"){
-      if (command.isMember("audio")){
-        if (!command["audio"].isNull()){
-          targetParams["audio"] = command["audio"].asString();
-          if (audTrack && command["audio"].asInt()){
-            uint64_t tId = command["audio"].asInt();
-            if (validTracks.count(tId) && M.getCodec(tId) != M.getCodec(audTrack)){
-              targetParams["audio"] = "none";
-              sendSignalingError("tracks", "Cannot select track because it is encoded as " +
-                                               M.getCodec(tId) + " but the already negotiated track is " +
-                                               M.getCodec(audTrack) + ". Please re-negotiate to play this track.");
-            }
-          }
-        }else{
-          targetParams.erase("audio");
-        }
-      }
-      if (command.isMember("video")){
-        if (!command["video"].isNull()){
-          targetParams["video"] = command["video"].asString();
-          if (vidTrack && command["video"].asInt()){
-            uint64_t tId = command["video"].asInt();
-            if (validTracks.count(tId) && M.getCodec(tId) != M.getCodec(vidTrack)){
-              targetParams["video"] = "none";
-              sendSignalingError("tracks", "Cannot select track because it is encoded as " +
-                                               M.getCodec(tId) + " but the already negotiated track is " +
-                                               M.getCodec(vidTrack) + ". Please re-negotiate to play this track.");
-            }
-          }
-        }else{
-          targetParams.erase("video");
-        }
-      }
-      // Remember the previous video track, if any.
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        if (M.getType(it->first) == "video"){
-          prevVidTrack = it->first;
-          break;
-        }
-      }
-      selectDefaultTracks();
-      // Add the previous video track back, if we had one.
-      if (prevVidTrack != INVALID_TRACK_ID && !userSelect.count(prevVidTrack)){
-        uint64_t seekTarget = currentTime();
-        userSelect[prevVidTrack].reload(streamName, prevVidTrack);
-        seek(seekTarget);
-      }
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "seek"){
-      if (!command.isMember("seek_time")){
-        sendSignalingError("on_seek", "Received a seek request but no `seek_time` property.");
-        return;
-      }
-      uint64_t seek_time = command["seek_time"].asInt();
-      if (!parseData){
-        parseData = true;
-        selectDefaultTracks();
-      }
-      stayLive = (target_rate == 0.0) && (endTime() < seek_time + 5000);
-      if (command["seek_time"].asStringRef() == "live"){stayLive = true;}
-      if (stayLive){seek_time = endTime();}
-      seek(seek_time, true);
-      JSON::Value commandResult;
-      commandResult["type"] = "on_seek";
-      commandResult["result"] = true;
-      if (M.getLive()){commandResult["live_point"] = stayLive;}
-      if (target_rate == 0.0){
-        commandResult["play_rate_curr"] = "auto";
-      }else{
-        commandResult["play_rate_curr"] = target_rate;
-      }
-      webSock->sendFrame(commandResult.toString());
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "set_speed"){
-      if (!command.isMember("play_rate")){
-        sendSignalingError("on_speed", "Received a playback speed setting request but no `play_rate` property.");
-        return;
-      }
-      double set_rate = command["play_rate"].asDouble();
-      if (!parseData){
-        parseData = true;
-        selectDefaultTracks();
-      }
-      JSON::Value commandResult;
-      commandResult["type"] = "on_speed";
-      if (target_rate == 0.0){
-        commandResult["play_rate_prev"] = "auto";
-      }else{
-        commandResult["play_rate_prev"] = target_rate;
-      }
-      if (set_rate == 0.0){
-        commandResult["play_rate_curr"] = "auto";
-      }else{
-        commandResult["play_rate_curr"] = set_rate;
-      }
-      if (target_rate != set_rate){
-        target_rate = set_rate;
-        if (target_rate == 0.0){
-          realTime = 1000;//set playback speed to default
-          firstTime = Util::bootMS() - currentTime();
-          maxSkipAhead = 0;//enabled automatic rate control
-        }else{
-          stayLive = false;
-          //Set new realTime speed
-          realTime = 1000 / target_rate;
-          firstTime = Util::bootMS() - (currentTime() / target_rate);
-          maxSkipAhead = 1;//disable automatic rate control
-        }
-      }
-      if (M.getLive()){commandResult["live_point"] = stayLive;}
-      webSock->sendFrame(commandResult.toString());
-      onIdle();
-      return;
-    }
-
-    if (command["type"] == "pause"){
-      parseData = !parseData;
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["paused"] = !parseData;
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append((uint64_t)it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-      return;
-    }
-
-    if (command["type"] == "hold") {
-      parseData = false;
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["paused"] = !parseData;
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append((uint64_t)it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-      return;
-    }
-
-    if (command["type"] == "stop"){
-      INFO_MSG("Received stop() command.");
-      myConn.close();
       return;
     }
 
@@ -853,18 +699,8 @@ namespace Mist{
     return true;
   }
 
-  void OutWebRTC::onIdle(){
-    if (parseData){
-      JSON::Value commandResult;
-      commandResult["type"] = "on_time";
-      commandResult["current"] = currentTime();
-      commandResult["begin"] = startTime();
-      commandResult["end"] = endTime();
-      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-        commandResult["tracks"].append((uint64_t)it->first);
-      }
-      webSock->sendFrame(commandResult.toString());
-    }else if (isPushing()){
+  void OutWebRTC::handleWebsocketIdle(){
+    if (!parseData && isPushing()){
       JSON::Value commandResult;
       commandResult["type"] = "on_media_receive";
       commandResult["millis"] = endTime();
@@ -876,7 +712,9 @@ namespace Mist{
       commandResult["stats"]["jitter_ms"] = stats_jitter;
       commandResult["stats"]["loss_perc"] = stats_lossperc;
       webSock->sendFrame(commandResult.toString());
+      return;
     }
+    HTTPOutput::handleWebsocketIdle();
   }
 
   bool OutWebRTC::onFinish(){
@@ -1677,18 +1515,12 @@ namespace Mist{
     
   }
 
-  // This function was implemented (it's virtual) to handle
-  // pushing of media to the browser. This function blocks until
-  // the DTLS handshake has been finished. This prevents
-  // `sendNext()` from being called which is correct because we
-  // don't want to send packets when we can't protect them with
-  // DTLS.
-  void OutWebRTC::sendHeader(){
-
+  void OutWebRTC::sendNext(){
+    HTTPOutput::sendNext();
     // first make sure that we complete the DTLS handshake.
     if(doDTLS){
       while (keepGoing() && !dtlsHandshake.hasKeyingMaterial()){
-        if (!handleWebRTCInputOutput()){udp.sendPaced(10000);}
+        if (!handleWebRTCInputOutput()){udp.sendPaced(10);}else{udp.sendPaced(0);}
         if (lastRecv < Util::bootMS() - 10000){
           WARN_MSG("Killing idle connection in handshake phase");
           onFail("idle connection in handshake phase", false);
@@ -1696,10 +1528,6 @@ namespace Mist{
         }
       }
     }
-    sentHeader = true;
-  }
-
-  void OutWebRTC::sendNext(){
     if (lastRecv < Util::bootMS() - 10000){
       WARN_MSG("Killing idle connection");
       onFail("idle connection", false);

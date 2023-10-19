@@ -1,57 +1,3 @@
-/*
-
-  SOME NOTES ON MIST
-
-     - When a user wants to start pushing video into Mist we need to
-       check if the user is actually allowed to do this. When the user
-       is allowed to push we have to call the function `allowPush("")`.
-
-  SIGNALING
-
-     1. Client sends the offer:
-
-          {
-            type: "offer_sdp",
-            offer_sdp: <the-client-offer-sdp>,
-          }
-
-        Server responds with:
-
-          SUCCESS:
-          {
-            type: "on_answer_sdp",
-            result: true,
-            answer_sdp: <the-server-answer-sdp>,
-          }
-
-          ERROR:
-          {
-            type: "on_answer_sdp",
-            result: false,
-          }
-
-     2. Client request new bitrate:
-
-          {
-            type: "video_bitrate"
-            video_bitrate: 600000
-          }
-
-        Server responds with:
-
-          SUCCESS:
-          {
-            type: "on_video_bitrate"
-            result: true
-          }
-
-          ERROR:
-          {
-             type: "on_video_bitrate"
-             result: false
-          }
-
- */
 #pragma once
 
 #include "output.h"
@@ -128,14 +74,14 @@ namespace Mist{
     OutWebRTC(Socket::Connection &myConn);
     ~OutWebRTC();
     static void init(Util::Config *cfg);
-    virtual void sendHeader();
     virtual void sendNext();
     virtual void onWebsocketFrame();
     virtual void respondHTTP(const HTTP::Parser & req, bool headersOnly);
     virtual void preHTTP(){}
     virtual void preWebsocketConnect();
     virtual bool dropPushTrack(uint32_t trackId, const std::string & dropReason);
-    void onIdle();
+    void handleWebsocketIdle();
+    virtual void onFail(const std::string &msg, bool critical = false);
     bool onFinish();
     bool doesWebsockets(){return true;}
     void handleWebRTCInputOutputFromThread();

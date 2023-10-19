@@ -486,7 +486,7 @@ namespace Mist{
       if (command.isMember("seek_time")){
         possiblyReselectTracks(command["seek_time"].asInt());
       }else{
-        possiblyReselectTracks(currentTime());
+        if (parseData){possiblyReselectTracks(currentTime());}
       }
       return true;
     }

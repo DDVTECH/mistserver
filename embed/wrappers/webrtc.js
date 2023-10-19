@@ -273,7 +273,7 @@ p.prototype.build = function (MistVideo,callback) {
         }
       }
       if (ev.type in me.listeners) {
-        return me.listeners[ev.type].call(me,ev);
+        return me.listeners[ev.type].call(me,("data" in ev)?ev.data:ev);
       }
       MistVideo.log("Unhandled WebRTC event "+ev.type+": "+JSON.stringify(ev));
       return false;

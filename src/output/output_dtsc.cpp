@@ -100,6 +100,14 @@ namespace Mist{
     capa["push_urls"].append("dtsc://*");
     capa["incoming_push_url"] = "dtsc://$host:$port/$stream?pass=$password";
 
+    capa["url_rel"] = "/$";
+
+    capa["methods"][0u]["handler"] = "dtsc";
+    capa["methods"][0u]["type"] = "dtsc";
+    capa["methods"][0u]["hrn"] = "DTSC";
+    capa["methods"][0u]["priority"] = 10;
+
+
     JSON::Value opt;
     opt["arg"] = "string";
     opt["default"] = "";

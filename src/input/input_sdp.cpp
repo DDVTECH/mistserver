@@ -38,8 +38,8 @@ namespace Mist{
     count = 0;
     capa["name"] = "SDP";
     capa["desc"] = "This input allows pulling of RTP packets using a provided SDP file";
-    capa["source_match"].append("*.sdp");
-    capa["always_match"].append("*.sdp");
+    capa["source_match"].append("/*.sdp");
+    capa["always_match"].append("/*.sdp");
     capa["priority"] = 9;
     capa["codecs"]["video"].append("H264");
     capa["codecs"]["video"].append("HEVC");

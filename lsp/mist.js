@@ -4353,7 +4353,7 @@ var UI = {
           
           
           var port = {};
-          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe'];
+          var trythese = ['RTMP','RTSP','RTMP.exe','RTSP.exe','TSSRT','TSSRT.exe'];
           for (var i in trythese) {
             if (trythese[i] in mist.data.capabilities.connectors) {
               port[trythese[i]] = mist.data.capabilities.connectors[trythese[i]].optional.port['default'];
@@ -4364,6 +4364,8 @@ var UI = {
             'RTMP.exe': 1935,
             RTSP: 554,
             'RTSP.exe': 554,
+            TSSRT: -1,
+            'TSSRT.exe': -1,
             TS: -1,
             'TS.exe': -1
           };
@@ -4394,6 +4396,10 @@ var UI = {
                 $livestreamhint.find('.field.RTMPurl').setval(str).closest('label').show();
                 $livestreamhint.find('.field.RTMPkey').setval((streamname == '' ? 'STREAMNAME' : streamname)).closest('label').show();
                 str += (streamname == '' ? 'STREAMNAME' : streamname);
+                break;
+              case 'TSSRT':
+              case 'TSSRT.exe':
+                str = 'srt://'+host.host+useport+'?streamname='+(streamname == '' ? 'STREAMNAME' : streamname);
                 break;
               case 'RTSP':
               case 'RTSP.exe':
@@ -4513,6 +4519,13 @@ var UI = {
                       </td>\
                     </tr>\
                     <tr>\
+                      <th>SRT</th>\
+                      <td>push://(IP)</td>\
+                      <td>\
+                        IP is white listed IP for pushing towards MistServer, if left empty all are white listed.<br>\
+                      </td>\
+                    </tr>\
+                    <tr>\
                       <th>RTSP</th>\
                       <td>push://(IP)(@PASSWORD)</td>\
                       <td>IP is white listed IP for pushing towards MistServer, if left empty all are white listed.</td>\
@@ -4624,6 +4637,13 @@ var UI = {
                       readonly: true,
                       classes: ['RTMPkey'],
                       help: 'Use this key if your client asks for a stream key'
+                    });
+                    fields.push({
+                      label: 'SRT',
+                      type: 'span',
+                      clipboard: true,
+                      readonly: true,
+                      classes: ['TSSRT']
                     });
                     fields.push({
                       label: 'RTSP',

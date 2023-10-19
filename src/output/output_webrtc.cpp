@@ -174,6 +174,9 @@ namespace Mist{
     capa["desc"] = "Provides WebRTC output";
     capa["url_rel"] = "/webrtc/$";
     capa["url_match"] = "/webrtc/$";
+
+    capa["incoming_push_url"] = "http://$host:$port/webrtc/$stream";
+
     capa["codecs"][0u][0u].append("H264");
     capa["codecs"][0u][0u].append("VP8");
     capa["codecs"][0u][0u].append("VP9");

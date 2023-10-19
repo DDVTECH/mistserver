@@ -11,8 +11,8 @@ namespace Mist{
   inputPlaylist::inputPlaylist(Util::Config *cfg) : Input(cfg){
     capa["name"] = "Playlist";
     capa["desc"] = "Enables Playlist Input";
-    capa["source_match"] = "*.pls";
-    capa["always_match"] = "*.pls";
+    capa["source_match"].append("/*.pls");
+    capa["always_match"].append("/*.pls");
     capa["variables_match"] = "*.pls";
     capa["priority"] = 9;
     capa["hardcoded"]["resume"] = 1;

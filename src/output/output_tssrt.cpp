@@ -174,6 +174,14 @@ namespace Mist{
     capa["desc"] = "Real time streaming of TS data over SRT";
     capa["deps"] = "";
 
+    capa["incoming_push_url"] = "srt://$host:$port?streamid=$stream";
+    capa["url_rel"] = "?streamid=$";
+   
+    capa["methods"][0u]["handler"] = "srt";
+    capa["methods"][0u]["type"] = "srt";
+    capa["methods"][0u]["hrn"] = "SRT";
+    capa["methods"][0u]["priority"] = 10;
+
     capa["optional"]["streamname"]["name"] = "Stream";
     capa["optional"]["streamname"]["help"] = "What streamname to serve if no streamid is given by the other end of the connection";
     capa["optional"]["streamname"]["type"] = "str";
@@ -215,6 +223,8 @@ namespace Mist{
     capa["codecs"][0u][2u].append("+JSON");
     capa["codecs"][1u][0u].append("rawts");
     cfg->addConnectorOptions(8889, capa);
+    capa["optional"]["port"]["name"] = "UDP port";
+    capa["optional"]["port"]["help"] = "UDP port to listen on";
     config = cfg;
     capa["push_urls"].append("srt://*");
 

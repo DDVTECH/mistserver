@@ -292,7 +292,7 @@ int main_loop(int argc, char **argv){
   Controller::conf.addOption(
       "logfile", JSON::fromString("{\"long\":\"logfile\", \"short\":\"L\", \"arg\":\"string\" "
                                   "\"default\":\"\",\"help\":\"Redirect all standard output to a "
-                                  "log file, provided with an argument\"}"));
+                                  "log file, provided with an argument.\"}"));
   Controller::conf.addOption(
       "accesslog", JSON::fromString("{\"long\":\"accesslog\", \"short\":\"A\", \"arg\":\"string\" "
                                     "\"default\":\"LOG\",\"help\":\"Where to write the access log. "

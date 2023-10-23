@@ -423,6 +423,13 @@ namespace Mist{
       while (keys.getValidCount() > 1 && (M.getLastms(i) - keys.getTime(keys.getFirstValid() + 1)) > bufferTime){
         if (!removeKey(i)){break;}
       }
+      Util::RelAccX &tPages = meta.pages(i);
+      Util::RelAccXFieldData firstKeyEnt = tPages.getFieldData("firstkey");
+      Util::RelAccXFieldData keyCount = tPages.getFieldData("keycount");
+      for (uint32_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
+        if (tPages.getInt(firstKeyEnt, j) + tPages.getInt(keyCount, j) > firstKey){break;}
+        bufferRemove(i, tPages.getInt(firstKeyEnt, j), j);
+      }
     }
     updateMeta();
   }

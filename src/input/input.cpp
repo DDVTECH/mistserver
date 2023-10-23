@@ -43,27 +43,32 @@ namespace Mist{
     if (endKey > key + 1000){endKey = key + 1000;}
     DONTEVEN_MSG("User with ID:%zu is on %zu:%zu -> %zu (timestamp %" PRIu64 ")", id, track, key, endKey, time);
     for (size_t i = key; i <= endKey; ){
-
-
       const Util::RelAccX &tPages = M.pages(track);
+      Util::RelAccXFieldData firstkeyEntry = tPages.getFieldData("firstkey");
+      Util::RelAccXFieldData keyCountEntry = tPages.getFieldData("keycount");
       if (!tPages.getEndPos()){return;}
       DTSC::Keys keys(M.keys(track));
       if (i > keys.getEndValid()){return;}
-      uint64_t pageIdx = 0;
+      bool found = false;
+      uint64_t cnt = 1, pageNumber = 0;
       for (uint64_t j = tPages.getDeleted(); j < tPages.getEndPos(); j++){
-        uint64_t thisKey = tPages.getInt("firstkey", j);
-        if (thisKey > i) break;
-        pageIdx = j;
+        pageNumber = tPages.getInt(firstkeyEntry, j);
+        cnt = tPages.getInt(keyCountEntry, j);
+        if (pageNumber <= i && pageNumber + cnt > i){
+          found = true;
+          break;
+        }
       }
-      uint32_t pageNumber = tPages.getInt("firstkey", pageIdx);
+      // Could not find key? Then we're done here.
+      if (!found){return;}
       uint64_t pageTime = M.getTimeForKeyIndex(track, pageNumber);
-      if (pageTime < time){
+      if (pageTime <= time){
         keyLoadPriority[trackKey(track, pageNumber)] += 10000;
       }else{
         keyLoadPriority[trackKey(track, pageNumber)] += 600 - (pageTime - time) / 1000;
       }
-      uint64_t cnt = tPages.getInt("keycount", pageIdx);
-      if (pageNumber + cnt <= i){return;}
+      // Make sure we always progress, even in edge cases where there is no full key buffered yet
+      if (!cnt){cnt = 1;}
       i = pageNumber + cnt;
     }
     //Now, we can rest assured that the next ~120 seconds or so is pre-buffered in RAM.
@@ -1663,7 +1668,7 @@ namespace Mist{
         }
       }
     }
-    bufferFinalize(idx, page);
+    page.close();
     bufferTimer = Util::bootMS() - bufferTimer;
     if (packCounter < tPages.getInt("parts", pageIdx)){
       FAIL_MSG("Track %zu, page %" PRIu32 " (" PRETTY_PRINT_MSTIME " - " PRETTY_PRINT_MSTIME ") NOT FULLY buffered in %" PRIu64 "ms - erasing for later retry",

@@ -2282,47 +2282,8 @@ namespace DTSC{
       t.fragments.deleteRecords(1);
       setMissedFragments(trackIdx, getMissedFragments(trackIdx) + 1);
     }
-    // Check if any page contains the just-deleted key
-    for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
-
-      uint64_t thisKey = t.pages.getInt("firstkey", i);
-      uint64_t avtmp = t.pages.getInt("avail", i);
-      uint64_t keycount = t.pages.getInt("keycount", i);
-      DONTEVEN_MSG("Found page idx=%lu number=%lu avail=%lu, keycount=%lu", i, thisKey, avtmp, keycount);
-
-      uint64_t pageNum = t.pages.getInt("firstkey", i);
-      if (pageNum > deletedKeyNum) continue;
-      uint64_t keyCount = t.pages.getInt("keycount", i);
-      if (keyCount){
-        if (pageNum + keyCount - 1 < deletedKeyNum) continue;
-      }else if (pageNum < deletedKeyNum) continue;
-
-      uint64_t avail = t.pages.getInt("avail", i);
-      if (avail){
-        break;
-      }
-      // 'Resize' the page to whatever keys are still available
-      if (t.pages.getInt("keycount", i) > 1){
-        DONTEVEN_MSG("Key count %lu -> %lu", t.pages.getInt("keycount", i), t.pages.getInt("keycount", i) - 1);
-        t.pages.setInt("keycount", t.pages.getInt("keycount", i) - 1, i);
-        DONTEVEN_MSG("Part count %lu -> %lu", t.pages.getInt("parts", i), t.pages.getInt("parts", i) - deletedPartCount);
-        t.pages.setInt("parts", t.pages.getInt("parts", i) - deletedPartCount, i);
-        DONTEVEN_MSG("First key %lu -> %lu", t.pages.getInt("firstkey", i), t.pages.getInt("firstkey", i) + 1);
-        t.pages.setInt("firstkey", t.pages.getInt("firstkey", i) + 1, i);
-        break;
-      }
-      // Unload the page if there are no more keys left on it
-      // Initialize the correct page, make it master so it gets cleaned up when leaving scope.
-      char thisPageName[NAME_BUFFER_SIZE];
-      snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-               (uint32_t)t.pages.getInt("firstkey", t.pages.getDeleted()));
-      IPC::sharedPage p(thisPageName, 20971520, false, false);
-      p.master = true;
-
-      // Then delete the page entry
-      t.pages.deleteRecords(1);
-      break;
-    }
+    // Note: pages are not deleted here, but instead deleted by Input::removeUnused (or a child-override)
+    // This is fine, as pages can (and will, at least temporarily) exist for data we no longer fully have in stream metadata
     setFirstms(trackIdx, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
     if (resizeLock){resizeLock.unlink();}
     return true;

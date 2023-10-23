@@ -134,9 +134,8 @@ namespace Mist{
   ///\param tid The trackid to remove the page from
   ///\param pageNumber The number of the page to remove
   void InOutBase::bufferRemove(size_t idx, uint32_t pageNumber, uint32_t pageIdx){
-    if (!standAlone){// A different process will handle this for us
-      return;
-    }
+    if (!standAlone){return;}// A different process will handle this for us
+
     Util::RelAccX &tPages = meta.pages(idx);
     Util::RelAccXFieldData firstKey = tPages.getFieldData("firstkey");
 
@@ -150,7 +149,7 @@ namespace Mist{
     }
     // If the given pagenumber is not a valid page on this track, do nothing
     if (pageIdx == INVALID_KEY_NUM){
-      INFO_MSG("Can't remove page %" PRIu32 " on track %zu as it is not a valid page number.", pageNumber, idx);
+      WARN_MSG("Can't remove page %" PRIu32 " on track %zu as it is not a valid page number.", pageNumber, idx);
       return;
     }
 
@@ -173,12 +172,11 @@ namespace Mist{
 #endif
     toErase.master = true;
     // Update the page on the tracks index page if needed
-    uint64_t firstKeyNum = tPages.getInt("firstkey", pageIdx);
+    uint64_t firstKeyNum = tPages.getInt(firstKey, pageIdx);
     uint64_t keyCount = tPages.getInt("keycount", pageIdx);
-    uint64_t partCount = tPages.getInt("parts", pageIdx);
     uint64_t newFirstKey = M.getKeys(idx).getFirstValid();
     if (firstKeyNum + keyCount <= newFirstKey){
-      INFO_MSG("Page %" PRIu64 " track %zu has expired during the time it was kept cached in memory (contains up to key %lu, but the earliest key is %lu). Removing it now", firstKeyNum, idx, firstKeyNum + keyCount, newFirstKey);
+      HIGH_MSG("Page %" PRIu64 " track %zu has expired during the time it was kept cached in memory (contains up to key %lu, but the earliest key is %lu). Removing it now", firstKeyNum, idx, firstKeyNum + keyCount, newFirstKey);
       tPages.setInt("keycount", 0, pageIdx); //< Force removal by having avail and keycount both 0
     }else if (firstKeyNum < newFirstKey){
       uint64_t newPartCount = 0;
@@ -186,7 +184,8 @@ namespace Mist{
       for (uint32_t i = newFirstKey; i < firstKeyNum + keyCount; i++){
         newPartCount += keys.getParts(i);
       }
-      MEDIUM_MSG("Adjusting meta info for page %lu track %lu before unloading it. First key %lu -> %lu. Key count %lu -> %lu. Part count %lu -> %lu", firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
+      uint64_t partCount = tPages.getInt("parts", pageIdx);
+      HIGH_MSG("Adjusting meta info for page %lu track %lu before unloading it. First key %lu -> %lu. Key count %lu -> %lu. Part count %lu -> %lu", firstKeyNum, idx, firstKeyNum, newFirstKey, keyCount, keyCount - (newFirstKey - firstKeyNum), partCount, newPartCount);
       tPages.setInt("keycount", keyCount - (newFirstKey - firstKeyNum), pageIdx);
       tPages.setInt("parts", newPartCount, pageIdx);
       tPages.setInt("firstkey", newFirstKey, pageIdx);
@@ -328,37 +327,7 @@ namespace Mist{
   /// \param idx The track index of the page to finalize
   void InOutBase::liveFinalize(size_t idx){
     if (!livePage.count(idx)){return;}
-    bufferFinalize(idx, livePage[idx]);
-  }
-
-  /// Wraps up the buffering of a shared memory data page
-  /// \param idx The track index of the page to finalize
-  void InOutBase::bufferFinalize(size_t idx, IPC::sharedPage & page){
-    // If no page is open, do nothing
-    if (!page){
-      WARN_MSG("Trying to finalize the current page on track %zu, but no page is initialized", idx);
-      return;
-    }
-
-/// \TODO META Re-Implement for Cygwin/Win32!
-#if defined(__CYGWIN__) || defined(_WIN32)
-    /*
-    static int wipedAlready = 0;
-    if (lowest && lowest > wipedAlready + 1){
-      for (int curr = wipedAlready + 1; curr < lowest; ++curr){
-        char pageId[NAME_BUFFER_SIZE];
-        snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), idx, curr);
-        IPC::releasePage(std::string(pageId));
-      }
-    }
-    // Print a message about registering the page or not.
-    if (inserted){IPC::preservePage(curPage[idx].name);}
-    */
-#endif
-    // Close our link to the page. This will NOT destroy the shared page, as we've set master to
-    // false upon construction Note: if there was a registering failure above, this WILL destroy the
-    // shared page, to prevent a memory leak
-    page.close();
+    livePage[idx].close();
   }
 
   /// Buffers a live packet to a page.
@@ -492,7 +461,7 @@ namespace Mist{
           tPages.setInt("parts", 0, endPage);
           tPages.setInt("lastkeytime", 0, endPage);
           tPages.addRecords(1);
-          if (livePage[packTrack]){bufferFinalize(packTrack, livePage[packTrack]);}
+          if (livePage[packTrack]){livePage[packTrack].close();}
           DONTEVEN_MSG("Opening new page #%zu to track %" PRIu32, curPageNum[packTrack], packTrack);
           if (!bufferStart(packTrack, curPageNum[packTrack], livePage[packTrack], aMeta)){
             // if this fails, return instantly without actually buffering the packet
@@ -513,7 +482,7 @@ namespace Mist{
     if (!livePage[packTrack].exists()){
       WARN_MSG("Data page '%s' was deleted - forcing source shutdown to prevent unstable state", livePage[packTrack].name.c_str());
       Util::logExitReason(ER_SHM_LOST, "data page was deleted, forcing shutdown to prevent unstable state");
-      bufferFinalize(packTrack, livePage[packTrack]);
+      livePage[packTrack].close();
       kill(getpid(), SIGINT);
       return;
     }

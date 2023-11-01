@@ -149,7 +149,7 @@ namespace Mist{
     }
     // If the given pagenumber is not a valid page on this track, do nothing
     if (pageIdx == INVALID_KEY_NUM){
-      WARN_MSG("Can't remove page %" PRIu32 " on track %zu as it is not a valid page number.", pageNumber, idx);
+      INFO_MSG("Can't remove page %" PRIu32 " on track %zu as the page has already been unloaded", pageNumber, idx);
       return;
     }
 

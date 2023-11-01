@@ -2285,6 +2285,34 @@ namespace DTSC{
     // Note: pages are not deleted here, but instead deleted by Input::removeUnused (or a child-override)
     // This is fine, as pages can (and will, at least temporarily) exist for data we no longer fully have in stream metadata
     setFirstms(trackIdx, t.keys.getInt(t.keyTimeField, t.keys.getDeleted()));
+
+    // Update page info
+    Util::RelAccX &tPages = pages(trackIdx);
+    uint32_t firstPage = tPages.getDeleted();
+    uint32_t keyCount = tPages.getInt("keycount", firstPage);
+    uint32_t firstKey = tPages.getInt("firstkey", firstPage);
+    // Delete the page if this was the last key
+    if (firstKey + keyCount <= deletedKeyNum + 1){
+      if (tPages.getInt("avail", firstPage)){
+        // Open the correct page
+        char pageId[NAME_BUFFER_SIZE];
+        snprintf(pageId, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx, firstKey);
+        std::string pageName(pageId);
+        IPC::sharedPage toErase;
+        toErase.init(pageName, 0, false, false);
+        // Set the master flag so that the page will be destroyed once it leaves scope
+        #if defined(__CYGWIN__) || defined(_WIN32)
+          IPC::releasePage(pageName);
+        #endif
+        toErase.master = true;
+      }
+      tPages.deleteRecords(1);
+    } else if (tPages.getInt("avail", firstPage) == 0){
+      tPages.setInt("keycount", keyCount - 1, firstPage);
+      tPages.setInt("parts", tPages.getInt("parts", firstPage) - deletedPartCount, firstPage);
+      tPages.setInt("firstkey", deletedKeyNum + 1, firstPage);
+    }
+
     if (resizeLock){resizeLock.unlink();}
     return true;
   }

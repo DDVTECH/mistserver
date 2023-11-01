@@ -1179,7 +1179,7 @@ namespace Mist{
       while (true) {
         DTSC::Keys keys = M.getKeys(trackIdx->first);
         // Stop if the earliest key is still in the playlist
-        if (listEntries[currentPlaylist].front().bytePos < keys.getBpos(keys.getFirstValid())){
+        if (listEntries[currentPlaylist].front().bytePos <= keys.getBpos(keys.getFirstValid())){
           break;
         }
         // Stop if earliest key is still in the buffer window
@@ -1403,10 +1403,10 @@ namespace Mist{
       playListEntries &entry = curPlaylist.at(currentIndex);
       segDowner.loadSegment(entry);
       // If we have an offset, load it
+      allowRemap = false;
       if (entry.timeOffset){
         HIGH_MSG("Setting time offset of this TS segment to %" PRId64, entry.timeOffset);
         plsTimeOffset[currentPlaylist] = entry.timeOffset;
-        allowRemap = false;
       }
     }
 
@@ -1763,14 +1763,13 @@ namespace Mist{
       ERROR_MSG("Could not download segment: %s", ntry.filename.c_str());
       return readNextFile(); // Attempt to read another, if possible.
     }
+    allowRemap = false;
     // If we have an offset, load it
     if (ntry.timeOffset){
       plsTimeOffset[currentPlaylist] = ntry.timeOffset;
-      allowRemap = false;
     // Else allow of the offset to be set by getPacketTime
     }else{
       nUTC = ntry.mUTC;
-      allowRemap = true;
     }
     return true;
   }

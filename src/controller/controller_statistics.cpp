@@ -1863,7 +1863,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
         DTSC::Meta M(it->first, false, false);
         if (M){
           std::string host = M.getSource();
-          if (M.getSource().find("INTERNAL_ONLY:dtsc:") != std::string::npos){
+          if (host.find("INTERNAL_ONLY:dtsc:") != std::string::npos){
             std::set<size_t> trks = M.getValidTracks(true);
             if (trks.size()){
               uint64_t lms = 0;
@@ -1874,6 +1874,26 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
               host = host.substr(host.find("dtsc:"));
               host = HTTP::URL(host).host;
               response << "mist_latency{stream=\"" << it->first << "\",source=\"" << host << "\"}" << lateDiff << "\n";
+            }
+          }else if(host.size() >= 7 && host.substr(0, 7) == "push://"){
+            std::set<size_t> trks = M.getValidTracks(true);
+            bool gotOne = false;
+            uint64_t delay = 0;
+            uint64_t jitter = 0;
+            for (std::set<size_t>::iterator it = trks.begin(); it != trks.end(); ++it){
+              if (M.getType(*it) != "video"){continue;} // Skip non-video tracks
+              size_t srcTrk = M.getSourceTrack(*it);
+              if (srcTrk == INVALID_TRACK_ID){continue;} // Skip tracks without a source track
+              int64_t diff = M.getLastms(srcTrk) - M.getLastms(*it);
+              if (diff > delay){
+                gotOne = true;
+                delay = diff;
+                jitter = M.getMinKeepAway(*it);
+              }
+            }
+            if (gotOne){
+              response << "mist_transcode_latency{stream=\"" << it->first << "\"}" << delay << "\n";
+              response << "mist_transcode_jitter{stream=\"" << it->first << "\"}" << jitter << "\n";
             }
           }
         }

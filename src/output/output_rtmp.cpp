@@ -154,7 +154,7 @@ namespace Mist{
       return;
     }
     *((uint32_t *)temp) = 0;                         // time zero
-    *(((uint32_t *)(temp + 4))) = htonl(0x01020304); // version 1 2 3 4
+    *(((uint32_t *)(temp + 4))) = 0; // version 0
     for (int i = 8; i < 3072; ++i){
       temp[i] = FILLER_DATA[i % sizeof(FILLER_DATA)];
     }//"random" data

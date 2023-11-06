@@ -230,7 +230,7 @@ namespace Mist{
 
   bool Output::isReadyForPlay(){
     // If a protocol does not support any codecs, we assume you know what you're doing
-    if (!capa.isMember("codecs")){return true;}
+    if (!capa.isMember("codecs") || !capa["codecs"].size() || !capa["codecs"].isArray() || !capa["codecs"][0u].size()){return true;}
 
     // Defaults for the below values are configured here, and may be overridden with query parameters:
     size_t minTracks = 2; // Supported tracks to attempt to wait for

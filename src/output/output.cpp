@@ -2111,6 +2111,7 @@ namespace Mist{
         if (nxt.ghostPacket){
           nxt.time = M.getNowms(nxt.tid);
           buffer.replaceFirst(nxt);
+          playbackSleep(5);
           return false;
         }
         if (nxt.offset >= curPage[nxt.tid].len){

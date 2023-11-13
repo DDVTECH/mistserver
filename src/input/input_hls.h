@@ -26,9 +26,9 @@ namespace Mist{
     std::string relative_filename;
     uint64_t bytePos;
     uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
-    float duration;
-    uint64_t timestamp;
-    int64_t timeOffset;
+    float duration; ///< Duration of entry in seconds
+    uint64_t timestamp; ///< zUTC-based timestamp for this entry
+    int64_t timeOffset; ///< Value timestamps in the media are shifted by to get zUTC-based timestamps
     uint64_t wait;
     char ivec[16];
     char keyAES[16];
@@ -96,6 +96,7 @@ namespace Mist{
     uint64_t waitTime;
     uint64_t lastTimestamp;
     uint64_t startTime;
+    int64_t oUTC;
     uint64_t nextUTC; ///< If non-zero, the UTC timestamp of the next segment on this playlist
     char keyAES[16];
     std::map<std::string, std::string> keys;

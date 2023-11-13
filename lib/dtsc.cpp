@@ -1036,6 +1036,9 @@ namespace DTSC{
     setID(tIdx, trak.getMember("trackid").asInt());
     setFirstms(tIdx, trak.getMember("firstms").asInt());
     setLastms(tIdx, trak.getMember("lastms").asInt());
+    if (trak.hasMember("nowms")){
+      setNowms(tIdx, trak.getMember("nowms").asInt());
+    }
     setBps(tIdx, trak.getMember("bps").asInt());
     setMaxBps(tIdx, trak.getMember("maxbps").asInt());
     setSourceTrack(tIdx, INVALID_TRACK_ID);
@@ -1774,6 +1777,7 @@ namespace DTSC{
     t.track.addField("codec", RAX_STRING, 8);
     t.track.addField("firstms", RAX_64UINT);
     t.track.addField("lastms", RAX_64UINT);
+    t.track.addField("nowms", RAX_64UINT);
     t.track.addField("bps", RAX_32UINT);
     t.track.addField("maxbps", RAX_32UINT);
     t.track.addField("lang", RAX_STRING, 4);
@@ -2014,6 +2018,9 @@ namespace DTSC{
   void Meta::setLastms(size_t trackIdx, uint64_t lastms){
     DTSC::Track &t = tracks.at(trackIdx);
     t.track.setInt(t.trackLastmsField, lastms);
+    if (t.trackNowmsField && t.track.getInt(t.trackNowmsField) < lastms){
+      t.track.setInt(t.trackNowmsField, lastms);
+    }
   }
   uint64_t Meta::getLastms(size_t trackIdx) const{
     const DTSC::Track &t = tracks.find(trackIdx)->second;
@@ -2539,6 +2546,7 @@ namespace DTSC{
     t.fragments.setInt(t.fragmentSizeField,
                        t.fragments.getInt(t.fragmentSizeField, lastFragNum) + packDataSize, lastFragNum);
     t.track.setInt(t.trackLastmsField, packTime);
+    t.track.setInt(t.trackNowmsField, packTime);
     markUpdated(tNumber);
   }
 
@@ -3202,7 +3210,7 @@ namespace DTSC{
     const Util::RelAccX &keys = trk.keys;
     const Util::RelAccX &parts = trk.parts;
     if (!keys.getEndPos()){return INVALID_KEY_NUM;}
-    size_t res = keys.getStartPos();
+    size_t res = keys.getDeleted();
     for (size_t i = res; i < keys.getEndPos(); i++){
       if (keys.getInt(trk.keyTimeField, i) > time){
         //It's possible we overshot our timestamp, but the previous key does not contain it.

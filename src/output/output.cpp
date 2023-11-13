@@ -896,6 +896,23 @@ namespace Mist{
     while (tmp.time < pos && tmpPack){
       tmp.offset += tmpPack.getDataLen();
       tmpPack.reInit(mpd + tmp.offset, 0, true);
+      if (!tmpPack){
+        nowMs = M.getNowms(tid);
+        if (M.getLastms(tid) <= tmp.time && nowMs > tmp.time){
+          // Okay, we're awaiting more data, let's insert a ghost packet instead.
+          break;
+        }
+        uint64_t timeOut = Util::bootMS() + 10000;
+        while (Util::bootMS() < timeOut && !tmpPack){
+          Util::sleep(50);
+          tmpPack.reInit(mpd + tmp.offset, 0, true);
+        }
+        if (!tmpPack){
+          WARN_MSG("Aborting seek to %" PRIu64 "ms in track %zu: timeout", pos, tid);
+          userSelect.erase(tid);
+          return false;
+        }
+      }
       tmp.time = tmpPack.getTime();
     }
     if (tmpPack){

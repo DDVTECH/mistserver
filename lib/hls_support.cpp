@@ -699,7 +699,7 @@ namespace HLS{
   u_int64_t getInitFragment(const DTSC::Meta &M, const MasterData &masterData){
     if (M.getLive()){
       DTSC::Fragments fragments(M.fragments(masterData.mainTrack));
-      DTSC::Keys keys(M.keys(masterData.mainTrack));
+      DTSC::Keys keys(M.getKeys(masterData.mainTrack));
       u_int64_t iFrag = std::max(fragments.getEndValid() -
                                      (masterData.noLLHLS ? 10 : getLiveLengthLimit(masterData)),
                                  fragments.getFirstValid());

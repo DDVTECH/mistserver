@@ -30,8 +30,146 @@ uint32_t res_x = 0;
 uint32_t res_y = 0;
 Mist::OutENC Enc;
 
+
+//Stat related stuff
+JSON::Value pStat;
+JSON::Value & pData = pStat["proc_status_update"]["status"];
+tthread::mutex statsMutex;
+uint64_t statSinkMs = 0;
+uint64_t statSourceMs = 0;
+int64_t bootMsOffset = 0;
+
+namespace Mist{
+  class ProcessSink : public InputEBML{
+  public:
+    ProcessSink(Util::Config *cfg) : InputEBML(cfg){
+      capa["name"] = "FFMPEG";
+    };
+    void getNext(size_t idx = INVALID_TRACK_ID){
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        if (pData["sink_tracks"].size() != userSelect.size()){
+          pData["sink_tracks"].null();
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            pData["sink_tracks"].append((uint64_t)it->first);
+          }
+        }
+      }
+      static bool recurse = false;
+      if (recurse){return InputEBML::getNext(idx);}
+      recurse = true;
+      InputEBML::getNext(idx);
+      recurse = false;
+      uint64_t pTime = thisPacket.getTime();
+      if (thisPacket){
+        if (!getFirst){
+          packetTimeDiff = sendPacketTime - pTime;
+          getFirst = true;
+        }
+        pTime += packetTimeDiff;
+        // change packettime
+        char *data = thisPacket.getData();
+        Bit::htobll(data + 12, pTime);
+        if (pTime >= statSinkMs){statSinkMs = pTime;}
+        if (meta && meta.getBootMsOffset() != bootMsOffset){meta.setBootMsOffset(bootMsOffset);}
+      }
+    }
+    void setInFile(int stdin_val){
+      inFile.open(stdin_val);
+      streamName = opt["sink"].asString();
+      if (!streamName.size()){streamName = opt["source"].asString();}
+      Util::streamVariables(streamName, opt["source"].asString());
+      Util::setStreamName(opt["source"].asString() + "→" + streamName);
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        pStat["proc_status_update"]["sink"] = streamName;
+        pStat["proc_status_update"]["source"] = opt["source"];
+      }
+      if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
+        DTSC::trackValidDefault = opt["target_mask"].asInt();
+      }
+    }
+    bool needsLock(){return false;}
+    bool isSingular(){return false;}
+    void connStats(Comms::Connections &statComm){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
+      }
+      InputEBML::connStats(statComm);
+    }
+  };
+
+  class ProcessSource : public OutEBML{
+  public:
+    bool isRecording(){return false;}
+    ProcessSource(Socket::Connection &c) : OutEBML(c){
+      capa["name"] = "FFMPEG";
+      targetParams["keeptimes"] = true;
+      realTime = 0;
+    };
+    virtual bool onFinish(){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        if (userSelect.size()){
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            INFO_MSG("Unmasking source track %zu" PRIu64, it->first);
+            meta.validateTrack(it->first, TRACK_VALID_ALL);
+          }
+        }
+      }
+      return OutEBML::onFinish();
+    }
+    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true){
+      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
+        INFO_MSG("Unmasking source track %zu" PRIu64, trackId);
+        meta.validateTrack(trackId, TRACK_VALID_ALL);
+      }
+      OutEBML::dropTrack(trackId, reason, probablyBad);
+    }
+    void sendHeader(){
+      if (opt["source_mask"].asBool()){
+        for (std::map<size_t, Comms::Users>::iterator ti = userSelect.begin(); ti != userSelect.end(); ++ti){
+          if (ti->first == INVALID_TRACK_ID){continue;}
+          INFO_MSG("Masking source track %zu", ti->first);
+          meta.validateTrack(ti->first, meta.trackValid(ti->first) & ~(TRACK_VALID_EXT_HUMAN | TRACK_VALID_EXT_PUSH));
+        }
+      }
+      realTime = 0;
+      OutEBML::sendHeader();
+    };
+    void connStats(uint64_t now, Comms::Connections &statComm){
+      for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+        if (it->second){it->second.setStatus(COMM_STATUS_DONOTTRACK | it->second.getStatus());}
+      }
+      OutEBML::connStats(now, statComm);
+    }
+    void sendNext(){
+      {
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        if (pData["source_tracks"].size() != userSelect.size()){
+          pData["source_tracks"].null();
+          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
+            pData["source_tracks"].append((uint64_t)it->first);
+          }
+        }
+      }
+      if (thisTime > statSourceMs){statSourceMs = thisTime;}
+      needsLookAhead = 0;
+      maxSkipAhead = 0;
+      if (!sendFirst){
+        sendPacketTime = thisPacket.getTime();
+        bootMsOffset = M.getBootMsOffset();
+        sendFirst = true;
+      }
+      OutEBML::sendNext();
+    }
+  };
+
+}
+
+
+
 void sinkThread(void *){
-  Mist::EncodeInputEBML in(&co);
+  Mist::ProcessSink in(&co);
   co.getOption("output", true).append("-");
   co.activate();
 
@@ -45,7 +183,7 @@ void sinkThread(void *){
 }
 
 void sourceThread(void *){
-  Mist::EncodeOutputEBML::init(&conf);
+  Mist::ProcessSource::init(&conf);
   conf.getOption("streamname", true).append(opt["source"].c_str());
 
   if (Enc.isAudio){
@@ -60,7 +198,7 @@ void sourceThread(void *){
   conf.is_active = true;
 
   Socket::Connection c(pipein[1], 0);
-  Mist::EncodeOutputEBML out(c);
+  Mist::ProcessSource out(c);
 
   MEDIUM_MSG("Running source thread...");
   out.run();
@@ -96,7 +234,7 @@ int main(int argc, char *argv[]){
     capa["name"] = "FFMPEG";                                             // internal name of process
     capa["hrn"] = "Encoder: FFMPEG";                                     // human readable name
     capa["desc"] = "Use a local FFMPEG installed binary to do encoding"; // description
-    capa["sort"] = "n"; // sort the parameters by this key
+    capa["sort"] = "sort"; // sort the parameters by this key
 
     capa["optional"]["source_mask"]["name"] = "Source track mask";
     capa["optional"]["source_mask"]["help"] = "What internal processes should have access to the source track(s)";
@@ -112,6 +250,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["source_mask"]["select"][4u][0u] = 5;
     capa["optional"]["source_mask"]["select"][4u][1u] = "Processing and viewer tasks (not pushes)";
     capa["optional"]["source_mask"]["default"] = "";
+    capa["optional"]["source_mask"]["sort"] = "dba";
 
     capa["optional"]["target_mask"]["name"] = "Output track mask";
     capa["optional"]["target_mask"]["help"] = "What internal processes should have access to the output track(s)";
@@ -135,10 +274,12 @@ int main(int argc, char *argv[]){
     capa["optional"]["target_mask"]["select"][8u][0u] = 0;
     capa["optional"]["target_mask"]["select"][8u][1u] = "Nothing";
     capa["optional"]["target_mask"]["default"] = "";
+    capa["optional"]["target_mask"]["sort"] = "dca";
 
     capa["optional"]["exit_unmask"]["name"] = "Undo masks on process exit/fail";
     capa["optional"]["exit_unmask"]["help"] = "If/when the process exits or fails, the masks for input tracks will be reset to defaults. (NOT to previous value, but to defaults!)";
     capa["optional"]["exit_unmask"]["default"] = false;
+    capa["optional"]["exit_unmask"]["sort"] = "dda";
 
     capa["required"]["x-LSP-kind"]["name"] = "Input type"; // human readable name of option
     capa["required"]["x-LSP-kind"]["help"] = "The type of input to use"; // extra information
@@ -147,19 +288,21 @@ int main(int argc, char *argv[]){
     capa["required"]["x-LSP-kind"]["select"][0u][1u] = "Video"; // label of first select field
     capa["required"]["x-LSP-kind"]["select"][1u][0u] = "audio";
     capa["required"]["x-LSP-kind"]["select"][1u][1u] = "Audio";
-    capa["required"]["x-LSP-kind"]["n"] = 0; // sorting index
-    capa["required"]["x-LSP-kind"]["influences"][0u] =
-        "codec"; // changing this parameter influences the parameters listed here
-    capa["required"]["x-LSP-kind"]["influences"][1u] = "resolution";
-    capa["required"]["x-LSP-kind"]["influences"][2u] = "sources";
-    capa["required"]["x-LSP-kind"]["influences"][3u] = "x-LSP-rate_or_crf";
+    capa["required"]["x-LSP-kind"]["sort"] = "aaaa"; // sorting index
+    capa["required"]["x-LSP-kind"]["influences"].append("codec");
+    capa["required"]["x-LSP-kind"]["influences"].append("resolution");
+    capa["required"]["x-LSP-kind"]["influences"].append("sources");
+    capa["required"]["x-LSP-kind"]["influences"].append("x-LSP-rate_or_crf");
+    capa["required"]["x-LSP-kind"]["influences"].append("keys");
+    capa["required"]["x-LSP-kind"]["influences"].append("keyfrms");
+    capa["required"]["x-LSP-kind"]["influences"].append("keysecs");
     capa["required"]["x-LSP-kind"]["value"] = "video"; // preselect this value
 
     capa["optional"]["source_track"]["name"] = "Input selection";
     capa["optional"]["source_track"]["help"] =
         "Track ID, codec or language of the source stream to encode.";
     capa["optional"]["source_track"]["type"] = "string";
-    capa["optional"]["source_track"]["n"] = 1;
+    capa["optional"]["source_track"]["sort"] = "aaa";
     capa["optional"]["source_track"]["default"] = "automatic";
     capa["optional"]["source_track"]["validate"][0u] = "track_selector_parameter";
 
@@ -170,7 +313,7 @@ int main(int argc, char *argv[]){
     capa["required"]["codec"][0u]["select"][0u] = "H264";
     capa["required"]["codec"][0u]["select"][1u] = "VP9";
     capa["required"]["codec"][0u]["influences"][0u] = "crf";
-    capa["required"]["codec"][0u]["n"] = 2;
+    capa["required"]["codec"][0u]["sort"] = "aaab";
     capa["required"]["codec"][0u]["dependent"]["x-LSP-kind"] =
         "video"; // this field is only shown if x-LSP-kind is set to "video"
 
@@ -182,7 +325,7 @@ int main(int argc, char *argv[]){
     capa["required"]["codec"][1u]["select"][2u][0u] = "opus";
     capa["required"]["codec"][1u]["select"][2u][1u] = "Opus";
     capa["required"]["codec"][1u]["influences"][0u] = "x-LSP-rate_or_crf";
-    capa["required"]["codec"][1u]["n"] = 2;
+    capa["required"]["codec"][1u]["sort"] = "aaab";
     capa["required"]["codec"][1u]["dependent"]["x-LSP-kind"] = "audio";
 
     capa["optional"]["sink"]["name"] = "Target stream";
@@ -191,12 +334,13 @@ int main(int argc, char *argv[]){
     capa["optional"]["sink"]["placeholder"] = "source stream";
     capa["optional"]["sink"]["type"] = "str";
     capa["optional"]["sink"]["validate"][0u] = "streamname_with_wildcard_and_variables";
-    capa["optional"]["sink"]["n"] = 3;
+    capa["optional"]["sink"]["sort"] = "daa";
 
     capa["optional"]["resolution"]["name"] = "resolution";
-    capa["optional"]["resolution"]["help"] = "Resolution of the output stream";
+    capa["optional"]["resolution"]["help"] = "Resolution of the output stream, e.g. 1920x1080";
     capa["optional"]["resolution"]["type"] = "str";
-    capa["optional"]["resolution"]["n"] = 4;
+    capa["optional"]["resolution"]["default"] = "keep source resolution";
+    capa["optional"]["resolution"]["sort"] = "aca";
     capa["optional"]["resolution"]["dependent"]["x-LSP-kind"] = "video";
 
     capa["optional"]["x-LSP-rate_or_crf"][0u]["name"] = "Quality";
@@ -207,7 +351,7 @@ int main(int argc, char *argv[]){
     capa["optional"]["x-LSP-rate_or_crf"][0u]["select"][1u][1u] = "Target bitrate";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["select"][2u][0u] = "crf";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["select"][2u][1u] = "Target constant rate factor";
-    capa["optional"]["x-LSP-rate_or_crf"][0u]["n"] = 5;
+    capa["optional"]["x-LSP-rate_or_crf"][0u]["sort"] = "caa";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["influences"][0u] = "crf";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["influences"][1u] = "rate";
     capa["optional"]["x-LSP-rate_or_crf"][0u]["dependent"]["x-LSP-kind"] = "video";
@@ -218,31 +362,123 @@ int main(int argc, char *argv[]){
     capa["optional"]["x-LSP-rate_or_crf"][1u]["select"][0u][1u] = "automatic";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["select"][1u][0u] = "rate";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["select"][1u][1u] = "Target bitrate";
-    capa["optional"]["x-LSP-rate_or_crf"][1u]["n"] = 5;
+    capa["optional"]["x-LSP-rate_or_crf"][0u]["sort"] = "caa";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["influences"][0u] = "rate";
     capa["optional"]["x-LSP-rate_or_crf"][1u]["dependent"]["x-LSP-kind"] = "audio";
 
-    capa["optional"]["crf"][0u]["help"] = "Video quality";
+    capa["optional"]["crf"][0u]["help"] = "Video quality, ranging from 0 (best) to 51 (worst). This value automatically scales with resolution. Around 17 is 'visually lossless', and we find 25 to be a reasonable trade off between quality and bit rate but your mileage may vary.";
     capa["optional"]["crf"][0u]["min"] = "0";
     capa["optional"]["crf"][0u]["max"] = "51";
     capa["optional"]["crf"][0u]["type"] = "int";
     capa["optional"]["crf"][0u]["dependent"]["codec"] = "H264";
     capa["optional"]["crf"][0u]["dependent"]["x-LSP-rate_or_crf"] = "crf";
-    capa["optional"]["crf"][0u]["n"] = 6;
+    capa["optional"]["crf"][0u]["sort"] = "cba";
 
-    capa["optional"]["crf"][1u]["help"] = "Video quality";
+    capa["optional"]["crf"][1u]["help"] = "Video quality, ranging from 0 (best) to 63 (worst). Higher resolution requires a better quality to match, and HD (720p/1080p) generally looks good around 31, but your mileage may vary.";
     capa["optional"]["crf"][1u]["min"] = "0";
     capa["optional"]["crf"][1u]["max"] = "63";
     capa["optional"]["crf"][1u]["type"] = "int";
     capa["optional"]["crf"][1u]["dependent"]["codec"] = "VP9";
     capa["optional"]["crf"][1u]["dependent"]["x-LSP-rate_or_crf"] = "crf";
-    capa["optional"]["crf"][1u]["n"] = 7;
+    capa["optional"]["crf"][1u]["sort"] = "cba";
 
-    capa["optional"]["rate"]["name"] = "rate";
+    capa["optional"]["rate"]["name"] = "Bitrate";
     capa["optional"]["rate"]["help"] = "Bitrate of the encoding";
     capa["optional"]["rate"]["type"] = "str";
     capa["optional"]["rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
-    capa["optional"]["rate"]["n"] = 8;
+    capa["optional"]["rate"]["sort"] = "cba";
+
+    capa["optional"]["min_rate"]["name"] = "Minimum bitrate";
+    capa["optional"]["min_rate"]["help"] = "Minimum bitrate of the encoding";
+    capa["optional"]["min_rate"]["type"] = "str";
+    capa["optional"]["min_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
+    capa["optional"]["min_rate"]["sort"] = "cbb";
+
+    capa["optional"]["max_rate"]["name"] = "Maximum bitrate";
+    capa["optional"]["max_rate"]["help"] = "Maximum bitrate of the encoding";
+    capa["optional"]["max_rate"]["type"] = "str";
+    capa["optional"]["max_rate"]["dependent"]["x-LSP-rate_or_crf"] = "rate";
+    capa["optional"]["max_rate"]["sort"] = "cbc";
+
+    capa["optional"]["profile"]["name"] = "Transcode profile";
+    capa["optional"]["profile"]["help"] = "Limits the output to a specific H.264 profile";
+    capa["optional"]["profile"]["type"] = "select";
+    capa["optional"]["profile"]["select"][0u][0u] = "";
+    capa["optional"]["profile"]["select"][0u][1u] = "automatic";
+    capa["optional"]["profile"]["select"][1u][0u] = "baseline";
+    capa["optional"]["profile"]["select"][1u][1u] = "baseline";
+    capa["optional"]["profile"]["select"][2u][0u] = "main";
+    capa["optional"]["profile"]["select"][2u][1u] = "main";
+    capa["optional"]["profile"]["select"][3u][0u] = "high";
+    capa["optional"]["profile"]["select"][3u][1u] = "high";
+    capa["optional"]["profile"]["select"][4u][0u] = "high10";
+    capa["optional"]["profile"]["select"][4u][1u] = "high10";
+    capa["optional"]["profile"]["select"][5u][0u] = "high422";
+    capa["optional"]["profile"]["select"][5u][1u] = "high422";
+    capa["optional"]["profile"]["select"][6u][0u] = "high444";
+    capa["optional"]["profile"]["select"][6u][1u] = "high444";
+    capa["optional"]["profile"]["default"] = "";
+    capa["optional"]["profile"]["sort"] = "cca";
+
+    capa["optional"]["preset"]["name"] = "Transcode preset";
+    capa["optional"]["preset"]["help"] = "Preset for encoding speed and compression ratio";
+    capa["optional"]["preset"]["type"] = "select";
+    capa["optional"]["preset"]["select"][0u][0u] = "ultrafast";
+    capa["optional"]["preset"]["select"][0u][1u] = "ultrafast";
+    capa["optional"]["preset"]["select"][1u][0u] = "superfast";
+    capa["optional"]["preset"]["select"][1u][1u] = "superfast";
+    capa["optional"]["preset"]["select"][2u][0u] = "veryfast";
+    capa["optional"]["preset"]["select"][2u][1u] = "veryfast";
+    capa["optional"]["preset"]["select"][3u][0u] = "faster";
+    capa["optional"]["preset"]["select"][3u][1u] = "faster";
+    capa["optional"]["preset"]["select"][4u][0u] = "fast";
+    capa["optional"]["preset"]["select"][4u][1u] = "fast";
+    capa["optional"]["preset"]["select"][5u][0u] = "medium";
+    capa["optional"]["preset"]["select"][5u][1u] = "medium";
+    capa["optional"]["preset"]["select"][6u][0u] = "slow";
+    capa["optional"]["preset"]["select"][6u][1u] = "slow";
+    capa["optional"]["preset"]["select"][7u][0u] = "slower";
+    capa["optional"]["preset"]["select"][7u][1u] = "slower";
+    capa["optional"]["preset"]["select"][8u][0u] = "veryslow";
+    capa["optional"]["preset"]["select"][8u][1u] = "veryslow";
+    capa["optional"]["preset"]["default"] = "medium";
+    capa["optional"]["preset"]["sort"] = "ccb";
+
+    capa["optional"]["keys"]["name"] = "Keyframes";
+    capa["optional"]["keys"]["help"] = "What to do with keyframes";
+    capa["optional"]["keys"]["type"] = "select";
+    capa["optional"]["keys"]["select"][0u][0u] = "";
+    capa["optional"]["keys"]["select"][0u][1u] = "Match input keyframes";
+    capa["optional"]["keys"]["select"][1u][0u] = "frames";
+    capa["optional"]["keys"]["select"][1u][1u] = "Every X frames";
+    capa["optional"]["keys"]["select"][2u][0u] = "secs";
+    capa["optional"]["keys"]["select"][2u][1u] = "Every X seconds";
+    capa["optional"]["keys"]["default"] = "";
+    capa["optional"]["keys"]["sort"] = "cda";
+    capa["optional"]["keys"]["influences"][0u] = "keyfrms";
+    capa["optional"]["keys"]["influences"][0u] = "keysecs";
+    capa["optional"]["keys"]["dependent"]["X-LSP-kind"] = "video";
+
+    capa["optional"]["keyfrms"]["name"] = "Key interval";
+    capa["optional"]["keyfrms"]["type"] = "int";
+    capa["optional"]["keyfrms"]["help"] = "Key interval in frames";
+    capa["optional"]["keyfrms"]["unit"] = "frames";
+    capa["optional"]["keyfrms"]["dependent"]["X-LSP-kind"] = "video";
+    capa["optional"]["keyfrms"]["dependent"]["keys"] = "frames";
+    capa["optional"]["keyfrms"]["sort"] = "cdb";
+
+    capa["optional"]["keysecs"]["name"] = "Key interval";
+    capa["optional"]["keysecs"]["type"] = "float";
+    capa["optional"]["keysecs"]["help"] = "Key interval in seconds";
+    capa["optional"]["keysecs"]["unit"] = "seconds";
+    capa["optional"]["keysecs"]["dependent"]["X-LSP-kind"] = "video";
+    capa["optional"]["keysecs"]["dependent"]["keys"] = "secs";
+    capa["optional"]["keysecs"]["sort"] = "cdb";
+
+    capa["optional"]["flags"]["name"] = "Flags";
+    capa["optional"]["flags"]["help"] = "Extra flags to add to the end of the transcode command";
+    capa["optional"]["flags"]["type"] = "str";
+    capa["optional"]["flags"]["sort"] = "cea";
 
     capa["optional"]["sources"]["name"] = "Layers";
     capa["optional"]["sources"]["type"] = "sublist";
@@ -250,11 +486,11 @@ int main(int argc, char *argv[]){
     capa["optional"]["sources"]["help"] =
         "List of sources to overlay on top of each other, in order. If left empty, simply uses the "
         "input track without modifications and nothing else.";
-    capa["optional"]["sources"]["n"] = 9;
-    capa["optional"]["sources"]["sort"] = "n";
+    capa["optional"]["sources"]["sort"] = "baa";
     capa["optional"]["sources"]["dependent"]["x-LSP-kind"] = "video";
 
     capa["optional"]["track_inhibit"]["name"] = "Track inhibitor(s)";
+    capa["optional"]["track_inhibit"]["sort"] = "aba";
     capa["optional"]["track_inhibit"]["help"] =
         "What tracks to use as inhibitors. If this track selector is able to select a track, the "
         "process does not start. Defaults to none.";
@@ -269,6 +505,9 @@ int main(int argc, char *argv[]){
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][0u].append("AV1");
+    capa["codecs"][0u][0u].append("YUYV");
+    capa["codecs"][0u][0u].append("UYVY");
+    capa["codecs"][0u][0u].append("JPEG");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("vorbis");
     capa["codecs"][0u][1u].append("opus");
@@ -344,11 +583,78 @@ int main(int argc, char *argv[]){
   }
 
   Enc.SetConfig(opt);
-
-  // check config for generic options
   if (!Enc.CheckConfig()){
     FAIL_MSG("Error config syntax error!");
     return 1;
+  }
+
+
+  const std::string & srcStrm = opt["source"].asStringRef();
+  //connect to source metadata
+  DTSC::Meta M(srcStrm, false);
+
+  //find source video track
+  std::map<std::string, std::string> targetParams;
+  targetParams["video"] = "maxbps";
+  JSON::Value sourceCapa;
+  sourceCapa["name"] = "FFMPEG";
+  sourceCapa["codecs"][0u][0u].append("H264");
+  sourceCapa["codecs"][0u][0u].append("HEVC");
+  sourceCapa["codecs"][0u][0u].append("VP8");
+  sourceCapa["codecs"][0u][0u].append("VP9");
+  sourceCapa["codecs"][0u][0u].append("theora");
+  sourceCapa["codecs"][0u][0u].append("MPEG2");
+  sourceCapa["codecs"][0u][0u].append("AV1");
+  sourceCapa["codecs"][0u][0u].append("JPEG");
+  sourceCapa["codecs"][0u][0u].append("YUYV");
+  sourceCapa["codecs"][0u][0u].append("UYVY");
+  sourceCapa["codecs"][0u][0u].append("NV12");
+  sourceCapa["codecs"][0u][1u].append("AAC");
+  sourceCapa["codecs"][0u][1u].append("FLAC");
+  sourceCapa["codecs"][0u][1u].append("vorbis");
+  sourceCapa["codecs"][0u][1u].append("opus");
+  sourceCapa["codecs"][0u][1u].append("PCM");
+  sourceCapa["codecs"][0u][1u].append("ALAW");
+  sourceCapa["codecs"][0u][1u].append("ULAW");
+  sourceCapa["codecs"][0u][1u].append("MP2");
+  sourceCapa["codecs"][0u][1u].append("MP3");
+  sourceCapa["codecs"][0u][1u].append("FLOAT");
+  sourceCapa["codecs"][0u][1u].append("AC3");
+  sourceCapa["codecs"][0u][1u].append("DTS");
+  if (Enc.isVideo){
+    if (opt.isMember("source_track") && opt["source_track"].isString() && opt["source_track"]){
+      targetParams["video"] = opt["source_track"].asStringRef();
+    }else{
+      targetParams["video"] = "";
+    }
+  }else{
+    targetParams["video"] = "none";
+  }
+  if (Enc.isAudio){
+    if (opt.isMember("source_track") && opt["source_track"].isString() && opt["source_track"]){
+      targetParams["audio"] = opt["source_track"].asStringRef();
+    }else{
+      targetParams["audio"] = "";
+    }
+  }else{
+    targetParams["audio"] = "none";
+  }
+  size_t sourceIdx = INVALID_TRACK_ID;
+  size_t sleeps = 0;
+  while (++sleeps < 60 && (sourceIdx == INVALID_TRACK_ID || (Enc.isVideo && (!M.getWidth(sourceIdx) || !M.getHeight(sourceIdx))))){
+    M.reloadReplacedPagesIfNeeded();
+    std::set<size_t> vidTrack = Util::wouldSelect(M, targetParams, sourceCapa);
+    sourceIdx = vidTrack.size() ? (*(vidTrack.begin())) : INVALID_TRACK_ID;
+    if (sourceIdx == INVALID_TRACK_ID || (Enc.isVideo && (!M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)))){
+      Util::sleep(250);
+    }
+  }
+  if (sourceIdx == INVALID_TRACK_ID || (Enc.isVideo && (!M.getWidth(sourceIdx) || !M.getHeight(sourceIdx)))){
+    FAIL_MSG("No valid source track!");
+    return 1;
+  }
+  if (Enc.isVideo){
+    Enc.setResolution(M.getWidth(sourceIdx), M.getHeight(sourceIdx));
   }
 
   // create pipe pair before thread
@@ -357,6 +663,8 @@ int main(int argc, char *argv[]){
     return 1;
   }
   Util::Procs::socketList.insert(pipeout[0]);
+  Util::Procs::socketList.insert(pipeout[1]);
+  Util::Procs::socketList.insert(pipein[0]);
   Util::Procs::socketList.insert(pipein[1]);
 
   // stream which connects to input
@@ -391,107 +699,6 @@ int main(int argc, char *argv[]){
 }
 
 namespace Mist{
-
-
-    bool EncodeOutputEBML::onFinish(){
-      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
-        if (userSelect.size()){
-          for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-            INFO_MSG("Unmasking source track %zu" PRIu64, it->first);
-            meta.validateTrack(it->first, TRACK_VALID_ALL);
-          }
-        }
-      }
-      return OutEBML::onFinish();
-    }
-    void EncodeOutputEBML::dropTrack(size_t trackId, const std::string &reason, bool probablyBad){
-      if (opt.isMember("exit_unmask") && opt["exit_unmask"].asBool()){
-        INFO_MSG("Unmasking source track %zu" PRIu64, trackId);
-        meta.validateTrack(trackId, TRACK_VALID_ALL);
-      }
-      OutEBML::dropTrack(trackId, reason, probablyBad);
-    }
-
-
-  void EncodeInputEBML::getNext(size_t idx){
-    static bool recurse = false;
-
-    // getNext is called recursively, only process the first call
-    if (recurse){return InputEBML::getNext(idx);}
-
-    recurse = true;
-    InputEBML::getNext(idx);
-
-    if (thisPacket){
-
-      if (!getFirst){
-        packetTimeDiff = sendPacketTime - thisPacket.getTime();
-        getFirst = true;
-      }
-
-      uint64_t tmpLong;
-      uint64_t packTime = thisPacket.getTime() + packetTimeDiff;
-
-      // change packettime
-      char *data = thisPacket.getData();
-      tmpLong = htonl((int)(packTime >> 32));
-      memcpy(data + 12, (char *)&tmpLong, 4);
-      tmpLong = htonl((int)(packTime & 0xFFFFFFFF));
-      memcpy(data + 16, (char *)&tmpLong, 4);
-    }
-
-    recurse = false;
-  }
-
-  void EncodeInputEBML::setInFile(int stdin_val){
-    inFile.open(stdin_val);
-    streamName = opt["sink"].asString();
-    if (!streamName.size()){streamName = opt["source"].asString();}
-    Util::streamVariables(streamName, opt["source"].asString());
-    Util::setStreamName(opt["source"].asString() + "→" + streamName);
-    if (opt.isMember("target_mask") && !opt["target_mask"].isNull() && opt["target_mask"].asString() != ""){
-      DTSC::trackValidDefault = opt["target_mask"].asInt();
-    }
-  }
-
-  std::string EncodeOutputEBML::getTrackType(int tid){return M.getType(tid);}
-
-  void EncodeOutputEBML::setVideoTrack(std::string tid){
-    std::set<size_t> tracks = Util::findTracks(M, capa, "video", tid);
-    for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      userSelect[*it].reload(streamName, *it);
-    }
-  }
-
-  void EncodeOutputEBML::setAudioTrack(std::string tid){
-    std::set<size_t> tracks = Util::findTracks(M, capa, "audio", tid);
-    for (std::set<size_t>::iterator it = tracks.begin(); it != tracks.end(); it++){
-      userSelect[*it].reload(streamName, *it);
-    }
-  }
-
-  void EncodeOutputEBML::sendHeader(){
-    realTime = 0;
-    size_t idx = getMainSelectedTrack();
-    if (opt.isMember("source_mask") && !opt["source_mask"].isNull() && opt["source_mask"].asString() != ""){
-      uint64_t sourceMask = opt["source_mask"].asInt();
-      INFO_MSG("Masking source track %zu to %" PRIu64, idx, sourceMask);
-      meta.validateTrack(idx, sourceMask);
-    }
-    res_x = M.getWidth(idx);
-    res_y = M.getHeight(idx);
-    Enc.setResolution(res_x, res_y);
-    OutEBML::sendHeader();
-  }
-
-  void EncodeOutputEBML::sendNext(){
-    if (!sendFirst){
-      sendPacketTime = thisPacket.getTime();
-      sendFirst = true;
-    }
-
-    OutEBML::sendNext();
-  }
 
   void OutENC::SetConfig(JSON::Value &config){opt = config;}
 
@@ -531,128 +738,134 @@ namespace Mist{
   }
 
   bool OutENC::buildVideoCommand(){
-    uint64_t t_limiter = Util::bootSecs();
-    while (res_x == 0){
-      if (Util::bootSecs() < t_limiter + 5){
-        Util::sleep(100);
-        MEDIUM_MSG("waiting res_x to be set!");
-      }else{
-        FAIL_MSG("timeout, resolution is not set!");
-        return false;
-      }
-
-      MEDIUM_MSG("source resolution: %dx%d", res_x, res_y);
+    if (!res_x){
+      FAIL_MSG("Resolution is not set!");
+      return false;
     }
 
-    std::string s_input = "";
-    std::string s_overlay = "";
-    std::string s_scale = "";
-    std::string options = "";
+    MEDIUM_MSG("source resolution: %dx%d", res_x, res_y);
 
-    // load all sources and construct overlay code
-    if (opt["sources"].isArray()){
-      char in[255] = "";
-      char ov[255] = "";
+    // Init variables used to construct the FFMPEG command
+    char in[255] = "";
+    char ov[255] = "";
+    std::string s_base = "ffmpeg -fflags nobuffer -probesize 32 -max_probe_packets 1 -hide_banner -loglevel warning"; //< Base FFMPEG command
+    std::string s_input = ""; //< Inputs of the filter graph
+    std::string s_filter = ""; //< Filter graph to use
+    std::string s_scale = ""; //< Scaling inputs of the filter graph
+    std::string s_overlay = ""; //< Positioning inputs of the filter graph
+    std::string options = ""; //< Transcode params
 
-      for (JSON::Iter it(opt["sources"]); it; ++it){
-
-        if ((*it).isMember("src") && (*it)["src"].isString() && (*it)["src"].asString().size() > 3){
-          std::string src = (*it)["src"].asString();
-          std::string ext = src.substr(src.length() - 3);
-          if (ext == "gif"){// for animated gif files, prepend extra parameter
-            sprintf(in, " -ignore_loop 0 -i %s", src.c_str());
-          }else{
-            sprintf(in, " -i %s", src.c_str());
-          }
-
-          MEDIUM_MSG("Loading Input: %s", src.c_str());
-        }else{
-          sprintf(in, " -i %s", "-");
-          INFO_MSG("no src given, asume reading data from stdin");
-          MEDIUM_MSG("Loading Input: -");
-        }
-
-        s_input += in;
-
-        uint32_t i_width = -1;
-        uint32_t i_height = -1;
-        int32_t i_x = 0;
-        int32_t i_y = 0;
-        std::string i_anchor = "topleft";
-
-        if ((*it).isMember("width") && (*it)["width"].asInt()){i_width = (*it)["width"].asInt();}
-        if ((*it).isMember("height") && (*it)["height"].asInt()){
-          i_height = (*it)["height"].asInt();
-        }
-
-        if ((*it).isMember("x")){i_x = (*it)["x"].asInt();}
-        if ((*it).isMember("y")){i_y = (*it)["y"].asInt();}
-
-        if ((*it).isMember("anchor") && (*it)["anchor"].isString()){
-          i_anchor = (*it)["anchor"].asString();
-        }
-
-        char scale[200];
-        sprintf(scale, ";[%d:v]scale=%d:%d[s%d]", it.num() + 1, i_width, i_height, it.num());
-
-        s_scale.append(scale);
-
-        char in_chain[16];
-
-        if (it.num() == 0){
-          sprintf(in_chain, ";[0:v][s%d]", it.num());
-        }else{
-          sprintf(in_chain, ";[out][s%d]", it.num());
-        }
-
-        if ((*it)["anchor"] == "topright"){
-          sprintf(ov, "overlay=W-w-%d:%d[out]", i_x, i_y);
-        }else if ((*it)["anchor"] == "bottomleft"){
-          sprintf(ov, "overlay=%d:H-h-%d[out]", i_x, i_y);
-        }else if ((*it)["anchor"] == "bottomright"){
-          sprintf(ov, "overlay=W-w-%d:H-h-%d[out]", i_x, i_y);
-        }else if ((*it)["anchor"] == "center"){
-          sprintf(ov, "overlay=(W-w)/2:(H-h)/2[out]");
-        }else{// topleft default
-          sprintf(ov, "overlay=%d:%d[out]", i_x, i_y);
-        }
-        s_overlay.append(in_chain);
-        s_overlay.append(ov);
-      }
-
-      s_scale = s_scale.substr(1);
-      s_overlay = s_scale + s_overlay;
-
-      if (res_x > 0 || res_y > 0){// video scaling
-        sprintf(ov, ";[out]scale=%d:%d,setsar=1:1[out]", res_x, res_y);
-      }
-
-      s_overlay.append(ov);
-
-      HIGH_MSG("overlay: %s", s_overlay.c_str());
-    }
-
-    // video scaling
-    if (res_x > 0 || res_y > 0){
-      if (s_overlay.size() == 0){
-        char ov[100];
-        sprintf(ov, " -filter_complex '[0:v]scale=%d:%d,setsar=1:1[out]' -map [out]", res_x, res_y);
-        s_overlay.append(ov);
-      }else{
-        s_overlay = "-filter_complex " + s_overlay + " -map [out]";
-      }
+    // Init filter graph
+    bool requiresOverlay = opt["sources"].size() > 1;
+    if (requiresOverlay){
+      // Complex filter graph: overlay each source over a black background
+      s_base.append(" -f lavfi");
+      s_filter = " -filter_complex ";
+      char in[50] = "";
+      sprintf(in, " -i color=c=black:s=%dx%d", res_x, res_y);
+      s_input = in;
     }else{
-      if (s_overlay.size() > 0){s_overlay = "-filter_complex '" + s_overlay + "' -map [out]";}
+      // Simple filter graph
+      s_filter = " -vf ";
     }
 
+    // Add sources to input, scaling and positioning strings
+    for (JSON::Iter it(opt["sources"]); it; ++it){
+      // Add source to input string
+      if ((*it).isMember("src") && (*it)["src"].isString() && (*it)["src"].asString().size() > 3){
+        std::string src = (*it)["src"].asString();
+        std::string ext = src.substr(src.length() - 3);
+        if (ext == "gif"){// for animated gif files, prepend extra parameter
+          sprintf(in, " -ignore_loop 0 -i %s", src.c_str());
+        }else{
+          sprintf(in, " -i %s", src.c_str());
+        }
+        MEDIUM_MSG("Loading Input: %s", src.c_str());
+      }else{
+        sprintf(in, " -i %s", "-");
+        INFO_MSG("no src given, assume reading data from stdin");
+        MEDIUM_MSG("Loading Input: -");
+      }
+      s_input += in;
+
+      // No complex scaling and positioning required if there's only one source
+      if(!requiresOverlay){ continue; }
+
+      // Init scaling and positioning params
+      uint32_t i_width = -1;
+      uint32_t i_height = -1;
+      int32_t i_x = 0;
+      int32_t i_y = 0;
+      std::string i_anchor = "topleft";
+      if ((*it).isMember("width") && (*it)["width"].asInt()){i_width = (*it)["width"].asInt();}
+      if ((*it).isMember("height") && (*it)["height"].asInt()){i_height = (*it)["height"].asInt();}
+      if ((*it).isMember("x")){i_x = (*it)["x"].asInt();}
+      if ((*it).isMember("y")){i_y = (*it)["y"].asInt();}
+      if ((*it).isMember("anchor") && (*it)["anchor"].isString()){
+        i_anchor = (*it)["anchor"].asString();
+      }
+
+      // Scale input
+      char scale[200];
+      sprintf(scale, ";[%d:v]scale=%d:%d[s%d]", it.num() + 1, i_width, i_height, it.num());
+      s_scale.append(scale);
+
+      // Position input
+      char in_chain[16];
+      if (it.num() == 0){
+        sprintf(in_chain, ";[0:v][s%d]", it.num());
+      }else{
+        sprintf(in_chain, ";[out][s%d]", it.num());
+      }
+      if ((*it)["anchor"] == "topright"){
+        sprintf(ov, "overlay=W-w-%d:%d[out]", i_x, i_y);
+      }else if ((*it)["anchor"] == "bottomleft"){
+        sprintf(ov, "overlay=%d:H-h-%d[out]", i_x, i_y);
+      }else if ((*it)["anchor"] == "bottomright"){
+        sprintf(ov, "overlay=W-w-%d:H-h-%d[out]", i_x, i_y);
+      }else if ((*it)["anchor"] == "center"){
+        sprintf(ov, "overlay=(W-w)/2:(H-h)/2[out]");
+      }else{// topleft default
+        sprintf(ov, "overlay=%d:%d[out]", i_x, i_y);
+      }
+      s_overlay.append(in_chain);
+      s_overlay.append(ov);
+    }
+
+    // Finish filter graph
+    if (requiresOverlay){
+      s_scale = s_scale.substr(1); //< Remove `;` char at the start
+      sprintf(ov, ";[out]scale=%d:%d,setsar=1:1[out] -map [out]", res_x, res_y);
+      s_overlay.append(ov);
+    }else{
+      sprintf(ov, "scale=%d:%d,setsar=1:1", res_x, res_y);
+      s_scale.append(ov);
+    }
+
+    // Set transcode parameters
+    options = codec;
     if (!profile.empty()){options.append(" -profile:v " + profile);}
-
     if (!preset.empty()){options.append(" -preset " + preset);}
+    std::string bitrateSettings = getBitrateSetting();
+    if (!bitrateSettings.empty()){options.append(" " + bitrateSettings);}
+    if (!flags.empty()){options.append(" " + flags);}
+    if (!opt.isMember("keys") || !opt["keys"].asStringRef().size()){
+      options += " -force_key_frames source";
+    }else if (opt["keys"].asStringRef() == "frames"){
+      options += " -g ";
+      options += opt["keyfrms"].asString();
+    }else if (opt["keys"].asStringRef() == "secs"){
+      options += " -force_key_frames expr:gte(t,n_forced*";
+      options += opt["keysecs"].asString();
+      options += ")";
+    }else{
+      options += " -force_key_frames source";
+    }
 
-    snprintf(ffcmd, 10240, "ffmpeg -fflags nobuffer -hide_banner -loglevel warning -f lavfi -i color=c=black:s=%dx%d %s %s -c:v %s %s %s %s -an -force_key_frames source -f matroska - ",
-             res_x, res_y, s_input.c_str(), s_overlay.c_str(), codec.c_str(), options.c_str(),
-             getBitrateSetting().c_str(), flags.c_str());
-
+    // Construct final command
+    snprintf(ffcmd, 10240, "%s%s%s%s%s -c:v %s -an -f matroska - ",
+             s_base.c_str(), s_input.c_str(), s_filter.c_str(), s_scale.c_str(), s_overlay.c_str(), options.c_str());
+    INFO_MSG("Constructed FFMPEG video command: %s", ffcmd);
     return true;
   }
 
@@ -740,7 +953,9 @@ namespace Mist{
       profile = opt["profile"].asString();
     }
 
-    if (opt.isMember("preset") && opt["preset"].isString()){preset = opt["preset"].asString();}
+    if (opt.isMember("preset") && opt["preset"].isString()){
+      preset = opt["preset"].asString();
+    }
 
     if (opt.isMember("crf") && opt["crf"].isInt()){setCRF(opt["crf"].asInt());}
 
@@ -809,22 +1024,22 @@ namespace Mist{
     std::string min_rate;
     std::string max_rate;
 
-    if (opt.isMember("bitrate") && opt["bitrate"].isString()){
-      b_rate = opt["bitrate"].asString();
+    if (opt.isMember("rate") && opt["rate"].isString()){
+      b_rate = opt["rate"].asString();
     }
 
-    if (opt.isMember("min_bitrate") && opt["min_bitrate"].isString()){
-      min_rate = opt["min_bitrate"].asString();
+    if (opt.isMember("min_rate") && opt["min_rate"].isString()){
+      min_rate = opt["min_rate"].asString();
     }
 
-    if (opt.isMember("max_bitrate") && opt["max_bitrate"].isString()){
-      max_rate = opt["max_bitrate"].asString();
+    if (opt.isMember("max_rate") && opt["max_rate"].isString()){
+      max_rate = opt["max_rate"].asString();
     }
 
     setBitrate(b_rate, min_rate, max_rate);
 
     // extra ffmpeg flags
-    if (opt.isMember("flags") && opt["flags"].isString()){flags = opt["bitrate"].asString();}
+    if (opt.isMember("flags") && opt["flags"].isString()){flags = opt["flags"].asString();}
 
     // Check configuration and construct ffmpeg command based on audio or video encoding
     if (isVideo){
@@ -866,7 +1081,6 @@ namespace Mist{
   }
 
   void OutENC::Run(){
-    Util::Procs p;
     int ffer = 2;
     pid_t ffout = -1;
 
@@ -887,13 +1101,32 @@ namespace Mist{
     }
 
     prepareCommand();
-    ffout = p.StartPiped(args, &pipein[0], &pipeout[1], &ffer);
+    ffout = Util::Procs::StartPiped(args, &pipein[0], &pipeout[1], &ffer);
 
-    while (conf.is_active && p.isRunning(ffout)){Util::sleep(200);}
+    uint64_t lastProcUpdate = Util::bootSecs();
+    {
+      tthread::lock_guard<tthread::mutex> guard(statsMutex);
+      pStat["proc_status_update"]["id"] = getpid();
+      pStat["proc_status_update"]["proc"] = "FFMPEG";
+      pData["ainfo"]["child_pid"] = ffout;
+      //pData["ainfo"]["cmd"] = opt["exec"];
+    }
+    uint64_t startTime = Util::bootSecs();
+    while (conf.is_active && Util::Procs::isRunning(ffout)){
+      Util::sleep(200);
+      if (lastProcUpdate + 5 <= Util::bootSecs()){
+        tthread::lock_guard<tthread::mutex> guard(statsMutex);
+        pData["active_seconds"] = (Util::bootSecs() - startTime);
+        pData["ainfo"]["sourceTime"] = statSourceMs;
+        pData["ainfo"]["sinkTime"] = statSinkMs;
+        Util::sendUDPApi(pStat);
+        lastProcUpdate = Util::bootSecs();
+      }
+    }
 
-    while (p.isRunning(ffout)){
-      MEDIUM_MSG("stopping ffmpeg...");
-      p.StopAll();
+    while (Util::Procs::isRunning(ffout)){
+      INFO_MSG("Stopping process...");
+      Util::Procs::StopAll();
       Util::sleep(200);
     }
 

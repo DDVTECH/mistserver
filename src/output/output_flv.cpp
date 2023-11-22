@@ -130,7 +130,7 @@ namespace Mist{
     }
     if (config->getBool("keyframeonly")){
       size_t tid = userSelect.begin()->first;
-      DTSC::Keys keys(M.keys(tid));
+      DTSC::Keys keys(M.getKeys(tid));
       uint32_t endKey = keys.getEndValid();
       uint64_t keyTime = keys.getTime(endKey - 1);
       INFO_MSG("Seeking for time %" PRIu64 " on track %zu key %" PRIu32, keyTime, tid, endKey - 1);

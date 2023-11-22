@@ -40,25 +40,4 @@ namespace Mist{
     std::set<std::string> supportedAudioCodecs;
   };
 
-  class EncodeInputEBML : public InputEBML{
-  public:
-    EncodeInputEBML(Util::Config *cfg) : InputEBML(cfg){};
-    void getNext(size_t idx = INVALID_TRACK_ID);
-    void setInFile(int stdin_val);
-    bool needsLock(){return false;}
-    bool isSingular(){return false;}
-  };
-
-  class EncodeOutputEBML : public OutEBML{
-  public:
-    virtual bool onFinish();
-    virtual void dropTrack(size_t trackId, const std::string &reason, bool probablyBad = true);
-    EncodeOutputEBML(Socket::Connection &c) : OutEBML(c){}; // realTime = 0;};
-    bool isRecording(){return false;}
-    void setVideoTrack(std::string tid);
-    void setAudioTrack(std::string tid);
-    void sendNext();
-    void sendHeader();
-    std::string getTrackType(int tid);
-  };
 }// namespace Mist

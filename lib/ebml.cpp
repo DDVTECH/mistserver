@@ -146,6 +146,7 @@ namespace EBML{
     case 0x1A: return "FlagInterlaced";
     case EID_DISPLAYWIDTH: return "DisplayWidth";
     case EID_DISPLAYHEIGHT: return "DisplayHeight";
+    case EID_UNCOMPRESSEDFOURCC: return "UncompressedFourCC";
     case 0x15B0: return "Colour";
     case 0x15B7: return "ChromaSitingHorz";
     case 0x15B8: return "ChromaSitingVert";
@@ -329,6 +330,7 @@ namespace EBML{
     case EID_LANGUAGE:
     case 0x660:
     case 0x37C:
+    case EID_UNCOMPRESSEDFOURCC:
     case EID_CODECID: return ELEM_STRING;
     case EID_MUXINGAPP:
     case EID_WRITINGAPP:

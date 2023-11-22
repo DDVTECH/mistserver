@@ -598,6 +598,7 @@ void Socket::Connection::clear(){
   Error = false;
   Blocking = false;
   skipCount = 0;
+  memset(&remoteaddr, 0, sizeof(remoteaddr));
 #ifdef SSL
   sslConnected = false;
   server_fd = 0;

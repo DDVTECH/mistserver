@@ -46,3 +46,17 @@ executables += {
     'defines': [],
 }
 
+if get_option('WITH_AV')
+    executables += {
+        'name' : 'MistProcAV',
+        'sources' : [
+            files('process_av.cpp'),
+            header_tgts,
+            io_cpp,
+            input_cpp,
+            output_cpp,
+        ],
+        'deps' :[libmist_dep, av_libs],
+        'defines': [],
+    }
+endif

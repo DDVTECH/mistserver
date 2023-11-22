@@ -35,7 +35,7 @@ namespace Mist{
   ///\return The generated bootstrap.
   std::string OutHDS::dynamicBootstrap(size_t idx){
     DTSC::Fragments fragments(M.fragments(idx));
-    DTSC::Keys keys(M.keys(idx));
+    DTSC::Keys keys(M.getKeys(idx));
     std::string empty;
 
     MP4::ASRT asrt;
@@ -248,7 +248,7 @@ namespace Mist{
       // delay if we don't have the next fragment available yet
       unsigned int timeout = 0;
       DTSC::Fragments fragments(M.fragments(idx));
-      DTSC::Keys keys(M.keys(idx));
+      DTSC::Keys keys(M.getKeys(idx));
       while (myConn && fragIdx >= fragments.getEndValid() - 1){
         // time out after 21 seconds
         if (++timeout > 42){

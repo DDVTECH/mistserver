@@ -143,7 +143,11 @@ namespace Mist{
         meta.setType(idx, "audio");
         meta.setRate(idx, strm->codecpar->sample_rate);
         meta.setSize(idx, strm->codecpar->frame_size);
+#if (LIBAVUTIL_VERSION_MAJOR < 57 || (LIBAVUTIL_VERSION_MAJOR == 57 && LIBAVUTIL_VERSION_MINOR < 24))
+        meta.setChannels(idx, strm->codecpar->channels);
+#else
         meta.setChannels(idx, strm->codecpar->ch_layout.nb_channels);
+#endif
       }
     }
 

@@ -8,13 +8,11 @@
 #include "socket.h"
 #include "timing.h"
 #include "util.h"
-#include <deque>
 #include <iostream>
 #include <set>
 #include <stdint.h> //for uint64_t
 #include <stdio.h>  //for FILE
 #include <string>
-#include <vector>
 
 #define DTSC_INT 0x01
 #define DTSC_STR 0x02
@@ -195,10 +193,12 @@ namespace DTSC{
     uint32_t getIndexForTime(uint64_t timestamp);
 
     void applyLimiter(uint64_t _min, uint64_t _max, DTSC::Parts _p);
+    void applyLimiter(uint64_t _min, uint64_t _max);
 
   private:
     bool isConst;
     bool isLimited;
+    bool isFrames;
     size_t limMin;
     size_t limMax;
     //Overrides for max key
@@ -243,13 +243,12 @@ namespace DTSC{
 
   class Track{
   public:
+    Util::RelAccX track;
     Util::RelAccX parts;
     Util::RelAccX keys;
     Util::RelAccX fragments;
-
     Util::RelAccX pages;
-
-    Util::RelAccX track;
+    Util::RelAccX frames;
 
     // Internal buffers so we don't always need to search for everything
     Util::RelAccXFieldData trackIdField;
@@ -286,6 +285,9 @@ namespace DTSC{
     Util::RelAccXFieldData fragmentKeysField;
     Util::RelAccXFieldData fragmentFirstKeyField;
     Util::RelAccXFieldData fragmentSizeField;
+
+    Util::RelAccXFieldData framesTimeField;
+    Util::RelAccXFieldData framesDataField;
   };
 
 
@@ -334,11 +336,12 @@ namespace DTSC{
                            size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT);
     size_t addTrack(size_t fragCount = DEFAULT_FRAGMENT_COUNT, size_t keyCount = DEFAULT_KEY_COUNT,
                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT,
-                    bool setValid = true);
+                    bool setValid = true, size_t frameSize = 0);
     void resizeTrack(size_t source, size_t fragCount = DEFAULT_FRAGMENT_COUNT, size_t keyCount = DEFAULT_KEY_COUNT,
-                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT, const char * reason = "");
+                     size_t partCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT, const char * reason = "",
+                     size_t frameSize = 0);
     void initializeTrack(Track &t, size_t fragCount = DEFAULT_FRAGMENT_COUNT, size_t keyCount = DEFAULT_KEY_COUNT,
-                         size_t parCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT);
+                         size_t parCount = DEFAULT_PART_COUNT, size_t pageCount = DEFAULT_PAGE_COUNT, size_t frameSize = 0);
 
     void merge(const DTSC::Meta &M, bool deleteTracks = true, bool copyData = true);
 
@@ -422,6 +425,9 @@ namespace DTSC{
     void claimTrack(size_t trackIdx);
     bool isClaimed(size_t trackIdx) const;
     void abandonTrack(size_t trackIdx);
+    bool hasEmbeddedFrames(size_t trackIdx) const;
+    bool getEmbeddedData(size_t trackIdx, size_t num, char * & dataPtr, size_t & dataLen) const;
+    bool getEmbeddedTime(size_t trackIdx, size_t num, uint64_t & time) const;
 
     /*LTS-START*/
     void setSourceTrack(size_t trackIdx, size_t sourceTrack);
@@ -498,6 +504,8 @@ namespace DTSC{
     const Util::RelAccX &pages(size_t idx) const;
 
     const Keys getKeys(size_t trackIdx) const;
+
+    void storeFrame(size_t trackIdx, uint64_t time, const char * data, size_t dataSize);
 
     std::string toPrettyString() const;
 

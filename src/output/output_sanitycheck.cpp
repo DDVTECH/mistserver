@@ -149,29 +149,31 @@ namespace Mist{
       }
     }
 
-    size_t keyIndex = M.getKeyIndexForTime(thisIdx, thisTime);
-    uint64_t keyTime = M.getTimeForKeyIndex(thisIdx, keyIndex);
-    bool isKey = thisPacket.getFlag("keyframe");
-    if (keyTime > thisTime){
-      std::cout << "Corruption? Our time is " << thisTime << ", but our key time is " << keyTime << std::endl;
-      writeContext();
-      myConn.close();
-      return;
-    }else{
-      if (M.getType(thisIdx) == "video"){
-        if (keyTime == thisTime){
-          if (!isKey){
-            std::cout << "Corruption? Video packet at time " << thisTime << " should be a keyframe, but isn't!" << std::endl;
-            writeContext();
-            myConn.close();
-            return;
-          }
-        }else{
-          if (isKey){
-            std::cout << "Corruption? Video packet at time " << thisTime << " should not be a keyframe, but is!" << std::endl;
-            writeContext();
-            myConn.close();
-            return;
+    if (!M.hasEmbeddedFrames(thisIdx)){
+      size_t keyIndex = M.getKeyIndexForTime(thisIdx, thisTime);
+      uint64_t keyTime = M.getTimeForKeyIndex(thisIdx, keyIndex);
+      bool isKey = thisPacket.getFlag("keyframe");
+      if (keyTime > thisTime){
+        std::cout << "Corruption? Our time is " << thisTime << ", but our key time is " << keyTime << std::endl;
+        writeContext();
+        myConn.close();
+        return;
+      }else{
+        if (M.getType(thisIdx) == "video"){
+          if (keyTime == thisTime){
+            if (!isKey){
+              std::cout << "Corruption? Video packet at time " << thisTime << " should be a keyframe, but isn't!" << std::endl;
+              writeContext();
+              myConn.close();
+              return;
+            }
+          }else{
+            if (isKey){
+              std::cout << "Corruption? Video packet at time " << thisTime << " should not be a keyframe, but is!" << std::endl;
+              writeContext();
+              myConn.close();
+              return;
+            }
           }
         }
       }

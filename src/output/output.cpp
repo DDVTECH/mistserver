@@ -248,7 +248,7 @@ namespace Mist{
       if (!userSelect.size()){selectDefaultTracks();}
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack != INVALID_TRACK_ID){
-        DTSC::Keys keys(M.keys(mainTrack));
+        DTSC::Keys keys(M.getKeys(mainTrack));
         if (keys.getValidCount() >= minTracks || M.getNowms(mainTrack) - M.getFirstms(mainTrack) > minMs){
           return true;
         }
@@ -368,6 +368,10 @@ namespace Mist{
         }
         Util::wait(500);
         meta.reloadReplacedPagesIfNeeded();
+        if (!meta){
+          isInitialized = true;
+          return;
+        }
         stats();
       }
     }
@@ -496,7 +500,7 @@ namespace Mist{
     }
     //Abort if the track is not loaded
     if (!M.trackLoaded(trk)){return 0;}
-    const DTSC::Keys &keys = M.keys(trk);
+    const DTSC::Keys &keys = M.getKeys(trk);
     //Abort if there are no keys
     if (!keys.getValidCount()){return 0;}
     //Get the key for the current time
@@ -650,6 +654,7 @@ namespace Mist{
       return;
     }
     if (!M.trackLoaded(trackId)){meta.reloadReplacedPagesIfNeeded();}
+    // Note: specifically uses `keys` rather than `getKeys` because pages must not be limited-based
     DTSC::Keys keys(M.keys(trackId));
     if (!keys.getValidCount()){
       WARN_MSG("Load for track %zu key %zu aborted - track is empty", trackId, keyNum);
@@ -814,13 +819,13 @@ namespace Mist{
         return seek(pos);
       }
       if (M.getType(mainTrack) == "video"){
-        DTSC::Keys keys(M.keys(mainTrack));
-        uint32_t keyNum = M.getKeyNumForTime(mainTrack, pos);
-        if (keyNum == INVALID_KEY_NUM){
+        DTSC::Keys keys(M.getKeys(mainTrack));
+        if (!keys.getValidCount()){
           FAIL_MSG("Attempted seek on empty track %zu", mainTrack);
           return false;
         }
-        pos = keys.getTime(keyNum);
+        // Snap to the keyframe's exact starting time
+        pos = keys.getTime(keys.getIndexForTime(pos));
       }
     }
     MEDIUM_MSG("Seeking to %" PRIu64 "ms (%s)", pos, toKey ? "sync" : "direct");
@@ -867,7 +872,7 @@ namespace Mist{
       userSelect.erase(tid);
       return false;
     }
-    DTSC::Keys keys(M.keys(tid));
+    DTSC::Keys keys(M.getKeys(tid));
     if (M.getLive() && !pos && !buffer.getSyncMode()){
       uint64_t tmpTime = (M.getFirstms(tid) + M.getLastms(tid))/2;
       uint32_t tmpKey = M.getKeyNumForTime(tid, tmpTime);
@@ -884,6 +889,17 @@ namespace Mist{
     if (actualKeyTime > pos){
       pos = actualKeyTime;
       userSelect[tid].setKeyNum(keyNum);
+    }
+    if (M.hasEmbeddedFrames(tid)){
+      Util::sortedPageInfo tmp;
+      tmp.tid = tid;
+      tmp.offset = 0;
+      tmp.partIndex = keyNum;
+      tmp.time = actualKeyTime;
+      tmp.ghostPacket = false;
+      buffer.insert(tmp);
+      INFO_MSG("Sought to #%zu, T %" PRIu64, tmp.partIndex, tmp.time);
+      return true;
     }
     loadPageForKey(tid, keyNum + (getNextKey ? 1 : 0));
     if (!curPage.count(tid) || !curPage[tid].mapped){
@@ -951,7 +967,7 @@ namespace Mist{
     if (meta.getLive() && buffer.getSyncMode()){
       size_t mainTrack = getMainSelectedTrack();
       if (mainTrack == INVALID_TRACK_ID){return;}
-      DTSC::Keys keys(M.keys(mainTrack));
+      DTSC::Keys keys(M.getKeys(mainTrack));
       if (!keys.getValidCount()){return;}
       // seek to the newest keyframe, unless that is <5s, then seek to the oldest keyframe
       uint32_t firstKey = keys.getFirstValid();
@@ -1072,7 +1088,7 @@ namespace Mist{
           targetParams["recstart"] = JSON::Value(startRec).asString();
         }
         size_t mainTrack = getMainSelectedTrack();
-        if (M.getType(mainTrack) == "video"){
+        if (mainTrack != INVALID_TRACK_ID && M.getType(mainTrack) == "video"){
           seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, startRec));
           if (seekPos != startRec){
             INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", startRec, seekPos);
@@ -1131,9 +1147,11 @@ namespace Mist{
       // apply a limiter to the stream to make it appear like a VoD asset
       if (targetParams.count("recstop") || !M.getLive()){
         size_t mainTrack = getMainSelectedTrack();
-        uint64_t stopPos = M.getLastms(mainTrack);
-        if (targetParams.count("recstop")){stopPos = atoll(targetParams["recstop"].c_str());}
-        if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){meta.applyLimiter(seekPos, stopPos);}
+        if (mainTrack != INVALID_TRACK_ID){
+          uint64_t stopPos = M.getLastms(mainTrack);
+          if (targetParams.count("recstop")){stopPos = atoll(targetParams["recstop"].c_str());}
+          if (!M.getLive() || stopPos <= M.getLastms(mainTrack)){meta.applyLimiter(seekPos, stopPos);}
+        }
       }
     }else{
       if (M.getLive() && targetParams.count("pushdelay")){
@@ -1185,40 +1203,42 @@ namespace Mist{
       }
       if (targetParams.count("start") && atoll(targetParams["start"].c_str()) != 0){
         size_t mainTrack = getMainSelectedTrack();
-        int64_t startRec = atoll(targetParams["start"].c_str());
-        if (startRec > M.getNowms(mainTrack)){
-          if (!M.getLive()){
-            onFail("Playback start past end of non-live source", true);
-            return;
-          }
-          int64_t streamAvail = M.getNowms(mainTrack);
-          int64_t lastUpdated = Util::getMS();
-          INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
-          while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
-            Util::sleep(500);
-            if (M.getNowms(mainTrack) > streamAvail){
-              HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
-              stats();
-              streamAvail = M.getNowms(mainTrack);
-              lastUpdated = Util::getMS();
+        if (mainTrack != INVALID_TRACK_ID){
+          int64_t startRec = atoll(targetParams["start"].c_str());
+          if (startRec > M.getNowms(mainTrack)){
+            if (!M.getLive()){
+              onFail("Playback start past end of non-live source", true);
+              return;
+            }
+            int64_t streamAvail = M.getNowms(mainTrack);
+            int64_t lastUpdated = Util::getMS();
+            INFO_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
+            while (Util::getMS() - lastUpdated < 5000 && startRec > streamAvail && keepGoing()){
+              Util::sleep(500);
+              if (M.getNowms(mainTrack) > streamAvail){
+                HIGH_MSG("Waiting for stream to reach playback starting point (%" PRIu64 " -> %" PRIu64 "). Time left: " PRETTY_PRINT_MSTIME, startRec, streamAvail, PRETTY_ARG_MSTIME(startRec - streamAvail));
+                stats();
+                streamAvail = M.getNowms(mainTrack);
+                lastUpdated = Util::getMS();
+              }
             }
           }
-        }
-        if (startRec < 0 || startRec < startTime()){
-          WARN_MSG("Playback begin at %" PRId64 " ms not available, starting at %" PRIu64
-                   " ms instead",
-                   startRec, startTime());
-          startRec = startTime();
-        }
-        if (M.getType(mainTrack) == "video"){
-          seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, startRec));
-          if (seekPos != startRec){
-            INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", startRec, seekPos);
+          if (startRec < 0 || startRec < startTime()){
+            WARN_MSG("Playback begin at %" PRId64 " ms not available, starting at %" PRIu64
+                     " ms instead",
+                     startRec, startTime());
+            startRec = startTime();
           }
-        }else{
-          seekPos = startRec;
+          if (M.getType(mainTrack) == "video"){
+            seekPos = M.getTimeForKeyIndex(mainTrack, M.getKeyIndexForTime(mainTrack, startRec));
+            if (seekPos != startRec){
+              INFO_MSG("Shifting recording start from %" PRIu64 " to %" PRIu64 " so that it starts with a keyframe", startRec, seekPos);
+            }
+          }else{
+            seekPos = startRec;
+          }
+          INFO_MSG("Playback will start at %" PRIu64, seekPos);
         }
-        INFO_MSG("Playback will start at %" PRIu64, seekPos);
       }
       // Duration to record in seconds. Overrides stop.
       if (targetParams.count("duration")){
@@ -1329,7 +1349,7 @@ namespace Mist{
     }
     // cancel if there are no keys in the main track
     if (mainTrack == INVALID_TRACK_ID){return false;}
-    DTSC::Keys mainKeys(meta.keys(mainTrack));
+    DTSC::Keys mainKeys(meta.getKeys(mainTrack));
     if (!mainKeys.getValidCount()){return false;}
 
     for (uint32_t keyNum = mainKeys.getEndValid() - 1; keyNum >= mainKeys.getFirstValid(); keyNum--){
@@ -1966,18 +1986,26 @@ namespace Mist{
     size_t printLevel = (probablyBad ? DLVL_WARN : DLVL_INFO);
     //The rest of the operations depends on userSelect, so we ignore it if it doesn't exist.
     if (!userSelect.count(trackId)){
-      DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+      if (M.hasEmbeddedFrames(trackId)){
+        DEBUG_MSG(printLevel, "Dropping %s track %zu (raw): %s", meta.getCodec(trackId).c_str(), trackId, reason.c_str());
+      }else{
+        DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+      }
       return;
     }
     const Comms::Users &usr = userSelect.at(trackId);
-    if (!usr){
-      DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+    if (M.hasEmbeddedFrames(trackId)){
+      DEBUG_MSG(printLevel, "Dropping %s track %zu (raw): %s", meta.getCodec(trackId).c_str(), trackId, reason.c_str());
     }else{
-      DEBUG_MSG(printLevel, "Dropping %s track %zu@k%zu (nextP=%" PRIu64 ", lastP=%" PRIu64 "): %s",
-                meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
-                pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
+      if (!usr){
+        DEBUG_MSG(printLevel, "Dropping %s track %zu (lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, pageNumMax(trackId), reason.c_str());
+      }else{
+        DEBUG_MSG(printLevel, "Dropping %s track %zu@k%zu (nextP=%" PRIu64 ", lastP=%" PRIu64 "): %s",
+                  meta.getCodec(trackId).c_str(), trackId, usr.getKeyNum() + 1,
+                  pageNumForKey(trackId, usr.getKeyNum() + 1), pageNumMax(trackId), reason.c_str());
+      }
     }
     userSelect.erase(trackId);
   }
@@ -1997,7 +2025,7 @@ namespace Mist{
 
     // find the main track, check if it is video. Abort if not.
     size_t mainTrack = getMainSelectedTrack();
-    if (M.getType(mainTrack) != "video"){return false;}
+    if (mainTrack == INVALID_TRACK_ID || M.getType(mainTrack) != "video"){return false;}
 
     // we now know that mainTrack is a video track - let's do some work!
     // first, we remove all selected tracks and the buffer. Then we select only the main track.
@@ -2006,13 +2034,12 @@ namespace Mist{
     userSelect.clear();
     userSelect[mainTrack].reload(streamName, mainTrack);
     // now, seek to the exact timestamp of the keyframe
-    DTSC::Keys keys(M.keys(mainTrack));
-    uint32_t targetKey = M.getKeyNumForTime(mainTrack, currTime);
+    DTSC::Keys keys(M.getKeys(mainTrack));
     bool ret = false;
-    if (targetKey == INVALID_KEY_NUM){
+    if (!keys.getValidCount()){
       FAIL_MSG("No keyframes available on track %zu", mainTrack);
     }else{
-      seek(keys.getTime(targetKey));
+      seek(keys.getTime(keys.getIndexForTime(currTime)));
       // attempt to load the key into thisPacket
       ret = prepareNext();
       if (!ret){
@@ -2087,6 +2114,49 @@ namespace Mist{
       if (!M.getValidTracks().count(nxt.tid)){
         dropTrack(nxt.tid, "disappeared from metadata");
         return false;
+      }
+
+      if (M.hasEmbeddedFrames(nxt.tid)){
+        if (nxt.ghostPacket){
+          if (M.getEmbeddedTime(nxt.tid, nxt.partIndex, nxt.time)){
+            nxt.ghostPacket = false;
+          }else{
+            nxt.time = M.getNowms(nxt.tid);
+            uint64_t newPart = M.getKeyNumForTime(nxt.tid, nxt.time);
+            if (newPart >= nxt.partIndex){
+              seek(nxt.time);
+            }else{
+              buffer.replaceFirst(nxt);
+              playbackSleep(5);
+            }
+            return false;
+          }
+        }
+        thisTime = nxt.time;
+        thisIdx = nxt.tid;
+        char * d = 0;
+        size_t dz = 0;
+        M.getEmbeddedData(nxt.tid, nxt.partIndex, d, dz);
+        thisPacket.genericFill(thisTime, 0, thisIdx, d, dz, 0, true);
+
+        userSelect[nxt.tid].setKeyNum(nxt.partIndex);
+        ++nxt.partIndex;
+
+        // exchange the current packet in the buffer for the next one
+        if (M.getEmbeddedTime(nxt.tid, nxt.partIndex, nxt.time)){
+          nxt.ghostPacket = false;
+        }else{
+          nxt.time = M.getNowms(nxt.tid);
+          uint64_t newPart = M.getKeyNumForTime(nxt.tid, nxt.time);
+          if (newPart >= nxt.partIndex){
+            seek(nxt.time);
+            return false;
+          }else{
+            nxt.ghostPacket = true;
+          }
+        }
+        buffer.replaceFirst(nxt);
+        return true;
       }
 
       // if we're going to read past the end of the data page...
@@ -2164,7 +2234,8 @@ namespace Mist{
       //Check if there exists a different page for the next key
       uint32_t thisKey = M.getKeyNumForTime(nxt.tid, nxt.time);
       uint32_t nextKeyPage = INVALID_KEY_NUM;
-      //Make sure we only try to read the page for the next key if it actually should be available
+      // Make sure we only try to read the page for the next key if it actually should be available
+      // Note: specifically uses `keys` instead of `getKeys` because these are page-related operations
       DTSC::Keys keys(M.keys(nxt.tid));
       if (keys.getEndValid() >= thisKey+1){nextKeyPage = M.getPageNumberForKey(nxt.tid, thisKey + 1);}
       if (nextKeyPage != INVALID_KEY_NUM && nextKeyPage != currentPage[nxt.tid]){
@@ -2174,12 +2245,23 @@ namespace Mist{
 
         //If the next packet should've been before the current packet, something is wrong. Abort, abort!
         if (nextTime < nxt.time){
-          std::stringstream errMsg;
-          errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
-          errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
-          errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
-          dropTrack(nxt.tid, errMsg.str().c_str());
-          return false;
+          //Re-try the read in ~50ms, hoping this is a race condition we missed somewhere.
+          Util::sleep(50);
+          meta.reloadReplacedPagesIfNeeded();
+          // Note: specifically uses `keys` instead of `getKeys` because these are page-related operations
+          DTSC::Keys keys(M.keys(nxt.tid));
+          nextTime = keys.getTime(thisKey + 1);
+          //Still wrong? Abort, abort!
+          if (nextTime < nxt.time){
+            std::stringstream errMsg;
+            errMsg << "next key (" << (thisKey+1) << ") time " << nextTime << " but current time " << nxt.time;
+            errMsg << "; currPage=" << currentPage[nxt.tid] << ", nxtPage=" << nextKeyPage;
+            errMsg << ", firstKey=" << keys.getFirstValid() << ", endKey=" << keys.getEndValid();
+            dropTrack(nxt.tid, errMsg.str().c_str());
+            return false;
+          }else{
+            WARN_MSG("Recovered from race condition");
+          }
         }
         break;//Valid packet!
       }

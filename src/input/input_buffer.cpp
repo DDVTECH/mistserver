@@ -209,8 +209,12 @@ namespace Mist{
       }else{
         if (initData.count(i)){meta.setInit(i, initData[i]);}
       }
-      DTSC::Fragments fragments(M.fragments(i));
-      if (fragments.getEndValid() < fragCount){fragCount = fragments.getEndValid();}
+      if (M.hasEmbeddedFrames(i)){
+        fragCount = FRAG_BOOT;
+      }else{
+        DTSC::Fragments fragments(M.fragments(i));
+        if (fragments.getEndValid() < fragCount){fragCount = fragments.getEndValid();}
+      }
       if (M.getFirstms(i) < firstms){firstms = M.getFirstms(i);}
       if (M.getLastms(i) > lastms){lastms = M.getLastms(i);}
     }
@@ -404,6 +408,7 @@ namespace Mist{
     }
     for (std::set<size_t>::iterator idx = tracks.begin(); idx != tracks.end(); idx++){
       size_t i = *idx;
+      if (M.hasEmbeddedFrames(i)){continue;}
       std::string type = M.getType(i);
       DTSC::Keys keys(M.keys(i));
       // non-video tracks need to have a second keyframe that is <= firstVideo

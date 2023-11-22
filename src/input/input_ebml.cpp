@@ -46,6 +46,7 @@ namespace Mist{
     capa["codecs"]["video"].append("AV1");
     capa["codecs"]["video"].append("theora");
     capa["codecs"]["video"].append("MPEG2");
+    capa["codecs"]["video"].append("JPEG");
     capa["codecs"]["audio"].append("opus");
     capa["codecs"]["audio"].append("vorbis");
     capa["codecs"]["audio"].append("AAC");
@@ -374,6 +375,10 @@ namespace Mist{
         }
         if (codec == "V_MPEG2"){
           trueCodec = "MPEG2";
+          trueType = "video";
+        }
+        if (codec == "V_MJPEG"){
+          trueCodec = "JPEG";
           trueType = "video";
         }
         if (codec == "A_PCM/FLOAT/IEEE"){

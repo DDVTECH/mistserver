@@ -391,6 +391,16 @@ namespace Mist{
       return 0;
     }
 
+    if (config->hasOption("enumerate") && config->getString("enumerate").size()){
+      std::cout << enumerateSources(config->getString("enumerate")).toString() << std::endl;
+      return 0;
+    }
+
+    if (config->hasOption("getcapa") && config->getString("getcapa").size()){
+      std::cout << getSourceCapa(config->getString("getcapa")).toString() << std::endl;
+      return 0;
+    }
+
     INFO_MSG("Input booting");
 
     //Check if the input uses the name-based-override, and strip it

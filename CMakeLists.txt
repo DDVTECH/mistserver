@@ -468,10 +468,6 @@ makeInput(FLV flv)
 makeInput(FLAC flac)
 
 option(WITH_AV "Build a generic libav-based input (not distributable!)")
-if (WITH_AV)
-  makeInput(AV av)
-  target_link_libraries(MistInAV avformat avcodec avutil)
-endif()
 makeInput(OGG ogg)
 makeInput(Buffer buffer)
 makeInput(H264 h264)
@@ -494,6 +490,7 @@ if(RIST_LIB)
 endif()
 
 makeInput(AAC aac)
+makeInput(V4L2 v4l2)
 
 ########################################
 # MistServer - Outputs                 #

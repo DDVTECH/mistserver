@@ -27,6 +27,8 @@ namespace Util{
 
   bool sysSetNrOpenFiles(int n);
 
+  size_t pixfmtToSize(const std::string & pixfmt, size_t width, size_t height);
+
   class DataCallback{
   public:
     virtual void dataCallback(const char *ptr, size_t size){

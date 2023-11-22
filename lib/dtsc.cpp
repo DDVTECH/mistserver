@@ -8,6 +8,7 @@
 #include "shared_memory.h"
 #include "util.h"
 #include "stream.h"
+#include "timing.h"
 #include <arpa/inet.h> //for htonl/ntohl
 #include <cstdlib>
 #include <cstring>
@@ -1240,10 +1241,6 @@ namespace DTSC{
 
       Track &t = tracks[i];
       t.track = Util::RelAccX(p.mapped, true);
-      t.parts = Util::RelAccX(t.track.getPointer("parts"), true);
-      t.keys = Util::RelAccX(t.track.getPointer("keys"), true);
-      t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
-      t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
 
       t.trackIdField = t.track.getFieldData("id");
       t.trackTypeField = t.track.getFieldData("type");
@@ -1265,22 +1262,39 @@ namespace DTSC{
       t.trackFpksField = t.track.getFieldData("fpks");
       t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
-      t.partSizeField = t.parts.getFieldData("size");
-      t.partDurationField = t.parts.getFieldData("duration");
-      t.partOffsetField = t.parts.getFieldData("offset");
+      if (t.track.hasField("frames")){
+        t.parts = Util::RelAccX();
+        t.keys = Util::RelAccX();
+        t.fragments = Util::RelAccX();
+        t.pages = Util::RelAccX();
+        t.frames = Util::RelAccX(t.track.getPointer("frames"), true);
 
-      t.keyFirstPartField = t.keys.getFieldData("firstpart");
-      t.keyBposField = t.keys.getFieldData("bpos");
-      t.keyDurationField = t.keys.getFieldData("duration");
-      t.keyNumberField = t.keys.getFieldData("number");
-      t.keyPartsField = t.keys.getFieldData("parts");
-      t.keyTimeField = t.keys.getFieldData("time");
-      t.keySizeField = t.keys.getFieldData("size");
+        t.framesTimeField = t.frames.getFieldData("time");
+        t.framesDataField = t.frames.getFieldData("data");
+      }else{
+        t.frames = Util::RelAccX();
+        t.parts = Util::RelAccX(t.track.getPointer("parts"), true);
+        t.keys = Util::RelAccX(t.track.getPointer("keys"), true);
+        t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
+        t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
 
-      t.fragmentDurationField = t.fragments.getFieldData("duration");
-      t.fragmentKeysField = t.fragments.getFieldData("keys");
-      t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
-      t.fragmentSizeField = t.fragments.getFieldData("size");
+        t.partSizeField = t.parts.getFieldData("size");
+        t.partDurationField = t.parts.getFieldData("duration");
+        t.partOffsetField = t.parts.getFieldData("offset");
+
+        t.keyFirstPartField = t.keys.getFieldData("firstpart");
+        t.keyBposField = t.keys.getFieldData("bpos");
+        t.keyDurationField = t.keys.getFieldData("duration");
+        t.keyNumberField = t.keys.getFieldData("number");
+        t.keyPartsField = t.keys.getFieldData("parts");
+        t.keyTimeField = t.keys.getFieldData("time");
+        t.keySizeField = t.keys.getFieldData("size");
+
+        t.fragmentDurationField = t.fragments.getFieldData("duration");
+        t.fragmentKeysField = t.fragments.getFieldData("keys");
+        t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
+        t.fragmentSizeField = t.fragments.getFieldData("size");
+      }
     }
   }
 
@@ -1334,10 +1348,6 @@ namespace DTSC{
         }
 
         t.track = Util::RelAccX(p.mapped, true);
-        t.parts = Util::RelAccX(t.track.getPointer("parts"), true);
-        t.keys = Util::RelAccX(t.track.getPointer("keys"), true);
-        t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
-        t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
 
         t.trackIdField = t.track.getFieldData("id");
         t.trackTypeField = t.track.getFieldData("type");
@@ -1359,22 +1369,39 @@ namespace DTSC{
         t.trackFpksField = t.track.getFieldData("fpks");
         t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
-        t.partSizeField = t.parts.getFieldData("size");
-        t.partDurationField = t.parts.getFieldData("duration");
-        t.partOffsetField = t.parts.getFieldData("offset");
+        if (t.track.hasField("frames")){
+          t.parts = Util::RelAccX();
+          t.keys = Util::RelAccX();
+          t.fragments = Util::RelAccX();
+          t.pages = Util::RelAccX();
+          t.frames = Util::RelAccX(t.track.getPointer("frames"), true);
 
-        t.keyFirstPartField = t.keys.getFieldData("firstpart");
-        t.keyBposField = t.keys.getFieldData("bpos");
-        t.keyDurationField = t.keys.getFieldData("duration");
-        t.keyNumberField = t.keys.getFieldData("number");
-        t.keyPartsField = t.keys.getFieldData("parts");
-        t.keyTimeField = t.keys.getFieldData("time");
-        t.keySizeField = t.keys.getFieldData("size");
+          t.framesTimeField = t.frames.getFieldData("time");
+          t.framesDataField = t.frames.getFieldData("data");
+        }else{
+          t.frames = Util::RelAccX();
+          t.parts = Util::RelAccX(t.track.getPointer("parts"), true);
+          t.keys = Util::RelAccX(t.track.getPointer("keys"), true);
+          t.fragments = Util::RelAccX(t.track.getPointer("fragments"), true);
+          t.pages = Util::RelAccX(t.track.getPointer("pages"), true);
 
-        t.fragmentDurationField = t.fragments.getFieldData("duration");
-        t.fragmentKeysField = t.fragments.getFieldData("keys");
-        t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
-        t.fragmentSizeField = t.fragments.getFieldData("size");
+          t.partSizeField = t.parts.getFieldData("size");
+          t.partDurationField = t.parts.getFieldData("duration");
+          t.partOffsetField = t.parts.getFieldData("offset");
+
+          t.keyFirstPartField = t.keys.getFieldData("firstpart");
+          t.keyBposField = t.keys.getFieldData("bpos");
+          t.keyDurationField = t.keys.getFieldData("duration");
+          t.keyNumberField = t.keys.getFieldData("number");
+          t.keyPartsField = t.keys.getFieldData("parts");
+          t.keyTimeField = t.keys.getFieldData("time");
+          t.keySizeField = t.keys.getFieldData("size");
+
+          t.fragmentDurationField = t.fragments.getFieldData("duration");
+          t.fragmentKeysField = t.fragments.getFieldData("keys");
+          t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
+          t.fragmentSizeField = t.fragments.getFieldData("size");
+        }
 
       }
     }
@@ -1485,7 +1512,7 @@ namespace DTSC{
 
   /// Resizes a given track to be able to hold the given amount of fragments, keys, parts and pages.
   /// Currently called exclusively from Meta::update(), to resize the internal structures.
-  void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason){
+  void Meta::resizeTrack(size_t source, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, const char * reason, size_t frameSize){
     IPC::semaphore resizeLock;
 
     if (!isMemBuf){
@@ -1513,6 +1540,12 @@ namespace DTSC{
                          (TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount)) +
                          (TRACK_PAGE_OFFSET + (TRACK_PAGE_RECORDSIZE * pageCount));
 
+    // Raw track! Embed the data instead
+    if (frameSize){
+      // Reserve room for RAW_FRAME_COUNT frames
+      newPageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE + (8 + frameSize) * RAW_FRAME_COUNT;
+    }
+
     if (isMemBuf){
       free(tMemBuf[source]);
       tMemBuf.erase(source);
@@ -1537,21 +1570,9 @@ namespace DTSC{
 
       t.track = Util::RelAccX(tM[source].mapped, false);
     }
-    initializeTrack(t, fragCount, keyCount, partCount, pageCount);
+    initializeTrack(t, fragCount, keyCount, partCount, pageCount, frameSize);
 
     Util::RelAccX origAccess(orig);
-    Util::RelAccX origFragments(origAccess.getPointer("fragments"));
-    Util::RelAccX origKeys(origAccess.getPointer("keys"));
-    Util::RelAccX origParts(origAccess.getPointer("parts"));
-    Util::RelAccX origPages(origAccess.getPointer("pages"));
-
-    MEDIUM_MSG("Track %zu resizing (reason: %s): frags %" PRIu32 "->%zu, keys %" PRIu32 "->%zu, parts %" PRIu32 "->%zu, pages %" PRIu32 "->%zu",
-             source, reason,
-             origFragments.getRCount(), fragCount,
-             origKeys.getRCount(), keyCount,
-             origParts.getRCount(), partCount,
-             origPages.getRCount(), pageCount);
-
     t.track.setInt(t.trackIdField, origAccess.getInt("id"));
     t.track.setString(t.trackTypeField, origAccess.getPointer("type"));
     t.track.setString(t.trackCodecField, origAccess.getPointer("codec"));
@@ -1574,115 +1595,154 @@ namespace DTSC{
     t.track.setInt(t.trackFpksField, origAccess.getInt("fpks"));
     t.track.setInt(t.trackMissedFragsField, origAccess.getInt("missedFrags"));
 
-    t.parts.setEndPos(origParts.getEndPos());
-    t.parts.setStartPos(origParts.getStartPos());
-    t.parts.setDeleted(origParts.getDeleted());
-    t.parts.setPresent(origParts.getPresent());
+    if (frameSize){
+      Util::RelAccX origFrames(origAccess.getPointer("frames"));
 
-    Util::FieldAccX origPartSizeAccX = origParts.getFieldAccX("size");
-    Util::FieldAccX origPartDurationAccX = origParts.getFieldAccX("duration");
-    Util::FieldAccX origPartOffsetAccX = origParts.getFieldAccX("offset");
+      MEDIUM_MSG("Track %zu resizing (reason: %s): frameSize %zu -> %zu", source, reason,
+               (size_t)origFrames.getFieldData("data").size, frameSize);
 
-    Util::FieldAccX partSizeAccX = t.parts.getFieldAccX("size");
-    Util::FieldAccX partDurationAccX = t.parts.getFieldAccX("duration");
-    Util::FieldAccX partOffsetAccX = t.parts.getFieldAccX("offset");
+      t.frames.setEndPos(origFrames.getEndPos());
+      t.frames.setStartPos(origFrames.getStartPos());
+      t.frames.setDeleted(origFrames.getDeleted());
+      t.frames.setPresent(origFrames.getPresent());
 
-    size_t firstPart = origParts.getStartPos();
-    size_t endPart = origParts.getEndPos();
-    for (size_t i = firstPart; i < endPart; i++){
-      partSizeAccX.set(origPartSizeAccX.uint(i), i);
-      partDurationAccX.set(origPartDurationAccX.uint(i), i);
-      partOffsetAccX.set(origPartOffsetAccX.uint(i), i);
-    }
+      Util::FieldAccX origFramesTimeAccX = origFrames.getFieldAccX("time");
+      Util::FieldAccX origFramesDataAccX = origFrames.getFieldAccX("data");
 
-    t.keys.setEndPos(origKeys.getEndPos());
-    t.keys.setStartPos(origKeys.getStartPos());
-    t.keys.setDeleted(origKeys.getDeleted());
-    t.keys.setPresent(origKeys.getPresent());
+      Util::FieldAccX framesTimeAccX = t.frames.getFieldAccX("time");
+      Util::FieldAccX framesDataAccX = t.frames.getFieldAccX("data");
 
-    Util::FieldAccX origKeyFirstpartAccX = origKeys.getFieldAccX("firstpart");
-    Util::FieldAccX origKeyBposAccX = origKeys.getFieldAccX("bpos");
-    Util::FieldAccX origKeyDurationAccX = origKeys.getFieldAccX("duration");
-    Util::FieldAccX origKeyNumberAccX = origKeys.getFieldAccX("number");
-    Util::FieldAccX origKeyPartsAccX = origKeys.getFieldAccX("parts");
-    Util::FieldAccX origKeyTimeAccX = origKeys.getFieldAccX("time");
-    Util::FieldAccX origKeySizeAccX = origKeys.getFieldAccX("size");
+      size_t firstPage = origFrames.getStartPos();
+      size_t endPage = origFrames.getEndPos();
+      size_t minData = origFrames.getFieldData("data").size;
+      if (minData > frameSize){minData = frameSize;}
+      for (size_t i = firstPage; i < endPage; i++){
+        framesTimeAccX.set(origFramesTimeAccX.uint(i), i);
+        memcpy((void*)framesDataAccX.ptr(i), origFramesDataAccX.ptr(i), minData);
+      }
+    }else{
+      Util::RelAccX origFragments(origAccess.getPointer("fragments"));
+      Util::RelAccX origKeys(origAccess.getPointer("keys"));
+      Util::RelAccX origParts(origAccess.getPointer("parts"));
+      Util::RelAccX origPages(origAccess.getPointer("pages"));
 
-    Util::FieldAccX keyFirstpartAccX = t.keys.getFieldAccX("firstpart");
-    Util::FieldAccX keyBposAccX = t.keys.getFieldAccX("bpos");
-    Util::FieldAccX keyDurationAccX = t.keys.getFieldAccX("duration");
-    Util::FieldAccX keyNumberAccX = t.keys.getFieldAccX("number");
-    Util::FieldAccX keyPartsAccX = t.keys.getFieldAccX("parts");
-    Util::FieldAccX keyTimeAccX = t.keys.getFieldAccX("time");
-    Util::FieldAccX keySizeAccX = t.keys.getFieldAccX("size");
+      MEDIUM_MSG("Track %zu resizing (reason: %s): frags %" PRIu32 "->%zu, keys %" PRIu32 "->%zu, parts %" PRIu32 "->%zu, pages %" PRIu32 "->%zu",
+               source, reason,
+               origFragments.getRCount(), fragCount,
+               origKeys.getRCount(), keyCount,
+               origParts.getRCount(), partCount,
+               origPages.getRCount(), pageCount);
 
-    size_t firstKey = origKeys.getStartPos();
-    size_t endKey = origKeys.getEndPos();
-    for (size_t i = firstKey; i < endKey; i++){
-      keyFirstpartAccX.set(origKeyFirstpartAccX.uint(i), i);
-      keyBposAccX.set(origKeyBposAccX.uint(i), i);
-      keyDurationAccX.set(origKeyDurationAccX.uint(i), i);
-      keyNumberAccX.set(origKeyNumberAccX.uint(i), i);
-      keyPartsAccX.set(origKeyPartsAccX.uint(i), i);
-      keyTimeAccX.set(origKeyTimeAccX.uint(i), i);
-      keySizeAccX.set(origKeySizeAccX.uint(i), i);
-    }
+      t.parts.setEndPos(origParts.getEndPos());
+      t.parts.setStartPos(origParts.getStartPos());
+      t.parts.setDeleted(origParts.getDeleted());
+      t.parts.setPresent(origParts.getPresent());
 
-    t.fragments.setEndPos(origFragments.getEndPos());
-    t.fragments.setStartPos(origFragments.getStartPos());
-    t.fragments.setDeleted(origFragments.getDeleted());
-    t.fragments.setPresent(origFragments.getPresent());
+      Util::FieldAccX origPartSizeAccX = origParts.getFieldAccX("size");
+      Util::FieldAccX origPartDurationAccX = origParts.getFieldAccX("duration");
+      Util::FieldAccX origPartOffsetAccX = origParts.getFieldAccX("offset");
 
-    Util::FieldAccX origFragmentDurationAccX = origFragments.getFieldAccX("duration");
-    Util::FieldAccX origFragmentKeysAccX = origFragments.getFieldAccX("keys");
-    Util::FieldAccX origFragmentFirstkeyAccX = origFragments.getFieldAccX("firstkey");
-    Util::FieldAccX origFragmentSizeAccX = origFragments.getFieldAccX("size");
+      Util::FieldAccX partSizeAccX = t.parts.getFieldAccX("size");
+      Util::FieldAccX partDurationAccX = t.parts.getFieldAccX("duration");
+      Util::FieldAccX partOffsetAccX = t.parts.getFieldAccX("offset");
 
-    Util::FieldAccX fragmentDurationAccX = t.fragments.getFieldAccX("duration");
-    Util::FieldAccX fragmentKeysAccX = t.fragments.getFieldAccX("keys");
-    Util::FieldAccX fragmentFirstkeyAccX = t.fragments.getFieldAccX("firstkey");
-    Util::FieldAccX fragmentSizeAccX = t.fragments.getFieldAccX("size");
+      size_t firstPart = origParts.getStartPos();
+      size_t endPart = origParts.getEndPos();
+      for (size_t i = firstPart; i < endPart; i++){
+        partSizeAccX.set(origPartSizeAccX.uint(i), i);
+        partDurationAccX.set(origPartDurationAccX.uint(i), i);
+        partOffsetAccX.set(origPartOffsetAccX.uint(i), i);
+      }
 
-    size_t firstFragment = origFragments.getStartPos();
-    size_t endFragment = origFragments.getEndPos();
-    for (size_t i = firstFragment; i < endFragment; i++){
-      fragmentDurationAccX.set(origFragmentDurationAccX.uint(i), i);
-      fragmentKeysAccX.set(origFragmentKeysAccX.uint(i), i);
-      fragmentFirstkeyAccX.set(origFragmentFirstkeyAccX.uint(i), i);
-      fragmentSizeAccX.set(origFragmentSizeAccX.uint(i), i);
-    }
+      t.keys.setEndPos(origKeys.getEndPos());
+      t.keys.setStartPos(origKeys.getStartPos());
+      t.keys.setDeleted(origKeys.getDeleted());
+      t.keys.setPresent(origKeys.getPresent());
 
-    t.pages.setEndPos(origPages.getEndPos());
-    t.pages.setStartPos(origPages.getStartPos());
-    t.pages.setDeleted(origPages.getDeleted());
-    t.pages.setPresent(origPages.getPresent());
+      Util::FieldAccX origKeyFirstpartAccX = origKeys.getFieldAccX("firstpart");
+      Util::FieldAccX origKeyBposAccX = origKeys.getFieldAccX("bpos");
+      Util::FieldAccX origKeyDurationAccX = origKeys.getFieldAccX("duration");
+      Util::FieldAccX origKeyNumberAccX = origKeys.getFieldAccX("number");
+      Util::FieldAccX origKeyPartsAccX = origKeys.getFieldAccX("parts");
+      Util::FieldAccX origKeyTimeAccX = origKeys.getFieldAccX("time");
+      Util::FieldAccX origKeySizeAccX = origKeys.getFieldAccX("size");
 
-    Util::FieldAccX origPageFirstkeyAccX = origPages.getFieldAccX("firstkey");
-    Util::FieldAccX origPageKeycountAccX = origPages.getFieldAccX("keycount");
-    Util::FieldAccX origPagePartsAccX = origPages.getFieldAccX("parts");
-    Util::FieldAccX origPageSizeAccX = origPages.getFieldAccX("size");
-    Util::FieldAccX origPageAvailAccX = origPages.getFieldAccX("avail");
-    Util::FieldAccX origPageFirsttimeAccX = origPages.getFieldAccX("firsttime");
-    Util::FieldAccX origPageLastkeytimeAccX = origPages.getFieldAccX("lastkeytime");
+      Util::FieldAccX keyFirstpartAccX = t.keys.getFieldAccX("firstpart");
+      Util::FieldAccX keyBposAccX = t.keys.getFieldAccX("bpos");
+      Util::FieldAccX keyDurationAccX = t.keys.getFieldAccX("duration");
+      Util::FieldAccX keyNumberAccX = t.keys.getFieldAccX("number");
+      Util::FieldAccX keyPartsAccX = t.keys.getFieldAccX("parts");
+      Util::FieldAccX keyTimeAccX = t.keys.getFieldAccX("time");
+      Util::FieldAccX keySizeAccX = t.keys.getFieldAccX("size");
 
-    Util::FieldAccX pageFirstkeyAccX = t.pages.getFieldAccX("firstkey");
-    Util::FieldAccX pageKeycountAccX = t.pages.getFieldAccX("keycount");
-    Util::FieldAccX pagePartsAccX = t.pages.getFieldAccX("parts");
-    Util::FieldAccX pageSizeAccX = t.pages.getFieldAccX("size");
-    Util::FieldAccX pageAvailAccX = t.pages.getFieldAccX("avail");
-    Util::FieldAccX pageFirsttimeAccX = t.pages.getFieldAccX("firsttime");
-    Util::FieldAccX pageLastkeytimeAccX = t.pages.getFieldAccX("lastkeytime");
+      size_t firstKey = origKeys.getStartPos();
+      size_t endKey = origKeys.getEndPos();
+      for (size_t i = firstKey; i < endKey; i++){
+        keyFirstpartAccX.set(origKeyFirstpartAccX.uint(i), i);
+        keyBposAccX.set(origKeyBposAccX.uint(i), i);
+        keyDurationAccX.set(origKeyDurationAccX.uint(i), i);
+        keyNumberAccX.set(origKeyNumberAccX.uint(i), i);
+        keyPartsAccX.set(origKeyPartsAccX.uint(i), i);
+        keyTimeAccX.set(origKeyTimeAccX.uint(i), i);
+        keySizeAccX.set(origKeySizeAccX.uint(i), i);
+      }
 
-    size_t firstPage = origPages.getStartPos();
-    size_t endPage = origPages.getEndPos();
-    for (size_t i = firstPage; i < endPage; i++){
-      pageFirstkeyAccX.set(origPageFirstkeyAccX.uint(i), i);
-      pageKeycountAccX.set(origPageKeycountAccX.uint(i), i);
-      pagePartsAccX.set(origPagePartsAccX.uint(i), i);
-      pageSizeAccX.set(origPageSizeAccX.uint(i), i);
-      pageAvailAccX.set(origPageAvailAccX.uint(i), i);
-      pageFirsttimeAccX.set(origPageFirsttimeAccX.uint(i), i);
-      pageLastkeytimeAccX.set(origPageLastkeytimeAccX.uint(i), i);
+      t.fragments.setEndPos(origFragments.getEndPos());
+      t.fragments.setStartPos(origFragments.getStartPos());
+      t.fragments.setDeleted(origFragments.getDeleted());
+      t.fragments.setPresent(origFragments.getPresent());
+
+      Util::FieldAccX origFragmentDurationAccX = origFragments.getFieldAccX("duration");
+      Util::FieldAccX origFragmentKeysAccX = origFragments.getFieldAccX("keys");
+      Util::FieldAccX origFragmentFirstkeyAccX = origFragments.getFieldAccX("firstkey");
+      Util::FieldAccX origFragmentSizeAccX = origFragments.getFieldAccX("size");
+
+      Util::FieldAccX fragmentDurationAccX = t.fragments.getFieldAccX("duration");
+      Util::FieldAccX fragmentKeysAccX = t.fragments.getFieldAccX("keys");
+      Util::FieldAccX fragmentFirstkeyAccX = t.fragments.getFieldAccX("firstkey");
+      Util::FieldAccX fragmentSizeAccX = t.fragments.getFieldAccX("size");
+
+      size_t firstFragment = origFragments.getStartPos();
+      size_t endFragment = origFragments.getEndPos();
+      for (size_t i = firstFragment; i < endFragment; i++){
+        fragmentDurationAccX.set(origFragmentDurationAccX.uint(i), i);
+        fragmentKeysAccX.set(origFragmentKeysAccX.uint(i), i);
+        fragmentFirstkeyAccX.set(origFragmentFirstkeyAccX.uint(i), i);
+        fragmentSizeAccX.set(origFragmentSizeAccX.uint(i), i);
+      }
+
+      t.pages.setEndPos(origPages.getEndPos());
+      t.pages.setStartPos(origPages.getStartPos());
+      t.pages.setDeleted(origPages.getDeleted());
+      t.pages.setPresent(origPages.getPresent());
+
+      Util::FieldAccX origPageFirstkeyAccX = origPages.getFieldAccX("firstkey");
+      Util::FieldAccX origPageKeycountAccX = origPages.getFieldAccX("keycount");
+      Util::FieldAccX origPagePartsAccX = origPages.getFieldAccX("parts");
+      Util::FieldAccX origPageSizeAccX = origPages.getFieldAccX("size");
+      Util::FieldAccX origPageAvailAccX = origPages.getFieldAccX("avail");
+      Util::FieldAccX origPageFirsttimeAccX = origPages.getFieldAccX("firsttime");
+      Util::FieldAccX origPageLastkeytimeAccX = origPages.getFieldAccX("lastkeytime");
+
+      Util::FieldAccX pageFirstkeyAccX = t.pages.getFieldAccX("firstkey");
+      Util::FieldAccX pageKeycountAccX = t.pages.getFieldAccX("keycount");
+      Util::FieldAccX pagePartsAccX = t.pages.getFieldAccX("parts");
+      Util::FieldAccX pageSizeAccX = t.pages.getFieldAccX("size");
+      Util::FieldAccX pageAvailAccX = t.pages.getFieldAccX("avail");
+      Util::FieldAccX pageFirsttimeAccX = t.pages.getFieldAccX("firsttime");
+      Util::FieldAccX pageLastkeytimeAccX = t.pages.getFieldAccX("lastkeytime");
+
+      size_t firstPage = origPages.getStartPos();
+      size_t endPage = origPages.getEndPos();
+      for (size_t i = firstPage; i < endPage; i++){
+        pageFirstkeyAccX.set(origPageFirstkeyAccX.uint(i), i);
+        pageKeycountAccX.set(origPageKeycountAccX.uint(i), i);
+        pagePartsAccX.set(origPagePartsAccX.uint(i), i);
+        pageSizeAccX.set(origPageSizeAccX.uint(i), i);
+        pageAvailAccX.set(origPageAvailAccX.uint(i), i);
+        pageFirsttimeAccX.set(origPageFirsttimeAccX.uint(i), i);
+        pageLastkeytimeAccX.set(origPageLastkeytimeAccX.uint(i), i);
+      }
     }
     t.track.setReady();
 
@@ -1696,7 +1756,7 @@ namespace DTSC{
 
   /// Adds a track to the metadata structure.
   /// To be called from the various inputs/outputs whenever they want to add a track.
-  size_t Meta::addTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, bool setValid){
+  size_t Meta::addTrack(size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, bool setValid, size_t frameSize){
     char pageName[NAME_BUFFER_SIZE];
     IPC::semaphore trackLock;
     if (!isMemBuf){
@@ -1719,6 +1779,11 @@ namespace DTSC{
                       (TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount)) +
                       (TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount)) +
                       (TRACK_PAGE_OFFSET + (TRACK_PAGE_RECORDSIZE * pageCount));
+    // Raw track! Embed the data instead
+    if (frameSize){
+      // Reserve room for RAW_FRAME_COUNT frames
+      pageSize = TRACK_TRACK_OFFSET + TRACK_TRACK_RECORDSIZE + (8 + frameSize) * RAW_FRAME_COUNT;
+    }
 
     size_t tNumber = trackList.getPresent();
 
@@ -1738,7 +1803,7 @@ namespace DTSC{
 
       t.track = Util::RelAccX(tM[tNumber].mapped, false);
     }
-    initializeTrack(t, fragCount, keyCount, partCount, pageCount);
+    initializeTrack(t, fragCount, keyCount, partCount, pageCount, frameSize);
     t.track.setReady();
     trackList.setString(trackPageField, pageName, tNumber);
     trackList.setInt(trackPidField, getpid(), tNumber);
@@ -1769,9 +1834,30 @@ namespace DTSC{
     trackList.setInt(trackPidField, 0, trackIdx);
   }
 
+  bool Meta::hasEmbeddedFrames(size_t trackIdx) const{
+    return tracks.at(trackIdx).frames.isReady();
+  }
+
+  bool Meta::getEmbeddedData(size_t trackIdx, size_t num, char * & dataPtr, size_t & dataLen) const{
+    const Track & t = tracks.at(trackIdx);
+    const Util::RelAccX & R = t.frames;
+    if (R.getEndPos() <= num || R.getEndPos() > num + RAW_FRAME_COUNT*0.75){return false;}
+    dataPtr = R.getPointer(t.framesDataField, num);
+    dataLen = t.framesDataField.size;
+    return true;
+  }
+
+  bool Meta::getEmbeddedTime(size_t trackIdx, size_t num, uint64_t & time) const{
+    const Track & t = tracks.at(trackIdx);
+    const Util::RelAccX & R = t.frames;
+    if (R.getEndPos() <= num || R.getEndPos() > num + RAW_FRAME_COUNT*0.75){return false;}
+    time = R.getInt(t.framesTimeField, num);
+    return true;
+  }
+
   /// Internal function that is called whenever a track is (re)written to the memory structures.
   /// Adds the needed fields and sets all the RelAccXFieldData members to point to them.
-  void Meta::initializeTrack(Track &t, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount){
+  void Meta::initializeTrack(Track &t, size_t fragCount, size_t keyCount, size_t partCount, size_t pageCount, size_t frameSize){
     t.track.addField("id", RAX_32UINT);
     t.track.addField("type", RAX_STRING, 8);
     t.track.addField("codec", RAX_STRING, 8);
@@ -1781,7 +1867,11 @@ namespace DTSC{
     t.track.addField("bps", RAX_32UINT);
     t.track.addField("maxbps", RAX_32UINT);
     t.track.addField("lang", RAX_STRING, 4);
-    t.track.addField("init", RAX_RAW, 1 * 1024 * 1024); // 1megabyte init data
+    if (!frameSize){
+      t.track.addField("init", RAX_RAW, 1 * 1024 * 1024); // 1megabyte init data
+    }else{
+      t.track.addField("init", RAX_RAW, 1); // 1 byte init data
+    }
     t.track.addField("rate", RAX_16UINT);
     t.track.addField("size", RAX_16UINT);
     t.track.addField("channels", RAX_16UINT);
@@ -1789,39 +1879,19 @@ namespace DTSC{
     t.track.addField("height", RAX_32UINT);
     t.track.addField("fpks", RAX_16UINT);
     t.track.addField("missedFrags", RAX_32UINT);
-    t.track.addField("parts", RAX_NESTED, TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount));
-    t.track.addField("keys", RAX_NESTED, TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount));
-    t.track.addField("fragments", RAX_NESTED, TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount));
-    t.track.addField("pages", RAX_NESTED, TRACK_PAGE_OFFSET + (TRACK_PAGE_RECORDSIZE * pageCount));
+    if (!frameSize){
+      t.track.addField("parts", RAX_NESTED, TRACK_PART_OFFSET + (TRACK_PART_RECORDSIZE * partCount));
+      t.track.addField("keys", RAX_NESTED, TRACK_KEY_OFFSET + (TRACK_KEY_RECORDSIZE * keyCount));
+      t.track.addField("fragments", RAX_NESTED, TRACK_FRAGMENT_OFFSET + (TRACK_FRAGMENT_RECORDSIZE * fragCount));
+      t.track.addField("pages", RAX_NESTED, TRACK_PAGE_OFFSET + (TRACK_PAGE_RECORDSIZE * pageCount));
+    }else{
+      // 36 = RAX_REQDFIELDS_LEN
+      // 6 bytes for "time" uint64_t + 10 bytes for "data" raw field = 16
+      t.track.addField("frames", RAX_NESTED, 36 + 16 + (8+frameSize)*RAW_FRAME_COUNT);
+    }
 
     t.track.setRCount(1);
     t.track.addRecords(1);
-
-    t.parts = Util::RelAccX(t.track.getPointer("parts"), false);
-    t.parts.addField("size", RAX_32UINT);
-    t.parts.addField("duration", RAX_16UINT);
-    t.parts.addField("offset", RAX_16INT);
-    t.parts.setRCount(partCount);
-    t.parts.setReady();
-
-    t.keys = Util::RelAccX(t.track.getPointer("keys"), false);
-    t.keys.addField("firstpart", RAX_64UINT);
-    t.keys.addField("bpos", RAX_64UINT);
-    t.keys.addField("duration", RAX_32UINT);
-    t.keys.addField("number", RAX_32UINT);
-    t.keys.addField("parts", RAX_32UINT);
-    t.keys.addField("time", RAX_64UINT);
-    t.keys.addField("size", RAX_32UINT);
-    t.keys.setRCount(keyCount);
-    t.keys.setReady();
-
-    t.fragments = Util::RelAccX(t.track.getPointer("fragments"), false);
-    t.fragments.addField("duration", RAX_32UINT);
-    t.fragments.addField("keys", RAX_16UINT);
-    t.fragments.addField("firstkey", RAX_32UINT);
-    t.fragments.addField("size", RAX_32UINT);
-    t.fragments.setRCount(fragCount);
-    t.fragments.setReady();
 
     t.trackIdField = t.track.getFieldData("id");
     t.trackTypeField = t.track.getFieldData("type");
@@ -1843,10 +1913,38 @@ namespace DTSC{
     t.trackFpksField = t.track.getFieldData("fpks");
     t.trackMissedFragsField = t.track.getFieldData("missedFrags");
 
+
+    if (frameSize){
+      t.frames = Util::RelAccX(t.track.getPointer("frames"), false);
+      t.frames.addField("time", RAX_64UINT);
+      t.frames.addField("data", RAX_RAW, frameSize);
+      t.frames.setRCount(RAW_FRAME_COUNT);
+      t.frames.setReady();
+      t.framesTimeField = t.frames.getFieldData("time");
+      t.framesDataField = t.frames.getFieldData("data");
+      return;
+    }
+
+    t.parts = Util::RelAccX(t.track.getPointer("parts"), false);
+    t.parts.addField("size", RAX_32UINT);
+    t.parts.addField("duration", RAX_16UINT);
+    t.parts.addField("offset", RAX_16INT);
+    t.parts.setRCount(partCount);
+    t.parts.setReady();
     t.partSizeField = t.parts.getFieldData("size");
     t.partDurationField = t.parts.getFieldData("duration");
     t.partOffsetField = t.parts.getFieldData("offset");
 
+    t.keys = Util::RelAccX(t.track.getPointer("keys"), false);
+    t.keys.addField("firstpart", RAX_64UINT);
+    t.keys.addField("bpos", RAX_64UINT);
+    t.keys.addField("duration", RAX_32UINT);
+    t.keys.addField("number", RAX_32UINT);
+    t.keys.addField("parts", RAX_32UINT);
+    t.keys.addField("time", RAX_64UINT);
+    t.keys.addField("size", RAX_32UINT);
+    t.keys.setRCount(keyCount);
+    t.keys.setReady();
     t.keyFirstPartField = t.keys.getFieldData("firstpart");
     t.keyBposField = t.keys.getFieldData("bpos");
     t.keyDurationField = t.keys.getFieldData("duration");
@@ -1855,6 +1953,13 @@ namespace DTSC{
     t.keyTimeField = t.keys.getFieldData("time");
     t.keySizeField = t.keys.getFieldData("size");
 
+    t.fragments = Util::RelAccX(t.track.getPointer("fragments"), false);
+    t.fragments.addField("duration", RAX_32UINT);
+    t.fragments.addField("keys", RAX_16UINT);
+    t.fragments.addField("firstkey", RAX_32UINT);
+    t.fragments.addField("size", RAX_32UINT);
+    t.fragments.setRCount(fragCount);
+    t.fragments.setReady();
     t.fragmentDurationField = t.fragments.getFieldData("duration");
     t.fragmentKeysField = t.fragments.getFieldData("keys");
     t.fragmentFirstKeyField = t.fragments.getFieldData("firstkey");
@@ -2149,6 +2254,7 @@ namespace DTSC{
     for (std::set<size_t>::iterator it = vTracks.begin(); it != vTracks.end(); it++){
       if (idx != INVALID_TRACK_ID && idx != *it){continue;}
       if (getType(*it) != "video"){continue;}
+      if (hasEmbeddedFrames(*it)){continue;}
       DTSC::Parts p(parts(*it));
       size_t ctr = 0;
       int64_t prevOffset = 0;
@@ -2201,15 +2307,20 @@ namespace DTSC{
     uint64_t firstValid = trackList.getDeleted();
     uint64_t beyondLast = trackList.getEndPos();
     for (size_t i = firstValid; i < beyondLast; i++){
-      if (trackList.getInt(trackValidField, i) & trackValidMask){res.insert(i);}
+      if (!(trackList.getInt(trackValidField, i) & trackValidMask)){continue;}
+      if (!tracks.count(i)){continue;}
+      const Track & t = tracks.at(i);
+      if (!t.track.isReady()){continue;}
+      if (skipEmpty){
+        if (t.frames.isReady() && !t.frames.getPresent()){continue;}
+        if (t.parts.isReady() && !t.parts.getPresent()){continue;}
+      }
+      // Remove track this is based on, if this track is encrypted
       if (trackList.getInt(trackSourceTidField, i) != INVALID_TRACK_ID &&
           std::string(trackList.getPointer(trackEncryptionField, i)) != ""){
         res.erase(trackList.getInt(trackSourceTidField, i));
       }
-      if (!tracks.count(i) || !tracks.at(i).track.isReady()){res.erase(i);}
-      if (skipEmpty){
-        if (res.count(i) && !tracks.at(i).parts.getPresent()){res.erase(i);}
-      }
+      res.insert(i);
     }
     return res;
   }
@@ -2245,13 +2356,15 @@ namespace DTSC{
   void Meta::removeTrack(size_t trackIdx){
     if (!getValidTracks().count(trackIdx)){return;}
     Track &t = tracks[trackIdx];
-    for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
-      if (t.pages.getInt("avail", i) == 0){continue;}
-      char thisPageName[NAME_BUFFER_SIZE];
-      snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
-               (uint32_t)t.pages.getInt("firstkey", i));
-      IPC::sharedPage p(thisPageName, 20971520);
-      p.master = true;
+    if (t.pages.isReady()){
+      for (uint64_t i = t.pages.getDeleted(); i < t.pages.getEndPos(); i++){
+        if (t.pages.getInt("avail", i) == 0){continue;}
+        char thisPageName[NAME_BUFFER_SIZE];
+        snprintf(thisPageName, NAME_BUFFER_SIZE, SHM_TRACK_DATA, streamName.c_str(), trackIdx,
+                 (uint32_t)t.pages.getInt("firstkey", i));
+        IPC::sharedPage p(thisPageName, 20971520);
+        p.master = true;
+      }
     }
     tM[trackIdx].master = true;
     tM.erase(trackIdx);
@@ -2609,9 +2722,54 @@ namespace DTSC{
   const Util::RelAccX &Meta::keys(size_t idx) const{return tracks.at(idx).keys;}
 
   const Keys Meta::getKeys(size_t trackIdx) const{
-    DTSC::Keys k(keys(trackIdx));
-    if (isLimited){k.applyLimiter(limitMin, limitMax, DTSC::Parts(parts(trackIdx)));}
-    return k;
+    const Track & t = tracks.at(trackIdx);
+    if (t.frames.isReady()){
+      DTSC::Keys k(t.frames);
+      if (isLimited){k.applyLimiter(limitMin, limitMax);}
+      return k;
+    }else{
+      DTSC::Keys k(t.keys);
+      if (isLimited){k.applyLimiter(limitMin, limitMax, DTSC::Parts(t.parts));}
+      return k;
+    }
+  }
+
+
+  void Meta::storeFrame(size_t trackIdx, uint64_t time, const char * data, size_t dataSize){
+    Track & t = tracks.at(trackIdx);
+
+    if (time < getLastms(trackIdx)){
+      static bool warned = false;
+      if (!warned){
+        ERROR_MSG("Received packets for track %zu in wrong order (%" PRIu64 " < %" PRIu64
+                  ") - ignoring! Further messages on HIGH level.",
+                  trackIdx, time, getLastms(trackIdx));
+        warned = true;
+      }else{
+        HIGH_MSG("Received packets for track %zu in wrong order (%" PRIu64 " < %" PRIu64
+                 ") - ignoring!",
+                 trackIdx, time, getLastms(trackIdx));
+      }
+      return;
+    }
+
+    uint64_t endPos = t.frames.getEndPos();
+    if (!endPos){
+      setFirstms(trackIdx, time);
+    }
+    if ((endPos - t.frames.getDeleted()) >= t.frames.getRCount()){
+      t.frames.deleteRecords(1);
+      setFirstms(trackIdx, t.frames.getInt(t.framesTimeField, t.frames.getDeleted()));
+    }
+    t.frames.setInt(t.framesTimeField, time, endPos);
+    if (t.framesDataField.size < dataSize){dataSize = t.framesDataField.size;}
+    memcpy(t.frames.getPointer(t.framesDataField, endPos), data, dataSize);
+    t.frames.addRecords(1);
+
+    setMinKeepAway(trackIdx, theJitters[trackIdx].addPack(time));
+    t.track.setInt(t.trackLastmsField, time);
+    t.track.setInt(t.trackNowmsField, time);
+    markUpdated(trackIdx);
   }
 
   const Util::RelAccX &Meta::fragments(size_t idx) const{return tracks.at(idx).fragments;}
@@ -3034,7 +3192,9 @@ namespace DTSC{
     if (!trackList.getPresent()){return 0;}
     uint32_t trackIdx = (idx == INVALID_TRACK_ID ? mainTrack() : idx);
     if (!tM.count(trackIdx)){return 0;}
-    DTSC::Fragments fragments(tracks.at(trackIdx).fragments);
+    const Util::RelAccX & fRela = tracks.at(trackIdx).fragments;
+    if (!fRela.isReady()){return 0;}
+    DTSC::Fragments fragments(fRela);
     uint64_t firstFragment = fragments.getFirstValid();
     uint64_t endFragment = fragments.getEndValid();
     uint32_t ret = 0;
@@ -3086,7 +3246,7 @@ namespace DTSC{
   /// Gets indice of the fragment containing timestamp, or last fragment if nowhere.
   uint32_t Meta::getFragmentIndexForTime(uint32_t idx, uint64_t timestamp) const{
     DTSC::Fragments fragments(tracks.at(idx).fragments);
-    DTSC::Keys keys(tracks.at(idx).keys);
+    DTSC::Keys keys(getKeys(idx));
     uint32_t firstFragment = fragments.getFirstValid();
     uint32_t endFragment = fragments.getEndValid();
     for (size_t i = firstFragment; i < endFragment; i++){
@@ -3102,13 +3262,12 @@ namespace DTSC{
 
   /// Returns the timestamp for the given key index in the given track index
   uint64_t Meta::getTimeForKeyIndex(uint32_t idx, uint32_t keyIdx) const{
-    DTSC::Keys keys(tracks.at(idx).keys);
-    return keys.getTime(keyIdx);
+    return getKeys(idx).getTime(keyIdx);
   }
 
   /// Returns indice of the key containing timestamp, or last key if nowhere.
   uint32_t Meta::getKeyIndexForTime(uint32_t idx, uint64_t timestamp) const{
-    DTSC::Keys keys(tracks.at(idx).keys);
+    DTSC::Keys keys(getKeys(idx));
     uint32_t firstKey = keys.getFirstValid();
     uint32_t endKey = keys.getEndValid();
 
@@ -3121,8 +3280,7 @@ namespace DTSC{
   /// Returns the tiestamp for the given fragment index in the given track index.
   uint64_t Meta::getTimeForFragmentIndex(uint32_t idx, uint32_t fragmentIdx) const{
     DTSC::Fragments fragments(tracks.at(idx).fragments);
-    DTSC::Keys keys(tracks.at(idx).keys);
-    return keys.getTime(fragments.getFirstKey(fragmentIdx));
+    return getKeys(idx).getTime(fragments.getFirstKey(fragmentIdx));
   }
 
   /// Returns the part index for the given timestamp.
@@ -3135,7 +3293,7 @@ namespace DTSC{
 
     uint32_t res = 0;
     uint32_t keyIdx = getKeyIndexForTime(idx, timestamp);
-    DTSC::Keys Keys(keys(idx));
+    DTSC::Keys Keys(getKeys(idx));
     DTSC::Parts Parts(parts(idx));
     uint64_t currentTime = Keys.getTime(keyIdx);
     res = Keys.getFirstPart(keyIdx);
@@ -3155,7 +3313,7 @@ namespace DTSC{
   /// index is invalid or if the timestamp cannot be found.
   uint64_t Meta::getPartTime(uint32_t partIndex, size_t idx) const{
     if (idx == INVALID_TRACK_ID){return 0;}
-    DTSC::Keys Keys(keys(idx));
+    DTSC::Keys Keys(getKeys(idx));
     DTSC::Parts Parts(parts(idx));
     size_t kId = 0;
     for (kId = 0; kId < Keys.getEndValid(); ++kId){
@@ -3218,6 +3376,17 @@ namespace DTSC{
   /// If the time is in the gap before a key, returns that next key instead.
   size_t Meta::getKeyNumForTime(uint32_t idx, uint64_t time) const{
     const Track &trk = tracks.at(idx);
+    if (trk.frames.isReady()){
+      if (!trk.frames.getEndPos()){return INVALID_KEY_NUM;}
+      size_t res = trk.frames.getDeleted();
+      for (size_t i = res; i < trk.frames.getEndPos(); i++){
+        if (trk.frames.getInt(trk.framesTimeField, i) > time){
+          return res;
+        }
+        res = i;
+      }
+      return res;
+    }
     const Util::RelAccX &keys = trk.keys;
     const Util::RelAccX &parts = trk.parts;
     if (!keys.getEndPos()){return INVALID_KEY_NUM;}
@@ -3266,7 +3435,7 @@ namespace DTSC{
       uint32_t longest_prt = 0;
       uint32_t shrtest_cnt = 0xFFFFFFFFul;
       uint32_t longest_cnt = 0;
-      DTSC::Keys Mkeys(keys(i));
+      DTSC::Keys Mkeys(getKeys(i));
       uint32_t firstKey = Mkeys.getFirstValid();
       uint32_t endKey = Mkeys.getEndValid();
       for (uint32_t k = firstKey; k+1 < endKey; k++){
@@ -3396,24 +3565,38 @@ namespace DTSC{
   int64_t Parts::getOffset(size_t idx) const{return parts.getInt(offsetField, idx);}
 
   Keys::Keys(Util::RelAccX &_keys) : isConst(false), keys(_keys), cKeys(_keys){
-    firstPartField = cKeys.getFieldData("firstpart");
-    bposField = cKeys.getFieldData("bpos");
-    durationField = cKeys.getFieldData("duration");
-    numberField = cKeys.getFieldData("number");
-    partsField = cKeys.getFieldData("parts");
-    timeField = cKeys.getFieldData("time");
-    sizeField = cKeys.getFieldData("size");
+    if (cKeys.hasField("firstpart")){
+      isFrames = false;
+      firstPartField = cKeys.getFieldData("firstpart");
+      bposField = cKeys.getFieldData("bpos");
+      durationField = cKeys.getFieldData("duration");
+      numberField = cKeys.getFieldData("number");
+      partsField = cKeys.getFieldData("parts");
+      timeField = cKeys.getFieldData("time");
+      sizeField = cKeys.getFieldData("size");
+    }else{
+      isFrames = true;
+      timeField = cKeys.getFieldData("time");
+      sizeField = cKeys.getFieldData("data");
+    }
     isLimited = false;
   }
 
   Keys::Keys(const Util::RelAccX &_keys) : isConst(true), keys(empty), cKeys(_keys){
-    firstPartField = cKeys.getFieldData("firstpart");
-    bposField = cKeys.getFieldData("bpos");
-    durationField = cKeys.getFieldData("duration");
-    numberField = cKeys.getFieldData("number");
-    partsField = cKeys.getFieldData("parts");
-    timeField = cKeys.getFieldData("time");
-    sizeField = cKeys.getFieldData("size");
+    if (cKeys.hasField("firstpart")){
+      isFrames = false;
+      firstPartField = cKeys.getFieldData("firstpart");
+      bposField = cKeys.getFieldData("bpos");
+      durationField = cKeys.getFieldData("duration");
+      numberField = cKeys.getFieldData("number");
+      partsField = cKeys.getFieldData("parts");
+      timeField = cKeys.getFieldData("time");
+      sizeField = cKeys.getFieldData("size");
+    }else{
+      isFrames = true;
+      timeField = cKeys.getFieldData("time");
+      sizeField = cKeys.getFieldData("data");
+    }
     isLimited = false;
   }
 
@@ -3426,17 +3609,26 @@ namespace DTSC{
   size_t Keys::getValidCount() const{return getEndValid() - getFirstValid();}
 
   size_t Keys::getFirstPart(size_t idx) const{
+    if (isFrames){return idx;}
     if (isLimited && idx == limMin){return limMinFirstPart;}
     return cKeys.getInt(firstPartField, idx);
   }
-  size_t Keys::getBpos(size_t idx) const{return cKeys.getInt(bposField, idx);}
+  size_t Keys::getBpos(size_t idx) const{
+    if (isFrames){return 0;}
+    return cKeys.getInt(bposField, idx);
+  }
   uint64_t Keys::getDuration(size_t idx) const{
+    if (isFrames){return 0;}
     if (isLimited && idx + 1 == limMax){return limMaxDuration;}
     if (isLimited && idx == limMin){return limMinDuration;}
     return cKeys.getInt(durationField, idx);
   }
-  size_t Keys::getNumber(size_t idx) const{return cKeys.getInt(numberField, idx);}
+  size_t Keys::getNumber(size_t idx) const{
+    if (isFrames){return idx;}
+    return cKeys.getInt(numberField, idx);
+  }
   size_t Keys::getParts(size_t idx) const{
+    if (isFrames){return 1;}
     if (isLimited && idx + 1 == limMax){return limMaxParts;}
     if (isLimited && idx == limMin){return limMinParts;}
     return cKeys.getInt(partsField, idx);
@@ -3446,16 +3638,19 @@ namespace DTSC{
     return cKeys.getInt(timeField, idx);
   }
   void Keys::setSize(size_t idx, size_t _size){
+    if (isFrames){return;}
     if (isConst){return;}
     keys.setInt(sizeField, _size, idx);
   }
   size_t Keys::getSize(size_t idx) const{
+    if (isFrames){return sizeField.size;}
     if (isLimited && idx + 1 == limMax){return limMaxSize;}
     if (isLimited && idx == limMin){return limMinSize;}
     return cKeys.getInt(sizeField, idx);
   }
 
   uint64_t Keys::getTotalPartCount(){
+    if (isFrames){return getValidCount();}
     return getParts(getEndValid()-1) + getFirstPart(getEndValid()-1) - getFirstPart(getFirstValid());
   }
   
@@ -3464,7 +3659,8 @@ namespace DTSC{
     uint32_t endKey = getEndValid();
 
     for (size_t i = firstKey; i < endKey; i++){
-      if (getTime(i) + getDuration(i) > timestamp){return i;}
+      const uint64_t t = getTime(i);
+      if (t >= timestamp || t + getDuration(i) > timestamp){return i;}
     }
     return endKey;
   }
@@ -3548,6 +3744,25 @@ namespace DTSC{
     }
 
     HIGH_MSG("Key limiter applied from %" PRIu64 " to %" PRIu64 ", key times %" PRIu64 " to %" PRIu64 ", %lld parts, %lld parts", _min, _max, getTime(limMin), getTime(limMax-1), (long long)limMinParts-(long long)getParts(limMin), (long long)limMaxParts-(long long)getParts(limMax-1));
+    isLimited = true;
+  }
+
+  void Keys::applyLimiter(uint64_t _min, uint64_t _max){
+    // Determine first and last key available within the limits
+    // Note: limMax replaces getEndValid(), and is thus one _past_ the end key index!
+    limMin = getFirstValid();
+    limMax = getEndValid();
+    for (size_t i = limMin; i < limMax; i++){
+      if (getTime(i) <= _min){limMin = i;}
+      if (getTime(i) >= _max){
+        limMax = i;
+        break;
+      }
+    }
+    // We can't have 0 keys, so force at least 1 key in cases where min >= max.
+    if (limMin >= limMax){limMax = limMin + 1;}
+
+    HIGH_MSG("Frame limiter applied from %" PRIu64 " to %" PRIu64 ", key times %" PRIu64 " to %" PRIu64 ", %lld parts, %lld parts", _min, _max, getTime(limMin), getTime(limMax-1), (long long)limMinParts-(long long)getParts(limMin), (long long)limMaxParts-(long long)getParts(limMax-1));
     isLimited = true;
   }
 

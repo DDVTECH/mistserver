@@ -78,10 +78,10 @@ namespace Mist{
     // VoD size of the whole thing is RIFF(4)+fmt(26)+fact(12)+LIST(30)+data(8)+data itself
     uint32_t total_data = 0xFFFFFFFFul - 80;
     if (!M.getLive()){
-      DTSC::Keys keys(M.keys(mainTrack));
+      DTSC::Keys keys(M.getKeys(mainTrack));
       total_data = 0;
       size_t keyCount = keys.getEndValid();
-      for (size_t i = 0; i < keyCount; ++i){total_data += keys.getSize(i);}
+      for (size_t i = keys.getFirstValid(); i < keyCount; ++i){total_data += keys.getSize(i);}
     }
     Bit::htobl_le(riffHeader + 4, 80 + total_data);
     myConn.SendNow(riffHeader, 12);

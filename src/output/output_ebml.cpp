@@ -67,6 +67,10 @@ namespace Mist{
     capa["codecs"][0u][0u].append("theora");
     capa["codecs"][0u][0u].append("MPEG2");
     capa["codecs"][0u][0u].append("AV1");
+    capa["codecs"][0u][0u].append("JPEG");
+    capa["codecs"][0u][0u].append("YUYV");
+    capa["codecs"][0u][0u].append("UYVY");
+    capa["codecs"][0u][0u].append("NV12");
     capa["codecs"][0u][1u].append("AAC");
     capa["codecs"][0u][1u].append("FLAC");
     capa["codecs"][0u][1u].append("vorbis");
@@ -123,24 +127,35 @@ namespace Mist{
   size_t OutEBML::clusterSize(uint64_t start, uint64_t end){
     size_t sendLen = EBML::sizeElemUInt(EBML::EID_TIMECODE, start);
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      DTSC::Keys keys(M.keys(it->first));
-      DTSC::Parts parts(M.parts(it->first));
+      DTSC::Keys keys(M.getKeys(it->first));
 
       uint32_t firstPart = keys.getFirstPart(keys.getFirstValid());
       uint64_t curMS = 0;
 
-      for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
-        if (keys.getTime(i) > start){break;}
-        firstPart =  keys.getFirstPart(i);
-        curMS = keys.getTime(i);
-      }
-      for (size_t i = firstPart; i < parts.getEndValid(); ++i){
-        if (curMS >= end){break;}
-        if (curMS >= start){
-          uint32_t blkLen = EBML::sizeSimpleBlock(it->first + 1, parts.getSize(i));
-          sendLen += blkLen;
+      if (M.hasEmbeddedFrames(it->first)){
+        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
+          curMS = keys.getTime(i);
+          if (curMS > end){break;}
+          if (curMS >= start){
+            uint32_t blkLen = EBML::sizeSimpleBlock(it->first + 1, keys.getSize(i));
+            sendLen += blkLen;
+          }
         }
-        curMS += parts.getDuration(i);
+      }else{
+        for (size_t i = keys.getFirstValid(); i < keys.getEndValid(); ++i){
+          if (keys.getTime(i) > start){break;}
+          firstPart =  keys.getFirstPart(i);
+          curMS = keys.getTime(i);
+        }
+        DTSC::Parts parts(M.parts(it->first));
+        for (size_t i = firstPart; i < parts.getEndValid(); ++i){
+          if (curMS >= end){break;}
+          if (curMS >= start){
+            uint32_t blkLen = EBML::sizeSimpleBlock(it->first + 1, parts.getSize(i));
+            sendLen += blkLen;
+          }
+          curMS += parts.getDuration(i);
+        }
       }
     }
     return sendLen;
@@ -193,6 +208,7 @@ namespace Mist{
     if (codec == "vorbis"){return "A_VORBIS";}
     if (codec == "theora"){return "V_THEORA";}
     if (codec == "MPEG2"){return "V_MPEG2";}
+    if (codec == "JPEG"){return "V_MJPEG";}
     if (codec == "PCM"){return "A_PCM/INT/BIG";}
     if (codec == "MP2"){return "A_MPEG/L2";}
     if (codec == "MP3"){return "A_MPEG/L3";}
@@ -203,6 +219,9 @@ namespace Mist{
     if (codec == "FLOAT"){return "A_PCM/FLOAT/IEEE";}
     if (codec == "DTS"){return "A_DTS";}
     if (codec == "JSON"){return "M_JSON";}
+    if (codec == "YUYV"){return "V_UNCOMPRESSED";}
+    if (codec == "NV12"){return "V_UNCOMPRESSED";}
+    if (codec == "UYVY"){return "V_UNCOMPRESSED";}
     return "E_UNKNOWN";
   }
 
@@ -234,6 +253,9 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
+      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+        subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
+      }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);
     }
     if (type == "audio"){
@@ -274,6 +296,9 @@ namespace Mist{
       EBML::sendElemUInt(myConn, EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       EBML::sendElemUInt(myConn, EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       EBML::sendElemUInt(myConn, EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
+      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+        EBML::sendElemStr(myConn, EBML::EID_UNCOMPRESSEDFOURCC, codec);
+      }
     }
     if (type == "audio"){
       EBML::sendElemUInt(myConn, EBML::EID_TRACKTYPE, 2);
@@ -313,6 +338,9 @@ namespace Mist{
       subLen += EBML::sizeElemUInt(EBML::EID_PIXELHEIGHT, M.getHeight(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYWIDTH, M.getWidth(idx));
       subLen += EBML::sizeElemUInt(EBML::EID_DISPLAYHEIGHT, M.getHeight(idx));
+      if (codec == "YUYV" || codec == "NV12" || codec == "UYVY"){
+        subLen += EBML::sizeElemStr(EBML::EID_UNCOMPRESSEDFOURCC, codec);
+      }
       sendLen += EBML::sizeElemHead(EBML::EID_VIDEO, subLen);
     }
     if (type == "audio"){

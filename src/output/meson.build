@@ -79,6 +79,9 @@ foreach output : outputs
     endif
     if extra.contains('jpg')
     endif
+    if extra.contains('avlibs')
+      deps += av_libs
+    endif
     if extra.contains('ts')
       sources += files('output_ts_base.cpp')
     endif

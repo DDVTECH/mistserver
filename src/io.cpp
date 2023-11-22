@@ -23,7 +23,7 @@ namespace Mist{
     size_t bestSoFar = INVALID_TRACK_ID;
     meta.reloadReplacedPagesIfNeeded();
     for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
-      if (meta.trackValid(it->first)){
+      if (meta.trackLoaded(it->first)){
         if (meta.getType(it->first) == "video"){return it->first;}
         bestSoFar = it->first;
       }
@@ -60,8 +60,9 @@ namespace Mist{
     Util::RelAccX &tPages = aMeta.pages(idx);
 
     uint32_t pageIdx = INVALID_KEY_NUM;
+    Util::RelAccXFieldData firstKeyAccx = tPages.getFieldData("firstkey");
     for (uint32_t i = tPages.getDeleted(); i < tPages.getEndPos(); i++){
-      if (tPages.getInt("firstkey", i) == pageNumber){
+      if (tPages.getInt(firstKeyAccx, i) == pageNumber){
         pageIdx = i;
         break;
       }
@@ -357,6 +358,11 @@ namespace Mist{
     // Store the trackid for easier access
     // Do nothing if the trackid is invalid
     if (packTrack == INVALID_TRACK_ID){return;}
+
+    if (aMeta.hasEmbeddedFrames(packTrack)){
+      aMeta.storeFrame(packTrack, packTime, packData, packDataSize);
+      return;
+    }
 
     // Store the trackid for easier access
     Util::RelAccX &tPages = aMeta.pages(packTrack);

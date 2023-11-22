@@ -168,6 +168,15 @@ if not get_option('NORIST')
 endif
 have_librist = not get_option('NORIST') and librist.found()
 
+av_libs = []
+if get_option('WITH_AV')
+  av_libs += dependency('libswscale')
+  av_libs += dependency('libavformat')
+  av_libs += dependency('libavcodec')
+  av_libs += dependency('libavutil')
+  av_libs += dependency('libswresample')
+endif
+
 # Add thread dependency since we always have thread code in libmist
 mist_deps += dependency('threads')
 

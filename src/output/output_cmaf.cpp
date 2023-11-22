@@ -284,7 +284,7 @@ namespace Mist{
 
     // Fragment & Key handlers
     DTSC::Fragments fragments(M.fragments(trackData.timingTrackId));
-    DTSC::Keys keys(M.keys(trackData.timingTrackId));
+    DTSC::Keys keys(M.getKeys(trackData.timingTrackId));
 
     uint32_t bprErrCode = HLS::blockPlaylistReload(M, userSelect, trackData, hlsSpec, fragments, keys);
     if (bprErrCode == 400){
@@ -508,7 +508,7 @@ namespace Mist{
     // skip the first two fragments if live
     if (M.getLive() && (lastFragment - firstFragment) > 6){firstFragment += 2;}
 
-    DTSC::Keys keys(M.keys(mainTrack));
+    DTSC::Keys keys(M.getKeys(mainTrack));
     for (; firstFragment < lastFragment; ++firstFragment){
       uint32_t duration = fragments.getDuration(firstFragment);
       uint64_t starttime = keys.getTime(fragments.getFirstKey(firstFragment));
@@ -765,7 +765,7 @@ namespace Mist{
   void OutCMAF::smoothAdaptation(const std::string &type, std::set<size_t> tracks,
                                  std::stringstream &r){
     if (!tracks.size()){return;}
-    DTSC::Keys keys(M.keys(*tracks.begin()));
+    DTSC::Keys keys(M.getKeys(*tracks.begin()));
     r << "<StreamIndex Type=\"" << type << "\" QualityLevels=\"" << tracks.size() << "\" Name=\""
       << type << "\" Chunks=\"" << keys.getValidCount() << "\" Url=\"Q({bitrate})/"
       << "chunk_{start_time}.m4s\" ";
@@ -887,7 +887,7 @@ namespace Mist{
     uint64_t mTrk = getMainSelectedTrack();
     size_t currentKey = M.getKeyIndexForTime(mTrk, thisTime);
     uint64_t startTime = Util::bootMS();
-    DTSC::Keys keys(M.keys(mTrk));
+    DTSC::Keys keys(M.getKeys(mTrk));
     while (startTime + maxWait > Util::bootMS() && keepGoing()){
       if (keys.getEndValid() > currentKey + 1 &&
           M.getLastms(thisIdx) >= M.getTimeForKeyIndex(mTrk, currentKey + 1)){

@@ -883,8 +883,30 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   }
 
   if (Request.isMember("capabilities")){
-    Controller::checkCapable(capabilities);
-    Response["capabilities"] = capabilities;
+    if (Request["capabilities"].isString()){
+      Response["capabilities"].null();
+      const std::string & tmpFn = Request["capabilities"].asStringRef();
+      jsonForEachConst(capabilities["inputs"], it){
+        if (it->isMember("dynamic_capa")){
+          std::string source = (*it)["source_match"].asStringRef();
+          std::string front = source.substr(0, source.find('*'));
+          std::string back = source.substr(source.find('*') + 1);
+          if (tmpFn.size() >= front.size()+back.size() && tmpFn.substr(0, front.size()) == front && tmpFn.substr(tmpFn.size() - back.size()) == back){
+            std::string arg_one = Util::getMyPath() + "MistIn" + it.key();
+            char const *conn_args[] ={0, "--getcapa", 0, 0};
+            conn_args[0] = arg_one.c_str();
+            conn_args[2] = Request["capabilities"].asStringRef().c_str();
+            configMutex.unlock();
+            Response["capabilities"] = JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
+            configMutex.lock();
+            break;
+          }
+        }
+      }
+    }else{
+      Controller::checkCapable(capabilities);
+      Response["capabilities"] = capabilities;
+    }
   }
 
   if (Request.isMember("browse")){
@@ -1318,6 +1340,25 @@ void Controller::handleAPICommands(JSON::Value &Request, JSON::Value &Response){
   if (Request.isMember("external_writer_remove") || Request.isMember("external_writer_add") || 
       Request.isMember("external_writer_list")){
     Controller::listExternalWriters(Response["external_writer_list"]);
+  }
+
+  if (Request.isMember("enumerate_sources")){
+    if (!Request["enumerate_sources"].isString()){
+      Response["enumerate_sources"].null();
+    }else{
+      jsonForEachConst(capabilities["inputs"], it){
+        if (it->isMember("enum_static_prefix") && (*it)["enum_static_prefix"].asStringRef().size() <= Request["enumerate_sources"].asStringRef().size() && Request["enumerate_sources"].asStringRef().substr(0, (*it)["enum_static_prefix"].asStringRef().size()) == (*it)["enum_static_prefix"].asStringRef()){
+          std::string arg_one = Util::getMyPath() + "MistIn" + it.key();
+          char const *conn_args[] ={0, "--enumerate", 0, 0};
+          conn_args[0] = arg_one.c_str();
+          conn_args[2] = Request["enumerate_sources"].asStringRef().c_str();
+          configMutex.unlock();
+          Response["enumerate_sources"] = JSON::fromString(Util::Procs::getOutputOf((char **)conn_args));
+          configMutex.lock();
+          break;
+        }
+      }
+    }
   }
 
   Controller::writeConfig();

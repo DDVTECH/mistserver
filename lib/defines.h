@@ -173,6 +173,9 @@ static inline void show_stackframe(){}
 // Pages get marked for deletion after X seconds of no one watching
 #define DEFAULT_PAGE_TIMEOUT 15
 
+/// Count of raw frames for raw frame buffers
+#define RAW_FRAME_COUNT 30
+
 /// \TODO These values are hardcoded for now, but the dtsc_sizing_test binary can calculate them accurately.
 #define META_META_OFFSET 138
 #define META_META_RECORDSIZE 548

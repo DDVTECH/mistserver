@@ -98,6 +98,8 @@ namespace Mist{
     virtual void userLeadOut();
     virtual void connStats(Comms::Connections & statComm);
     virtual void parseHeader();
+    virtual JSON::Value enumerateSources(const std::string &){ return JSON::Value(); };
+    virtual JSON::Value getSourceCapa(const std::string &){ return JSON::Value(); };
     bool bufferFrame(size_t track, uint32_t keyNum);
     void doInputAbortTrigger(pid_t pid, char *mRExitReason, char *exitReason);
     bool exitAndLogReason();

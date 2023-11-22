@@ -32,15 +32,12 @@ if have_srt
   inputs += {'name' : 'TSSRT', 'format' : 'tssrt', 'extra' : 'with_srt'}
 endif
 
-av_libs = []
-
 if get_option('WITH_AV')
-  inputs += {'name' : 'AV', 'format' : 'av'}
-  av_libs = [
-    dependency('libavformat'),
-    dependency('libavcodec'),
-    dependency('libavutil'),
-  ]
+  inputs += {'name' : 'AV', 'format' : 'av', 'extra': 'with_av'}
+endif
+
+if ccpp.has_header('linux/videodev2.h')
+  inputs += {'name' : 'V4L2', 'format' : 'v4l2'}
 endif
 
 inputs_tgts = []
@@ -55,6 +52,9 @@ foreach input : inputs
     if input.get('extra').contains('with_srt')
       deps += libmist_srt_dep
       deps += libsrt
+    endif
+    if input.get('extra').contains('with_av')
+      deps += av_libs
     endif
   endif
   if input.get('name').contains('AV')

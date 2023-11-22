@@ -212,6 +212,7 @@ namespace Mist{
             return;
           }
           uint32_t longest_key = 0;
+          // Note: specifically uses `keys` instead of `getKeys` since we want _all_ data, regardless of limiting
           DTSC::Keys Mkeys(M.keys(idx));
           uint32_t firstKey = Mkeys.getFirstValid();
           uint32_t endKey = Mkeys.getEndValid();

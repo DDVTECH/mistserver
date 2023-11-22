@@ -926,10 +926,13 @@ namespace Util{
     std::stringstream r;
     uint64_t delled = getDeleted();
     uint64_t max = getEndPos();
-    if (max - delled > getRCount()){max = delled + getRCount();}
+    if (delled >= max || max - delled > getRCount()){
+      r << std::string(indent, ' ') << "(Note: deleted count (" << delled << ") >= total count (" << max << "))" << std::endl;
+      delled = max - getRCount();
+    }
     if (max == 0){max = getRCount();}
     r << std::string(indent, ' ') << "RelAccX: " << getRCount() << " x " << getRSize() << "b @"
-      << getOffset() << " (#" << getDeleted() << " - #" << getEndPos() - 1 << ")" << std::endl;
+      << getOffset() << " (#" << delled << " - #" << max - 1 << ")" << std::endl;
     for (uint64_t i = delled; i < max; ++i){
       r << std::string(indent + 2, ' ') << "#" << i << ":" << std::endl;
       for (std::map<std::string, RelAccXFieldData>::const_iterator it = fields.begin();
@@ -1316,6 +1319,22 @@ namespace Util{
       HIGH_MSG("Open file limit increased from %d to %d", currLimit, n)
     }
     return true;
+  }
+
+  /// Converts a width and height in a given pixel format to the size needed to store those pixels.
+  /// Returns zero if the pixel format is non-constant or unknown
+  size_t pixfmtToSize(const std::string & pixfmt, size_t width, size_t height){
+    if (pixfmt == "UYVY" || pixfmt == "YUYV"){
+      // 8-bit YUV422, 2 bytes per pixel, no padding
+      return width*height*2;
+    }
+    if (pixfmt == "V210"){
+      // 10-bit YUV422, 16 bytes per 6 pixels, width padded to 128-byte multiple
+      size_t rowBytes = width * 16 / 6;
+      if (rowBytes % 128){rowBytes += 128 - (rowBytes % 128);}
+      return rowBytes*height;
+    }
+    return 0;
   }
 
 }// namespace Util

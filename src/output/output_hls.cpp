@@ -291,7 +291,7 @@ namespace Mist{
       }else{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
-      if (isTS && (!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
+      if (isTS && !(!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
                         JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
@@ -373,14 +373,14 @@ namespace Mist{
       H.SetHeader("Content-Type", "video/mp2t");
       H.setCORSHeaders();
       if (!(Comms::tknMode & 0x04) || config->getOption("chunkpath")){
-        H.SetHeader("Cache-Control", "no-store");
-      }else{
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
                         JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
                         ", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");
+      }else{
+        H.SetHeader("Cache-Control", "no-store");
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);

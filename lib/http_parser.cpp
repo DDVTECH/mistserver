@@ -563,7 +563,6 @@ uint8_t HTTP::Parser::getPercentage() const{
 bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
   size_t f;
   std::string tmpA, tmpB, tmpC;
-  bool foundCookieHeader = false;
   /// \todo Make this not resize HTTPbuffer in parts, but read all at once and then remove the
   /// entire request, like doxygen claims it does?
   while (!HTTPbuffer.empty()){
@@ -638,21 +637,29 @@ bool HTTP::Parser::parse(std::string &HTTPbuffer, Util::DataCallback &cb){
           if (f == std::string::npos) continue;
           tmpB = tmpA.substr(0, f);
           tmpC = tmpA.substr(f + 1);
-          // If a cookie is found in the HTTP req, set it as a environment variable
-          // in order to redirect it with triggers
-          if (tmpB == "cookie" || tmpB == "Cookie"){
-            HIGH_MSG("Found cookie header! Setting environment variable to: %s'", tmpC.c_str());
-            foundCookieHeader = true;
-            setenv("Cookie", tmpC.c_str(), 1);
-          }
           SetHeader(tmpB, tmpC);
         }
       }
     }
     if (seenHeaders){
-      // If cookie header was not found, unset the environment variable
-      if (!foundCookieHeader){
-        unsetenv("Cookie");
+      // If a cookie is found in the HTTP req, set it as a environment variable
+      // in order to redirect it with triggers
+      {
+        std::string cookie;
+        if (hasHeader("Cookie")){cookie = GetHeader("Cookie");}
+        if (hasHeader("Livepeer-Access-Key")){
+          if (cookie.size()){cookie += "; ";}
+          cookie += std::string("Livepeer-Access-Key=") + Encodings::URL::encode(GetHeader("Livepeer-Access-Key"));
+        }
+        if (hasHeader("Livepeer-Jwt")){
+          if (cookie.size()){cookie += "; ";}
+          cookie += std::string("Livepeer-Jwt=") + Encodings::URL::encode(GetHeader("Livepeer-Jwt"));
+        }
+        if (cookie.size()){
+          setenv("Cookie", cookie.c_str(), 1);
+        }else{
+          unsetenv("Cookie");
+        }
       }
       if (headerOnly){return true;}
       //Check if we have a response code that may never have a body

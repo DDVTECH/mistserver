@@ -4602,7 +4602,8 @@ var UI = {
                   pointer: {
                     main: saveas,
                     index: 'always_on'
-                  }
+                  },
+                  value: (other == "" && ((i == "TSSRT") || (i == "TSRIST")) ? true : false) //for new streams, if the input is TSSRT or TSRIST, put always_on true by default
                 });
               }
               $inputoptions.append(UI.buildUI(build));

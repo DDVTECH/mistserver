@@ -128,25 +128,58 @@ namespace Mist{
         }
       }
       if (thisTime > statSourceMs){statSourceMs = thisTime;}
-      if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video" && (thisTime - presegs[currPreSeg].time) >= 1000){
-        sourceIndex = getMainSelectedTrack();
-        if (presegs[currPreSeg].data.size() > 187){
-          presegs[currPreSeg].keyNo = keyCount;
-          presegs[currPreSeg].width = M.getWidth(thisIdx);
-          presegs[currPreSeg].height = M.getHeight(thisIdx);
-          presegs[currPreSeg].segDuration = thisTime - presegs[currPreSeg].time;
-          presegs[currPreSeg].fullyRead = false;
-          presegs[currPreSeg].fullyWritten = true;
-          currPreSeg = (currPreSeg+1) % PRESEG_COUNT;
+
+      // Split if we have a keyframe which contains new init data
+      if (thisPacket.getFlag("keyframe") && M.trackLoaded(thisIdx) && M.getType(thisIdx) == "video"){
+        // Always split if we current segment is long enough
+        bool shouldSplit = (thisTime - presegs[currPreSeg].time) >= 1000;
+        // Else check for changes to init data
+        if (!shouldSplit){
+          char *dataPointer = 0;
+          size_t dataLen = 0;
+          thisPacket.getString("data", dataPointer, dataLen);
+          std::string codec = M.getCodec(thisIdx);
+          if (codec == "H264" && dataLen > 3){
+            uint8_t nalType = (dataPointer[4] & 0x1F);
+            switch (nalType){
+              case 0x07: // sps
+              case 0x08: // pps
+                shouldSplit = true;
+              default:
+                break;
+            }
+          }else if (codec == "HEVC" && dataLen > 3){
+            uint8_t nalType = (dataPointer[4] & 0x7E) >> 1;
+            switch (nalType){
+              case 32: // vps
+              case 33: // sps
+              case 34: // pps
+                shouldSplit = true;
+              default:
+                break;
+            }
+          }
         }
-        while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
-        presegs[currPreSeg].data.assign(0, 0);
-        selectDefaultTracks();
-        needsLookAhead = 0;
-        maxSkipAhead = 0;
-        packCounter = 0;
-        ++keyCount;
-        sendFirst = true;
+        if (shouldSplit){
+          sourceIndex = getMainSelectedTrack();
+          if (presegs[currPreSeg].data.size() > 187){
+            presegs[currPreSeg].keyNo = keyCount;
+            presegs[currPreSeg].width = M.getWidth(thisIdx);
+            presegs[currPreSeg].height = M.getHeight(thisIdx);
+            presegs[currPreSeg].segDuration = thisTime - presegs[currPreSeg].time;
+            presegs[currPreSeg].fullyRead = false;
+            presegs[currPreSeg].fullyWritten = true;
+            currPreSeg = (currPreSeg+1) % PRESEG_COUNT;
+          }
+          while (!presegs[currPreSeg].fullyRead && conf.is_active){Util::sleep(100);}
+          presegs[currPreSeg].data.assign(0, 0);
+          selectDefaultTracks();
+          needsLookAhead = 0;
+          maxSkipAhead = 0;
+          packCounter = 0;
+          ++keyCount;
+          sendFirst = true;
+        }
       }
       TSOutput::sendNext();
     }

@@ -145,6 +145,7 @@ namespace Mist{
               case 0x07: // sps
               case 0x08: // pps
                 shouldSplit = true;
+                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
               default:
                 break;
             }
@@ -155,6 +156,7 @@ namespace Mist{
               case 33: // sps
               case 34: // pps
                 shouldSplit = true;
+                INFO_MSG("Switching to new segment since the current keyframe contains new init data");
               default:
                 break;
             }

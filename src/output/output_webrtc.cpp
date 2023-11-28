@@ -8,6 +8,13 @@
 #include <mist/triggers.h>
 #include <netdb.h> // ifaddr, listing ip addresses.
 #include <mist/stream.h>
+/*
+This file handles both input and output, and can operate in WHIP/WHEP as well as WebSocket signaling mode.
+In case of WHIP/WHEP: the Socket is closed after signaling has happened and the keepGoing function
+  is overridden to handle this case
+When handling WebRTC Input a second thread is started dedicated to UDP traffic. In this case
+  no UDP traffic may be handled on the main thread whatsoever
+*/
 
 namespace Mist{
 
@@ -318,7 +325,8 @@ namespace Mist{
 
   void OutWebRTC::requestHandler(){
     if (noSignalling){
-      if (!parseData){udp.sendPaced(10000);}
+      // For WHEP, make sure we keep listening for packets while waiting for new data to come in for sending
+      if (parseData && !handleWebRTCInputOutput()){udp.sendPaced(10);}
       //After 10s of no packets, abort
       if (Util::bootMS() > lastRecv + 10000){
         Util::logExitReason(ER_CLEAN_INACTIVE, "received no data for 10+ seconds");

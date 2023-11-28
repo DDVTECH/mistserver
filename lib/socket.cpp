@@ -1894,6 +1894,9 @@ void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
   }
 }
 
+/// Queues sdata, len for sending over this socket.
+/// If there has been enough time since the last packet, sends immediately.
+/// Warning: never call sendPaced for the same socket from a different thread!
 void Socket::UDPConnection::sendPaced(const char *sdata, size_t len){
   if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
     SendNow(sdata, len);
@@ -1907,6 +1910,7 @@ void Socket::UDPConnection::sendPaced(const char *sdata, size_t len){
 }
 
 /// Spends uSendWindow microseconds either sending paced packets or sleeping, whichever is more appropriate
+/// Warning: never call sendPaced for the same socket from a different thread!
 void Socket::UDPConnection::sendPaced(uint64_t uSendWindow){
   uint64_t currPace = Util::getMicros();
   do{

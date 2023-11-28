@@ -21,6 +21,8 @@ namespace Mist{
   struct playListEntries{
     std::string filename;
     std::string relative_filename;
+    uint64_t startAtByte; ///< Byte position inside filename where to start reading
+    uint64_t stopAtByte; ///< Byte position inside filename where to stop sending
     uint64_t bytePos;
     uint64_t mUTC; ///< UTC unix millis timestamp of first packet, if known
     float duration; ///< Duration of entry in seconds
@@ -36,12 +38,28 @@ namespace Mist{
       timestamp = 0;
       timeOffset = 0;
       wait = 0;
+      startAtByte = 0;
+      stopAtByte = 0;
       for (size_t i = 0; i < 16; ++i){
         ivec[i] = 0;
         keyAES[i] = 0;
       }
     }
+    std::string shortName() const{
+      if (!startAtByte && !stopAtByte){return filename;}
+      std::string ret = filename;
+      ret += " (";
+      ret += JSON::Value(startAtByte).asString();
+      ret += "-";
+      ret += JSON::Value(stopAtByte).asString();
+      ret += ")";
+      return ret;
+    }
   };
+
+  inline bool operator< (const playListEntries a, const playListEntries b){
+    return a.filename < b.filename || (a.filename == b.filename && a.startAtByte < b.startAtByte);
+  }
 
   /// Keeps the segment entry list by playlist ID
   extern std::map<uint32_t, std::deque<playListEntries> > listEntries;
@@ -59,6 +77,8 @@ namespace Mist{
     bool atEnd() const;
 
   private:
+    uint64_t startAtByte;
+    uint64_t stopAtByte;
     bool encrypted;
     bool buffered;
     size_t offset;
@@ -79,8 +99,7 @@ namespace Mist{
     bool isUrl() const;
     bool reload();
     void addEntry(const std::string & absolute_filename, const std::string &filename, float duration, uint64_t &bpos,
-                  const std::string &key, const std::string &keyIV);
-    bool isSupportedFile(const std::string filename);
+                  const std::string &key, const std::string &keyIV, uint64_t startByte, uint64_t lenByte);
 
     std::string uri; // link to the current playlistfile
     HTTP::URL root;

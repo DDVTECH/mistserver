@@ -51,6 +51,7 @@ namespace Mist{
   inputTSSRT::inputTSSRT(Util::Config *cfg, Socket::SRTConnection s) : Input(cfg){
     rawIdx = INVALID_TRACK_ID;
     lastRawPacket = 0;
+    bootMSOffsetCalculated = false;
     assembler.setLive();
     capa["name"] = "TSSRT";
     capa["desc"] = "This input allows for processing MPEG2-TS-based SRT streams. Use mode=listener "
@@ -264,18 +265,23 @@ namespace Mist{
     thisIdx = M.trackIDToIndex(thisPacket.getTrackId(), getpid());
     if (thisIdx == INVALID_TRACK_ID){getNext(idx);}
 
-    uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;
+    uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
     if (lastTimeStamp || timeStampOffset){
-      if (lastTimeStamp + 5000 < adjustTime || lastTimeStamp > adjustTime + 5000){
+      uint64_t targetTime = Util::bootMS() - M.getBootMsOffset();
+      if (targetTime + 5000 < pktTimeWithOffset || targetTime > pktTimeWithOffset + 5000){
         INFO_MSG("Timestamp jump " PRETTY_PRINT_MSTIME " -> " PRETTY_PRINT_MSTIME ", compensating.",
-                 PRETTY_ARG_MSTIME(lastTimeStamp), PRETTY_ARG_MSTIME(adjustTime));
-        timeStampOffset += (lastTimeStamp - adjustTime);
-        adjustTime = thisPacket.getTime() + timeStampOffset;
+                 PRETTY_ARG_MSTIME(targetTime), PRETTY_ARG_MSTIME(pktTimeWithOffset));
+        timeStampOffset += (targetTime - pktTimeWithOffset);
+        pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
       }
     }
-    if (!lastTimeStamp){meta.setBootMsOffset(Util::bootMS() - adjustTime);}
-    lastTimeStamp = adjustTime;
-    thisPacket.setTime(adjustTime);
+    if (!bootMSOffsetCalculated){
+      meta.setBootMsOffset((int64_t)Util::bootMS() - (int64_t)pktTimeWithOffset);
+      bootMSOffsetCalculated = true;
+    }
+    lastTimeStamp = pktTimeWithOffset;
+    thisPacket.setTime(pktTimeWithOffset);
+    thisTime = pktTimeWithOffset;
   }
 
   bool inputTSSRT::openStreamSource(){return true;}

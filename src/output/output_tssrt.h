@@ -29,6 +29,7 @@ namespace Mist{
     Socket::UDPConnection pushSock;
     TS::Stream tsIn;
     TS::Assembler assembler;
+    bool bootMSOffsetCalculated;
 
     Socket::SRTConnection & srtConn;
   };

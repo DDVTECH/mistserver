@@ -16,6 +16,7 @@ namespace Mist{
     streamName = config->getString("streamname");
     Util::setStreamName(streamName);
     pushOut = false;
+    bootMSOffsetCalculated = false;
     assembler.setLive();
     // Push output configuration
     if (config->getString("target").size()){
@@ -382,18 +383,23 @@ namespace Mist{
         userSelect[thisIdx].reload(streamName, thisIdx, COMM_STATUS_SOURCE | COMM_STATUS_DONOTTRACK);
       }
 
-      uint64_t adjustTime = thisPacket.getTime() + timeStampOffset;
+      uint64_t pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
       if (lastTimeStamp || timeStampOffset){
-        if (lastTimeStamp + 5000 < adjustTime || lastTimeStamp > adjustTime + 5000){
+        uint64_t targetTime = Util::bootMS() - M.getBootMsOffset();
+        if (targetTime + 5000 < pktTimeWithOffset || targetTime > pktTimeWithOffset + 5000){
           INFO_MSG("Timestamp jump " PRETTY_PRINT_MSTIME " -> " PRETTY_PRINT_MSTIME ", compensating.",
-                   PRETTY_ARG_MSTIME(lastTimeStamp), PRETTY_ARG_MSTIME(adjustTime));
-          timeStampOffset += (lastTimeStamp - adjustTime);
-          adjustTime = thisPacket.getTime() + timeStampOffset;
+                  PRETTY_ARG_MSTIME(targetTime), PRETTY_ARG_MSTIME(pktTimeWithOffset));
+          timeStampOffset += (targetTime - pktTimeWithOffset);
+          pktTimeWithOffset = thisPacket.getTime() + timeStampOffset;
         }
       }
-      if (!lastTimeStamp){meta.setBootMsOffset(Util::bootMS() - adjustTime);}
-      lastTimeStamp = adjustTime;
-      thisPacket.setTime(adjustTime);
+      if (!bootMSOffsetCalculated){
+        meta.setBootMsOffset(Util::bootMS() - pktTimeWithOffset);
+        bootMSOffsetCalculated = true;
+      }
+      lastTimeStamp = pktTimeWithOffset;
+      thisPacket.setTime(pktTimeWithOffset);
+      thisTime = pktTimeWithOffset;
       bufferLivePacket(thisPacket);
     }
   }

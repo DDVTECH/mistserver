@@ -45,6 +45,7 @@ namespace Mist{
     Util::ResizeablePointer rawBuffer;
     size_t rawIdx;
     uint64_t lastRawPacket;
+    bool bootMSOffsetCalculated;
   };
 }// namespace Mist
 

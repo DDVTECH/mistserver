@@ -61,13 +61,13 @@ namespace MP4{
 
   void TRUN::setFlags(uint32_t newFlags){setInt24(newFlags, 1);}
 
-  uint32_t TRUN::getFlags(){return getInt24(1);}
+  uint32_t TRUN::getFlags() const {return getInt24(1);}
 
   void TRUN::setDataOffset(uint32_t newOffset){
     if (getFlags() & trundataOffset){setInt32(newOffset, 8);}
   }
 
-  uint32_t TRUN::getDataOffset(){
+  uint32_t TRUN::getDataOffset() const {
     if (getFlags() & trundataOffset){
       return getInt32(8);
     }else{
@@ -84,7 +84,7 @@ namespace MP4{
     }
   }
 
-  uint32_t TRUN::getFirstSampleFlags(){
+  uint32_t TRUN::getFirstSampleFlags() const {
     if (!(getFlags() & trunfirstSampleFlags)){return 0;}
     if (getFlags() & trundataOffset){
       return getInt32(12);
@@ -93,7 +93,7 @@ namespace MP4{
     }
   }
 
-  uint32_t TRUN::getSampleInformationCount(){return getInt32(4);}
+  uint32_t TRUN::getSampleInformationCount() const {return getInt32(4);}
 
   void TRUN::setSampleInformation(trunSampleInformation newSample, uint32_t no){
     uint32_t flags = getFlags();
@@ -125,7 +125,7 @@ namespace MP4{
     if (getSampleInformationCount() < no + 1){setInt32(no + 1, 4);}
   }
 
-  trunSampleInformation TRUN::getSampleInformation(uint32_t no){
+  trunSampleInformation TRUN::getSampleInformation(uint32_t no, TFHD * tfhd) const{
     trunSampleInformation ret;
     ret.sampleDuration = 0;
     ret.sampleSize = 0;
@@ -140,19 +140,30 @@ namespace MP4{
     if (flags & trunsampleOffsets){sampInfoSize += 4;}
     uint32_t offset = 8;
     if (flags & trundataOffset){offset += 4;}
-    if (flags & trunfirstSampleFlags){offset += 4;}
+    if (flags & trunfirstSampleFlags){
+      if (!no){ret.sampleFlags = getFirstSampleFlags();}
+      offset += 4;
+    }
     uint32_t innerOffset = 0;
     if (flags & trunsampleDuration){
       ret.sampleDuration = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
+    }else if (tfhd){
+      ret.sampleDuration = tfhd->getDefaultSampleDuration();
     }
     if (flags & trunsampleSize){
       ret.sampleSize = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
+    }else if (tfhd){
+      ret.sampleSize = tfhd->getDefaultSampleSize();
     }
     if (flags & trunsampleFlags){
       ret.sampleFlags = getInt32(offset + no * sampInfoSize + innerOffset);
       innerOffset += 4;
+    }else if ((flags & trunfirstSampleFlags) && !no){
+      ret.sampleFlags = getFirstSampleFlags();
+    }else if (tfhd){
+      ret.sampleFlags = tfhd->getDefaultSampleFlags();
     }
     if (flags & trunsampleOffsets){
       ret.sampleOffset = getInt32(offset + no * sampInfoSize + innerOffset);
@@ -161,7 +172,7 @@ namespace MP4{
     return ret;
   }
 
-  std::string TRUN::toPrettyString(uint32_t indent){
+  std::string TRUN::toPrettyString(uint32_t indent) const {
     std::stringstream r;
     r << std::string(indent, ' ') << "[trun] Track Fragment Run (" << boxedSize() << ")" << std::endl;
     r << std::string(indent + 1, ' ') << "Version " << (int)getInt8(0) << std::endl;
@@ -201,17 +212,17 @@ namespace MP4{
 
   std::string prettySampleFlags(uint32_t flag){
     std::stringstream r;
+    if (flag & noKeySample){
+      r << "noKeySample";
+    }else{
+      r << "isKeySample";
+    }
     if (flag & noIPicture){r << " noIPicture";}
     if (flag & isIPicture){r << " isIPicture";}
     if (flag & noDisposable){r << " noDisposable";}
     if (flag & isDisposable){r << " isDisposable";}
     if (flag & isRedundant){r << " isRedundant";}
     if (flag & noRedundant){r << " noRedundant";}
-    if (flag & noKeySample){
-      r << " noKeySample";
-    }else{
-      r << " isKeySample";
-    }
     return r.str();
   }
 
@@ -2610,11 +2621,11 @@ namespace MP4{
 
   void STSZ::setSampleSize(uint32_t newSampleSize){setInt32(newSampleSize, 4);}
 
-  uint32_t STSZ::getSampleSize(){return getInt32(4);}
+  uint32_t STSZ::getSampleSize() const {return getInt32(4);}
 
   void STSZ::setSampleCount(uint32_t newSampleCount){setInt32(newSampleCount, 8);}
 
-  uint32_t STSZ::getSampleCount(){return getInt32(8);}
+  uint32_t STSZ::getSampleCount() const {return getInt32(8);}
 
   void STSZ::setEntrySize(uint32_t newEntrySize, uint32_t no){
     if (no + 1 > getSampleCount()){
@@ -2626,7 +2637,7 @@ namespace MP4{
     setInt32(newEntrySize, 12 + no * 4);
   }
 
-  uint32_t STSZ::getEntrySize(uint32_t no){
+  uint32_t STSZ::getEntrySize(uint32_t no) const {
     if (no >= getSampleCount()){return 0;}
     long unsigned int retVal = getInt32(12 + no * 4);
     if (retVal == 0){

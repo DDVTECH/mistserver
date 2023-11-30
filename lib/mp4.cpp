@@ -619,7 +619,7 @@ namespace MP4{
 
   void containerBox::setContent(Box &newContent, uint32_t no){
     int tempLoc = 0;
-    unsigned int contentCount = getContentCount();
+    uint32_t contentCount = getContentCount();
     for (unsigned int i = 0; i < no; i++){
       if (i < contentCount){
         tempLoc += getBoxLen(tempLoc);
@@ -646,20 +646,24 @@ namespace MP4{
   }
 
   Box containerBox::getChild(const char *boxName){
-    uint32_t count = getContentCount();
-    for (uint32_t i = 0; i < count; i++){
-      Box &thisChild = getContent(i);
-      if (thisChild.isType(boxName)){return Box(thisChild.asBox(), false);}
+    size_t maxLoc = boxedSize() - 8;
+    size_t tempLoc = payloadOffset;
+    while (tempLoc < maxLoc){
+      Box thisChild(data+tempLoc, false);
+      if (thisChild.isType(boxName)){return thisChild;}
+      tempLoc += calcBoxSize(data+tempLoc);
     }
     return Box((char *)"\000\000\000\010erro", false);
   }
 
   std::deque<Box> containerBox::getChildren(const char *boxName){
     std::deque<Box> res;
-    uint32_t count = getContentCount();
-    for (uint32_t i = 0; i < count; i++){
-      Box &thisChild = getContent(i);
-      if (thisChild.isType(boxName)){res.push_back(Box(thisChild.asBox(), false));}
+    size_t maxLoc = boxedSize() - 8;
+    size_t tempLoc = payloadOffset;
+    while (tempLoc < maxLoc){
+      Box thisChild(data+tempLoc, false);
+      if (thisChild.isType(boxName)){res.push_back(thisChild);}
+      tempLoc += calcBoxSize(data+tempLoc);
     }
     return res;
   }
@@ -707,8 +711,8 @@ namespace MP4{
   Box &containerFullBox::getContent(uint32_t no){
     static Box ret = Box((char *)"\000\000\000\010erro", false);
     if (no > getContentCount()){return ret;}
-    unsigned int i = 0;
-    int tempLoc = 4;
+    uint32_t i = 0;
+    size_t tempLoc = 4;
     while (i < no){
       tempLoc += getBoxLen(tempLoc);
       i++;

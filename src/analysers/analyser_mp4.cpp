@@ -3,113 +3,6 @@
 #include <mist/mp4_generic.h>
 #include <mist/h264.h>
 
-
-class mp4TrackHeader{
-public:
-  mp4TrackHeader(){
-    initialised = false;
-    stscStart = 0;
-    sampleIndex = 0;
-    deltaIndex = 0;
-    deltaPos = 0;
-    deltaTotal = 0;
-    offsetIndex = 0;
-    offsetPos = 0;
-    sttsBox.clear();
-    hasCTTS = false;
-    cttsBox.clear();
-    stszBox.clear();
-    stcoBox.clear();
-    co64Box.clear();
-    stco64 = false;
-    trackId = 0;
-  }
-  void read(MP4::TRAK &trakBox){
-    initialised = false;
-    std::string tmp; // temporary string for copying box data
-    MP4::Box trakLoopPeek;
-    timeScale = 1;
-
-    MP4::MDIA mdiaBox = trakBox.getChild<MP4::MDIA>();
-
-    timeScale = mdiaBox.getChild<MP4::MDHD>().getTimeScale();
-    trackId = trakBox.getChild<MP4::TKHD>().getTrackID();
-
-    MP4::STBL stblBox = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>();
-
-    sttsBox.copyFrom(stblBox.getChild<MP4::STTS>());
-    cttsBox.copyFrom(stblBox.getChild<MP4::CTTS>());
-    stszBox.copyFrom(stblBox.getChild<MP4::STSZ>());
-    stcoBox.copyFrom(stblBox.getChild<MP4::STCO>());
-    co64Box.copyFrom(stblBox.getChild<MP4::CO64>());
-    stscBox.copyFrom(stblBox.getChild<MP4::STSC>());
-    stco64 = co64Box.isType("co64");
-    hasCTTS = cttsBox.isType("ctts");
-  }
-  size_t trackId;
-  MP4::STCO stcoBox;
-  MP4::CO64 co64Box;
-  MP4::STSZ stszBox;
-  MP4::STTS sttsBox;
-  bool hasCTTS;
-  MP4::CTTS cttsBox;
-  MP4::STSC stscBox;
-  uint64_t timeScale;
-  void getPart(uint64_t index, uint64_t &offset, uint64_t &size){
-    if (index < sampleIndex){
-      sampleIndex = 0;
-      stscStart = 0;
-    }
-
-    uint64_t stscCount = stscBox.getEntryCount();
-    MP4::STSCEntry stscEntry;
-    while (stscStart < stscCount){
-      stscEntry = stscBox.getSTSCEntry(stscStart);
-      // check where the next index starts
-      uint64_t nextSampleIndex;
-      if (stscStart + 1 < stscCount){
-        nextSampleIndex = sampleIndex + (stscBox.getSTSCEntry(stscStart + 1).firstChunk - stscEntry.firstChunk) *
-                                            stscEntry.samplesPerChunk;
-      }else{
-        nextSampleIndex = stszBox.getSampleCount();
-      }
-      if (nextSampleIndex > index){break;}
-      sampleIndex = nextSampleIndex;
-      ++stscStart;
-    }
-
-    if (sampleIndex > index){
-      FAIL_MSG("Could not complete seek - not in file (%" PRIu64 " > %" PRIu64 ")", sampleIndex, index);
-    }
-
-    uint64_t stcoPlace = (stscEntry.firstChunk - 1) + ((index - sampleIndex) / stscEntry.samplesPerChunk);
-    uint64_t stszStart = sampleIndex + (stcoPlace - (stscEntry.firstChunk - 1)) * stscEntry.samplesPerChunk;
-
-    offset = (stco64 ? co64Box.getChunkOffset(stcoPlace) : stcoBox.getChunkOffset(stcoPlace));
-    for (int j = stszStart; j < index; j++){offset += stszBox.getEntrySize(j);}
-    size = stszBox.getEntrySize(index);
-
-    initialised = true;
-  }
-  uint64_t size(){return (stszBox.asBox() ? stszBox.getSampleCount() : 0);}
-
-private:
-  bool initialised;
-  // next variables are needed for the stsc/stco loop
-  uint64_t stscStart;
-  uint64_t sampleIndex;
-  // next variables are needed for the stts loop
-  uint64_t deltaIndex; ///< Index in STTS box
-  uint64_t deltaPos;   ///< Sample counter for STTS box
-  uint64_t deltaTotal; ///< Total timestamp for STTS box
-  // for CTTS box loop
-  uint64_t offsetIndex; ///< Index in CTTS box
-  uint64_t offsetPos;   ///< Sample counter for CTTS box
-
-  bool stco64;
-};
-
-
 void AnalyserMP4::init(Util::Config &conf){
   Analyser::init(conf);
 }
@@ -147,22 +40,72 @@ bool AnalyserMP4::parsePacket(){
 
   if (mp4Data.read(mp4Buffer)){
     INFO_MSG("Read a %" PRIu64 "b %s box at position %" PRIu64, mp4Data.boxedSize(), mp4Data.getType().c_str(), prePos);
+
+    // If we get an mdat, analyse it if we have known tracks, otherwise store it for later
     if (mp4Data.getType() == "mdat"){
+      // Remember where we saw the mdat box
       mdatPos = prePos;
-      analyseData(mp4Data);
-      return true;
+      if (hdrs.size()){
+        // We have tracks, analyse it directly
+        analyseData(mp4Data);
+      }else{
+        // No tracks yet, mdat is probably before the moov, we'll store a copy for later.
+        mdat.assign(mp4Data.asBox(), mp4Data.boxedSize());
+      }
     }
+
+    // moof is parsed into the tracks we already have
     if (mp4Data.getType() == "moof"){
-      moof.assign(mp4Data.asBox(), mp4Data.boxedSize());
       moofPos = prePos;
+      // Indicate that we're reading the next moof box to all track headers
+      for (std::map<uint64_t, MP4::TrackHeader>::iterator t = hdrs.begin(); t != hdrs.end(); ++t){
+        t->second.nextMoof();
+      }
+      // Loop over traf boxes inside the moof box
+      std::deque<MP4::TRAF> trafs = ((MP4::MOOF*)&mp4Data)->getChildren<MP4::TRAF>();
+      for (std::deque<MP4::TRAF>::iterator t = trafs.begin(); t != trafs.end(); ++t){
+        if (!(t->getChild<MP4::TFHD>())){
+          WARN_MSG("Could not find thfd box inside traf box!");
+          continue;
+        }
+        uint32_t trackId = t->getChild<MP4::TFHD>().getTrackID();
+        if (!hdrs.count(trackId)){
+          WARN_MSG("Could not find matching trak box for traf box %" PRIu32 "!", trackId);
+          continue;
+        }
+        hdrs[trackId].read(*t);
+      }
     }
+
+    // moov contains tracks; we parse it (wiping existing tracks, if any) and if we saw an mdat earlier, now analyse it.
     if (mp4Data.getType() == "moov"){
-      moov.assign(mp4Data.asBox(), mp4Data.boxedSize());
+      // Remember where we saw this box
       moovPos = prePos;
+      // Wipe existing headers, we got new ones.
+      hdrs.clear();
+      // Loop over trak boxes inside the moov box
+      std::deque<MP4::TRAK> traks = ((MP4::MOOV*)&mp4Data)->getChildren<MP4::TRAK>();
+      for (std::deque<MP4::TRAK>::iterator trakIt = traks.begin(); trakIt != traks.end(); trakIt++){
+        // Create a temporary header, since we don't know the trackId yet...
+        MP4::TrackHeader tHdr;
+        tHdr.read(*trakIt);
+        if (!tHdr.compatible()){
+          INFO_MSG("Unsupported: %s", tHdr.sType.c_str());
+        }else{
+          INFO_MSG("Detected %s", tHdr.codec.c_str());
+        }
+        // Regardless of support, we now put it in our track header array (after all, even unsupported tracks can be analysed!)
+        hdrs[tHdr.trackId].read(*trakIt);
+      }
+      // If we stored an mdat earlier, we can now analyse and then wipe it
+      if (mdat.size()){
+        MP4::Box mdatBox(mdat, false);
+        analyseData(mdatBox);
+        mdat.truncate(0);
+      }
     }
-    if (detail >= 2){
-      std::cout << mp4Data.toPrettyString(0) << std::endl;
-    }
+    // No matter what box we saw, (try to) pretty-print it
+    if (detail >= 2){std::cout << mp4Data.toPrettyString(0) << std::endl;}
     return true;
   }
   FAIL_MSG("Could not read box at position %" PRIu64, prePos);
@@ -202,66 +145,58 @@ h264::nalUnit * getNalUnit(const char * data, size_t pktLen){
 }
 
 void AnalyserMP4::analyseData(MP4::Box & mdatBox){
-  if (moov.size()){
-    MP4::Box globHdr(moov, false);
-    std::deque<MP4::TRAK> traks = ((MP4::MOOV*)&globHdr)->getChildren<MP4::TRAK>();
-
-    size_t trkCounter = 0;
-    for (std::deque<MP4::TRAK>::iterator trakIt = traks.begin(); trakIt != traks.end(); trakIt++){
-      trkCounter++;
-      MP4::MDIA mdiaBox = trakIt->getChild<MP4::MDIA>();
-
-      std::string hdlrType = mdiaBox.getChild<MP4::HDLR>().getHandlerType();
-      if (hdlrType != "vide" && hdlrType != "soun" && hdlrType != "sbtl"){
-        INFO_MSG("Unsupported handler: %s", hdlrType.c_str());
+  // Abort if we have no headers
+  if (!hdrs.size()){return;}
+  // Loop over known headers
+  for (std::map<uint64_t, MP4::TrackHeader>::iterator t = hdrs.begin(); t != hdrs.end(); ++t){
+    size_t noPkts = t->second.size();
+    for (size_t i = 0; i < noPkts; ++i){
+      uint64_t offset = 0, time = 0;
+      int32_t timeOffset = 0;
+      uint32_t size = 0;
+      bool keyFrame = false;
+      t->second.getPart(i, &offset, &size, &time, &timeOffset, &keyFrame, moofPos);
+      // Update mediaTime with last parsed packet, if time increased
+      if (time > mediaTime){mediaTime = time;}
+      std::cout << "Packet " << i << " for track " << t->first << " (" << t->second.codec << ")";
+      if (keyFrame){std::cout << " (KEY)";}
+      std::cout << ": " << size << "b @" << offset << ", T " << time;
+      if (timeOffset){
+        if (timeOffset > 0){
+          std::cout << "+" << timeOffset;
+        }else{
+          std::cout << timeOffset;
+        }
+      }
+      std::cout << std::endl;
+      if (offset < mdatPos){
+        std::cout << "Data is before mdat!" << std::endl;
         continue;
       }
+      if (offset - mdatPos + size > mdatBox.boxedSize()){
+        std::cout << "Data is after mdat!" << std::endl;
+        continue;
+      }
+      if (detail < 4){continue;}
+      const char * ptr = mdatBox.asBox() - mdatPos + offset;
+      if (t->second.codec == "H264"){
+        size_t j = 0;
+        while (j+4 <= size){
+          uint32_t len = Bit::btohl(ptr+j);
+          std::cout << len << " bytes: ";
+          printByteRange(ptr, j, 4);
+          if (j+4+len > size){len = size-j-4;}
 
-      std::string sType = mdiaBox.getChild<MP4::MINF>().getChild<MP4::STBL>().getChild<MP4::STSD>().getEntry(0).getType();
-      if (sType == "avc1" || sType == "h264" || sType == "mp4v"){sType = "H264";}
-      if (sType == "hev1" || sType == "hvc1"){sType = "HEVC";}
-      if (sType == "ac-3"){sType = "AC3";}
-      if (sType == "tx3g"){sType = "subtitle";}
-      INFO_MSG("Detected %s", sType.c_str());
-      mp4TrackHeader tHdr;
-      tHdr.read(*trakIt);
-      size_t noPkts = tHdr.size();
-      for (size_t i = 0; i < noPkts; ++i){
-        uint64_t offset = 0, size = 0;
-        tHdr.getPart(i, offset, size);
-        std::cout << "Packet " << i << " for track " << trkCounter << " (" << sType << "): " << size << " bytes" << std::endl;
-        if (offset < mdatPos){
-          std::cout << "Data is before mdat!" << std::endl;
-          continue;
+          h264::nalUnit * nalu = getNalUnit(ptr+j+4, len);
+          nalu->toPrettyString(std::cout);
+          delete nalu;
+          if (detail > 5){printByteRange(ptr, j+4, j+4+len);}
+          j += 4 + len;
         }
-        if (offset - mdatPos + size > mdatBox.boxedSize()){
-          std::cout << "Data is after mdat!" << std::endl;
-          continue;
-        }
-        const char * ptr = mdatBox.asBox() - mdatPos + offset;
-        if (sType == "H264"){
-          size_t j = 0;
-          while (j+4 <= size){
-            uint32_t len = Bit::btohl(ptr+j);
-            std::cout << len << " bytes: ";
-            printByteRange(ptr, j, 4);
-            if (j+4+len > size){len = size-j-4;}
-
-            h264::nalUnit * nalu = getNalUnit(ptr+j+4, len);
-            nalu->toPrettyString(std::cout);
-            delete nalu;
-            printByteRange(ptr, j+4, j+4+len);
-            j += 4 + len;
-          }
-        }else{
-          printByteRange(ptr, 0, size);
-        }
-
+      }else{
+        if (detail > 5){printByteRange(ptr, 0, size);}
       }
     }
   }
-  if (moof.size()){
-  }
-  ///\TODO update mediaTime with the current timestamp
 }
 

@@ -39,6 +39,36 @@ namespace MP4{
       std::string toPrettyString(uint32_t indent = 0);
   };
 
+  enum tfhdflags{
+    tfhdBaseOffset = 0x000001,
+    tfhdSampleDesc = 0x000002,
+    tfhdSampleDura = 0x000008,
+    tfhdSampleSize = 0x000010,
+    tfhdSampleFlag = 0x000020,
+    tfhdNoDuration = 0x010000,
+    tfhdBaseIsMoof = 0x020000,
+  };
+  class TFHD : public Box{
+  public:
+    TFHD();
+    void setFlags(uint32_t newFlags);
+    uint32_t getFlags();
+    void setTrackID(uint32_t newID);
+    uint32_t getTrackID();
+    void setBaseDataOffset(uint64_t newOffset);
+    uint64_t getBaseDataOffset();
+    void setSampleDescriptionIndex(uint32_t newIndex);
+    uint32_t getSampleDescriptionIndex();
+    void setDefaultSampleDuration(uint32_t newDuration);
+    uint32_t getDefaultSampleDuration();
+    void setDefaultSampleSize(uint32_t newSize);
+    uint32_t getDefaultSampleSize();
+    void setDefaultSampleFlags(uint32_t newFlags);
+    uint32_t getDefaultSampleFlags();
+    bool getDefaultBaseIsMoof();
+    std::string toPrettyString(uint32_t indent = 0);
+  };
+
   struct trunSampleInformation {
     uint32_t sampleDuration;
     uint32_t sampleSize;
@@ -69,45 +99,15 @@ namespace MP4{
   public:
     TRUN();
     void setFlags(uint32_t newFlags);
-    uint32_t getFlags();
+    uint32_t getFlags() const;
     void setDataOffset(uint32_t newOffset);
-    uint32_t getDataOffset();
+    uint32_t getDataOffset() const;
     void setFirstSampleFlags(uint32_t newSampleFlags);
-    uint32_t getFirstSampleFlags();
-    uint32_t getSampleInformationCount();
+    uint32_t getFirstSampleFlags() const;
+    uint32_t getSampleInformationCount() const;
     void setSampleInformation(trunSampleInformation newSample, uint32_t no);
-    trunSampleInformation getSampleInformation(uint32_t no);
-    std::string toPrettyString(uint32_t indent = 0);
-  };
-
-  enum tfhdflags{
-    tfhdBaseOffset = 0x000001,
-    tfhdSampleDesc = 0x000002,
-    tfhdSampleDura = 0x000008,
-    tfhdSampleSize = 0x000010,
-    tfhdSampleFlag = 0x000020,
-    tfhdNoDuration = 0x010000,
-    tfhdBaseIsMoof = 0x020000,
-  };
-  class TFHD : public Box{
-  public:
-    TFHD();
-    void setFlags(uint32_t newFlags);
-    uint32_t getFlags();
-    void setTrackID(uint32_t newID);
-    uint32_t getTrackID();
-    void setBaseDataOffset(uint64_t newOffset);
-    uint64_t getBaseDataOffset();
-    void setSampleDescriptionIndex(uint32_t newIndex);
-    uint32_t getSampleDescriptionIndex();
-    void setDefaultSampleDuration(uint32_t newDuration);
-    uint32_t getDefaultSampleDuration();
-    void setDefaultSampleSize(uint32_t newSize);
-    uint32_t getDefaultSampleSize();
-    void setDefaultSampleFlags(uint32_t newFlags);
-    uint32_t getDefaultSampleFlags();
-    bool getDefaultBaseIsMoof();
-    std::string toPrettyString(uint32_t indent = 0);
+    trunSampleInformation getSampleInformation(uint32_t no, TFHD * tfhd = 0) const;
+    std::string toPrettyString(uint32_t indent = 0) const;
   };
 
   class AVCC : public Box{
@@ -641,11 +641,11 @@ namespace MP4{
   public:
     STSZ(char v = 1, uint32_t f = 0);
     void setSampleSize(uint32_t newSampleSize);
-    uint32_t getSampleSize();
+    uint32_t getSampleSize() const;
     void setSampleCount(uint32_t newSampleCount);
-    uint32_t getSampleCount();
+    uint32_t getSampleCount() const;
     void setEntrySize(uint32_t newEntrySize, uint32_t no);
-    uint32_t getEntrySize(uint32_t no);
+    uint32_t getEntrySize(uint32_t no) const;
     std::string toPrettyString(uint32_t indent = 0);
   };
 

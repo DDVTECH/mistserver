@@ -2593,6 +2593,20 @@ namespace DTSC{
     return result.str();
   }
 
+  uint64_t Meta::packetTimeToUnixMs(uint64_t pktTime, uint64_t systemBoot) const{
+    if (getUTCOffset()){
+      return pktTime + getUTCOffset();
+    }
+    if (getLive()){
+      // Grab system boot time from global config file if possible
+      if (!systemBoot){systemBoot = Util::getGlobalConfig("systemBoot").asInt();}
+      // fall back to local calculation if loading from global config fails
+      if (!systemBoot){systemBoot = (Util::unixMS() - Util::bootMS());}
+      return pktTime + systemBoot + getBootMsOffset();
+    }
+    return 0;
+  }
+
   const Util::RelAccX &Meta::parts(size_t idx) const{return tracks.at(idx).parts;}
   Util::RelAccX &Meta::keys(size_t idx){return tracks.at(idx).keys;}
   const Util::RelAccX &Meta::keys(size_t idx) const{return tracks.at(idx).keys;}

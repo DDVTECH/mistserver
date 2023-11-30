@@ -350,6 +350,7 @@ namespace DTSC{
     size_t trackIDToIndex(size_t trackID, size_t pid = 0) const;
 
     std::string getTrackIdentifier(size_t idx, bool unique = false) const;
+    uint64_t packetTimeToUnixMs(uint64_t pktTime, uint64_t systemBoot = 0) const;
 
     void setInit(size_t trackIdx, const std::string &init);
     void setInit(size_t trackIdx, const char *init, size_t initLen);

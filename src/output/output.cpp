@@ -589,7 +589,7 @@ namespace Mist{
         }
         continue;
       }
-      if (targetAge && curDateString.size() > 25){
+      if (targetAge && curTime && curDateString.size() > 25){
         uint64_t segmentDiff = Util::getUTCTimeDiff(curDateString.substr(25), curTime);
         if (segmentDiff > targetAge){
           HIGH_MSG("Dropping segment #%" PRIu64 " from the playlist due to old age (%" PRIu64 " s)", segmentsRemoved, segmentDiff);
@@ -1613,7 +1613,7 @@ namespace Mist{
       // Initialises the playlist if we are segmenting the output with a playlist
       if (targetParams.count("m3u8")){
         if (reInitPlaylist){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+          uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
           reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
         }
         // Do not open the playlist just yet if this is a non-live source
@@ -1757,9 +1757,12 @@ namespace Mist{
                     break;
                   }
                   std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
-                  if (M.getLive()){
-                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-                    playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+                  {
+                    uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+                    if (unixMs){
+                      INFO_MSG("Adding segment #%" PRIu64 " @ %" PRIu64 " => %s", segmentCount, currentStartTime, Util::getUTCStringMillis(unixMs).c_str());
+                      playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+                    }
                   }
                   INFO_MSG("Adding new segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
                   // Append duration & TS filename to playlist file
@@ -1778,7 +1781,7 @@ namespace Mist{
                     targetDuration = JSON::Value((uint64_t)segmentDuration + 1).asString();
                     // Modify the buffer to contain the new targetDuration
                     if (!M.getLive()){
-                      uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+                      uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
                     }else if (!maxEntries && !targetAge && playlistLocation.isLocalPath()){
                       // If we are appending to an existing playlist, we need to recover the playlistBuffer and reopen the playlist
@@ -1788,7 +1791,7 @@ namespace Mist{
                       inFile.readAll(newBuffer, bytesRead);
                       playlistBuffer = std::string(newBuffer, bytesRead) + playlistBuffer;
                       // Reinit the playlist with the new targetDuration
-                      uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+                      uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
                       reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
                       connectToFile(playlistLocationString, false, &plsConn);
                     }
@@ -1796,7 +1799,7 @@ namespace Mist{
                   }
                   // Remove older entries in the playlist
                   if (maxEntries || targetAge){
-                    uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+                    uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
                     reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
                   }
                   // Do not write to the playlist intermediately if we are outputting a VOD playlist
@@ -1892,9 +1895,9 @@ namespace Mist{
         if (lastPacketTime - currentStartTime > 0){
           std::string segment = HTTP::localURIResolver().link(currentTarget).getLinkFrom(playlistLocation);
           INFO_MSG("Adding final segment `%s` of %" PRIu64 "ms to playlist '%s'", segment.c_str(), lastPacketTime - currentStartTime, playlistLocationString.c_str());
-          if (M.getLive()){
-            uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
-            playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";
+          {
+            uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
+            if (unixMs){playlistBuffer += "#EXT-X-PROGRAM-DATE-TIME:" + Util::getUTCStringMillis(unixMs) + "\n";}
           }
           // Append duration & TS filename to playlist file
           std::stringstream tmp;
@@ -1905,7 +1908,7 @@ namespace Mist{
         if ((!M.getLive() || (!maxEntries && !targetAge)) && addEndlist){playlistBuffer += "#EXT-X-ENDLIST\n";}
         // Remove older entries in the playlist
         if (maxEntries || targetAge){
-          uint64_t unixMs = M.getBootMsOffset() + systemBoot + currentStartTime;
+          uint64_t unixMs = M.packetTimeToUnixMs(currentStartTime, systemBoot);
           reinitPlaylist(playlistBuffer, targetAge, maxEntries, segmentCount, segmentsRemoved, unixMs, targetDuration, playlistLocation);
         }
         // Append the final contents to the playlist

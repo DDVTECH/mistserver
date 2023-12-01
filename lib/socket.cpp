@@ -241,6 +241,7 @@ void Socket::hostBytesToStr(const char *bytes, size_t len, std::string &target){
 /// Returns empty string if no reasonable match could be made.
 std::string Socket::resolveHostToBestExternalAddrGuess(const std::string &host, int family,
                                                        const std::string &hint){
+  if (!host.size()){return "";}
   struct addrinfo *result, *rp, hints;
   std::string newaddr;
 

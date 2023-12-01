@@ -1884,6 +1884,7 @@ void Controller::handlePrometheus(HTTP::Parser &H, Socket::Connection &conn, int
               if (M.getType(*it) != "video"){continue;} // Skip non-video tracks
               size_t srcTrk = M.getSourceTrack(*it);
               if (srcTrk == INVALID_TRACK_ID){continue;} // Skip tracks without a source track
+              if (!trks.count(srcTrk)){continue;} // Skip invalid source tracks
               int64_t diff = M.getLastms(srcTrk) - M.getLastms(*it);
               if (diff > delay){
                 gotOne = true;

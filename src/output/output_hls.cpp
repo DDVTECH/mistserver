@@ -259,6 +259,10 @@ namespace Mist{
       if (Comms::tknMode & 0x08){
         std::stringstream cookieHeader;
         cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
+        // If we're being proxied over https, allow cookie to be transmitted for embeds
+        if (H.GetHeader("X-Mst-Path").size() && H.GetHeader("X-Mst-Path").substr(0, 5) == "https"){
+          cookieHeader << "; SameSite=None; Secure";
+        }
         H.SetHeader("Set-Cookie", cookieHeader.str());
       }
     }

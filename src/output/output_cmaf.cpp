@@ -344,7 +344,11 @@ namespace Mist{
         const std::string koekjes = H.GetHeader("Cookie");
         std::stringstream cookieHeader;
         cookieHeader << "tkn=" << tkn << "; Max-Age=" << SESS_TIMEOUT;
-        H.SetHeader("Set-Cookie", cookieHeader.str()); 
+        // If we're being proxied over https, allow cookie to be transmitted for embeds
+        if (H.GetHeader("X-Mst-Path").size() && H.GetHeader("X-Mst-Path").substr(0, 5) == "https"){
+          cookieHeader << "; SameSite=None; Secure";
+        }
+        H.SetHeader("Set-Cookie", cookieHeader.str());
       }
     }
 

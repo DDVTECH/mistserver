@@ -9,7 +9,7 @@ DOCKER_REPOSITORY = "livepeerci/mistserver"
 
 DOCKER_BUILDS = {
     "arch": ["amd64", "arm64"],
-    "release": ["static", "shared"],
+    "release": ["static"],
     "strip": ["true", "false"],
 }
 

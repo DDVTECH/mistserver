@@ -87,7 +87,7 @@ def docker_image_pipeline(arch, release, stripped, context):
             {
                 "name": "build",
                 "commands": [
-                    "docker buildx build --progress=plain --target=mist "
+                    "docker buildx build --no-cache --progress=plain --target=mist "
                     + "--build-arg BUILD_TARGET={} --build-arg STRIP_BINARIES={} --build-arg BUILD_VERSION={} --tag {} ".format(
                         release,
                         stripped,

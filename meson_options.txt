@@ -24,4 +24,4 @@ option('WITH_JPG', description: 'Build JPG thumbnailer output support (WIP)', ty
 option('WITH_SANITY', description: 'Enable MistOutSanityCheck output for testing purposes', type: 'boolean', value: false)
 option('LSP_MINIFY', description: 'Try to minify LSP JS via java closure-compiler, generally not needed unless changing JS code as a minified version is part of the repository already', type: 'boolean', value: false)
 option('LOCAL_GENERATORS', description: 'Attempts to find a locally-installed version of sourcery and make_html, instead of compiling it', type: 'boolean', value: false)
-
+option('SRTP_CRYPTO_LIBRARY', type: 'combo', choices : ['none', 'openssl', 'nss', 'mbedtls'], value : 'mbedtls', description : 'What external crypto library to leverage for libsrtp2, if any (OpenSSL, NSS, or mbedtls)')

@@ -80,6 +80,10 @@
   top: 50%;
   transform: translateY(-50%);
 }
+.mistvideo-progress .mistvideo-tooltip .mistvideo-realtime {
+  text-align: center;
+  display: block;
+}
 
 .mistvideo-play[data-state="playing"] svg.play {
   display: none;
@@ -154,6 +158,10 @@ svg.icon.timeout {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.mistvideo-currentTime .mistvideo-realtime,
+.mistvideo-progress .mistvideo-realtime {
+  opacity: 0.6;
 }
 .mistvideo-videobackground {
   position: absolute;

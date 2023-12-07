@@ -913,7 +913,7 @@ MistSkins["default"] = {
       
       //control video states
       container.getPos = function(e){
-        var perc = MistUtil.getPos(this,e);
+        var perc = isNaN(e) ? MistUtil.getPos(this,e) : e;
         if (MistVideo.info.type == "live") {
           //live mode: seek in DVR window
           var bufferWindow = getBufferWindow();
@@ -952,14 +952,8 @@ MistSkins["default"] = {
           return;
         }
         
-        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
-          tooltip.setText(MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3)));
-        }
-        else {
-          tooltip.setText(MistUtil.format.time(secs));
-        }
+        tooltip.setDisplay(secs);
         tooltip.style.opacity = 1;
-
         
         var perc = MistUtil.getPos(this,e);// e.clientX - this.getBoundingClientRect().left;
         var pos = {bottom:20};
@@ -973,6 +967,51 @@ MistSkins["default"] = {
           tooltip.triangle.setMode("bottom","left");
         }
         tooltip.setPos(pos);
+      };
+      var realtime = document.createElement("span");
+      realtime.setAttribute("class","mistvideo-realtime");
+      var realtimetext = document.createTextNode("");
+      realtime.appendChild(realtimetext);
+
+      tooltip.setDisplay = function(secs){
+        if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          var range = container.getPos(1) - container.getPos(0); //seconds between start and end of seekbar
+          var ago = new Date().getTime()*1e-3 - (MistVideo.info.unixoffset*1e-3 + container.getPos(1)); //seconds away from "live"
+          var scale = Math.max(range,ago);
+
+          var str = "" ;
+          if (MistVideo.info.type == "live") {
+            if (scale < 60) {
+              str = MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3));
+            }
+            else {
+              var secsago = new Date().getTime()*1e-3 - (MistVideo.info.unixoffset*1e-3 + secs);
+              if (secsago < 48*3600) {
+                //also show a negative timestamp that indicates how long ago this was
+                str += " - "+MistUtil.format.time(secsago);
+              }
+            }
+          }
+          else {
+            str += MistUtil.format.time(secs);
+          }
+          if (scale >= 60) {
+            //show when this was
+            realtimetext.nodeValue = " at "+MistUtil.format.ago(new Date(MistVideo.info.unixoffset + secs*1e3),scale*1e3);
+            var f = document.createDocumentFragment();
+            f.appendChild(document.createTextNode(str));
+            f.appendChild(realtime);
+            tooltip.setHtml(f);
+          }
+          else {
+            realtimetext.nodeValue = "";
+            tooltip.setText(str);
+          }
+
+        }
+        else {
+          tooltip.setText(MistUtil.format.time(secs));
+        }
       };
       MistUtil.event.addListener(margincontainer,"mousemove",function(e){
         container.moveTooltip(e);
@@ -1256,7 +1295,12 @@ MistSkins["default"] = {
       
       var container = document.createElement("div");
       var text = document.createTextNode("");
+      var realtime = document.createElement("span");
+      realtime.setAttribute("class","mistvideo-realtime");
       container.appendChild(text);
+      container.appendChild(realtime);
+      var realtimetext = document.createTextNode("");
+      realtime.appendChild(realtimetext);
       
       var video = MistVideo.player.api;
       var formatTime = MistUtil.format.time;
@@ -1265,7 +1309,26 @@ MistSkins["default"] = {
         var t;
         if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
           var d = new Date(MistVideo.info.unixoffset + v*1e3);
-          t = MistUtil.format.ago(d);
+          var ago = new Date() - d;
+          realtimetext.nodeValue = "";
+          if (MistVideo.info.type == "live") {
+            if (ago < 60e3){
+              t = MistUtil.format.ago(d);
+            }
+            else if (ago < 12*3600e3) {
+              //show a negative time stamp
+              t = "- " + MistUtil.format.time(ago*1e-3);
+            }
+            else {
+              t = MistUtil.format.ago(d);
+            }
+          }
+          else {
+            t = formatTime(v);
+            if ((ago > 60e3) && (MistVideo.size.width >= 600)) {
+              realtimetext.nodeValue = " (at "+MistUtil.format.ago(d)+")";
+            }
+          }
           container.setAttribute("title",MistUtil.format.ago(d,34560e6));
         }
         else {
@@ -1306,7 +1369,7 @@ MistSkins["default"] = {
           }
           this.style.display = "";
 
-          if (MistVideo.options.useDateTime && MistVideo.info && MistVideo.info.unixoffset) {
+          if (MistVideo.options.useDateTime && MistVideo.info && ((MistVideo.info.type == "live") && MistVideo.info.unixoffset)) {
             var t = new Date(duration*1e3 + MistVideo.info.unixoffset)
             text.nodeValue = MistUtil.format.ago(t);
             container.setAttribute("title",MistUtil.format.ago(t,34560e6)); //format as if more than a year ago
@@ -2222,12 +2285,34 @@ MistSkins["default"] = {
     },
     tooltip: function(){
       var container = document.createElement("div");
-      
+
+      var mode = "text";
       var textNode = document.createTextNode("");
       container.appendChild(textNode);
       container.setText = function(text){
         textNode.nodeValue = text;
+        if (mode != "text") {
+          container.removeChild(htmlNode);
+          container.appendChild(textNode);
+          mode = "text";
+        }
       };
+      var htmlNode = document.createElement("div");
+      htmlNode.empty = function(){
+        htmlNode.innerText = "";
+        for (var i = htmlNode.children.length - 1; i >= 0; i--) {
+          htmlNode.removeChild(htmlNode.children[i]);
+        }
+      };
+      container.setHtml = function(ele){
+        htmlNode.empty();
+        htmlNode.appendChild(ele);
+        if (mode != "html") {
+          container.removeChild(textNode);
+          container.appendChild(htmlNode);
+          mode = "html";
+        }
+      }
       
       var triangle = document.createElement("div");
       container.triangle = triangle;

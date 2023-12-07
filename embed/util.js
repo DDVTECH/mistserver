@@ -37,6 +37,8 @@ var MistUtil = {
       //format a date nicely depending on how long ago it was
       //if the range param [ms] is specified, use that to choose how to format the date string
 
+      if (isNaN(date.getTime())) { return ""; }
+
       var ago = range ? range : new Date().getTime() - date.getTime();
       var out = "";
       var negative = (ago < 0);

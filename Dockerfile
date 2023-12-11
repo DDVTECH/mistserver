@@ -9,7 +9,7 @@ ENV	DEBIAN_FRONTEND=noninteractive
 WORKDIR	/src
 
 RUN	apt update -yq \
-	&& apt install -yqq build-essential cmake git python3-pip \
+	&& apt install -yqq build-essential cmake git python3-pip libnss3-dev libssl-dev pkg-config \
 	&& pip3 install -U meson ninja
 
 COPY	.	.

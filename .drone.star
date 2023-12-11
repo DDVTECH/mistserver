@@ -176,6 +176,57 @@ def binaries_pipeline(context, platform):
         context.build.event == "tag" and context.build.ref
     ) or context.build.commit
 
+    steps = []
+    crypto_library = ""
+
+    if platform["os"] == "linux":
+        # openssl is the fastest in our load testing
+        crypto_library = " -D SRTP_CRYPTO_LIBRARY=openssl "
+        steps.append({
+            "name": "libraries",
+            "commands": [
+                'apt -o DPkg::Lock::Timeout=60 install -y libnss3-dev libssl-dev pkg-config',
+            ],
+        })
+
+    if platform["os"] == "darwin":
+        # difficult to get the other options compiling on darwin at the moment
+        crypto_library = " -D SRTP_CRYPTO_LIBRARY=mbedtls "
+
+    steps.extend([
+        {
+            "name": "binaries",
+            "commands": [
+                'export CI_PATH="$(realpath ..)"',
+                "echo {} | tee BUILD_VERSION".format(version),
+                "meson setup -DLOAD_BALANCE=true -DNORIST=true -DNORIST=true -Dprefix=$CI_PATH --default-library static build " + crypto_library,
+                "cd build/",
+                "ninja && ninja install",
+            ],
+        },
+        {
+            "name": "compress",
+            "commands": [
+                'export CI_PATH="$(realpath ..)"',
+                "cd $CI_PATH/bin/",
+                "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
+                % (platform["os"], platform["arch"]),
+            ],
+        },
+        {
+            "name": "upload",
+            "commands": [
+                'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
+                % (platform["os"], platform["arch"]),
+            ],
+            "environment": get_environment(
+                "GCLOUD_KEY",
+                "GCLOUD_SECRET",
+                "GCLOUD_BUCKET",
+            ),
+        },
+    ])
+
     return {
         "kind": "pipeline",
         "name": "build-%s-%s" % (platform["os"], platform["arch"]),
@@ -191,39 +242,7 @@ def binaries_pipeline(context, platform):
         },
         "workspace": {"path": "drone/mistserver"},
         "clone": {"depth": 0},
-        "steps": [
-            {
-                "name": "binaries",
-                "commands": [
-                    'export CI_PATH="$(realpath ..)"',
-                    "echo {} | tee BUILD_VERSION".format(version),
-                    "meson setup -DLOAD_BALANCE=true -DNORIST=true -DNORIST=true -Dprefix=$CI_PATH --default-library static build",
-                    "cd build/",
-                    "ninja && ninja install",
-                ],
-            },
-            {
-                "name": "compress",
-                "commands": [
-                    'export CI_PATH="$(realpath ..)"',
-                    "cd $CI_PATH/bin/",
-                    "tar -czvf livepeer-mistserver-%s-%s.tar.gz ./*"
-                    % (platform["os"], platform["arch"]),
-                ],
-            },
-            {
-                "name": "upload",
-                "commands": [
-                    'scripts/upload_build.sh -d "$(realpath ..)/bin" "livepeer-mistserver-%s-%s.tar.gz"'
-                    % (platform["os"], platform["arch"]),
-                ],
-                "environment": get_environment(
-                    "GCLOUD_KEY",
-                    "GCLOUD_SECRET",
-                    "GCLOUD_BUCKET",
-                ),
-            },
-        ],
+        "steps": steps,
     }
 
 

@@ -927,6 +927,10 @@ function MistVideo(streamName,options) {
         ];
         for (var i in events) {
           MistUtil.event.addListener(MistVideo.video,events[i],function(e){
+            if (e.message && (e.message == "chromecast")) {
+              //if the event originates from the chromecast, it is already printed by the chromecast's log passthrough
+              return;
+            }
             MistVideo.log("Player event fired: "+e.type);
           });
         }
@@ -1301,7 +1305,7 @@ function MistVideo(streamName,options) {
       if (MistVideo.destroyed) { return; }
       onStreamInfo(JSON.parse(d));
     },function(xhr){
-      var msg = "Connection failed: the media server may be offline";
+      var msg = "Connection failed: the media server at "+MistVideo.options.host+" may be offline";
       MistVideo.showError(msg,{reload:30});
       if (!MistVideo.info) {
         MistUtil.event.send("initializeFailed",null,options.target);

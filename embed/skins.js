@@ -12,6 +12,7 @@ MistSkins["default"] = {
         classes: ["mistvideo"],
         children: [{
           type: "hoverWindow",
+          classes: ["mistvideo-maincontainer"],
           mode: "pos",
           style: {position: "relative"},
           transition: {
@@ -129,6 +130,9 @@ MistSkins["default"] = {
                   then: {
                     type: "container",
                     children: [{
+                      type: "chromecast",
+                      classes: ["mistvideo-pointer"]
+                    },{
                       type: "loop",
                       classes: ["mistvideo-pointer"]
                     },
@@ -195,6 +199,9 @@ MistSkins["default"] = {
             type: "container",
             classes: ["mistvideo-center"],
             children: [{
+              type: "chromecast",
+              classes: ["mistvideo-pointer"]
+            },{
               type: "loop",
               classes: ["mistvideo-pointer"]
             },
@@ -412,7 +419,7 @@ MistSkins["default"] = {
                       
                       //remove all the things when unmuted
                       var fu = function(){
-                        if (!MistVideo.video.muted) {
+                        if (!MistVideo.player.api.muted) {
                           if (largeMutedButton.parentNode) {
                             MistVideo.container.removeChild(largeMutedButton);
                           }
@@ -1366,9 +1373,8 @@ MistSkins["default"] = {
       var button = this.skin.icons.build("loop");
       
       var video = this.video;
-      var api = this.player.api;
       button.set = function(){
-        if (api.loop) {
+        if (MistVideo.player.api.loop) {
           MistUtil.class.remove(this,"off");
         }
         else {
@@ -1377,7 +1383,7 @@ MistSkins["default"] = {
       };
       
       MistUtil.event.addListener(button,"click",function(e){
-        api.loop = !api.loop;
+        MistVideo.player.api.loop = !MistVideo.player.api.loop;
         this.set();
       });
       button.set();
@@ -1880,7 +1886,7 @@ MistSkins["default"] = {
         var events = ["waiting","seeking","stalled"];
         for (var i in events) {
           MistUtil.event.addListener(MistVideo.video,events[i],function(e){
-            if ((!this.paused) && ("container" in MistVideo)) {
+            if ((MistVideo.player.api && !MistVideo.player.api.paused) && ("container" in MistVideo)) {
               addIcon(e);
             }
           },icon);
@@ -1915,7 +1921,7 @@ MistSkins["default"] = {
         if (!options.polling && !options.passive && !options.hideTitle) {
           var header = document.createElement("h3");
           message_container.appendChild(header);
-          header.appendChild(document.createTextNode("The player has encountered a problem"));
+          header.appendChild(document.createTextNode("The "+(MistVideo.casting ? "chromecast" : "player")+" has encountered a problem"));
         }
         
         var p = document.createElement("p");
@@ -2052,7 +2058,10 @@ MistSkins["default"] = {
         since = (new Date()).getTime();
         
         
-        var event = this.log(message,"error");
+        var event;
+        if (!MistVideo.casting) { 
+          event = this.log(message,"error");
+        }
         var message_container = container.message(message,false,options);
         message_global = message_container;
         
@@ -2061,7 +2070,19 @@ MistSkins["default"] = {
         message_container.appendChild(button_container);
         
         MistUtil.empty(button_container);
-        if (options.softReload) {
+        if (MistVideo.casting && !options.passive) {
+          var obj = {
+            type: "button",
+            label: "Stop casting",
+            onclick: function(){
+              MistVideo.detachFromCast();
+            }
+          };
+          if (!isNaN(options.softReload+"")) { obj.delay = options.softReload; }
+          button_container.appendChild(MistVideo.UI.buildStructure(obj));
+
+        }
+        if (options.softReload && !MistVideo.casting) {
           var obj = {
             type: "button",
             label: "Reload video",
@@ -2116,7 +2137,7 @@ MistSkins["default"] = {
           MistVideo.container.removeAttribute("data-loading");
         }
         
-        if (event.defaultPrevented) {
+        if (event && event.defaultPrevented) {
           MistVideo.log("Error event was defaultPrevented, not showing.");
           container.clear();
         }
@@ -2376,6 +2397,342 @@ MistSkins["default"] = {
       }
     
       return container;
+    },
+    chromecast: function(){
+      var MistVideo = this;
+      
+      if ((!"".indexOf) || (MistVideo.options.host.indexOf("localhost") > -1) || (MistVideo.options.host.indexOf("::1") > -1)) { return; } //it's old IE or the Mist host is localhost and so it won't work ^_^
+
+      var ele = document.createElement("div");
+      var casting_ele = document.createElement("div");
+      casting_ele.className = "mistvideo-casting";
+
+      var api, reload, nextCombo, unload;
+      var selectedTracks = {};
+      var remoteData = {
+        currentTime: false,
+        paused: true,
+        volume: 1,
+        muted: false,
+        buffer: [],
+        loop: (MistVideo.player.api ? MistVideo.player.api.loop : MistVideo.options.loop)
+      };
+      MistVideo.casting = false;
+
+      function onCastLoad(tries) {
+        if (!window.chrome || !window.chrome.cast || !window.chrome.cast.isAvailable || (tries > 5)) {
+          if (ele.parentNode) { ele.parentNode.removeChild(ele); }
+          MistVideo.log("Chromecast is not supported");
+          console.warn(chrome,chrome.cast,chrome.cast ? chrome.cast.isAvailable : undefined,cast);
+          return;
+        }
+
+        if (!window.cast) {
+          if (!tries) { tries = 0; }
+          MistVideo.log("Casting api loaded but cast function not yet available, retrying..");
+          MistVideo.timers.start(function(){
+            onCastLoad(tries++);
+          },200)
+          return;
+        }
+
+        MistVideo.log("Chromecast API loaded");
+        if (!window.loadedCastApi || (window.loadedCastApi == "loading")) {
+          window.loadedCastApi = true; //so we don't try this multiple times
+        }
+
+        var cast_ele = document.createElement("google-cast-launcher");
+        ele.appendChild(cast_ele);
+        cast.framework.CastContext.getInstance().setOptions({
+          receiverApplicationId: "E5F1558C",
+          autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+        });
+
+        function detachFromCast(keepSession) {
+          MistUtil.class.remove(cast_ele,"active");
+          MistUtil.class.remove(MistVideo.container,"casting");
+          if (casting_ele.parentNode) { casting_ele.parentNode.removeChild(casting_ele) }
+          if (!keepSession && (cast.framework.CastContext.getInstance().getCurrentSession())) {
+            cast.framework.CastContext.getInstance().getCurrentSession().endSession(true);
+          }
+
+          if (api) { 
+            MistVideo.player.api = api;
+            api.currentTime = remoteData.currentTime;
+            api.play();
+            MistVideo.reload = reload;
+            MistVideo.nextCombo = nextCombo;
+            MistVideo.unload = unload;
+          }
+          else {
+            MistVideo.player.api.play();
+          }
+          if (MistVideo.player.api && MistVideo.player.api.setTracks && MistUtil.object.keys(selectedTracks).length) {
+            MistVideo.player.api.setTracks(selectedTracks);
+          }
+          MistVideo.casting = false;
+          MistVideo.log("Detached chromecast session");
+        }
+        MistVideo.detachFromCast = detachFromCast;
+
+        cast_ele.addEventListener("click",function(e){
+          e.stopPropagation();
+          
+          //if (false) { 
+          if (MistUtil.class.has(cast_ele,"active")) {
+            detachFromCast();
+          }
+          else {
+
+            MistUtil.class.add(cast_ele,"active");
+            casting_ele.innerHTML = "Select a device to cast to";
+            MistVideo.container.appendChild(casting_ele);
+            MistUtil.class.add(MistVideo.container,"casting");
+            MistVideo.log("chromecast: pausing player")
+            MistVideo.player.api.pause();
+            MistVideo.container.setAttribute("data-loading","waiting for cast");
+            MistVideo.casting = true;
+
+            if (!window.MistCast) {
+              window.MistCast = {
+                send: function(obj){
+                  cast.framework.CastContext.getInstance().getCurrentSession().sendMessage("urn:x-cast:mistcaster",JSON.stringify(obj));
+                }
+              };
+            }
+            
+            function loadStream() {
+
+              cast.framework.CastContext.getInstance().getCurrentSession().addMessageListener("urn:x-cast:mistcaster",function(ns,message){
+                if (MistVideo.destroyed) { detachFromCast(); }
+                message = JSON.parse(message);
+                //console.log("chromecast message received:",message);
+                if (message.type) {
+                  switch(message.type){
+                    case "log":
+                    case "error": {
+                      MistVideo.log("[Chromecast] "+message.message,message.type);
+                      break;
+                    }
+                    case "showError":{
+                      MistVideo.showError.apply(MistVideo,message.args);
+                      break;
+                    }
+                    case "event": {
+                      switch (message.event) {
+                        case "timeupdate": {
+                          remoteData.currentTime = message.currentTime;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        case "progress": {
+                          remoteData.buffer = message.buffer;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        case "pause":
+                        case "paused":
+                        case "ended": 
+                        case "play":
+                        case "playing": {
+                          remoteData.paused = message.paused;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+
+                        case "volumechange": {
+                          remoteData.volume = message.volume;
+                          remoteData.muted = message.muted;
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                          break;
+                        }
+                        default: {
+                          MistUtil.event.send(message.event,"chromecast",MistVideo.video);
+                        }
+                      }
+                      break;
+                    }
+                    case "detach": {
+                      if (message.n == MistVideo.n) {
+                        detachFromCast(true); //don't murder the session 
+                      }
+                      break;
+                    }
+                    default: {
+                      console.log("Unknown chromecast message type",message);
+                    }
+                  }
+                }
+              });
+
+              var d = {
+                type: "load",
+                n: MistVideo.n, //indentify which player instance we are
+                options: {
+                  host: MistVideo.options.host,
+                  loop: MistVideo.options.loop, //will be overwritten with the current value if there is a player api
+                  poster: MistVideo.options.poster, //should be an absolute url, because the location will be different
+                  streaminfo: MistVideo.options.streaminfo,
+                  urlappend: MistVideo.options.urlappend,
+                  forcePriority: MistVideo.options.forcePriority,
+                  setTracks: MistVideo.options.setTracks, //when the track selection is changed through the UI, the selected track is saved in the options, so this passes on the currently enforced tracks
+                  controls: false,
+                  skin: "default" //TODO: right now the skin can't really be transfered because there are functions in there that won't be in the JSON. At some point we should fix this, probably by having the Mist backend include a custom skin definition with the player code.
+                },
+                stream: MistVideo.stream
+              };
+              if (MistVideo.info && (MistVideo.info.type != "live")) {
+                d.time = MistVideo.player.api.currentTime;
+              }
+              if (MistVideo.options.skin == "dev") {
+                d.options.skin = MistVideo.options.skin;
+              }
+              if (MistVideo.player && MistVideo.player.api) {
+                d.volume = MistVideo.player.api.volume;
+                d.muted = MistVideo.player.api.muted;
+                d.options.loop = MistVideo.player.api.loop;
+              }
+              
+              MistCast.send(d);
+
+              api = MistVideo.player.api;
+              reload = MistVideo.reload;
+              nextCombo = MistVideo.nextCombo;
+              unload = MistVideo.unload;
+              selectedTracks = MistVideo.options.setTracks ? MistVideo.options.setTracks : {};
+
+              MistVideo.player.api = new Proxy(api,{
+                get: function(target,key,receiver){
+                  var property = target[key];
+                  switch (key) {
+                    case "muted":
+                    case "volume":
+                    case "currentTime":
+                    case "paused":
+                    case "loop": {
+                      return remoteData[key];
+                    }
+                    case "buffered": {
+                      return new function(){
+                        this.length = remoteData.buffer.length;
+                        this.start = function(i){
+                          return remoteData.buffer[i][0];
+                        }
+                        this.end = function(i){
+                          return remoteData.buffer[i][1];
+                        }
+
+                      }
+                    }
+                    case "setTracks":
+                    case "play":
+                    case "pause": {
+                      return function() {
+                        //put the arguments into an array so JSON doesn't turn it into an object
+                        var a = [];
+                        for (var i = 0; i < arguments.length; i++) {
+                          a.push(arguments[i]);
+                        }
+                        if (key == "setTracks") {
+                          //save the selected tracks so that we can restore them when casting detaches
+                          MistUtil.object.extend(selectedTracks,arguments[0]);
+                        }
+                        MistCast.send({type: "cmd", cmd: key, args: a});
+                      }
+                    } 
+                  }
+                  return property;
+                },
+                set: function(target,key,value){
+                  if (key == "loop") {
+                    remoteData[key] = value; //just assume chromecast will apply it properly
+                  }
+                  //console.log("set",key,value);
+                  MistCast.send({type:"set",cmd:key,value:value});
+                }
+              });
+              api.pause();
+              MistVideo.reload = function(){
+                MistCast.send({type:"reload"});
+              };
+              MistVideo.nextCombo = function(){
+                MistCast.send({type:"nextCombo"});
+              };
+              MistVideo.unload = function(){
+                //this one should actually unload the current player, but detach the chromecast session first
+                detachFromCast();
+                return unload.apply(this,arguments);
+              };
+
+              var d = cast.framework.CastContext.getInstance().getCurrentSession().getCastDevice();
+              if (d && d.friendlyName) { casting_ele.innerHTML = "Casting to "+d.friendlyName; }
+
+              var on_session_end = function(){
+                if (cast.framework.CastContext.getInstance().getSessionState() == "SESSION_ENDED") {
+                  if (MistUtil.class.has(cast_ele,"active")) {
+                    detachFromCast();
+                  }
+                  cast.framework.CastContext.getInstance().removeEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,on_session_end);
+                }
+              };
+              cast.framework.CastContext.getInstance().addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,on_session_end);
+
+              /*for (let i of ["sessionstatechanged","caststatechanged"]) {
+                cast.framework.CastContext.getInstance().addEventListener(i,function(){
+console.warn(i,cast.framework.CastContext.getInstance().getSessionState());
+                });
+              }*/
+
+              MistVideo.log("Attached chromecast session");
+            }
+
+
+            if (cast.framework.CastContext.getInstance().getCurrentSession()) {
+              loadStream();
+            }
+            else {
+
+              cast.framework.CastContext.getInstance().requestSession().then(function(){
+                //console.log("Session requested");
+                if (!cast.framework.CastContext.getInstance().getCurrentSession()) { throw "Could not connect to the cast device";  }
+                loadStream();
+              },function(e){
+                MistVideo.log("Chromecast session ended: "+e);
+                detachFromCast();
+              });
+            }
+          }
+
+        },true); //capture so that chrome's own handler doesn't fire
+      }
+
+      if ((!window.chrome || !window.chrome.cast) && (!window.loadedCastApi)) {
+        window['__onGCastApiAvailable'] = function(loaded, errorInfo) {
+          if (!loaded) {
+            MistVideo.log("Error while loading chromecast API: "+errorInfo);
+          }
+          onCastLoad();
+        };
+        window.loadedCastApi = "loading";
+        var script = document.createElement("script");
+        script.setAttribute("src","//www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1");
+        document.head.appendChild(script);
+        MistVideo.log("Appending chromecast script");
+      }
+      else {
+        if (window.loadedCastApi == "loading") {
+          MistVideo.log("Not appending chromecast script - still loading");
+          MistVideo.timers.start(function(){
+            onCastLoad();
+          },200);
+        }
+        else {
+          MistVideo.log("Not appending chromecast script - already loaded");
+          onCastLoad();
+        }
+      }
+
+      return ele;
     }
   },
   colors: {
@@ -2868,7 +3225,7 @@ MistSkins.dev.structure.submenu.children.unshift({
       },
       then: {
         type: "container",
-        classes: ["mistvideo-description"],
+        classes: ["mistvideo-description","mistvideo-displayCombo"],
         style: { display: "block" },
         children: [
           {type: "playername", style: { display: "inline" }},

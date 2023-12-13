@@ -99,9 +99,17 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mistvideo-videobackground *{position:absolute;filter:opacity(0);transition:filter 0s 2s;width:100%;height:100%}
 .mistvideo-videobackground [data-front]{z-index:1;filter:opacity(1);transition:filter 2s}
 .mistvideo-videocontainer{position:relative;overflow:hidden}
+.mistvideo.casting .mistvideo-controls{bottom:0}
+.mistvideo.casting .mistvideo-video{filter:blur(1em)}
+.mistvideo.casting .mistvideo-maincontainer{overflow:hidden}
+.mistvideo.casting .mistvideo-casting{position:absolute;top:50%;transform:translateY(-50%);text-align:center;width:100%;font-size:2em;text-shadow:1px 1px 5px #000a}
 .mistvideo-error[data-passive]{bottom:auto;left:auto;height:auto;margin:.5em;padding:.5em}
 .mistvideo-error[data-passive] .message{max-width:none}
 .mistvideo-error .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;justify-content:center}
 .mistvideo-error .mistvideo-buttoncontainer .mistvideo-button{white-space:nowrap}
 .browser-ie .mist.icon.loading{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .browser-ie .mist.icon.loading .spin{animation:none}
+.mistvideo-chromecast{display:flex}
+google-cast-launcher{width:24px;height:24px;--connected-color:$fill;--disconnected-color:$semiFill}
+google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill}
+.mistvideo.casting .mistvideo-slideshow_mode{display:none}

@@ -99,12 +99,20 @@ svg.icon.timeout{display:inline-block;height:1em;width:1em;margin:0;margin-right
 .mistvideo-videobackground *{position:absolute;filter:opacity(0);transition:filter 0s 2s;width:100%;height:100%}
 .mistvideo-videobackground [data-front]{z-index:1;filter:opacity(1);transition:filter 2s}
 .mistvideo-videocontainer{position:relative;overflow:hidden}
+.mistvideo.casting .mistvideo-controls{bottom:0}
+.mistvideo.casting .mistvideo-video{filter:blur(1em)}
+.mistvideo.casting .mistvideo-maincontainer{overflow:hidden}
+.mistvideo.casting .mistvideo-casting{position:absolute;top:50%;transform:translateY(-50%);text-align:center;width:100%;font-size:2em;text-shadow:1px 1px 5px #000a}
 .mistvideo-error[data-passive]{bottom:auto;left:auto;height:auto;margin:.5em;padding:.5em}
 .mistvideo-error[data-passive] .message{max-width:none}
 .mistvideo-error .mistvideo-buttoncontainer{display:flex;flex-flow:row nowrap;justify-content:center}
 .mistvideo-error .mistvideo-buttoncontainer .mistvideo-button{white-space:nowrap}
 .browser-ie .mist.icon.loading{animation:mistvideo-spin 1.5s infinite linear;transform-origin:50% 50%}
 .browser-ie .mist.icon.loading .spin{animation:none}
+.mistvideo-chromecast{display:flex}
+google-cast-launcher{width:24px;height:24px;--connected-color:$fill;--disconnected-color:$semiFill}
+google-cast-launcher.active{--connected-color:$accent;--disconnected-color:$fill}
+.mistvideo.casting .mistvideo-slideshow_mode{display:none}
 .mistvideo-log{margin:.5em 0}
 .mistvideo-log .logs{max-height:10em;min-height:5em;width:100%;padding:.2em 0;padding-right:1em;overflow-y:auto;overflow-x:hidden;font-size:.9em}
 .mistvideo-log .logs table td{vertical-align:top;padding:0}
@@ -130,3 +138,4 @@ svg.icon.graph{position:absolute;right:0;top:0;bottom:0;width:6em}
 select{border-radius:0}
 input[type=checkbox]{margin:0;margin-right:.2em;border:1px solid $semiFill;border-radius:0;-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none;width:.8em;height:.8em;color:inherit;position:relative;cursor:pointer}
 input[type=checkbox]:checked:after{content:"\2713";position:absolute;bottom:-.2em;left:0;font-size:1.2em}
+.mistvideo.casting .mistvideo-displayCombo,.mistvideo.casting .mistvideo-forcePlayer,.mistvideo.casting .mistvideo-forceType{display:none!important}

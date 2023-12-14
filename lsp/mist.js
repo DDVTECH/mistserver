@@ -4325,6 +4325,27 @@ var UI = {
             send.stop_sessions = other;
             delete saveas.stop_sessions;
           }
+
+          var type = null;
+          for (var i in mist.data.capabilities.inputs) {
+            if (typeof mist.data.capabilities.inputs[i].source_match == 'undefined') { continue; }
+            if (mist.inputMatch(mist.data.capabilities.inputs[i].source_match,saveas.source)) {
+              type = i;
+              break;
+            }
+          }
+          if (type) {
+            //sanatize saveas, remove options not in capabilities
+            var input = mist.data.capabilities.inputs[type];
+            for (var i in saveas) {
+              if ((i == "name") || (i == "source") || (i == "stop_sessions") || (i == "processes")) { continue; }
+              if (("optional" in input) && (i in input.optional)) { continue; }
+              if (("required" in input) && (i in input.required)) { continue; }
+              if ((i == "always_on") && ("always_match" in input) && (mist.inputMatch(input.always_match,saveas.source))) { continue; }
+              delete saveas[i];
+            }
+          }
+
           mist.send(function(){
             delete mist.data.streams[saveas.name].online;
             delete mist.data.streams[saveas.name].error;

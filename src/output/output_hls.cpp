@@ -318,10 +318,15 @@ namespace Mist{
       }else{
         H.SetHeader("Content-Type", "application/vnd.apple.mpegurl");
       }
-      if (isTS && !(!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
+      if (isTS && (!(Comms::tknMode & 0x04) || config->getOption("chunkpath"))){
+        uint64_t dura = 120000;
+        if (M && M.getValidTracks().size()){
+          size_t mTrk = M.mainTrack();
+          if (mTrk != INVALID_TRACK_ID){dura = M.getDuration(dura);}
+        }
         H.SetHeader("Cache-Control",
                     "public, max-age=" +
-                        JSON::Value(M.getDuration(getMainSelectedTrack()) / 1000).asString() +
+                        JSON::Value(dura / 1000).asString() +
                         ", immutable");
         H.SetHeader("Pragma", "");
         H.SetHeader("Expires", "");

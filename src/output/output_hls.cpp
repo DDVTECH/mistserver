@@ -545,7 +545,7 @@ namespace Mist{
           return;
         }
         if (config->getString("chunkpath").size()){
-          manifest = liveIndex(idx, "", HTTP::URL(config->getString("chunkpath")).link(reqUrl).link("./").getUrl());
+          manifest = liveIndex(idx, "", HTTP::URL(config->getString("chunkpath")).link("./" + H.url).link("./").getUrl());
         }else{
           std::string tknStr;
           if (tkn.size() && Comms::tknMode & 0x04){tknStr = "?tkn=" + tkn;}

@@ -129,6 +129,8 @@ if usessl
 
   mist_deps += [mbedtls, mbedx509, mbedcrypto]
   mist_deps += dependency('libsrtp2', default_options: ['tests=disabled'], fallback: ['libsrtp2', 'libsrtp2_dep'])
+
+  usrsctp_dep = dependency('usrsctp', fallback: ['usrsctp', 'usrsctp_dep'])
 endif
 
 libsrt = false

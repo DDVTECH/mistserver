@@ -14,6 +14,7 @@
 class SRTPReader{
 public:
   SRTPReader();
+  ~SRTPReader();
   int init(const std::string &cipher, const std::string &key, const std::string &salt);
   int shutdown();
   int unprotectRtp(uint8_t *data, int *nbytes); /* `nbytes` should contain the number of bytes in `data`. On success `nbytes`
@@ -32,6 +33,7 @@ private:
 class SRTPWriter{
 public:
   SRTPWriter();
+  ~SRTPWriter();
   int init(const std::string &cipher, const std::string &key, const std::string &salt);
   int shutdown();
   int protectRtp(uint8_t *data, int *nbytes);

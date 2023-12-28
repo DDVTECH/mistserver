@@ -14,6 +14,7 @@
 #include <sstream>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <fstream>
 
 #define BUFFER_BLOCKSIZE 4096 // set buffer blocksize to 4KiB
 
@@ -1603,35 +1604,197 @@ int Socket::Server::getSocket(){
   return sock;
 }
 
+
+static int dTLS_recv(void *s, unsigned char *buf, size_t len){
+  return ((Socket::UDPConnection*)s)->dTLSRead(buf, len);
+}
+
+static int dTLS_send(void *s, const unsigned char *buf, size_t len){
+  return ((Socket::UDPConnection*)s)->dTLSWrite(buf, len);
+}
+
+
 /// Create a new UDP Socket.
 /// Will attempt to create an IPv6 UDP socket, on fail try a IPV4 UDP socket.
 /// If both fail, prints an DLVL_FAIL debug message.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::UDPConnection::UDPConnection(bool nonblock){
+  init(nonblock);
+}// Socket::UDPConnection UDP Contructor
+
+void Socket::UDPConnection::init(bool _nonblock, int _family){
   lastPace = 0;
   boundPort = 0;
-  family = AF_INET6;
-  sock = socket(AF_INET6, SOCK_DGRAM, 0);
-  if (sock == -1){
+  family = _family;
+  hasDTLS = false;
+  isConnected = false;
+  wasEncrypted = false;
+  pretendReceive = false;
+  sock = socket(family, SOCK_DGRAM, 0);
+  if (sock == -1 && family == AF_INET6){
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     family = AF_INET;
   }
   if (sock == -1){
     FAIL_MSG("Could not create UDP socket: %s", strerror(errno));
   }else{
-    if (nonblock){setBlocking(!nonblock);}
+    isBlocking = !_nonblock;
+    if (_nonblock){setBlocking(!_nonblock);}
     checkRecvBuf();
   }
+
+  {
+    // Allow address re-use
+    int on = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  }
+
   up = 0;
   down = 0;
   destAddr = 0;
   destAddr_size = 0;
+  recvAddr = 0;
+  recvAddr_size = 0;
+  hasReceiveData = false;
 #ifdef __CYGWIN__
   data.allocate(SOCKETSIZE);
 #else
   data.allocate(2048);
 #endif
-}// Socket::UDPConnection UDP Contructor
+}
+
+void Socket::UDPConnection::initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key){
+  hasDTLS = true;
+  nextDTLSRead = 0;
+  nextDTLSReadLen = 0;
+
+  int r = 0;
+  char mbedtls_msg[1024];
+
+  // Null out the contexts before use
+  memset((void *)&entropy_ctx, 0x00, sizeof(entropy_ctx));
+  memset((void *)&rand_ctx, 0x00, sizeof(rand_ctx));
+  memset((void *)&ssl_ctx, 0x00, sizeof(ssl_ctx));
+  memset((void *)&ssl_conf, 0x00, sizeof(ssl_conf));
+  memset((void *)&cookie_ctx, 0x00, sizeof(cookie_ctx));
+  memset((void *)&timer_ctx, 0x00, sizeof(timer_ctx));
+  // Initialize contexts
+  mbedtls_entropy_init(&entropy_ctx);
+  mbedtls_ctr_drbg_init(&rand_ctx);
+  mbedtls_ssl_init(&ssl_ctx);
+  mbedtls_ssl_config_init(&ssl_conf);
+  mbedtls_ssl_cookie_init(&cookie_ctx);
+
+  /* seed and setup the random number generator */
+  r = mbedtls_ctr_drbg_seed(&rand_ctx, mbedtls_entropy_func, &entropy_ctx, (const unsigned char *)"mist-srtp", 9);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not init drbg seed: %s", mbedtls_msg);
+    return;
+  }
+
+  /* load defaults into our ssl_conf */
+  r = mbedtls_ssl_config_defaults(&ssl_conf, MBEDTLS_SSL_IS_SERVER, MBEDTLS_SSL_TRANSPORT_DATAGRAM,
+                                  MBEDTLS_SSL_PRESET_DEFAULT);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not set defaults: %s", mbedtls_msg);
+    return;
+  }
+
+  mbedtls_ssl_conf_authmode(&ssl_conf, MBEDTLS_SSL_VERIFY_NONE);
+  mbedtls_ssl_conf_rng(&ssl_conf, mbedtls_ctr_drbg_random, &rand_ctx);
+  mbedtls_ssl_conf_ca_chain(&ssl_conf, cert, NULL);
+  mbedtls_ssl_conf_cert_profile(&ssl_conf, &mbedtls_x509_crt_profile_default);
+  //mbedtls_ssl_conf_dbg(&ssl_conf, print_mbedtls_debug_message, stdout);
+  //mbedtls_debug_set_threshold(10);
+
+  // enable SRTP support (non-fatal on error)
+  mbedtls_ssl_srtp_profile srtpPro[] ={MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80, MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32};
+  r = mbedtls_ssl_conf_dtls_srtp_protection_profiles(&ssl_conf, srtpPro, sizeof(srtpPro) / sizeof(srtpPro[0]));
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    WARN_MSG("dTLS could not set SRTP profiles: %s", mbedtls_msg);
+  }
+
+  /* cert certificate chain + key, so we can verify the client-hello signed data */
+  r = mbedtls_ssl_conf_own_cert(&ssl_conf, cert, key);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not set certificate: %s", mbedtls_msg);
+    return;
+  }
+
+  // cookie setup (to prevent ddos, server-only)
+  r = mbedtls_ssl_cookie_setup(&cookie_ctx, mbedtls_ctr_drbg_random, &rand_ctx);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not set SSL cookie: %s", mbedtls_msg);
+    return;
+  }
+  mbedtls_ssl_conf_dtls_cookies(&ssl_conf, mbedtls_ssl_cookie_write, mbedtls_ssl_cookie_check, &cookie_ctx);
+
+  // setup the ssl context
+  r = mbedtls_ssl_setup(&ssl_ctx, &ssl_conf);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not setup: %s", mbedtls_msg);
+    return;
+  }
+
+  // set input/output callbacks
+  mbedtls_ssl_set_bio(&ssl_ctx, (void *)this, dTLS_send, dTLS_recv, NULL);
+  mbedtls_ssl_set_timer_cb(&ssl_ctx, &timer_ctx, mbedtls_timing_set_delay, mbedtls_timing_get_delay);
+
+  // set transport ID (non-fatal on error)
+  r = mbedtls_ssl_set_client_transport_id(&ssl_ctx, (const unsigned char *)"mist", 4);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
+  }
+}
+
+void Socket::UDPConnection::deinitDTLS(){
+  if (hasDTLS){
+    mbedtls_entropy_free(&entropy_ctx);
+    mbedtls_ctr_drbg_free(&rand_ctx);
+    mbedtls_ssl_free(&ssl_ctx);
+    mbedtls_ssl_config_free(&ssl_conf);
+    mbedtls_ssl_cookie_free(&cookie_ctx);
+    hasDTLS = true;
+  }
+}
+
+int Socket::UDPConnection::dTLSRead(unsigned char *buf, size_t _len){
+  if (!nextDTLSReadLen){return MBEDTLS_ERR_SSL_WANT_READ;}
+  size_t len = _len;
+  if (len > nextDTLSReadLen){len = nextDTLSReadLen;}
+  memcpy(buf, nextDTLSRead, len);
+  nextDTLSReadLen = 0;
+  return len;
+}
+
+int Socket::UDPConnection::dTLSWrite(const unsigned char *buf, size_t len){
+  sendPaced((const char *)buf, len, false);
+  return len;
+}
+
+void Socket::UDPConnection::dTLSReset(){
+  char mbedtls_msg[1024];
+  int r = mbedtls_ssl_session_reset(&ssl_ctx);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    FAIL_MSG("dTLS could not reset session: %s", mbedtls_msg);
+    return;
+  }
+
+  // set transport ID (non-fatal on error)
+  r = mbedtls_ssl_set_client_transport_id(&ssl_ctx, (const unsigned char *)"mist", 4);
+  if (r){
+    mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+    WARN_MSG("dTLS could not set transport ID: %s", mbedtls_msg);
+  }
+}
 
 ///Checks if the UDP receive buffer is at least 1 mbyte, attempts to increase and warns user through log message on failure.
 void Socket::UDPConnection::checkRecvBuf(){
@@ -1681,27 +1844,23 @@ void Socket::UDPConnection::checkRecvBuf(){
 /// Copies a UDP socket, re-allocating local copies of any needed structures.
 /// The data/data_size/data_len variables are *not* copied over.
 Socket::UDPConnection::UDPConnection(const UDPConnection &o){
-  lastPace = 0;
-  boundPort = 0;
-  family = AF_INET6;
-  sock = socket(AF_INET6, SOCK_DGRAM, 0);
-  if (sock == -1){
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-    family = AF_INET;
-  }
-  if (sock == -1){FAIL_MSG("Could not create UDP socket: %s", strerror(errno));}
-  checkRecvBuf();
-  up = 0;
-  down = 0;
+  init(!o.isBlocking, o.family);
+  INFO_MSG("Copied socket of type %s", addrFam(o.family));
   if (o.destAddr && o.destAddr_size){
     destAddr = malloc(o.destAddr_size);
     destAddr_size = o.destAddr_size;
     if (destAddr){memcpy(destAddr, o.destAddr, o.destAddr_size);}
-  }else{
-    destAddr = 0;
-    destAddr_size = 0;
   }
-  data.allocate(2048);
+  if (o.recvAddr && o.recvAddr_size){
+    recvAddr = malloc(o.recvAddr_size);
+    recvAddr_size = o.recvAddr_size;
+    if (recvAddr){memcpy(recvAddr, o.recvAddr, o.recvAddr_size);}
+  }
+  if (o.data.size()){
+    data.assign(o.data, o.data.size());
+    pretendReceive = true;
+  }
+  hasReceiveData = o.hasReceiveData;
 }
 
 /// Close the UDP socket
@@ -1720,7 +1879,34 @@ Socket::UDPConnection::~UDPConnection(){
     free(destAddr);
     destAddr = 0;
   }
+  if (recvAddr){
+    free(recvAddr);
+    recvAddr = 0;
+  }
+  deinitDTLS();
 }
+
+
+bool Socket::UDPConnection::operator==(const Socket::UDPConnection& b) const{
+  // UDP sockets are equal if they refer to the same underlying socket or are both closed
+  if (sock == b.sock){return true;}
+  // If either is closed (and the other is not), not equal.
+  if (sock == -1 || b.sock == -1){return false;}
+  size_t recvSize = recvAddr_size;
+  if (b.recvAddr_size < recvSize){recvSize = b.recvAddr_size;}
+  size_t destSize = destAddr_size;
+  if (b.destAddr_size < destSize){destSize = b.destAddr_size;}
+  // They are equal if they hold the same local and remote address.
+  if (recvSize && destSize && destAddr && b.destAddr && recvAddr && b.recvAddr){
+    if (!memcmp(recvAddr, b.recvAddr, recvSize) && !memcmp(destAddr, b.destAddr, destSize)){
+      return true;
+    }
+  }
+  // All other cases, not equal
+  return false;
+}
+
+Socket::UDPConnection::operator bool() const{return sock != -1;}
 
 // Sets socket family type (to IPV4 or IPV6) (AF_INET=2, AF_INET6=10)
 void Socket::UDPConnection::setSocketFamily(int AF_TYPE){\
@@ -1740,6 +1926,22 @@ void Socket::UDPConnection::allocateDestination(){
       destAddr_size = sizeof(sockaddr_in6);
       memset(destAddr, 0, sizeof(sockaddr_in6));
       ((struct sockaddr_in *)destAddr)->sin_family = AF_UNSPEC;
+    }
+  }
+  if (recvAddr && recvAddr_size < sizeof(sockaddr_in6)){
+    free(recvAddr);
+    recvAddr = 0;
+  }
+  if (!recvAddr){
+    recvAddr = malloc(sizeof(sockaddr_in6));
+    if (recvAddr){
+      recvAddr_size = sizeof(sockaddr_in6);
+      memset(recvAddr, 0, sizeof(sockaddr_in6));
+      ((struct sockaddr_in *)recvAddr)->sin_family = AF_UNSPEC;
+    }
+    const int opt = 1;
+    if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &opt, sizeof(opt))){
+      WARN_MSG("Could not set PKTINFO to 1!");
     }
   }
 }
@@ -1788,6 +1990,11 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port){
       close();
       family = rp->ai_family;
       sock = socket(family, SOCK_DGRAM, 0);
+      {
+        // Allow address re-use
+        int on = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+      }
       checkRecvBuf();
       if (boundPort){
         INFO_MSG("Rebinding to %s:%d %s", boundAddr.c_str(), boundPort, boundMulti.c_str());
@@ -1839,6 +2046,35 @@ void Socket::UDPConnection::GetDestination(std::string &destIp, uint32_t &port){
   FAIL_MSG("Could not get destination for UDP socket");
 }// Socket::UDPConnection GetDestination
 
+/// Gets the properties of the receiving end of the local UDP socket.
+/// This will be the sending end for all SendNow calls.
+void Socket::UDPConnection::GetLocalDestination(std::string &destIp, uint32_t &port){
+  if (!recvAddr || !recvAddr_size){
+    destIp = "";
+    port = 0;
+    return;
+  }
+  char addr_str[INET6_ADDRSTRLEN + 1];
+  addr_str[INET6_ADDRSTRLEN] = 0; // set last byte to zero, to prevent walking out of the array
+  if (((struct sockaddr_in *)recvAddr)->sin_family == AF_INET6){
+    if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)recvAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+      destIp = addr_str;
+      port = ntohs(((struct sockaddr_in6 *)recvAddr)->sin6_port);
+      return;
+    }
+  }
+  if (((struct sockaddr_in *)recvAddr)->sin_family == AF_INET){
+    if (inet_ntop(AF_INET, &(((struct sockaddr_in *)recvAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+      destIp = addr_str;
+      port = ntohs(((struct sockaddr_in *)recvAddr)->sin_port);
+      return;
+    }
+  }
+  destIp = "";
+  port = 0;
+  FAIL_MSG("Could not get destination for UDP socket");
+}// Socket::UDPConnection GetDestination
+
 /// Gets the properties of the receiving end of this UDP socket.
 /// This will be the receiving end for all SendNow calls.
 std::string Socket::UDPConnection::getBinDestination(){
@@ -1864,7 +2100,10 @@ uint32_t Socket::UDPConnection::getDestPort() const{
 /// Sets the socket to be blocking if the parameters is true.
 /// Sets the socket to be non-blocking otherwise.
 void Socket::UDPConnection::setBlocking(bool blocking){
-  if (sock >= 0){setFDBlocking(sock, blocking);}
+  if (sock >= 0){
+    setFDBlocking(sock, blocking);
+    isBlocking = blocking;
+  }
 }
 
 /// Sends a UDP datagram using the buffer sdata.
@@ -1885,64 +2124,146 @@ void Socket::UDPConnection::SendNow(const char *sdata){
 /// Does not do anything if len < 1.
 /// Prints an DLVL_FAIL level debug message if sending failed.
 void Socket::UDPConnection::SendNow(const char *sdata, size_t len){
-  if (len < 1){return;}
-  int r = sendto(sock, sdata, len, 0, (sockaddr *)destAddr, destAddr_size);
-  if (r > 0){
-    up += r;
+  SendNow(sdata, len, (sockaddr*)destAddr, destAddr_size);
+}
+
+/// Sends a UDP datagram using the buffer sdata of length len.
+/// Does not do anything if len < 1.
+/// Prints an DLVL_FAIL level debug message if sending failed.
+void Socket::UDPConnection::SendNow(const char *sdata, size_t len, sockaddr * dAddr, size_t dAddrLen){
+  if (len < 1 || sock == -1){return;}
+  if (isConnected){
+    int r = send(sock, sdata, len, 0);
+    if (r > 0){
+      up += r;
+    }else{
+      if (errno == EDESTADDRREQ){
+        close();
+        return;
+      }
+      FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+    }
+    return;
+  }
+  if (hasReceiveData && recvAddr){
+    msghdr mHdr;
+    char msg_control[0x100];
+    iovec iovec;
+    iovec.iov_base = (void*)sdata;
+    iovec.iov_len = len;
+    mHdr.msg_name = dAddr;
+    mHdr.msg_namelen = dAddrLen;
+    mHdr.msg_iov = &iovec;
+    mHdr.msg_iovlen = 1;
+    mHdr.msg_control = msg_control;
+    mHdr.msg_controllen = sizeof(msg_control);
+    mHdr.msg_flags = 0;
+    int cmsg_space = 0;
+    cmsghdr * cmsg = CMSG_FIRSTHDR(&mHdr);
+    cmsg->cmsg_level = IPPROTO_IP;
+    cmsg->cmsg_type = IP_PKTINFO;
+
+    struct in_pktinfo in_pktinfo;
+    memcpy(&(in_pktinfo.ipi_spec_dst), &(((sockaddr_in*)recvAddr)->sin_family), sizeof(in_pktinfo.ipi_spec_dst));
+    in_pktinfo.ipi_ifindex = recvInterface;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(in_pktinfo));
+    *(struct in_pktinfo*)CMSG_DATA(cmsg) = in_pktinfo;
+    cmsg_space += CMSG_SPACE(sizeof(in_pktinfo));
+    mHdr.msg_controllen = cmsg_space;
+
+    int r = sendmsg(sock, &mHdr, 0);
+    if (r > 0){
+      up += r;
+    }else{
+      FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+    }
+    return;
   }else{
-    FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+    int r = sendto(sock, sdata, len, 0, dAddr, dAddrLen);
+    if (r > 0){
+      up += r;
+    }else{
+      FAIL_MSG("Could not send UDP data through %d: %s", sock, strerror(errno));
+    }
   }
 }
 
 /// Queues sdata, len for sending over this socket.
 /// If there has been enough time since the last packet, sends immediately.
 /// Warning: never call sendPaced for the same socket from a different thread!
-void Socket::UDPConnection::sendPaced(const char *sdata, size_t len){
-  if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
-    SendNow(sdata, len);
-    lastPace = Util::getMicros();
+/// Note: Only actually encrypts if initDTLS was called in the past.
+void Socket::UDPConnection::sendPaced(const char *sdata, size_t len, bool encrypt){
+  if (hasDTLS && encrypt){
+    if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
+      WARN_MSG("Attempting to write encrypted data before handshake completed! Data was thrown away.");
+      return;
+    }
+    int write = mbedtls_ssl_write(&ssl_ctx, (unsigned char*)sdata, len);
+    if (write <= 0){WARN_MSG("Could not write DTLS packet!");}
   }else{
-    paceQueue.push_back(Util::ResizeablePointer());
-    paceQueue.back().assign(sdata, len);
-    // Try to send a packet, if time allows
-    //sendPaced(0);
+    if (!paceQueue.size() && (!lastPace || Util::getMicros(lastPace) > 10000)){
+      SendNow(sdata, len);
+      lastPace = Util::getMicros();
+    }else{
+      paceQueue.push_back(Util::ResizeablePointer());
+      paceQueue.back().assign(sdata, len);
+      // Try to send a packet, if time allows
+      //sendPaced(0);
+    }
   }
+}
+
+// Gets time in microseconds until next sendPaced call would send something
+size_t Socket::UDPConnection::timeToNextPace(uint64_t uTime){
+  size_t qSize = paceQueue.size();
+  if (!qSize){return std::string::npos;} // No queue? No time. Return highest possible value.
+  if (!uTime){uTime = Util::getMicros();}
+  uint64_t paceWait = uTime - lastPace; // Time we've waited so far already
+
+  // Target clearing the queue in 25ms at most.
+  uint64_t targetTime = 25000 / qSize;
+  // If this slows us to below 1 packet per 5ms, go that speed instead.
+  if (targetTime > 5000){targetTime = 5000;}
+  // If the wait is over, send now.
+  if (paceWait >= targetTime){return 0;}
+  // Return remaining wait time
+  return targetTime - paceWait;
 }
 
 /// Spends uSendWindow microseconds either sending paced packets or sleeping, whichever is more appropriate
 /// Warning: never call sendPaced for the same socket from a different thread!
 void Socket::UDPConnection::sendPaced(uint64_t uSendWindow){
   uint64_t currPace = Util::getMicros();
+  uint64_t uTime = currPace;
   do{
-    uint64_t uTime = Util::getMicros();
-    uint64_t sleepTime = uTime - currPace;
-    if (sleepTime > uSendWindow){
-      sleepTime = 0;
-    }else{
-      sleepTime = uSendWindow - sleepTime;
-    }
-    uint64_t paceWait = uTime - lastPace;
-    size_t qSize = paceQueue.size();
-    // If the queue is complete, wait out the remainder of the time
-    if (!qSize){
-      Util::usleep(sleepTime);
-      return;
-    }
-    // Otherwise, target clearing the queue in 25ms at most.
-    uint64_t targetTime = 25000 / qSize;
-    // If this slows us to below 1 packet per 5ms, go that speed instead.
-    if (targetTime > 5000){targetTime = 5000;}
-    // If the wait is over, send now.
-    if (paceWait >= targetTime){
+    uint64_t sleepTime = uSendWindow - (uTime - currPace);
+    uint64_t nextPace = timeToNextPace(uTime);
+    if (sleepTime > nextPace){sleepTime = nextPace;}
+
+    // Not sleeping? Send now!
+    if (!sleepTime){
       SendNow(*paceQueue.begin(), paceQueue.begin()->size());
       paceQueue.pop_front();
       lastPace = uTime;
       continue;
     }
-    // Otherwise, wait for the smaller of remaining wait time or remaining send window time.
-    if (targetTime - paceWait < sleepTime){sleepTime = targetTime - paceWait;}
-    Util::usleep(sleepTime);
-  }while(Util::getMicros(currPace) < uSendWindow);
+
+    {
+      // Use select to wait until a packet arrives or until the next packet should be sent
+      fd_set rfds;
+      struct timeval T;
+      T.tv_sec = sleepTime / 1000000;
+      T.tv_usec = sleepTime % 1000000;
+      // Watch configured FD's for input
+      FD_ZERO(&rfds);
+      int maxFD = getSock();
+      FD_SET(maxFD, &rfds);
+      int r = select(maxFD + 1, &rfds, NULL, NULL, &T);
+      // If we can read the socket, immediately return and stop waiting
+      if (r > 0){return;}
+    }
+    uTime = Util::getMicros();
+  }while(uTime - currPace < uSendWindow);
 }
 
 std::string Socket::UDPConnection::getBoundAddress(){
@@ -1995,6 +2316,11 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   for (rp = addr_result; rp != NULL; rp = rp->ai_next){
     sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
     if (sock == -1){continue;}
+    {
+      // Allow address re-use
+      int on = 1;
+      setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    }
     if (rp->ai_family == AF_INET6){
       const int optval = 0;
       if (setsockopt(sock, SOL_SOCKET, IPV6_V6ONLY, &optval, sizeof(optval)) < 0){
@@ -2046,7 +2372,7 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
       boundAddr = iface;
       boundMulti = multicastInterfaces;
       boundPort = portNo;
-      INFO_MSG("UDP bind success on %s:%u (%s)", human_addr, portNo, addrFam(rp->ai_family));
+      INFO_MSG("UDP bind success %d on %s:%u (%s)", sock, human_addr, portNo, addrFam(rp->ai_family));
       break;
     }
     if (err_str.size()){err_str += ", ";}
@@ -2144,21 +2470,135 @@ uint16_t Socket::UDPConnection::bind(int port, std::string iface, const std::str
   return portNo;
 }
 
+bool Socket::UDPConnection::connect(){
+  if (!recvAddr || !recvAddr_size || !destAddr || !destAddr_size){
+    WARN_MSG("Attempting to connect a UDP socket without local and/or remote address!");
+    return false;
+  }
+
+  {
+    std::string destIp;
+    uint32_t port = 0;
+    char addr_str[INET6_ADDRSTRLEN + 1];
+    if (((struct sockaddr_in *)recvAddr)->sin_family == AF_INET6){
+      if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)recvAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+        destIp = addr_str;
+        port = ntohs(((struct sockaddr_in6 *)recvAddr)->sin6_port);
+      }
+    }
+    if (((struct sockaddr_in *)recvAddr)->sin_family == AF_INET){
+      if (inet_ntop(AF_INET, &(((struct sockaddr_in *)recvAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+        destIp = addr_str;
+        port = ntohs(((struct sockaddr_in *)recvAddr)->sin_port);
+      }
+    }
+    int ret = ::bind(sock, (const struct sockaddr*)recvAddr, recvAddr_size);
+    if (!ret){
+      INFO_MSG("Bound socket %d to %s:%" PRIu32, sock, destIp.c_str(), port);
+    }else{
+      FAIL_MSG("Failed to bind socket %d (%s) %s:%" PRIu32 ": %s", sock, addrFam(((struct sockaddr_in *)recvAddr)->sin_family), destIp.c_str(), port, strerror(errno));
+      std::ofstream bleh("/tmp/socket_recv");
+      bleh.write((const char*)recvAddr, recvAddr_size);
+      bleh.write((const char*)destAddr, destAddr_size);
+      bleh.close();
+      return false;
+    }
+  }
+
+  {
+    std::string destIp;
+    uint32_t port;
+    char addr_str[INET6_ADDRSTRLEN + 1];
+    if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6){
+      if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+        destIp = addr_str;
+        port = ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);
+      }
+    }
+    if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET){
+      if (inet_ntop(AF_INET, &(((struct sockaddr_in *)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0){
+        destIp = addr_str;
+        port = ntohs(((struct sockaddr_in *)destAddr)->sin_port);
+      }
+    }
+    int ret = ::connect(sock, (const struct sockaddr*)destAddr, destAddr_size);
+    if (!ret){
+      INFO_MSG("Connected socket to %s:%" PRIu32, destIp.c_str(), port);
+    }else{
+      FAIL_MSG("Failed to connect socket to %s:%" PRIu32 ": %s", destIp.c_str(), port, strerror(errno));
+      return false;
+    }
+  }
+  isConnected = true;
+  return true;
+}
+
+
 /// Attempt to receive a UDP packet.
 /// This will automatically allocate or resize the internal data buffer if needed.
 /// If a packet is received, it will be placed in the "data" member, with it's length in "data_len".
 /// \return True if a packet was received, false otherwise.
 bool Socket::UDPConnection::Receive(){
+  if (pretendReceive){
+    pretendReceive = false;
+    return onData();
+  }
   if (sock == -1){return false;}
   data.truncate(0);
+  if (isConnected){
+    int r = recv(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT);
+    if (r == -1){
+      if (errno != EAGAIN){
+        INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));
+        if (errno == ECONNREFUSED){close();}
+      }
+      return false;
+    }
+    if (r > 0){
+      data.append(0, r);
+      down += r;
+      if (data.rsize() < (unsigned int)r){
+        INFO_MSG("Doubling UDP socket buffer from %" PRIu32 " to %" PRIu32, data.rsize(), data.rsize()*2);
+        data.allocate(data.rsize()*2);
+      }
+      return onData();
+    }
+    return false;
+  }
   sockaddr_in6 addr;
   socklen_t destsize = sizeof(addr);
-  int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)&addr, &destsize);
+  //int r = recvfrom(sock, data, data.rsize(), MSG_TRUNC | MSG_DONTWAIT, (sockaddr *)&addr, &destsize);
+  msghdr mHdr;
+  memset(&mHdr, 0, sizeof(mHdr));
+  char ctrl[0x100];
+  iovec dBufs;
+  dBufs.iov_base = data;
+  dBufs.iov_len = data.rsize();
+  mHdr.msg_name = &addr;
+  mHdr.msg_namelen = destsize;
+  mHdr.msg_control = ctrl;
+  mHdr.msg_controllen = 0x100;
+  mHdr.msg_iov = &dBufs;
+  mHdr.msg_iovlen = 1;
+  int r = recvmsg(sock, &mHdr, MSG_TRUNC | MSG_DONTWAIT);
+  destsize = mHdr.msg_namelen;
   if (r == -1){
     if (errno != EAGAIN){INFO_MSG("UDP receive: %d (%s)", errno, strerror(errno));}
     return false;
   }
   if (destAddr && destsize && destAddr_size >= destsize){memcpy(destAddr, &addr, destsize);}
+  if (recvAddr){
+    for ( struct cmsghdr *cmsg = CMSG_FIRSTHDR(&mHdr); cmsg != NULL; cmsg = CMSG_NXTHDR(&mHdr, cmsg)){
+      if (cmsg->cmsg_level != IPPROTO_IP || cmsg->cmsg_type != IP_PKTINFO){continue;}
+      struct in_pktinfo* pi = (in_pktinfo*)CMSG_DATA(cmsg);
+      struct sockaddr_in * recvCast = (sockaddr_in*)recvAddr;
+      recvCast->sin_family = family;
+      recvCast->sin_port = htons(boundPort);
+      memcpy(&(recvCast->sin_addr), &(pi->ipi_spec_dst), sizeof(pi->ipi_spec_dst));
+      recvInterface = pi->ipi_ifindex;
+      hasReceiveData = true;
+    }
+  }
   data.append(0, r);
   down += r;
   //Handle UDP packets that are too large
@@ -2166,7 +2606,88 @@ bool Socket::UDPConnection::Receive(){
     INFO_MSG("Doubling UDP socket buffer from %" PRIu32 " to %" PRIu32, data.rsize(), data.rsize()*2);
     data.allocate(data.rsize()*2);
   }
-  return (r > 0);
+  return onData();
+}
+
+bool Socket::UDPConnection::onData(){
+  wasEncrypted = false;
+  if (!data.size()){return false;}
+  uint8_t fb = 0;
+  int r = data.size();
+  if (r){fb = (uint8_t)data[0];}
+  if (r && hasDTLS && fb > 19 && fb < 64){
+    if (nextDTLSReadLen){
+      INFO_MSG("Overwriting %zu bytes of unread dTLS data!", nextDTLSReadLen);
+    }
+    nextDTLSRead = data;
+    nextDTLSReadLen = data.size();
+    // Complete dTLS handshake if needed
+    if (ssl_ctx.state != MBEDTLS_SSL_HANDSHAKE_OVER){
+      do{
+        r = mbedtls_ssl_handshake(&ssl_ctx);
+        switch (r){
+        case 0:{ // Handshake complete
+          INFO_MSG("dTLS handshake complete!");
+          int extrRes = 0;
+          uint8_t keying_material[MBEDTLS_DTLS_SRTP_MAX_KEY_MATERIAL_LENGTH];
+          size_t keying_material_len = sizeof(keying_material);
+          extrRes = mbedtls_ssl_get_dtls_srtp_key_material(&ssl_ctx, keying_material, &keying_material_len);
+          if (extrRes){
+            char mbedtls_msg[1024];
+            mbedtls_strerror(extrRes, mbedtls_msg, sizeof(mbedtls_msg));
+            WARN_MSG("dTLS could not extract keying material: %s", mbedtls_msg);
+            return Receive();
+          }
+
+          mbedtls_ssl_srtp_profile srtp_profile = mbedtls_ssl_get_dtls_srtp_protection_profile(&ssl_ctx);
+          switch (srtp_profile){
+          case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_80:{
+            cipher = "SRTP_AES128_CM_SHA1_80";
+            break;
+          }
+          case MBEDTLS_SRTP_AES128_CM_HMAC_SHA1_32:{
+            cipher = "SRTP_AES128_CM_SHA1_32";
+            break;
+          }
+          default:{
+            WARN_MSG("Unhandled SRTP profile, cannot extract keying material.");
+            return Receive();
+          }
+          }
+          remote_key.assign((char *)(&keying_material[0]) + 0, 16);
+          local_key.assign((char *)(&keying_material[0]) + 16, 16);
+          remote_salt.assign((char *)(&keying_material[0]) + 32, 14);
+          local_salt.assign((char *)(&keying_material[0]) + 46, 14);
+          return Receive(); // No application-level data to read
+        }
+        case MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED:{
+          dTLSReset();
+          return Receive(); // No application-level data to read
+        }
+        case MBEDTLS_ERR_SSL_WANT_READ:{
+          return Receive(); // No application-level data to read
+        }
+        default:{
+          char mbedtls_msg[1024];
+          mbedtls_strerror(r, mbedtls_msg, sizeof(mbedtls_msg));
+          WARN_MSG("dTLS could not handshake: %s", mbedtls_msg);
+          return Receive(); // No application-level data to read
+        }
+        }
+      }while (r == MBEDTLS_ERR_SSL_WANT_WRITE);
+    }else{
+      int read = mbedtls_ssl_read(&ssl_ctx, (unsigned char *)(char*)data, data.size());
+      if (read <= 0){
+        // Non-encrypted read (encrypted read fail)
+        return true;
+      }
+      // Encrypted read success
+      wasEncrypted = true;
+      data.truncate(read);
+      return true;
+    }
+  }
+  return r > 0;
 }
 
 int Socket::UDPConnection::getSock(){

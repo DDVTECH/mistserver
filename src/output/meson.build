@@ -91,6 +91,7 @@ foreach output : outputs
     endif
     if extra.contains('srtp')
       sources += files('output_webrtc_srtp.cpp', 'output_webrtc_srtp.h')
+      deps += usrsctp_dep
     endif
     if extra.contains('embed')
       sources += embed_tgts

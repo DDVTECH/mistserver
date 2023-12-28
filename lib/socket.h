@@ -18,12 +18,14 @@
 #include "util.h"
 
 #ifdef SSL
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/debug.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/error.h"
-#include "mbedtls/net.h"
-#include "mbedtls/ssl.h"
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/debug.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/error.h>
+#include <mbedtls/net.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/ssl_cookie.h>
+#include <mbedtls/timing.h>
 #endif
 
 #include "util.h"
@@ -196,10 +198,13 @@ namespace Socket{
 
   class UDPConnection{
   private:
+    void init(bool nonblock, int family = AF_INET6);
     int sock;                   ///< Internally saved socket number.
     std::string remotehost;     ///< Stores remote host address
     void *destAddr;             ///< Destination address pointer.
     unsigned int destAddr_size; ///< Size of the destination address pointer.
+    void *recvAddr;             ///< Destination address pointer.
+    unsigned int recvAddr_size; ///< Size of the destination address pointer.
     unsigned int up;            ///< Amount of bytes transferred up.
     unsigned int down;          ///< Amount of bytes transferred down.
     int family;                 ///< Current socket address family
@@ -208,19 +213,46 @@ namespace Socket{
     void checkRecvBuf();
     std::deque<Util::ResizeablePointer> paceQueue;
     uint64_t lastPace;
+    int recvInterface;
+    bool hasReceiveData;
+    bool isBlocking;
+    bool isConnected;
+    bool pretendReceive; ///< If true, will pretend to have just received the current data buffer on new Receive() call
+    bool onData();
+   
+    // dTLS-related members
+    bool hasDTLS; ///< True if dTLS is enabled
+    void * nextDTLSRead;
+    size_t nextDTLSReadLen;
+    mbedtls_entropy_context entropy_ctx;
+    mbedtls_ctr_drbg_context rand_ctx;
+    mbedtls_ssl_context ssl_ctx;
+    mbedtls_ssl_config ssl_conf;
+    mbedtls_ssl_cookie_ctx cookie_ctx;
+    mbedtls_timing_delay_context timer_ctx;
 
   public:
     Util::ResizeablePointer data;
     UDPConnection(const UDPConnection &o);
     UDPConnection(bool nonblock = false);
     ~UDPConnection();
+    bool operator==(const UDPConnection& b) const;
+    operator bool() const;
+    void initDTLS(mbedtls_x509_crt *cert, mbedtls_pk_context *key);
+    void deinitDTLS();
+    int dTLSRead(unsigned char *buf, size_t len);
+    int dTLSWrite(const unsigned char *buf, size_t len);
+    void dTLSReset();
+    bool wasEncrypted;
     void close();
     int getSock();
     uint16_t bind(int port, std::string iface = "", const std::string &multicastAddress = "");
+    bool connect();
     void setBlocking(bool blocking);
     void allocateDestination();
     void SetDestination(std::string hostname, uint32_t port);
     void GetDestination(std::string &hostname, uint32_t &port);
+    void GetLocalDestination(std::string &hostname, uint32_t &port);
     std::string getBinDestination();
     const void * getDestAddr(){return destAddr;}
     size_t getDestAddrLen(){return destAddr_size;}
@@ -230,8 +262,13 @@ namespace Socket{
     void SendNow(const std::string &data);
     void SendNow(const char *data);
     void SendNow(const char *data, size_t len);
-    void sendPaced(const char * data, size_t len);
+    void SendNow(const char *sdata, size_t len, sockaddr * dAddr, size_t dAddrLen);
+    void sendPaced(const char * data, size_t len, bool encrypt = true);
     void sendPaced(uint64_t uSendWindow);
+    size_t timeToNextPace(uint64_t uTime = 0);
     void setSocketFamily(int AF_TYPE);
+
+    // dTLS-related public members
+    std::string cipher, remote_key, local_key, remote_salt, local_salt;
   };
 }// namespace Socket

@@ -12,7 +12,6 @@ headers = [
   'comms.h',
   'config.h',
   'defines.h',
-  'dtls_srtp_handshake.h',
   'dtsc.h',
   'encryption.h',
   'flv_tag.h',
@@ -69,7 +68,7 @@ install_headers(headers, subdir: 'mist')
 extra_code = []
 
 if usessl
-  extra_code += ['dtls_srtp_handshake.cpp', 'stun.cpp', 'certificate.cpp', 'encryption.cpp',]
+  extra_code += ['stun.cpp', 'certificate.cpp', 'encryption.cpp',]
 endif
 
 libmist = library('mist',

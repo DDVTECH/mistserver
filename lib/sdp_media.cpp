@@ -35,6 +35,8 @@ namespace SDP{
       return "AAC";
     }else if (codec == "OPUS"){
       return "opus";
+    }else if (codec == "WEBRTC-DATACHANNEL"){
+      return "JSON";
     }else if (codec == "ULPFEC"){
       return "";
     }else if (codec == "RED"){
@@ -67,6 +69,10 @@ namespace SDP{
       return "MPA";
     }else if (codec == "AAC"){
       return "MPEG4-GENERIC";
+    }else if (codec == "JSON"){
+      return "WEBRTC-DATACHANNEL";
+    }else if (codec == "subtitle"){
+      return "WEBRTC-DATACHANNEL";
     }else if (codec == "opus"){
       return "OPUS";
     }else if (codec == "ULPFEC"){
@@ -277,6 +283,8 @@ namespace SDP{
       type = "audio";
     }else if (words[0] == "m=video"){
       type = "video";
+    }else if (words[0] == "m=application"){
+      type = "meta";
     }else{
       ERROR_MSG("Unhandled media type: `%s`.", words[0].c_str());
       return false;
@@ -289,6 +297,7 @@ namespace SDP{
     for (size_t i = 3; i < words.size(); ++i){
       SDP::MediaFormat format;
       format.payloadType = JSON::Value(words[i]).asInt();
+      if (words[i] == "webrtc-datachannel"){format.encodingName = "WEBRTC-DATACHANNEL";}
       formats[format.payloadType] = format;
       if (!payloadTypes.empty()){payloadTypes += " ";}
       payloadTypes += words[i];
@@ -711,17 +720,11 @@ namespace SDP{
   static bool sdp_get_name_value_from_varval(const std::string &str, std::string &var, std::string &value){
 
     if (str.empty()){
-      ERROR_MSG("Cannot get `name` and `value` from string because the given string is empty. "
-                "String is: `%s`",
-                str.c_str());
       return false;
     }
 
     size_t pos = str.find("=");
     if (pos == std::string::npos){
-      WARN_MSG("Cannot get `name` and `value` from string becuase it doesn't contain a `=` sign. "
-               "String is: `%s`. Returning the string as is.",
-               str.c_str());
       value = str;
       return true;
     }
@@ -776,7 +779,7 @@ namespace SDP{
   }
 
   Answer::Answer()
-      : isAudioEnabled(false), isVideoEnabled(false), candidatePort(0),
+      : isAudioEnabled(false), isVideoEnabled(false), isMetaEnabled(false), candidatePort(0),
         videoLossPrevention(SDP_LOSS_PREVENTION_NONE){}
 
   bool Answer::parseOffer(const std::string &sdp){
@@ -814,6 +817,15 @@ namespace SDP{
       return false;
     }
     isAudioEnabled = true;
+    return true;
+  }
+
+  bool Answer::enableMeta(const std::string &codecName){
+    if (!enableMedia("meta", codecName, answerMetaMedia, answerMetaFormat)){
+      DONTEVEN_MSG("Not enabling meta.");
+      return false;
+    }
+    isMetaEnabled = true;
     return true;
   }
 
@@ -934,7 +946,7 @@ namespace SDP{
 
       bool isEnabled = false;
       std::vector<uint8_t> supportedPayloadTypes;
-      if (type != "audio" && type != "video"){continue;}
+      if (type != "audio" && type != "video" && type != "meta"){continue;}
 
       // port = 9 (default), port = 0 (disable this media)
       if (type == "audio"){
@@ -947,6 +959,10 @@ namespace SDP{
         fmtMedia = &answerVideoFormat;
         fmtRED = media->getFormatForEncodingName("RED");
         fmtULPFEC = media->getFormatForEncodingName("ULPFEC");
+      }else if (type == "meta"){
+        isEnabled = isMetaEnabled;
+        media = &answerMetaMedia;
+        fmtMedia = &answerMetaFormat;
       }
 
       if (!media){
@@ -975,10 +991,17 @@ namespace SDP{
       }
       std::string payloadTypes = ss.str();
 
+      std::string protocol = "UDP/TLS/RTP/SAVPF";
+      if (type == "meta"){
+        protocol = "UDP/DTLS/SCTP";
+        payloadTypes = "webrtc-datachannel";
+        type = "application";
+      }
+
       if (isEnabled){
-        addLine("m=%s 9 UDP/TLS/RTP/SAVPF %s", type.c_str(), payloadTypes.c_str());
+        addLine("m=%s 9 %s %s", type.c_str(), protocol.c_str(), payloadTypes.c_str());
       }else{
-        addLine("m=%s %u UDP/TLS/RTP/SAVPF %s", type.c_str(), 0, mediaOffer.payloadTypes.c_str());
+        addLine("m=%s %u %s %s", type.c_str(), 0, protocol.c_str(), mediaOffer.payloadTypes.c_str());
       }
 
       addLine("c=IN IP4 0.0.0.0");
@@ -996,9 +1019,14 @@ namespace SDP{
       addLine("a=fingerprint:sha-256 %s", fingerprint.c_str());
       addLine("a=ice-ufrag:%s", fmtMedia->iceUFrag.c_str());
       addLine("a=ice-pwd:%s", fmtMedia->icePwd.c_str());
-      addLine("a=rtcp-mux");
-      addLine("a=rtcp-rsize");
-      addLine("a=%s", fmtMedia->rtpmap.c_str());
+      if (type == "application"){
+        addLine("a=sctp-port:5000");
+        addLine("a=max-message-size:262144");
+      }else{
+        addLine("a=rtcp-mux");
+        addLine("a=rtcp-rsize");
+        addLine("a=%s", fmtMedia->rtpmap.c_str());
+      }
 
       // BEGIN FEC/RTX: testing with just FEC or RTX
       if ((videoLossPrevention & SDP_LOSS_PREVENTION_ULPFEC) && fmtRED && fmtULPFEC){
@@ -1136,14 +1164,11 @@ namespace SDP{
       return false;
     }
 
-    INFO_MSG("Enabling media for codec: %s", format->encodingName.c_str());
-
     outMedia = *media;
     outFormat = *format;
     outFormat.rtcpFormats.clear();
     outFormat.icePwd = generateIcePwd();
     outFormat.iceUFrag = generateIceUFrag();
-
     return true;
   }
 

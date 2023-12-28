@@ -167,6 +167,7 @@ namespace SDP{
     bool hasAudio(); ///< Check if the offer has audio.
     bool enableVideo(const std::string &codecName);
     bool enableAudio(const std::string &codecName);
+    bool enableMeta(const std::string &codecName);
     void setCandidate(const std::string &ip, uint16_t port);
     void setFingerprint(const std::string &fingerprintSha); ///< Set the SHA265 that represents the
                                                             ///< certificate that is used with DTLS.
@@ -189,10 +190,13 @@ namespace SDP{
     SDP::Session sdpOffer;
     SDP::Media answerVideoMedia;
     SDP::Media answerAudioMedia;
+    SDP::Media answerMetaMedia;
     SDP::MediaFormat answerVideoFormat;
     SDP::MediaFormat answerAudioFormat;
+    SDP::MediaFormat answerMetaFormat;
     bool isAudioEnabled;
     bool isVideoEnabled;
+    bool isMetaEnabled;
     std::string candidateIP; ///< We use rtcp-mux and BUNDLE; so only one candidate necessary.
     uint16_t candidatePort;  ///< We use rtcp-mux and BUNDLE; so only one candidate necessary.
     std::string fingerprint;

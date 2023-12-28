@@ -735,10 +735,14 @@ namespace Mist{
     std::set<size_t> validTracks = M.getValidTracks();
     if (!validTracks.size()){return 0;}
     uint64_t start = 0xFFFFFFFFFFFFFFFFull;
+    uint64_t nonMetaStart = 0xFFFFFFFFFFFFFFFFull;
     if (userSelect.size()){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
         if (M.trackValid(it->first) && start > M.getFirstms(it->first)){
           start = M.getFirstms(it->first);
+        }
+        if (M.trackValid(it->first) && M.getType(it->first) != "meta" && nonMetaStart > M.getFirstms(it->first)){
+          nonMetaStart = M.getFirstms(it->first);
         }
       }
     }else{
@@ -746,7 +750,7 @@ namespace Mist{
         if (start > M.getFirstms(*it)){start = M.getFirstms(*it);}
       }
     }
-    return start;
+    return nonMetaStart != 0xFFFFFFFFFFFFFFFFull ? nonMetaStart: start;
   }
 
   /// Return the end time of the selected tracks, or 0 if unknown or live.

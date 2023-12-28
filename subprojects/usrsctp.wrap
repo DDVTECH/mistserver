@@ -1,0 +1,5 @@
+[wrap-git]
+url = https://github.com/sctplab/usrsctp.git
+revision = 0.9.5.0
+depth = 1
+

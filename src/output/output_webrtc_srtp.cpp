@@ -14,6 +14,10 @@ SRTPReader::SRTPReader(){
   memset((void *)&policy, 0x00, sizeof(policy));
 }
 
+SRTPReader::~SRTPReader(){
+  if (shutdown() != 0){FAIL_MSG("Failed to cleanly shutdown the srtp reader.");}
+}
+
 /*
   Before initializing the srtp library we shut it down first
   because initializing the library twice results in an error.
@@ -202,6 +206,11 @@ SRTPWriter::SRTPWriter(){
   memset((void *)&session, 0x00, sizeof(session));
   memset((void *)&policy, 0x00, sizeof(policy));
 }
+
+SRTPWriter::~SRTPWriter(){
+  if (shutdown() != 0){FAIL_MSG("Failed to cleanly shutdown the srtp writer.");}
+}
+
 
 /*
   Before initializing the srtp library we shut it down first

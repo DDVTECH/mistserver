@@ -372,6 +372,21 @@ namespace Mist{
       forceType = ",forceType:\"" + req.GetVar("forcetype") + "\"";
     }
 
+    std::string forcePlayer = "";
+    if (req.GetVar("forceplayer").size()){
+      forcePlayer = ",forcePlayer:\"" + req.GetVar("forceplayer") + "\"";
+    }
+
+    std::string fillSpace = "";
+    if (req.GetVar("fillspace").size()){
+      fillSpace = ",fillSpace:" + req.GetVar("fillspace");
+    }
+
+    std::string controls = "";
+    if (req.GetVar("controls").size()){
+      controls = ",controls:\"" + req.GetVar("controls") + "\"";
+    }
+
     std::string devSkin = "";
     if (req.GetVar("dev").size()){devSkin = ",skin:\"dev\"";}
     devSkin += ",urlappend:\"" + req.allVars() + "\"";
@@ -425,7 +440,7 @@ namespace Mist{
               "\">Click here to play the video [MP4]</a></video></noscript><script "
               "src=\"player.js\"></script><script>var mv ={reference:false}; mistPlay('" +
               streamName + "',{host:'" + fullURL.getUrl() + "',target:document.getElementById('" + streamName +
-              "'),MistVideoObject:mv" + forceType + devSkin + "});" + seekTo + "</script></div></body></html>");
+              "'),MistVideoObject:mv" + forceType + forcePlayer + fillSpace + controls + devSkin + "});" + seekTo + "</script></div></body></html>");
     if ((uAgent.find("iPad") != std::string::npos) || (uAgent.find("iPod") != std::string::npos) ||
         (uAgent.find("iPhone") != std::string::npos)){
       if (uAgent.find("OS 11") == std::string::npos && uAgent.find("OS 12") == std::string::npos &&
